@@ -47,5 +47,6 @@ jobs:
       - name: Make sure the updater has everything it needs
         run: |
           gh release upload "$TAG" release/*.exe release/*.blockmap release/latest*.yml --clobber
+          gh release edit "$TAG" --draft=false # a stale draft for this tag must not swallow the release
           gh release view "$TAG" --json assets --jq '.assets[].name' | tee assets.txt
           grep -q 'Setup-.*\.exe$' assets.txt && grep -q '^latest\.yml$' assets.txt
