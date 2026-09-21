@@ -94,7 +94,7 @@ export function updateHud(g: Game): void {
     const id = g.relics[i];
     if (!id) return '<div class="relic empty"></div>';
     const r = relicDef(id);
-    return `<div class="relic ${r.rarity}" data-tip="${esc(`${r.name} — ${r.desc}`)}">${r.icon}</div>`;
+    return `<div class="relic ${r.rarity}" tabindex="0" data-tip="${esc(`${r.name} — ${r.desc}`)}">${r.icon}</div>`;
   }).join('');
   html('h-relics', slots);
 
@@ -106,6 +106,13 @@ export function updateHud(g: Game): void {
   $('h-ab-icon').classList.toggle('active', p.abilityTime > 0);
   $('h-ab-cd').style.height = `${(p.abilityCd / p.abilityCdMax) * 100}%`;
   text('h-ab-time', ready ? '✦' : p.abilityCd.toFixed(1));
+  // the touch ability button mirrors the cooldown, because a thumb covers the HUD panel
+  const touchBtn = document.getElementById('btn-ability');
+  if (touchBtn) {
+    touchBtn.classList.toggle('ready', ready);
+    text('btn-ability-text', ready ? '✦' : p.abilityCd.toFixed(0));
+    $('btn-ability-cd').style.height = `${(p.abilityCd / p.abilityCdMax) * 100}%`;
+  }
 
   const banner = $('h-banner');
   text('h-banner', g.banner.text);

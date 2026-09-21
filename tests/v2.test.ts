@@ -16,7 +16,7 @@ import { classXpForRun, goldDrop, masteryBonus, masteryRank, metaCost, metaLoado
 import { applyAffixes, eliteChance, rollAffixes } from '../src/logic/elites';
 import { neutralMods } from '../src/logic/mods';
 import { relicPoolFor, rollRelics, withRelic } from '../src/logic/relics';
-import { applyRun, buyMeta, defaultSave, exportSave, importSave, migrate, type RunSummary } from '../src/logic/save';
+import { applyRun, buyMeta, defaultSave, exportSave, importSave, migrate, SAVE_VERSION, type RunSummary } from '../src/logic/save';
 import { applyTradeoff, rollLevelUpOptions, upgradeAmount } from '../src/logic/upgrades';
 import { generateWave, isBossWave } from '../src/logic/waves';
 import { simulateRun } from '../src/sim/bot';
@@ -434,7 +434,7 @@ describe('unlock conditions', () => {
 describe('save migration', () => {
   it('v0.1 best-wave records survive', () => {
     const save = migrate(undefined, { paladin: 7, archer: 12 });
-    expect(save.version).toBe(2);
+    expect(save.version).toBe(SAVE_VERSION); // was the literal 2 in v0.2; the save format is version 3 since v0.3
     expect(save.classes.paladin.bestWave).toBe(7);
     expect(save.classes.archer.bestWave).toBe(12);
     expect(save.classes.viking.bestWave).toBe(0);

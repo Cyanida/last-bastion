@@ -2,13 +2,15 @@ import { AFFIXES, ELITES } from '../config/elites';
 import { GAME } from '../config/game';
 import { MODIFIERS } from '../config/waves';
 import { clamp, TAU } from '../core/math';
+import { quality } from '../core/quality';
 import type { Game } from '../core/types';
 import { getSprite, type Sprite } from './sprites';
 
 export interface View {
   w: number; // canvas pixels
   h: number;
-  zoom: number;
+  zoom: number; // canvas pixels per world pixel (includes dpr)
+  dpr: number; // canvas pixels per CSS pixel, capped by the quality level
 }
 
 type Ctx = CanvasRenderingContext2D;
@@ -64,8 +66,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   const vw = view.w / z;
   const vh = view.h / z;
   const cam = cameraFor(g, view);
-  const cx = cam.x + (Math.random() - 0.5) * g.shake;
-  const cy = cam.y + (Math.random() - 0.5) * g.shake;
+  const cx = cam.x + (Math.random() - 0.5) * g.shake * quality.shake;
+  const cy = cam.y + (Math.random() - 0.5) * g.shake * quality.shake;
   const visible = (x: number, y: number, pad: number) => x > cx - pad && x < cx + vw + pad && y > cy - pad && y < cy + vh + pad;
   const p = g.player;
 
@@ -177,10 +179,12 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   }
 
   // shadows in one batch, then sprites
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  for (const e of g.enemies) if (visible(e.x, e.y, 80)) shadow(ctx, e.x, e.y, e.r);
-  for (const m of g.minions) shadow(ctx, m.x, m.y, m.r);
-  shadow(ctx, p.x, p.y, p.r);
+  if (quality.shadows) {
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    for (const e of g.enemies) if (visible(e.x, e.y, 80)) shadow(ctx, e.x, e.y, e.r);
+    for (const m of g.minions) shadow(ctx, m.x, m.y, m.r);
+    shadow(ctx, p.x, p.y, p.r);
+  }
 
   for (const e of g.enemies) {
     if (!visible(e.x, e.y, 80)) continue;
@@ -311,7 +315,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   }
 
   // targeted-ability reticle
-  if (aimRadius > 0 && p.abilityCd <= 0) {
+  if (aimRadius > 0 && p.abilityCd <= 0 && g.input.showAim) {
     ctx.globalAlpha = 0.6;
     ctx.strokeStyle = p.cls.ability.aura;
     ctx.lineWidth = 2;

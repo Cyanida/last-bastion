@@ -2,14 +2,19 @@ import './ui/style.css';
 import { ARENAS, type ArenaId } from './config/arenas';
 import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
-import { GAME } from './config/game';
+import { GAME, VIEW } from './config/game';
 import { initAudio, isMuted, toggleMute } from './core/audio';
-import { abilityHeld, initInput, input, moveAxis } from './core/input';
+import { clamp } from './core/math';
+import { platform, type UpdateStatus } from './core/platform';
+import { registerServiceWorker } from './core/pwa';
+import { quality, sampleFrame, setQuality } from './core/quality';
 import { loadSave, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
 import { createGame, summarizeRun, updateGame } from './game';
+import { initInput, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
 import { upgradeOptions } from './logic/abilityUpgrades';
 import { lockedArenas, lockedRelics, withAchievements } from './logic/achievements';
+import { densestCluster, resolveAim } from './logic/aim';
 import { masteryRank, rerollCost } from './logic/economy';
 import { applyRun, buyMeta, defaultSave, importSave, type Save } from './logic/save';
 import { buildArena } from './render/arena';
@@ -19,19 +24,23 @@ import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { buildHud, setMuteIcon, showHud, updateHud } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showKeep, showLevelUp, showPause, showRelicOffer, showResults, showSaveDialog, showTitle } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showKeep, showLevelUp, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTitle, type TitleInfo } from './ui/screens';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
-const view: View = { w: 0, h: 0, zoom: 1 };
+const view: View = { w: 0, h: 0, zoom: 1, dpr: 1 };
 const DT = 1 / GAME.tickRate;
 const MAX_STEPS = 5; // after a long stall, drop time instead of spiralling
+const DEFAULT_CAST_RANGE = 320; // auto-aim reach for abilities without a castRange of their own
 
 let state: State = 'menu';
 let game: Game | null = null;
 let save: Save = loadSave();
+let onTitle = false;
+let notice: TitleInfo['notice'] = null; // "new version available", shown on the title screen only
+let updateStatus = 'No check yet.';
 
 const arenaCache = new Map<ArenaId, HTMLCanvasElement>();
 function arenaCanvas(id: ArenaId): HTMLCanvasElement {
@@ -52,12 +61,24 @@ function commit(next: Save): ReturnType<typeof withAchievements>['earned'] {
 function menu(): void {
   state = 'menu';
   game = null;
+  onTitle = false;
   showHud(false);
+  setTouchControls(false);
 }
 
 function toTitle(): void {
   menu();
-  showTitle(save.gold, { start: toSelect, keep: toKeep, chronicle: () => showChronicle(save, toTitle), save: toSaveDialog });
+  onTitle = true;
+  showTitle(
+    { gold: save.gold, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: platform.buildDate, notice, daily: { date: '', best: 0 } },
+    { start: toSelect, daily: toSelect, keep: toKeep, chronicle: () => (menu(), showChronicle(save, toTitle)), settings: toSettings },
+  );
+}
+
+/** Updates never interrupt anything: they only ever surface as a notice on the title screen. */
+function setNotice(next: TitleInfo['notice']): void {
+  notice = next;
+  if (onTitle) toTitle();
 }
 
 function toSelect(): void {
@@ -68,7 +89,7 @@ function toSelect(): void {
     back: toTitle,
     settings(arena, tier) {
       if (lockedArenas(save).includes(arena) || tier > save.tierUnlocked) return;
-      commit({ ...save, settings: { arena, tier } });
+      commit({ ...save, settings: { ...save.settings, arena, tier } });
       toSelect();
     },
   });
@@ -85,10 +106,38 @@ function toKeep(): void {
   });
 }
 
+function toSettings(): void {
+  menu();
+  const d = platform.desktop;
+  showSettings(
+    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
+    {
+      back: toTitle,
+      saveData: toSaveDialog,
+      quality(q) {
+        commit({ ...save, settings: { ...save.settings, quality: q } });
+        setQuality(q);
+        resize();
+        toSettings();
+      },
+      mute() {
+        mute();
+        toSettings();
+      },
+      checkUpdates: () => void d?.checkForUpdates(save.settings.prerelease),
+      prerelease(v) {
+        commit({ ...save, settings: { ...save.settings, prerelease: v } });
+        void d?.checkForUpdates(v);
+        toSettings();
+      },
+    },
+  );
+}
+
 function toSaveDialog(): void {
   menu();
   showSaveDialog(save, {
-    back: toTitle,
+    back: toSettings,
     import(text) {
       const imported = importSave(text);
       if (imported) commit(imported);
@@ -113,13 +162,19 @@ function startRun(id: ClassId): void {
     classXp: save.classes[id].xp,
     lockedRelics: lockedRelics(save),
   });
-  state = 'playing';
+  play();
   showHud(true);
+}
+
+function play(): void {
+  state = 'playing';
+  onTitle = false;
+  if (game) setTouchControls(true, abilityAimRadius(game.player) > 0);
 }
 
 function resume(): void {
   clearOverlay();
-  state = 'playing'; // the loop opens the next queued choice, if any
+  play(); // the loop opens the next queued choice, if any
 }
 
 function openLevelUp(g: Game): void {
@@ -146,6 +201,7 @@ function openLevelUp(g: Game): void {
 /** Relics first (they are lying on the ground), then ability tiers, then boons. */
 function openChoice(g: Game): void {
   state = 'choice';
+  setTouchControls(false);
   if (g.relicOffers.length > 0) {
     showRelicOffer(g.relicOffers[0], g.relics, g.relicSlots, {
       take: (id, replace) => void (resolveRelicOffer(g, id, replace), resume()),
@@ -166,6 +222,7 @@ function togglePause(): void {
   if (state === 'playing' && game) {
     const g = game;
     state = 'paused';
+    setTouchControls(false);
     showPause({ relics: g.relics, upgrades: g.player.upgrades }, togglePause, () => endRun(g));
   } else if (state === 'paused') resume();
 }
@@ -173,6 +230,7 @@ function togglePause(): void {
 /** Death or "end run": either way the run is banked. */
 function endRun(g: Game): void {
   state = 'results';
+  setTouchControls(false);
   const id = g.player.cls.id;
   const prevBest = save.classes[id].bestWave;
   const result = applyRun(save, summarizeRun(g));
@@ -194,14 +252,18 @@ function mute(): void {
 }
 
 // ---------- simulation step ----------
+/** The input layer speaks in intents and screen pixels; this turns them into the game's world-space input. */
 function sampleInput(g: Game): void {
-  const axis = moveAxis();
+  const intent = pollInput();
   const cam = cameraFor(g, view);
-  g.input.moveX = axis.x;
-  g.input.moveY = axis.y;
-  g.input.aimX = cam.x + input.mouseX / view.zoom;
-  g.input.aimY = cam.y + input.mouseY / view.zoom;
-  g.input.ability = abilityHeld();
+  const pxToWorld = view.dpr / view.zoom;
+  const p = g.player;
+  const ability = p.cls.ability;
+  const castRange = 'castRange' in ability ? ability.castRange : DEFAULT_CAST_RANGE;
+  const needsAuto = intent.aim.kind !== 'screen' && (intent.ability || intent.showAim);
+  const auto = needsAuto ? densestCluster(g.enemies, p, castRange, abilityAimRadius(p) || 120) : null;
+  const aim = resolveAim(intent.aim, p, auto, castRange, (x, y) => ({ x: cam.x + x * pxToWorld, y: cam.y + y * pxToWorld }), pxToWorld);
+  g.input = { moveX: intent.moveX, moveY: intent.moveY, aimX: aim.x, aimY: aim.y, ability: intent.ability, showAim: intent.showAim };
 }
 
 function afterStep(g: Game): void {
@@ -226,12 +288,19 @@ function draw(now: number): void {
   } else renderBackdrop(ctx, view, arenaCanvas(save.settings.arena), now / 1000);
 }
 function frame(now: number): void {
-  acc += (now - last) / 1000;
+  const elapsed = now - last;
+  acc += elapsed / 1000;
   last = now;
+  pumpGamepad();
   let steps = 0;
   while (acc >= DT) {
     if (steps++ < MAX_STEPS) step();
     acc -= DT;
+  }
+  if (state === 'playing' && game) {
+    const before = quality.level;
+    sampleFrame(elapsed, game.wave);
+    if (quality.level !== before) resize(); // auto quality dropped: also lowers the pixel ratio
   }
   // ponytail: no render interpolation; at 60 Hz sim it is not visible. Add alpha lerp if tickRate drops.
   draw(now);
@@ -240,25 +309,52 @@ function frame(now: number): void {
 
 // ---------- boot ----------
 function resize(): void {
-  view.w = canvas.width = window.innerWidth;
-  view.h = canvas.height = window.innerHeight;
-  view.zoom = Math.max(1, Math.min(2, Math.min(view.w / 1280, view.h / 720)));
+  // innerWidth/innerHeight, not 100vh: on iOS 100vh includes the area under the browser chrome
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  view.dpr = Math.min(window.devicePixelRatio || 1, quality.maxDpr);
+  view.w = canvas.width = Math.round(w * view.dpr);
+  view.h = canvas.height = Math.round(h * view.dpr);
+  canvas.style.width = `${w}px`;
+  canvas.style.height = `${h}px`;
+  view.zoom = clamp(Math.min(w / VIEW.targetW, h / VIEW.targetH), VIEW.minZoom, VIEW.maxZoom) * view.dpr;
+  const root = document.documentElement;
+  root.style.setProperty('--hud-scale', String(clamp(Math.min(w / 1280, h / 720), 0.55, 1)));
+  root.classList.toggle('compact', h < 560);
 }
 window.addEventListener('resize', resize);
-window.addEventListener('keydown', (e) => {
-  if (e.repeat) return;
-  if (e.code === 'Escape' || e.code === 'KeyP') togglePause();
-  if (e.code === 'KeyM') mute();
-});
+window.visualViewport?.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
 });
+matchMedia('(orientation: portrait)').addEventListener('change', (e) => {
+  if (e.matches && platform.touch && state === 'playing') togglePause(); // the "rotate your device" overlay is up
+});
 
+setQuality(save.settings.quality);
 resize();
-initInput();
+initInput(canvas);
+document.documentElement.classList.toggle('touch', platform.touch);
+onFirstGesture(initAudio); // iOS: the AudioContext may only start from a touch
+onAction((a) => {
+  if (a === 'pause') togglePause();
+  if (a === 'mute') mute();
+});
 buildHud(togglePause, mute);
 setMuteIcon(isMuted());
-commit(save); // writes the migrated save once, and grants anything a v0.1 record already earned
+commit(save); // writes the migrated save once, and grants anything an older record already earned
+
+if (platform.desktop) {
+  platform.desktop.onUpdateStatus((s: UpdateStatus) => {
+    if (s.state === 'error') updateStatus = `Update check failed: ${s.message}`;
+    else if (s.state === 'downloading') updateStatus = `Downloading v${s.version}… ${Math.round(s.percent)}%`;
+    else if ('version' in s) updateStatus = s.state === 'ready' ? `v${s.version} is ready to install.` : `v${s.version} found, downloading…`;
+    else updateStatus = s.state === 'checking' ? 'Checking…' : 'You are up to date.';
+    if (s.state === 'ready') setNotice({ text: `Update to v${s.version} ready`, button: 'Restart', action: () => platform.desktop!.quitAndInstall() });
+  });
+  void platform.desktop.checkForUpdates(save.settings.prerelease);
+} else registerServiceWorker((apply) => setNotice({ text: 'New version available', button: 'Tap to reload', action: apply }));
+
 toTitle();
 requestAnimationFrame(frame);
 
@@ -275,14 +371,16 @@ if (import.meta.env.DEV) {
       get save() {
         return save;
       },
+      quality,
       start: startRun,
       draw: () => draw(performance.now()),
-      /** Advance n ticks with real UI flow; choice screens are answered by clicking their first option. */
-      run(n: number, ability = false, steer = false) {
+      /** Advance n ticks with real UI flow; choice screens are answered by clicking their first option. mode: 'input' reads the real input layer. */
+      run(n: number, ability = false, mode: boolean | 'input' = false) {
         for (let i = 0; i < n && game && state !== 'results'; i++) {
           if (state === 'choice') (document.querySelector('[data-pick]') as HTMLElement).click();
           if (state !== 'playing') continue;
-          if (steer) botInput(game); // the bot moves and casts, but the real choice screens still open
+          if (mode === 'input') sampleInput(game);
+          else if (mode) botInput(game); // the bot moves and casts, but the real choice screens still open
           else game.input.ability = ability;
           updateGame(game, DT);
           afterStep(game);

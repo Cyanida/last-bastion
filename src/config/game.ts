@@ -36,3 +36,14 @@ export const GAME = {
   maxParticles: 800,
   maxTexts: 150,
 };
+
+/** Render quality levels. Auto starts on high and drops to low if early frames are slow (phones). */
+export type QualitySetting = 'auto' | 'low' | 'high';
+export const QUALITY = {
+  high: { particles: 1, shake: 1, shadows: true, maxDpr: 2 },
+  low: { particles: 0.35, shake: 0.4, shadows: false, maxDpr: 1.5 },
+  auto: { maxFrameMs: 21, windowFrames: 240, untilWave: 4 }, // average above 21 ms (~48 fps) over 240 frames -> low
+};
+
+/** Camera zoom: the view is about VIEW.targetW x VIEW.targetH world pixels, within these bounds (phones zoom out). */
+export const VIEW = { targetW: 1280, targetH: 720, minZoom: 0.6, maxZoom: 2 };

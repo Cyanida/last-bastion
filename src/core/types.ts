@@ -247,7 +247,7 @@ export interface Game {
   effects: Effect[];
   hash: SpatialHash<Enemy>;
   rng: Rng;
-  input: { moveX: number; moveY: number; aimX: number; aimY: number; ability: boolean };
+  input: { moveX: number; moveY: number; aimX: number; aimY: number; ability: boolean; showAim: boolean };
   wave: number;
   waveHpMult: number;
   waveDmgMult: number;

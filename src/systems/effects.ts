@@ -1,11 +1,13 @@
 import { GAME } from '../config/game';
 import { compact, TAU } from '../core/math';
+import { quality } from '../core/quality';
 import type { Game } from '../core/types';
 
 // Cosmetic only, so Math.random instead of the seeded game rng.
 
 export function burst(g: Game, x: number, y: number, color: string, n: number, speed = 130): void {
-  for (let i = 0; i < n && g.particles.length < GAME.maxParticles; i++) {
+  const count = Math.ceil(n * quality.particles);
+  for (let i = 0; i < count && g.particles.length < GAME.maxParticles; i++) {
     const a = Math.random() * TAU;
     const v = speed * (0.3 + Math.random() * 0.7);
     const life = 0.25 + Math.random() * 0.35;

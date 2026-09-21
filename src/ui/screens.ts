@@ -4,7 +4,10 @@ import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
 import { MASTERY, META, META_IDS, TIER_UNLOCK_WAVE, TIERS, type MetaId } from '../config/economy';
 import { relicDef, type RelicId } from '../config/relics';
+import type { QualitySetting } from '../config/game';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
+import { onAction } from '../input';
+import type { Action } from '../input/mapping';
 import { gateOf, lockedArenas } from '../logic/achievements';
 import { masteryRank, metaCost } from '../logic/economy';
 import { exportSave, type Save } from '../logic/save';
@@ -12,7 +15,7 @@ import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
 import { getSprite } from '../render/sprites';
 
 const overlay = () => document.getElementById('overlay')!;
-let keyHandler: ((e: KeyboardEvent) => void) | null = null;
+let stopActions: (() => void) | null = null;
 
 function show(html: string): HTMLElement {
   clearOverlay();
@@ -23,15 +26,15 @@ function show(html: string): HTMLElement {
 }
 
 export function clearOverlay(): void {
-  if (keyHandler) window.removeEventListener('keydown', keyHandler);
-  keyHandler = null;
+  stopActions?.();
+  stopActions = null;
   overlay().classList.add('hidden');
   overlay().innerHTML = '';
 }
 
-function onKeys(handler: (e: KeyboardEvent) => void): void {
-  keyHandler = handler;
-  window.addEventListener('keydown', handler);
+/** Screens never read keys: they react to input-layer actions (keyboard, gamepad...). */
+function onActions(handler: (a: Action) => void): void {
+  stopActions = onAction(handler);
 }
 
 function click(el: HTMLElement, selector: string, fn: (target: HTMLElement) => void): void {
@@ -39,11 +42,11 @@ function click(el: HTMLElement, selector: string, fn: (target: HTMLElement) => v
 }
 
 /** Number keys 1..n pick the n-th [data-pick] card. */
-function numberKeys(el: HTMLElement, other?: (e: KeyboardEvent) => void): void {
-  onKeys((e) => {
-    const m = /^Digit(\d)$/.exec(e.code);
+function numberKeys(el: HTMLElement, other?: (a: Action) => void): void {
+  onActions((a) => {
+    const m = /^pick(\d)$/.exec(a);
     if (m) el.querySelectorAll<HTMLElement>('[data-pick]')[Number(m[1]) - 1]?.click();
-    else other?.(e);
+    else other?.(a);
   });
 }
 
@@ -56,22 +59,67 @@ const relicCard = (id: RelicId, attrs: string, extra = '') => {
 
 // ---------------------------------------------------------------- title & menus
 
-export function showTitle(gold: number, on: { start: () => void; keep: () => void; chronicle: () => void; save: () => void }): void {
+export interface TitleInfo {
+  gold: number;
+  label: string; // "V0.3 · Web"
+  mobile: boolean;
+  buildDate: string;
+  notice: { text: string; button: string; action: () => void } | null; // "new version available"
+  daily: { date: string; best: number };
+}
+
+export function showTitle(info: TitleInfo, on: { start: () => void; daily: () => void; keep: () => void; chronicle: () => void; settings: () => void }): void {
   const el = show(`
     <div class="title">
       <h1>Last Bastion</h1>
-      <div class="version">V0.2</div>
+      <div class="version">${info.label}${info.mobile ? ' <span class="badge">Mobile</span>' : ''}</div>
       <p class="sub">The walls have fallen silent. The courtyard has not.</p>
+      ${info.notice ? `<div class="notice panel"><span>${info.notice.text}</span><button class="btn small" data-notice>${info.notice.button}</button></div>` : ''}
       <button class="btn big" data-go="start">Take up arms</button>
       <div class="row">
-        <button class="btn" data-go="keep">The Keep · 🪙 ${gold}</button>
+        ${info.daily.date ? `<button class="btn" data-go="daily">Daily Trial${info.daily.best ? ` · best ${info.daily.best}` : ''}</button>` : ''}
+        <button class="btn" data-go="keep">The Keep · 🪙 ${info.gold}</button>
         <button class="btn" data-go="chronicle">Chronicle</button>
-        <button class="btn" data-go="save">Save data</button>
+        <button class="btn" data-go="settings">Settings</button>
       </div>
-      <p class="hint">WASD / arrows to move · attacks are automatic · Space or right mouse for your signature ability · Esc / P to pause · M to mute</p>
+      <p class="hint">${info.mobile ? 'Left thumb moves · right thumb casts your signature ability (hold and drag to aim) · attacks are automatic' : 'WASD / arrows or gamepad to move · attacks are automatic · Space or right mouse for your signature ability · Esc / P to pause · M to mute'}</p>
+      <p class="hint build">build ${info.buildDate}</p>
     </div>`);
   click(el, '[data-go]', (b) => on[b.dataset.go as keyof typeof on]());
-  onKeys((e) => (e.code === 'Enter' || e.code === 'Space') && on.start());
+  click(el, '[data-notice]', () => info.notice?.action());
+  onActions((a) => a === 'confirm' && on.start());
+}
+
+export interface SettingsInfo {
+  quality: QualitySetting;
+  effective: string;
+  muted: boolean;
+  desktop: { version: string; status: string; prerelease: boolean } | null;
+}
+
+export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
+  const chip = (q: QualitySetting) => `<button class="chip ${info.quality === q ? 'on' : ''}" data-quality="${q}">${q[0].toUpperCase()}${q.slice(1)}</button>`;
+  const el = show(`
+    <div class="panel dialog wide settings">
+      <h1 class="small">Settings</h1>
+      <div class="setting"><div><b>Graphics quality</b><span>Low cuts particles, screen shake and shadows. Auto measures the first waves and drops to low if needed. Now: ${info.effective}.</span></div><div>${(['auto', 'low', 'high'] as const).map(chip).join('')}</div></div>
+      <div class="setting"><div><b>Sound</b><span>Synthesised effects.</span></div><button class="chip on" data-act="mute">${info.muted ? 'Off' : 'On'}</button></div>
+      ${info.desktop ? `
+      <div class="setting"><div><b>Updates</b><span>Version ${info.desktop.version}. ${info.desktop.status}</span></div><button class="chip" data-act="check">Check for updates</button></div>
+      <div class="setting"><div><b>Beta versions</b><span>Also install pre-releases.</span></div><button class="chip ${info.desktop.prerelease ? 'on' : ''}" data-act="pre">${info.desktop.prerelease ? 'On' : 'Off'}</button></div>` : ''}
+      <div class="setting"><div><b>Save data</b><span>Export, import or reset your progress.</span></div><button class="chip" data-act="save">Open</button></div>
+      <button class="btn" data-act="back">Back</button>
+    </div>`);
+  click(el, '[data-quality]', (b) => on.quality(b.dataset.quality as QualitySetting));
+  click(el, '[data-act]', (b) => {
+    const act = b.dataset.act;
+    if (act === 'mute') on.mute();
+    else if (act === 'check') on.checkUpdates();
+    else if (act === 'pre') on.prerelease(!info.desktop?.prerelease);
+    else if (act === 'save') on.saveData();
+    else on.back();
+  });
+  onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
 export function showClassSelect(save: Save, on: { pick: (id: ClassId) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void }): void {
@@ -239,7 +287,7 @@ export function showLevelUp(
     </div>`);
   click(el, '[data-pick]', (b) => on.pick(options[Number(b.dataset.pick)]));
   click(el, '[data-reroll]', on.reroll);
-  numberKeys(el, (e) => e.code === 'KeyR' && canReroll && on.reroll());
+  numberKeys(el, (a) => a === 'reroll' && canReroll && on.reroll());
 }
 
 export function showRelicOffer(options: RelicId[], held: RelicId[], slots: number, on: { take: (id: RelicId, replace?: number) => void; skip: () => void }): void {
@@ -336,5 +384,5 @@ export function showResults(r: RunResult, onRetry: () => void, onMenu: () => voi
     </div>`);
   click(el, '[data-retry]', onRetry);
   click(el, '[data-menu]', onMenu);
-  onKeys((e) => e.code === 'Enter' && onRetry());
+  onActions((a) => a === 'confirm' && onRetry());
 }

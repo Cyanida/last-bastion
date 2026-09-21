@@ -50,7 +50,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     effects: [],
     hash: new SpatialHash(GAME.spatialCell),
     rng: mulberry32(seed),
-    input: { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false },
+    input: { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, showAim: false },
     wave: 0,
     waveHpMult: 1,
     waveDmgMult: 1,
