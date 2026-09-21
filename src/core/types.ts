@@ -345,6 +345,7 @@ export interface Game {
   perf: number; // smoothed recent performance, -1..1 (the director's rubber band)
   waveT: number; // seconds since this wave started
   commandersKilled: number;
+  barriers: (Body & { life: number })[]; // temporary walls raised by bosses; they block everyone, like arena obstacles
   banner: { text: string; t: number };
   over: boolean;
 }

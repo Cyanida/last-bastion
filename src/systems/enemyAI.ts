@@ -38,6 +38,9 @@ function think(g: Game, e: Enemy, t: Target, profile: AiProfile): void {
   const a = angleTo(e, t);
   const ahead = g.hash.query(e.x + Math.cos(a) * AI_TUNING.crowdProbe, e.y + Math.sin(a) * AI_TUNING.crowdProbe, AI_TUNING.crowdRadius, []);
   e.crowded = ahead.filter((o) => o !== e && !o.dead).length >= AI_TUNING.crowdCount;
+  // shieldwall: the pavises only protect while enough of the line stands shoulder to shoulder
+  const wall = e.def.wall;
+  if (wall) e.charged = g.hash.query(e.x, e.y, wall.radius, []).filter((o) => o !== e && !o.dead && o.def.wall).length >= wall.neighbors;
   if (profile.fleeToHealer) {
     e.healer = null;
     let best = AI_TUNING.healerSearch ** 2;
@@ -144,7 +147,7 @@ function runStateMachine(g: Game, e: Enemy, dt: number): void {
     hpFrac: e.hp / e.maxHp,
     timeInState: e.aiT,
     timeAlive: g.time - e.born,
-    feared: e.fearT > 0,
+    feared: e.fearT > 0 && !e.def.structure,
     fleeOnCooldown: e.fleeCd > 0,
     squadMarching: e.squad?.marching === true,
     specialReady: e.special <= 0,

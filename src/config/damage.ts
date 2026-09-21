@@ -23,6 +23,14 @@ export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>
   lich: { shadow: 0.25, frost: 0.5, holy: 1.5, fire: 1.25 },
   inquisitor: { fire: 0.25, holy: 0.5, frost: 1.5, shadow: 1.25 },
   abbot: { shadow: 0.5, fire: 1.5 },
+  ballista: { physical: 0.7, fire: 1.75 }, // wood
+  siegeTower: { physical: 0.7, fire: 1.75, frost: 0.5 },
+  plagueDoctor: { shadow: 0.5, fire: 1.25 },
+  boneCollector: { shadow: 0.5, holy: 1.5 },
+  mirrorKnight: { holy: 0.75, frost: 1.25 },
+  assassin: { holy: 1.25 },
+  dragon: { fire: 0.1, frost: 1.5, physical: 0.9 },
+  warden: { physical: 0.85, shadow: 1.3 },
 };
 
 /**
@@ -33,6 +41,7 @@ export const ARMOR: Partial<Record<EnemyId, { frac: number; reduction: number; b
   knight: { frac: 0.5, reduction: 0.6 },
   cavalry: { frac: 0.3, reduction: 0.4 },
   shieldBearer: { frac: 0.3, reduction: 0.5, backBreak: true },
+  mirrorKnight: { frac: 0.4, reduction: 0.5 },
 };
 export const BACK_ARC = 1.2; // radians: a hit travelling within this angle of the enemy's facing came from behind
 
@@ -79,4 +88,6 @@ export const ENEMY_STATUS: Partial<Record<EnemyId, { id: StatusId; stacks?: numb
   cultist: { id: 'burn', stacks: 2, power: 3 },
   lich: { id: 'curse' },
   abbot: { id: 'poison', power: 5 },
+  assassin: { id: 'bleed', stacks: 3, power: 2 },
+  dragon: { id: 'burn', stacks: 2, power: 4 },
 };

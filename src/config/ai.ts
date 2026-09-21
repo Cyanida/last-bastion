@@ -22,6 +22,16 @@ export const AI: Partial<Record<EnemyId, AiProfile>> = {
   priest: { reach: 'support', flank: 0, range: [210, 330], special: { id: 'heal', cd: 2.5, range: 9999 }, fleeBelow: 0.4 },
   // rides a long telegraphed charge, wheels away, charges again
   cavalry: { reach: 'melee', flank: 0.5, special: { id: 'lunge', cd: 3.5, range: 380, minRange: 110 }, retreatAfterSpecial: 1.3 },
+  // v0.3 roster
+  engineer: { reach: 'support', flank: 0, range: [260, 380], special: { id: 'build', cd: 12, range: 460 }, fleeBelow: 0.5 },
+  ballista: { reach: 'ranged', flank: 0, range: [0, 9999] }, // bolted to the ground: it just shoots
+  plagueDoctor: { reach: 'support', flank: 0, range: [220, 340], special: { id: 'plague', cd: 5, range: 400 } },
+  houndmaster: { reach: 'support', flank: 0, range: [240, 340], special: { id: 'whistle', cd: 6, range: 9999 } },
+  mirrorKnight: { reach: 'melee', flank: 0.1 },
+  siegeTower: { reach: 'support', flank: 0, range: [200, 270], special: { id: 'deploy', cd: 6, range: 9999 } },
+  assassin: { reach: 'melee', flank: 1, special: { id: 'ambush', cd: 7, range: 520, minRange: 110 }, retreatAfterSpecial: 1.6, fleeBelow: 0.3 },
+  shieldwall: { reach: 'melee', flank: 0 },
+  boneCollector: { reach: 'melee', flank: 0.2, special: { id: 'collect', cd: 1.5, range: 9999 } },
   bannerman: { reach: 'support', flank: 0, range: [200, 300] },
   drummer: { reach: 'support', flank: 0, range: [220, 320] },
   chaplain: { reach: 'support', flank: 0, range: [230, 340] },

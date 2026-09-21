@@ -47,10 +47,10 @@ export function nextState(p: AiProfile, state: AiState, c: AiContext): AiState {
     if (fleeing && c.timeInState < FLEE_MAX_TIME && c.hpFrac < p.fleeBelow + FLEE_RECOVER) return 'flee';
     if (!fleeing && !c.fleeOnCooldown && c.hpFrac < p.fleeBelow) return 'flee';
   }
-  if (c.squadMarching) return 'regroup';
-
+  // specials outrank the formation: a hound master whistles and a priest heals on the march
   const sp = p.special;
   if (sp && c.specialReady && c.dist <= sp.range && c.dist >= (sp.minRange ?? 0)) return 'special';
+  if (c.squadMarching) return 'regroup';
 
   if (p.reach !== 'melee') {
     const [near, far] = p.range ?? [160, 300];

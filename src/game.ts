@@ -22,6 +22,7 @@ import { updateMinions } from './systems/minions';
 import { updateEnemyPhysics, updatePickups, updatePlayerMovement } from './systems/movement';
 import { addRelic, updateRelics } from './systems/relics';
 import { updateSpawning } from './systems/spawning';
+import './systems/bosses'; // registers the Act bosses' scripts
 import { updateSquads } from './systems/squads';
 import { updateStatuses } from './systems/status';
 
@@ -93,6 +94,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     perf: 0,
     waveT: 0,
     commandersKilled: 0,
+    barriers: [],
     banner: { text: '', t: 0 },
     over: false,
   };
@@ -162,6 +164,7 @@ export function updateGame(g: Game, dt: number): void {
   updateEffects(g, dt);
 
   compact(g.enemies, (e) => !e.dead);
+  compact(g.barriers, (b) => (b.life -= dt) > 0);
   for (const c of g.corpses) c.t += dt;
   compact(g.corpses, (c) => c.t < GAME.corpseLifetime * g.arena.corpseLifeMult);
   updateSpawning(g, dt); // after cleanup so "no enemies left" is accurate

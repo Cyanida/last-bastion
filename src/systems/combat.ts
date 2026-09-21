@@ -45,7 +45,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   g.pickups.push({ x: e.x, y: e.y, value: e.xp, kind: 'xp' });
   const gold = goldDrop(e.def.xp, boss ? 'boss' : e.elite ? 'elite' : 'regular', g.rng, goldMult(g), ELITES.goldMult);
   if (gold > 0) g.pickups.push({ x: e.x + 8, y: e.y + 6, value: gold, kind: 'gold' });
-  if (e.def.aura) {
+  if (e.def.aura || e.def.onDeath) {
     // commanders are worth hunting: a bounty on top of the normal drop
     g.commandersKilled++;
     g.pickups.push({ x: e.x - 6, y: e.y + 8, value: Math.round((e.def.bonusGold ?? 0) * goldMult(g)), kind: 'gold' });
@@ -121,6 +121,9 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
       shake(g, 5);
     }
   }
+  // shieldwall: while the line holds, anything that comes at the pavises from the front barely scratches
+  const wall = e.def.wall;
+  if (wall && e.charged && (kx !== 0 || ky !== 0) && !fromBehind(kx, ky, e.angle)) amount *= 1 - wall.reduction;
   e.flash = 0.1;
   e.kx += kx * (1 - e.def.knockbackResist);
   e.ky += ky * (1 - e.def.knockbackResist);
@@ -287,6 +290,8 @@ export function updatePlayerAttack(g: Game, dt: number): void {
 /** Shield bearers stop projectiles that come at their front. */
 function blockedByShield(e: Enemy, vx: number, vy: number): boolean {
   if (!e.def.frontBlock) return false;
+  if (e.def.wall && !e.charged) return false; // a shieldwall spearman on his own is just a man with a plank
+  if (ARMOR[e.def.id]?.backBreak && e.armorHp <= 0) return false; // shield broken
   return angleDiff(Math.atan2(-vy, -vx), e.angle) < e.def.frontBlock;
 }
 
@@ -298,7 +303,7 @@ export function updateProjectiles(g: Game, dt: number): void {
     pr.y += pr.vy * dt;
     pr.life -= dt;
     if (pr.life <= 0 || pr.x < wall || pr.y < wall || pr.x > w - wall || pr.y > h - wall) return false;
-    for (const o of obstacles) {
+    for (const o of g.barriers.length ? [...obstacles, ...g.barriers] : obstacles) {
       if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) {
         burst(g, pr.x, pr.y, '#9a9aa0', 3, 60);
         return false;
@@ -312,6 +317,12 @@ export function updateProjectiles(g: Game, dt: number): void {
     }
     for (const e of g.hash.query(pr.x, pr.y, pr.r, near)) {
       if (e.dead || pr.hit.includes(e)) continue;
+      // mirror knight: sends it straight back, unless he has just swung (attackTimer running) or it is a ballista-sized bolt
+      if (e.def.reflect && e.attackTimer <= 0 && e.armorHp > 0 && pr.pierce < 50 && angleDiff(Math.atan2(-pr.vy, -pr.vx), e.angle) < e.def.reflect) {
+        Object.assign(pr, { vx: -pr.vx, vy: -pr.vy, hostile: true, damage: e.damage, color: '#7ec8d8', life: 1.2, status: null });
+        floatText(g, e.x, e.y - e.r - 8, 'reflected', '#7ec8d8', 11);
+        return true;
+      }
       if (pr.pierce < 50 && blockedByShield(e, pr.vx, pr.vy)) {
         floatText(g, e.x, e.y - e.r - 8, 'blocked', '#9a9aa0', 11);
         burst(g, pr.x, pr.y, '#c9a227', 4, 90);

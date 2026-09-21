@@ -105,6 +105,22 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   }
   ctx.globalAlpha = 1;
 
+  // barriers a boss raised: stone that fades as it runs out
+  for (const b of g.barriers) {
+    if (!visible(b.x, b.y, b.r)) continue;
+    ctx.globalAlpha = clamp(b.life, 0, 1);
+    ctx.fillStyle = '#1a1614';
+    disc(ctx, b.x, b.y, b.r + 2);
+    ctx.fill();
+    ctx.fillStyle = '#6b5f7a';
+    disc(ctx, b.x, b.y, b.r - 1);
+    ctx.fill();
+    ctx.fillStyle = '#a77fd0';
+    disc(ctx, b.x - 5, b.y - 6, b.r * 0.35);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
   // zones (telegraphs and falling arrows)
   for (const zn of g.zones) {
     if (!visible(zn.x, zn.y, zn.r + 320)) continue;
@@ -220,7 +236,25 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       });
     }
     const fuse = e.def.behavior === 'exploder' && e.state === 1 && Math.floor(e.timer * 14) % 2 === 0;
+    if (e.hidden) ctx.globalAlpha = 0.12; // a vanished assassin, a dragon overhead: barely a shimmer
     drawSprite(ctx, getSprite(e.def.sprite, e.def.scale + (e.elite ? ELITES.scaleBonus : 0)), e.x, e.y, e.flip, e.flash > 0 || fuse);
+    ctx.globalAlpha = 1;
+    if (e.hidden) continue;
+    if (e.def.reflect && e.attackTimer <= 0 && e.armorHp > 0) {
+      // mirror up: a glint on his front. It drops for a moment after he swings.
+      ctx.strokeStyle = '#7ec8d8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y - 8, e.r + 8, e.angle - 0.9, e.angle + 0.9);
+      ctx.stroke();
+    }
+    if (e.def.wall && e.charged) {
+      ctx.strokeStyle = '#c9a227';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y - 6, e.r + 6, e.angle - 1, e.angle + 1);
+      ctx.stroke();
+    }
     if (e.shield > 0) {
       ctx.globalAlpha = 0.25 + 0.5 * (e.shield / e.shieldMax);
       ctx.strokeStyle = AFFIXES.shielded.color;

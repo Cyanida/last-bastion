@@ -8,20 +8,27 @@ import { floatText } from './effects';
 import { gainXp } from './leveling';
 import { offerRelics } from './relics';
 
+function pushOut(b: Body, o: Body): void {
+  if (b === o) return;
+  const dx = b.x - o.x;
+  const dy = b.y - o.y;
+  const min = o.r + b.r;
+  const d2 = dx * dx + dy * dy;
+  if (d2 >= min * min) return;
+  if (d2 === 0) {
+    b.x = o.x + min; // dead centre: any direction will do
+    return;
+  }
+  const d = Math.sqrt(d2);
+  b.x = o.x + (dx / d) * min;
+  b.y = o.y + (dy / d) * min;
+}
+
 /** Keeps a body inside the walls and out of the arena's obstacles (circle colliders, so hordes slide around them). */
 export function clampToArena(g: Game, b: Body): void {
   const { w, h, wall, obstacles } = g.arena;
-  for (const o of obstacles) {
-    const dx = b.x - o.x;
-    const dy = b.y - o.y;
-    const min = o.r + b.r;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < min * min) {
-      const d = Math.sqrt(d2) || 0.01;
-      b.x = o.x + (dx / d) * min;
-      b.y = o.y + (dy / d) * min;
-    }
-  }
+  for (const o of obstacles) pushOut(b, o);
+  for (const o of g.barriers) pushOut(b, o); // walls a boss raised
   b.x = clamp(b.x, wall + b.r, w - wall - b.r);
   b.y = clamp(b.y, wall + b.r, h - wall - b.r);
 }

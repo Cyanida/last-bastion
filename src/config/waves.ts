@@ -24,6 +24,13 @@ export const WAVES = {
     { id: 'shieldBearer', from: 8, weight: 2 },
     { id: 'priest', from: 9, weight: 1.5 },
     { id: 'cavalry', from: 11, weight: 2 },
+    // v0.3 roster (hound masters and shieldwall spearmen only arrive in squads: config/director.ts)
+    { id: 'assassin', from: 8, weight: 2 },
+    { id: 'engineer', from: 9, weight: 1.5 },
+    { id: 'plagueDoctor', from: 10, weight: 1.5 },
+    { id: 'boneCollector', from: 11, weight: 1.5 },
+    { id: 'mirrorKnight', from: 12, weight: 1.5 },
+    { id: 'siegeTower', from: 14, weight: 0.6 },
   ] as { id: EnemyId; from: number; weight: number }[],
   // wave modifiers: rolled for non-boss waves, announced in the wave banner
   modifierFromWave: 6,

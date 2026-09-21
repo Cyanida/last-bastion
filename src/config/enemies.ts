@@ -12,6 +12,17 @@ export type EnemyId =
   | 'bannerman'
   | 'drummer'
   | 'chaplain'
+  | 'engineer'
+  | 'ballista'
+  | 'plagueDoctor'
+  | 'houndmaster'
+  | 'mirrorKnight'
+  | 'siegeTower'
+  | 'assassin'
+  | 'shieldwall'
+  | 'boneCollector'
+  | 'dragon'
+  | 'warden'
   | 'blackKnight'
   | 'warlord'
   | 'lich'
@@ -63,6 +74,10 @@ export interface EnemyDef {
   onDeath?: 'enrage' | 'scatter' | 'flee';
   bonusGold?: number;
   phases?: number; // bosses: how many phases the HP bar is split into (default 2)
+  structure?: boolean; // built things: cannot be feared, pushed or made to flee
+  reflect?: number; // mirror knight: half-angle of the frontal arc that throws projectiles back (down while he recovers from a swing)
+  wall?: { radius: number; neighbors: number; reduction: number }; // shieldwall: frontal protection only while enough squadmates stand close
+  grow?: { hp: number; damage: number; radius: number; max: number }; // bone collector: per corpse absorbed
   fuse?: number; // exploder
   blastRadius?: number;
   specialCd?: number; // bosses
@@ -127,6 +142,51 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     hp: 60, damage: 20, speed: 95, radius: 16, xp: 5, knockbackResist: 0.5,
     lungeRange: 380, lungeSpeed: 560, windup: 0.75, lungeTime: 0.9, recover: 1.2, telegraphLunge: true,
   },
+  // ---- v0.3 roster: each has its own behaviour loop (config/ai.ts profile + a special in systems/specials.ts) ----
+  // builds ballistae until someone stops him
+  engineer: {
+    ...base, id: 'engineer', name: 'Siege Engineer', sprite: 'engineer', behavior: 'support',
+    hp: 40, damage: 0, speed: 72, radius: 12, xp: 5, range: 330, windup: 2.5, summon: 'ballista', summonCount: 2,
+  },
+  ballista: {
+    ...base, id: 'ballista', name: 'Ballista', sprite: 'ballista', behavior: 'ranged', structure: true,
+    hp: 150, damage: 24, speed: 0, radius: 18, xp: 4, knockbackResist: 1, range: 600, fireCd: 3.2, projSpeed: 520,
+  },
+  // poison clouds, and once in his life he gets a fallen unit back on its feet
+  plagueDoctor: {
+    ...base, id: 'plagueDoctor', name: 'Plague Doctor', sprite: 'plagueDoctor', behavior: 'support',
+    hp: 45, damage: 10, speed: 68, radius: 12, xp: 6, range: 300, zoneRadius: 70, windup: 1.1, poolLife: 6, poolDps: 6, summon: 'peasant',
+  },
+  // his wolves answer the whistle: faster, meaner, leaping at once. Without him they scatter.
+  houndmaster: {
+    ...base, id: 'houndmaster', name: 'Hound Master', sprite: 'houndmaster', behavior: 'support',
+    hp: 70, damage: 0, speed: 82, radius: 13, xp: 7, range: 300, onDeath: 'scatter', bonusGold: 12,
+  },
+  // throws arrows and bolts back at you, except in the moment after he swings
+  mirrorKnight: {
+    ...base, id: 'mirrorKnight', name: 'Mirror Knight', sprite: 'mirrorKnight', behavior: 'chaser',
+    hp: 130, damage: 16, speed: 56, radius: 15, xp: 7, knockbackResist: 0.8, attackCd: 1.6, reflect: 1.3,
+  },
+  // rolls in slowly and keeps unloading troops until it is destroyed
+  siegeTower: {
+    ...base, id: 'siegeTower', name: 'Siege Tower', sprite: 'siegeTower', behavior: 'support', structure: true, scale: 4,
+    hp: 520, damage: 0, speed: 18, radius: 30, xp: 14, knockbackResist: 1, range: 260, summonCount: 2,
+  },
+  // vanishes, reappears behind you, stabs, runs
+  assassin: {
+    ...base, id: 'assassin', name: 'Assassin', sprite: 'assassin', behavior: 'chaser',
+    hp: 34, damage: 14, speed: 122, radius: 11, xp: 5, specialMult: 2.2, windup: 0.45,
+  },
+  // a wall of pavises: nearly untouchable from the front while the line holds. Break the line or get behind it.
+  shieldwall: {
+    ...base, id: 'shieldwall', name: 'Shieldwall Spearman', sprite: 'shieldwall', behavior: 'chaser',
+    hp: 60, damage: 11, speed: 54, radius: 13, xp: 4, knockbackResist: 0.7, frontBlock: 1.2, wall: { radius: 72, neighbors: 2, reduction: 0.8 },
+  },
+  // goes for the corpses before he goes for you, and every one makes him bigger. The Necromancer's rival.
+  boneCollector: {
+    ...base, id: 'boneCollector', name: 'Bone Collector', sprite: 'boneCollector', behavior: 'chaser',
+    hp: 80, damage: 12, speed: 66, radius: 14, xp: 6, knockbackResist: 0.4, grow: { hp: 0.25, damage: 0.12, radius: 1.5, max: 10 },
+  },
   // ---- commanders: they do not fight, they make everyone around them worse to fight. Kill them first. ----
   bannerman: {
     ...base, id: 'bannerman', name: 'Bannerman', sprite: 'bannerman', behavior: 'support',
@@ -164,6 +224,18 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     hp: 950, damage: 24, speed: 76, radius: 27, xp: 70,
     specialCd: 4, windup: 0.9, specialMult: 1.6, lineZones: 7, lineSpacing: 78, zoneRadius: 50,
     p2Lines: 3, summon: 'cultist', summonCount: 2, p2SpeedMult: 1.15,
+  },
+  // ---- Act bosses: three phases, and they change the arena itself (systems/bosses.ts) ----
+  dragon: {
+    ...boss, id: 'dragon', name: 'The Dragon', sprite: 'dragon', behavior: 'support', scale: 5, phases: 3,
+    hp: 1500, damage: 22, speed: 92, radius: 40, xp: 120,
+    range: 330, fireCd: 2.4, projSpeed: 300,
+    specialCd: 6.5, windup: 1.3, specialMult: 1.5, zoneRadius: 62, lineZones: 12, lineSpacing: 92, poolLife: 8, poolDps: 9,
+  },
+  warden: {
+    ...boss, id: 'warden', name: 'The Warden', sprite: 'warden', behavior: 'chaser', phases: 3,
+    hp: 1400, damage: 26, speed: 80, radius: 30, xp: 120,
+    specialCd: 7.5, windup: 1.0, specialMult: 1.5, zoneRadius: 46, summon: 'knight', summonCount: 2, p2SpeedMult: 1.1,
   },
   abbot: {
     ...boss, id: 'abbot', name: 'The Plague Abbot', sprite: 'abbot', behavior: 'bossAbbot',
