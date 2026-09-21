@@ -1,0 +1,17 @@
+import type { Mods } from '../core/types';
+
+export const neutralMods = (): Mods => ({
+  damage: 1, atkSpd: 1, moveSpd: 1, cooldown: 1, pickup: 1, xp: 1, gold: 1, minionAtkSpd: 1, minionDamage: 1,
+  armor: 0, crit: 0, lifesteal: 0, regen: 0, pierce: 0,
+});
+
+const ADDITIVE = new Set<keyof Mods>(['armor', 'crit', 'lifesteal', 'regen', 'pierce']);
+
+/** Folds `part` into `into` (mutating it): additive keys add, everything else multiplies. */
+export function combineMods(into: Mods, part: Partial<Mods>): Mods {
+  for (const key of Object.keys(part) as (keyof Mods)[]) {
+    const v = part[key]!;
+    into[key] = ADDITIVE.has(key) ? into[key] + v : into[key] * v;
+  }
+  return into;
+}
