@@ -12,6 +12,12 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,18 +26,26 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Tag must match package.json
-        shell: bash
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then echo "tag $GITHUB_REF_NAME does not match package.json $VERSION"; exit 1; fi
+          if [ "v$VERSION" != "$TAG" ]; then echo "tag $TAG does not match package.json $VERSION"; exit 1; fi
       - run: npm run typecheck
       - run: npm test
       - run: npx vite build
-      - name: Build installer and publish the release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Code signing would go here: CSC_LINK (base64 .pfx) and CSC_KEY_PASSWORD from repository secrets.
+      - name: Create the GitHub release
+        # Created here, not by electron-builder: its two publishers (installer + update metadata) race to create it
+        # and the loser's uploads are dropped.
         run: |
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then TYPE=prerelease; else TYPE=release; fi
-          npx electron-builder --win --publish always -c.publish.releaseType=$TYPE
+          if [[ "$TAG" == *-* ]]; then KIND="--prerelease"; else KIND="--latest"; fi
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Last Bastion $TAG" --generate-notes $KIND
+      - name: Build installer and publish
+        # Code signing would go here: CSC_LINK (base64 .pfx) and CSC_KEY_PASSWORD from repository secrets.
+        run: |
+          if [[ "$TAG" == *-* ]]; then export EP_PRE_RELEASE=true; fi
+          npx electron-builder --win --publish always
+          ls -la release
+      - name: Make sure the updater has everything it needs
+        run: |
+          gh release upload "$TAG" release/*.exe release/*.blockmap release/*.yml --clobber
+          gh release view "$TAG" --json assets --jq '.assets[].name' | tee assets.txt
+          grep -q 'Setup-.*\.exe$' assets.txt && grep -q '^latest\.yml$' assets.txt

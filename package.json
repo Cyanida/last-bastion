@@ -70,7 +70,8 @@
     "publish": {
       "provider": "github",
       "owner": "Cyanida",
-      "repo": "last-bastion"
+      "repo": "last-bastion",
+      "releaseType": "release"
     }
   }
 }
