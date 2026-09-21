@@ -46,6 +46,6 @@ jobs:
           ls -la release
       - name: Make sure the updater has everything it needs
         run: |
-          gh release upload "$TAG" release/*.exe release/*.blockmap release/*.yml --clobber
+          gh release upload "$TAG" release/*.exe release/*.blockmap release/latest*.yml --clobber
           gh release view "$TAG" --json assets --jq '.assets[].name' | tee assets.txt
           grep -q 'Setup-.*\.exe$' assets.txt && grep -q '^latest\.yml$' assets.txt

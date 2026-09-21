@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.3.1
+- The title screen shows the full version next to the build date ("build 2026-09-22 · v0.3.1"). This is the release that proves the auto-updater: an installed 0.3.0 finds it, downloads it and offers the restart.
+- Release workflow: only `latest*.yml` is attached as update metadata (0.3.0 also carried electron-builder's debug file).
+
 ## v0.3.0 — Platforms, smarter enemies, Acts
 
 ### Platforms

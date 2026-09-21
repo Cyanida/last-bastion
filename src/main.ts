@@ -73,7 +73,7 @@ function toTitle(): void {
   menu();
   onTitle = true;
   showTitle(
-    { gold: save.gold, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: platform.buildDate, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 } },
+    { gold: save.gold, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 } },
     { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => (menu(), showChronicle(save, toTitle)), settings: toSettings },
   );
 }
