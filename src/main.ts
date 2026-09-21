@@ -425,6 +425,12 @@ if (import.meta.env.DEV) {
       },
       quality,
       start: startRun,
+      /** What the balance bot would do right now. Tests turn this into real touch or key events and step with mode 'input'. */
+      botIntent() {
+        if (!game) return null;
+        botInput(game);
+        return { moveX: game.input.moveX, moveY: game.input.moveY, ability: game.input.ability };
+      },
       draw: () => draw(performance.now()),
       /** Advance n ticks with real UI flow; choice screens are answered by clicking their first option. mode: 'input' reads the real input layer. */
       run(n: number, ability = false, mode: boolean | 'input' = false) {
