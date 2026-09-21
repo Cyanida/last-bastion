@@ -52,7 +52,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (url.origin === location.origin) {
     e.respondWith(
-      caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || fetch(e.request).catch(() => caches.match('./index.html'))),
+      caches.match(e.request, { ignoreSearch: true }).then((hit) => hit || fetch(e.request).catch(() => caches.match('./'))), // offline navigation falls back to the cached page
     );
   } else if (/fonts\\.(googleapis|gstatic)\\.com$/.test(url.hostname)) {
     // fonts: serve from cache, refresh in the background
