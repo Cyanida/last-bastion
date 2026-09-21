@@ -21,7 +21,7 @@ export function nearestEnemy(g: Game, x: number, y: number, range: number, exclu
   let best: Enemy | null = null;
   let bestD = Infinity;
   for (const e of g.hash.query(x, y, range, nearest)) {
-    if (e.dead || e === exclude) continue;
+    if (e.dead || e.hidden || e === exclude) continue;
     const d = dist2(x, y, e.x, e.y);
     if (d < bestD) {
       bestD = d;
@@ -43,6 +43,11 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   g.pickups.push({ x: e.x, y: e.y, value: e.xp, kind: 'xp' });
   const gold = goldDrop(e.def.xp, boss ? 'boss' : e.elite ? 'elite' : 'regular', g.rng, goldMult(g), ELITES.goldMult);
   if (gold > 0) g.pickups.push({ x: e.x + 8, y: e.y + 6, value: gold, kind: 'gold' });
+  if (e.def.aura) {
+    // commanders are worth hunting: a bounty on top of the normal drop
+    g.commandersKilled++;
+    g.pickups.push({ x: e.x - 6, y: e.y + 8, value: Math.round((e.def.bonusGold ?? 0) * goldMult(g)), kind: 'gold' });
+  }
   g.corpses.push({ x: e.x, y: e.y, t: 0 });
   burst(g, e.x, e.y, BLOOD, boss ? 60 : e.elite ? 20 : 8, boss ? 320 : 150);
   sfx(boss ? 'boom' : 'kill');

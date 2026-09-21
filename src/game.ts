@@ -22,6 +22,7 @@ import { updateMinions } from './systems/minions';
 import { updateEnemyPhysics, updatePickups, updatePlayerMovement } from './systems/movement';
 import { addRelic, updateRelics } from './systems/relics';
 import { updateSpawning } from './systems/spawning';
+import { updateSquads } from './systems/squads';
 
 /** Everything a run takes from outside: the player's choices on the select screen and their permanent progress. */
 export interface RunOptions {
@@ -85,6 +86,12 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     flawlessBosses: 0,
     wave10Time: 0,
     hazardT: 5,
+    seed,
+    squads: [],
+    squadPlans: [],
+    perf: 0,
+    waveT: 0,
+    commandersKilled: 0,
     banner: { text: '', t: 0 },
     over: false,
   };
@@ -114,6 +121,8 @@ export function summarizeRun(g: Game): RunSummary {
     relics: g.relics,
     abilityUpgrades: g.player.upgrades.length,
     wave10Time: g.wave10Time,
+    commanders: g.commandersKilled,
+    seed: g.seed,
   };
 }
 
@@ -139,6 +148,7 @@ export function updateGame(g: Game, dt: number): void {
   updatePlayerMovement(g, dt);
   updateAbility(g, dt);
   updatePlayerAttack(g, dt);
+  updateSquads(g, dt);
   updateEnemies(g, dt);
   updateEnemyPhysics(g, dt);
   updateMinions(g, dt);

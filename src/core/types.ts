@@ -6,6 +6,9 @@ import type { AffixId } from '../config/elites';
 import type { EnemyDef, EnemyId } from '../config/enemies';
 import type { RelicId } from '../config/relics';
 import type { ModifierId } from '../config/waves';
+import type { SpawnUnit, SquadPlan } from '../logic/director';
+import type { AiState } from '../logic/fsm';
+import type { Formation, Vec } from '../logic/squads';
 import type { SpatialHash } from './spatial';
 
 export type StatKey = 'hp' | 'str' | 'dex' | 'int' | 'atkSpd' | 'moveSpd' | 'secondary';
@@ -115,6 +118,25 @@ export interface Enemy extends Body {
   markMul: number;
   phase: number; // bosses: 1, then 2 below half HP
   combo: number;
+  // v0.3: state machine (logic/fsm.ts), squads, commander auras
+  ai: AiState;
+  aiT: number; // time in the current state
+  thinkT: number; // countdown to the next expensive check
+  born: number; // g.time at spawn
+  flankDir: 1 | -1;
+  flankRoll: number; // fixed 0..1, compared with the profile's flank tendency
+  crowded: boolean;
+  retreatT: number; // hit-and-run timer
+  fleeCd: number;
+  healer: Enemy | null; // where it runs to when it flees
+  strafeT: number;
+  squad: Squad | null;
+  slot: number; // index into squad.offsets, -1 for the commander
+  buffDmg: number; // commander auras, valid while buffT > 0
+  buffSpd: number;
+  buffT: number;
+  auraT: number; // commanders: countdown to the next aura pulse
+  hidden: boolean; // cannot be auto-targeted (assassins, a flying dragon)
   kx: number; // knockback velocity
   ky: number;
   attackTimer: number;
@@ -128,6 +150,23 @@ export interface Enemy extends Body {
   charged: boolean;
   telegraph: Telegraph | null;
   dead: boolean;
+}
+
+/** A group that spawns together, marches in formation and shares a target until it engages. */
+export interface Squad {
+  formation: Formation;
+  spacing: number;
+  holdUntil: number; // breaks formation once this close to the target
+  members: Enemy[]; // the commander is not in here
+  commander: Enemy | null;
+  offsets: Vec[]; // per member slot, local frame
+  commanderSlot: Vec;
+  x: number; // the anchor the formation is built around
+  y: number;
+  facing: number;
+  target: Player | Minion | null;
+  marching: boolean;
+  retargetT: number;
 }
 
 export interface Minion extends Body {
@@ -251,7 +290,7 @@ export interface Game {
   wave: number;
   waveHpMult: number;
   waveDmgMult: number;
-  spawnQueue: { id: EnemyId; affixes: AffixId[] }[];
+  spawnQueue: SpawnUnit[];
   spawnTimer: number;
   spawnInterval: number;
   breather: number;
@@ -283,6 +322,13 @@ export interface Game {
   flawlessBosses: number;
   wave10Time: number; // 0 = not reached
   hazardT: number;
+  // --- v0.3 ---
+  seed: number; // run seed: the director derives every wave from it
+  squads: Squad[];
+  squadPlans: SquadPlan[]; // this wave's squads, instantiated as their units leave the spawn queue
+  perf: number; // smoothed recent performance, -1..1 (the director's rubber band)
+  waveT: number; // seconds since this wave started
+  commandersKilled: number;
   banner: { text: string; t: number };
   over: boolean;
 }

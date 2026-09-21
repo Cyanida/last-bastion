@@ -6,9 +6,11 @@ import { emit } from '../core/events';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
 import { createEnemy } from '../entities/actors';
+import { directWave, updatePerformance, type SpawnUnit } from '../logic/director';
 import { waveClearGold } from '../logic/economy';
-import { generateWave } from '../logic/waves';
+import { slotPosition } from '../logic/squads';
 import { floatText } from './effects';
+import { createSquad } from './squads';
 
 const MIN_SPAWN_DIST = 380;
 
@@ -36,6 +38,9 @@ function edgePoint(g: Game): { x: number; y: number } {
 export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = []): Enemy {
   const at = x === undefined || y === undefined ? edgePoint(g) : { x, y };
   const e = createEnemy(ENEMIES[id], at.x, at.y, g.waveHpMult * g.tier.enemyHp, g.waveDmgMult * g.tier.enemyDmg, affixes);
+  e.born = g.time;
+  e.flankRoll = g.rng();
+  e.flankDir = g.rng() < 0.5 ? 1 : -1;
   g.enemies.push(e);
   if (e.def.boss) {
     g.bossHit = false; // "flawless" is judged per boss
@@ -45,15 +50,43 @@ export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes
   return e;
 }
 
+/** A squad arrives together, already in formation, facing the player. */
+function spawnSquad(g: Game, index: number, units: SpawnUnit[]): void {
+  const plan = g.squadPlans[index];
+  const at = edgePoint(g);
+  const members: Enemy[] = [];
+  let commander: Enemy | null = null;
+  for (const u of units) {
+    const e = spawnEnemy(g, u.id, at.x, at.y, u.affixes);
+    if (u.commander) commander = e;
+    else members.push(e);
+  }
+  const sq = createSquad(g, plan, members, commander, at.x, at.y);
+  for (const e of [...members, ...(commander ? [commander] : [])]) {
+    const slot = slotPosition(sq, sq.facing, e.slot < 0 ? sq.commanderSlot : sq.offsets[e.slot]);
+    e.x = slot.x;
+    e.y = slot.y;
+  }
+}
+
 function startWave(g: Game): void {
   g.wave++;
-  const plan = generateWave(g.wave, g.rng, { bosses: g.arena.bosses, eliteMult: g.tier.eliteMult });
+  const plan = directWave({
+    seed: g.seed,
+    wave: g.wave,
+    classId: g.player.cls.id,
+    performance: g.perf,
+    bosses: g.arena.bosses,
+    eliteMult: g.tier.eliteMult,
+  });
   g.waveHpMult = plan.hpMult;
   g.waveDmgMult = plan.dmgMult;
   g.modifier = plan.modifier;
-  g.spawnQueue = plan.spawns.map((id, i) => ({ id, affixes: plan.elites[i] ?? [] }));
+  g.spawnQueue = plan.units;
+  g.squadPlans = plan.squads;
   g.spawnInterval = plan.spawnInterval;
   g.spawnTimer = 0;
+  g.waveT = 0;
   if (g.wave === 10) g.wave10Time = g.time;
   const title = plan.boss ? `Wave ${g.wave} — Boss` : `Wave ${g.wave}`;
   g.banner = { text: plan.modifier ? `${title} · ${MODIFIERS[plan.modifier].name}` : title, t: plan.modifier ? 3 : 2 };
@@ -67,12 +100,21 @@ export function updateSpawning(g: Game, dt: number): void {
     if (g.breather <= 0) startWave(g);
     return;
   }
+  g.waveT += dt;
   if (g.spawnQueue.length > 0) {
     g.spawnTimer -= dt;
     while (g.spawnTimer <= 0 && g.spawnQueue.length > 0) {
       const next = g.spawnQueue.shift()!;
-      spawnEnemy(g, next.id, undefined, undefined, next.affixes);
-      g.spawnTimer += g.spawnInterval;
+      if (next.squad < 0) {
+        spawnEnemy(g, next.id, undefined, undefined, next.affixes);
+        g.spawnTimer += g.spawnInterval;
+      } else {
+        // the rest of the squad is right behind it in the queue
+        const units = [next];
+        while (g.spawnQueue[0]?.squad === next.squad) units.push(g.spawnQueue.shift()!);
+        spawnSquad(g, next.squad, units);
+        g.spawnTimer += g.spawnInterval * units.length;
+      }
     }
     return;
   }
@@ -84,6 +126,8 @@ export function updateSpawning(g: Game, dt: number): void {
     g.breather = cleared ? WAVES.breather : 0.01;
     g.wavesCleared = g.wave;
     g.modifier = null;
+    // the director's rubber band: how much HP is left, and was the wave cleared quickly
+    g.perf = updatePerformance(g.perf, g.player.hp / g.player.stats.hp, g.waveT, WAVES.spawn.maxDuration + 15);
     const bonus = waveClearGold(g.wave, g.player.mods.gold * g.tier.gold);
     g.gold += bonus;
     floatText(g, g.player.x, g.player.y - 60, `+${bonus} gold`, '#c9a227', 15);

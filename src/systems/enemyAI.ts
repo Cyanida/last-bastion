@@ -1,21 +1,23 @@
+import { AI, AI_TUNING, AURA_PULSE, DEFAULT_AI } from '../config/ai';
 import { AFFIXES } from '../config/elites';
-import type { Behavior } from '../config/enemies';
+import type { EnemyId } from '../config/enemies';
 import { MODIFIERS } from '../config/waves';
 import { sfx } from '../core/audio';
 import { dist2, TAU } from '../core/math';
-import type { Enemy, Game, Minion, Player } from '../core/types';
-import { addZone, fireProjectile } from '../entities/hazards';
+import type { Enemy, Game } from '../core/types';
+import { addZone } from '../entities/hazards';
+import { nextState, type AiProfile, type AiState } from '../logic/fsm';
+import { slotPosition } from '../logic/squads';
+import { angleTo, distTo, enraged, keepRange, move, moveTo, POISON, seek, shootAt, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { hurtTarget } from './combat';
-import { burst, floatText, line, ring, shake } from './effects';
-import { spawnEnemy } from './spawning';
+import { burst, ring, shake } from './effects';
+import { SPECIALS } from './specials';
 
-type Target = Player | Minion;
 const HOSTILE = '#c23a2e';
-const POISON = '#6f8f4e';
-const MAX_SUMMONS = 60; // bosses stop calling reinforcements above this many enemies
 
-/** Enemies go for whatever is closest, so minions genuinely tank for the Necromancer. */
+/** Enemies go for whatever is closest, so minions genuinely tank for the Necromancer. A marching squad shares one target. */
 function pickTarget(g: Game, e: Enemy): Target {
+  if (e.squad?.marching && e.squad.target) return e.squad.target;
   let best: Target = g.player;
   let bestD = dist2(e.x, e.y, best.x, best.y);
   for (const m of g.minions) {
@@ -28,149 +30,163 @@ function pickTarget(g: Game, e: Enemy): Target {
   return best;
 }
 
-const distTo = (e: Enemy, t: { x: number; y: number }) => Math.hypot(t.x - e.x, t.y - e.y);
-const angleTo = (e: Enemy, t: { x: number; y: number }) => Math.atan2(t.y - e.y, t.x - e.x);
-const enraged = (e: Enemy) => e.affixes.includes('enraged') && e.hp < e.maxHp * AFFIXES.enraged.n.threshold;
-const hitDamage = (e: Enemy) => e.damage * (enraged(e) ? AFFIXES.enraged.n.damage : 1);
+// ---------------------------------------------------------------- the state machine (regular enemies)
 
-function move(e: Enemy, angle: number, speed: number, dt: number): void {
-  e.x += Math.cos(angle) * speed * dt;
-  e.y += Math.sin(angle) * speed * dt;
-}
-
-/** Walk at the target until touching it. e.angle doubles as the facing (shield bearers block along it). */
-function seek(e: Enemy, t: Target, speed: number, dt: number): void {
-  e.flip = t.x < e.x;
-  e.angle = angleTo(e, t);
-  if (distTo(e, t) > e.r + t.r - 2) move(e, e.angle, speed, dt);
-}
-
-function touch(g: Game, e: Enemy, t: Target, mult = 1): void {
-  if (e.attackTimer <= 0 && distTo(e, t) < e.r + t.r + 4) {
-    e.attackTimer = e.def.attackCd;
-    hurtTarget(g, t, hitDamage(e) * mult, false, e);
-  }
-}
-
-function shootAt(g: Game, e: Enemy, angle: number): void {
-  fireProjectile(g, e.x, e.y, angle, {
-    damage: hitDamage(e),
-    crit: false,
-    hostile: true,
-    pierce: 0,
-    shape: e.def.boss ? 'orb' : 'arrow',
-    color: e.def.id === 'abbot' ? POISON : e.def.boss ? '#7a4fa0' : '#c23a2e',
-    r: e.def.boss ? 8 : 5,
-    speed: e.def.projSpeed!,
-    range: 700,
-  });
-}
-
-/** Hold a preferred distance: approach when far, back off when crowded. */
-function keepRange(e: Enemy, t: Target, dt: number): number {
-  const d = distTo(e, t);
+/** The slower checks, every AI_TUNING.thinkEvery: are friends queueing in front of me, where is the nearest healer. */
+function think(g: Game, e: Enemy, t: Target, profile: AiProfile): void {
   const a = angleTo(e, t);
-  e.flip = t.x < e.x;
-  if (d > e.def.range!) move(e, a, e.speed, dt);
-  else if (d < e.def.range! * 0.55) move(e, a + Math.PI, e.speed * 0.8, dt);
-  return d;
-}
-
-function summon(g: Game, e: Enemy): void {
-  if (g.enemies.length > MAX_SUMMONS) return;
-  for (let i = 0; i < e.def.summonCount!; i++) {
-    const a = (i / e.def.summonCount!) * TAU;
-    spawnEnemy(g, e.def.summon!, e.x + Math.cos(a) * 60, e.y + Math.sin(a) * 60);
+  const ahead = g.hash.query(e.x + Math.cos(a) * AI_TUNING.crowdProbe, e.y + Math.sin(a) * AI_TUNING.crowdProbe, AI_TUNING.crowdRadius, []);
+  e.crowded = ahead.filter((o) => o !== e && !o.dead).length >= AI_TUNING.crowdCount;
+  if (profile.fleeToHealer) {
+    e.healer = null;
+    let best = AI_TUNING.healerSearch ** 2;
+    for (const o of g.enemies) {
+      if (o.dead || o === e || !(o.def.healAmount || o.def.aura?.kind === 'heal')) continue;
+      const d = dist2(e.x, e.y, o.x, o.y);
+      if (d < best) (best = d), (e.healer = o);
+    }
   }
 }
 
-const specialDamage = (e: Enemy) => e.damage * e.def.specialMult!;
+/** What each state does. Transitions are decided by logic/fsm.ts; this is only movement and attacks. */
+const STATES: Record<AiState, (g: Game, e: Enemy, t: Target, p: AiProfile, dt: number) => void> = {
+  idle() {},
 
-/**
- * Behavior hooks. Each enemy def names one; e.state / e.timer / e.special are its scratch space.
- * Adding an enemy type = a row in config/enemies.ts, plus a hook here only if it behaves in a new way.
- * Bosses switch to e.phase 2 below half HP (see updateEnemies) and branch on it.
- */
-const BEHAVIORS: Record<Behavior, (g: Game, e: Enemy, dt: number) => void> = {
-  chaser(g, e, dt) {
-    const t = pickTarget(g, e);
-    seek(e, t, e.speed, dt);
-    touch(g, e, t);
+  approach: (_g, e, t, _p, dt) => seek(e, t, e.speed, dt),
+
+  // swing round the target instead of queueing behind the front rank
+  flank(_g, e, t, _p, dt) {
+    const d = distTo(e, t);
+    const around = Math.atan2(e.y - t.y, e.x - t.x) + e.flankDir * AI_TUNING.flankAngle;
+    const r = Math.max(e.r + t.r, d * 0.75);
+    e.flip = t.x < e.x;
+    e.angle = angleTo(e, t);
+    moveTo(e, t.x + Math.cos(around) * r, t.y + Math.sin(around) * r, e.speed, dt);
   },
 
-  // approach -> crouch -> leap in a straight line -> recover. Wolves do it quickly, cavalry does it long and telegraphed.
-  lunger(g, e, dt) {
-    const t = pickTarget(g, e);
-    const def = e.def;
-    e.timer -= dt;
-    if (e.state === 0) {
+  attack(g, e, t, p, dt) {
+    if (p.reach === 'melee') {
       seek(e, t, e.speed, dt);
-      if (distTo(e, t) < def.lungeRange!) {
-        e.state = 1;
-        e.timer = def.windup!;
-        e.angle = angleTo(e, t);
-        if (def.telegraphLunge) e.telegraph = { angle: e.angle, length: def.lungeSpeed! * def.lungeTime!, width: e.r * 2, t: 0, dur: def.windup! };
-      }
-    } else if (e.state === 1) {
-      if (e.telegraph) e.telegraph.t += dt;
-      if (e.timer <= 0) {
-        e.state = 2;
-        e.timer = def.lungeTime!;
-        e.telegraph = null;
-      }
-    } else if (e.state === 2) {
-      move(e, e.angle, def.lungeSpeed!, dt);
-      if (e.timer <= 0) {
-        e.state = 3;
-        e.timer = def.recover!;
-      }
-    } else if (e.timer <= 0) e.state = 0;
-    touch(g, e, t, e.state === 2 ? 1.5 : 1);
-  },
-
-  ranged(g, e, dt) {
-    const t = pickTarget(g, e);
-    const d = keepRange(e, t, dt);
+      touch(g, e, t);
+      return;
+    }
+    e.flip = t.x < e.x;
+    e.angle = angleTo(e, t);
+    if (e.strafeT > 0) {
+      e.strafeT -= dt; // reposition between shots
+      move(e, e.angle + (Math.PI / 2) * e.flankDir, e.speed, dt);
+    }
+    if (p.reach !== 'ranged') return; // support units hold their ground and let their aura work
     e.timer -= dt;
-    if (e.timer <= 0 && d < e.def.range! * 1.2) {
+    if (e.timer <= 0) {
       e.timer = e.def.fireCd!;
-      shootAt(g, e, angleTo(e, t));
-    }
-  },
-
-  // runs in, plants itself, blows up after a telegraphed fuse. Killing it first cancels the blast.
-  exploder(g, e, dt) {
-    const t = pickTarget(g, e);
-    if (e.state === 0) {
-      seek(e, t, e.speed, dt);
-      if (distTo(e, t) < e.def.blastRadius! * 0.6) {
-        e.state = 1;
-        e.timer = e.def.fuse!;
-        addZone(g, { x: e.x, y: e.y, r: e.def.blastRadius!, delay: e.def.fuse!, damage: hitDamage(e), hostile: true, color: '#e07b28', owner: e, killsOwner: true });
-        sfx('warn');
+      shootAt(g, e, e.angle);
+      if (p.strafe) {
+        e.strafeT = AI_TUNING.strafeTime;
+        if (g.rng() < 0.5) e.flankDir = -e.flankDir as 1 | -1;
       }
-    } else e.timer -= dt; // only drives the blink; the zone kills its owner when it detonates
-  },
-
-  // hangs back behind the line and tops up the most wounded ally in reach
-  healer(g, e, dt) {
-    keepRange(e, g.player, dt);
-    e.timer -= dt;
-    if (e.timer > 0) return;
-    e.timer = e.def.healCd!;
-    let worst: Enemy | null = null;
-    for (const o of g.hash.query(e.x, e.y, e.def.healRange!, [])) {
-      if (o !== e && !o.dead && o.hp < o.maxHp && (!worst || o.hp / o.maxHp < worst.hp / worst.maxHp)) worst = o;
     }
-    if (!worst) return;
-    const amount = Math.min(worst.maxHp - worst.hp, e.def.healAmount! * g.waveHpMult);
-    worst.hp += amount;
-    line(g, e.x, e.y - 10, worst.x, worst.y, '#6fdc6f');
-    floatText(g, worst.x, worst.y - worst.r - 8, `+${Math.round(amount)}`, '#6fdc6f', 12);
   },
 
+  // ranged: back away from whoever got too close. melee: wheel away after a special (hit and run).
+  retreat(_g, e, t, p, dt) {
+    e.flip = t.x < e.x;
+    const away = angleTo(e, t) + Math.PI + (p.reach === 'melee' ? e.flankDir * 0.7 : 0);
+    move(e, away, e.speed * (p.reach === 'melee' ? 1 : 0.85), dt);
+  },
+
+  // towards a healer when there is one, otherwise just away
+  flee(g, e, _t, _p, dt) {
+    e.telegraph = null;
+    const h = e.healer && !e.healer.dead ? e.healer : null;
+    if (h && distTo(e, h) > 50) moveTo(e, h.x, h.y, e.speed * AI_TUNING.fleeSpeed, dt);
+    else if (!h) move(e, angleTo(e, g.player) + Math.PI, e.speed * AI_TUNING.fleeSpeed, dt);
+    e.flip = g.player.x > e.x;
+  },
+
+  // keep my slot in the formation while the squad marches
+  regroup(_g, e, _t, _p, dt) {
+    const sq = e.squad!;
+    const slot = slotPosition(sq, sq.facing, e.slot < 0 ? sq.commanderSlot : sq.offsets[e.slot]);
+    moveTo(e, slot.x, slot.y, e.speed * AI_TUNING.regroupSpeed, dt);
+    e.angle = sq.facing;
+    e.flip = Math.cos(sq.facing) < 0;
+  },
+
+  special() {}, // handled in runStateMachine: it needs the "done" result
+};
+
+function runStateMachine(g: Game, e: Enemy, dt: number): void {
+  const profile = AI[e.def.id] ?? DEFAULT_AI;
+  const t = pickTarget(g, e);
+  e.aiT += dt;
+  e.retreatT -= dt;
+  e.fleeCd -= dt;
+  e.special -= dt;
+  if ((e.thinkT -= dt) <= 0) {
+    e.thinkT = AI_TUNING.thinkEvery * (0.8 + e.flankRoll * 0.4); // spread the work over ticks
+    think(g, e, t, profile);
+  }
+
+  let specialDone = false;
+  if (e.ai === 'special') {
+    specialDone = SPECIALS[profile.special!.id](g, e, t, dt);
+    if (specialDone) {
+      e.special = profile.special!.cd;
+      e.retreatT = profile.retreatAfterSpecial ?? 0;
+      e.state = 0;
+    }
+  }
+  const next = nextState(profile, e.ai, {
+    dist: distTo(e, t),
+    reach: e.r + t.r + 2,
+    hpFrac: e.hp / e.maxHp,
+    timeInState: e.aiT,
+    timeAlive: g.time - e.born,
+    feared: e.fearT > 0,
+    fleeOnCooldown: e.fleeCd > 0,
+    squadMarching: e.squad?.marching === true,
+    specialReady: e.special <= 0,
+    specialDone,
+    retreating: e.retreatT > 0,
+    crowded: e.crowded,
+    flankRoll: e.flankRoll,
+  });
+  if (next !== e.ai) {
+    if (e.ai === 'flee') e.fleeCd = AI_TUNING.fleeCooldown;
+    if (e.ai === 'special') e.telegraph = null; // interrupted (feared mid-windup)
+    e.ai = next;
+    e.aiT = 0;
+    if (next === 'special') e.state = 0;
+  }
+  if (e.ai !== 'special') STATES[e.ai](g, e, t, profile, dt);
+}
+
+/** Commanders: a pulse every AURA_PULSE.every that buffs (or heals and rallies) everyone around them. */
+function pulseAura(g: Game, e: Enemy, dt: number): void {
+  const aura = e.def.aura!;
+  if ((e.auraT -= dt) > 0) return;
+  const healing = aura.kind === 'heal';
+  e.auraT = healing ? aura.every! : AURA_PULSE.every;
+  for (const o of g.hash.query(e.x, e.y, aura.radius, [])) {
+    if (o === e || o.dead || o.def.boss) continue;
+    if (healing) {
+      o.hp = Math.min(o.maxHp, o.hp + o.maxHp * aura.value);
+      o.fearT = o.slowT = 0; // cleanse
+    } else {
+      if (aura.kind === 'damage') o.buffDmg = Math.max(o.buffT > 0 ? o.buffDmg : 1, aura.value);
+      else o.buffSpd = Math.max(o.buffT > 0 ? o.buffSpd : 1, aura.value);
+      o.buffT = Math.max(o.buffT, AURA_PULSE.lasts);
+    }
+  }
+  if (healing) ring(g, e.x, e.y, aura.radius, '#6fdc6f', 0.5);
+}
+
+// ---------------------------------------------------------------- bosses: scripted, branching on e.phase
+
+const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> = {
   // Black Knight: telegraphed line charge. Phase 2: chains several charges back to back.
-  bossKnight(g, e, dt) {
+  blackKnight(g, e, dt) {
     const t = pickTarget(g, e);
     const def = e.def;
     e.timer -= dt;
@@ -202,7 +218,7 @@ const BEHAVIORS: Record<Behavior, (g: Game, e: Enemy, dt: number) => void> = {
         hurtTarget(g, v, specialDamage(e), true, e);
       }
       if (e.timer <= 0) {
-        if (e.phase === 2 && e.combo < def.p2Combo!) {
+        if (e.phase >= 2 && e.combo < def.p2Combo!) {
           e.combo++;
           windUp(0.55);
         } else {
@@ -218,7 +234,7 @@ const BEHAVIORS: Record<Behavior, (g: Game, e: Enemy, dt: number) => void> = {
   },
 
   // Warlord: telegraphed ground slam around himself, then calls the pack. Phase 2: hurls boulders after every slam.
-  bossWarlord(g, e, dt) {
+  warlord(g, e, dt) {
     const t = pickTarget(g, e);
     const def = e.def;
     if (e.state === 0) {
@@ -237,7 +253,7 @@ const BEHAVIORS: Record<Behavior, (g: Game, e: Enemy, dt: number) => void> = {
         e.state = 0;
         e.special = def.specialCd!;
         summon(g, e);
-        if (e.phase === 2) {
+        if (e.phase >= 2) {
           for (let i = 0; i < def.p2Boulders!; i++) {
             const a = g.rng() * TAU;
             const off = i === 0 ? 0 : 40 + g.rng() * 110;
@@ -249,7 +265,7 @@ const BEHAVIORS: Record<Behavior, (g: Game, e: Enemy, dt: number) => void> = {
   },
 
   // Lich: keeps its distance, fans of bolts, telegraphed hexes under the player's feet. Phase 2: bolt rings and more hexes.
-  bossLich(g, e, dt) {
+  lich(g, e, dt) {
     const t = pickTarget(g, e);
     const def = e.def;
     const d = keepRange(e, t, dt);
@@ -257,14 +273,14 @@ const BEHAVIORS: Record<Behavior, (g: Game, e: Enemy, dt: number) => void> = {
     if (e.timer <= 0 && d < def.range! * 1.5) {
       e.timer = def.fireCd!;
       for (const spread of [-0.3, 0, 0.3]) shootAt(g, e, angleTo(e, t) + spread);
-      if (e.phase === 2 && e.combo++ % 2 === 0) for (let i = 0; i < def.p2RingBolts!; i++) shootAt(g, e, (i / def.p2RingBolts!) * TAU);
+      if (e.phase >= 2 && e.combo++ % 2 === 0) for (let i = 0; i < def.p2RingBolts!; i++) shootAt(g, e, (i / def.p2RingBolts!) * TAU);
     }
     e.special -= dt;
     if (e.special <= 0) {
       e.special = def.specialCd!;
       sfx('warn');
       const p = g.player;
-      const count = def.zoneCount! + (e.phase === 2 ? def.p2ExtraZones! : 0);
+      const count = def.zoneCount! + (e.phase >= 2 ? def.p2ExtraZones! : 0);
       for (let i = 0; i < count; i++) {
         const off = i === 0 ? 0 : 60 + g.rng() * 140; // first hex is dead on, the rest cut off escape routes
         const a = g.rng() * TAU;
@@ -274,7 +290,7 @@ const BEHAVIORS: Record<Behavior, (g: Game, e: Enemy, dt: number) => void> = {
   },
 
   // Grand Inquisitor: walks you down and sends a line of pyres racing at you. Phase 2: a fan of lines, plus cultists.
-  bossInquisitor(g, e, dt) {
+  inquisitor(g, e, dt) {
     const t = pickTarget(g, e);
     const def = e.def;
     if (e.state === 1) {
@@ -290,18 +306,18 @@ const BEHAVIORS: Record<Behavior, (g: Game, e: Enemy, dt: number) => void> = {
     e.state = 1;
     e.timer = 0.6;
     sfx('warn');
-    const lines = e.phase === 2 ? def.p2Lines! : 1;
+    const lines = e.phase >= 2 ? def.p2Lines! : 1;
     for (let k = 0; k < lines; k++) {
       const a = angleTo(e, t) + (k - (lines - 1) / 2) * 0.5;
       for (let i = 1; i <= def.lineZones!; i++) {
         addZone(g, { x: e.x + Math.cos(a) * def.lineSpacing! * i, y: e.y + Math.sin(a) * def.lineSpacing! * i, r: def.zoneRadius!, delay: def.windup! + i * 0.09, damage: specialDamage(e), hostile: true, color: '#e07b28', owner: e });
       }
     }
-    if (e.phase === 2) summon(g, e);
+    if (e.phase >= 2) summon(g, e);
   },
 
   // Plague Abbot: lobs flasks that leave poison pools. Phase 2: a ring of flasks closes in around you.
-  bossAbbot(g, e, dt) {
+  abbot(g, e, dt) {
     const t = pickTarget(g, e);
     const def = e.def;
     const d = keepRange(e, t, dt);
@@ -323,7 +339,7 @@ const BEHAVIORS: Record<Behavior, (g: Game, e: Enemy, dt: number) => void> = {
       const off = i === 0 ? 0 : 70 + g.rng() * 120;
       flask(p.x + Math.cos(a) * off, p.y + Math.sin(a) * off, def.windup! + i * 0.2);
     }
-    if (e.phase === 2) {
+    if (e.phase >= 2) {
       const gap = Math.floor(g.rng() * def.p2RingFlasks!); // one way out
       for (let i = 0; i < def.p2RingFlasks!; i++) {
         if (i !== gap) flask(p.x + Math.cos((i / def.p2RingFlasks!) * TAU) * 190, p.y + Math.sin((i / def.p2RingFlasks!) * TAU) * 190, def.windup! + 0.4);
@@ -332,8 +348,14 @@ const BEHAVIORS: Record<Behavior, (g: Game, e: Enemy, dt: number) => void> = {
   },
 };
 
-function enterPhaseTwo(g: Game, e: Enemy): void {
-  e.phase = 2;
+/** Bosses register extra scripts here (systems/bosses.ts) without this file growing. */
+export function registerBoss(id: EnemyId, script: (g: Game, e: Enemy, dt: number) => void): void {
+  BOSSES[id] = script;
+}
+export { pickTarget };
+
+function enterPhase(g: Game, e: Enemy, phase: number): void {
+  e.phase = phase;
   e.special = Math.min(e.special, 1.2);
   g.banner = { text: `${e.def.name} is enraged`, t: 2.2 };
   ring(g, e.x, e.y, 200, HOSTILE, 0.7);
@@ -353,21 +375,23 @@ export function updateEnemies(g: Game, dt: number): void {
     e.slowT -= dt;
     e.fearT -= dt;
     e.markT -= dt;
-    if (e.def.boss && e.phase === 1 && e.hp <= e.maxHp / 2) enterPhaseTwo(g, e);
+    e.buffT -= dt;
+    if (e.def.boss) {
+      const phases = e.def.phases ?? 2; // phase thresholds split the HP bar evenly: 2 phases -> 50%, 3 -> 66% and 33%
+      if (e.phase < phases && e.hp <= e.maxHp * (1 - e.phase / phases)) enterPhase(g, e, e.phase + 1);
+    }
 
-    e.speed = e.baseSpeed * moon * (e.slowT > 0 ? e.slowMul : 1) * (enraged(e) ? AFFIXES.enraged.n.speed : 1) * (e.phase === 2 ? (e.def.p2SpeedMult ?? 1) : 1);
+    e.speed = e.baseSpeed * moon * (e.slowT > 0 ? e.slowMul : 1) * (enraged(e) ? AFFIXES.enraged.n.speed : 1) * (e.buffT > 0 ? e.buffSpd : 1) * (e.phase >= 2 ? (e.def.p2SpeedMult ?? 1) : 1);
 
     if (e.shieldMax > 0) {
       e.shieldT -= dt;
       if (e.shieldT <= 0 && e.shield < e.shieldMax) e.shield = Math.min(e.shieldMax, e.shield + (e.shieldMax / AFFIXES.shielded.n.regenTime) * dt);
     }
     if (e.affixes.includes('frostAura') && dist2(e.x, e.y, p.x, p.y) < AFFIXES.frostAura.n.radius ** 2) p.chillT = AFFIXES.frostAura.n.linger;
+    if (e.def.aura) pulseAura(g, e, dt);
 
-    if (e.fearT > 0) {
-      e.telegraph = null;
-      e.state = 0;
-      e.flip = p.x > e.x;
-      move(e, angleTo(e, p) + Math.PI, e.speed, dt);
-    } else BEHAVIORS[e.def.behavior](g, e, dt);
+    const script = BOSSES[e.def.id];
+    if (script) script(g, e, dt);
+    else runStateMachine(g, e, dt);
   }
 }

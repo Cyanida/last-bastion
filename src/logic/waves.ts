@@ -30,31 +30,45 @@ export function enemyCount(wave: number): number {
   return isBossWave(wave) ? Math.max(1, Math.round(n * WAVES.bossEscortFrac)) : n;
 }
 
-export function generateWave(wave: number, rng: Rng, opts: WaveOptions = {}): WavePlan {
-  const bossWave = isBossWave(wave);
-  const modifier = !bossWave && wave >= WAVES.modifierFromWave && rng() < WAVES.modifierChance ? MODIFIER_IDS[Math.floor(rng() * MODIFIER_IDS.length)] : null;
+// ---- rules shared by this simple generator and the spawn director (logic/director.ts) ----
 
-  const pool = WAVES.pool
+/** Non-boss waves from modifierFromWave on sometimes roll a modifier. Consumes rng only when eligible. */
+export function rollModifier(wave: number, rng: Rng): ModifierId | null {
+  if (isBossWave(wave) || wave < WAVES.modifierFromWave || rng() >= WAVES.modifierChance) return null;
+  return MODIFIER_IDS[Math.floor(rng() * MODIFIER_IDS.length)];
+}
+
+/** Enemy types unlocked at this wave with their base weights (Siege multiplies the ranged ones). */
+export function unlockedPool(wave: number, modifier: ModifierId | null): { weight: number; value: EnemyId }[] {
+  return WAVES.pool
     .filter((p) => wave >= p.from)
     .map((p) => ({ weight: p.weight * (modifier === 'siege' && WAVES.rangedTypes.includes(p.id) ? MODIFIERS.siege.n.rangedWeight : 1), value: p.id }));
+}
+
+export function bossFor(wave: number, bosses: EnemyId[] = WAVES.bosses): EnemyId | null {
+  return isBossWave(wave) ? bosses[(wave / WAVES.bossEvery - 1) % bosses.length] : null;
+}
+
+export function spawnIntervalFor(count: number, total: number): number {
+  const s = WAVES.spawn;
+  return clamp(count * s.perEnemy, s.minDuration, s.maxDuration) / Math.max(1, total);
+}
+
+/** The v0.2 generator: a flat weighted list. The game itself uses the director, which builds on the same rules. */
+export function generateWave(wave: number, rng: Rng, opts: WaveOptions = {}): WavePlan {
+  const modifier = rollModifier(wave, rng);
+  const pool = unlockedPool(wave, modifier);
   const count = enemyCount(wave);
   const spawns: EnemyId[] = [];
   for (let i = 0; i < count; i++) spawns.push(pickWeighted(pool, rng));
 
-  let boss: EnemyId | null = null;
-  if (bossWave) {
-    const bosses = opts.bosses ?? WAVES.bosses;
-    boss = bosses[(wave / WAVES.bossEvery - 1) % bosses.length];
-    spawns.unshift(boss);
-  }
+  const boss = bossFor(wave, opts.bosses);
+  if (boss) spawns.unshift(boss);
 
   const elites: Record<number, AffixId[]> = {};
   const chance = eliteChance(wave, opts.eliteMult ?? 1);
   if (chance > 0) {
     for (let i = boss ? 1 : 0; i < spawns.length; i++) if (rng() < chance) elites[i] = rollAffixes(wave, rng);
   }
-
-  const s = WAVES.spawn;
-  const duration = clamp(count * s.perEnemy, s.minDuration, s.maxDuration);
-  return { wave, boss, spawns, elites, modifier, hpMult: enemyHpMult(wave), dmgMult: enemyDmgMult(wave), spawnInterval: duration / spawns.length };
+  return { wave, boss, spawns, elites, modifier, hpMult: enemyHpMult(wave), dmgMult: enemyDmgMult(wave), spawnInterval: spawnIntervalFor(count, spawns.length) };
 }

@@ -9,6 +9,9 @@ export type EnemyId =
   | 'shieldBearer'
   | 'priest'
   | 'cavalry'
+  | 'bannerman'
+  | 'drummer'
+  | 'chaplain'
   | 'blackKnight'
   | 'warlord'
   | 'lich'
@@ -21,6 +24,7 @@ export type Behavior =
   | 'ranged'
   | 'exploder'
   | 'healer'
+  | 'support'
   | 'bossKnight'
   | 'bossWarlord'
   | 'bossLich'
@@ -54,6 +58,11 @@ export interface EnemyDef {
   healAmount?: number; // healer
   healCd?: number;
   healRange?: number;
+  // commanders: an aura for nearby allies, a squad reaction when they fall, and a bounty
+  aura?: { kind: 'damage' | 'speed' | 'heal'; radius: number; value: number; every?: number };
+  onDeath?: 'enrage' | 'scatter' | 'flee';
+  bonusGold?: number;
+  phases?: number; // bosses: how many phases the HP bar is split into (default 2)
   fuse?: number; // exploder
   blastRadius?: number;
   specialCd?: number; // bosses
@@ -117,6 +126,22 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     ...base, id: 'cavalry', name: 'Cavalry', sprite: 'cavalry', behavior: 'lunger',
     hp: 60, damage: 20, speed: 95, radius: 16, xp: 5, knockbackResist: 0.5,
     lungeRange: 380, lungeSpeed: 560, windup: 0.75, lungeTime: 0.9, recover: 1.2, telegraphLunge: true,
+  },
+  // ---- commanders: they do not fight, they make everyone around them worse to fight. Kill them first. ----
+  bannerman: {
+    ...base, id: 'bannerman', name: 'Bannerman', sprite: 'bannerman', behavior: 'support',
+    hp: 70, damage: 0, speed: 74, radius: 13, xp: 6, range: 260,
+    aura: { kind: 'damage', radius: 230, value: 1.3 }, onDeath: 'enrage', bonusGold: 12,
+  },
+  drummer: {
+    ...base, id: 'drummer', name: 'War Drummer', sprite: 'drummer', behavior: 'support',
+    hp: 60, damage: 0, speed: 78, radius: 13, xp: 6, range: 280,
+    aura: { kind: 'speed', radius: 250, value: 1.3 }, onDeath: 'scatter', bonusGold: 12,
+  },
+  chaplain: {
+    ...base, id: 'chaplain', name: 'Chaplain', sprite: 'chaplain', behavior: 'support',
+    hp: 80, damage: 0, speed: 70, radius: 13, xp: 7, range: 300,
+    aura: { kind: 'heal', radius: 220, value: 0.07, every: 3 }, onDeath: 'flee', bonusGold: 15,
   },
   blackKnight: {
     ...boss, id: 'blackKnight', name: 'The Black Knight', sprite: 'blackKnight', behavior: 'bossKnight',

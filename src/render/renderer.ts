@@ -188,6 +188,25 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
 
   for (const e of g.enemies) {
     if (!visible(e.x, e.y, 80)) continue;
+    if (e.def.aura) {
+      // commanders: their aura on the ground and a gold chevron overhead, so they read as the target to hunt
+      ctx.strokeStyle = e.def.aura.kind === 'heal' ? 'rgba(111,220,111,0.35)' : e.def.aura.kind === 'speed' ? 'rgba(242,230,160,0.3)' : 'rgba(194,58,46,0.35)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 8]);
+      disc(ctx, e.x, e.y, e.def.aura.radius);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#c9a227';
+      ctx.beginPath();
+      ctx.moveTo(e.x - 7, e.y - e.r - 40);
+      ctx.lineTo(e.x + 7, e.y - e.r - 40);
+      ctx.lineTo(e.x, e.y - e.r - 31);
+      ctx.fill();
+    }
+    if (e.buffT > 0) {
+      ctx.fillStyle = e.buffDmg > 1 ? '#c23a2e' : '#f2e6a0';
+      ctx.fillRect(e.x + 5, e.y - e.r - 34, 5, 5);
+    }
     if (e.elite) {
       // elites: coloured ground ring per affix, bigger sprite
       e.affixes.forEach((id, i) => {
