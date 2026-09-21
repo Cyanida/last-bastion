@@ -1,4 +1,51 @@
-# Balance notes (v0.2)
+# Balance notes
+
+## v0.3: Acts, squads and the director
+
+### Intended difficulty per Act (Squire, no Keep upgrades)
+
+| Act | Waves | Arena | What it should feel like |
+|---|---|---|---|
+| **I — The Levy** | 1-10 | the arena you picked | Waves 1-4 teach the class. Squads with a bannerman arrive from wave 4: learn to kill the commander first. The mid-Act boss (wave 5, from the arena's own rotation) is the first check, as in v0.2. Waves 6-9 add modifiers, assassins, shieldwalls and engineers; a fresh character usually dies here. **The Act boss (wave 10: the Dragon) is the gate.** Beating it fresh is a very good run. |
+| **II** | 11-20 | the next arena | Reached by developed saves, or by a fresh run that found a build. Two-affix elites, cavalry lances, crusader lines with chaplains, siege towers. The Merchant before it is the first real "this run or the Keep?" decision. The Warden ends it. |
+| **III+** | 21+ | cycles on | Borrowed time: quadratic enemy scaling wins. Only maxed saves with a relic build get here on Squire; this is what Knight and above are for. |
+
+The spawn director buys each wave from a budget (`config/director.ts`): `enemyCount(wave) x costPerHead(wave)`, enemies cost their XP value.
+It tilts the mix by class (an Archer sees shields and flankers, a Necromancer sees corpse thieves and blasts), by wave modifier and by the Act's theme,
+and applies a **mild rubber band**: up to +30% elite chance for a player who keeps clearing fast at high HP, up to -15% budget for one who is struggling.
+It is deliberately mild, because it squeezes exactly the gap that permanent upgrades are supposed to open.
+
+Curses are the opt-in way up: each adds +10% to +30% gold and class XP, and they stack additively (`config/curses.ts`).
+
+### Simulation, v0.3 (Squire, courtyard, 10 runs per cell)
+
+`npm run sim` plays full runs with everything live: the director, squads and commanders, status effects, armor, Act bosses, the Merchant (the bot heals and buys a relic, it never saves for the Keep).
+
+| Class | Fresh: avg wave (min-max) | Maxed: avg wave (min-max) | Ratio |
+|---|---|---|---|
+| Paladin | 8.8 (6-10) | 12.1 (9-22) | 1.37 |
+| Viking | 7.8 (6-10) | 8.1 (5-10) | 1.04 |
+| Angel | 7.3 (2-10) | 12.3 (5-25) | 1.68 |
+| Necromancer | 7.5 (5-10) | 10.2 (9-13) | 1.36 |
+| Archer | 7.1 (5-9) | 8.7 (5-11) | 1.23 |
+| **All** | **7.7** | **10.3** | **1.34** |
+
+Spread between classes (fresh): 1.24x, better than v0.2's 1.39x. On Knight the ratio is 1.53 (4.3 -> 6.6).
+
+**The maxed / fresh ratio is 1.34x, below the 1.5-2x target.** The cause is visible in the min-max columns: almost every run, fresh or maxed, ends at or before wave 10.
+The Act I boss is a harder gate than v0.2's wave-10 Warlord, and the basic bot fights it badly (melee bots chase a ranged, flying boss through its own fire; nobody uses the arena).
+Tuning done so far, all in config: Dragon HP 1500 -> 850, breath halved per orb, a single burn strip instead of a double one, fire fields and burn stacks weakened, ballista damage 24 -> 15,
+bone collector growth halved, class biases against Archer and Paladin reduced, rubber band elite bonus 0.6 -> 0.3, director cost growth 0.07 -> 0.05 per wave.
+Each step moved the ratio by a few hundredths inside a run-to-run noise of about +-0.1, so further blind tuning against this bot is not worth much.
+What to do next, in order: (1) play it: a human who dodges the strip and kills commanders should find Act I fair; (2) if maxed humans also stall at wave 10, lower `dragon.hp` and `specialMult` further rather than touching the classes;
+(3) teach the bot to kite bosses, so the yardstick measures the game and not the bot.
+
+Other things the diagnostics showed and that were fixed: shield bearers were halving undirected area damage (only frontal hits should be reduced), damage-over-time below 0.5 per tick was being dropped instead of carried over,
+and standing in the Dragon's fire stacked burn to absurd values.
+
+---
+
+# v0.2 notes (kept for reference; the caps and the power budget below still apply)
 
 All numbers live in `src/config/`. This file says what they are *supposed* to achieve, and what the
 headless simulation says they currently achieve.

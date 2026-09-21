@@ -150,7 +150,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   },
   ballista: {
     ...base, id: 'ballista', name: 'Ballista', sprite: 'ballista', behavior: 'ranged', structure: true,
-    hp: 150, damage: 24, speed: 0, radius: 18, xp: 4, knockbackResist: 1, range: 600, fireCd: 3.2, projSpeed: 520,
+    hp: 150, damage: 15, speed: 0, radius: 18, xp: 4, knockbackResist: 1, range: 600, fireCd: 3.6, projSpeed: 520,
   },
   // poison clouds, and once in his life he gets a fallen unit back on its feet
   plagueDoctor: {
@@ -185,7 +185,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   // goes for the corpses before he goes for you, and every one makes him bigger. The Necromancer's rival.
   boneCollector: {
     ...base, id: 'boneCollector', name: 'Bone Collector', sprite: 'boneCollector', behavior: 'chaser',
-    hp: 80, damage: 12, speed: 66, radius: 14, xp: 6, knockbackResist: 0.4, grow: { hp: 0.25, damage: 0.12, radius: 1.5, max: 10 },
+    hp: 80, damage: 12, speed: 66, radius: 14, xp: 6, knockbackResist: 0.4, grow: { hp: 0.2, damage: 0.06, radius: 1.5, max: 6 },
   },
   // ---- commanders: they do not fight, they make everyone around them worse to fight. Kill them first. ----
   bannerman: {
@@ -228,13 +228,13 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   // ---- Act bosses: three phases, and they change the arena itself (systems/bosses.ts) ----
   dragon: {
     ...boss, id: 'dragon', name: 'The Dragon', sprite: 'dragon', behavior: 'support', scale: 5, phases: 3,
-    hp: 1500, damage: 22, speed: 92, radius: 40, xp: 120,
-    range: 330, fireCd: 2.4, projSpeed: 300,
-    specialCd: 6.5, windup: 1.3, specialMult: 1.5, zoneRadius: 62, lineZones: 12, lineSpacing: 92, poolLife: 8, poolDps: 9,
+    hp: 850, damage: 17, speed: 78, radius: 40, xp: 120,
+    range: 250, fireCd: 2.8, projSpeed: 300,
+    specialCd: 7.5, windup: 1.3, specialMult: 1.5, zoneRadius: 62, lineZones: 12, lineSpacing: 92, poolLife: 7, poolDps: 6,
   },
   warden: {
     ...boss, id: 'warden', name: 'The Warden', sprite: 'warden', behavior: 'chaser', phases: 3,
-    hp: 1400, damage: 26, speed: 80, radius: 30, xp: 120,
+    hp: 1050, damage: 22, speed: 80, radius: 30, xp: 120,
     specialCd: 7.5, windup: 1.0, specialMult: 1.5, zoneRadius: 46, summon: 'knight', summonCount: 2, p2SpeedMult: 1.1,
   },
   abbot: {

@@ -9,22 +9,22 @@ import type { ModifierId } from './waves';
  * some bodies for nastier ones.
  */
 export const DIRECTOR = {
-  costPerHead: { base: 1.3, perWave: 0.07, max: 3.4 },
+  costPerHead: { base: 1.3, perWave: 0.05, max: 3.2 },
   maxUnits: 320, // hard cap for performance
-  squads: { fromWave: 4, chance: 0.55, perWave: 0.03, maxShare: 0.45, maxPerWave: 4 },
+  squads: { fromWave: 4, chance: 0.5, perWave: 0.03, maxShare: 0.4, maxPerWave: 4 },
   // mild rubber band on the player's recent performance (-1 struggling .. +1 cruising)
-  rubberBand: { eliteBonus: 0.6, budgetCut: 0.15, smoothing: 0.5, fastClear: 0.7 },
+  rubberBand: { eliteBonus: 0.3, budgetCut: 0.15, smoothing: 0.5, fastClear: 0.7 }, // kept mild on purpose: it also squeezes what the Keep is worth
 };
 
 export type Bias = Partial<Record<EnemyId, number>>;
 
 /** What each class is weak to shows up more often against it. */
 export const CLASS_BIAS: Record<ClassId, Bias> = {
-  paladin: { crossbow: 1.6, engineer: 1.8, plagueDoctor: 1.5, priest: 1.4 }, // things that will not come to him
+  paladin: { crossbow: 1.4, engineer: 1.6, plagueDoctor: 1.4, priest: 1.4 }, // things that will not come to him
   viking: { crossbow: 1.4, shieldwall: 1.6, cavalry: 1.3, plagueDoctor: 1.3 },
   angel: { wolf: 1.5, assassin: 1.8, cavalry: 1.4, mirrorKnight: 1.6 },
   necromancer: { cultist: 1.9, boneCollector: 2.5, plagueDoctor: 1.6, cavalry: 1.4 }, // anti-minion: blasts, tramplers, corpse thieves
-  archer: { shieldBearer: 2.2, wolf: 1.7, assassin: 1.9, mirrorKnight: 2, cavalry: 1.5, shieldwall: 1.8 }, // shields and fast flankers
+  archer: { shieldBearer: 1.7, wolf: 1.6, assassin: 1.6, mirrorKnight: 1.7, cavalry: 1.4, shieldwall: 1.5 }, // shields and fast flankers
 };
 
 export const MODIFIER_BIAS: Record<ModifierId, Bias> = {

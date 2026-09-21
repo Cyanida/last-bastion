@@ -132,7 +132,7 @@ describe('new roster: every type has its own loop', () => {
     g.corpses.push({ x: b.x + 50, y: b.y, t: 0 }, { x: b.x + 90, y: b.y, t: 0 });
     run(g, 5);
     expect(g.corpses).toHaveLength(0);
-    expect(b.maxHp).toBeGreaterThan(hp * 1.5);
+    expect(b.maxHp).toBeGreaterThan(hp * (1 + ENEMIES.boneCollector.grow!.hp) ** 2 * 0.98); // two corpses, compounding
     expect(b.r).toBeGreaterThan(r);
     expect(b.combo).toBe(2);
   });

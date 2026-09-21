@@ -16,7 +16,7 @@ const SEAL = '#a77fd0';
 
 function fireField(g: Game, e: Enemy) {
   const dps = e.def.poolDps! * g.waveDmgMult * g.tier.enemyDmg;
-  return { life: e.def.poolLife!, dps, color: FIRE, dtype: 'fire' as const, apply: { id: 'burn' as const, power: dps * 0.3 } };
+  return { life: e.def.poolLife!, dps, color: FIRE, dtype: 'fire' as const, apply: { id: 'burn' as const, power: dps * 0.12 } }; // standing in fire stacks the burn: step out
 }
 
 /** The Dragon burns a whole strip of the map: a telegraphed band of fire, straight through where you stand. */
@@ -26,7 +26,7 @@ function burnBand(g: Game, e: Enemy): void {
   const vertical = g.rng() < 0.5;
   const length = vertical ? h : w;
   for (let along = wall + 60; along < length - wall; along += 170) {
-    for (const side of [-85, 85]) {
+    for (const side of [0]) {
       const x = vertical ? p.x + side : along;
       const y = vertical ? along : p.y + side;
       addZone(g, { x, y, r: 105, delay: 1.6, damage: specialDamage(e) * 0.6, hostile: true, color: FIRE, owner: e, dtype: 'fire', leaveField: fireField(g, e) });
@@ -57,7 +57,7 @@ registerBoss('dragon', (g, e, dt) => {
     e.timer = def.fireCd! / (e.phase === 3 ? 1.5 : 1);
     const a = angleTo(e, t);
     for (const spread of [-0.36, -0.18, 0, 0.18, 0.36]) {
-      fireProjectile(g, e.x, e.y, a + spread, { damage: hitDamage(e), crit: false, hostile: true, pierce: 0, shape: 'orb', color: FIRE, r: 9, speed: def.projSpeed!, range: 640, dtype: 'fire' });
+      fireProjectile(g, e.x, e.y, a + spread, { damage: hitDamage(e) * 0.5 /* five of them: point blank it is a shotgun */, crit: false, hostile: true, pierce: 0, shape: 'orb', color: FIRE, r: 9, speed: def.projSpeed!, range: 640, dtype: 'fire' });
     }
     if (e.phase === 3) {
       // meteors: nowhere near you is safe for long

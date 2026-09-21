@@ -89,5 +89,5 @@ export const ENEMY_STATUS: Partial<Record<EnemyId, { id: StatusId; stacks?: numb
   lich: { id: 'curse' },
   abbot: { id: 'poison', power: 5 },
   assassin: { id: 'bleed', stacks: 3, power: 2 },
-  dragon: { id: 'burn', stacks: 2, power: 4 },
+  dragon: { id: 'burn', power: 2 },
 };

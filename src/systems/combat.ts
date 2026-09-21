@@ -107,8 +107,9 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   if (armor && e.armorHp > 0) {
     if (armor.backBreak) {
       // a shield: only hits from behind wear it down, and those go straight through
+      // ...and only hits from the front are turned by it: area damage (no direction) ignores the shield
       if (fromBehind(kx, ky, e.angle)) e.armorHp -= amount;
-      else amount *= 1 - armor.reduction;
+      else if (kx !== 0 || ky !== 0) amount *= 1 - armor.reduction;
     } else {
       const hit = throughArmor(amount, e.armorHp, armor.reduction);
       amount = hit.dealt;
