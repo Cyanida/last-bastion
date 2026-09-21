@@ -1,0 +1,37 @@
+name: Release (Windows installer)
+
+# A pushed tag v* builds the NSIS installer and publishes it, its blockmap and latest.yml to a GitHub Release.
+# electron-updater in the installed app reads latest.yml from there. Tags with a suffix (v0.3.0-beta.1) become pre-releases.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tag must match package.json
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then echo "tag $GITHUB_REF_NAME does not match package.json $VERSION"; exit 1; fi
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx vite build
+      - name: Build installer and publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code signing would go here: CSC_LINK (base64 .pfx) and CSC_KEY_PASSWORD from repository secrets.
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then TYPE=prerelease; else TYPE=release; fi
+          npx electron-builder --win --publish always -c.publish.releaseType=$TYPE
