@@ -6,6 +6,8 @@ import { emit } from '../core/events';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
 import { createEnemy } from '../entities/actors';
+import { actName, bossForWave, isActEnd, themeFor } from '../logic/acts';
+import { curseValue } from '../logic/curses';
 import { directWave, updatePerformance, type SpawnUnit } from '../logic/director';
 import { waveClearGold } from '../logic/economy';
 import { slotPosition } from '../logic/squads';
@@ -37,7 +39,8 @@ function edgePoint(g: Game): { x: number; y: number } {
 
 export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = []): Enemy {
   const at = x === undefined || y === undefined ? edgePoint(g) : { x, y };
-  const e = createEnemy(ENEMIES[id], at.x, at.y, g.waveHpMult * g.tier.enemyHp, g.waveDmgMult * g.tier.enemyDmg, affixes);
+  const hp = g.waveHpMult * g.tier.enemyHp * curseValue(g.curses, 'ironHorde', 'hp');
+  const e = createEnemy(ENEMIES[id], at.x, at.y, hp, g.waveDmgMult * g.tier.enemyDmg, affixes);
   e.born = g.time;
   e.flankRoll = g.rng();
   e.flankDir = g.rng() < 0.5 ? 1 : -1;
@@ -71,13 +74,18 @@ function spawnSquad(g: Game, index: number, units: SpawnUnit[]): void {
 
 function startWave(g: Game): void {
   g.wave++;
+  const boss = bossForWave(g.wave, g.arena.id);
   const plan = directWave({
     seed: g.seed,
     wave: g.wave,
     classId: g.player.cls.id,
     performance: g.perf,
-    bosses: g.arena.bosses,
+    bosses: boss ? [boss] : g.arena.bosses, // Act boss at x0, the arena's own rotation at x5
     eliteMult: g.tier.eliteMult,
+    themeBias: themeFor(g.act, g.seed).bias,
+    budgetMult: curseValue(g.curses, 'swarm', 'budget'),
+    squadMult: curseValue(g.curses, 'eliteCommanders', 'squadWeight'),
+    eliteCommanders: g.curses.includes('eliteCommanders'),
   });
   g.waveHpMult = plan.hpMult;
   g.waveDmgMult = plan.dmgMult;
@@ -88,13 +96,14 @@ function startWave(g: Game): void {
   g.spawnTimer = 0;
   g.waveT = 0;
   if (g.wave === 10) g.wave10Time = g.time;
-  const title = plan.boss ? `Wave ${g.wave} — Boss` : `Wave ${g.wave}`;
+  const title = g.wave === 1 ? `${actName(1)} — ${themeFor(1, g.seed).name}` : plan.boss ? `Wave ${g.wave} — Boss` : `Wave ${g.wave}`;
   g.banner = { text: plan.modifier ? `${title} · ${MODIFIERS[plan.modifier].name}` : title, t: plan.modifier ? 3 : 2 };
   sfx('wave');
   emit(g, 'onWaveStart', { wave: g.wave });
 }
 
 export function updateSpawning(g: Game, dt: number): void {
+  if (g.pendingMerchant) return; // between Acts: nothing spawns until the Merchant has been visited
   if (g.breather > 0) {
     g.breather -= dt;
     if (g.breather <= 0) startWave(g);
@@ -121,14 +130,16 @@ export function updateSpawning(g: Game, dt: number): void {
   // wave over: everything dead, or the stragglers have had their time (no stalemates, no safe farming)
   g.vars.overtime = (g.vars.overtime ?? 0) + dt;
   const cleared = g.enemies.length === 0;
-  if (cleared || (g.vars.overtime > WAVES.overtime && !g.enemies.some((e) => e.def.boss))) {
+  const limit = curseValue(g.curses, 'timedWaves', 'overtime', WAVES.overtime);
+  if (cleared || (g.vars.overtime > limit && !g.enemies.some((e) => e.def.boss))) {
     g.vars.overtime = 0;
-    g.breather = cleared ? WAVES.breather : 0.01;
+    g.breather = !cleared ? 0.01 : curseValue(g.curses, 'noRespite', 'breather', WAVES.breather);
+    if (isActEnd(g.wave)) g.pendingMerchant = true; // the UI (or the bot) visits the Merchant, then calls nextAct
     g.wavesCleared = g.wave;
     g.modifier = null;
     // the director's rubber band: how much HP is left, and was the wave cleared quickly
     g.perf = updatePerformance(g.perf, g.player.hp / g.player.stats.hp, g.waveT, WAVES.spawn.maxDuration + 15);
-    const bonus = waveClearGold(g.wave, g.player.mods.gold * g.tier.gold);
+    const bonus = waveClearGold(g.wave, g.player.mods.gold * g.tier.gold * (g.vars.curseMult ?? 1));
     g.gold += bonus;
     floatText(g, g.player.x, g.player.y - 60, `+${bonus} gold`, '#c9a227', 15);
     g.banner = { text: cleared ? 'Wave cleared' : 'They keep coming', t: 1.5 };

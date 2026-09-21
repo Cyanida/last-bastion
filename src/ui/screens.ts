@@ -2,13 +2,17 @@ import { ABILITY_UPGRADES, type AbilityUpgradeId } from '../config/abilityUpgrad
 import { ACHIEVEMENTS, type AchievementDef } from '../config/achievements';
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
+import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
+import { RELIC_WEIGHTS, type Rarity } from '../config/relics';
+import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
+import { curseMultiplier } from '../logic/curses';
 import { MASTERY, META, META_IDS, TIER_UNLOCK_WAVE, TIERS, type MetaId } from '../config/economy';
 import { relicDef, type RelicId } from '../config/relics';
 import type { QualitySetting } from '../config/game';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { onAction } from '../input';
 import type { Action } from '../input/mapping';
-import { gateOf, lockedArenas } from '../logic/achievements';
+import { gateOf, lockedArenas, lockedCurses } from '../logic/achievements';
 import { masteryRank, metaCost } from '../logic/economy';
 import { exportSave, type Save } from '../logic/save';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
@@ -122,7 +126,7 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
-export function showClassSelect(save: Save, on: { pick: (id: ClassId) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void }): void {
+export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void }): void {
   const locked = lockedArenas(save);
   const card = (c: ClassDef) => {
     const rec = save.classes[c.id];
@@ -152,6 +156,13 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId) => void; b
     const tip = lockedTier ? `Locked — clear wave ${TIER_UNLOCK_WAVE} on ${TIERS[i - 1].name}` : `Enemy HP ×${t.enemyHp}, damage ×${t.enemyDmg}, elites ×${t.eliteMult} · gold ×${t.gold}, class XP ×${t.classXp}`;
     return `<button class="chip ${save.settings.tier === i ? 'on' : ''}" data-tier="${i}" ${lockedTier ? 'disabled' : ''} data-tip="${tip}">${lockedTier ? '🔒 ' : ''}${t.name}</button>`;
   };
+  const lockedC = lockedCurses(save);
+  const curseBtn = (id: CurseId) => {
+    const c = CURSES[id];
+    const gate = lockedC.includes(id) ? gateOf({ curse: id }) : undefined;
+    const tip = gate ? `Locked — ${gate.desc}` : `${c.desc} +${Math.round(c.bonus * 100)}% gold and class XP.`;
+    return `<button class="chip curse ${save.settings.curses.includes(id) ? 'on' : ''}" data-curse="${id}" ${gate ? 'disabled' : ''} data-tip="${tip}">${gate ? '🔒 ' : ''}${c.name}</button>`;
+  };
   const el = show(`
     <div class="select">
       <h1 class="small">Choose your champion</h1>
@@ -159,11 +170,17 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId) => void; b
         <div><span class="label">Arena</span>${ARENA_IDS.map(arenaBtn).join('')}</div>
         <div><span class="label">Difficulty</span>${TIERS.map((_, i) => tierBtn(i)).join('')}</div>
       </div>
+      <div class="pickers curses">
+        <div><span class="label">Curses</span>${CURSE_IDS.map(curseBtn).join('')}
+          <span class="mult" data-tip="Every curse adds to the gold and class XP this run earns.">gold &amp; XP ×${curseMultiplier(save.settings.curses).toFixed(2)}</span></div>
+        <div><span class="label">Seed</span><input id="seed" maxlength="24" placeholder="random" autocomplete="off" spellcheck="false" data-tip="Type a seed from a results screen to replay that run." /></div>
+      </div>
       <div class="cards">${CLASS_ORDER.map((id) => card(CLASSES[id])).join('')}</div>
       <button class="btn" data-back>Back</button>
     </div>`);
   el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => slot.appendChild(getSprite(slot.dataset.sprite as ClassDef['sprite'], 6).img));
-  click(el, '[data-class]', (b) => on.pick(b.dataset.class as ClassId));
+  click(el, '[data-class]', (b) => on.pick(b.dataset.class as ClassId, el.querySelector<HTMLInputElement>('#seed')!.value));
+  click(el, '[data-curse]', (b) => on.curse(b.dataset.curse as CurseId));
   click(el, '[data-arena]', (b) => on.settings(b.dataset.arena as ArenaId, save.settings.tier));
   click(el, '[data-tier]', (b) => on.settings(save.settings.arena, Number(b.dataset.tier)));
   click(el, '[data-back]', on.back);
@@ -358,6 +375,9 @@ export interface RunResult {
   tierUnlocked: string | null;
   earned: AchievementDef[];
   slain: boolean; // false = the player ended the run from the pause menu
+  seed: string; // type it on the class select screen to replay the run
+  curseMult: number;
+  daily: string | null;
 }
 
 export function showResults(r: RunResult, onRetry: () => void, onMenu: () => void): void {
@@ -370,10 +390,12 @@ export function showResults(r: RunResult, onRetry: () => void, onMenu: () => voi
       <h1 class="small blood">${r.slain ? 'Thou art slain' : 'The run ends'}</h1>
       <p class="sub">${r.cls.name} · ${r.tier}${r.newBest ? ' — <span class="gold">new record!</span>' : ''}</p>
       <div class="stats wide">
-        <div><span>Wave reached</span><b>${r.wave}</b></div>
+        <div><span>Reached</span><b>${actName(Math.max(1, Math.ceil(r.wave / 10)))} · wave ${r.wave}</b></div>
         <div><span>Enemies slain</span><b>${r.kills}</b></div>
         <div><span>Time survived</span><b>${fmtTime(r.time)}</b></div>
         <div><span>Level</span><b>${r.level}</b></div>
+        <div><span>${r.daily ? `Daily Trial ${r.daily}` : 'Run seed'}</span><b class="seed">${r.seed}</b></div>
+        ${r.curseMult > 1 ? `<div><span>Curses</span><b>×${r.curseMult.toFixed(2)} gold &amp; XP</b></div>` : ''}
         <div><span>Best wave (${r.cls.name})</span><b>${r.best}</b></div>
         <div class="earned"><span>Gold banked</span><b>🪙 +${r.gold}</b></div>
         <div class="earned"><span>${r.cls.name} mastery</span><b>+${r.classXp} XP · rank ${r.masteryRank}</b></div>
@@ -385,4 +407,64 @@ export function showResults(r: RunResult, onRetry: () => void, onMenu: () => voi
   click(el, '[data-retry]', onRetry);
   click(el, '[data-menu]', onMenu);
   onActions((a) => a === 'confirm' && onRetry());
+}
+
+export interface MerchantInfo {
+  act: number; // the Act that was just cleared
+  gold: number;
+  hp: number;
+  maxHp: number;
+  relics: RelicId[];
+  slots: number;
+}
+
+/** Between Acts. Everything here costs run gold, and run gold is what you would otherwise bank for the Keep. */
+export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r: Rarity) => void; reroll: (i: number) => void; remove: (i: number) => void; leave: () => void }): void {
+  const price = (item: MerchantItem) => merchantPrice(item, info.act);
+  const offer = (item: MerchantItem, attrs: string, title: string, text: string, enabled: boolean) =>
+    `<button class="card panel boon shop" ${attrs} ${enabled && info.gold >= price(item) ? '' : 'disabled'}><h2>${title}</h2><p>${text}</p><div class="best">🪙 ${price(item)}</div></button>`;
+  const full = info.relics.length >= info.slots;
+  const held = info.relics.map((id, i) => {
+    const r = relicDef(id);
+    return `<div class="held ${r.rarity}"><span>${r.icon} ${r.name}</span>
+      <button class="chip" data-reroll="${i}" ${info.gold >= price('reroll') ? '' : 'disabled'} data-tip="Swap it for a random ${r.rarity} relic">Reroll 🪙 ${price('reroll')}</button>
+      <button class="chip" data-remove="${i}" ${info.gold >= price('remove') ? '' : 'disabled'} data-tip="Drop it to free the slot">Remove 🪙 ${price('remove')}</button></div>`;
+  }).join('');
+  const el = show(`
+    <div class="levelup merchant">
+      <h1 class="small">${actName(info.act)} is won</h1>
+      <p class="sub">The Merchant waits by the gate. Purse: <b class="goldtext">🪙 ${info.gold}</b> — what you spend here never reaches the Keep.</p>
+      <div class="cards">
+        ${offer('heal', 'data-heal', 'Field Surgeon', `Heal half your HP (${Math.ceil(info.hp)} / ${Math.round(info.maxHp)}).`, info.hp < info.maxHp)}
+        ${(Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, full ? 'Your reliquary is full.' : `A random ${r} relic.`, !full)).join('')}
+      </div>
+      ${held ? `<div class="panel heldlist">${held}</div>` : ''}
+      <button class="btn big" data-leave>March on</button>
+    </div>`);
+  click(el, '[data-heal]', on.heal);
+  click(el, '[data-buy]', (b) => on.buy(b.dataset.buy as Rarity));
+  click(el, '[data-reroll]', (b) => on.reroll(Number(b.dataset.reroll)));
+  click(el, '[data-remove]', (b) => on.remove(Number(b.dataset.remove)));
+  click(el, '[data-leave]', on.leave);
+  onActions((a) => a === 'confirm' && on.leave());
+}
+
+export function showDaily(setup: DailySetup, best: number, onStart: () => void, onBack: () => void): void {
+  const el = show(`
+    <div class="panel dialog">
+      <h1 class="small">Daily Trial</h1>
+      <p class="sub">${setup.date} — the same trial for everyone today</p>
+      <div class="stats wide">
+        <div><span>Champion</span><b>${CLASSES[setup.classId].name}</b></div>
+        <div><span>Arena</span><b>${ARENAS[setup.arena].name}</b></div>
+        <div><span>Curses</span><b>${setup.curses.map((c) => CURSES[c].name).join(' · ')}</b></div>
+        <div><span>Gold &amp; class XP</span><b>×${curseMultiplier(setup.curses).toFixed(2)}</b></div>
+        <div><span>Your best today</span><b>${best ? `wave ${best}` : '—'}</b></div>
+      </div>
+      <button class="btn big" data-start>Begin the trial</button>
+      <button class="btn" data-back>Back</button>
+    </div>`);
+  click(el, '[data-start]', onStart);
+  click(el, '[data-back]', onBack);
+  onActions((a) => (a === 'confirm' ? onStart() : a === 'cancel' && onBack()));
 }

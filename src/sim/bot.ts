@@ -7,6 +7,7 @@ import { createGame, summarizeRun, updateGame, type RunOptions } from '../game';
 import type { RunSummary } from '../logic/save';
 import type { LevelUpOption } from '../logic/upgrades';
 import { chooseAbilityUpgrade } from '../systems/abilities';
+import { merchantBuy, merchantHeal, nextAct } from '../systems/acts';
 import { chooseLevelUp, levelUpOptions } from '../systems/leveling';
 import { resolveRelicOffer } from '../systems/relics';
 
@@ -120,6 +121,12 @@ export function botChoose(g: Game, variant = 0): void {
   }
   while (g.pendingAbilityTiers.length > 0) {
     if (!chooseAbilityUpgrade(g, ABILITY_TRACKS[g.player.cls.id][g.pendingAbilityTiers[0]][variant])) g.pendingAbilityTiers.shift();
+  }
+  if (g.pendingMerchant) {
+    // patch up first, then a relic if there is room and money; never hoards for the Keep (it is a yardstick, not a saver)
+    if (g.player.hp < g.player.stats.hp * 0.6) merchantHeal(g);
+    if (!merchantBuy(g, 'rare')) merchantBuy(g, 'common');
+    nextAct(g);
   }
   while (g.pendingLevelUps > 0) {
     const options = levelUpOptions(g);

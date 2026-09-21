@@ -1,6 +1,9 @@
 import { ARENAS, type ArenaId } from './config/arenas';
 import { CLASSES, type ClassId } from './config/classes';
+import type { CurseId } from './config/curses';
 import { TIERS } from './config/economy';
+import { ACTS } from './config/acts';
+import { curseMultiplier, curseValue } from './logic/curses';
 import { GAME } from './config/game';
 import { RELIC_SLOTS, relicDef, type RelicId } from './config/relics';
 import { FREE_REROLLS } from './config/upgrades';
@@ -33,6 +36,8 @@ export interface RunOptions {
   meta?: MetaRanks; // Keep upgrades
   classXp?: number; // mastery
   lockedRelics?: RelicId[];
+  curses?: CurseId[];
+  daily?: string; // date of the Daily Trial this run is
 }
 
 export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions = {}): Game {
@@ -40,6 +45,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   const arena = ARENAS[opts.arena ?? 'courtyard'];
   const mastery = masteryBonus(opts.classXp ?? 0);
   const loadout = metaLoadout(opts.meta ?? {});
+  const curses = [...new Set(opts.curses ?? [])];
   const g: Game = {
     player: createPlayer(cls, arena, startingStats(cls.base, opts.meta ?? {}, mastery.secondary)),
     enemies: [],
@@ -95,9 +101,19 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     waveT: 0,
     commandersKilled: 0,
     barriers: [],
+    act: 1,
+    startArena: arena.id,
+    pendingMerchant: false,
+    merchantSpent: 0,
+    curses,
+    daily: opts.daily ?? null,
     banner: { text: '', t: 0 },
     over: false,
   };
+  // curses that are plain numbers live in g.vars; the rest are read where they matter (spawning, director)
+  g.vars.damageTaken = curseValue(curses, 'glassBones', 'damage');
+  g.vars.enemySpeed = curseValue(curses, 'frenzy', 'speed');
+  g.vars.curseMult = curseMultiplier(curses);
   g.player.mods = { ...g.baseMods };
   if (mastery.relic) {
     const commons = g.relicPool.filter((id) => relicDef(id).rarity === 'common');
@@ -126,6 +142,9 @@ export function summarizeRun(g: Game): RunSummary {
     wave10Time: g.wave10Time,
     commanders: g.commandersKilled,
     seed: g.seed,
+    actsCleared: Math.floor(g.wavesCleared / ACTS.length),
+    curses: g.curses,
+    daily: g.daily,
   };
 }
 

@@ -52,6 +52,38 @@ function disc(ctx: Ctx, x: number, y: number, r: number): void {
   ctx.arc(x, y, r, 0, TAU);
 }
 
+/** Bottom-left corner: the whole arena at a glance. Commanders and bosses stand out: they are the objectives. */
+function drawMinimap(ctx: Ctx, g: Game, view: View, cx: number, cy: number, vw: number, vh: number): void {
+  const d = view.dpr;
+  const w = 132 * d;
+  const k = w / g.arena.w;
+  const h = g.arena.h * k;
+  const compact = view.h / d < 560; // phones have no stats panel in that corner
+  const x0 = 16 * d;
+  const y0 = view.h - h - (compact ? 16 : 236) * d;
+  ctx.fillStyle = 'rgba(20,17,15,0.62)';
+  ctx.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
+  ctx.strokeStyle = '#5a3d25';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x0 - 2, y0 - 2, w + 4, h + 4);
+  const dot = (x: number, y: number, size: number, color: string) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(x0 + x * k - size / 2, y0 + y * k - size / 2, size, size);
+  };
+  for (const o of g.arena.obstacles) dot(o.x, o.y, 2 * d, '#55565c');
+  for (const e of g.enemies) {
+    if (e.hidden) continue;
+    if (e.def.boss) dot(e.x, e.y, 7 * d, '#c23a2e');
+    else if (e.def.aura || e.def.onDeath) dot(e.x, e.y, 5 * d, '#f2c94c');
+    else dot(e.x, e.y, 2 * d, e.elite ? '#c9a227' : '#b0524a');
+  }
+  for (const m of g.minions) dot(m.x, m.y, 2 * d, '#7ec8d8');
+  dot(g.player.x, g.player.y, 4 * d, '#ffffff');
+  ctx.strokeStyle = 'rgba(232,226,208,0.5)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0 + Math.max(0, cx) * k, y0 + Math.max(0, cy) * k, Math.min(vw, g.arena.w) * k, Math.min(vh, g.arena.h) * k);
+}
+
 /** Slow pan over an empty arena behind the menus. */
 export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, time: number): void {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -411,6 +443,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
 
   // wave modifier overlays, in screen space
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (!g.curses.includes('blind')) drawMinimap(ctx, g, view, cx, cy, vw, vh);
   if (g.modifier === 'fog') {
     const px = (p.x - cx) * z;
     const py = (p.y - cy) * z;

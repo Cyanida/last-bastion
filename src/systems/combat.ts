@@ -34,7 +34,7 @@ export function nearestEnemy(g: Game, x: number, y: number, range: number, exclu
 }
 
 export function goldMult(g: Game): number {
-  return g.player.mods.gold * g.tier.gold * (g.modifier === 'bloodMoon' ? MODIFIERS.bloodMoon.n.gold : 1);
+  return g.player.mods.gold * g.tier.gold * (g.vars.curseMult ?? 1) * (g.modifier === 'bloodMoon' ? MODIFIERS.bloodMoon.n.gold : 1);
 }
 
 export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): void {
@@ -219,6 +219,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
 
 export function healPlayer(g: Game, amount: number, show = true): void {
   const p = g.player;
+  if (g.breather > 0 && g.wave > 0 && g.curses.includes('noRespite')) return; // No Respite: nothing mends between waves
   const healed = Math.min(p.stats.hp - p.hp, amount);
   if (healed <= 0) return;
   p.hp += healed;

@@ -13,7 +13,10 @@ import type { Game } from './core/types';
 import { createGame, summarizeRun, updateGame } from './game';
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
 import { upgradeOptions } from './logic/abilityUpgrades';
-import { lockedArenas, lockedRelics, withAchievements } from './logic/achievements';
+import { lockedArenas, lockedRelics, unlockedCurses, withAchievements } from './logic/achievements';
+import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from './logic/acts';
+import { curseMultiplier } from './logic/curses';
+import { merchantBuy, merchantHeal, merchantRemove, merchantReroll, nextAct } from './systems/acts';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryRank, rerollCost } from './logic/economy';
 import { applyRun, buyMeta, defaultSave, importSave, type Save } from './logic/save';
@@ -24,7 +27,7 @@ import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { buildHud, setMuteIcon, showHud, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showKeep, showLevelUp, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTitle, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showDaily, showKeep, showLevelUp, showMerchant, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTitle, type TitleInfo } from './ui/screens';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
 
@@ -70,9 +73,17 @@ function toTitle(): void {
   menu();
   onTitle = true;
   showTitle(
-    { gold: save.gold, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: platform.buildDate, notice, daily: { date: '', best: 0 } },
-    { start: toSelect, daily: toSelect, keep: toKeep, chronicle: () => (menu(), showChronicle(save, toTitle)), settings: toSettings },
+    { gold: save.gold, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: platform.buildDate, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 } },
+    { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => (menu(), showChronicle(save, toTitle)), settings: toSettings },
   );
+}
+
+/** Same seed, class, arena and curses for everyone on a given date. Locks do not apply: it is a fixed challenge. */
+function toDaily(): void {
+  initAudio();
+  menu();
+  const setup = dailySetup(todayString());
+  showDaily(setup, save.daily[setup.date] ?? 0, () => startRun(setup.classId, { seed: setup.seed, daily: setup }), toTitle);
 }
 
 /** Updates never interrupt anything: they only ever surface as a notice on the title screen. */
@@ -85,8 +96,14 @@ function toSelect(): void {
   initAudio();
   menu();
   showClassSelect(save, {
-    pick: startRun,
+    pick: (id, seedText) => startRun(id, { seed: parseSeed(seedText) ?? undefined }),
     back: toTitle,
+    curse(id) {
+      if (!unlockedCurses(save).includes(id)) return;
+      const on = save.settings.curses;
+      commit({ ...save, settings: { ...save.settings, curses: on.includes(id) ? on.filter((c) => c !== id) : [...on, id] } });
+      toSelect();
+    },
     settings(arena, tier) {
       if (lockedArenas(save).includes(arena) || tier > save.tierUnlocked) return;
       commit({ ...save, settings: { ...save.settings, arena, tier } });
@@ -152,15 +169,18 @@ function toSaveDialog(): void {
 }
 
 // ---------- run ----------
-function startRun(id: ClassId): void {
+function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {}): void {
   initAudio();
   clearOverlay();
-  game = createGame(id, Date.now(), {
-    arena: save.settings.arena,
-    tier: save.settings.tier,
+  const d = opts.daily;
+  game = createGame(id, opts.seed ?? Date.now() >>> 0, {
+    arena: d ? d.arena : save.settings.arena,
+    tier: d ? 0 : save.settings.tier,
     meta: save.meta,
     classXp: save.classes[id].xp,
     lockedRelics: lockedRelics(save),
+    curses: d ? d.curses : save.settings.curses.filter((c) => unlockedCurses(save).includes(c)),
+    daily: d?.date,
   });
   play();
   showHud(true);
@@ -213,10 +233,30 @@ function openChoice(g: Game): void {
       if (!chooseAbilityUpgrade(g, id)) g.pendingAbilityTiers.shift(); // never leave the player stuck on a choice that cannot be made
       resume();
     });
-  } else openLevelUp(g);
+  } else if (g.pendingLevelUps > 0) openLevelUp(g);
+  else openMerchant(g);
 }
 
-const hasChoice = (g: Game) => g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingLevelUps > 0;
+/** Between Acts: spend run gold (which would otherwise be banked), then on to the next arena. */
+function openMerchant(g: Game): void {
+  const act = g.act;
+  const again = (ok: boolean) => ok && openMerchant(g);
+  showMerchant(
+    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.relics, slots: g.relicSlots },
+    {
+      heal: () => again(merchantHeal(g)),
+      buy: (r) => again(merchantBuy(g, r)),
+      reroll: (i) => again(merchantReroll(g, i)),
+      remove: (i) => again(merchantRemove(g, i)),
+      leave() {
+        nextAct(g);
+        resume();
+      },
+    },
+  );
+}
+
+const hasChoice = (g: Game) => g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingLevelUps > 0 || g.pendingMerchant;
 
 function togglePause(): void {
   if (state === 'playing' && game) {
@@ -241,8 +281,9 @@ function endRun(g: Game): void {
       best: save.classes[id].bestWave, newBest: g.wave > prevBest,
       gold: Math.max(0, g.gold - g.goldStart), classXp: result.classXp, masteryRank: masteryRank(save.classes[id].xp),
       tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[save.tierUnlocked].name : null, earned, slain: g.over,
+      seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily,
     },
-    () => startRun(id),
+    () => (g.daily ? toDaily() : startRun(id)),
     toSelect,
   );
 }
@@ -388,7 +429,7 @@ if (import.meta.env.DEV) {
       /** Advance n ticks with real UI flow; choice screens are answered by clicking their first option. mode: 'input' reads the real input layer. */
       run(n: number, ability = false, mode: boolean | 'input' = false) {
         for (let i = 0; i < n && game && state !== 'results'; i++) {
-          if (state === 'choice') (document.querySelector('[data-pick]') as HTMLElement).click();
+          if (state === 'choice') (document.querySelector('[data-pick], [data-leave]') as HTMLElement).click();
           if (state !== 'playing') continue;
           if (mode === 'input') sampleInput(game);
           else if (mode) botInput(game); // the bot moves and casts, but the real choice screens still open

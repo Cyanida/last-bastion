@@ -5,6 +5,7 @@ import { relicDef } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
 import { STAT_KEYS, type Enemy, type Game, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
+import { actName } from '../logic/acts';
 import { activeStatuses } from '../logic/status';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
@@ -100,7 +101,7 @@ export function updateHud(g: Game): void {
   text('h-gold', `🪙 ${g.gold}`);
   text('h-tier', `${g.tier.name} · ${g.arena.name}`);
 
-  text('h-wave', g.wave > 0 ? `Wave ${g.wave}` : 'Prepare…');
+  text('h-wave', g.wave > 0 ? `${actName(g.act)} · Wave ${g.wave}` : 'Prepare…');
   const left = g.enemies.length + g.spawnQueue.length;
   text('h-left', g.breather > 0 && g.wave > 0 ? 'Next wave incoming' : `${left} enemies remaining`);
   $('h-mod').classList.toggle('hidden', !g.modifier);

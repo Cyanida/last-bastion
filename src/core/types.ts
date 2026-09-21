@@ -1,5 +1,6 @@
 import type { AbilityUpgradeId } from '../config/abilityUpgrades';
-import type { ArenaDef } from '../config/arenas';
+import type { ArenaDef, ArenaId } from '../config/arenas';
+import type { CurseId } from '../config/curses';
 import type { ClassDef } from '../config/classes';
 import type { TierDef } from '../config/economy';
 import type { AffixId } from '../config/elites';
@@ -346,6 +347,12 @@ export interface Game {
   waveT: number; // seconds since this wave started
   commandersKilled: number;
   barriers: (Body & { life: number })[]; // temporary walls raised by bosses; they block everyone, like arena obstacles
+  act: number; // Acts of 10 waves: boss, Merchant, next arena
+  startArena: ArenaId;
+  pendingMerchant: boolean; // the Act is over: the Merchant screen is due
+  merchantSpent: number;
+  curses: CurseId[];
+  daily: string | null; // date, when this run is a Daily Trial
   banner: { text: string; t: number };
   over: boolean;
 }
