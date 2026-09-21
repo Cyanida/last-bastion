@@ -23,6 +23,7 @@ import { updateEnemyPhysics, updatePickups, updatePlayerMovement } from './syste
 import { addRelic, updateRelics } from './systems/relics';
 import { updateSpawning } from './systems/spawning';
 import { updateSquads } from './systems/squads';
+import { updateStatuses } from './systems/status';
 
 /** Everything a run takes from outside: the player's choices on the select screen and their permanent progress. */
 export interface RunOptions {
@@ -149,6 +150,7 @@ export function updateGame(g: Game, dt: number): void {
   updateAbility(g, dt);
   updatePlayerAttack(g, dt);
   updateSquads(g, dt);
+  updateStatuses(g, dt);
   updateEnemies(g, dt);
   updateEnemyPhysics(g, dt);
   updateMinions(g, dt);

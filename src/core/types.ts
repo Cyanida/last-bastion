@@ -9,6 +9,8 @@ import type { ModifierId } from '../config/waves';
 import type { SpawnUnit, SquadPlan } from '../logic/director';
 import type { AiState } from '../logic/fsm';
 import type { Formation, Vec } from '../logic/squads';
+import type { DamageType } from '../config/damage';
+import type { StatusApply, StatusMap } from '../logic/status';
 import type { SpatialHash } from './spatial';
 
 export type StatKey = 'hp' | 'str' | 'dex' | 'int' | 'atkSpd' | 'moveSpd' | 'secondary';
@@ -54,6 +56,7 @@ export interface Status {
   slowT?: number;
   markMul?: number;
   markT?: number;
+  apply?: StatusApply[]; // v0.3 status effects (burn, bleed, poison, stun...)
 }
 
 export interface Body {
@@ -86,6 +89,9 @@ export interface Player extends Body {
   absorbed: number; // damage soaked by Divine Shield this cast
   chillT: number; // slowed by a Frost Aura elite
   still: number; // seconds without moving
+  statuses: StatusMap; // v0.3: burn, bleed, poison, chill, curse from enemies
+  dots: Partial<Record<DamageType, number>>; // damage-over-time waiting for the next tick
+  dotT: number;
   iFrames: number;
   flash: number;
 }
@@ -137,6 +143,11 @@ export interface Enemy extends Body {
   buffT: number;
   auraT: number; // commanders: countdown to the next aura pulse
   hidden: boolean; // cannot be auto-targeted (assassins, a flying dragon)
+  statuses: StatusMap;
+  dots: Partial<Record<DamageType, number>>;
+  dotT: number;
+  armorHp: number; // soaks part of every hit until it breaks (config/damage.ts ARMOR)
+  armorMax: number;
   kx: number; // knockback velocity
   ky: number;
   attackTimer: number;
@@ -181,6 +192,7 @@ export interface Minion extends Body {
   flip: boolean;
   scale: number; // sprite scale (bone golems are bigger)
   volatile: number; // > 0: explodes for damage * volatile when it dies
+  blessedT: number; // v0.3: blessed minions hit harder and regenerate
   status: Status | null; // applied by its hits
 }
 
@@ -197,6 +209,7 @@ export interface Projectile extends Body {
   hit: Enemy[];
   status: Status | null;
   source: DamageSource;
+  dtype: DamageType;
 }
 
 /** Delayed area damage: boss telegraphs, cultist blasts, volley arrows. */
@@ -212,7 +225,8 @@ export interface Zone extends Body {
   arrow: boolean;
   color: string;
   status: Status | null;
-  leaveField: { life: number; dps: number; color: string } | null; // what stays behind after detonation
+  leaveField: { life: number; dps: number; color: string; dtype?: DamageType; apply?: StatusApply } | null; // what stays behind after detonation
+  dtype: DamageType;
 }
 
 /** Lasting area: fire, poison, consecrated ground. Ticks every GAME.fieldTick seconds. */
@@ -224,6 +238,8 @@ export interface Field extends Body {
   heal: number; // HP per second to the player while inside (friendly fields)
   color: string;
   tickT: number;
+  dtype: DamageType;
+  apply: StatusApply | null; // put on whoever stands in it, every tick
 }
 
 export interface Pickup {

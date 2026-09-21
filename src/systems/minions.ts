@@ -1,4 +1,5 @@
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
+import { STATUS_TUNING } from '../config/damage';
 import { compact } from '../core/math';
 import type { Game } from '../core/types';
 import { applyStatus, damageEnemy, nearestEnemy } from './combat';
@@ -28,8 +29,9 @@ export function updateMinions(g: Game, dt: number): void {
     }
     if (target && d <= stop + 6 && m.attackTimer <= 0) {
       m.attackTimer = m.attackCd / p.mods.minionAtkSpd;
-      damageEnemy(g, target, m.damage * p.mods.minionDamage, false, (dx / d) * 80, (dy / d) * 80, 'minion');
-      applyStatus(target, m.status);
+      const blessed = m.blessedT > 0 ? STATUS_TUNING.blessedDamage : 1;
+      damageEnemy(g, target, m.damage * p.mods.minionDamage * blessed, false, (dx / d) * 80, (dy / d) * 80, 'minion', 'shadow');
+      applyStatus(target, m.status, g);
     }
     clampToArena(g, m);
   }

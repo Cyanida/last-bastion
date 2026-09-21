@@ -31,6 +31,7 @@ function arena(classId: Parameters<typeof createGame>[0], enemies: [number, numb
   const g = createGame(classId, 1);
   g.rng = () => 0.999; // no crits, no random procs unless a test says otherwise
   const foes = enemies.map(([dx, dy]) => spawnEnemy(g, 'knight', g.player.x + dx, g.player.y + dy));
+  for (const f of foes) f.armorHp = 0; // v0.3 gave knights breakable armor; these tests are about relics, so they fight bare knights
   for (const e of g.enemies) g.hash.insert(e);
   return { g, foes };
 }

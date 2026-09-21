@@ -81,6 +81,23 @@ export const RELICS = {
     desc: (n) => `Attacks have a ${pct(n.chance)} chance to chill: ${pct(1 - n.slow)} slower for ${n.time}s.`,
   }),
 
+  brimstoneOil: relic({
+    name: 'Brimstone Oil', rarity: 'rare', icon: '🔥', n: { chance: 0.3, power: 0.15 },
+    desc: (n) => `Attacks have a ${pct(n.chance)} chance to ignite: a stacking burn worth ${pct(n.power)} of the hit per second.`,
+  }),
+  serratedEdge: relic({
+    name: 'Serrated Edge', rarity: 'rare', icon: '🩹', n: { stacks: 2, power: 0.1 },
+    desc: (n) => `Critical hits open wounds: ${n.stacks} stacks of bleed worth ${pct(n.power)} of the hit per second each.`,
+  }),
+  hexDoll: relic({
+    name: 'Hex Doll', rarity: 'rare', icon: '🪆', n: { stacks: 1 },
+    desc: () => 'Your signature ability curses what it hits: +12% damage taken per stack, up to 3.',
+  }),
+  gravePact: relic({
+    name: 'Grave Pact', rarity: 'rare', icon: '🕯️', n: { time: 7 },
+    desc: (n) => `Using your ability blesses your minions for ${n.time}s: +30% damage and they mend themselves.`,
+  }),
+
   // ---------- legendary ----------
   bloodPact: relic({
     name: 'Blood Pact', rarity: 'legendary', icon: '🩸', mods: { damage: 1.5 }, n: { hp: 0.7 },

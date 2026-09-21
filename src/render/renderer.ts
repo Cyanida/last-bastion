@@ -2,7 +2,9 @@ import { AFFIXES, ELITES } from '../config/elites';
 import { GAME } from '../config/game';
 import { MODIFIERS } from '../config/waves';
 import { clamp, TAU } from '../core/math';
+import { STATUSES } from '../config/damage';
 import { quality } from '../core/quality';
+import { activeStatuses } from '../logic/status';
 import type { Game } from '../core/types';
 import { getSprite, type Sprite } from './sprites';
 
@@ -227,9 +229,25 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
-    if (e.slowT > 0 || e.markT > 0) {
-      ctx.fillStyle = e.markT > 0 ? '#c23a2e' : '#a9d8ef';
-      ctx.fillRect(e.x - 3, e.y - e.r - 34, 6, 6);
+    // status effects: one pip per effect (taller with more stacks), an ice block when frozen solid
+    const active = activeStatuses(e.statuses);
+    if (e.fearT > 0) active.push('fear');
+    active.forEach((id, i) => {
+      const stacks = e.statuses[id]?.stacks ?? 1;
+      ctx.fillStyle = STATUSES[id].color;
+      ctx.fillRect(e.x - active.length * 3.5 + i * 7, e.y - e.r - 34 - stacks, 5, 4 + stacks);
+    });
+    if (e.statuses.stun) {
+      ctx.fillStyle = 'rgba(169,216,239,0.45)';
+      ctx.fillRect(e.x - e.r, e.y - e.r * 2, e.r * 2, e.r * 2.6);
+    }
+    if (e.armorHp > 0) {
+      // armor: a steel bar over the health bar; gone once it breaks
+      const w = e.r * 2;
+      ctx.fillStyle = '#1a1614';
+      ctx.fillRect(e.x - w / 2, e.y - e.r - 30, w, 3);
+      ctx.fillStyle = '#9a9aa0';
+      ctx.fillRect(e.x - w / 2, e.y - e.r - 30, (w * e.armorHp) / e.armorMax, 3);
     }
     if (e.hp < e.maxHp && !e.def.boss) {
       const w = e.r * 2;

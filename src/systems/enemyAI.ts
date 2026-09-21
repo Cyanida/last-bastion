@@ -8,6 +8,7 @@ import type { Enemy, Game } from '../core/types';
 import { addZone } from '../entities/hazards';
 import { nextState, type AiProfile, type AiState } from '../logic/fsm';
 import { slotPosition } from '../logic/squads';
+import { cleanse, isStunned, speedFactor } from '../logic/status';
 import { angleTo, distTo, enraged, keepRange, move, moveTo, POISON, seek, shootAt, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { hurtTarget } from './combat';
 import { burst, ring, shake } from './effects';
@@ -172,7 +173,8 @@ function pulseAura(g: Game, e: Enemy, dt: number): void {
     if (o === e || o.dead || o.def.boss) continue;
     if (healing) {
       o.hp = Math.min(o.maxHp, o.hp + o.maxHp * aura.value);
-      o.fearT = o.slowT = 0; // cleanse
+      o.fearT = 0;
+      cleanse(o.statuses);
     } else {
       if (aura.kind === 'damage') o.buffDmg = Math.max(o.buffT > 0 ? o.buffDmg : 1, aura.value);
       else o.buffSpd = Math.max(o.buffT > 0 ? o.buffSpd : 1, aura.value);
@@ -381,7 +383,7 @@ export function updateEnemies(g: Game, dt: number): void {
       if (e.phase < phases && e.hp <= e.maxHp * (1 - e.phase / phases)) enterPhase(g, e, e.phase + 1);
     }
 
-    e.speed = e.baseSpeed * moon * (e.slowT > 0 ? e.slowMul : 1) * (enraged(e) ? AFFIXES.enraged.n.speed : 1) * (e.buffT > 0 ? e.buffSpd : 1) * (e.phase >= 2 ? (e.def.p2SpeedMult ?? 1) : 1);
+    e.speed = e.baseSpeed * moon * speedFactor(e.statuses) * (enraged(e) ? AFFIXES.enraged.n.speed : 1) * (e.buffT > 0 ? e.buffSpd : 1) * (e.phase >= 2 ? (e.def.p2SpeedMult ?? 1) : 1);
 
     if (e.shieldMax > 0) {
       e.shieldT -= dt;
@@ -391,7 +393,8 @@ export function updateEnemies(g: Game, dt: number): void {
     if (e.def.aura) pulseAura(g, e, dt);
 
     const script = BOSSES[e.def.id];
-    if (script) script(g, e, dt);
+    if (isStunned(e.statuses)) e.telegraph = null; // stunned or frozen solid: no thinking, no moving
+    else if (script) script(g, e, dt);
     else runStateMachine(g, e, dt);
   }
 }

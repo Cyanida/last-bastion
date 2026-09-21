@@ -250,3 +250,11 @@ canvas#game { touch-action: none; }
 #rotate span { display: block; font-size: 72px; line-height: 1; }
 #rotate small { display: block; font: italic 15px var(--body); color: #f3ead0; margin-top: 8px; }
 @media (orientation: portrait) and (pointer: coarse) { #rotate { display: flex; } }
+
+/* status effects on the player, enemy inspect tooltip */
+#h-status { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; min-height: 0; }
+#h-status span { font: 11px Georgia, serif; color: #1a1614; padding: 0 6px; border-radius: 8px; }
+#h-inspect { position: absolute; width: 222px; padding: 8px 12px; font-size: 13px; line-height: 1.3; pointer-events: none; z-index: 3; }
+#h-inspect b { font-family: var(--heading); font-size: 19px; }
+#h-inspect em { color: #6b4a08; }
+#h-inspect i { font-style: normal; font-weight: bold; text-shadow: 0 0 2px #2a1d10, 0 0 1px #2a1d10; }

@@ -1,4 +1,5 @@
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
+import { ARMOR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GOLD } from '../config/economy';
 import { GAME } from '../config/game';
@@ -10,6 +11,7 @@ import type { DamageSource, Enemy, Game, Minion, Player, Status } from '../core/
 import { addField, fireProjectile } from '../entities/hazards';
 import { goldDrop } from '../logic/economy';
 import { attackDamage, mitigate, rollCrit } from '../logic/formulas';
+import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, floatText, ring, shake, swingArc } from './effects';
 import { spawnEnemy } from './spawning';
 
@@ -80,22 +82,45 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   emit(g, 'onKill', { enemy: e, source });
 }
 
-export function applyStatus(e: Enemy, s: Status | null): void {
+/** Puts an attack's debuffs on an enemy. The v0.2 slow / mark payloads map onto Chilled and Cursed stacks. */
+export function applyStatus(e: Enemy, s: Status | null, g?: Game): void {
   if (!s || e.dead) return;
-  if (s.slowT && !e.def.boss) {
-    e.slowT = Math.max(e.slowT, s.slowT);
-    e.slowMul = s.slowMul ?? 0.5;
-  }
-  if (s.markT) {
-    e.markT = Math.max(e.markT, s.markT);
-    e.markMul = s.markMul ?? 1;
+  const list: StatusApply[] = [...(s.apply ?? [])];
+  if (s.slowT) list.push({ id: 'slow', stacks: slowStacks(s.slowMul ?? 0.5), time: s.slowT });
+  if (s.markT) list.push({ id: 'curse', stacks: curseStacks(s.markMul ?? 1.3), time: s.markT });
+  for (const a of list) {
+    if (a.id === 'fear') {
+      if (!e.def.boss) e.fearT = Math.max(e.fearT, a.time ?? STATUSES.fear.duration);
+    } else if (applyStatusTo(e.statuses, a, e.def.boss) === 'frozen' && g) floatText(g, e.x, e.y - e.r - 20, 'FROZEN', STATUSES.slow.color, 14);
   }
 }
 
-/** Returns the damage that reached the enemy's HP. kx/ky is a knockback impulse. */
-export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx = 0, ky = 0, source: DamageSource = 'attack'): number {
+/**
+ * Returns the damage that reached the enemy's HP. kx/ky is a knockback impulse, and also tells which way the hit travelled.
+ * Order: resistance / weakness -> Cursed -> elite barrier -> armor -> HP.
+ */
+export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx = 0, ky = 0, source: DamageSource = 'attack', type: DamageType = 'physical'): number {
   if (e.dead) return 0;
-  if (e.markT > 0) amount *= e.markMul;
+  const typeMult = typeMultiplier(e.def.id, type);
+  amount *= typeMult * damageTakenFactor(e.statuses);
+  const armor = ARMOR[e.def.id];
+  if (armor && e.armorHp > 0) {
+    if (armor.backBreak) {
+      // a shield: only hits from behind wear it down, and those go straight through
+      if (fromBehind(kx, ky, e.angle)) e.armorHp -= amount;
+      else amount *= 1 - armor.reduction;
+    } else {
+      const hit = throughArmor(amount, e.armorHp, armor.reduction);
+      amount = hit.dealt;
+      e.armorHp = hit.armorHp;
+    }
+    if (e.armorHp <= 0) {
+      e.armorHp = 0;
+      floatText(g, e.x, e.y - e.r - 22, armor.backBreak ? 'SHIELD BROKEN' : 'ARMOR BROKEN', '#9a9aa0', 15);
+      burst(g, e.x, e.y, '#9a9aa0', 14, 220);
+      shake(g, 5);
+    }
+  }
   e.flash = 0.1;
   e.kx += kx * (1 - e.def.knockbackResist);
   e.ky += ky * (1 - e.def.knockbackResist);
@@ -111,7 +136,9 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   }
   const dealt = Math.min(e.hp, amount);
   e.hp -= amount;
-  floatText(g, e.x, e.y - e.r - 8, String(Math.round(amount)), crit ? '#f2c94c' : '#e8e2d0', crit ? 20 : 13);
+  // numbers take the colour of their damage type; "!" marks a weakness, "-" a resistance
+  const label = `${Math.round(amount)}${typeMult > 1 ? '!' : typeMult < 1 ? '-' : ''}`;
+  floatText(g, e.x, e.y - e.r - 8, label, crit ? '#f2c94c' : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13);
   burst(g, e.x, e.y, BLOOD, crit ? 6 : 2);
   if (crit) shake(g, 4);
   sfx('hit');
@@ -168,7 +195,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
     if (p.iFrames > 0) return;
     p.iFrames = GAME.contactIFrames;
   }
-  const taken = mitigate(amount, Math.min(GAME.armorCap, p.cls.armor + p.mods.armor));
+  const taken = mitigate(amount * damageTakenFactor(p.statuses) * (g.vars.damageTaken ?? 1), Math.min(GAME.armorCap, p.cls.armor + p.mods.armor));
   p.hp -= taken;
   p.flash = 0.12;
   g.bossHit = true;
@@ -206,6 +233,9 @@ export function hurtTarget(g: Game, t: Player | Minion, amount: number, ignoreIF
   const before = t.hp;
   if (t === g.player) damagePlayer(g, amount, ignoreIFrames, attacker);
   else damageMinion(g, t as Minion, amount);
+  // some enemies leave something behind: wolves make you bleed, cultists set you alight, the Lich curses
+  const inflicts = attacker && t.hp < before ? ENEMY_STATUS[attacker.def.id] : undefined;
+  if (inflicts && t === g.player) applyStatusTo(g.player.statuses, { ...inflicts, power: (inflicts.power ?? 0) * g.waveDmgMult });
   if (attacker?.affixes.includes('vampiric') && t.hp < before) {
     attacker.hp = Math.min(attacker.maxHp, attacker.hp + (before - t.hp) * AFFIXES.vampiric.n.heal);
   }
@@ -232,7 +262,7 @@ export function updatePlayerAttack(g: Game, dt: number): void {
       const a = Math.atan2(e.y - p.y, e.x - p.x);
       if (e.dead || angleDiff(a, p.facing) > arc / 2) continue;
       const hit = rollPlayerHit(g, atk.damage, atk.scaling);
-      damageEnemy(g, e, hit.amount, hit.crit, Math.cos(a) * atk.knockback, Math.sin(a) * atk.knockback);
+      damageEnemy(g, e, hit.amount, hit.crit, Math.cos(a) * atk.knockback, Math.sin(a) * atk.knockback, 'attack', atk.type);
     }
   } else {
     for (let i = -p.buff.multishot / 2; i <= p.buff.multishot / 2; i++) {
@@ -247,6 +277,7 @@ export function updatePlayerAttack(g: Game, dt: number): void {
         r: atk.radius,
         speed: atk.speed,
         range: atk.range * 1.3,
+        dtype: atk.type,
       });
     }
     sfx('shoot');
@@ -287,8 +318,8 @@ export function updateProjectiles(g: Game, dt: number): void {
         return false;
       }
       const v = Math.hypot(pr.vx, pr.vy) || 1;
-      damageEnemy(g, e, pr.damage, pr.crit, (pr.vx / v) * 60, (pr.vy / v) * 60, pr.source);
-      applyStatus(e, pr.status);
+      damageEnemy(g, e, pr.damage, pr.crit, (pr.vx / v) * 60, (pr.vy / v) * 60, pr.source, pr.dtype);
+      applyStatus(e, pr.status, g);
       pr.hit.push(e);
       if (pr.pierce-- <= 0) return false;
     }
@@ -314,8 +345,8 @@ export function updateZones(g: Game, dt: number): void {
       let hits = 0;
       for (const e of g.hash.query(z.x, z.y, z.r, near)) {
         if (e.dead) continue;
-        damageEnemy(g, e, z.damage, z.crit, 0, 0, 'ability');
-        applyStatus(e, z.status);
+        damageEnemy(g, e, z.damage, z.crit, 0, 0, 'ability', z.dtype);
+        applyStatus(e, z.status, g);
         if (z.maxHits > 0 && ++hits >= z.maxHits) break;
       }
       if (z.arrow) burst(g, z.x, z.y, z.color, 3, 80);
@@ -335,11 +366,18 @@ export function updateFields(g: Game, dt: number): void {
       f.tickT += GAME.fieldTick;
       const inside = dist2(f.x, f.y, p.x, p.y) <= f.r * f.r;
       if (f.hostile) {
-        if (inside) damagePlayer(g, f.dps * GAME.fieldTick, true);
+        if (inside) {
+          damagePlayer(g, f.dps * GAME.fieldTick, true);
+          if (f.apply) applyStatusTo(p.statuses, f.apply);
+        }
         for (const m of g.minions) if (dist2(f.x, f.y, m.x, m.y) <= f.r * f.r) damageMinion(g, m, f.dps * GAME.fieldTick);
       } else {
         if (inside && f.heal > 0) healPlayer(g, f.heal * GAME.fieldTick, false);
-        for (const e of g.hash.query(f.x, f.y, f.r, near)) if (!e.dead) damageEnemy(g, e, f.dps * GAME.fieldTick, false, 0, 0, 'ability');
+        for (const e of g.hash.query(f.x, f.y, f.r, near)) {
+          if (e.dead) continue;
+          damageEnemy(g, e, f.dps * GAME.fieldTick, false, 0, 0, 'ability', f.dtype);
+          if (f.apply) applyStatus(e, { apply: [f.apply] }, g);
+        }
       }
     }
     return f.life > 0;

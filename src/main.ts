@@ -11,7 +11,7 @@ import { quality, sampleFrame, setQuality } from './core/quality';
 import { loadSave, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
 import { createGame, summarizeRun, updateGame } from './game';
-import { initInput, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
+import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
 import { upgradeOptions } from './logic/abilityUpgrades';
 import { lockedArenas, lockedRelics, withAchievements } from './logic/achievements';
 import { densestCluster, resolveAim } from './logic/aim';
@@ -23,7 +23,7 @@ import { botInput, botStep } from './sim/bot';
 import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
-import { buildHud, setMuteIcon, showHud, updateHud } from './ui/hud';
+import { buildHud, setMuteIcon, showHud, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showKeep, showLevelUp, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTitle, type TitleInfo } from './ui/screens';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
@@ -285,8 +285,19 @@ function draw(now: number): void {
   if (game) {
     render(ctx, game, view, arenaCanvas(game.arena.id), abilityAimRadius(game.player));
     updateHud(game);
+    inspect(game);
   } else renderBackdrop(ctx, view, arenaCanvas(save.settings.arena), now / 1000);
 }
+/** Hovering (or tapping) an enemy shows what it is, what it resists and what is on it. */
+function inspect(g: Game): void {
+  const pt = state === 'playing' ? inspectPoint() : null;
+  if (!pt) return updateInspect(null, 0, 0);
+  const cam = cameraFor(g, view);
+  const k = view.dpr / view.zoom;
+  const found = g.hash.query(cam.x + pt.x * k, cam.y + pt.y * k, 10, []).find((e) => !e.dead && !e.hidden) ?? null;
+  updateInspect(found, pt.x, pt.y);
+}
+
 function frame(now: number): void {
   const elapsed = now - last;
   acc += elapsed / 1000;

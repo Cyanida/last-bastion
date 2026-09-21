@@ -1,13 +1,15 @@
 import type { Stats } from '../core/types';
 import type { SpriteId } from '../render/sprites';
+import type { DamageType } from './damage';
 
 export type ClassId = 'paladin' | 'viking' | 'angel' | 'necromancer' | 'archer';
 type Scaling = 'str' | 'dex' | 'int';
 
 export type AttackCfg =
-  | { kind: 'melee'; scaling: Scaling; damage: number; range: number; arc: number; knockback: number; color: string }
+  | { kind: 'melee'; type?: DamageType; scaling: Scaling; damage: number; range: number; arc: number; knockback: number; color: string }
   | {
       kind: 'projectile';
+      type?: DamageType; // default physical
       scaling: Scaling;
       damage: number;
       range: number;
@@ -159,6 +161,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     secondary: { name: 'Grace', desc: 'Heavenly Radiance heals more and reaches further.' },
     attack: {
       kind: 'projectile',
+      type: 'holy',
       scaling: 'int',
       damage: 9,
       range: 380,
@@ -193,6 +196,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     secondary: { name: 'Soul Power', desc: 'More skeletons that hit harder and last longer.' },
     attack: {
       kind: 'projectile',
+      type: 'shadow',
       scaling: 'int',
       damage: 10,
       range: 340,

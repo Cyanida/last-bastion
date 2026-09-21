@@ -5,6 +5,7 @@ import type { EnemyDef } from '../config/enemies';
 import { GAME } from '../config/game';
 import type { Buff, Enemy, Minion, Player, Stats, Status } from '../core/types';
 import { applyAffixes } from '../logic/elites';
+import { armorFor } from '../logic/status';
 import { neutralMods } from '../logic/mods';
 
 export const neutralBuff = (): Buff => ({ damage: 1, atkSpd: 1, lifesteal: 0, multishot: 0, fullCircle: false, range: 1 });
@@ -37,6 +38,9 @@ export function createPlayer(cls: ClassDef, arena: ArenaDef, stats: Stats = cls.
     absorbed: 0,
     chillT: 0,
     still: 0,
+    statuses: {},
+    dots: {},
+    dotT: 0,
     iFrames: 0,
     flash: 0,
   };
@@ -87,6 +91,11 @@ export function createEnemy(def: EnemyDef, x: number, y: number, hpMult: number,
     buffT: 0,
     auraT: 0,
     hidden: false,
+    statuses: {},
+    dots: {},
+    dotT: 0,
+    armorHp: armorFor(def.id, s.hp),
+    armorMax: armorFor(def.id, s.hp),
     kx: 0,
     ky: 0,
     attackTimer: 0,
@@ -121,6 +130,7 @@ export function createMinion(
     flip: false,
     scale: o.scale ?? GAME.spriteScale,
     volatile: o.volatile ?? 0,
+    blessedT: 0,
     status: o.status ?? null,
   };
 }

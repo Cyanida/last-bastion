@@ -1,10 +1,36 @@
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
+import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
+import { AFFIXES } from '../config/elites';
 import { relicDef } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
-import { STAT_KEYS, type Game, type StatKey } from '../core/types';
+import { STAT_KEYS, type Enemy, type Game, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
+import { activeStatuses } from '../logic/status';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
+
+/** Tooltip for the enemy under the pointer (hover, or a tap on touch): what it is, what hurts it, what is on it. */
+export function updateInspect(e: Enemy | null, x: number, y: number): void {
+  const el = $('h-inspect');
+  el.classList.toggle('hidden', !e);
+  if (!e) return;
+  const resists = Object.entries(RESISTS[e.def.id] ?? {}) as [DamageType, number][];
+  const list = (pick: (m: number) => boolean) => resists.filter(([, m]) => pick(m)).map(([t, m]) => `<i style="color:${DAMAGE_TYPES[t].color}">${DAMAGE_TYPES[t].name} ×${m}</i>`).join(' ');
+  const weak = list((m) => m > 1);
+  const strong = list((m) => m < 1);
+  const armor = ARMOR[e.def.id];
+  const statuses = activeStatuses(e.statuses).map((id) => `${STATUSES[id].name}${e.statuses[id]!.stacks > 1 ? ` ×${e.statuses[id]!.stacks}` : ''}`);
+  html('h-inspect', `
+    <b>${e.elite ? 'Elite ' : ''}${e.def.name}</b>${e.def.aura ? ' <em>commander</em>' : ''}
+    <div>${Math.ceil(e.hp)} / ${e.maxHp} HP${e.ai !== 'idle' && !e.def.boss ? ` · ${e.ai}` : ''}</div>
+    ${e.affixes.length ? `<div>${e.affixes.map((a) => AFFIXES[a].name).join(' · ')}</div>` : ''}
+    ${weak ? `<div>Weak to ${weak}</div>` : ''}${strong ? `<div>Resists ${strong}</div>` : ''}
+    ${armor ? `<div>${e.armorHp > 0 ? (armor.backBreak ? 'Shield up: strike it from behind' : `Armored: soaks ${Math.round(armor.reduction * 100)}% until broken`) : 'Armor broken'}</div>` : ''}
+    ${e.def.aura ? `<div>Aura: ${e.def.aura.kind === 'heal' ? 'heals and rallies' : `+${Math.round((e.def.aura.value - 1) * 100)}% ${e.def.aura.kind}`} nearby allies</div>` : ''}
+    ${statuses.length ? `<div>${statuses.join(' · ')}</div>` : ''}`);
+  el.style.left = `${Math.min(window.innerWidth - 240, x + 18)}px`;
+  el.style.top = `${Math.max(8, y - 20)}px`;
+}
 
 const root = () => document.getElementById('hud')!;
 const $ = (id: string) => document.getElementById(id)!;
@@ -16,7 +42,9 @@ export function buildHud(onPause: () => void, onMute: () => void): void {
       <div class="bar hp"><div id="h-hp-fill"></div><span id="h-hp-text"></span></div>
       <div class="bar xp"><div id="h-xp-fill"></div><span id="h-xp-text"></span></div>
       <div class="hud-purse"><span id="h-gold"></span><span id="h-tier" class="dim"></span></div>
+      <div id="h-status"></div>
     </div>
+    <div id="h-inspect" class="panel hidden"></div>
     <div class="hud-top">
       <div id="h-wave" class="heading"></div>
       <div id="h-left"></div>
@@ -113,6 +141,8 @@ export function updateHud(g: Game): void {
     text('btn-ability-text', ready ? '✦' : p.abilityCd.toFixed(0));
     $('btn-ability-cd').style.height = `${(p.abilityCd / p.abilityCdMax) * 100}%`;
   }
+
+  html('h-status', activeStatuses(p.statuses).map((id) => `<span style="background:${STATUSES[id].color}">${STATUSES[id].name}${(p.statuses[id]?.stacks ?? 1) > 1 ? ` ×${p.statuses[id]!.stacks}` : ''}</span>`).join(''));
 
   const banner = $('h-banner');
   text('h-banner', g.banner.text);

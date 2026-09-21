@@ -102,8 +102,8 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const dmg = attackDamage(base, p.stats.str, p.mods.damage) + (has(p, 'martyr') ? p.absorbed * U.martyr.n.mult : 0);
       for (const e of g.hash.query(p.x, p.y, radius, near)) {
         const a = Math.atan2(e.y - p.y, e.x - p.x);
-        damageEnemy(g, e, dmg, false, Math.cos(a) * c.burstKnockback, Math.sin(a) * c.burstKnockback, 'ability');
-        if (has(p, 'judgement')) applyStatus(e, { slowMul: U.judgement.n.slow, slowT: U.judgement.n.time });
+        damageEnemy(g, e, dmg, false, Math.cos(a) * c.burstKnockback, Math.sin(a) * c.burstKnockback, 'ability', 'holy');
+        if (has(p, 'judgement')) applyStatus(e, { slowMul: U.judgement.n.slow, slowT: U.judgement.n.time }, g);
       }
       ring(g, p.x, p.y, radius, c.aura, 0.5);
       burst(g, p.x, p.y, c.aura, 40, 380);
@@ -116,7 +116,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
         p.absorbed += ev.amount;
         if (has(p, 'mirrorShield') && ev.attacker) {
           const n = U.mirrorShield.n;
-          damageEnemy(g, ev.attacker, ev.amount * n.reflect * (1 + p.stats.secondary * n.perFaith), false, 0, 0, 'ability');
+          damageEnemy(g, ev.attacker, ev.amount * n.reflect * (1 + p.stats.secondary * n.perFaith), false, 0, 0, 'ability', 'holy');
         }
       },
     },
@@ -197,15 +197,15 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const dmg = attackDamage(c.damage, p.stats.int, p.mods.damage);
       let slain = 0;
       for (const e of g.hash.query(p.x, p.y, s.radius, near)) {
-        damageEnemy(g, e, dmg, false, 0, 0, 'ability');
-        applyStatus(e, status);
+        damageEnemy(g, e, dmg, false, 0, 0, 'ability', 'holy');
+        applyStatus(e, status, g);
         if (e.dead) slain++;
       }
       if (has(p, 'benediction')) g.vars.cdRefund = Math.min(U.benediction.n.cap, slain * U.benediction.n.refund);
-      if (has(p, 'twinPulse')) addZone(g, { x: p.x, y: p.y, r: s.radius, delay: U.twinPulse.n.delay, damage: dmg * U.twinPulse.n.mult, hostile: false, color: c.aura, status });
+      if (has(p, 'twinPulse')) addZone(g, { x: p.x, y: p.y, r: s.radius, delay: U.twinPulse.n.delay, damage: dmg * U.twinPulse.n.mult, hostile: false, color: c.aura, status, dtype: 'holy' });
       if (has(p, 'consecration')) {
         const n = U.consecration.n;
-        addField(g, { x: p.x, y: p.y, r: s.radius * n.radius, life: n.time, dps: attackDamage(n.dps, p.stats.int, p.mods.damage), heal: n.heal + grace * n.healPerGrace, hostile: false, color: c.aura });
+        addField(g, { x: p.x, y: p.y, r: s.radius * n.radius, life: n.time, dps: attackDamage(n.dps, p.stats.int, p.mods.damage), heal: n.heal + grace * n.healPerGrace, hostile: false, color: c.aura, dtype: 'holy' });
       }
       if (has(p, 'guardianAngel')) p.reviveT = U.guardianAngel.n.time + grace * U.guardianAngel.n.perGrace;
       activeFor(p, has(p, 'ascension') ? U.ascension.n.time + grace * U.ascension.n.perGrace : 0.4);
@@ -292,7 +292,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       if (has(p, 'burningRain')) {
         const n = U.burningRain.n;
         const dps = attackDamage(n.dps * (1 + p.stats.secondary * n.perFocus), p.stats.dex, p.mods.damage);
-        after(g, c.duration * 0.5, () => addField(g, { x: tx, y: ty, r: c.radius, life: n.time, dps, hostile: false, color: '#e07b28' }));
+        after(g, c.duration * 0.5, () => addField(g, { x: tx, y: ty, r: c.radius, life: n.time, dps, hostile: false, color: '#e07b28', dtype: 'fire', apply: { id: 'burn', power: dps * 0.25 } }));
       }
       activeFor(p, has(p, 'quickDraw') ? U.quickDraw.n.time : 0.3);
       return true;

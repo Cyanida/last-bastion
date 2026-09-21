@@ -109,9 +109,31 @@ const HOOKS: Partial<Record<RelicId, RelicHooks>> = {
   frostBrand: {
     onHit(g, ev) {
       const n = R.frostBrand.n;
-      if (ev.source === 'attack' && g.rng() < n.chance) applyStatus(ev.enemy, { slowMul: n.slow, slowT: n.time });
+      if (ev.source === 'attack' && g.rng() < n.chance) applyStatus(ev.enemy, { slowMul: n.slow, slowT: n.time }, g); // enough chill freezes
     },
   },
+
+  brimstoneOil: {
+    onHit(g, ev) {
+      const n = R.brimstoneOil.n;
+      if (ev.source === 'attack' && g.rng() < n.chance) applyStatus(ev.enemy, { apply: [{ id: 'burn', power: ev.amount * n.power }] }, g);
+    },
+  },
+
+  serratedEdge: {
+    onHit(g, ev) {
+      const n = R.serratedEdge.n;
+      if (ev.source === 'attack' && ev.crit) applyStatus(ev.enemy, { apply: [{ id: 'bleed', stacks: n.stacks, power: ev.amount * n.power }] }, g);
+    },
+  },
+
+  hexDoll: {
+    onHit(g, ev) {
+      if (ev.source === 'ability') applyStatus(ev.enemy, { apply: [{ id: 'curse', stacks: R.hexDoll.n.stacks }] }, g);
+    },
+  },
+
+  gravePact: { onAbilityUsed: (g) => g.minions.forEach((m) => (m.blessedT = R.gravePact.n.time)) },
 
   bloodPact: {
     acquire(g) {
