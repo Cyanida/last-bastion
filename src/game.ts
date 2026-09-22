@@ -29,6 +29,8 @@ import { updateEnemyPhysics, updatePickups, updatePlayerMovement } from './syste
 import { addRelic, updateRelics } from './systems/relics';
 import { applyTrait, talentPassives } from './systems/talents';
 import { initRegions, updateRegions } from './systems/regions';
+import { initQuests, updateQuests } from './systems/quests';
+import { updateEvents } from './systems/events';
 import { updateUtility } from './systems/utility';
 import type { TraitId } from './config/traits';
 import { updateSpawning } from './systems/spawning';
@@ -151,6 +153,13 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     features: [],
     blessings: [],
     pendingShrine: null,
+    quests: [],
+    pendingBoard: false,
+    questsDone: 0,
+    questRunes: 0,
+    event: null,
+    eventsSeen: 0,
+    pendingShop: false,
     act: 1,
     startArena: arena.id,
     pendingMerchant: false,
@@ -167,6 +176,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   g.vars.curseMult = curseMultiplier(curses);
   g.vars['keep.relicChance'] = loadout.relicChance;
   initRegions(g);
+  initQuests(g);
   applyTrait(g, opts.trait ?? 'none');
   g.player.mods = { ...g.baseMods };
   // the Barracks' Veteran Levies and mastery's Seasoned: start a level or two up (growth, no boons)
@@ -219,6 +229,9 @@ export function summarizeRun(g: Game): RunSummary {
     curses: g.curses,
     daily: g.daily,
     levelAtWave: g.levelAtWave,
+    quests: g.questsDone,
+    events: g.eventsSeen,
+    questRunes: g.questRunes,
   };
 }
 
@@ -279,6 +292,8 @@ export function updateGame(g: Game, dt: number): void {
   end('pickupsU', _t);
   updateArena(g, dt);
   updateRegions(g, dt);
+  updateQuests(g, dt);
+  updateEvents(g, dt);
   _t = begin();
   updateEffects(g, dt);
   end('effectsU', _t);

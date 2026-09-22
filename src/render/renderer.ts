@@ -8,6 +8,8 @@ import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
 import type { Game } from '../core/types';
 import { FEATURES, REGIONS } from '../config/regions';
+import { QUESTS } from '../config/quests';
+import { eventMarks, questMarks, type Mark } from '../logic/quests';
 import { wallPattern } from './arena';
 import { digitGlyphs, fogSprite, getSprite, glyphIndex, isNumeric, ringSprite, shadowSprite, textSprite, type Sprite } from './sprites';
 
@@ -109,7 +111,7 @@ let closedPattern: CanvasPattern | null = null;
 let closedArena = '';
 
 /** Bottom-left corner: the whole map at a glance. Commanders and bosses stand out: they are the objectives. */
-function drawMinimap(ctx: Ctx, g: Game, view: View, cx: number, cy: number, vw: number, vh: number): void {
+function drawMinimap(ctx: Ctx, g: Game, view: View, cx: number, cy: number, vw: number, vh: number, marks: Mark[]): void {
   const d = view.dpr;
   const w = 132 * d;
   const k = w / g.arena.w;
@@ -146,11 +148,75 @@ function drawMinimap(ctx: Ctx, g: Game, view: View, cx: number, cy: number, vw: 
     else dot(e.x, e.y, 2 * d, e.elite ? '#c9a227' : '#b0524a');
   }
   for (const m of g.minions) dot(m.x, m.y, 2 * d, '#7ec8d8');
+  for (const m of marks) if (!m.hidden) dot(m.x, m.y, 5 * d, '#9fe07b'); // v0.5 quests and events (not the hidden chest)
   dot(g.player.x, g.player.y, 4 * d, '#ffffff');
   ctx.strokeStyle = 'rgba(232,226,208,0.5)';
   ctx.lineWidth = 1;
   ctx.strokeRect(x0 + Math.max(0, cx) * k, y0 + Math.max(0, cy) * k, Math.min(vw, g.arena.w) * k, Math.min(vh, g.arena.h) * k);
 }
+
+/** v0.5: on the ground: the shrine's circle, and the hidden chest's glint once the player is close. */
+function drawQuestGround(ctx: Ctx, g: Game): void {
+  const p = g.player;
+  for (const q of g.quests) {
+    if (q.state !== 'active') continue;
+    if (q.kind === 'shrine') {
+      const r = QUESTS.shrine.radius;
+      if (Math.hypot(p.x - q.x, p.y - q.y) < r && g.breather <= 0 && g.wave > 0) {
+        ctx.fillStyle = 'rgba(159,224,123,0.12)';
+        disc(ctx, q.x, q.y, r);
+        ctx.fill();
+      }
+      blitRing(ctx, ringSprite('rgba(159,224,123,0.8)', r, r, 3, true), q.x, q.y);
+    } else if (q.kind === 'chest' && Math.hypot(p.x - q.x, p.y - q.y) < QUESTS.chest.glint) {
+      ctx.fillStyle = '#1a1614';
+      ctx.fillRect(q.x - 8, q.y - 7, 16, 13);
+      ctx.fillStyle = '#8a6a42';
+      ctx.fillRect(q.x - 6, q.y - 5, 12, 9);
+      const s = 3 + Math.abs(Math.sin(g.time * 5)) * 7;
+      ctx.fillStyle = '#fff6c0';
+      ctx.fillRect(q.x - s, q.y - 9, s * 2, 2);
+      ctx.fillRect(q.x - 1, q.y - 8 - s, 2, s * 2);
+    }
+  }
+}
+
+/**
+ * v0.5: an arrow for every quest or event mark out of view, with its icon. They sit on an ellipse near the screen's edge rather
+ * than on the edge itself, so the HUD's corner panels never cover them. Screen space.
+ */
+function drawEdgeArrows(ctx: Ctx, marks: Mark[], view: View, cx: number, cy: number, time: number): void {
+  const d = view.dpr;
+  const mx = view.w / 2;
+  const my = view.h / 2;
+  for (const m of marks) {
+    const sx = (m.x - cx) * view.zoom - mx;
+    const sy = (m.y - cy) * view.zoom - my;
+    if (m.hidden || (Math.abs(sx) < mx && Math.abs(sy) < my)) continue;
+    const a = Math.atan2(sy, sx);
+    const x = mx + Math.cos(a) * view.w * 0.42;
+    const y = my + Math.sin(a) * view.h * 0.38;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a);
+    ctx.fillStyle = '#e9c95a';
+    ctx.strokeStyle = '#1a1614';
+    ctx.lineWidth = 2 * d;
+    ctx.beginPath();
+    ctx.moveTo((14 + Math.sin(time * 6) * 2) * d, 0);
+    ctx.lineTo(-6 * d, -9 * d);
+    ctx.lineTo(-6 * d, 9 * d);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.fill();
+    ctx.restore();
+    const icon = textSprite(m.icon, Math.round(16 * d), '#ffffff', 64);
+    ctx.drawImage(icon, Math.round(x - Math.cos(a) * 24 * d - icon.width / 2), Math.round(y - Math.sin(a) * 24 * d - icon.height / 2));
+  }
+}
+
+const FRIEND_SPRITES = { caravan: 'siegeTower', monk: 'priest', knight: 'knight' } as const;
+const FRIEND_PALETTE = 2; // the gilded palette: allies read apart from the enemies that share their sprites
 
 /** Slow pan over an empty arena behind the menus. */
 export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, time: number): void {
@@ -173,6 +239,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   const visible = (x: number, y: number, pad: number) => x > cx - pad && x < cx + vw + pad && y > cy - pad && y < cy + vh + pad;
   const p = g.player;
   const rings = drawRings();
+  const marks = [...questMarks(g), ...eventMarks(g)];
   let _t = begin();
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -210,6 +277,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
+  drawQuestGround(ctx, g);
 
   end('fields', _t);
   _t = begin();
@@ -410,9 +478,17 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   _t = begin();
   for (const m of g.minions) {
     ctx.globalAlpha = clamp(m.life, 0.2, 1);
-    drawSprite(ctx, getSprite('skeleton', m.scale), m.x, m.y, m.flip, m.flash > 0);
+    drawSprite(ctx, m.kind ? getSprite(FRIEND_SPRITES[m.kind], m.scale, FRIEND_PALETTE) : getSprite('skeleton', m.scale), m.x, m.y, m.flip, m.flash > 0);
+    if (!m.kind) continue;
+    // v0.5 allies from quests and events: a green health bar
+    const w = m.r * 2 + 8;
+    ctx.fillStyle = '#1a1614';
+    ctx.fillRect(m.x - w / 2, m.y - m.r - 30, w, 4);
+    ctx.fillStyle = '#6fbf4e';
+    ctx.fillRect(m.x - w / 2, m.y - m.r - 30, w * clamp(m.hp / m.maxHp, 0, 1), 4);
   }
   ctx.globalAlpha = 1;
+  if (g.event?.kind === 'peddler') drawSprite(ctx, getSprite('engineer', GAME.spriteScale, FRIEND_PALETTE), g.event.x, g.event.y, false, false);
 
   end('minions', _t);
   _t = begin();
@@ -554,12 +630,20 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
   }
   ctx.globalAlpha = 1;
+  // v0.5 quest and event marks: an icon over each target (the hidden chest has none)
+  for (const m of marks) {
+    if (m.hidden || !visible(m.x, m.y, 80)) continue;
+    const icon = textSprite(m.icon, 24, '#ffffff', 64);
+    const bob = m.lift ? Math.sin(g.time * 4 + m.x) * 3 : 0;
+    ctx.drawImage(icon, Math.round(m.x - icon.width / 2), Math.round(m.y - m.lift - icon.height / 2 + bob));
+  }
 
   end('texts', _t);
   _t = begin();
   // wave modifier overlays, in screen space
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  if (!g.curses.includes('blind')) drawMinimap(ctx, g, view, cx, cy, vw, vh);
+  if (!g.curses.includes('blind')) drawMinimap(ctx, g, view, cx, cy, vw, vh, marks);
+  drawEdgeArrows(ctx, marks, view, cx, cy, g.time);
   if (g.modifier === 'fog') {
     // a cached tile with the hole in it, centred on the player; plain fog around it
     const tile = fogSprite(MODIFIERS.fog.n.vision, z);

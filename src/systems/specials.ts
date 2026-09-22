@@ -118,6 +118,14 @@ export const SPECIALS: Record<string, Special> = {
     return true;
   },
 
+  // v0.5 siege camp (a quest target): one more of the levy, only while a wave is on. Side content, like the camp itself.
+  muster(g, e) {
+    if (g.breather > 0 || g.enemies.length > 70) return true;
+    spawnEnemy(g, 'peasant', e.x, e.y + e.r + 14).side = true;
+    ring(g, e.x, e.y + 10, 40, '#8a6a42');
+    return true;
+  },
+
   // assassin: vanish -> slip round to the far side of the target -> reappear -> stab
   ambush(g, e, t, dt) {
     e.timer -= dt;

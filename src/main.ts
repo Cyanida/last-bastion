@@ -29,12 +29,15 @@ import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showShrine, showTalents, showTitle, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showSaveDialog, showSettings, showShrine, showTalents, showTitle, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
 import { TRAITS } from './config/traits';
 import { CLASS_ORDER } from './config/classes';
 import { MASTERY } from './config/economy';
 import { spendTalent } from './systems/talents';
 import { chooseBlessing } from './systems/regions';
+import { takeQuests } from './systems/quests';
+import { peddlerBuy, peddlerPrice } from './systems/events';
+import { QUEST_BOARD } from './config/quests';
 import { chooseUtilityUpgrade, utilityUpgradeOptions } from './systems/utility';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
@@ -271,7 +274,7 @@ function openLevelUp(g: Game): void {
   offer();
 }
 
-/** Relics first (they are lying on the ground), then ability tiers, then boons. */
+/** Relics first (they are lying on the ground), then ability tiers, a shrine, the quest board, the peddler, then boons. */
 function openChoice(g: Game): void {
   state = 'choice';
   setTouchControls(false);
@@ -296,8 +299,28 @@ function openChoice(g: Game): void {
       chooseBlessing(g, id);
       resume();
     });
-  } else if (g.pendingLevelUps > 0) openLevelUp(g);
+  } else if (g.pendingBoard) {
+    showBoard(g.act, g.quests.filter((q) => q.state === 'offered'), QUEST_BOARD.take, (picks) => {
+      takeQuests(g, picks);
+      resume();
+    });
+  } else if (g.pendingShop) openPeddler(g);
+  else if (g.pendingLevelUps > 0) openLevelUp(g);
   else openMerchant(g);
+}
+
+/** v0.5: the wandering merchant's wares; it re-opens after every purchase, like the Merchant. */
+function openPeddler(g: Game): void {
+  const wares = g.event?.wares ?? [];
+  showPeddler({ wares, prices: wares.map((id) => peddlerPrice(g, id)), gold: g.gold, held: g.relics, tiers: g.relicTiers }, {
+    buy(id) {
+      if (peddlerBuy(g, id)) openPeddler(g);
+    },
+    leave() {
+      g.pendingShop = false;
+      resume();
+    },
+  });
 }
 
 /** Between Acts: spend run gold (which would otherwise be banked), then on to the next arena. */
@@ -322,7 +345,7 @@ function openMerchant(g: Game): void {
 
 const buildOf = (g: Game) => ({ relics: g.relics, tiers: g.relicTiers, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait });
 
-const hasChoice = (g: Game) => g.pendingShrine !== null || g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingLevelUps > 0 || g.pendingMerchant;
+const hasChoice = (g: Game) => g.pendingShrine !== null || g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant;
 
 function togglePause(): void {
   if (state === 'playing' && game) {
@@ -393,7 +416,7 @@ function sampleInput(g: Game): void {
 const toasted = new Set<string>();
 let lastToastCheck = '';
 function checkToasts(g: Game): void {
-  const key = `${g.wavesCleared}:${g.bossesKilled.length}`;
+  const key = `${g.wavesCleared}:${g.bossesKilled.length}:${g.questsDone}:${g.eventsSeen}`;
   if (key === lastToastCheck) return;
   lastToastCheck = key;
   for (const e of withAchievements(applyRun(save, summarizeRun(g)).save).earned) {

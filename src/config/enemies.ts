@@ -27,7 +27,9 @@ export type EnemyId =
   | 'warlord'
   | 'lich'
   | 'inquisitor'
-  | 'abbot';
+  | 'abbot'
+  | 'siegeCamp'
+  | 'plagueCart';
 
 export type Behavior =
   | 'chaser'
@@ -186,6 +188,17 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   boneCollector: {
     ...base, id: 'boneCollector', name: 'Bone Collector', sprite: 'boneCollector', behavior: 'chaser',
     hp: 80, damage: 12, speed: 66, radius: 14, xp: 6, knockbackResist: 0.4, grow: { hp: 0.2, damage: 0.06, radius: 1.5, max: 6 },
+  },
+  // ---- v0.5 side content (quests and events): never in the wave pool ----
+  // a quest's siege camp: stands where it was pitched and musters a peasant now and then (specials.ts muster)
+  siegeCamp: {
+    ...base, id: 'siegeCamp', name: 'Siege Camp', sprite: 'siegeTower', behavior: 'support', structure: true, scale: 3,
+    hp: 280, damage: 0, speed: 0, radius: 26, xp: 8, knockbackResist: 1, specialCd: 4,
+  },
+  // an event's plague cart: rolls a straight line across the field leaking poison (systems/events.ts moves it)
+  plagueCart: {
+    ...base, id: 'plagueCart', name: 'Plague Cart', sprite: 'ballista', behavior: 'support', structure: true,
+    hp: 360, damage: 0, speed: 0, radius: 20, xp: 6, knockbackResist: 1,
   },
   // ---- commanders: they do not fight, they make everyone around them worse to fight. Kill them first. ----
   bannerman: {

@@ -12,6 +12,7 @@ import { abilityCooldown, attackDamage } from '../logic/formulas';
 import { applyStatus, damageEnemy, healPlayer, rollPlayerHit } from './combat';
 import { burst, floatText, ring, shake } from './effects';
 import { feat, featAdd } from './feats';
+import { skeletonCount } from './minions';
 
 /**
  * One hook per signature ability. A new class = a ClassDef in config/classes.ts,
@@ -235,7 +236,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const s = scale.raiseDead(c, p.stats.secondary);
       const golems = has(p, 'boneGolems');
       const max = (golems ? Math.ceil(s.maxMinions / U.boneGolems.n.divisor) : s.maxMinions) + p.mods.minionMax;
-      const slots = max - g.minions.length;
+      const slots = max - skeletonCount(g);
       if (slots <= 0) return false;
       const corpses = g.corpses.sort((a, b) => dist2(a.x, a.y, p.x, p.y) - dist2(b.x, b.y, p.x, p.y)).splice(0, slots);
       // no fresh corpses (start of a run, boss duel): claw one skeleton out of the ground itself. Endless Legion: more.
@@ -259,13 +260,13 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
         burst(g, at.x, at.y, c.aura, 10);
       }
       activeFor(p, 0.4);
-      feat(g, 'minions', g.minions.length);
+      feat(g, 'minions', skeletonCount(g));
       floatText(g, p.x, p.y - 40, `${corpses.length} risen`, c.aura, 15);
       return true;
     },
     passive(g) {
       const p = g.player;
-      if (has(p, 'boneArmor')) p.mods.armor += g.minions.length * U.boneArmor.n.armor;
+      if (has(p, 'boneArmor')) p.mods.armor += skeletonCount(g) * U.boneArmor.n.armor;
       if (has(p, 'frenziedDead')) p.mods.minionAtkSpd *= U.frenziedDead.n.mult;
     },
     describe(p, c) {

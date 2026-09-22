@@ -27,6 +27,11 @@ export const WAVES = {
   pace: { levelsPerWave: [1.0, 0.75, 0.55] as number[], catchUpPerLevel: 0.15, catchUpMax: 0.6 },
   spawn: { minDuration: 4, perEnemy: 0.2, maxDuration: 25 }, // seconds over which a wave trickles in
   breather: 3,
+  /**
+   * v0.5 pacing inside every Act of 10 waves: breathers are a lighter wave that always brings an event (config/events.ts),
+   * the wave after one is heavier. Boss waves (x5, x0) are left alone. Positions are 1..10 within the Act.
+   */
+  pacing: { breather: [3, 8] as number[], heavy: [4, 9] as number[], breatherBudget: 0.55, heavyBudget: 1.2 },
   overtime: 60, // seconds after the last spawn; then the next wave arrives anyway (never while a boss lives)
   firstWaveDelay: 1.5,
   bossEvery: 5,

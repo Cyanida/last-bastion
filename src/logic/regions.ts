@@ -99,6 +99,13 @@ export function spawnPoint(floors: Rect[], rng: Rng, px: number, py: number, min
   return best;
 }
 
+/** A point anywhere on the open floors (weighted by area), `inset` from their edges: where quests and events put things. */
+export function floorPoint(floors: Rect[], rng: Rng, inset = 80): { x: number; y: number } {
+  let pick = rng() * floors.reduce((s, f) => s + f.w * f.h, 0);
+  const f = floors.find((q) => (pick -= q.w * q.h) <= 0) ?? floors[floors.length - 1];
+  return { x: f.x + inset + rng() * Math.max(0, f.w - 2 * inset), y: f.y + inset + rng() * Math.max(0, f.h - 2 * inset) };
+}
+
 /** Per Act: which feature each wing holds, and the order the wings open in. Seeded, so a Daily Trial's map is the same for everyone. */
 export function rollWings(seed: number, act: number): { features: Record<WingId, FeatureKind>; order: WingId[] } {
   const rng = mulberry32((Math.imul(seed | 0, 0x27d4eb2d) ^ Math.imul(act, 0x165667b1)) >>> 0);

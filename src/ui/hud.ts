@@ -3,7 +3,7 @@ import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../conf
 import { AFFIXES } from '../config/elites';
 import { RELIC_CATEGORIES, RELIC_STACKING, relicDef } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
-import { STAT_KEYS, type Enemy, type Game, type Mods, type StatKey } from '../core/types';
+import { STAT_KEYS, type Enemy, type Game, type Mods, type Quest, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
 import { actName } from '../logic/acts';
 import { procScale, softCap, type RelicModTotal } from '../logic/relics';
@@ -12,6 +12,8 @@ import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
 import { describeUtility, utilityDef, utilityUnlocked } from '../systems/utility';
 import { UTILITY } from '../config/utility';
+import { QUESTS, REWARDS } from '../config/quests';
+import { questProgress } from '../logic/quests';
 import { esc, relicTip, tierBadge } from './relicText';
 
 /** Tooltip for the enemy under the pointer (hover, or a tap on touch): what it is, what hurts it, what is on it. */
@@ -57,6 +59,7 @@ export function buildHud(onPause: () => void, onMute: () => void): void {
       <div id="h-boss" class="hidden"><div id="h-boss-name" class="heading"></div><div class="bar boss"><div id="h-boss-fill"></div></div></div>
     </div>
     <div class="hud-tr"><button id="btn-mute" title="Mute (M)"></button><button id="btn-pause" title="Pause (Esc / P)">❚❚</button></div>
+    <div id="h-quests" class="hud-quests"></div>
     <div class="hud-stats panel" id="h-stats"></div>
     <div class="hud-relics" id="h-relics"></div>
     <div class="hud-ability panel">
@@ -74,12 +77,12 @@ export function buildHud(onPause: () => void, onMute: () => void): void {
 const TOAST_TIME = 4000;
 const TOAST_MAX = 3;
 
-/** v0.4: an achievement tier earned mid-run, under the wave banner. At most three at a time, gone after a few seconds. */
-export function toast(title: string, body: string): void {
+/** v0.4: an achievement tier earned mid-run (v0.5: or a quest done or failed), under the wave banner. At most three at a time, gone after a few seconds. */
+export function toast(title: string, body: string, icon = '🏆'): void {
   const box = $('h-toasts');
   const el = document.createElement('div');
   el.className = 'toast panel';
-  el.innerHTML = `<b>🏆 ${title}</b><span>${body}</span>`;
+  el.innerHTML = `<b>${icon} ${title}</b><span>${body}</span>`;
   box.appendChild(el);
   while (box.children.length > TOAST_MAX) box.firstElementChild!.remove();
   setTimeout(() => el.remove(), TOAST_TIME);
@@ -107,6 +110,8 @@ function width(id: string, frac: number): void {
   const el = $(id);
   if (el.style.width !== w) el.style.width = w;
 }
+
+const toastedQuests = new WeakSet<Quest>(); // v0.5: each finished quest is toasted once
 
 const fmt = (key: StatKey, v: number) => (key === 'atkSpd' ? v.toFixed(2) : String(Math.round(v * 10) / 10));
 let lastRelicKey = '';
@@ -190,6 +195,18 @@ export function updateHud(g: Game): void {
     text('btn-utility-text', utilReady ? util.icon : p.utilityCd.toFixed(0));
     $('btn-utility-cd').style.height = `${(p.utilityCd / p.utilityCdMax) * 100}%`;
   }
+  // v0.5 quest tracker: one line per quest taken; a finished one flashes for a moment (systems/quests.ts lingers it) and is toasted once
+  let lines = '';
+  for (const q of g.quests) {
+    if (q.state === 'offered') continue;
+    lines += `<div class="panel ${q.state}">${QUESTS[q.kind].icon} ${q.name} · ${q.state === 'active' ? questProgress(q) : q.state}</div>`;
+    if (q.state !== 'active' && !toastedQuests.has(q)) {
+      toastedQuests.add(q);
+      toast(q.state === 'done' ? `Quest done: ${q.name}` : `Quest failed: ${q.name}`, q.state === 'done' ? `${REWARDS[q.reward].icon} ${REWARDS[q.reward].name}` : 'No harm done. The board has more.', '📜');
+    }
+  }
+  html('h-quests', lines);
+
   $('h-talent').classList.toggle('hidden', g.talentPoints === 0);
   if (g.talentPoints > 0) text('h-talent', `${g.talentPoints} talent point${g.talentPoints > 1 ? 's' : ''} to spend — pause menu`);
 

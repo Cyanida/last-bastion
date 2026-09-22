@@ -126,6 +126,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'daily', name: 'Trial by Date', desc: 'Finish 1, 10 and 30 Daily Trials.', category: 'challenges', tiers: tiers([1, 10, 30], { 3: { title: 'the Dutiful' } }), progress: (s) => s.counters.dailies },
   { id: 'dailyDeep', name: 'Trial Master', desc: 'Reach wave 10, 20 and 30 in a Daily Trial.', category: 'challenges', tiers: tiers([10, 20, 30]), progress: (s) => top(Object.values(s.daily)) },
   { id: 'dailyDevotee', name: 'Faithful Attendance', desc: 'Take the Daily Trial on 5, 15 and 30 different days.', category: 'challenges', tiers: tiers([5, 15, 30]), progress: (s) => Object.keys(s.daily).length },
+  { id: 'errant', name: 'Errant', desc: 'Complete 5, 25 and 100 side quests.', category: 'challenges', tiers: tiers([5, 25, 100], { 3: { title: 'the Errant' } }), progress: (s) => s.counters.quests },
+  { id: 'worldly', name: 'Worldly', desc: 'Come upon 5, 20 and 60 wave events.', category: 'challenges', tiers: tiers([5, 20, 60], { 3: { title: 'the Well-Travelled' } }), progress: (s) => s.counters.events },
   { id: 'deeds', name: 'Chronicler', desc: 'Earn 20, 40 and 70 deeds.', category: 'challenges', tiers: tiers([20, 40, 70], { 3: { title: 'the Chronicler' } }), progress: (s) => s.achievements.length },
 
   // ---------------------------------------------------------------- secrets (hidden until earned)

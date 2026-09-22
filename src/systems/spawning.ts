@@ -11,6 +11,7 @@ import { enemyXpMult, waveClearXp } from '../logic/formulas';
 import { gainXp } from './leveling';
 import { directWave, updatePerformance, type SpawnUnit } from '../logic/director';
 import { waveClearGold } from '../logic/economy';
+import { pacingBudget } from '../logic/waves';
 import { spawnPoint } from '../logic/regions';
 import { slotPosition } from '../logic/squads';
 import { floatText } from './effects';
@@ -39,10 +40,9 @@ export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes
   return e;
 }
 
-/** A squad arrives together, already in formation, facing the player. */
-function spawnSquad(g: Game, index: number, units: SpawnUnit[]): void {
+/** A squad arrives together, already in formation, facing the player. `at`: where (the v0.5 ambush), else an edge of the map. */
+export function spawnSquad(g: Game, index: number, units: SpawnUnit[], at = edgePoint(g)): void {
   const plan = g.squadPlans[index];
-  const at = edgePoint(g);
   const members: Enemy[] = [];
   let commander: Enemy | null = null;
   for (const u of units) {
@@ -69,7 +69,7 @@ function startWave(g: Game): void {
     bosses: boss ? [boss] : g.arena.bosses, // Act boss at x0, the arena's own rotation at x5
     eliteMult: g.tier.eliteMult,
     themeBias: themeFor(g.act, g.seed).bias,
-    budgetMult: curseValue(g.curses, 'swarm', 'budget'),
+    budgetMult: curseValue(g.curses, 'swarm', 'budget') * pacingBudget(g.wave), // v0.5: breathers and heavy waves (WAVES.pacing)
     squadMult: curseValue(g.curses, 'eliteCommanders', 'squadWeight'),
     eliteCommanders: g.curses.includes('eliteCommanders'),
   });

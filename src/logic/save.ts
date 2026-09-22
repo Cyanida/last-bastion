@@ -57,6 +57,9 @@ export interface Save {
     actsCleared: number; // most Acts cleared in one run
     cursedActs: number; // most curses active in a run that cleared Act I
     dailies: number;
+    // v0.5
+    quests: number; // side quests completed
+    events: number; // wave events come upon
   };
   daily: Record<string, number>; // v0.3: 'YYYY-MM-DD' -> best wave in that day's trial
   settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; palettes: Partial<Record<ClassId, number>> };
@@ -91,6 +94,9 @@ export interface RunSummary {
   relicTiers?: Partial<Record<RelicId, number>>;
   salvage?: number; // Rune shards from salvaged relics
   feats?: Record<string, number>; // v0.4 class feats this run (config/achievements FEAT_KEYS)
+  quests?: number; // v0.5 side quests completed
+  events?: number; // v0.5 wave events come upon
+  questRunes?: number; // Runes from quest rewards, banked on top of the per-run boss cap
 }
 
 const emptyClass = (): ClassRecord => ({ bestWave: 0, runs: 0, kills: 0, time: 0, xp: 0 });
@@ -115,7 +121,7 @@ export function defaultSave(): Save {
     talentPoints: 0,
     treasureSteps: perClass(0),
     tierUnlocked: 0,
-    counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0 },
+    counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
     daily: {},
     settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', palettes: {} },
   };
@@ -123,7 +129,7 @@ export function defaultSave(): Save {
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const num = (v: unknown, fallback = 0) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback);
-const NUMERIC_COUNTERS = ['kills', 'bosses', 'elites', 'goldEarned', 'flawlessBosses', 'maxRelics', 'maxAbilityUpgrades', 'fastestWave10', 'commanders', 'actsCleared', 'cursedActs', 'dailies', ...FEAT_KEYS] as const;
+const NUMERIC_COUNTERS = ['kills', 'bosses', 'elites', 'goldEarned', 'flawlessBosses', 'maxRelics', 'maxAbilityUpgrades', 'fastestWave10', 'commanders', 'actsCleared', 'cursedActs', 'dailies', 'quests', 'events', ...FEAT_KEYS] as const;
 
 /** v0.4: achievements that became a tier of another one. Anything not listed keeps its id. */
 const RENAMED_ACHIEVEMENTS: Record<string, string> = { champion: 'knight:2', legend: 'knight:3' };
@@ -249,7 +255,7 @@ export function applyRun(save: Save, run: RunSummary, date = today()): { save: S
   const actBosses = run.bosses.filter((b) => ACTS.bosses.includes(b)).length;
   let runes = 0;
   for (let i = 0; i < actBosses; i++) runes += runesForActBoss(i, save.meta);
-  runes = Math.min(runes, RUNES.runCap + (save.meta.runeIncome ?? 0));
+  runes = Math.min(runes, RUNES.runCap + (save.meta.runeIncome ?? 0)) + (run.questRunes ?? 0); // v0.5: quest Runes are not capped
   const shards = save.runeShards + Math.round((run.salvage ?? 0) * (1 + loadout.salvageBonus));
   runes += Math.floor(shards / RUNES.shardsPerRune);
   const tierUnlocked = run.tier === save.tierUnlocked && run.wavesCleared >= TIER_UNLOCK_WAVE && save.tierUnlocked < TIERS.length - 1;
@@ -290,6 +296,8 @@ export function applyRun(save: Save, run: RunSummary, date = today()): { save: S
         actsCleared: Math.max(c.actsCleared, acts),
         cursedActs: acts > 0 ? Math.max(c.cursedActs, curses.length) : c.cursedActs,
         dailies: c.dailies + (run.daily ? 1 : 0),
+        quests: c.quests + (run.quests ?? 0),
+        events: c.events + (run.events ?? 0),
       },
     },
   };

@@ -11,6 +11,7 @@ import { combineMods } from '../logic/mods';
 import { activeSynergies, foldRelicMods, procScale, relicModTotals, relicTier, rollRelics, softCap, totalsToMods, withRelic } from '../logic/relics';
 import { applyStatus, damageEnemy, healPlayer, nearestEnemy, rollPlayerHit } from './combat';
 import { burst, floatText, line, ring, shake } from './effects';
+import { skeletonCount } from './minions';
 
 /**
  * Relic behaviour. Data (names, rarity, numbers per tier, plain stat mods) is in config/relics.ts;
@@ -191,7 +192,7 @@ const HOOKS: Partial<Record<RelicId, RelicHooks>> = {
       const c = n(g, 'soulLantern');
       const ability = g.player.cls.ability;
       const own = (ability.id === 'raiseDead' ? scale.raiseDead(ability, g.player.stats.secondary).maxMinions : 0) + g.player.mods.minionMax;
-      if (ev.enemy.def.boss || g.minions.length >= own + c.max || !proc(g, 'soulLantern', c.chance)) return;
+      if (ev.enemy.def.boss || skeletonCount(g) >= own + c.max || !proc(g, 'soulLantern', c.chance)) return;
       const m = createMinion(ev.enemy.x, ev.enemy.y, { hp: c.hp, damage: relicDamage(g, c.damage), speed: 165, attackCd: 0.7, life: c.life });
       if (syn(g, 'necropolis')) m.blessedT = n(g, 'gravePact').time;
       g.minions.push(m);

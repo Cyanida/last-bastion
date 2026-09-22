@@ -9,6 +9,8 @@ import type { RelicId, SynergyId } from '../config/relics';
 import type { TraitId } from '../config/traits';
 import type { BlessingId, FeatureKind, Rect, RegionId, WingId } from '../config/regions';
 import type { UtilityUpgradeId } from '../config/utility';
+import type { QuestKind, RewardKind } from '../config/quests';
+import type { EventKind } from '../config/events';
 import type { RelicTotals } from '../logic/relics';
 import type { ModifierId } from '../config/waves';
 import type { SpawnUnit, SquadPlan } from '../logic/director';
@@ -221,6 +223,11 @@ export interface Minion extends Body {
   volatile: number; // > 0: explodes for damage * volatile when it dies
   blessedT: number; // v0.3: blessed minions hit harder and regenerate
   status: Status | null; // applied by its hits
+  // v0.5 friendly units from quests and events; a skeleton has none of these
+  kind?: 'caravan' | 'monk' | 'knight';
+  passive?: boolean; // does not attack or chase: walks its path (if any) at `speed`
+  path?: { x: number; y: number }[]; // waypoints, walked in a loop
+  pathI?: number;
 }
 
 export interface Projectile extends Body {
@@ -285,6 +292,34 @@ export interface Feature {
   used: boolean; // taken, opened, woken or looted
   boss: Enemy | null; // the lair's sleeper, once woken
   t: number; // the vents' timer
+}
+
+/** A side quest (v0.5, config/quests.ts): offered on the Act's board, then active until done or failed. systems/quests.ts. */
+export interface Quest {
+  kind: QuestKind;
+  reward: RewardKind;
+  state: 'offered' | 'active' | 'done' | 'failed';
+  name: string; // the named elite's name; otherwise the quest's
+  x: number; // its point: the shrine, the chest, the chapel
+  y: number;
+  unit: Minion | null; // the caravan, the monk
+  foes: Enemy[]; // the camps, the named elite
+  progress: number; // waves survived, camps burnt, seconds held
+  since: number; // g.wavesCleared when taken (the caravan); the wave the named elite comes with
+  t: number; // once over: seconds left on the tracker
+  rng: Rng; // its own seeded stream (logic/quests.ts placeRng), for where it puts things
+}
+
+/** This wave's event (v0.5, config/events.ts). systems/events.ts. */
+export interface WaveEvent {
+  kind: EventKind;
+  x: number; // the peddler, the chest; the cart's destination
+  y: number;
+  unit: Minion | null; // the lost knight
+  foe: Enemy | null; // the plague cart
+  used: boolean; // the chest opened, the ambush sprung, the peddler visited (until you walk away)
+  t: number; // the cart's pool timer
+  wares: RelicId[]; // the peddler's
 }
 
 export interface Corpse {
@@ -418,6 +453,14 @@ export interface Game {
   features: Feature[]; // one per wing
   blessings: BlessingId[]; // shrine blessings taken this run
   pendingShrine: BlessingId[] | null; // a shrine's choice waiting for the UI (or the bot)
+  // --- v0.5 side quests and wave events (config/quests.ts, config/events.ts) ---
+  quests: Quest[]; // the board while pendingBoard, then the ones taken (finished ones linger for the tracker)
+  pendingBoard: boolean;
+  questsDone: number;
+  questRunes: number;
+  event: WaveEvent | null;
+  eventsSeen: number;
+  pendingShop: boolean; // the wandering merchant's screen is due (his wares: event.wares)
   act: number; // Acts of 10 waves: boss, Merchant, next arena
   startArena: ArenaId;
   pendingMerchant: boolean; // the Act is over: the Merchant screen is due

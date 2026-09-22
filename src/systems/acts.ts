@@ -9,6 +9,7 @@ import { floatText } from './effects';
 import { gainXp } from './leveling';
 import { addRelic, removeRelic } from './relics';
 import { initRegions } from './regions';
+import { initQuests } from './quests';
 
 /** Pay for a Merchant item. Gold spent here never reaches the Keep: this run, or the next hundred? */
 function pay(g: Game, item: MerchantItem): boolean {
@@ -87,4 +88,5 @@ export function nextAct(g: Game): void {
   g.banner = { text: `${actName(g.act)} — ${theme.name}`, t: 3.5 };
   floatText(g, p.x, p.y - 50, g.arena.name, '#e9c95a', 16);
   sfx('wave');
+  initQuests(g); // what is left of the old Act's quests fails; a new board is up
 }

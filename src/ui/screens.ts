@@ -9,6 +9,7 @@ import { curseMultiplier } from '../logic/curses';
 import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIER_UNLOCK_WAVE, TIERS, type BuildingId, type MetaId } from '../config/economy';
 import { relicDef, type RelicId } from '../config/relics';
 import { BLESSINGS, type BlessingId } from '../config/regions';
+import { QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
 import { TRAIT_IDS, TRAITS, type TraitId } from '../config/traits';
 import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
@@ -463,6 +464,54 @@ export function showShrine(options: readonly BlessingId[], onPick: (id: Blessing
     </div>`);
   click(el, '[data-pick]', (b) => onPick(b.dataset.pick as BlessingId));
   numberKeys(el);
+}
+
+/** v0.5: the Act's quest board. Tap a quest (or its number) to take or drop it, up to `take`; setting out with none is fine. */
+export function showBoard(act: number, quests: { kind: QuestKind; reward: RewardKind }[], take: number, onSetOut: (picks: number[]) => void): void {
+  const picks: number[] = [];
+  const reward = (r: RewardKind) => (r === 'gold' ? `${REWARDS.gold.amount * act} gold` : REWARDS[r].name);
+  const el = show(`
+    <div class="levelup board">
+      <h1 class="small">📜 ${actName(act)} · The quest board</h1>
+      <p class="sub">Take up to ${take}. None of it is required: a failed quest costs nothing, and every one done opens a gate.</p>
+      <div class="cards">${quests.map((q, i) => `<button class="card panel boon quest" data-quest="${i}"><div class="num">${i + 1}</div><h2>${QUESTS[q.kind].icon} ${QUESTS[q.kind].name}</h2><p>${QUESTS[q.kind].desc}</p><div class="best" data-tip="${esc(REWARDS[q.reward].desc)}">${REWARDS[q.reward].icon} ${reward(q.reward)}</div></button>`).join('')}</div>
+      <button class="btn big" data-leave></button>
+    </div>`);
+  const go = el.querySelector<HTMLElement>('[data-leave]')!;
+  const label = () => (go.textContent = picks.length ? `Set out with ${picks.length} quest${picks.length > 1 ? 's' : ''}` : 'Set out without a quest');
+  const toggle = (i: number) => {
+    if (i >= quests.length) return;
+    if (picks.includes(i)) picks.splice(picks.indexOf(i), 1);
+    else if (picks.length < take) picks.push(i);
+    el.querySelectorAll<HTMLElement>('[data-quest]').forEach((b) => b.classList.toggle('on', picks.includes(Number(b.dataset.quest))));
+    label();
+  };
+  label();
+  click(el, '[data-quest]', (b) => toggle(Number(b.dataset.quest)));
+  go.onclick = () => onSetOut([...picks]);
+  onActions((a) => {
+    const m = /^pick(\d)$/.exec(a);
+    if (m) toggle(Number(m[1]) - 1);
+    else if (a === 'confirm') onSetOut([...picks]);
+  });
+}
+
+/** v0.5: the wandering merchant (a wave event): a couple of relics rolled by the drop rules, at the Merchant's prices. */
+export function showPeddler(info: { wares: RelicId[]; prices: number[]; gold: number; held: RelicId[]; tiers: RelicTiers }, on: { buy: (id: RelicId) => void; leave: () => void }): void {
+  const el = show(`
+    <div class="levelup">
+      <h1 class="small">🧺 A wandering merchant</h1>
+      <p class="sub">"Good things, fair prices, no questions." Purse: <b class="goldtext">🪙 ${info.gold}</b> — what you spend here never reaches the Keep.</p>
+      <div class="cards">${info.wares.map((id, i) => relicCard(id, (info.tiers[id] ?? 0) + 1, info.held, `data-buy="${i}" ${info.gold >= info.prices[i] ? '' : 'disabled'}`, `<div class="num">${i + 1}</div><div class="best">🪙 ${info.prices[i]}</div>`)).join('') || '<p class="sub">Sold out.</p>'}</div>
+      <button class="btn big" data-leave>Leave</button>
+    </div>`);
+  click(el, '[data-buy]', (b) => on.buy(info.wares[Number(b.dataset.buy)]));
+  click(el, '[data-leave]', on.leave);
+  onActions((a) => {
+    const m = /^pick(\d)$/.exec(a);
+    if (m) el.querySelectorAll<HTMLElement>('[data-buy]')[Number(m[1]) - 1]?.click();
+    else if (a === 'confirm' || a === 'cancel') on.leave();
+  });
 }
 
 export function showUtilityUpgrade(tier: number, options: readonly UtilityUpgradeId[], cls: ClassDef, onPick: (id: UtilityUpgradeId) => void): void {

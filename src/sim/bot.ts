@@ -15,6 +15,11 @@ import { chooseAbilityUpgrade } from '../systems/abilities';
 import { merchantBuy, merchantHeal, nextAct } from '../systems/acts';
 import { chooseLevelUp, levelUpOptions } from '../systems/leveling';
 import { resolveRelicOffer } from '../systems/relics';
+import { takeQuests } from '../systems/quests';
+import { eventMarks, questMarks } from '../logic/quests';
+import { peddlerBuy, peddlerPrice } from '../systems/events';
+import { regionAt } from '../logic/regions';
+import { regionsOf } from '../systems/regions';
 
 /**
  * A deliberately basic player: kite (or, for melee, wade in until hurt), step out of telegraphs,
@@ -84,7 +89,11 @@ export function botInput(g: Game): void {
   // melee wades in while healthy, and always hunts when nothing is close (a lone crossbowman must not plink it to death)
   const crowded = nd < 170;
   const brave = melee && !danger && (p.hp > p.stats.hp * 0.4 || !crowded);
-  if (brave && nd < Infinity) {
+  const goal = !danger && nd > 250 ? nearestGoal(g) : null; // v0.5: a quiet moment goes to the quests, events and features
+  if (goal) {
+    mx = goal.x - p.x;
+    my = goal.y - p.y;
+  } else if (brave && nd < Infinity) {
     mx = nx - p.x;
     my = ny - p.y;
   } else if (fx || fy) {
@@ -112,6 +121,26 @@ export function botInput(g: Game): void {
   g.input.utility = p.cls.id === 'necromancer' ? g.corpses.length >= 3 && nd < 300 : p.cls.id === 'paladin' ? nd < 200 : crowded || p.hp < p.stats.hp * 0.4;
 }
 
+/**
+ * v0.5: the nearest quest objective, event or unused feature in an open wing. In another region it heads for the gate between
+ * first (wings hang off the core), so it does not grind along a wall.
+ */
+function nearestGoal(g: Game): { x: number; y: number } | null {
+  const p = g.player;
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (const m of [...questMarks(g), ...eventMarks(g), ...g.features.filter((f) => g.regionOpen[f.wing] && !f.used)]) {
+    const d = Math.hypot(m.x - p.x, m.y - p.y);
+    if (d < bestD) (bestD = d), (best = m);
+  }
+  if (!best) return null;
+  const regions = regionsOf(g);
+  const here = regionAt(regions, p.x, p.y);
+  const there = regionAt(regions, best.x, best.y);
+  const gate = here && there && here !== there ? (here.id === 'core' ? there : here).gate : null;
+  return gate && Math.hypot(p.x - (gate.x + gate.w / 2), p.y - (gate.y + gate.h / 2)) > 40 ? { x: gate.x + gate.w / 2, y: gate.y + gate.h / 2 } : best;
+}
+
 function scoreOption(g: Game, o: LevelUpOption): number {
   if (o.kind === 'tradeoff') return 0.9;
   if (o.kind === 'talent') return 1.2;
@@ -125,6 +154,13 @@ function scoreOption(g: Game, o: LevelUpOption): number {
 /** Resolve every pending choice the way the UI would, without the UI. `variant` picks the ability upgrade branch (0 or 1) and the talent branch. */
 export function botChoose(g: Game, variant = 0): void {
   if (g.pendingShrine) chooseBlessing(g, g.pendingShrine[0]);
+  if (g.pendingBoard) takeQuests(g, [0, 1]);
+  if (g.pendingShop) {
+    // the first ware, and only with plenty of gold to spare
+    const first = g.event?.wares[0];
+    if (first && g.gold > 3 * peddlerPrice(g, first)) peddlerBuy(g, first);
+    g.pendingShop = false;
+  }
   while (g.relicOffers.length > 0) resolveRelicOffer(g, g.relicOffers[0][0]); // no cap since v0.4: always take the first (a held one = a tier up)
   while (g.pendingAbilityTiers.length > 0) {
     if (!chooseAbilityUpgrade(g, ABILITY_TRACKS[g.player.cls.id][g.pendingAbilityTiers[0]][variant])) g.pendingAbilityTiers.shift();

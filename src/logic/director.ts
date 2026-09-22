@@ -66,6 +66,16 @@ function squadCost(t: SquadTemplate): number {
   return (t.commander ? enemyCost(t.commander) : 0) + t.members.reduce((sum, [id, n]) => sum + enemyCost(id) * n, 0);
 }
 
+export const squadPlan = (t: SquadTemplate): SquadPlan => ({ template: t.id, formation: t.formation, spacing: t.spacing, holdUntil: t.holdUntil });
+
+/** A squad template's units in spawn order, the commander first (the v0.5 ambush event spawns squads outside the director too). */
+export function squadUnits(t: SquadTemplate, squad: number, affixes: (commander: boolean) => AffixId[] = () => []): SpawnUnit[] {
+  const units: SpawnUnit[] = [];
+  if (t.commander) units.push({ id: t.commander, affixes: affixes(true), squad, commander: true });
+  for (const [id, n] of t.members) for (let i = 0; i < n; i++) units.push({ id, affixes: affixes(false), squad, commander: false });
+  return units;
+}
+
 /** Recent performance, smoothed: how much HP was left and whether the wave was cleared quickly. */
 export function updatePerformance(prev: number, hpFrac: number, clearTime: number, expectedTime: number): number {
   const r = DIRECTOR.rubberBand;
@@ -102,9 +112,8 @@ export function directWave(input: DirectorInput): DirectedWave {
       if (cost > squadBudget) break;
       squadBudget -= cost;
       left -= cost;
-      const index = squads.push({ template: t.id, formation: t.formation, spacing: t.spacing, holdUntil: t.holdUntil }) - 1;
-      if (t.commander) units.push({ id: t.commander, affixes: affixesFor(input.eliteCommanders === true), squad: index, commander: true });
-      for (const [id, n] of t.members) for (let i = 0; i < n; i++) units.push({ id, affixes: affixesFor(false), squad: index, commander: false });
+      const index = squads.push(squadPlan(t)) - 1;
+      units.push(...squadUnits(t, index, (commander) => affixesFor(commander && input.eliteCommanders === true)));
     }
   }
 

@@ -1,3 +1,4 @@
+import { ACTS } from '../config/acts';
 import type { AffixId } from '../config/elites';
 import type { EnemyId } from '../config/enemies';
 import { MODIFIER_IDS, MODIFIERS, WAVES, type ModifierId } from '../config/waves';
@@ -23,6 +24,19 @@ export interface WaveOptions {
 }
 
 export const isBossWave = (wave: number) => wave % WAVES.bossEvery === 0;
+
+/** v0.5 pacing (WAVES.pacing): a breather, a heavy wave, or neither, from the wave's place in its Act. Boss waves are never either. */
+export function pacingOf(wave: number): 'breather' | 'heavy' | null {
+  const at = ((wave - 1) % ACTS.length) + 1;
+  if (isBossWave(wave)) return null;
+  return WAVES.pacing.breather.includes(at) ? 'breather' : WAVES.pacing.heavy.includes(at) ? 'heavy' : null;
+}
+
+/** The director's budget multiplier for that pacing. */
+export function pacingBudget(wave: number): number {
+  const pace = pacingOf(wave);
+  return pace === 'breather' ? WAVES.pacing.breatherBudget : pace === 'heavy' ? WAVES.pacing.heavyBudget : 1;
+}
 
 /** Enemy count: Act I ramps it up, later Acts add only `lateGrowth` a wave (their difficulty comes from stats, then composition). */
 export function enemyCount(wave: number): number {

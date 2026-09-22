@@ -32,6 +32,13 @@ export function clampToArena(g: Game, b: Body): void {
   clampToRects(g.openRects, b); // v0.5: the walls are the edges of the open regions; closed wings are solid
 }
 
+/** v0.5: a point pushed clear of obstacles and into the open map, so whatever a quest or an event puts there can be reached. */
+export function clearPoint(g: Game, at: { x: number; y: number }, r = 40): { x: number; y: number } {
+  const b = { x: at.x, y: at.y, r };
+  clampToArena(g, b);
+  return { x: b.x, y: b.y };
+}
+
 export function updatePlayerMovement(g: Game, dt: number): void {
   const p = g.player;
   const { moveX, moveY } = g.input;

@@ -35,6 +35,9 @@ export const AI: Partial<Record<EnemyId, AiProfile>> = {
   bannerman: { reach: 'support', flank: 0, range: [200, 300] },
   drummer: { reach: 'support', flank: 0, range: [220, 320] },
   chaplain: { reach: 'support', flank: 0, range: [230, 340] },
+  // v0.5 side content: they hold their ground (the cart is moved by its event)
+  siegeCamp: { reach: 'support', flank: 0, range: [0, 9999], special: { id: 'muster', cd: 12, range: 650 } }, // musters only when you come near
+  plagueCart: { reach: 'support', flank: 0, range: [0, 9999] },
 };
 
 /** Shared movement numbers for the states. */
