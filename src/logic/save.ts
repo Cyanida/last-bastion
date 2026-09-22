@@ -70,6 +70,7 @@ export interface RunSummary {
   curses?: CurseId[];
   daily?: string | null; // date of the Daily Trial this run was, if any
   seed?: number;
+  levelAtWave?: number[];
 }
 
 const emptyClass = (): ClassRecord => ({ bestWave: 0, runs: 0, kills: 0, time: 0, xp: 0 });

@@ -1,9 +1,12 @@
 import { AFFIX_IDS, AFFIXES, ELITES, type AffixId } from '../config/elites';
 import type { Rng } from '../core/types';
 
+/** Chance per enemy of being an elite: grows per wave, fastest in Act II (ELITES.actMult), capped, times the difficulty tier. */
 export function eliteChance(wave: number, tierMult: number): number {
   if (wave < ELITES.fromWave) return 0;
-  return Math.min(ELITES.maxChance, (ELITES.baseChance + ELITES.perWave * (wave - ELITES.fromWave)) * tierMult);
+  let chance = ELITES.baseChance;
+  for (let w = ELITES.fromWave + 1; w <= wave; w++) chance += ELITES.perWave * ELITES.actMult[Math.min(ELITES.actMult.length - 1, Math.ceil(w / 10) - 1)];
+  return Math.min(ELITES.maxChance, chance * tierMult);
 }
 
 /** One affix, or two from twoAffixFromWave on (with twoAffixChance). Never the same affix twice. */

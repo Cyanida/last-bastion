@@ -12,6 +12,8 @@ export const DIRECTOR = {
   costPerHead: { base: 1.3, perWave: 0.05, max: 3.2 },
   maxUnits: 320, // hard cap for performance
   squads: { fromWave: 4, chance: 0.5, perWave: 0.03, maxShare: 0.4, maxPerWave: 4 },
+  // one scaling axis per Act (BALANCE.md): Act III is the composition Act, so squads and pricier units come from there
+  actBias: { squadChance: [0, 0.1, 0.3] as number[], costPerHead: [0, 0.2, 0.8] as number[], maxShare: [0, 0.05, 0.2] as number[] },
   // mild rubber band on the player's recent performance (-1 struggling .. +1 cruising)
   rubberBand: { eliteBonus: 0.3, budgetCut: 0.15, smoothing: 0.5, fastClear: 0.7 }, // kept mild on purpose: it also squeezes what the Keep is worth
 };

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.0 (in progress)
+
+### Performance
+- **Perf overlay** (F3, or Settings > Performance overlay): frame / update / render time, entity counts and draw calls, with a p95 over the last 300 frames.
+- Fog and Blood Moon at wave 20 with 250 enemies profiled headless before and after (PERF.md): pre-rendered shadows, rings, digit glyphs and the fog tile instead of per-frame paths and text; object pools for projectiles, particles and floating text; a hard particle budget; viewport culling; merged damage numbers; a per-frame quality knob that lowers detail when the frame's work runs long. p95 26-29 ms -> 17 ms.
+- `npm run test:perf` plays both modifiers in headless Chromium against the built game and fails when p95 goes over budget; CI runs it.
+
+### Scaling and XP
+- **Linear XP curve** (`12 × level` per level) with the **target pace in config** (`WAVES.pace`: one level a wave in Act I, sliding to one every two waves by Act III), enemy XP scaled per wave and Act, wave-clear XP, and a mild catch-up bonus below the expected level (never a penalty above it).
+- **One scaling axis per Act**: Act I grows the count, Act II grows stats and elites (elite chance climbs 2.2x faster, two-affix elites), Act III grows composition (pricier units, more squads and commanders); beyond wave 30 a quadratic tail. BALANCE.md has the tables.
+- The simulation prints the level reached per wave per class against the target, and `npm run sim -- probe` revives the bot on death to read deaths per wave through wave 30 (no class hits a wall between waves 15 and 30).
+
 ## v0.3.1
 - The title screen shows the full version next to the build date ("build 2026-09-22 · v0.3.1"). This is the release that proves the auto-updater: an installed 0.3.0 finds it, downloads it and offers the restart.
 - Release workflow: only `latest*.yml` is attached as update metadata (0.3.0 also carried electron-builder's debug file).

@@ -2,13 +2,13 @@ import { TRADEOFF_IDS, type TradeoffId } from '../config/upgrades';
 import { sfx } from '../core/audio';
 import type { Game } from '../core/types';
 import { tierForLevel } from '../logic/abilityUpgrades';
-import { applyGrowth, xpToNext } from '../logic/formulas';
+import { applyGrowth, catchUpMult, xpToNext } from '../logic/formulas';
 import { applyStatUpgrade, applyTradeoff, rollLevelUpOptions, upgradeAmount, type LevelUpOption } from '../logic/upgrades';
 import { floatText, ring } from './effects';
 
 export function gainXp(g: Game, amount: number): void {
   const p = g.player;
-  p.xp += amount * p.mods.xp;
+  p.xp += amount * p.mods.xp * catchUpMult(p.level, Math.max(1, g.wave));
   while (p.xp >= xpToNext(p.level)) {
     p.xp -= xpToNext(p.level);
     p.level++;

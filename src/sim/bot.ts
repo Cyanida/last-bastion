@@ -145,3 +145,49 @@ export function simulateRun(classId: ClassId, seed: number, opts: RunOptions = {
   while (!g.over && g.time < maxSeconds) botStep(g, variant);
   return summarizeRun(g);
 }
+
+export interface ProbeResult {
+  deathsAtWave: number[]; // index w-1: how often the bot died during wave w
+  secondsAtWave: number[]; // index w-1: how long wave w took (spawn to clear)
+  levelAtWave: number[];
+  wave: number; // the last wave it cleared
+}
+
+/**
+ * Wall probe: the same bot, but revived in place on death, so every class reaches `toWave` and the
+ * curve can be read as deaths per wave instead of "wave reached". A wall is a band of waves where
+ * deaths jump and stay high, or a boss wave that never ends.
+ */
+export function probeRun(classId: ClassId, seed: number, opts: RunOptions = {}, variant = 0, toWave = 30, maxSeconds = 90 * 60): ProbeResult {
+  const g = createGame(classId, seed, opts);
+  const deathsAtWave: number[] = [];
+  const secondsAtWave: number[] = [];
+  while (g.wavesCleared < toWave && g.time < maxSeconds) {
+    const cleared = g.wavesCleared;
+    botStep(g, variant);
+    if (g.wavesCleared > cleared) secondsAtWave[cleared] = g.waveT;
+    if (g.over) {
+      deathsAtWave[Math.max(0, g.wave - 1)] = (deathsAtWave[Math.max(0, g.wave - 1)] ?? 0) + 1;
+      g.over = false;
+      g.player.hp = g.player.stats.hp;
+      g.player.invulnT = 3;
+      // come back where the crowd is not (reviving in place just dies again: that measures the probe, not the game)
+      let best = -1;
+      for (let i = 0; i < 9; i++) {
+        const x = g.arena.w * (i === 8 ? 0.5 : 0.5 + 0.35 * Math.cos((i / 8) * Math.PI * 2));
+        const y = g.arena.h * (i === 8 ? 0.5 : 0.5 + 0.35 * Math.sin((i / 8) * Math.PI * 2));
+        const near = g.enemies.reduce((d, e) => Math.min(d, Math.hypot(e.x - x, e.y - y)), Infinity);
+        if (near > best) {
+          best = near;
+          g.player.x = x;
+          g.player.y = y;
+        }
+      }
+    }
+  }
+  for (let w = 0; w < toWave; w++) {
+    deathsAtWave[w] ??= 0;
+    secondsAtWave[w] ??= 0;
+  }
+  return { deathsAtWave, secondsAtWave, levelAtWave: g.levelAtWave, wave: g.wavesCleared };
+}

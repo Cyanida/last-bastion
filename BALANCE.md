@@ -1,5 +1,92 @@
 # Balance notes
 
+## v0.4: the XP curve and one scaling axis per Act
+
+Playtest feedback: level-ups slow down late while enemies keep multiplying. Two causes, both fixed in config.
+
+### The XP curve (`config/game.ts`, `config/waves.ts`, `logic/formulas.ts`)
+
+- **Cost per level is linear**: `xpToNext(L) = 12·L` (12 at level 1, 108 at level 9, 240 at level 20, 336 at level 28). The v0.3 curve
+  was `4·L^1.3`: the first levels were nearly free (level 6 for 88 XP) and the pace then fell away wave after wave.
+- **Enemy XP scales with the wave and the Act.** The director already buys a growing budget every wave (raw XP on the field goes from about 60 at
+  wave 5 to 330 at wave 35, close to linear), so with a linear cost the pace would be *flat*: one level a wave for ever. The Act factor
+  `enemyXpMult(w) = actDecay^(act-1)` (0.55) is what makes the pace slide. Each cleared wave also pays `clearFrac` (10%) of the next level at the expected pace.
+- **Target pace is in config**: `WAVES.pace.levelsPerWave = [1.0, 0.75, 0.55]` per Act. `expectedLevel(wave)` sums it; `catchUpMult` gives a player
+  below that level +15% XP per level behind, capped at +60%, and never a penalty above it. The constants were fitted numerically against the
+  director's real waves (`tests/v4-xp.test.ts` feeds a run every unit `directWave` would spawn and asserts the level stays within 1.5 of the target at waves 10, 20 and 30).
+- **The sim reports it**: `npm run sim` prints the level at the end of waves 5..30 per class against the expected level; `npm run sim -- probe` gets every class to wave 30.
+
+### One scaling axis per Act
+
+| Act | Axis | What grows | What does not |
+|---|---|---|---|
+| **I** (1-10) | count | `enemyCount` ramps from 9 to about 60 by wave 9 | HP +5%/wave, damage +3%/wave, elites 3% -> 6% |
+| **II** (11-20) | stats + elites | HP +11%/wave, damage +6%/wave, elite chance climbs 2.2x faster (9% -> 18%), two-affix elites | count creeps by 1.2 a wave |
+| **III** (21+) | composition | the director pays +0.8 per head (pricier units), squads +30% chance and +20% budget share, commanders | HP +5%/wave, damage +3%/wave again; elites capped at 22% |
+| beyond 30 | the tail | HP and damage gain a quadratic term (`beyondQuad`) so every run ends | |
+
+| wave | 1 | 5 | 9 | 12 | 15 | 19 | 22 | 25 | 29 | 35 | 40 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| enemies | 9 | 12 | 54 | 63 | 26 | 71 | 75 | 31 | 83 | 36 | 38 |
+| director budget (XP) | 12 | 19 | 95 | 132 | 59 | 174 | 240 | 104 | 295 | 139 | 152 |
+| HP x | 1.00 | 1.20 | 1.40 | 1.67 | 2.00 | 2.44 | 2.65 | 2.80 | 3.00 | 3.60 | 4.75 |
+| damage x | 1.00 | 1.12 | 1.24 | 1.39 | 1.57 | 1.81 | 1.93 | 2.02 | 2.14 | 2.44 | 2.97 |
+| elite chance | 0 | .04 | .06 | .09 | .13 | .18 | .21 | .22 | .22 | .22 | .22 |
+| enemy XP x | 1.00 | 1.00 | 1.00 | 0.55 | 0.55 | 0.55 | 0.30 | 0.30 | 0.30 | 0.17 | 0.17 |
+| expected level | 1 | 5 | 9 | 11.8 | 14 | 17 | 19.1 | 20.7 | 22.9 | 26.2 | 29 |
+| XP to next level | 12 | 60 | 108 | 144 | 168 | 204 | 228 | 252 | 276 | 312 | 348 |
+
+(waves 5, 15, 25 and 35 are boss waves: the escort is 40% of a normal wave.) Late-run power is supposed to come from the talent tree and the sacred treasures, not from the XP curve.
+
+### Wall probe, v0.4 (Squire, courtyard, fresh, 3 runs per class)
+
+The basic bot dies in Act I far too often to say anything about waves 15-30, so `npm run sim -- probe` revives it on death (full HP, three seconds of
+invulnerability, at the spot of the arena farthest from the crowd: reviving in place just died again and measured the probe, not the game) and counts
+deaths per band of five waves instead of "wave reached". A wall would show as a band where deaths jump and stay up, or a boss wave that never ends.
+
+| class | | 1-5 | 6-10 | 11-15 | 16-20 | 21-25 | 26-30 |
+|---|---|---|---|---|---|---|---|
+| *expected* | level | 6.0 | 11.0 | 14.8 | 18.5 | 21.3 | 24.0 |
+| Paladin | deaths | 0.3 | 1.7 | 1.3 | 1.0 | 2.0 | 2.0 |
+| | minutes | 2.5 | 4.2 | 5.7 | 5.7 | 7.8 | 7.9 |
+| | level | 5.0 | 10.0 | 14.7 | 18.7 | 22.3 | 25.7 |
+| Viking | deaths | 0.3 | 3.3 | 4.3 | 2.7 | 11.0 | 3.7 |
+| | minutes | 2.0 | 4.4 | 5.1 | 5.2 | 9.5 | 6.3 |
+| | level | 5.0 | 10.7 | 14.7 | 18.0 | 21.7 | 24.7 |
+| Angel | deaths | 0.0 | 1.3 | 4.3 | 7.3 | 7.0 | 3.3 |
+| | minutes | 2.0 | 3.1 | 5.1 | 5.7 | 5.6 | 5.6 |
+| | level | 5.0 | 10.7 | 15.0 | 19.3 | 22.3 | 25.7 |
+| Necromancer | deaths | 0.0 | 1.7 | 4.7 | 4.3 | 5.0 | 5.3 |
+| | minutes | 2.4 | 3.0 | 4.4 | 4.4 | 4.3 | 4.4 |
+| | level | 5.0 | 11.0 | 15.0 | 19.0 | 22.3 | 25.3 |
+| Archer | deaths | 0.0 | 2.7 | 6.7 | 10.7 | 12.0 | 13.3 |
+| | minutes | 2.1 | 2.6 | 4.1 | 4.9 | 4.9 | 5.1 |
+| | level | 5.0 | 11.3 | 15.3 | 19.3 | 22.7 | 25.7 |
+
+(deaths and minutes are totals over the five waves of the band, averaged over runs; level is the level at the end of the band.)
+
+Reading it: **levels track the target within about one level all the way to wave 30** (one behind at wave 5, where waves are tiny; one ahead
+at wave 30). **Deaths do not jump and stay up anywhere between waves 11 and 30.** The Paladin and Necromancer are flat; the Viking's 11 deaths in
+21-25 are the wave-25 boss (a melee bot chasing a boss it cannot catch, known since v0.3: the "minutes" column shows the same fight taking 4-5 minutes);
+the Angel peaks in 16-25 and falls again. The Archer climbs slowly from 1.3 to 2.7 deaths a wave: the bot cannot kite and the Archer's class bias
+is the heaviest in the roster (shields and flankers). That is a class-balance item for the balance pass (spread between classes), not a wall.
+
+### Simulation after the scaling rework (Squire, courtyard, 6 runs per cell)
+
+| Class | Fresh: avg wave (min-max) | Maxed: avg wave (min-max) | Ratio |
+|---|---|---|---|
+| Paladin | 12.0 (5-35) | 20.8 (10-35) | 1.74 |
+| Viking | 8.2 (5-10) | 10.7 (5-16) | 1.31 |
+| Angel | 8.0 (5-10) | 12.3 (10-17) | 1.54 |
+| Necromancer | 7.5 (5-10) | 9.2 (5-10) | 1.22 |
+| Archer | 7.2 (5-8) | 8.8 (7-11) | 1.23 |
+| **All** | **8.6** | **12.4** | **1.44** |
+
+Fresh runs land where v0.3 left them (7.7 then), the maxed / fresh ratio is up from 1.34 to 1.44, and the level column of the pace report reads
+5 / 10 / 15 / 19 / 23 / 27 at waves 5 / 10 / 15 / 20 / 25 / 30 for the one class that gets there. Runs that pass the Dragon now go deep (a fresh Paladin
+reached wave 35; the count plateau and the gentle Act III stat slope are what make Act II-III survivable at all), which is what the talent tree
+and the treasures are meant to build on. The spread between classes is 1.67x, worse than v0.3's 1.24x, and that is the balance pass's job (section 9).
+
 ## v0.3: Acts, squads and the director
 
 ### Intended difficulty per Act (Squire, no Keep upgrades)

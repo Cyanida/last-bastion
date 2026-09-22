@@ -4,9 +4,27 @@ export type ModifierId = 'fog' | 'bloodMoon' | 'siege' | 'plague';
 
 /** Wave composition and scaling. count(w) = base + perWave*w + w^exp */
 export const WAVES = {
-  count: { base: 5, perWave: 3, exp: 1.4 },
-  hp: { linear: 0.1, quad: 0.01 }, // hpMult = 1 + linear*(w-1) + quad*(w-1)^2
-  dmg: { linear: 0.05, quad: 0.004 }, // dmgMult = 1 + linear*(w-1) + quad*(w-1)^2: sustain builds must eventually lose
+  // enemy count: Act I grows it (base + perWave*w + w^exp up to wave 10), later Acts add only `lateGrowth` per wave:
+  // from Act II on, difficulty comes from stats and elites, then from composition and commanders, not from more bodies
+  count: { base: 5, perWave: 3, exp: 1.4, lateGrowth: 1.2 },
+  /**
+   * HP and damage multipliers grow piecewise-linearly, with a different slope per Act (one scaling axis per Act, BALANCE.md):
+   * Act I gentle (count does the work), Act II steep (stats and elites), Act III gentle again (composition does the work),
+   * and beyond wave `beyondFrom` a quadratic term makes sure every run eventually ends.
+   */
+  hp: { slopes: [0.05, 0.11, 0.05] as number[], beyondFrom: 30, beyondQuad: 0.012 },
+  dmg: { slopes: [0.03, 0.06, 0.03] as number[], beyondFrom: 30, beyondQuad: 0.005 },
+  /**
+   * Enemy XP value = unit XP (which the director buys more of every wave: raw XP per wave grows about linearly, 60 at wave 5
+   * to 330 at wave 35) x (1 + perWave*(w-1)) x actDecay^(act-1). The Act factor is what makes the pace slide from one level a
+   * wave to one every two: without it a linear XP curve gives a flat pace. clearFrac: a cleared wave pays this share of the next level.
+   */
+  xp: { perWave: 0, actDecay: 0.55, clearFrac: 0.1 },
+  /**
+   * Target pace, levels per wave, per Act (Act III's value holds from then on). The level a player "should" have on a wave
+   * comes from these; being below it earns a mild XP bonus (catch-up), never a penalty above it.
+   */
+  pace: { levelsPerWave: [1.0, 0.75, 0.55] as number[], catchUpPerLevel: 0.15, catchUpMax: 0.6 },
   spawn: { minDuration: 4, perEnemy: 0.2, maxDuration: 25 }, // seconds over which a wave trickles in
   breather: 3,
   overtime: 60, // seconds after the last spawn; then the next wave arrives anyway (never while a boss lives)

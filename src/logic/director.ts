@@ -53,9 +53,11 @@ export const enemyCost = (id: EnemyId) => Math.max(1, ENEMIES[id].xp);
 /** Per-wave rng that does not depend on anything that happened during play. */
 export const waveRng = (seed: number, wave: number) => mulberry32((Math.imul(seed | 0, 0x9e3779b1) ^ Math.imul(wave, 0x85ebca6b)) >>> 0);
 
+const actIdx = (wave: number) => Math.min(DIRECTOR.actBias.squadChance.length - 1, Math.max(0, Math.ceil(wave / 10) - 1));
+
 export function waveBudget(wave: number, performance = 0, budgetMult = 1): number {
   const c = DIRECTOR.costPerHead;
-  const perHead = Math.min(c.max, c.base + c.perWave * wave);
+  const perHead = Math.min(c.max + DIRECTOR.actBias.costPerHead[actIdx(wave)], c.base + c.perWave * wave + DIRECTOR.actBias.costPerHead[actIdx(wave)]);
   const struggling = Math.max(0, -performance);
   return Math.round(enemyCount(wave) * perHead * budgetMult * (1 - struggling * DIRECTOR.rubberBand.budgetCut));
 }
@@ -92,8 +94,8 @@ export function directWave(input: DirectorInput): DirectedWave {
   const sq = DIRECTOR.squads;
   if (wave >= sq.fromWave) {
     const templates = SQUADS.filter((t) => wave >= t.from).map((t) => ({ value: t, weight: t.weight * (t.commander ? bias(t.commander) : 1) * bias(t.members[0][0]) }));
-    const squadChance = Math.min(0.95, (sq.chance + sq.perWave * (wave - sq.fromWave)) * (input.squadMult ?? 1));
-    let squadBudget = budget * sq.maxShare;
+    const squadChance = Math.min(0.95, (sq.chance + sq.perWave * (wave - sq.fromWave) + DIRECTOR.actBias.squadChance[actIdx(wave)]) * (input.squadMult ?? 1));
+    let squadBudget = budget * (sq.maxShare + DIRECTOR.actBias.maxShare[actIdx(wave)]);
     while (templates.length > 0 && squads.length < sq.maxPerWave && rng() < squadChance) {
       const t = pickWeighted(templates, rng);
       const cost = squadCost(t);

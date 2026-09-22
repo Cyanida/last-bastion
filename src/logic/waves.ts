@@ -24,9 +24,11 @@ export interface WaveOptions {
 
 export const isBossWave = (wave: number) => wave % WAVES.bossEvery === 0;
 
+/** Enemy count: Act I ramps it up, later Acts add only `lateGrowth` a wave (their difficulty comes from stats, then composition). */
 export function enemyCount(wave: number): number {
   const c = WAVES.count;
-  const n = Math.round(c.base + c.perWave * wave + Math.pow(wave, c.exp));
+  const w = Math.min(wave, 10);
+  const n = Math.round(c.base + c.perWave * w + Math.pow(w, c.exp) + Math.max(0, wave - 10) * c.lateGrowth);
   return isBossWave(wave) ? Math.max(1, Math.round(n * WAVES.bossEscortFrac)) : n;
 }
 

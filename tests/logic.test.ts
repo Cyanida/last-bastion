@@ -130,7 +130,8 @@ describe('wave generation', () => {
       expect(enemyDmgMult(w + 1)).toBeGreaterThan(enemyDmgMult(w));
     }
     expect(enemyHpMult(1)).toBe(1);
-    expect(enemyCount(31)).toBeGreaterThan(200); // the 200+ horde really happens
+    expect(enemyCount(9)).toBeGreaterThan(50); // Act I ramps the count up... (v0.4: later Acts scale stats and composition instead, so wave 31 alone is no longer 200+)
+    expect(enemyCount(31)).toBeGreaterThan(enemyCount(10)); // ...and it still creeps up afterwards
     expect(enemyCount(5)).toBeLessThan(enemyCount(4)); // boss waves bring a smaller escort
   });
 

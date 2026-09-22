@@ -101,6 +101,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     perf: 0,
     waveT: 0,
     commandersKilled: 0,
+    levelAtWave: [],
     barriers: [],
     act: 1,
     startArena: arena.id,
@@ -146,6 +147,7 @@ export function summarizeRun(g: Game): RunSummary {
     actsCleared: Math.floor(g.wavesCleared / ACTS.length),
     curses: g.curses,
     daily: g.daily,
+    levelAtWave: g.levelAtWave,
   };
 }
 

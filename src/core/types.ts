@@ -352,6 +352,7 @@ export interface Game {
   perf: number; // smoothed recent performance, -1..1 (the director's rubber band)
   waveT: number; // seconds since this wave started
   commandersKilled: number;
+  levelAtWave: number[]; // player level when each wave was cleared (the pace report)
   barriers: (Body & { life: number })[]; // temporary walls raised by bosses; they block everyone, like arena obstacles
   act: number; // Acts of 10 waves: boss, Merchant, next arena
   startArena: ArenaId;

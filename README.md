@@ -57,7 +57,8 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
-| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (121 tests) |
+| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (129 tests) |
+| `npm run test:perf` | headless Chromium frame-time test of Fog and Blood Moon against the built game (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
 | `npm run icons` | redraw all icons and the README QR code from code |
 | `npm run dist` | build the Windows installer into `release/` without publishing |
@@ -105,6 +106,7 @@ The game needs nothing native: the PWA and the Capacitor app run the same `dist/
 | M | mute |
 | hover or tap an enemy | tooltip: state, affixes, weaknesses and resistances, armor, status effects |
 | F11 (desktop) | fullscreen |
+| F3 | performance overlay (frame / update / render time, entity counts, draw calls) |
 
 All of it goes through `src/input/`: devices are mapped to *intents* (move vector, ability, aim) and *actions* (pause, confirm, pick N...). The game and the screens never read raw events.
 
@@ -131,10 +133,11 @@ One object under the `localStorage` key `lastbastion.save`, `version: 3`. `logic
 ```bash
 npm run sim                  # 6 runs per class, Squire, courtyard
 npm run sim -- 10 1 keep     # 10 runs per class, Knight tier, starting in the Great Keep
+npm run sim -- probe 3       # wall probe: the bot revived on death through wave 30, deaths and level per band of waves
 ```
 
 A basic bot (`src/sim/bot.ts`: kite, dodge telegraphs and shots, ability on cooldown, visits the Merchant) plays full runs headlessly, with a fresh save and with everything maxed.
-It reports the average wave reached, the maxed / fresh ratio, the spread between classes, commanders and elites slain, and Acts cleared. Runs are seeded, so a result can be reproduced.
+It reports the average wave reached, the maxed / fresh ratio, the spread between classes, commanders and elites slain, Acts cleared, and the level at the end of each wave against the target pace. Runs are seeded, so a result can be reproduced.
 Targets and current results are in [BALANCE.md](BALANCE.md).
 
 ## Where to tune balance

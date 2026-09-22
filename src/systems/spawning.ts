@@ -8,6 +8,8 @@ import type { Enemy, Game } from '../core/types';
 import { createEnemy } from '../entities/actors';
 import { actName, bossForWave, isActEnd, themeFor } from '../logic/acts';
 import { curseValue } from '../logic/curses';
+import { enemyXpMult, waveClearXp } from '../logic/formulas';
+import { gainXp } from './leveling';
 import { directWave, updatePerformance, type SpawnUnit } from '../logic/director';
 import { waveClearGold } from '../logic/economy';
 import { slotPosition } from '../logic/squads';
@@ -40,7 +42,7 @@ function edgePoint(g: Game): { x: number; y: number } {
 export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = []): Enemy {
   const at = x === undefined || y === undefined ? edgePoint(g) : { x, y };
   const hp = g.waveHpMult * g.tier.enemyHp * curseValue(g.curses, 'ironHorde', 'hp');
-  const e = createEnemy(ENEMIES[id], at.x, at.y, hp, g.waveDmgMult * g.tier.enemyDmg, affixes);
+  const e = createEnemy(ENEMIES[id], at.x, at.y, hp, g.waveDmgMult * g.tier.enemyDmg, affixes, enemyXpMult(Math.max(1, g.wave)));
   e.born = g.time;
   e.flankRoll = g.rng();
   e.flankDir = g.rng() < 0.5 ? 1 : -1;
@@ -141,6 +143,8 @@ export function updateSpawning(g: Game, dt: number): void {
     g.perf = updatePerformance(g.perf, g.player.hp / g.player.stats.hp, g.waveT, WAVES.spawn.maxDuration + 15);
     const bonus = waveClearGold(g.wave, g.player.mods.gold * g.tier.gold * (g.vars.curseMult ?? 1));
     g.gold += bonus;
+    g.levelAtWave.push(g.player.level); // for the simulation's pace report
+    gainXp(g, waveClearXp(g.wave));
     floatText(g, g.player.x, g.player.y - 60, `+${bonus} gold`, '#c9a227', 15);
     g.banner = { text: cleared ? 'Wave cleared' : 'They keep coming', t: 1.5 };
   }

@@ -5,6 +5,7 @@ export const ELITES = {
   fromWave: 4,
   baseChance: 0.03,
   perWave: 0.006,
+  actMult: [1, 2.2, 1] as number[], // Act II is the elite Act: the per-wave growth doubles there (v0.4 scaling axes)
   maxChance: 0.22,
   twoAffixFromWave: 10,
   twoAffixChance: 0.4,

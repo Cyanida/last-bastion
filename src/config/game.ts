@@ -14,9 +14,9 @@ export const GAME = {
   cdrPerInt: 0.015, // cooldown = base / (1 + int * cdrPerInt)
   cdrFloor: 0.4, // cooldown never drops below 40% of base
 
-  // leveling
-  xpBase: 4,
-  xpExp: 1.3,
+  // leveling (v0.4): XP to the next level grows almost linearly, so levels keep coming all run long
+  xpBase: 0, // xpToNext(level) = xpBase + xpPerLevel * level (fitted to WAVES.pace against the director's actual waves, see BALANCE.md)
+  xpPerLevel: 12,
 
   // player
   playerRadius: 13,

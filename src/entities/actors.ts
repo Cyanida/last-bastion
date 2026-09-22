@@ -46,9 +46,9 @@ export function createPlayer(cls: ClassDef, arena: ArenaDef, stats: Stats = cls.
   };
 }
 
-export function createEnemy(def: EnemyDef, x: number, y: number, hpMult: number, dmgMult: number, affixes: AffixId[] = []): Enemy {
+export function createEnemy(def: EnemyDef, x: number, y: number, hpMult: number, dmgMult: number, affixes: AffixId[] = [], xpMult = 1): Enemy {
   const elite = affixes.length > 0;
-  const base = { hp: Math.round(def.hp * hpMult), damage: def.damage * dmgMult, speed: def.speed, radius: def.radius, xp: def.xp };
+  const base = { hp: Math.round(def.hp * hpMult), damage: def.damage * dmgMult, speed: def.speed, radius: def.radius, xp: def.xp * xpMult };
   const s = elite ? applyAffixes(base, affixes) : { ...base, shield: 0 };
   return {
     def,
