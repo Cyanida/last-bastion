@@ -33,6 +33,9 @@ export const UPGRADE_RARITIES: Record<UpgradeRarity, { name: string; weight: num
 
 export const FREE_REROLLS = 1; // per level-up screen; the Keep adds more
 export const TRADEOFF_CHANCE = 0.2; // chance that one of the offered boons is a tradeoff
+// v0.4: the pool also offers a talent point or a relic now and then (one card of the three)
+export const TALENT_CARD_CHANCE = 0.15;
+export const RELIC_CARD_CHANCE = 0.12;
 
 export interface TradeoffDef {
   name: string;

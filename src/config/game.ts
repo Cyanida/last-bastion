@@ -10,6 +10,7 @@ export const GAME = {
   baseCrit: 0.05,
   critPerDex: 0.008,
   critCap: 0.6,
+  dodgeCap: 0.5, // v0.4 talents and traits: at most this chance to ignore a hit
   critMult: 2,
   cdrPerInt: 0.015, // cooldown = base / (1 + int * cdrPerInt)
   cdrFloor: 0.4, // cooldown never drops below 40% of base

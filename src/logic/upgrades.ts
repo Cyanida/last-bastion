@@ -1,6 +1,7 @@
 import type { ClassDef } from '../config/classes';
 import { GAME } from '../config/game';
-import { STAT_LABELS, TRADEOFF_CHANCE, TRADEOFF_IDS, TRADEOFFS, UPGRADE_CHOICES, UPGRADE_RARITIES, UPGRADES, type TradeoffDef, type TradeoffId, type UpgradeRarity } from '../config/upgrades';
+import { relicDef, relicDesc, TIER_NUMERALS, type RelicId } from '../config/relics';
+import { RELIC_CARD_CHANCE, STAT_LABELS, TALENT_CARD_CHANCE, TRADEOFF_CHANCE, TRADEOFF_IDS, TRADEOFFS, UPGRADE_CHOICES, UPGRADE_RARITIES, UPGRADES, type TradeoffDef, type TradeoffId, type UpgradeRarity } from '../config/upgrades';
 import { pickWeighted } from '../core/math';
 import type { Mods, Rng, StatKey, Stats } from '../core/types';
 import { STAT_KEYS } from '../core/types';
@@ -38,18 +39,30 @@ export function upgradeText(key: StatKey, cls: ClassDef): { title: string; desc:
 
 // ---------- v0.2: rarities, tradeoffs ----------
 
-export type LevelUpOption = { kind: 'stat'; key: StatKey; rarity: UpgradeRarity } | { kind: 'tradeoff'; id: TradeoffId };
+export type LevelUpOption =
+  | { kind: 'stat'; key: StatKey; rarity: UpgradeRarity }
+  | { kind: 'tradeoff'; id: TradeoffId }
+  | { kind: 'talent' } // v0.4: +1 talent point
+  | { kind: 'relic'; id: RelicId }; // v0.4: a relic (or a tier up), on the spot
 
 function rollRarity(rng: Rng): UpgradeRarity {
   const rarities = Object.keys(UPGRADE_RARITIES) as UpgradeRarity[];
   return pickWeighted(rarities.map((r) => ({ weight: UPGRADE_RARITIES[r].weight, value: r })), rng);
 }
 
-/** Three distinct boons, each with a rolled rarity; sometimes the last one is a tradeoff not taken yet this run. */
-export function rollLevelUpOptions(rng: Rng, taken: TradeoffId[] = []): LevelUpOption[] {
+/**
+ * Three distinct boons, each with a rolled rarity; sometimes the last one is a tradeoff not taken yet this run, a talent point,
+ * or a relic rolled by the drop rules (`relic` supplies one, or null when the pool is empty).
+ */
+export function rollLevelUpOptions(rng: Rng, taken: TradeoffId[] = [], relic: (() => RelicId | null) | null = null): LevelUpOption[] {
   const options: LevelUpOption[] = rollUpgrades(rng).map((key) => ({ kind: 'stat', key, rarity: rollRarity(rng) }));
   const tradeoffs = TRADEOFF_IDS.filter((id) => !taken.includes(id));
-  if (tradeoffs.length > 0 && rng() < TRADEOFF_CHANCE) {
+  const roll = rng();
+  if (roll < TALENT_CARD_CHANCE) options[options.length - 1] = { kind: 'talent' };
+  else if (roll < TALENT_CARD_CHANCE + RELIC_CARD_CHANCE && relic) {
+    const id = relic();
+    if (id) options[options.length - 1] = { kind: 'relic', id };
+  } else if (tradeoffs.length > 0 && roll < TALENT_CARD_CHANCE + RELIC_CARD_CHANCE + TRADEOFF_CHANCE) {
     options[options.length - 1] = { kind: 'tradeoff', id: tradeoffs[Math.floor(rng() * tradeoffs.length)] };
   }
   return options;
@@ -66,8 +79,10 @@ export function applyTradeoff(stats: Stats, mods: Mods, id: TradeoffId): { stats
   return { stats: next, mods: combineMods({ ...mods }, t.mods ?? {}) };
 }
 
-export function optionText(o: LevelUpOption, cls: ClassDef): { title: string; desc: string; tag: string } {
+export function optionText(o: LevelUpOption, cls: ClassDef, relicTier = 0): { title: string; desc: string; tag: string } {
   if (o.kind === 'tradeoff') return { title: TRADEOFFS[o.id].name, desc: TRADEOFFS[o.id].desc, tag: 'Tradeoff' };
+  if (o.kind === 'talent') return { title: 'Talent point', desc: 'One more point to spend in your talent tree (pause menu).', tag: 'Talent' };
+  if (o.kind === 'relic') return { title: `${relicDef(o.id).icon} ${relicDef(o.id).name}`, desc: relicDesc(o.id, relicTier + 1), tag: relicTier > 0 ? `Relic · tier ${TIER_NUMERALS[relicTier + 1]}` : `Relic · ${relicDef(o.id).rarity}` };
   const title = statLabel(o.key, cls);
   const amount = upgradeAmount(o.key, o.rarity);
   const gain = UPGRADES[o.key].mode === 'mult' ? `+${Math.round((amount - 1) * 100)}%` : `+${amount}`;

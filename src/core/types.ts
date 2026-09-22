@@ -6,6 +6,8 @@ import type { TierDef } from '../config/economy';
 import type { AffixId } from '../config/elites';
 import type { EnemyDef, EnemyId } from '../config/enemies';
 import type { RelicId, SynergyId } from '../config/relics';
+import type { TraitId } from '../config/traits';
+import type { UtilityUpgradeId } from '../config/utility';
 import type { RelicTotals } from '../logic/relics';
 import type { ModifierId } from '../config/waves';
 import type { SpawnUnit, SquadPlan } from '../logic/director';
@@ -35,12 +37,24 @@ export interface Mods {
   gold: number;
   minionAtkSpd: number;
   minionDamage: number;
+  // v0.4 talents and traits
+  abilityDur: number; // signature ability duration
+  abilityCd: number; // signature ability cooldown
+  utilityCd: number; // utility ability cooldown
+  utilityPower: number; // utility ability damage / heal / pull
+  bossDamage: number; // player damage to bosses
   // additive
   armor: number;
   crit: number;
   lifesteal: number;
   regen: number;
   pierce: number;
+  critDamage: number; // added to the crit multiplier
+  dodge: number; // chance to ignore a hit
+  thorns: number; // share of damage taken thrown back at the attacker
+  onKillHeal: number; // HP per kill
+  lowHpDamage: number; // damage bonus below half HP
+  minionMax: number; // extra minions
 }
 
 /** Temporary combat buff owned by the signature ability. */
@@ -85,6 +99,11 @@ export interface Player extends Body {
   buff: Buff;
   mods: Mods;
   upgrades: AbilityUpgradeId[]; // chosen signature-ability upgrades
+  // v0.4
+  talents: string[]; // taken talent node ids (config/talents.ts)
+  utilityCd: number;
+  utilityCdMax: number;
+  utilityUpgrades: UtilityUpgradeId[];
   revives: number; // stored revive charges (Phoenix Feather)
   reviveT: number; // Guardian Angel window: dying while > 0 revives instead
   invulnT: number; // brief grace after a revive
@@ -123,6 +142,7 @@ export interface Enemy extends Body {
   slowT: number;
   slowMul: number;
   fearT: number;
+  tauntT: number; // v0.4: the Paladin's Challenge; it can only go for the player while > 0
   markT: number;
   markMul: number;
   phase: number; // bosses: 1, then 2 below half HP
@@ -310,7 +330,7 @@ export interface Game {
   effects: Effect[];
   hash: SpatialHash<Enemy>;
   rng: Rng;
-  input: { moveX: number; moveY: number; aimX: number; aimY: number; ability: boolean; showAim: boolean };
+  input: { moveX: number; moveY: number; aimX: number; aimY: number; ability: boolean; utility: boolean; showAim: boolean };
   wave: number;
   waveHpMult: number;
   waveDmgMult: number;
@@ -346,6 +366,10 @@ export interface Game {
   relicPool: RelicId[]; // unlocked and allowed for this class
   relicOffers: RelicId[][]; // queued choices (boss kill: 3, elite chest: 1); a held relic in an offer means a tier up
   pendingAbilityTiers: number[];
+  pendingUtilityTiers: number[]; // v0.4: utility ability choices due (UTILITY.tiers)
+  talentPoints: number; // unspent
+  talentModsCache: Mods | null; // talent mods folded together; rebuilt when a talent is taken
+  trait: TraitId;
   rerolls: number; // free rerolls per level-up screen
   gold: number;
   goldStart: number;

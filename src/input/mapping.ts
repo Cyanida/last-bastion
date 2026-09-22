@@ -18,6 +18,7 @@ export interface Intent {
   moveX: number; // vector of length 0..1
   moveY: number;
   ability: boolean;
+  utility: boolean; // v0.4: the second ability (E / Shift, gamepad X or RB, the small touch button)
   aim: Aim;
   showAim: boolean; // draw the reticle (always with a mouse, only while holding on touch)
 }
@@ -65,6 +66,8 @@ export function joystickVector(ox: number, oy: number, px: number, py: number, r
 /** Standard-mapping gamepad buttons -> actions, on the press edge only. */
 const PAD_ACTIONS: [number, Action][] = [[0, 'confirm'], [1, 'cancel'], [2, 'pick1'], [3, 'pick2'], [5, 'pick3'], [4, 'reroll'], [9, 'pause']];
 export const PAD_ABILITY_BUTTONS = [0, 7]; // A or right trigger
+export const PAD_UTILITY_BUTTONS = [2, 5]; // X or right bumper
+export const UTILITY_KEYS = ['KeyE', 'ShiftLeft', 'ShiftRight'];
 
 export function gamepadActions(prev: readonly boolean[], now: readonly boolean[]): Action[] {
   return PAD_ACTIONS.filter(([i]) => now[i] && !prev[i]).map(([, a]) => a);
@@ -74,5 +77,5 @@ export function gamepadActions(prev: readonly boolean[], now: readonly boolean[]
 export function mergeIntents(intents: Intent[]): Intent {
   const moving = intents.reduce((a, b) => (Math.hypot(b.moveX, b.moveY) > Math.hypot(a.moveX, a.moveY) ? b : a));
   const caster = intents.find((i) => i.ability) ?? intents.find((i) => i.showAim) ?? intents[0];
-  return { moveX: moving.moveX, moveY: moving.moveY, ability: intents.some((i) => i.ability), aim: caster.aim, showAim: caster.showAim };
+  return { moveX: moving.moveX, moveY: moving.moveY, ability: intents.some((i) => i.ability), utility: intents.some((i) => i.utility), aim: caster.aim, showAim: caster.showAim };
 }

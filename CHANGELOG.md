@@ -21,6 +21,14 @@
 - **Drops**: the share of new relics in an offer shrinks with every relic held, so late drops are mostly upgrades. Relic damage now grows 9% per level (was 12%: characters are a third higher-level at the same wave).
 - `npm run sim -- relics` reports the **relic power index**: no relics vs a run's haul of 12 pickups vs every relic at tier 3.
 
+### Build depth: talents, a second ability, traits
+- **Talent trees** (`config/talents.ts`): three branches per class (Paladin Bulwark / Zealot / Crusader, Viking Berserk / Raider / Jarl, Angel Mercy / Wrath / Herald, Necromancer Horde / Lich / Plague, Archer Ranger / Hunter / Marksman), seven nodes each in four rows with prerequisites, and one **keystone** per branch that needs four points in it; only one keystone per run. A talent point every 3 levels, spent any time from the pause menu on a touch-friendly tree screen. Nodes are plain data: stat adds, mods, and new mod keys the game reads (crit damage, dodge, thorns, heal on kill, damage below half HP, boss damage, extra minions, ability duration and cooldown, utility cooldown and power).
+- **Second ability** at level 3, on its own key (E or Shift, gamepad X or RB, a second touch button): the Paladin's **Challenge** (pull and taunt), the Viking's **Leap**, the Angel's **Blink** (with a moment of invulnerability), the Necromancer's **Corpse Explosion**, the Archer's **Dodge Roll** that drops caltrops. Two-way upgrade choices at levels 8 and 14 (20 upgrades in `config/utility.ts`); talents in each class's third branch scale it.
+- **Starting traits** on the class select screen (`config/traits.ts`): Glass Cannon and Stalwart from the start; Scavenger, Cursed Luck, Pilgrim and Duelist unlocked by achievements. The choice is remembered; the Daily Trial ignores it so everyone plays the same run.
+- **Level-up pool**: a card can now be a talent point (15%) or a relic drop (12%) instead of a stat boon, next to the tradeoffs.
+- The pause and results screens show the whole build: trait, talents (and unspent points), ability and utility upgrades, relics with tiers, active synergies and clashes.
+- The balance bot spends its points down one branch, takes utility upgrades and casts the utility.
+
 ## v0.3.1
 - The title screen shows the full version next to the build date ("build 2026-09-22 · v0.3.1"). This is the release that proves the auto-updater: an installed 0.3.0 finds it, downloads it and offers the restart.
 - Release workflow: only `latest*.yml` is attached as update metadata (0.3.0 also carried electron-builder's debug file).

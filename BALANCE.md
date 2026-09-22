@@ -87,6 +87,14 @@ Fresh runs land where v0.3 left them (7.7 then), the maxed / fresh ratio is up f
 reached wave 35; the count plateau and the gentle Act III stat slope are what make Act II-III survivable at all), which is what the talent tree
 and the treasures are meant to build on. The spread between classes is 1.67x, worse than v0.3's 1.24x, and that is the balance pass's job (section 9).
 
+### After talents and the utility abilities (increment 4)
+
+The same 6-run sim with the bot spending talent points down one branch and casting the utility: fresh runs 9.0 (Paladin 14.0, the rest 7.3-8.2),
+**maxed runs 36.9** (Viking 56.5, Angel 52.5, Paladin 38.5, Necromancer 27.2, Archer 9.7), ratio 4.1. A blink or a leap is exactly what the
+bot lacked against a crowd, and a maxed save survives the Dragon often enough to reach the gentle Acts. That is the late power the tree was meant
+to add, and far more of it than the 1.5-2x target; the balance pass (section 9) will steepen the tail past wave 30 and look at the utility cooldowns
+before the classes. The spread between fresh classes is 1.9x, the Archer still last.
+
 ## v0.4: relics without a cap
 
 The cap is gone; a duplicate raises a relic a tier (three tiers, `config/relics.ts` has every relic's tier 2 and 3 numbers). What keeps that

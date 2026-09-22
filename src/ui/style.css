@@ -67,6 +67,31 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 #h-ab-cd { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); }
 #h-ab-time { position: relative; text-shadow: 0 1px 2px #000; }
 #h-ab-name { font-size: 22px; line-height: 1.1; }
+#h-ut-icon { position: relative; width: 44px; height: 44px; flex: none; border: 2px solid #5a3d25; border-radius: 8px; background: #3a2a18; overflow: hidden; display: grid; place-items: center; color: #f3ead0; font-size: 15px; cursor: help; }
+#h-ut-icon.ready { border-color: #7ec8d8; box-shadow: 0 0 10px #7ec8d8; background: radial-gradient(#4a6a78, #1e3a48); font-size: 22px; }
+#h-ut-icon.locked { opacity: 0.5; }
+#h-ut-cd { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); }
+#h-ut-time { position: relative; text-shadow: 0 1px 2px #000; font-family: Georgia, serif; }
+#h-ut-icon:hover::after { bottom: auto; top: calc(100% + 8px); right: auto; left: 50%; transform: translateX(-50%); width: 260px; }
+#h-talent { position: absolute; left: 50%; transform: translateX(-50%); bottom: 96px; color: #e9c95a; font-size: 14px; text-shadow: 0 0 4px #000; pointer-events: none; }
+/* v0.4 talent tree */
+.tree { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 12px 0; }
+.branch h2 { text-align: center; margin: 0 0 2px; }
+.branch .hint { text-align: center; margin: 0 0 8px; }
+.trow { display: flex; gap: 6px; justify-content: center; margin-bottom: 6px; }
+.talent { flex: 1; min-height: 58px; padding: 6px 8px; font: 13px var(--body); color: var(--ink); text-align: left; cursor: pointer; border: 2px solid #5a3d25; border-radius: 6px; background: linear-gradient(var(--parchment), var(--parchment-dark)); display: flex; flex-direction: column; gap: 2px; }
+.talent b { font-size: 14px; }
+.talent span { font-size: 12px; opacity: 0.85; }
+.talent.open { border-color: var(--gold); box-shadow: 0 0 10px var(--gold); }
+.talent.taken { border-color: #3a6b2a; background: linear-gradient(#d9e3c4, #b9c9a0); }
+.talent.locked { opacity: 0.45; cursor: default; }
+.talent.keystone { min-height: 70px; border-width: 3px; }
+.talent.keystone.open { border-color: #e07b28; box-shadow: 0 0 14px #e07b28; }
+.talent[data-tip]:hover::after { bottom: auto; top: calc(100% + 6px); right: auto; left: 0; width: 220px; z-index: 6; }
+.boon.talent { border-color: #3a6b2a; outline-color: #6fae4f; }
+.boon.talent .tag { color: #3a6b2a; opacity: 1; font-weight: bold; }
+.chip.trait { border-color: #6b5a3a; }
+@media (max-width: 760px) { .tree { grid-template-columns: 1fr; } }
 #h-ab-desc { font-size: 14px; }
 .hint { font-size: 12px; font-style: italic; opacity: 0.75; }
 
@@ -237,6 +262,12 @@ canvas#game { touch-action: none; }
 #btn-ability.held { transform: scale(0.94); opacity: 1; }
 #btn-ability-cd { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); }
 #btn-ability b { position: relative; }
+#btn-utility { pointer-events: auto; touch-action: none; position: absolute; right: max(136px, calc(env(safe-area-inset-right) + 110px)); bottom: max(26px, env(safe-area-inset-bottom)); width: 64px; height: 64px; border-radius: 50%; overflow: hidden;
+  border: 3px solid #5a3d25; background: radial-gradient(#3a2a18, #1a1210); color: #f3ead0; font: 22px var(--body); opacity: 0.75; }
+#btn-utility.ready { border-color: #7ec8d8; background: radial-gradient(#4a6a78, #1e3a48); box-shadow: 0 0 14px #7ec8d8; opacity: 1; }
+#btn-utility.held { transform: scale(0.94); }
+#btn-utility-cd { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.6); }
+#btn-utility b { position: relative; }
 .touch .hud-relics { bottom: auto; top: calc(max(14px, env(safe-area-inset-top)) + 52px); transform-origin: top right; }
 .touch .hud-ability { pointer-events: none; opacity: 0.9; }
 

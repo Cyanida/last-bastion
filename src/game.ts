@@ -25,6 +25,9 @@ import { updateEnemies } from './systems/enemyAI';
 import { updateMinions } from './systems/minions';
 import { updateEnemyPhysics, updatePickups, updatePlayerMovement } from './systems/movement';
 import { addRelic, updateRelics } from './systems/relics';
+import { applyTrait, talentPassives } from './systems/talents';
+import { updateUtility } from './systems/utility';
+import type { TraitId } from './config/traits';
 import { updateSpawning } from './systems/spawning';
 import './systems/bosses'; // registers the Act bosses' scripts
 import { updateSquads } from './systems/squads';
@@ -38,6 +41,7 @@ export interface RunOptions {
   classXp?: number; // mastery
   lockedRelics?: RelicId[];
   curses?: CurseId[];
+  trait?: TraitId; // v0.4 starting trait
   daily?: string; // date of the Daily Trial this run is
   // simulation only (the relic power index, scripts/simulate.ts): start with these relics at this tier, or with this many pickups
   // rolled by the drop rules; noRelics stops any further drops
@@ -66,7 +70,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     effects: [],
     hash: new SpatialHash(GAME.spatialCell),
     rng: mulberry32(seed),
-    input: { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, showAim: false },
+    input: { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, utility: false, showAim: false },
     wave: 0,
     waveHpMult: 1,
     waveDmgMult: 1,
@@ -101,6 +105,10 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     relicPool: relicPoolFor(classId, opts.lockedRelics ?? []),
     relicOffers: [],
     pendingAbilityTiers: [],
+    pendingUtilityTiers: [],
+    talentPoints: 0,
+    talentModsCache: null,
+    trait: 'none',
     rerolls: FREE_REROLLS + loadout.rerolls + mastery.reroll,
     gold: loadout.gold,
     goldStart: loadout.gold,
@@ -132,6 +140,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   g.vars.damageTaken = curseValue(curses, 'glassBones', 'damage');
   g.vars.enemySpeed = curseValue(curses, 'frenzy', 'speed');
   g.vars.curseMult = curseMultiplier(curses);
+  applyTrait(g, opts.trait ?? 'none');
   g.player.mods = { ...g.baseMods };
   for (const id of opts.relics ?? []) for (let t = 0; t < (opts.relicTier ?? 1); t++) addRelic(g, id);
   for (let i = 0; i < (opts.relicPicks ?? 0); i++) {
@@ -162,6 +171,9 @@ export function summarizeRun(g: Game): RunSummary {
     elites: g.elitesKilled,
     flawlessBosses: g.flawlessBosses,
     relics: g.relics,
+    talents: g.player.talents,
+    utilityUpgrades: g.player.utilityUpgrades,
+    trait: g.trait,
     relicsFound: g.relicsFound,
     relicTiers: g.relicTiers,
     salvage: g.salvage,
@@ -194,11 +206,13 @@ export function updateGame(g: Game, dt: number): void {
   p.chillT -= dt;
   p.mods = { ...g.baseMods }; // rebuilt every tick: meta + tradeoffs, then relics, then passive ability upgrades
   updateRelics(g, dt);
+  talentPassives(g);
   abilityPassives(g);
   healPlayer(g, (p.cls.regen + p.mods.regen) * dt, false);
 
   updatePlayerMovement(g, dt);
   updateAbility(g, dt);
+  updateUtility(g, dt);
   _t = begin();
   updatePlayerAttack(g, dt);
   end('attack', _t);

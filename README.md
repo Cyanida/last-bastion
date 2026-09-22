@@ -100,9 +100,10 @@ The game needs nothing native: the PWA and the Capacitor app run the same `dist/
 | WASD / arrows · left stick · left thumb | move |
 | (automatic) | basic attack on the nearest enemy in range |
 | Space / right mouse · A or RT · ability button | signature ability (mouse: at the cursor; touch: tap to auto-aim, hold and drag to aim; right stick aims on a gamepad) |
+| E / Shift · X or RB · small touch button | utility ability (from level 3): Challenge, Leap, Blink, Corpse Explosion or Dodge Roll, aimed like the signature ability or along your movement |
 | 1 / 2 / 3 · X / Y / RB | pick a boon, relic or ability upgrade |
 | R · LB | reroll boons |
-| Esc / P · Start · pause button | pause (shows your build; "End run" banks your gold) |
+| Esc / P · Start · pause button | pause (shows your build and opens the **talent tree**; "End run" banks your gold) |
 | M | mute |
 | hover or tap an enemy | tooltip: state, affixes, weaknesses and resistances, armor, status effects |
 | F11 (desktop) | fullscreen |
@@ -117,7 +118,8 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 - **Enemies think**: ranged units keep their distance and reposition, melee units flank, wounded levies flee to healers. **Squads** march in formation behind a **commander** (Bannerman, Drummer, Chaplain, Hound Master): kill him and the squad scatters, routs or goes berserk. Commanders carry a bounty and show on the minimap.
 - **Damage types and status effects**: holy, shadow, fire, frost, physical; burn, chill (enough of it freezes), bleed, poison, stun, fear, curse. Knights have armor that breaks; shield bearers only break from behind; a shieldwall only holds while the line stands together.
 - **Relics (31)** have no slot cap since v0.4: a duplicate raises the relic a tier (three tiers, visibly stronger numbers). Every relic has a tooltip everywhere it appears (drop cards, the HUD bar, pause and results, the Merchant, the compendium in the Keep) with its current and next tier and its **synergies** (12 pairs that do something extra together) and **clashes** (4 pairs that warn). Relics of a kind add up and pass a soft cap (damage, attack speed, defense, utility; on-hit and on-kill procs share their chance past three relics; relic healing is capped per wave), shown in the HUD stats panel. Proc chains stop at depth 2. Late drops are mostly upgrades.
-- **Level-ups, ability upgrade tracks, elites and wave modifiers** as in v0.2.
+- **Talents**: a point every 3 levels, spent from the pause menu in one of three branches per class (seven nodes each, prerequisites, an exclusive keystone at the bottom). **Second ability** at level 3 with two-way upgrades at levels 8 and 14. **Starting trait** chosen on the class select screen, unlocked by achievements.
+- **Level-ups** offer stat boons, tradeoffs, talent points and relics; **ability upgrade tracks, elites and wave modifiers** as in v0.2.
 - **Curses** (class select screen): opt-in handicaps that raise the gold and class-XP multiplier. Unlocked through achievements.
 - **Daily Trial** (title screen): same seed, class, arena and curses for everyone that day. Any run's **seed** is on its results screen; type it on the class select to replay it.
 
@@ -181,6 +183,7 @@ public/        manifest + generated icons     build/  installer icon     docs/  
 - **Relic**: a row in `config/relics.ts` with its `category`, numbers `n` and two `tiers` overrides (the text is a function of the numbers, so every tier describes itself), plus a hook in `systems/relics.ts` if it reacts to events (read the tier's numbers through `n(g, id)`). A **synergy** is a row in `SYNERGIES` plus a `syn(g, id)` check inside the hooks it changes.
 - **Ability upgrade / class / arena**: as in v0.2 (data row + hook).
 - **Curse**: a row in `config/curses.ts`, read where it matters through `curseValue`, and an achievement that unlocks it.
+- **Talent node**: a row in a class's branch in `config/talents.ts` (`mods`, `stats`, or a number another system reads). **Trait**: a row in `config/traits.ts`. **Utility upgrade**: a row in `config/utility.ts` plus a `has()` branch in that utility's hook in `systems/utility.ts`.
 
 ## Known simplifications
 

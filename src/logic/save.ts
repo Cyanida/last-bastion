@@ -5,6 +5,7 @@ import { META, META_IDS, TIER_UNLOCK_WAVE, TIERS, type MetaId } from '../config/
 import type { EnemyId } from '../config/enemies';
 import type { QualitySetting } from '../config/game';
 import type { RelicId } from '../config/relics';
+import { TRAIT_IDS, type TraitId } from '../config/traits';
 import { curseMultiplier } from './curses';
 import { classXpForRun, metaCost, type MetaRanks } from './economy';
 
@@ -47,7 +48,7 @@ export interface Save {
     dailies: number;
   };
   daily: Record<string, number>; // v0.3: 'YYYY-MM-DD' -> best wave in that day's trial
-  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[] };
+  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId };
 }
 
 /** What a finished (or abandoned) run reports. The v0.3 fields are optional so older callers keep working. */
@@ -72,6 +73,9 @@ export interface RunSummary {
   daily?: string | null; // date of the Daily Trial this run was, if any
   seed?: number;
   levelAtWave?: number[];
+  talents?: string[]; // v0.4 build, for the results screen and achievements
+  utilityUpgrades?: string[];
+  trait?: string;
   relicsFound?: RelicId[]; // every pickup and tier-up (the compendium counts them)
   relicTiers?: Partial<Record<RelicId, number>>;
   salvage?: number; // Rune shards from salvaged relics
@@ -91,7 +95,7 @@ export function defaultSave(): Save {
     tierUnlocked: 0,
     counters: { kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0 },
     daily: {},
-    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [] },
+    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none' },
   };
 }
 
@@ -136,6 +140,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
         arena: ARENA_IDS.includes(s.arena as ArenaId) ? (s.arena as ArenaId) : 'courtyard',
         tier: Math.min(save.tierUnlocked, Math.floor(num(s.tier))),
         quality: s.quality === 'low' || s.quality === 'high' ? s.quality : 'auto',
+        trait: TRAIT_IDS.includes(s.trait as TraitId) ? (s.trait as TraitId) : 'none',
         prerelease: s.prerelease === true,
         curses: Array.isArray(s.curses) ? CURSE_IDS.filter((id) => (s.curses as unknown[]).includes(id)) : [],
       };

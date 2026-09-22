@@ -1,4 +1,4 @@
-import { actionForKey, gamepadActions, joystickVector, keyboardMove, mergeIntents, PAD_ABILITY_BUTTONS, stickVector, type Action, type Intent } from './mapping';
+import { actionForKey, gamepadActions, joystickVector, keyboardMove, mergeIntents, PAD_ABILITY_BUTTONS, stickVector, type Action, type Intent, PAD_UTILITY_BUTTONS, UTILITY_KEYS } from './mapping';
 
 /**
  * The only place that listens to raw keyboard, mouse, touch and gamepad events.
@@ -12,8 +12,8 @@ const INSPECT_TIME = 2500;
 
 const keys = new Set<string>();
 const mouse = { x: 0, y: 0, rmb: false, used: false };
-const touch = { joyId: -1, ox: 0, oy: 0, px: 0, py: 0, abilityId: -1, sx: 0, sy: 0, dx: 0, dy: 0, fire: false, fireDx: 0, fireDy: 0, visible: false, targeted: false };
-const pad = { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, prev: [] as boolean[] };
+const touch = { joyId: -1, ox: 0, oy: 0, px: 0, py: 0, abilityId: -1, sx: 0, sy: 0, dx: 0, dy: 0, fire: false, fireDx: 0, fireDy: 0, visible: false, targeted: false, utility: false };
+const pad = { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, utility: false, prev: [] as boolean[] };
 const inspect = { x: 0, y: 0, until: 0 };
 const listeners = new Set<(a: Action) => void>();
 const gestureCallbacks: (() => void)[] = [];
@@ -54,9 +54,19 @@ function buildTouchUi(): void {
   const root = document.createElement('div');
   root.id = 'touch';
   root.className = 'hidden';
-  root.innerHTML = '<div id="joy"><i></i></div><button id="btn-ability" aria-label="Signature ability"><span id="btn-ability-cd"></span><b id="btn-ability-text">✦</b></button>';
+  root.innerHTML = '<div id="joy"><i></i></div><button id="btn-ability" aria-label="Signature ability"><span id="btn-ability-cd"></span><b id="btn-ability-text">✦</b></button><button id="btn-utility" aria-label="Utility ability"><span id="btn-utility-cd"></span><b id="btn-utility-text">◆</b></button>';
   document.body.appendChild(root);
   ui = { root, joy: root.querySelector('#joy')!, knob: root.querySelector('#joy i')!, button: root.querySelector('#btn-ability')! };
+
+  // the utility button: a tap fires once (consumed by the next simulation step)
+  const u = root.querySelector<HTMLButtonElement>('#btn-utility')!;
+  u.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    touch.utility = true;
+    u.classList.add('held');
+  });
+  u.addEventListener('pointerup', () => u.classList.remove('held'));
+  u.addEventListener('pointercancel', () => u.classList.remove('held'));
 
   const b = ui.button;
   b.addEventListener('pointerdown', (e) => {
@@ -170,7 +180,7 @@ export function setTouchControls(visible: boolean, targeted = false): void {
 export function pumpGamepad(): void {
   const gp = typeof navigator.getGamepads === 'function' ? [...navigator.getGamepads()].find((p) => p?.connected) : null;
   if (!gp) {
-    Object.assign(pad, { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false });
+    Object.assign(pad, { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, utility: false });
     return;
   }
   const now = gp.buttons.map((b) => b.pressed);
@@ -179,28 +189,31 @@ export function pumpGamepad(): void {
   pad.prev = now;
   const move = stickVector(gp.axes[0] ?? 0, gp.axes[1] ?? 0);
   const aim = stickVector(gp.axes[2] ?? 0, gp.axes[3] ?? 0, 0.3);
-  Object.assign(pad, { moveX: move.x, moveY: move.y, aimX: aim.x, aimY: aim.y, ability: PAD_ABILITY_BUTTONS.some((i) => now[i]) });
+  Object.assign(pad, { moveX: move.x, moveY: move.y, aimX: aim.x, aimY: aim.y, ability: PAD_ABILITY_BUTTONS.some((i) => now[i]), utility: PAD_UTILITY_BUTTONS.some((i) => now[i]) });
 }
 
 /** Once per simulation step. A touch "fire on release" is consumed by the step that reads it. */
 export function pollInput(): Intent {
   const kb = keyboardMove(keys);
-  const keyboard: Intent = { moveX: kb.x, moveY: kb.y, ability: keys.has('Space') || mouse.rmb, aim: mouse.used ? { kind: 'screen', x: mouse.x, y: mouse.y } : { kind: 'auto' }, showAim: mouse.used };
+  const keyboard: Intent = { moveX: kb.x, moveY: kb.y, ability: keys.has('Space') || mouse.rmb, utility: UTILITY_KEYS.some((k) => keys.has(k)), aim: mouse.used ? { kind: 'screen', x: mouse.x, y: mouse.y } : { kind: 'auto' }, showAim: mouse.used };
 
   const joy = touch.joyId === -1 ? { x: 0, y: 0 } : joystickVector(touch.ox, touch.oy, touch.px, touch.py, JOY_RADIUS);
   const holding = touch.abilityId !== -1;
   const fired = touch.fire;
   touch.fire = false;
+  const utilityTap = touch.utility;
+  touch.utility = false;
   const finger: Intent = {
     moveX: joy.x,
     moveY: joy.y,
     ability: touch.targeted ? fired : holding || fired,
+    utility: utilityTap,
     aim: touch.targeted ? { kind: 'offset', dx: fired ? touch.fireDx : touch.dx, dy: fired ? touch.fireDy : touch.dy } : { kind: 'auto' },
     showAim: touch.targeted && holding,
   };
 
   const aiming = Math.hypot(pad.aimX, pad.aimY) > 0;
-  const gamepad: Intent = { moveX: pad.moveX, moveY: pad.moveY, ability: pad.ability, aim: aiming ? { kind: 'stick', x: pad.aimX, y: pad.aimY } : { kind: 'auto' }, showAim: aiming };
+  const gamepad: Intent = { moveX: pad.moveX, moveY: pad.moveY, ability: pad.ability, utility: pad.utility, aim: aiming ? { kind: 'stick', x: pad.aimX, y: pad.aimY } : { kind: 'auto' }, showAim: aiming };
   return mergeIntents([keyboard, finger, gamepad]);
 }
 

@@ -4,7 +4,7 @@ import { actionForKey, gamepadActions, joystickVector, keyboardMove, mergeIntent
 import { densestCluster, resolveAim } from '../src/logic/aim';
 import { defaultSave, migrate, SAVE_VERSION } from '../src/logic/save';
 
-const idle: Intent = { moveX: 0, moveY: 0, ability: false, aim: { kind: 'auto' }, showAim: false };
+const idle: Intent = { moveX: 0, moveY: 0, ability: false, utility: false, aim: { kind: 'auto' }, showAim: false };
 
 describe('input mapping', () => {
   it('keys map to actions, including number picks; unknown keys map to nothing', () => {

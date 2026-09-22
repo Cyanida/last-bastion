@@ -10,6 +10,8 @@ import { procScale, softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
+import { describeUtility, utilityDef, utilityUnlocked } from '../systems/utility';
+import { UTILITY } from '../config/utility';
 import { esc, relicTip, tierBadge } from './relicText';
 
 /** Tooltip for the enemy under the pointer (hover, or a tap on touch): what it is, what hurts it, what is on it. */
@@ -60,7 +62,9 @@ export function buildHud(onPause: () => void, onMute: () => void): void {
     <div class="hud-ability panel">
       <div id="h-ab-icon"><div id="h-ab-cd"></div><span id="h-ab-time"></span></div>
       <div><div id="h-ab-name" class="heading"></div><div id="h-ab-desc"></div><div id="h-ab-ups" class="hint"></div></div>
+      <div id="h-ut-icon" tabindex="0"><div id="h-ut-cd"></div><span id="h-ut-time"></span></div>
     </div>
+    <div id="h-talent" class="hint hidden"></div>
     <div id="h-banner" class="heading"></div>`;
   $('btn-pause').onclick = onPause;
   $('btn-mute').onclick = onMute;
@@ -153,6 +157,25 @@ export function updateHud(g: Game): void {
     text('btn-ability-text', ready ? '✦' : p.abilityCd.toFixed(0));
     $('btn-ability-cd').style.height = `${(p.abilityCd / p.abilityCdMax) * 100}%`;
   }
+  // v0.4: the utility ability slot (and its touch button), locked until UTILITY.unlockLevel
+  const util = utilityDef(p);
+  const unlocked = utilityUnlocked(p);
+  const utilReady = unlocked && p.utilityCd <= 0;
+  const utilIcon = $('h-ut-icon');
+  utilIcon.classList.toggle('ready', utilReady);
+  utilIcon.classList.toggle('locked', !unlocked);
+  utilIcon.setAttribute('data-tip', esc(`${util.name} (E / Shift · X / RB)\n${describeUtility(p)}`));
+  $('h-ut-cd').style.height = unlocked ? `${(p.utilityCd / p.utilityCdMax) * 100}%` : '100%';
+  text('h-ut-time', !unlocked ? `${UTILITY.unlockLevel}` : utilReady ? util.icon : p.utilityCd.toFixed(1));
+  const utilBtn = document.getElementById('btn-utility');
+  if (utilBtn) {
+    utilBtn.classList.toggle('ready', utilReady);
+    utilBtn.classList.toggle('hidden', !unlocked);
+    text('btn-utility-text', utilReady ? util.icon : p.utilityCd.toFixed(0));
+    $('btn-utility-cd').style.height = `${(p.utilityCd / p.utilityCdMax) * 100}%`;
+  }
+  $('h-talent').classList.toggle('hidden', g.talentPoints === 0);
+  if (g.talentPoints > 0) text('h-talent', `${g.talentPoints} talent point${g.talentPoints > 1 ? 's' : ''} to spend — pause menu`);
 
   html('h-status', activeStatuses(p.statuses).map((id) => `<span style="background:${STATUSES[id].color}">${STATUSES[id].name}${(p.statuses[id]?.stacks ?? 1) > 1 ? ` ×${p.statuses[id]!.stacks}` : ''}</span>`).join(''));
 

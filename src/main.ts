@@ -28,7 +28,10 @@ import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { buildHud, setMuteIcon, showHud, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTitle, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTalents, showTitle, showUtilityUpgrade, type TitleInfo } from './ui/screens';
+import { TRAITS } from './config/traits';
+import { spendTalent } from './systems/talents';
+import { chooseUtilityUpgrade, utilityUpgradeOptions } from './systems/utility';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
 
@@ -110,6 +113,12 @@ function toSelect(): void {
       commit({ ...save, settings: { ...save.settings, arena, tier } });
       toSelect();
     },
+    trait(id) {
+      const need = TRAITS[id].unlock.achievement;
+      if (need && !save.achievements.includes(need)) return;
+      commit({ ...save, settings: { ...save.settings, trait: save.settings.trait === id ? 'none' : id } });
+      toSelect();
+    },
   });
 }
 
@@ -187,6 +196,7 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {})
     lockedRelics: lockedRelics(save),
     curses: d ? d.curses : save.settings.curses.filter((c) => unlockedCurses(save).includes(c)),
     daily: d?.date,
+    trait: d ? 'none' : save.settings.trait, // the Daily Trial is the same for everyone
   });
   play();
   showHud(true);
@@ -219,7 +229,7 @@ function openLevelUp(g: Game): void {
         else return;
         offer();
       },
-    });
+    }, g.relicTiers);
   };
   offer();
 }
@@ -237,6 +247,11 @@ function openChoice(g: Game): void {
     const tier = g.pendingAbilityTiers[0];
     showAbilityUpgrade(tier, upgradeOptions(g.player.cls.id, tier), g.player.cls, (id) => {
       if (!chooseAbilityUpgrade(g, id)) g.pendingAbilityTiers.shift(); // never leave the player stuck on a choice that cannot be made
+      resume();
+    });
+  } else if (g.pendingUtilityTiers.length > 0) {
+    showUtilityUpgrade(g.pendingUtilityTiers[0], utilityUpgradeOptions(g), g.player.cls, (id) => {
+      if (!chooseUtilityUpgrade(g, id)) g.pendingUtilityTiers.shift();
       resume();
     });
   } else if (g.pendingLevelUps > 0) openLevelUp(g);
@@ -263,17 +278,25 @@ function openMerchant(g: Game): void {
   );
 }
 
-const buildOf = (g: Game) => ({ relics: g.relics, tiers: g.relicTiers, upgrades: g.player.upgrades });
+const buildOf = (g: Game) => ({ relics: g.relics, tiers: g.relicTiers, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait });
 
-const hasChoice = (g: Game) => g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingLevelUps > 0 || g.pendingMerchant;
+const hasChoice = (g: Game) => g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingLevelUps > 0 || g.pendingMerchant;
 
 function togglePause(): void {
   if (state === 'playing' && game) {
     const g = game;
     state = 'paused';
     setTouchControls(false);
-    showPause(buildOf(g), togglePause, () => endRun(g));
+    showPause(buildOf(g), togglePause, () => endRun(g), () => openTalents(g));
   } else if (state === 'paused') resume();
+}
+
+/** The talent tree, from the pause menu (the game stays paused). */
+function openTalents(g: Game): void {
+  showTalents({ classId: g.player.cls.id, taken: g.player.talents, points: g.talentPoints }, {
+    spend: (id) => spendTalent(g, id),
+    back: () => showPause(buildOf(g), togglePause, () => endRun(g), () => openTalents(g)),
+  });
 }
 
 /** Death or "end run": either way the run is banked. */
@@ -313,7 +336,7 @@ function sampleInput(g: Game): void {
   const needsAuto = intent.aim.kind !== 'screen' && (intent.ability || intent.showAim);
   const auto = needsAuto ? densestCluster(g.enemies, p, castRange, abilityAimRadius(p) || 120) : null;
   const aim = resolveAim(intent.aim, p, auto, castRange, (x, y) => ({ x: cam.x + x * pxToWorld, y: cam.y + y * pxToWorld }), pxToWorld);
-  g.input = { moveX: intent.moveX, moveY: intent.moveY, aimX: aim.x, aimY: aim.y, ability: intent.ability, showAim: intent.showAim };
+  g.input = { moveX: intent.moveX, moveY: intent.moveY, aimX: aim.x, aimY: aim.y, ability: intent.ability, utility: intent.utility, showAim: intent.showAim };
 }
 
 function afterStep(g: Game): void {

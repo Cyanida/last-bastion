@@ -10,6 +10,7 @@ export interface GameEvents {
   onDamageTaken: { amount: number; attacker: Enemy | null };
   onBlocked: { amount: number; attacker: Enemy | null }; // damage stopped by invulnerability
   onAbilityUsed: { cooldown: number };
+  onUtilityUsed: { id: string }; // v0.4
   onWaveStart: { wave: number };
 }
 export type EventName = keyof GameEvents;

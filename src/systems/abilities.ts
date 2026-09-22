@@ -39,7 +39,7 @@ const near: Enemy[] = [];
 const has = (p: Player, id: AbilityUpgradeId) => p.upgrades.includes(id);
 
 function activeFor(p: Player, seconds: number): void {
-  p.abilityTime = p.abilityDur = seconds;
+  p.abilityTime = p.abilityDur = seconds * p.mods.abilityDur;
 }
 
 /** Arrow Volley's falling arrows, shared by the first and the (Double Volley) second salvo. */
@@ -229,7 +229,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const p = g.player;
       const s = scale.raiseDead(c, p.stats.secondary);
       const golems = has(p, 'boneGolems');
-      const max = golems ? Math.ceil(s.maxMinions / U.boneGolems.n.divisor) : s.maxMinions;
+      const max = (golems ? Math.ceil(s.maxMinions / U.boneGolems.n.divisor) : s.maxMinions) + p.mods.minionMax;
       const slots = max - g.minions.length;
       if (slots <= 0) return false;
       const corpses = g.corpses.sort((a, b) => dist2(a.x, a.y, p.x, p.y) - dist2(b.x, b.y, p.x, p.y)).splice(0, slots);
@@ -265,7 +265,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
     describe(p, c) {
       const s = scale.raiseDead(c, p.stats.secondary);
       const golems = has(p, 'boneGolems');
-      const max = golems ? Math.ceil(s.maxMinions / U.boneGolems.n.divisor) : s.maxMinions;
+      const max = (golems ? Math.ceil(s.maxMinions / U.boneGolems.n.divisor) : s.maxMinions) + p.mods.minionMax;
       const dmg = attackDamage(s.damage, p.stats.int) * (golems ? U.boneGolems.n.damage : 1) * p.mods.minionDamage;
       return `max ${max} ${golems ? 'golems' : 'skeletons'} · ${Math.round(dmg)} dmg · ${s.lifetime.toFixed(0)}s`;
     },
@@ -334,7 +334,7 @@ export function updateAbility(g: Game, dt: number): void {
     g.vars.cdRefund = 0;
     if (!hook.activate(g, cfg)) return;
     const upgradeMult = has(p, 'secondWind') ? U.secondWind.n.cooldown : 1;
-    const cooldown = abilityCooldown(cfg.cooldown, p.stats.int) * p.mods.cooldown * upgradeMult * (1 - (g.vars.cdRefund ?? 0));
+    const cooldown = abilityCooldown(cfg.cooldown, p.stats.int) * p.mods.cooldown * p.mods.abilityCd * upgradeMult * (1 - (g.vars.cdRefund ?? 0));
     p.abilityCd = p.abilityCdMax = cooldown;
     sfx('ability');
     emit(g, 'onAbilityUsed', { cooldown });

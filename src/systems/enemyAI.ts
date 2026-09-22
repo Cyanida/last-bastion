@@ -18,6 +18,7 @@ const HOSTILE = '#c23a2e';
 
 /** Enemies go for whatever is closest, so minions genuinely tank for the Necromancer. A marching squad shares one target. */
 function pickTarget(g: Game, e: Enemy): Target {
+  if (e.tauntT > 0) return g.player; // Challenged: nothing else exists
   if (e.squad?.marching && e.squad.target) return e.squad.target;
   let best: Target = g.player;
   let bestD = dist2(e.x, e.y, best.x, best.y);
@@ -379,6 +380,7 @@ export function updateEnemies(g: Game, dt: number): void {
     e.flash -= dt;
     e.slowT -= dt;
     e.fearT -= dt;
+    e.tauntT -= dt;
     e.markT -= dt;
     e.buffT -= dt;
     if (e.def.boss) {

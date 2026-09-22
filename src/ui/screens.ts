@@ -8,6 +8,10 @@ import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../l
 import { curseMultiplier } from '../logic/curses';
 import { MASTERY, META, META_IDS, TIER_UNLOCK_WAVE, TIERS, type MetaId } from '../config/economy';
 import { relicDef, type RelicId } from '../config/relics';
+import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
+import { TRAIT_IDS, TRAITS, type TraitId } from '../config/traits';
+import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
+import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
 import { activeSynergies, synergiesOf, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
 import { esc, relicLine, relicTip, tierBadge } from './relicText';
@@ -140,7 +144,7 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
-export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void }): void {
+export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void; trait: (id: TraitId) => void }): void {
   const locked = lockedArenas(save);
   const card = (c: ClassDef) => {
     const rec = save.classes[c.id];
@@ -177,6 +181,13 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     const tip = gate ? `Locked — ${gate.desc}` : `${c.desc} +${Math.round(c.bonus * 100)}% gold and class XP.`;
     return `<button class="chip curse ${save.settings.curses.includes(id) ? 'on' : ''}" data-curse="${id}" ${gate ? 'disabled' : ''} data-tip="${tip}">${gate ? '🔒 ' : ''}${c.name}</button>`;
   };
+  const traitBtn = (id: TraitId) => {
+    const t = TRAITS[id];
+    const need = t.unlock.achievement ? ACHIEVEMENTS.find((a) => a.id === t.unlock.achievement) : undefined;
+    const lockedT = need !== undefined && !save.achievements.includes(need.id);
+    const tip = lockedT ? `Locked — ${need!.name}: ${need!.desc}` : t.desc;
+    return `<button class="chip trait ${save.settings.trait === id ? 'on' : ''}" data-trait="${id}" ${lockedT ? 'disabled' : ''} data-tip="${esc(tip)}">${lockedT ? '🔒 ' : `${t.icon} `}${t.name}</button>`;
+  };
   const el = show(`
     <div class="select">
       <h1 class="small">Choose your champion</h1>
@@ -189,12 +200,14 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
           <span class="mult" data-tip="Every curse adds to the gold and class XP this run earns.">gold &amp; XP ×${curseMultiplier(save.settings.curses).toFixed(2)}</span></div>
         <div><span class="label">Seed</span><input id="seed" maxlength="24" placeholder="random" autocomplete="off" spellcheck="false" data-tip="Type a seed from a results screen to replay that run." /></div>
       </div>
+      <div class="pickers traits"><div><span class="label">Trait</span>${TRAIT_IDS.map(traitBtn).join('')}</div></div>
       <div class="cards">${CLASS_ORDER.map((id) => card(CLASSES[id])).join('')}</div>
       <button class="btn" data-back>Back</button>
     </div>`);
   el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => slot.appendChild(getSprite(slot.dataset.sprite as ClassDef['sprite'], 6).img));
   click(el, '[data-class]', (b) => on.pick(b.dataset.class as ClassId, el.querySelector<HTMLInputElement>('#seed')!.value));
   click(el, '[data-curse]', (b) => on.curse(b.dataset.curse as CurseId));
+  click(el, '[data-trait]', (b) => on.trait(b.dataset.trait as TraitId));
   click(el, '[data-arena]', (b) => on.settings(b.dataset.arena as ArenaId, save.settings.tier));
   click(el, '[data-tier]', (b) => on.settings(save.settings.arena, Number(b.dataset.tier)));
   click(el, '[data-back]', on.back);
@@ -301,6 +314,7 @@ export function showLevelUp(
   level: number, options: LevelUpOption[], cls: ClassDef, stats: Stats,
   reroll: { free: number; cost: number; gold: number },
   on: { pick: (o: LevelUpOption) => void; reroll: () => void },
+  tiers: RelicTiers = {},
 ): void {
   const canReroll = reroll.free > 0 || reroll.gold >= reroll.cost;
   const el = show(`
@@ -309,9 +323,9 @@ export function showLevelUp(
       <p class="sub">Choose a boon</p>
       <div class="cards">
         ${options.map((o, i) => {
-          const t = optionText(o, cls);
-          const kind = o.kind === 'tradeoff' ? 'tradeoff' : o.rarity;
-          const special = o.kind === 'stat' && o.key === 'secondary' ? 'special' : '';
+          const t = optionText(o, cls, o.kind === 'relic' ? (tiers[o.id] ?? 0) : 0);
+          const kind = o.kind === 'tradeoff' ? 'tradeoff' : o.kind === 'talent' ? 'talent' : o.kind === 'relic' ? `relic-card ${relicDef(o.id).rarity}` : o.rarity;
+          const special = (o.kind === 'stat' && o.key === 'secondary') || o.kind === 'talent' ? 'special' : '';
           const now = o.kind === 'stat' ? `<div class="best">now ${fmtStat(o.key, stats[o.key])}</div>` : '';
           return `<button class="card panel boon ${kind} ${special}" data-pick="${i}"><div class="num">${i + 1}</div><h2>${t.title}</h2><div class="tag">${t.tag}</div><p>${t.desc}</p>${now}</button>`;
         }).join('')}
@@ -337,22 +351,71 @@ export function showRelicOffer(options: RelicId[], held: RelicId[], tiers: Relic
 }
 
 export function showAbilityUpgrade(tier: number, options: readonly AbilityUpgradeId[], cls: ClassDef, onPick: (id: AbilityUpgradeId) => void): void {
+  showTwoWay(`${cls.ability.name} — tier ${tier + 1}`, options.map((id) => ({ id, name: ABILITY_UPGRADES[id].name, desc: ABILITY_UPGRADES[id].desc })), (id) => onPick(id as AbilityUpgradeId));
+}
+
+/** v0.4: the utility ability's two-way choices at levels 8 and 14. */
+export function showUtilityUpgrade(tier: number, options: readonly UtilityUpgradeId[], cls: ClassDef, onPick: (id: UtilityUpgradeId) => void): void {
+  showTwoWay(`${UTILITIES[cls.id].name} — upgrade ${tier + 1}`, options.map((id) => ({ id, name: UTILITY_UPGRADES[id].name, desc: UTILITY_UPGRADES[id].desc })), (id) => onPick(id as UtilityUpgradeId));
+}
+
+function showTwoWay(title: string, options: { id: string; name: string; desc: string }[], onPick: (id: string) => void): void {
   const el = show(`
     <div class="levelup">
-      <h1 class="small">${cls.ability.name} — tier ${tier + 1}</h1>
+      <h1 class="small">${title}</h1>
       <p class="sub">Choose one path. The other is lost for this run.</p>
       <div class="cards">
-        ${options.map((id, i) => `<button class="card panel boon special" data-pick="${id}"><div class="num">${i + 1}</div><h2>${ABILITY_UPGRADES[id].name}</h2><p>${ABILITY_UPGRADES[id].desc}</p></button>`).join('<div class="or heading">or</div>')}
+        ${options.map((o, i) => `<button class="card panel boon special" data-pick="${o.id}"><div class="num">${i + 1}</div><h2>${o.name}</h2><p>${o.desc}</p></button>`).join('<div class="or heading">or</div>')}
       </div>
     </div>`);
-  click(el, '[data-pick]', (b) => onPick(b.dataset.pick as AbilityUpgradeId));
+  click(el, '[data-pick]', (b) => onPick(b.dataset.pick!));
   numberKeys(el);
+}
+
+/**
+ * v0.4: the talent tree, from the pause menu. Three branch columns, four rows, big buttons: taken, available (glowing) or locked
+ * (dim, the tooltip says what it needs). Spending is immediate; the screen re-renders itself.
+ */
+export function showTalents(info: { classId: ClassId; taken: string[]; points: number }, on: { spend: (id: string) => boolean; back: () => void }): void {
+  const branches = TALENT_BRANCHES[info.classId];
+  const nodes = talentsFor(info.classId);
+  const keystone = takenKeystone(info.taken);
+  const column = (b: BranchDef) => {
+    const mine = nodes.filter((n) => n.branch === b.id);
+    const rows = Array.from({ length: TALENTS.rows }, (_, r) => mine.filter((n) => n.row === r));
+    return `<div class="branch"><h2>${b.name}</h2><p class="hint">${b.desc} · ${branchPoints(info.taken, b.id)} points</p>
+      ${rows.map((row) => `<div class="trow">${row.map((n) => {
+        const taken = info.taken.includes(n.id);
+        const why = taken ? null : talentBlocker(info.taken, n.id, info.points);
+        const state = taken ? 'taken' : why === null ? 'open' : 'locked';
+        const tip = `${n.name}${n.keystone ? ' · keystone' : ''}\n${n.desc}${why && !taken ? `\n(${why})` : ''}`;
+        return `<button class="talent ${state} ${n.keystone ? 'keystone' : ''}" data-talent="${n.id}" ${state === 'open' ? '' : 'disabled'} data-tip="${esc(tip)}"><b>${taken ? '✔ ' : ''}${n.name}</b><span>${n.desc}</span></button>`;
+      }).join('')}</div>`).join('')}
+    </div>`;
+  };
+  const el = show(`
+    <div class="panel dialog wide talents">
+      <h1 class="small">Talents</h1>
+      <p class="sub">${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${TALENTS.levelsPerPoint} levels · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}</p>
+      <div class="tree">${branches.map(column).join('')}</div>
+      <button class="btn big" data-back>Back</button>
+    </div>`);
+  click(el, '[data-talent]', (b) => {
+    if (on.spend(b.dataset.talent!)) showTalents({ ...info, taken: [...info.taken, b.dataset.talent!], points: info.points - 1 }, on);
+  });
+  click(el, '[data-back]', on.back);
+  onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
 export interface BuildInfo {
   relics: RelicId[];
   tiers: RelicTiers;
   upgrades: AbilityUpgradeId[];
+  classId: ClassId;
+  talents: string[];
+  talentPoints: number;
+  utilityUpgrades: UtilityUpgradeId[];
+  trait: TraitId;
 }
 
 /** The current build: ability upgrades, relics with tiers (tooltips), active synergies and clashes. Pause and results screens. */
@@ -361,20 +424,25 @@ export function buildHtml(info: BuildInfo): string {
     const tier = info.tiers[id] ?? 1;
     return `<div><span tabindex="0" data-tip="${esc(relicTip(id, tier, info.relics))}">${relicDef(id).icon} ${relicDef(id).name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}</span><em>${relicDesc(id, tier)}</em></div>`;
   }).join('');
+  const trait = info.trait !== 'none' ? `<div><span>${TRAITS[info.trait].icon} ${TRAITS[info.trait].name}</span><em>${TRAITS[info.trait].desc}</em></div>` : '';
   const ups = info.upgrades.map((id) => `<div><span>✦ ${ABILITY_UPGRADES[id].name}</span><em>${ABILITY_UPGRADES[id].desc}</em></div>`).join('');
+  const util = info.utilityUpgrades.map((id) => `<div><span>${UTILITIES[info.classId].icon} ${UTILITY_UPGRADES[id].name}</span><em>${UTILITY_UPGRADES[id].desc}</em></div>`).join('');
+  const talents = info.talents.length || info.talentPoints ? `<div><span>🌿 Talents${info.talentPoints ? ` · ${info.talentPoints} unspent` : ''}</span><em>${info.talents.map((id) => TALENT_BY_ID[id]?.name).join(' · ') || 'none yet'}</em></div>` : '';
   const syns = activeSynergies(info.relics).map((sid) => `<div class="syn ${SYNERGIES[sid].anti ? 'anti' : 'on'}"><span>${SYNERGIES[sid].anti ? '⚠' : '✦'} ${SYNERGIES[sid].name}</span><em>${SYNERGIES[sid].desc}</em></div>`).join('');
-  return relics || ups ? `<div class="build">${ups}${relics}${syns}</div>` : '';
+  return relics || ups || trait || util || talents ? `<div class="build">${trait}${talents}${ups}${util}${relics}${syns}</div>` : '';
 }
 
-export function showPause(info: BuildInfo, onResume: () => void, onQuit: () => void): void {
+export function showPause(info: BuildInfo, onResume: () => void, onQuit: () => void, onTalents?: () => void): void {
   const el = show(`
     <div class="panel dialog">
       <h1 class="small">Paused</h1>
       ${buildHtml(info)}
       <button class="btn big" data-resume>Resume</button>
+      ${onTalents ? `<button class="btn" data-talents>Talents${info.talentPoints > 0 ? ` (${info.talentPoints} to spend)` : ''}</button>` : ''}
       <button class="btn" data-quit>End run (keeps your gold)</button>
     </div>`);
   click(el, '[data-resume]', onResume);
+  click(el, '[data-talents]', () => onTalents?.());
   click(el, '[data-quit]', onQuit);
 }
 

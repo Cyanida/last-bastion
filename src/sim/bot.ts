@@ -1,4 +1,8 @@
 import { ABILITY_TRACKS } from '../config/abilityUpgrades';
+import { UTILITY_TRACKS } from '../config/utility';
+import { branchPlan, canTakeTalent } from '../logic/talents';
+import { spendTalent } from '../systems/talents';
+import { chooseUtilityUpgrade } from '../systems/utility';
 import type { ClassId } from '../config/classes';
 import { GAME } from '../config/game';
 import { UPGRADE_RARITIES } from '../config/upgrades';
@@ -103,21 +107,37 @@ export function botInput(g: Game): void {
   g.input.aimX = nx;
   g.input.aimY = ny;
   g.input.ability = nd < 220 || p.cls.id === 'necromancer';
+  // the utility: the Paladin when enemies are close, the Necromancer when corpses lie around, the rest when crowded or hurt
+  g.input.utility = p.cls.id === 'necromancer' ? g.corpses.length >= 3 && nd < 300 : p.cls.id === 'paladin' ? nd < 200 : crowded || p.hp < p.stats.hp * 0.4;
 }
 
 function scoreOption(g: Game, o: LevelUpOption): number {
   if (o.kind === 'tradeoff') return 0.9;
+  if (o.kind === 'talent') return 1.2;
+  if (o.kind === 'relic') return 1.0;
   const p = g.player;
   const weights: Record<StatKey, number> = { hp: p.cls.attack.kind === 'melee' ? 1.3 : 1, str: 0.2, dex: 0.5, int: 0.4, atkSpd: 1.4, moveSpd: 0.6, secondary: 1.1 };
   weights[p.cls.attack.scaling] = 1.6;
   return weights[o.key] * UPGRADE_RARITIES[o.rarity].mult;
 }
 
-/** Resolve every pending choice the way the UI would, without the UI. `variant` picks the ability upgrade branch (0 or 1). */
+/** Resolve every pending choice the way the UI would, without the UI. `variant` picks the ability upgrade branch (0 or 1) and the talent branch. */
 export function botChoose(g: Game, variant = 0): void {
   while (g.relicOffers.length > 0) resolveRelicOffer(g, g.relicOffers[0][0]); // no cap since v0.4: always take the first (a held one = a tier up)
   while (g.pendingAbilityTiers.length > 0) {
     if (!chooseAbilityUpgrade(g, ABILITY_TRACKS[g.player.cls.id][g.pendingAbilityTiers[0]][variant])) g.pendingAbilityTiers.shift();
+  }
+  while (g.pendingUtilityTiers.length > 0) {
+    if (!chooseUtilityUpgrade(g, UTILITY_TRACKS[g.player.cls.id][g.pendingUtilityTiers[0]][variant])) g.pendingUtilityTiers.shift();
+  }
+  // talents: walk one branch (the variant picks which), spilling into the next when it is full
+  let spent = true;
+  while (g.talentPoints > 0 && spent) {
+    spent = false;
+    for (let b = 0; b < 3 && !spent; b++) {
+      const next = branchPlan(g.player.cls.id, variant + b).find((id) => canTakeTalent(g.player.talents, id, g.talentPoints));
+      if (next) spent = spendTalent(g, next);
+    }
   }
   if (g.pendingMerchant) {
     // patch up first, then a relic if there is room and money; never hoards for the Keep (it is a yardstick, not a saver)

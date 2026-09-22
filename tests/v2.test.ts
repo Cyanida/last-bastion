@@ -237,7 +237,7 @@ describe('level-up variety', () => {
       }
     }
     expect(tradeoffs).toBeGreaterThan(20);
-    expect(rollLevelUpOptions(() => 0, TRADEOFF_IDS).every((o) => o.kind === 'stat')).toBe(true);
+    expect(rollLevelUpOptions(() => 0, TRADEOFF_IDS).every((o) => o.kind !== 'tradeoff')).toBe(true); // v0.4: the pool also holds talent and relic cards
   });
 
   it('tradeoffs give and take, and cannot push max HP below the floor', () => {

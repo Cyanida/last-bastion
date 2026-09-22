@@ -13,6 +13,7 @@ import { goldDrop } from '../logic/economy';
 import { attackDamage, mitigate, rollCrit } from '../logic/formulas';
 import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
+import { tauntedDamageMult } from './utility';
 import { spawnEnemy } from './spawning';
 
 const BLOOD = '#8e1b1b';
@@ -61,7 +62,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   if (e.elite) {
     g.elitesKilled++;
     ring(g, e.x, e.y, 90, AFFIXES[e.affixes[0]].color, 0.5);
-    if (g.rng() < ELITES.relicChance) g.pickups.push({ x: e.x - 8, y: e.y - 6, value: 1, kind: 'relic' });
+    if (g.rng() < ELITES.relicChance * (g.vars['trait.relicChance'] ?? 1)) g.pickups.push({ x: e.x - 8, y: e.y - 6, value: 1, kind: 'relic' }); // Cursed Luck doubles it
     if (e.affixes.includes('splitting')) {
       const n = AFFIXES.splitting.n;
       for (let i = 0; i < n.count; i++) {
@@ -103,6 +104,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   if (e.dead) return 0;
   const typeMult = typeMultiplier(e.def.id, type);
   amount *= typeMult * damageTakenFactor(e.statuses);
+  if (e.def.boss && source !== 'hazard') amount *= g.player.mods.bossDamage;
   const armor = ARMOR[e.def.id];
   if (armor && e.armorHp > 0) {
     if (armor.backBreak) {
@@ -157,7 +159,9 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
 /** Damage of a player attack or ability with the given base and scaling stat, crit rolled from Dexterity. */
 export function rollPlayerHit(g: Game, base: number, scaling: 'str' | 'dex' | 'int'): { amount: number; crit: boolean } {
   const p = g.player;
-  return rollCrit(attackDamage(base, p.stats[scaling], p.buff.damage * p.mods.damage), p.stats.dex, g.rng, p.mods.crit);
+  const hit = rollCrit(attackDamage(base, p.stats[scaling], p.buff.damage * p.mods.damage), p.stats.dex, g.rng, p.mods.crit);
+  if (hit.crit && p.mods.critDamage > 0) hit.amount *= (GAME.critMult + p.mods.critDamage) / GAME.critMult;
+  return hit;
 }
 
 function revive(g: Game): boolean {
@@ -198,7 +202,11 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
     if (p.iFrames > 0) return;
     p.iFrames = GAME.contactIFrames;
   }
-  const taken = mitigate(amount * damageTakenFactor(p.statuses) * (g.vars.damageTaken ?? 1), Math.min(GAME.armorCap, p.cls.armor + p.mods.armor));
+  if (p.mods.dodge > 0 && g.rng() < Math.min(GAME.dodgeCap, p.mods.dodge)) {
+    floatText(g, p.x, p.y - 34, 'dodge', '#f2e6a0', 13);
+    return;
+  }
+  const taken = mitigate(amount * damageTakenFactor(p.statuses) * (g.vars.damageTaken ?? 1) * tauntedDamageMult(g, attacker), Math.min(GAME.armorCap, p.cls.armor + p.mods.armor));
   p.hp -= taken;
   p.flash = 0.12;
   g.bossHit = true;

@@ -190,7 +190,7 @@ const HOOKS: Partial<Record<RelicId, RelicHooks>> = {
     onKill(g, ev) {
       const c = n(g, 'soulLantern');
       const ability = g.player.cls.ability;
-      const own = ability.id === 'raiseDead' ? scale.raiseDead(ability, g.player.stats.secondary).maxMinions : 0;
+      const own = (ability.id === 'raiseDead' ? scale.raiseDead(ability, g.player.stats.secondary).maxMinions : 0) + g.player.mods.minionMax;
       if (ev.enemy.def.boss || g.minions.length >= own + c.max || !proc(g, 'soulLantern', c.chance)) return;
       const m = createMinion(ev.enemy.x, ev.enemy.y, { hp: c.hp, damage: relicDamage(g, c.damage), speed: 165, attackCd: 0.7, life: c.life });
       if (syn(g, 'necropolis')) m.blessedT = n(g, 'gravePact').time;
