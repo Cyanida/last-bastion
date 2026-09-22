@@ -110,49 +110,100 @@ function drawClosedRegions(ctx: Ctx, g: Game, cx: number, cy: number, vw: number
 let closedPattern: CanvasPattern | null = null;
 let closedArena = '';
 
-/** Bottom-left corner: the whole map at a glance. Commanders and bosses stand out: they are the objectives. */
+/** #h-map's content box in canvas pixels: the HUD lays the minimap's frame out (style.css), the canvas fills it. Read once per window size. */
+function minimapBox(view: View): { x: number; bottom: number; w: number } | null {
+  const key = view.w * 100000 + view.h;
+  if (mapBox && mapKey === key) return mapBox;
+  const el = document.getElementById('h-map');
+  const r = el?.getBoundingClientRect();
+  if (!el || !r?.width) return null; // the HUD is not laid out yet: try again next frame
+  mapKey = key;
+  return (mapBox = { x: (r.left + el.clientLeft) * view.dpr, bottom: (r.top + el.clientTop + el.clientHeight) * view.dpr, w: el.clientWidth * view.dpr });
+}
+let mapBox: { x: number; bottom: number; w: number } | null = null;
+let mapKey = 0;
+
+/**
+ * Bottom-left corner: the whole map at a glance. Shape says what a marker is: squares are foes (commanders orange, bosses big),
+ * green diamonds quests and events, gold discs the wings' features, the white disc is you. Walked regions are lit, open but
+ * unexplored ones dim with a gold edge, closed wings dark with their gate barred; the vault shows nothing.
+ */
 function drawMinimap(ctx: Ctx, g: Game, view: View, cx: number, cy: number, vw: number, vh: number, marks: Mark[]): void {
+  const box = minimapBox(view);
+  if (!box) return;
   const d = view.dpr;
-  const w = 132 * d;
+  const { x: x0, w } = box;
   const k = w / g.arena.w;
   const h = g.arena.h * k;
-  const compact = view.h / d < 560; // phones have no stats panel in that corner
-  const x0 = 16 * d;
-  const y0 = view.h - h - (compact ? 16 : 236) * d;
-  ctx.fillStyle = 'rgba(20,17,15,0.62)';
-  ctx.fillRect(x0 - 2, y0 - 2, w + 4, h + 4);
-  ctx.strokeStyle = '#5a3d25';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(x0 - 2, y0 - 2, w + 4, h + 4);
+  const y0 = box.bottom - h; // bottom-anchored: hud.ts gives the frame this arena's shape
+  ctx.fillStyle = 'rgba(14,12,10,0.8)';
+  ctx.fillRect(x0, y0, w, h);
   const dot = (x: number, y: number, size: number, color: string) => {
     ctx.fillStyle = color;
     ctx.fillRect(x0 + x * k - size / 2, y0 + y * k - size / 2, size, size);
   };
-  // v0.5: regions: lit once walked, dim while open but unexplored; closed wings show only their gate; the vault shows nothing
+  // outlined markers: a square, a disc or a diamond of radius r
+  const mark = (x: number, y: number, r: number, color: string, shape: 'square' | 'disc' | 'diamond') => {
+    const px = x0 + x * k;
+    const py = y0 + y * k;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (shape === 'square') ctx.rect(px - r, py - r, r * 2, r * 2);
+    else if (shape === 'disc') ctx.arc(px, py, r, 0, TAU);
+    else {
+      ctx.moveTo(px, py - r * 1.3);
+      ctx.lineTo(px + r * 1.3, py);
+      ctx.lineTo(px, py + r * 1.3);
+      ctx.lineTo(px - r * 1.3, py);
+      ctx.closePath();
+    }
+    ctx.stroke();
+    ctx.fill();
+  };
   for (const r of g.arena.regions ?? []) {
-    if (r.hidden && !g.regionOpen[r.id]) continue;
+    const open = g.regionOpen[r.id];
+    if (r.hidden && !open) continue;
     const q = r.floor;
-    ctx.fillStyle = !g.regionOpen[r.id] ? 'rgba(90,70,50,0.18)' : g.regionSeen.includes(r.id) ? 'rgba(170,150,110,0.32)' : 'rgba(170,150,110,0.14)';
+    const seen = g.regionSeen.includes(r.id);
+    ctx.fillStyle = !open ? 'rgba(255,255,255,0.04)' : seen ? 'rgba(196,174,128,0.36)' : 'rgba(196,174,128,0.14)';
     ctx.fillRect(x0 + q.x * k, y0 + q.y * k, q.w * k, q.h * k);
+    if (open && !seen) {
+      ctx.strokeStyle = 'rgba(233,201,90,0.6)';
+      ctx.lineWidth = d;
+      ctx.strokeRect(x0 + q.x * k + d / 2, y0 + q.y * k + d / 2, q.w * k - d, q.h * k - d);
+    }
     if (r.gate) {
-      ctx.fillStyle = g.regionOpen[r.id] ? 'rgba(170,150,110,0.32)' : '#8a6a3a';
-      ctx.fillRect(x0 + r.gate.x * k, y0 + r.gate.y * k, Math.max(2, r.gate.w * k), Math.max(2, r.gate.h * k));
+      ctx.fillStyle = open ? 'rgba(196,174,128,0.36)' : '#b08a4a';
+      ctx.fillRect(x0 + r.gate.x * k, y0 + r.gate.y * k, Math.max(3 * d, r.gate.w * k), Math.max(3 * d, r.gate.h * k));
     }
   }
-  for (const f of g.features) if (g.regionOpen[f.wing] && !f.used) dot(f.x, f.y, 5 * d, '#e9c95a');
-  for (const o of g.arena.obstacles) if (g.openRects.some((q) => o.x >= q.x && o.x <= q.x + q.w && o.y >= q.y && o.y <= q.y + q.h)) dot(o.x, o.y, 2 * d, '#55565c');
+  for (const o of g.arena.obstacles) if (g.openRects.some((q) => o.x >= q.x && o.x <= q.x + q.w && o.y >= q.y && o.y <= q.y + q.h)) dot(o.x, o.y, 2 * d, '#5d5e64');
+  for (const e of g.enemies) if (!e.hidden && !e.def.boss && !e.def.aura && !e.def.onDeath) dot(e.x, e.y, (e.elite ? 3 : 2) * d, e.elite ? '#e8913a' : '#d0584c');
+  for (const m of g.minions) dot(m.x, m.y, 2 * d, '#7ec8d8');
+  ctx.strokeStyle = '#14110f';
+  ctx.lineWidth = 1.5 * d;
+  for (const f of g.features) if (g.regionOpen[f.wing] && !f.used) mark(f.x, f.y, 3 * d, '#e9c95a', 'disc');
   for (const e of g.enemies) {
     if (e.hidden) continue;
-    if (e.def.boss) dot(e.x, e.y, 7 * d, '#c23a2e');
-    else if (e.def.aura || e.def.onDeath) dot(e.x, e.y, 5 * d, '#f2c94c');
-    else dot(e.x, e.y, 2 * d, e.elite ? '#c9a227' : '#b0524a');
+    if (e.def.boss) mark(e.x, e.y, 4.5 * d, '#e0402f', 'square');
+    else if (e.def.aura || e.def.onDeath) mark(e.x, e.y, 3 * d, '#ff9f43', 'square'); // commanders: the targets to hunt
   }
-  for (const m of g.minions) dot(m.x, m.y, 2 * d, '#7ec8d8');
-  for (const m of marks) if (!m.hidden) dot(m.x, m.y, 5 * d, '#9fe07b'); // v0.5 quests and events (not the hidden chest)
-  dot(g.player.x, g.player.y, 4 * d, '#ffffff');
-  ctx.strokeStyle = 'rgba(232,226,208,0.5)';
-  ctx.lineWidth = 1;
+  for (const m of marks) if (!m.hidden) mark(m.x, m.y, 3.5 * d, '#9fe07b', 'diamond'); // v0.5 quests and events (not the hidden chest)
+  mark(g.player.x, g.player.y, 3.5 * d, '#ffffff', 'disc');
+  ctx.strokeStyle = 'rgba(232,226,208,0.55)';
+  ctx.lineWidth = d;
   ctx.strokeRect(x0 + Math.max(0, cx) * k, y0 + Math.max(0, cy) * k, Math.min(vw, g.arena.w) * k, Math.min(vh, g.arena.h) * k);
+}
+
+/** v0.5: a quest or event icon on a dark disc with a green ring (the minimap's quest colour), so it reads over any floor. */
+function questBadge(ctx: Ctx, icon: HTMLCanvasElement, x: number, y: number, r: number, line: number): void {
+  ctx.fillStyle = 'rgba(20,17,15,0.7)';
+  ctx.strokeStyle = '#9fe07b';
+  ctx.lineWidth = line;
+  disc(ctx, x, y, r);
+  ctx.fill();
+  ctx.stroke();
+  ctx.drawImage(icon, Math.round(x - icon.width / 2), Math.round(y - icon.height / 2));
 }
 
 /** v0.5: on the ground: the shrine's circle, and the hidden chest's glint once the player is close. */
@@ -199,19 +250,19 @@ function drawEdgeArrows(ctx: Ctx, marks: Mark[], view: View, cx: number, cy: num
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(a);
-    ctx.fillStyle = '#e9c95a';
+    ctx.fillStyle = '#9fe07b';
     ctx.strokeStyle = '#1a1614';
     ctx.lineWidth = 2 * d;
     ctx.beginPath();
-    ctx.moveTo((14 + Math.sin(time * 6) * 2) * d, 0);
-    ctx.lineTo(-6 * d, -9 * d);
-    ctx.lineTo(-6 * d, 9 * d);
+    ctx.moveTo((16 + Math.sin(time * 6) * 2) * d, 0);
+    ctx.lineTo(-4 * d, -10 * d);
+    ctx.lineTo(-4 * d, 10 * d);
     ctx.closePath();
     ctx.stroke();
     ctx.fill();
     ctx.restore();
-    const icon = textSprite(m.icon, Math.round(16 * d), '#ffffff', 64);
-    ctx.drawImage(icon, Math.round(x - Math.cos(a) * 24 * d - icon.width / 2), Math.round(y - Math.sin(a) * 24 * d - icon.height / 2));
+    const icon = textSprite(m.icon, Math.round(18 * d), '#ffffff', 64);
+    questBadge(ctx, icon, x - Math.cos(a) * 20 * d, y - Math.sin(a) * 20 * d, 15 * d, 2 * d);
   }
 }
 
@@ -633,9 +684,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   // v0.5 quest and event marks: an icon over each target (the hidden chest has none)
   for (const m of marks) {
     if (m.hidden || !visible(m.x, m.y, 80)) continue;
-    const icon = textSprite(m.icon, 24, '#ffffff', 64);
     const bob = m.lift ? Math.sin(g.time * 4 + m.x) * 3 : 0;
-    ctx.drawImage(icon, Math.round(m.x - icon.width / 2), Math.round(m.y - m.lift - icon.height / 2 + bob));
+    questBadge(ctx, textSprite(m.icon, 20, '#ffffff', 64), m.x, m.y - m.lift + bob, 16, 2);
   }
 
   end('texts', _t);
