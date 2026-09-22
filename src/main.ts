@@ -7,6 +7,7 @@ import { initAudio, isMuted, toggleMute } from './core/audio';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
+import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as setPerfOverlay, summary } from './core/perf';
 import { quality, sampleFrame, setQuality } from './core/quality';
 import { loadSave, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
@@ -127,7 +128,7 @@ function toSettings(): void {
   menu();
   const d = platform.desktop;
   showSettings(
-    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
+    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
     {
       back: toTitle,
       saveData: toSaveDialog,
@@ -139,6 +140,10 @@ function toSettings(): void {
       },
       mute() {
         mute();
+        toSettings();
+      },
+      perf() {
+        togglePerf();
         toSettings();
       },
       checkUpdates: () => void d?.checkForUpdates(save.settings.prerelease),
@@ -325,8 +330,10 @@ let acc = 0;
 function draw(now: number): void {
   if (game) {
     render(ctx, game, view, arenaCanvas(game.arena.id), abilityAimRadius(game.player));
+    const t = begin();
     updateHud(game);
     inspect(game);
+    end('hud', t);
   } else renderBackdrop(ctx, view, arenaCanvas(save.settings.arena), now / 1000);
 }
 /** Hovering (or tapping) an enemy shows what it is, what it resists and what is on it. */
@@ -339,23 +346,35 @@ function inspect(g: Game): void {
   updateInspect(found, pt.x, pt.y);
 }
 
+const perfEl = document.getElementById('perf')!;
+function togglePerf(): void {
+  setPerfOverlay(!perf.enabled, ctx);
+  perfEl.classList.toggle('hidden', !perf.enabled);
+}
+
 function frame(now: number): void {
   const elapsed = now - last;
   acc += elapsed / 1000;
   last = now;
   pumpGamepad();
   let steps = 0;
+  const t0 = performance.now(); // always measured (not begin()): the dynamic quality needs it with the overlay off
   while (acc >= DT) {
     if (steps++ < MAX_STEPS) step();
     acc -= DT;
   }
-  if (state === 'playing' && game) {
-    const before = quality.level;
-    sampleFrame(elapsed, game.wave);
-    if (quality.level !== before) resize(); // auto quality dropped: also lowers the pixel ratio
-  }
+  const t1 = performance.now();
   // ponytail: no render interpolation; at 60 Hz sim it is not visible. Add alpha lerp if tickRate drops.
   draw(now);
+  const t2 = performance.now();
+  const g = game;
+  if (state === 'playing' && g) {
+    const before = quality.level;
+    sampleFrame(t2 - t0, g.wave); // the work this frame took, not the vsync interval: that is what the detail level reacts to
+    if (quality.level !== before) resize(); // auto quality dropped: also lowers the pixel ratio
+  }
+  frameDone(elapsed, t1 - t0, t2 - t1, g ? { enemies: g.enemies.length, projectiles: g.projectiles.length, particles: g.particles.length, fields: g.fields.length, zones: g.zones.length, texts: g.texts.length } : { enemies: 0, projectiles: 0, particles: 0, fields: 0, zones: 0, texts: 0 });
+  if (perf.enabled) perfEl.textContent = overlayText();
   requestAnimationFrame(frame);
 }
 
@@ -391,6 +410,7 @@ onFirstGesture(initAudio); // iOS: the AudioContext may only start from a touch
 onAction((a) => {
   if (a === 'pause') togglePause();
   if (a === 'mute') mute();
+  if (a === 'perf') togglePerf();
 });
 buildHud(togglePause, mute);
 setMuteIcon(isMuted());
@@ -410,8 +430,8 @@ if (platform.desktop) {
 toTitle();
 requestAnimationFrame(frame);
 
-// Dev-only handle for automated smoke tests: drive the sim without real time or real input.
-if (import.meta.env.DEV) {
+// Handle for automated smoke and perf tests: drive the sim without real time or real input. Dev builds always; a production build with ?debug.
+if (import.meta.env.DEV || location.search.includes('debug')) {
   Object.assign(window, {
     __lb: {
       get state() {
@@ -424,6 +444,53 @@ if (import.meta.env.DEV) {
         return save;
       },
       quality,
+      perf,
+      resetPerf: resetHistory,
+      perfSummary: summary,
+      setPerf: (on: boolean) => setPerfOverlay(on, ctx),
+      /** N scripted frames (one sim step + one render each) with the profiler on; returns averages, p95 and the section breakdown. */
+      profile(frames: number) {
+        if (!game) return null;
+        const g = game;
+        setPerfOverlay(true, ctx);
+        const sums: Record<string, number> = {};
+        const counts: Record<string, number> = {};
+        const times: number[] = [];
+        const series: (number | string)[][] = [];
+        let update = 0;
+        let rendering = 0;
+        for (let i = 0; i < frames; i++) {
+          const t0 = performance.now();
+          sampleInput(g);
+          updateGame(g, DT);
+          const t1 = performance.now();
+          draw(t1);
+          const t2 = performance.now();
+          frameDone(t2 - t0, t1 - t0, t2 - t1, { enemies: g.enemies.length, projectiles: g.projectiles.length, particles: g.particles.length, fields: g.fields.length, zones: g.zones.length, texts: g.texts.length });
+          sampleFrame(t2 - t0, g.wave); // the dynamic detail level reacts here exactly as in the real loop
+          times.push(t2 - t0);
+          const heaviest = Object.entries(perf.sections).sort((a, b) => b[1] - a[1])[0] ?? ['-', 0];
+          series.push([+(t2 - t0).toFixed(1), +(t1 - t0).toFixed(1), +(t2 - t1).toFixed(1), g.enemies.length, g.texts.length, g.particles.length, heaviest[0], +heaviest[1].toFixed(1)]);
+          update += t1 - t0;
+          rendering += t2 - t1;
+          for (const [k, v] of Object.entries(perf.sections)) sums[k] = (sums[k] ?? 0) + v;
+          for (const [k, v] of Object.entries(perf.counts)) counts[k] = (counts[k] ?? 0) + v;
+        }
+        times.sort((a, b) => a - b);
+        const avg = (n: number) => +(n / frames).toFixed(2);
+        return {
+          frames,
+          series,
+          avgMs: avg(times.reduce((a, b) => a + b, 0)),
+          p95: +times[Math.floor(frames * 0.95)].toFixed(1),
+          max: +times[frames - 1].toFixed(1),
+          updateMs: avg(update),
+          renderMs: avg(rendering),
+          counts: Object.fromEntries(Object.entries(counts).map(([k, v]) => [k, Math.round(v / frames)])),
+          sections: Object.fromEntries(Object.entries(sums).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, avg(v)])),
+          detail: +quality.detail.toFixed(2),
+        };
+      },
       start: startRun,
       /** What the balance bot would do right now. Tests turn this into real touch or key events and step with mode 'input'. */
       botIntent() {

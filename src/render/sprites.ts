@@ -614,3 +614,118 @@ export function getSprite(id: SpriteId, scale: number): Sprite {
   }
   return s;
 }
+
+// ---------------------------------------------------------------- v0.4 render caches
+// Paths (ellipse, arc, text outlines) are the expensive canvas commands. Anything drawn hundreds of times a frame
+// is rendered once into a small canvas here and blitted with drawImage afterwards.
+
+const shadows = new Map<number, HTMLCanvasElement>();
+/** A soft ellipse shadow for a body of radius r (rounded to whole pixels, so hordes share a few sprites). */
+export function shadowSprite(r: number): HTMLCanvasElement {
+  const key = Math.round(r);
+  let c = shadows.get(key);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = key * 2 + 2;
+    c.height = Math.ceil(key * 0.9) + 2;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(c.width / 2, c.height / 2, key, key * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+    shadows.set(key, c);
+  }
+  return c;
+}
+
+const rings = new Map<string, HTMLCanvasElement>();
+/** A flat ground ring (elite affixes, commander auras): radius rx by ry, stroked in `color`. */
+export function ringSprite(color: string, rx: number, ry: number, width = 3, dashed = false): HTMLCanvasElement {
+  rx = Math.round(rx);
+  ry = Math.round(ry);
+  const key = `${color}|${rx}|${ry}|${width}|${dashed ? 1 : 0}`;
+  let c = rings.get(key);
+  if (!c) {
+    c = document.createElement('canvas');
+    c.width = rx * 2 + width * 2 + 2;
+    c.height = ry * 2 + width * 2 + 2;
+    const ctx = c.getContext('2d')!;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    if (dashed) ctx.setLineDash([6, 8]);
+    ctx.beginPath();
+    ctx.ellipse(c.width / 2, c.height / 2, rx, ry, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    rings.set(key, c);
+  }
+  return c;
+}
+
+const texts = new Map<string, HTMLCanvasElement>();
+function renderText(text: string, size: number, color: string): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  const font = `bold ${size}px Georgia, serif`;
+  const probe = c.getContext('2d')!;
+  probe.font = font;
+  c.width = Math.ceil(probe.measureText(text).width) + 6;
+  c.height = size + 6;
+  const ctx = c.getContext('2d')!;
+  ctx.font = font;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#1a1614';
+  ctx.strokeText(text, c.width / 2, c.height / 2);
+  ctx.fillStyle = color;
+  ctx.fillText(text, c.width / 2, c.height / 2);
+  return c;
+}
+/** A word rendered once (outline + fill): "FROZEN", "blocked", "+18 gold". Bounded LRU so the map cannot grow forever. */
+export function textSprite(text: string, size: number, color: string, limit: number): HTMLCanvasElement {
+  const key = `${text}|${size}|${color}`;
+  let c = texts.get(key);
+  if (c) return c;
+  c = renderText(text, size, color);
+  if (texts.size >= limit) texts.delete(texts.keys().next().value!); // oldest entry
+  texts.set(key, c);
+  return c;
+}
+
+const GLYPHS = '0123456789!-+';
+const atlases = new Map<string, HTMLCanvasElement[]>();
+/**
+ * Damage numbers change every hit, so caching whole strings would create a canvas per hit. Instead each
+ * (size, colour) gets one atlas of glyphs, and a number is blitted digit by digit: 3 draws for "142", no allocation.
+ */
+export function digitGlyphs(size: number, color: string): HTMLCanvasElement[] {
+  const key = `${size}|${color}`;
+  let a = atlases.get(key);
+  if (!a) atlases.set(key, (a = [...GLYPHS].map((ch) => renderText(ch, size, color))));
+  return a;
+}
+export const isNumeric = (text: string): boolean => {
+  for (let i = 0; i < text.length; i++) if (GLYPHS.indexOf(text[i]) < 0) return false;
+  return true;
+};
+export const glyphIndex = (ch: string): number => GLYPHS.indexOf(ch);
+
+let fogTile: { canvas: HTMLCanvasElement; zoom: number; vision: number } | null = null;
+/**
+ * The Fog modifier as a cached tile: a square of fog with a soft hole in the middle. The renderer blits it
+ * centred on the player and fills the rest of the screen with four rectangles, instead of a full-screen
+ * radial gradient every frame.
+ */
+export function fogSprite(vision: number, zoom: number): HTMLCanvasElement {
+  if (fogTile && fogTile.zoom === zoom && fogTile.vision === vision) return fogTile.canvas;
+  const outer = vision * 1.5 * zoom;
+  const c = document.createElement('canvas');
+  c.width = c.height = Math.ceil(outer * 2);
+  const ctx = c.getContext('2d')!;
+  const fog = ctx.createRadialGradient(outer, outer, vision * 0.55 * zoom, outer, outer, outer);
+  fog.addColorStop(0, 'rgba(170,180,185,0)');
+  fog.addColorStop(1, 'rgba(120,130,136,0.96)');
+  ctx.fillStyle = fog;
+  ctx.fillRect(0, 0, c.width, c.height);
+  fogTile = { canvas: c, zoom, vision };
+  return c;
+}

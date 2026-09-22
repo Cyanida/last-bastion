@@ -98,16 +98,18 @@ export interface SettingsInfo {
   quality: QualitySetting;
   effective: string;
   muted: boolean;
+  perf: boolean;
   desktop: { version: string; status: string; prerelease: boolean } | null;
 }
 
-export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
+export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
   const chip = (q: QualitySetting) => `<button class="chip ${info.quality === q ? 'on' : ''}" data-quality="${q}">${q[0].toUpperCase()}${q.slice(1)}</button>`;
   const el = show(`
     <div class="panel dialog wide settings">
       <h1 class="small">Settings</h1>
       <div class="setting"><div><b>Graphics quality</b><span>Low cuts particles, screen shake and shadows. Auto measures the first waves and drops to low if needed. Now: ${info.effective}.</span></div><div>${(['auto', 'low', 'high'] as const).map(chip).join('')}</div></div>
       <div class="setting"><div><b>Sound</b><span>Synthesised effects.</span></div><button class="chip on" data-act="mute">${info.muted ? 'Off' : 'On'}</button></div>
+      <div class="setting"><div><b>Performance overlay</b><span>Frame, update and render times, entity counts, draw calls (F3 in a run).</span></div><button class="chip ${info.perf ? 'on' : ''}" data-act="perf">${info.perf ? 'On' : 'Off'}</button></div>
       ${info.desktop ? `
       <div class="setting"><div><b>Updates</b><span>Version ${info.desktop.version}. ${info.desktop.status}</span></div><button class="chip" data-act="check">Check for updates</button></div>
       <div class="setting"><div><b>Beta versions</b><span>Also install pre-releases.</span></div><button class="chip ${info.desktop.prerelease ? 'on' : ''}" data-act="pre">${info.desktop.prerelease ? 'On' : 'Off'}</button></div>` : ''}
@@ -118,6 +120,7 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
   click(el, '[data-act]', (b) => {
     const act = b.dataset.act;
     if (act === 'mute') on.mute();
+    else if (act === 'perf') on.perf();
     else if (act === 'check') on.checkUpdates();
     else if (act === 'pre') on.prerelease(!info.desktop?.prerelease);
     else if (act === 'save') on.saveData();

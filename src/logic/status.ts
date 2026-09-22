@@ -38,10 +38,11 @@ export function applyStatusTo(map: StatusMap, a: StatusApply, boss = false): 'ap
   return 'applied';
 }
 
-/** Advances timers and returns the damage-over-time that accrued during dt, per damage type. */
-export function tickStatuses(map: StatusMap, dt: number): Partial<Record<DamageType, number>> {
-  const dots: Partial<Record<DamageType, number>> = {};
-  for (const id of Object.keys(STATUSES) as StatusId[]) {
+export const STATUS_IDS = Object.keys(STATUSES) as StatusId[];
+
+/** Advances timers; returns damage-over-time per type into `dots` (reused by the caller: no allocation per enemy per tick). */
+export function tickStatuses(map: StatusMap, dt: number, dots: Partial<Record<DamageType, number>> = {}): Partial<Record<DamageType, number>> {
+  for (const id of STATUS_IDS) {
     const s = map[id];
     if (!s) continue;
     const dot = STATUSES[id].dot;
@@ -59,7 +60,13 @@ export const cleanse = (map: StatusMap): void => void (['burn', 'slow', 'bleed',
 export const speedFactor = (map: StatusMap) => (map.stun ? 0 : 1 - (map.slow?.stacks ?? 0) * STATUS_TUNING.slowPerStack);
 export const damageTakenFactor = (map: StatusMap) => 1 + (map.curse?.stacks ?? 0) * STATUS_TUNING.cursePerStack;
 export const isStunned = (map: StatusMap) => map.stun !== undefined;
-export const activeStatuses = (map: StatusMap) => (Object.keys(STATUSES) as StatusId[]).filter((id) => map[id]);
+export const activeStatuses = (map: StatusMap) => STATUS_IDS.filter((id) => map[id]);
+/** How many effects are on it, without allocating (the renderer asks this for every enemy every frame). */
+export function statusCount(map: StatusMap): number {
+  let n = 0;
+  for (const id of STATUS_IDS) if (map[id]) n++;
+  return n;
+}
 
 /** v0.2 slow multipliers (0.5 = half speed) expressed as Chilled stacks. Ability slows never freeze by themselves. */
 export const slowStacks = (mult: number) => Math.max(1, Math.min(STATUS_TUNING.maxSlowStacksFromAbility, Math.round((1 - mult) / STATUS_TUNING.slowPerStack)));

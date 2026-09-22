@@ -1,12 +1,13 @@
 import { AFFIXES, ELITES } from '../config/elites';
-import { GAME } from '../config/game';
+import { GAME, RENDER } from '../config/game';
 import { MODIFIERS } from '../config/waves';
 import { clamp, TAU } from '../core/math';
 import { STATUSES } from '../config/damage';
-import { quality } from '../core/quality';
-import { activeStatuses } from '../logic/status';
+import { begin, end } from '../core/perf';
+import { drawRings, drawShadows, quality } from '../core/quality';
+import { STATUS_IDS, statusCount } from '../logic/status';
 import type { Game } from '../core/types';
-import { getSprite, type Sprite } from './sprites';
+import { digitGlyphs, fogSprite, getSprite, glyphIndex, isNumeric, ringSprite, shadowSprite, textSprite, type Sprite } from './sprites';
 
 export interface View {
   w: number; // canvas pixels
@@ -42,9 +43,12 @@ function drawSprite(ctx: Ctx, s: Sprite, x: number, y: number, flip: boolean, fl
 }
 
 function shadow(ctx: Ctx, x: number, y: number, r: number): void {
-  ctx.beginPath();
-  ctx.ellipse(x, y + r * 0.7, r, r * 0.45, 0, 0, TAU);
-  ctx.fill();
+  const s = shadowSprite(r);
+  ctx.drawImage(s, Math.round(x - s.width / 2), Math.round(y + r * 0.7 - s.height / 2));
+}
+/** Blit a pre-rendered ring centred on (x, y). */
+function blitRing(ctx: Ctx, img: HTMLCanvasElement, x: number, y: number): void {
+  ctx.drawImage(img, Math.round(x - img.width / 2), Math.round(y - img.height / 2));
 }
 
 function disc(ctx: Ctx, x: number, y: number, r: number): void {
@@ -104,6 +108,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   const cy = cam.y + (Math.random() - 0.5) * g.shake * quality.shake;
   const visible = (x: number, y: number, pad: number) => x > cx - pad && x < cx + vw + pad && y > cy - pad && y < cy + vh + pad;
   const p = g.player;
+  const rings = drawRings();
+  let _t = begin();
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#14110f';
@@ -111,7 +117,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(z, 0, 0, z, -Math.round(cx * z), -Math.round(cy * z));
   blitArena(ctx, arena, cx, cy, vw, vh);
-
+  end('arena', _t);
+  _t = begin();
   // corpses
   const corpseLife = GAME.corpseLifetime * g.arena.corpseLifeMult;
   ctx.fillStyle = '#d8d2bd';
@@ -122,6 +129,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.fillRect(c.x - 1, c.y - 5, 3, 10);
   }
 
+  end('corpses', _t);
+  _t = begin();
   // lasting fields: fire, poison, holy ground
   for (const f of g.fields) {
     if (!visible(f.x, f.y, f.r)) continue;
@@ -137,6 +146,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   }
   ctx.globalAlpha = 1;
 
+  end('fields', _t);
+  _t = begin();
   // barriers a boss raised: stone that fades as it runs out
   for (const b of g.barriers) {
     if (!visible(b.x, b.y, b.r)) continue;
@@ -153,6 +164,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   }
   ctx.globalAlpha = 1;
 
+  end('barriers', _t);
+  _t = begin();
   // zones (telegraphs and falling arrows)
   for (const zn of g.zones) {
     if (!visible(zn.x, zn.y, zn.r + 320)) continue;
@@ -189,6 +202,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
   }
 
+  end('zones', _t);
+  _t = begin();
   // charge telegraphs (black knight, cavalry)
   for (const e of g.enemies) {
     const t = e.telegraph;
@@ -203,6 +218,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.restore();
   }
 
+  end('telegraphs', _t);
+  _t = begin();
   // pickups: xp gems, gold coins, relic chests
   for (const k of g.pickups) {
     if (!visible(k.x, k.y, 12)) continue;
@@ -228,24 +245,23 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
   }
 
+  end('pickups', _t);
+  _t = begin();
   // shadows in one batch, then sprites
-  if (quality.shadows) {
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    for (const e of g.enemies) if (visible(e.x, e.y, 80)) shadow(ctx, e.x, e.y, e.r);
+  if (drawShadows()) {
+    for (const e of g.enemies) if (visible(e.x, e.y, 80) && !e.hidden) shadow(ctx, e.x, e.y, e.r);
     for (const m of g.minions) shadow(ctx, m.x, m.y, m.r);
     shadow(ctx, p.x, p.y, p.r);
   }
 
+  end('shadows', _t);
+  _t = begin();
   for (const e of g.enemies) {
     if (!visible(e.x, e.y, 80)) continue;
     if (e.def.aura) {
       // commanders: their aura on the ground and a gold chevron overhead, so they read as the target to hunt
-      ctx.strokeStyle = e.def.aura.kind === 'heal' ? 'rgba(111,220,111,0.35)' : e.def.aura.kind === 'speed' ? 'rgba(242,230,160,0.3)' : 'rgba(194,58,46,0.35)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 8]);
-      disc(ctx, e.x, e.y, e.def.aura.radius);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      const color = e.def.aura.kind === 'heal' ? 'rgba(111,220,111,0.35)' : e.def.aura.kind === 'speed' ? 'rgba(242,230,160,0.3)' : 'rgba(194,58,46,0.35)';
+      blitRing(ctx, ringSprite(color, e.def.aura.radius, e.def.aura.radius, 2, true), e.x, e.y);
       ctx.fillStyle = '#c9a227';
       ctx.beginPath();
       ctx.moveTo(e.x - 7, e.y - e.r - 40);
@@ -257,19 +273,13 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.fillStyle = e.buffDmg > 1 ? '#c23a2e' : '#f2e6a0';
       ctx.fillRect(e.x + 5, e.y - e.r - 34, 5, 5);
     }
-    if (e.elite) {
-      // elites: coloured ground ring per affix, bigger sprite
-      e.affixes.forEach((id, i) => {
-        ctx.strokeStyle = AFFIXES[id].color;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.ellipse(e.x, e.y + e.r * 0.7, e.r * 1.5 + i * 5, e.r * 0.7 + i * 3, 0, 0, TAU);
-        ctx.stroke();
-      });
+    if (e.elite && rings) {
+      // elites: coloured ground ring per affix (pre-rendered), bigger sprite
+      for (let i = 0; i < e.affixes.length; i++) blitRing(ctx, ringSprite(AFFIXES[e.affixes[i]].color, e.r * 1.5 + i * 5, e.r * 0.7 + i * 3), e.x, e.y + e.r * 0.7);
     }
     const fuse = e.def.behavior === 'exploder' && e.state === 1 && Math.floor(e.timer * 14) % 2 === 0;
     if (e.hidden) ctx.globalAlpha = 0.12; // a vanished assassin, a dragon overhead: barely a shimmer
-    drawSprite(ctx, getSprite(e.def.sprite, e.def.scale + (e.elite ? ELITES.scaleBonus : 0)), e.x, e.y, e.flip, e.flash > 0 || fuse);
+    drawSprite(ctx, (e.spr ??= getSprite(e.def.sprite, e.def.scale + (e.elite ? ELITES.scaleBonus : 0))), e.x, e.y, e.flip, e.flash > 0 || fuse);
     ctx.globalAlpha = 1;
     if (e.hidden) continue;
     if (e.def.reflect && e.attackTimer <= 0 && e.armorHp > 0) {
@@ -296,13 +306,20 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.globalAlpha = 1;
     }
     // status effects: one pip per effect (taller with more stacks), an ice block when frozen solid
-    const active = activeStatuses(e.statuses);
-    if (e.fearT > 0) active.push('fear');
-    active.forEach((id, i) => {
-      const stacks = e.statuses[id]?.stacks ?? 1;
-      ctx.fillStyle = STATUSES[id].color;
-      ctx.fillRect(e.x - active.length * 3.5 + i * 7, e.y - e.r - 34 - stacks, 5, 4 + stacks);
-    });
+    const count = statusCount(e.statuses) + (e.fearT > 0 ? 1 : 0);
+    if (count > 0) {
+      let i = 0;
+      for (const id of STATUS_IDS) {
+        const st = e.statuses[id];
+        if (!st) continue;
+        ctx.fillStyle = STATUSES[id].color;
+        ctx.fillRect(e.x - count * 3.5 + i++ * 7, e.y - e.r - 34 - st.stacks, 5, 4 + st.stacks);
+      }
+      if (e.fearT > 0) {
+        ctx.fillStyle = STATUSES.fear.color;
+        ctx.fillRect(e.x - count * 3.5 + i * 7, e.y - e.r - 35, 5, 5);
+      }
+    }
     if (e.statuses.stun) {
       ctx.fillStyle = 'rgba(169,216,239,0.45)';
       ctx.fillRect(e.x - e.r, e.y - e.r * 2, e.r * 2, e.r * 2.6);
@@ -324,12 +341,16 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
   }
 
+  end('enemies', _t);
+  _t = begin();
   for (const m of g.minions) {
     ctx.globalAlpha = clamp(m.life, 0.2, 1);
     drawSprite(ctx, getSprite('skeleton', m.scale), m.x, m.y, m.flip, m.flash > 0);
   }
   ctx.globalAlpha = 1;
 
+  end('minions', _t);
+  _t = begin();
   // player
   if (p.abilityTime > 0) {
     const pulse = 30 + Math.sin(g.time * 12) * 3;
@@ -362,6 +383,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.fill();
   }
 
+  end('player', _t);
+  _t = begin();
   // projectiles
   for (const pr of g.projectiles) {
     if (!visible(pr.x, pr.y, 40)) continue;
@@ -383,6 +406,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
   }
 
+  end('projectiles', _t);
+  _t = begin();
   // swing arcs, rings, beams
   for (const e of g.effects) {
     const k = e.t / e.dur;
@@ -411,12 +436,23 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   }
   ctx.globalAlpha = 1;
 
-  for (const pt of g.particles) {
-    ctx.globalAlpha = pt.life / pt.max;
-    ctx.fillStyle = pt.color;
-    ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+  end('effects', _t);
+  _t = begin();
+  // particles: four alpha buckets, colour set only when it changes (a burst's particles share one)
+  for (let bucket = 0; bucket < 4; bucket++) {
+    ctx.globalAlpha = 0.25 + bucket * 0.25;
+    let color = '';
+    for (const pt of g.particles) {
+      const b = Math.min(3, Math.floor((pt.life / pt.max) * 4));
+      if (b !== bucket || !visible(pt.x, pt.y, 4)) continue;
+      if (pt.color !== color) ctx.fillStyle = color = pt.color;
+      ctx.fillRect(pt.x - pt.size / 2, pt.y - pt.size / 2, pt.size, pt.size);
+    }
   }
+  ctx.globalAlpha = 1;
 
+  end('particles', _t);
+  _t = begin();
   // targeted-ability reticle
   if (aimRadius > 0 && p.abilityCd <= 0 && g.input.showAim) {
     ctx.globalAlpha = 0.6;
@@ -428,31 +464,48 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.setLineDash([]);
   }
 
+  end('reticle', _t);
+  _t = begin();
   // damage numbers
-  ctx.textAlign = 'center';
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#1a1614';
+  // damage numbers: each rendered once into a small sprite (outline + fill), then blitted
   for (const t of g.texts) {
+    if (!visible(t.x, t.y, 40)) continue;
     ctx.globalAlpha = clamp(t.life * 3, 0, 1);
-    ctx.font = `bold ${t.size}px Georgia, serif`;
-    ctx.strokeText(t.text, t.x, t.y);
-    ctx.fillStyle = t.color;
-    ctx.fillText(t.text, t.x, t.y);
+    if (isNumeric(t.text)) {
+      // digits from the atlas: glyphs overlap by their 3px outline margin
+      const glyphs = digitGlyphs(t.size, t.color);
+      let width = 0;
+      for (let i = 0; i < t.text.length; i++) width += glyphs[glyphIndex(t.text[i])].width - 6;
+      let x = Math.round(t.x - width / 2) - 3;
+      const y = Math.round(t.y - glyphs[0].height / 2);
+      for (let i = 0; i < t.text.length; i++) {
+        const img = glyphs[glyphIndex(t.text[i])];
+        ctx.drawImage(img, x, y);
+        x += img.width - 6;
+      }
+    } else {
+      const img = (t.img ??= textSprite(t.text, t.size, t.color, RENDER.textCacheSize));
+      ctx.drawImage(img, Math.round(t.x - img.width / 2), Math.round(t.y - img.height / 2));
+    }
   }
   ctx.globalAlpha = 1;
 
+  end('texts', _t);
+  _t = begin();
   // wave modifier overlays, in screen space
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (!g.curses.includes('blind')) drawMinimap(ctx, g, view, cx, cy, vw, vh);
   if (g.modifier === 'fog') {
-    const px = (p.x - cx) * z;
-    const py = (p.y - cy) * z;
-    const vision = MODIFIERS.fog.n.vision * z;
-    const fog = ctx.createRadialGradient(px, py, vision * 0.55, px, py, vision * 1.5);
-    fog.addColorStop(0, 'rgba(170,180,185,0)');
-    fog.addColorStop(1, 'rgba(120,130,136,0.96)');
-    ctx.fillStyle = fog;
-    ctx.fillRect(0, 0, view.w, view.h);
+    // a cached tile with the hole in it, centred on the player; plain fog around it
+    const tile = fogSprite(MODIFIERS.fog.n.vision, z);
+    const px = Math.round((p.x - cx) * z - tile.width / 2);
+    const py = Math.round((p.y - cy) * z - tile.height / 2);
+    ctx.drawImage(tile, px, py);
+    ctx.fillStyle = 'rgba(120,130,136,0.96)';
+    if (py > 0) ctx.fillRect(0, 0, view.w, py);
+    if (py + tile.height < view.h) ctx.fillRect(0, py + tile.height, view.w, view.h - py - tile.height);
+    if (px > 0) ctx.fillRect(0, Math.max(0, py), px, tile.height);
+    if (px + tile.width < view.w) ctx.fillRect(px + tile.width, Math.max(0, py), view.w - px - tile.width, tile.height);
   } else if (g.modifier === 'bloodMoon') {
     ctx.fillStyle = 'rgba(140,10,10,0.16)';
     ctx.fillRect(0, 0, view.w, view.h);
@@ -460,4 +513,5 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.fillStyle = 'rgba(80,120,40,0.08)';
     ctx.fillRect(0, 0, view.w, view.h);
   }
+  end('overlay', _t);
 }

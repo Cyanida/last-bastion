@@ -13,11 +13,16 @@ function flush(dots: Partial<Record<DamageType, number>>, hit: (amount: number, 
   }
 }
 
+const scratch: Partial<Record<DamageType, number>> = {};
+
 export function updateStatuses(g: Game, dt: number): void {
   for (const e of g.enemies) {
     if (e.dead) continue;
-    const dots = tickStatuses(e.statuses, dt);
-    for (const type of Object.keys(dots) as DamageType[]) e.dots[type] = (e.dots[type] ?? 0) + dots[type]!;
+    const dots = tickStatuses(e.statuses, dt, scratch);
+    for (const type in dots) {
+      e.dots[type as DamageType] = (e.dots[type as DamageType] ?? 0) + dots[type as DamageType]!;
+      delete dots[type as DamageType];
+    }
     if ((e.dotT -= dt) <= 0) {
       e.dotT = STATUS_TUNING.dotTick;
       flush(e.dots, (amount, type) => damageEnemy(g, e, amount, false, 0, 0, 'hazard', type));

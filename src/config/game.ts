@@ -34,7 +34,7 @@ export const GAME = {
 
   corpseLifetime: 10, // seconds a corpse stays usable for Raise Dead
   maxParticles: 800,
-  maxTexts: 150,
+  maxTexts: 150, // v0.1 value, superseded by RENDER.maxTexts
 };
 
 /** Render quality levels. Auto starts on high and drops to low if early frames are slow (phones). */
@@ -43,6 +43,16 @@ export const QUALITY = {
   high: { particles: 1, shake: 1, shadows: true, maxDpr: 2 },
   low: { particles: 0.35, shake: 0.4, shadows: false, maxDpr: 1.5 },
   auto: { maxFrameMs: 21, windowFrames: 240, untilWave: 4 }, // average above 21 ms (~48 fps) over 240 frames -> low
+  // per-frame reaction: smoothed frame time above overMs lowers `detail`, below underMs raises it again
+  dynamic: { overMs: 15, underMs: 9, dropPerFrame: 0.08, risePerFrame: 0.005, minDetail: 0.15 },
+};
+
+/** Render budgets: what is kept on screen at most, and how numbers are merged. */
+export const RENDER = {
+  maxTexts: 80, // damage numbers alive at once (the oldest go first)
+  mergeNumberWindow: 0.3, // a new hit on the same enemy within this many seconds adds to its number instead of spawning one
+  maxFields: 40, // lasting ground effects; beyond this the oldest expire early
+  textCacheSize: 400, // pre-rendered number sprites kept
 };
 
 /** Camera zoom: the view is about VIEW.targetW x VIEW.targetH world pixels, within these bounds (phones zoom out). */

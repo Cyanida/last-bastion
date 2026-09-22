@@ -4,7 +4,7 @@
  */
 
 /** Discrete, edge-triggered actions. pickN = choose the N-th card on a choice screen. */
-export type Action = 'pause' | 'mute' | 'confirm' | 'cancel' | 'reroll' | `pick${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`;
+export type Action = 'pause' | 'mute' | 'confirm' | 'cancel' | 'reroll' | 'perf' | `pick${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}`;
 
 /** Where the signature ability should land. The game resolves it to a world point. */
 export type Aim =
@@ -28,7 +28,7 @@ export interface Vec {
 }
 
 const KEY_ACTIONS: Record<string, Action> = {
-  Escape: 'pause', KeyP: 'pause', KeyM: 'mute', Enter: 'confirm', NumpadEnter: 'confirm', Backspace: 'cancel', KeyR: 'reroll',
+  Escape: 'pause', KeyP: 'pause', KeyM: 'mute', Enter: 'confirm', NumpadEnter: 'confirm', Backspace: 'cancel', KeyR: 'reroll', F3: 'perf',
 };
 
 export function actionForKey(code: string): Action | null {

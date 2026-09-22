@@ -12,6 +12,7 @@ import type { AiState } from '../logic/fsm';
 import type { Formation, Vec } from '../logic/squads';
 import type { DamageType } from '../config/damage';
 import type { StatusApply, StatusMap } from '../logic/status';
+import type { Sprite } from '../render/sprites';
 import type { SpatialHash } from './spatial';
 
 export type StatKey = 'hp' | 'str' | 'dex' | 'int' | 'atkSpd' | 'moveSpd' | 'secondary';
@@ -149,6 +150,8 @@ export interface Enemy extends Body {
   dotT: number;
   armorHp: number; // soaks part of every hit until it breaks (config/damage.ts ARMOR)
   armorMax: number;
+  lastText: FloatText | null; // the damage number hits merge into
+  spr: Sprite | null; // render cache, looked up once
   kx: number; // knockback velocity
   ky: number;
   attackTimer: number;
@@ -274,6 +277,9 @@ export interface FloatText {
   color: string;
   life: number;
   size: number;
+  value: number; // running total for merged damage numbers
+  owner: Enemy | null;
+  img: HTMLCanvasElement | null; // pre-rendered by the renderer, dropped when the text changes
 }
 
 export interface Effect {

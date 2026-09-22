@@ -7,12 +7,12 @@ import { MODIFIERS } from '../config/waves';
 import { sfx } from '../core/audio';
 import { emit } from '../core/events';
 import { angleDiff, compact, dist2, TAU } from '../core/math';
-import type { DamageSource, Enemy, Game, Minion, Player, Status } from '../core/types';
-import { addField, fireProjectile } from '../entities/hazards';
+import type { Body, DamageSource, Enemy, Game, Minion, Player, Projectile, Status } from '../core/types';
+import { addField, fireProjectile, recycleProjectile } from '../entities/hazards';
 import { goldDrop } from '../logic/economy';
 import { attackDamage, mitigate, rollCrit } from '../logic/formulas';
 import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, typeMultiplier, type StatusApply } from '../logic/status';
-import { burst, floatText, ring, shake, swingArc } from './effects';
+import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { spawnEnemy } from './spawning';
 
 const BLOOD = '#8e1b1b';
@@ -141,8 +141,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   const dealt = Math.min(e.hp, amount);
   e.hp -= amount;
   // numbers take the colour of their damage type; "!" marks a weakness, "-" a resistance
-  const label = `${Math.round(amount)}${typeMult > 1 ? '!' : typeMult < 1 ? '-' : ''}`;
-  floatText(g, e.x, e.y - e.r - 8, label, crit ? '#f2c94c' : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13);
+  damageNumber(g, e, amount, crit ? '#f2c94c' : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');
   burst(g, e.x, e.y, BLOOD, crit ? 6 : 2);
   if (crit) shake(g, 4);
   sfx('hit');
@@ -297,47 +296,55 @@ function blockedByShield(e: Enemy, vx: number, vy: number): boolean {
   return angleDiff(Math.atan2(-vy, -vx), e.angle) < e.def.frontBlock;
 }
 
+/** Projectile step. No per-projectile allocation: the dead go back to the pool, hostile hits scan minions in place. */
 export function updateProjectiles(g: Game, dt: number): void {
   const { w, h, wall, obstacles } = g.arena;
   const p = g.player;
   compact(g.projectiles, (pr) => {
-    pr.x += pr.vx * dt;
-    pr.y += pr.vy * dt;
-    pr.life -= dt;
-    if (pr.life <= 0 || pr.x < wall || pr.y < wall || pr.x > w - wall || pr.y > h - wall) return false;
-    for (const o of g.barriers.length ? [...obstacles, ...g.barriers] : obstacles) {
-      if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) {
-        burst(g, pr.x, pr.y, '#9a9aa0', 3, 60);
-        return false;
-      }
+    const alive = stepProjectile(g, pr, dt, w, h, wall, obstacles, p);
+    if (!alive) recycleProjectile(pr);
+    return alive;
+  });
+}
+
+function stepProjectile(g: Game, pr: Projectile, dt: number, w: number, h: number, wall: number, obstacles: readonly Body[], p: Player): boolean {
+  pr.x += pr.vx * dt;
+  pr.y += pr.vy * dt;
+  pr.life -= dt;
+  if (pr.life <= 0 || pr.x < wall || pr.y < wall || pr.x > w - wall || pr.y > h - wall) return false;
+  for (const o of obstacles) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
+  for (const o of g.barriers) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
+  if (pr.hostile) {
+    if (dist2(pr.x, pr.y, p.x, p.y) <= (pr.r + p.r) ** 2) return (hurtTarget(g, p, pr.damage, true), false);
+    for (const m of g.minions) if (dist2(pr.x, pr.y, m.x, m.y) <= (pr.r + m.r) ** 2) return (hurtTarget(g, m, pr.damage, true), false);
+    return true;
+  }
+  for (const e of g.hash.query(pr.x, pr.y, pr.r, near)) {
+    if (e.dead || pr.hit.includes(e)) continue;
+    // mirror knight: sends it straight back, unless he has just swung (attackTimer running) or it is a ballista-sized bolt
+    if (e.def.reflect && e.attackTimer <= 0 && e.armorHp > 0 && pr.pierce < 50 && angleDiff(Math.atan2(-pr.vy, -pr.vx), e.angle) < e.def.reflect) {
+      pr.vx = -pr.vx;
+      pr.vy = -pr.vy;
+      pr.hostile = true;
+      pr.damage = e.damage;
+      pr.color = '#7ec8d8';
+      pr.life = 1.2;
+      pr.status = null;
+      floatText(g, e.x, e.y - e.r - 8, 'reflected', '#7ec8d8', 11);
+      return true;
     }
-    if (pr.hostile) {
-      const victim = [p, ...g.minions].find((t) => dist2(pr.x, pr.y, t.x, t.y) <= (pr.r + t.r) ** 2);
-      if (!victim) return true;
-      hurtTarget(g, victim, pr.damage, true);
+    if (pr.pierce < 50 && blockedByShield(e, pr.vx, pr.vy)) {
+      floatText(g, e.x, e.y - e.r - 8, 'blocked', '#9a9aa0', 11);
+      burst(g, pr.x, pr.y, '#c9a227', 4, 90);
       return false;
     }
-    for (const e of g.hash.query(pr.x, pr.y, pr.r, near)) {
-      if (e.dead || pr.hit.includes(e)) continue;
-      // mirror knight: sends it straight back, unless he has just swung (attackTimer running) or it is a ballista-sized bolt
-      if (e.def.reflect && e.attackTimer <= 0 && e.armorHp > 0 && pr.pierce < 50 && angleDiff(Math.atan2(-pr.vy, -pr.vx), e.angle) < e.def.reflect) {
-        Object.assign(pr, { vx: -pr.vx, vy: -pr.vy, hostile: true, damage: e.damage, color: '#7ec8d8', life: 1.2, status: null });
-        floatText(g, e.x, e.y - e.r - 8, 'reflected', '#7ec8d8', 11);
-        return true;
-      }
-      if (pr.pierce < 50 && blockedByShield(e, pr.vx, pr.vy)) {
-        floatText(g, e.x, e.y - e.r - 8, 'blocked', '#9a9aa0', 11);
-        burst(g, pr.x, pr.y, '#c9a227', 4, 90);
-        return false;
-      }
-      const v = Math.hypot(pr.vx, pr.vy) || 1;
-      damageEnemy(g, e, pr.damage, pr.crit, (pr.vx / v) * 60, (pr.vy / v) * 60, pr.source, pr.dtype);
-      applyStatus(e, pr.status, g);
-      pr.hit.push(e);
-      if (pr.pierce-- <= 0) return false;
-    }
-    return true;
-  });
+    const v = Math.hypot(pr.vx, pr.vy) || 1;
+    damageEnemy(g, e, pr.damage, pr.crit, (pr.vx / v) * 60, (pr.vy / v) * 60, pr.source, pr.dtype);
+    applyStatus(e, pr.status, g);
+    pr.hit.push(e);
+    if (pr.pierce-- <= 0) return false;
+  }
+  return true;
 }
 
 export function updateZones(g: Game, dt: number): void {
@@ -347,9 +354,8 @@ export function updateZones(g: Game, dt: number): void {
     if (z.t < z.delay) return true;
     if (z.killsOwner && z.owner) killEnemy(g, z.owner, 'hazard');
     if (z.hostile) {
-      for (const t of [g.player, ...g.minions]) {
-        if (dist2(z.x, z.y, t.x, t.y) <= (z.r + t.r) ** 2) hurtTarget(g, t, z.damage, true, z.owner);
-      }
+      if (dist2(z.x, z.y, g.player.x, g.player.y) <= (z.r + g.player.r) ** 2) hurtTarget(g, g.player, z.damage, true, z.owner);
+      for (const m of g.minions) if (dist2(z.x, z.y, m.x, m.y) <= (z.r + m.r) ** 2) hurtTarget(g, m, z.damage, true, z.owner);
       ring(g, z.x, z.y, z.r, z.color);
       burst(g, z.x, z.y, z.color, 18, 240);
       shake(g, 8);

@@ -1,4 +1,12 @@
+import { RENDER } from '../config/game';
 import type { Field, Game, Projectile, Zone } from '../core/types';
+
+const pool: Projectile[] = [];
+/** Returned by combat when a projectile dies, so the next shot reuses the object (and its hit list). */
+export function recycleProjectile(pr: Projectile): void {
+  pr.hit.length = 0;
+  pool.push(pr);
+}
 
 export function fireProjectile(
   g: Game,
@@ -7,24 +15,23 @@ export function fireProjectile(
   angle: number,
   o: Pick<Projectile, 'damage' | 'crit' | 'hostile' | 'pierce' | 'shape' | 'color' | 'r'> & { speed: number; range: number } & Partial<Pick<Projectile, 'status' | 'source' | 'dtype'>>,
 ): void {
-  g.projectiles.push({
-    x,
-    y,
-    r: o.r,
-    vx: Math.cos(angle) * o.speed,
-    vy: Math.sin(angle) * o.speed,
-    damage: o.damage,
-    crit: o.crit,
-    hostile: o.hostile,
-    pierce: o.pierce,
-    life: o.range / o.speed,
-    shape: o.shape,
-    color: o.color,
-    hit: [],
-    status: o.status ?? null,
-    source: o.source ?? 'attack',
-    dtype: o.dtype ?? 'physical',
-  });
+  const pr = pool.pop() ?? ({ hit: [] } as unknown as Projectile);
+  pr.x = x;
+  pr.y = y;
+  pr.r = o.r;
+  pr.vx = Math.cos(angle) * o.speed;
+  pr.vy = Math.sin(angle) * o.speed;
+  pr.damage = o.damage;
+  pr.crit = o.crit;
+  pr.hostile = o.hostile;
+  pr.pierce = o.pierce;
+  pr.life = o.range / o.speed;
+  pr.shape = o.shape;
+  pr.color = o.color;
+  pr.status = o.status ?? null;
+  pr.source = o.source ?? 'attack';
+  pr.dtype = o.dtype ?? 'physical';
+  g.projectiles.push(pr);
 }
 
 export function addZone(g: Game, z: Pick<Zone, 'x' | 'y' | 'r' | 'delay' | 'damage' | 'hostile' | 'color'> & Partial<Zone>): void {
@@ -32,6 +39,7 @@ export function addZone(g: Game, z: Pick<Zone, 'x' | 'y' | 'r' | 'delay' | 'dama
 }
 
 export function addField(g: Game, f: Pick<Field, 'x' | 'y' | 'r' | 'life' | 'dps' | 'hostile' | 'color'> & Partial<Pick<Field, 'heal' | 'dtype' | 'apply'>>): void {
+  if (g.fields.length >= RENDER.maxFields) g.fields.shift(); // the oldest goes: a Plague wave would otherwise carpet the arena
   g.fields.push({ heal: 0, dtype: 'physical', apply: null, ...f, max: f.life, tickT: 0 });
 }
 

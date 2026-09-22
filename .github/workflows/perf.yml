@@ -1,0 +1,26 @@
+name: Performance test
+
+# Scripted Fog and Blood Moon waves at wave 20 with 250 enemies, measured over the live loop in headless Chromium.
+# The runner has no GPU (software raster), so the budget is looser than the 20 ms desktop target. See PERF.md.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      PERF_BUDGET_MS: '34'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx vite build
+      - run: npm run test:perf

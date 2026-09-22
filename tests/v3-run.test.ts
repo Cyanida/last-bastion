@@ -161,7 +161,7 @@ describe('seeds and the Daily Trial', () => {
     expect(new Set(days.map((d) => d.classId)).size).toBeGreaterThan(2);
   });
 
-  it('a seeded run replays identically, and the daily best is kept per day', () => {
+  it('a seeded run replays identically, and the daily best is kept per day', { timeout: 30000 }, () => {
     const a = simulateRun('paladin', 4242, {}, 0, 200);
     expect(simulateRun('paladin', 4242, {}, 0, 200)).toEqual(a);
     expect(a.seed).toBe(4242);

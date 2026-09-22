@@ -9,6 +9,7 @@ import { RELIC_SLOTS, relicDef, type RelicId } from './config/relics';
 import { FREE_REROLLS } from './config/upgrades';
 import { WAVES } from './config/waves';
 import { compact, mulberry32 } from './core/math';
+import { begin, end } from './core/perf';
 import { SpatialHash } from './core/spatial';
 import type { Game } from './core/types';
 import { createPlayer } from './entities/actors';
@@ -151,8 +152,10 @@ export function summarizeRun(g: Game): RunSummary {
 /** One fixed simulation step. Order matters: hash and mods first, AI before physics, cleanup last. */
 export function updateGame(g: Game, dt: number): void {
   g.time += dt;
+  let _t = begin();
   g.hash.clear();
   for (const e of g.enemies) g.hash.insert(e);
+  end('hash', _t);
 
   for (const t of g.timers) if ((t.t -= dt) <= 0) t.fn();
   compact(g.timers, (t) => t.t > 0);
@@ -169,22 +172,46 @@ export function updateGame(g: Game, dt: number): void {
 
   updatePlayerMovement(g, dt);
   updateAbility(g, dt);
+  _t = begin();
   updatePlayerAttack(g, dt);
+  end('attack', _t);
+  _t = begin();
   updateSquads(g, dt);
+  end('squads', _t);
+  _t = begin();
   updateStatuses(g, dt);
+  end('statuses', _t);
+  _t = begin();
   updateEnemies(g, dt);
+  end('enemyAI', _t);
+  _t = begin();
   updateEnemyPhysics(g, dt);
+  end('physics', _t);
+  _t = begin();
   updateMinions(g, dt);
+  end('minions', _t);
+  _t = begin();
   updateProjectiles(g, dt);
+  end('projectiles', _t);
+  _t = begin();
   updateZones(g, dt);
+  end('zonesU', _t);
+  _t = begin();
   updateFields(g, dt);
+  end('fieldsU', _t);
+  _t = begin();
   updatePickups(g, dt);
+  end('pickupsU', _t);
   updateArena(g, dt);
+  _t = begin();
   updateEffects(g, dt);
+  end('effectsU', _t);
 
   compact(g.enemies, (e) => !e.dead);
   compact(g.barriers, (b) => (b.life -= dt) > 0);
   for (const c of g.corpses) c.t += dt;
   compact(g.corpses, (c) => c.t < GAME.corpseLifetime * g.arena.corpseLifeMult);
+  _t = begin();
   updateSpawning(g, dt); // after cleanup so "no enemies left" is accurate
+  end('spawning', _t);
 }
