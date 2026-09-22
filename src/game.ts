@@ -28,6 +28,7 @@ import { updateMinions } from './systems/minions';
 import { updateEnemyPhysics, updatePickups, updatePlayerMovement } from './systems/movement';
 import { addRelic, updateRelics } from './systems/relics';
 import { applyTrait, talentPassives } from './systems/talents';
+import { initRegions, updateRegions } from './systems/regions';
 import { updateUtility } from './systems/utility';
 import type { TraitId } from './config/traits';
 import { updateSpawning } from './systems/spawning';
@@ -141,6 +142,15 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     commandersKilled: 0,
     levelAtWave: [],
     barriers: [],
+    regionOpen: {},
+    regionSeen: [],
+    openRects: [],
+    openFloors: [],
+    bounds: { x: 0, y: 0, w: 0, h: 0 },
+    wingOrder: [],
+    features: [],
+    blessings: [],
+    pendingShrine: null,
     act: 1,
     startArena: arena.id,
     pendingMerchant: false,
@@ -156,6 +166,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   g.vars.enemySpeed = curseValue(curses, 'frenzy', 'speed');
   g.vars.curseMult = curseMultiplier(curses);
   g.vars['keep.relicChance'] = loadout.relicChance;
+  initRegions(g);
   applyTrait(g, opts.trait ?? 'none');
   g.player.mods = { ...g.baseMods };
   // the Barracks' Veteran Levies and mastery's Seasoned: start a level or two up (growth, no boons)
@@ -267,6 +278,7 @@ export function updateGame(g: Game, dt: number): void {
   updatePickups(g, dt);
   end('pickupsU', _t);
   updateArena(g, dt);
+  updateRegions(g, dt);
   _t = begin();
   updateEffects(g, dt);
   end('effectsU', _t);

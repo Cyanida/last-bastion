@@ -7,6 +7,7 @@ import type { AffixId } from '../config/elites';
 import type { EnemyDef, EnemyId } from '../config/enemies';
 import type { RelicId, SynergyId } from '../config/relics';
 import type { TraitId } from '../config/traits';
+import type { BlessingId, FeatureKind, Rect, RegionId, WingId } from '../config/regions';
 import type { UtilityUpgradeId } from '../config/utility';
 import type { RelicTotals } from '../logic/relics';
 import type { ModifierId } from '../config/waves';
@@ -166,6 +167,7 @@ export interface Enemy extends Body {
   buffT: number;
   auraT: number; // commanders: countdown to the next aura pulse
   hidden: boolean; // cannot be auto-targeted (assassins, a flying dragon)
+  side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
   statuses: StatusMap;
   dots: Partial<Record<DamageType, number>>;
   dotT: number;
@@ -272,6 +274,17 @@ export interface Pickup {
   y: number;
   value: number;
   kind: 'xp' | 'gold' | 'relic';
+}
+
+/** A wing's feature (v0.5): a shrine, a strongbox, a lair or a vent field with a cache. */
+export interface Feature {
+  wing: WingId;
+  kind: FeatureKind;
+  x: number;
+  y: number;
+  used: boolean; // taken, opened, woken or looted
+  boss: Enemy | null; // the lair's sleeper, once woken
+  t: number; // the vents' timer
 }
 
 export interface Corpse {
@@ -395,6 +408,16 @@ export interface Game {
   commandersKilled: number;
   levelAtWave: number[]; // player level when each wave was cleared (the pace report)
   barriers: (Body & { life: number })[]; // temporary walls raised by bosses; they block everyone, like arena obstacles
+  // --- v0.5 map expansion (config/regions.ts) ---
+  regionOpen: Partial<Record<RegionId, boolean>>;
+  regionSeen: RegionId[]; // entered at least once this Act (the minimap draws them lit)
+  openRects: Rect[]; // walkable floors and corridors, for clamping and projectiles
+  openFloors: Rect[]; // open floors only, for spawn points
+  bounds: Rect; // bounding box of the open map (camera, the Dragon's fire)
+  wingOrder: WingId[]; // the order this Act's wings open in
+  features: Feature[]; // one per wing
+  blessings: BlessingId[]; // shrine blessings taken this run
+  pendingShrine: BlessingId[] | null; // a shrine's choice waiting for the UI (or the bot)
   act: number; // Acts of 10 waves: boss, Merchant, next arena
   startArena: ArenaId;
   pendingMerchant: boolean; // the Act is over: the Merchant screen is due

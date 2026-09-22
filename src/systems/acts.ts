@@ -8,6 +8,7 @@ import { relicTier, rollRelics } from '../logic/relics';
 import { floatText } from './effects';
 import { gainXp } from './leveling';
 import { addRelic, removeRelic } from './relics';
+import { initRegions } from './regions';
 
 /** Pay for a Merchant item. Gold spent here never reaches the Keep: this run, or the next hundred? */
 function pay(g: Game, item: MerchantItem): boolean {
@@ -70,6 +71,7 @@ export function nextAct(g: Game): void {
   g.pendingMerchant = false;
   g.act++;
   g.arena = ARENAS[arenaFor(g.act, g.startArena)];
+  initRegions(g);
   const p = g.player;
   p.x = g.arena.w / 2;
   p.y = g.arena.h / 2;

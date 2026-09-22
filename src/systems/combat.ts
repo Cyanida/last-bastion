@@ -10,6 +10,7 @@ import { angleDiff, compact, dist2, TAU } from '../core/math';
 import type { Body, DamageSource, Enemy, Game, Minion, Player, Projectile, Status } from '../core/types';
 import { addField, fireProjectile, recycleProjectile } from '../entities/hazards';
 import { goldDrop } from '../logic/economy';
+import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit } from '../logic/formulas';
 import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
@@ -308,20 +309,20 @@ function blockedByShield(e: Enemy, vx: number, vy: number): boolean {
 
 /** Projectile step. No per-projectile allocation: the dead go back to the pool, hostile hits scan minions in place. */
 export function updateProjectiles(g: Game, dt: number): void {
-  const { w, h, wall, obstacles } = g.arena;
+  const { obstacles } = g.arena;
   const p = g.player;
   compact(g.projectiles, (pr) => {
-    const alive = stepProjectile(g, pr, dt, w, h, wall, obstacles, p);
+    const alive = stepProjectile(g, pr, dt, obstacles, p);
     if (!alive) recycleProjectile(pr);
     return alive;
   });
 }
 
-function stepProjectile(g: Game, pr: Projectile, dt: number, w: number, h: number, wall: number, obstacles: readonly Body[], p: Player): boolean {
+function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly Body[], p: Player): boolean {
   pr.x += pr.vx * dt;
   pr.y += pr.vy * dt;
   pr.life -= dt;
-  if (pr.life <= 0 || pr.x < wall || pr.y < wall || pr.x > w - wall || pr.y > h - wall) return false;
+  if (pr.life <= 0 || !inRects(g.openRects, pr.x, pr.y)) return false; // v0.5: walls are wherever the open map ends
   for (const o of obstacles) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
   for (const o of g.barriers) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
   if (pr.hostile) {

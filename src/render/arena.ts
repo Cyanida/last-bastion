@@ -85,6 +85,44 @@ function drawObstacle(ctx: Ctx, o: Obstacle): void {
   }
 }
 
+/** Stone for everything that is not floor: blocks on the wall colour, a dark rim on the floor edges, the floors cut out. */
+function wallLayer(def: ArenaDef): HTMLCanvasElement {
+  const { w, h } = def;
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = ctx.createPattern(wallPattern(def), 'repeat')!;
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#1a1614';
+  ctx.lineWidth = 8;
+  for (const r of def.regions!) ctx.strokeRect(r.floor.x, r.floor.y, r.floor.w, r.floor.h);
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = '#000';
+  for (const r of def.regions!) {
+    ctx.fillRect(r.floor.x, r.floor.y, r.floor.w, r.floor.h);
+    if (r.gate) ctx.fillRect(r.gate.x, r.gate.y, r.gate.w, r.gate.h);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  return c;
+}
+
+const patterns = new Map<string, HTMLCanvasElement>();
+/** A 96 px tile of the arena's wall stone, reused for the wall layer and for covering closed regions. */
+export function wallPattern(def: ArenaDef): HTMLCanvasElement {
+  let c = patterns.get(def.id);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = c.height = 96;
+  const ctx = c.getContext('2d')!;
+  ctx.fillStyle = def.theme.wall;
+  ctx.fillRect(0, 0, 96, 96);
+  ctx.fillStyle = def.theme.wallTop;
+  for (let y = 0; y < 96; y += 24) for (let x = (y / 24) % 2 ? -24 : 0; x < 96; x += 48) ctx.fillRect(x + 3, y + 3, 42, 18);
+  patterns.set(def.id, c);
+  return c;
+}
+
 /** Pre-renders a whole arena once; the renderer blits the visible part each frame. */
 export function buildArena(def: ArenaDef): HTMLCanvasElement {
   const { w, h, wall, theme } = def;
@@ -114,6 +152,12 @@ export function buildArena(def: ArenaDef): HTMLCanvasElement {
     ctx.fill();
   }
   for (const o of def.obstacles) drawObstacle(ctx, o);
+
+  if (def.regions) {
+    // v0.5 map: solid stone everywhere but the region floors and their corridors (all drawn open; closed ones are covered at runtime)
+    ctx.drawImage(wallLayer(def), 0, 0);
+    return c;
+  }
 
   // wall with crenellations
   ctx.fillStyle = theme.wall;

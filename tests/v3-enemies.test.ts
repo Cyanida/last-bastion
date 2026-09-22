@@ -95,9 +95,10 @@ describe('squad formation math', () => {
 
   it('a squad marches in formation, is buffed by its commander, and reacts when he dies', () => {
     const g = createGame('paladin', 5);
-    const members = [0, 1, 2, 3].map(() => spawnEnemy(g, 'peasant', 300, 300));
-    const commander = spawnEnemy(g, 'bannerman', 300, 300);
-    const sq = createSquad(g, { template: 'levy', formation: 'line', spacing: 34, holdUntil: 100 }, members, commander, 300, 300);
+    const [x, y] = [g.bounds.x + 300, g.bounds.y + 300]; // v0.5: inside the open core of the bigger map
+    const members = [0, 1, 2, 3].map(() => spawnEnemy(g, 'peasant', x, y));
+    const commander = spawnEnemy(g, 'bannerman', x, y);
+    const sq = createSquad(g, { template: 'levy', formation: 'line', spacing: 34, holdUntil: 100 }, members, commander, x, y);
     g.breather = 999; // no waves, just this squad
     for (let i = 0; i < 120; i++) botStep(g);
     expect(sq.marching).toBe(true);

@@ -1,8 +1,9 @@
 import { AFFIXES } from '../config/elites';
 import { GAME } from '../config/game';
 import { sfx } from '../core/audio';
-import { clamp, compact } from '../core/math';
+import { compact } from '../core/math';
 import type { Body, Enemy, Game } from '../core/types';
+import { clampToRects } from '../logic/regions';
 import { speedFactor } from '../logic/status';
 import { floatText } from './effects';
 import { gainXp } from './leveling';
@@ -24,13 +25,11 @@ function pushOut(b: Body, o: Body): void {
   b.y = o.y + (dy / d) * min;
 }
 
-/** Keeps a body inside the walls and out of the arena's obstacles (circle colliders, so hordes slide around them). */
+/** Keeps a body inside the open part of the map and out of the arena's obstacles (circle colliders, so hordes slide around them). */
 export function clampToArena(g: Game, b: Body): void {
-  const { w, h, wall, obstacles } = g.arena;
-  for (const o of obstacles) pushOut(b, o);
+  for (const o of g.arena.obstacles) pushOut(b, o);
   for (const o of g.barriers) pushOut(b, o); // walls a boss raised
-  b.x = clamp(b.x, wall + b.r, w - wall - b.r);
-  b.y = clamp(b.y, wall + b.r, h - wall - b.r);
+  clampToRects(g.openRects, b); // v0.5: the walls are the edges of the open regions; closed wings are solid
 }
 
 export function updatePlayerMovement(g: Game, dt: number): void {

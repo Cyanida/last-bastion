@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { defineConfig } from 'vite';
+import { configDefaults, defineConfig } from 'vitest/config';
 import { serviceWorker } from './scripts/sw-plugin';
 
 const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { version: string };
@@ -11,4 +11,5 @@ export default defineConfig({
     __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)),
   },
   plugins: [serviceWorker(pkg.version)],
+  test: { exclude: [...configDefaults.exclude, '.claude/**'] }, // agent worktrees live under .claude/
 });

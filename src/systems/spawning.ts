@@ -3,7 +3,6 @@ import { ENEMIES, type EnemyId } from '../config/enemies';
 import { MODIFIERS, WAVES } from '../config/waves';
 import { sfx } from '../core/audio';
 import { emit } from '../core/events';
-import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
 import { createEnemy } from '../entities/actors';
 import { actName, bossForWave, isActEnd, themeFor } from '../logic/acts';
@@ -12,31 +11,16 @@ import { enemyXpMult, waveClearXp } from '../logic/formulas';
 import { gainXp } from './leveling';
 import { directWave, updatePerformance, type SpawnUnit } from '../logic/director';
 import { waveClearGold } from '../logic/economy';
+import { spawnPoint } from '../logic/regions';
 import { slotPosition } from '../logic/squads';
 import { floatText } from './effects';
 import { createSquad } from './squads';
 
 const MIN_SPAWN_DIST = 380;
 
-/** Point on the arena edge in a random direction from the player, not right on top of them. */
+/** v0.5: enemies come from the edges of the whole open map (every open wing), not right on top of the player. */
 function edgePoint(g: Game): { x: number; y: number } {
-  const { w, h, wall } = g.arena;
-  const p = g.player;
-  const inset = wall + 20;
-  let x = inset;
-  let y = inset;
-  for (let tries = 0; tries < 8; tries++) {
-    const a = g.rng() * TAU;
-    const dx = Math.cos(a);
-    const dy = Math.sin(a);
-    const tx = dx > 0 ? (w - inset - p.x) / dx : dx < 0 ? (inset - p.x) / dx : Infinity;
-    const ty = dy > 0 ? (h - inset - p.y) / dy : dy < 0 ? (inset - p.y) / dy : Infinity;
-    const t = Math.min(tx, ty);
-    x = p.x + dx * t;
-    y = p.y + dy * t;
-    if (t >= MIN_SPAWN_DIST) break;
-  }
-  return { x, y };
+  return spawnPoint(g.openFloors, g.rng, g.player.x, g.player.y, MIN_SPAWN_DIST);
 }
 
 export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = []): Enemy {
@@ -131,9 +115,9 @@ export function updateSpawning(g: Game, dt: number): void {
   }
   // wave over: everything dead, or the stragglers have had their time (no stalemates, no safe farming)
   g.vars.overtime = (g.vars.overtime ?? 0) + dt;
-  const cleared = g.enemies.length === 0;
+  const cleared = !g.enemies.some((e) => !e.side); // v0.5: a lair, a quest target or an event does not hold the wave open
   const limit = curseValue(g.curses, 'timedWaves', 'overtime', WAVES.overtime);
-  if (cleared || (g.vars.overtime > limit && !g.enemies.some((e) => e.def.boss))) {
+  if (cleared || (g.vars.overtime > limit && !g.enemies.some((e) => e.def.boss && !e.side))) {
     g.vars.overtime = 0;
     g.breather = !cleared ? 0.01 : curseValue(g.curses, 'noRespite', 'breather', WAVES.breather);
     if (isActEnd(g.wave)) g.pendingMerchant = true; // the UI (or the bot) visits the Merchant, then calls nextAct

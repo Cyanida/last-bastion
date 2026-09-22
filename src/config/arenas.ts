@@ -1,6 +1,7 @@
 import { mulberry32 } from '../core/math';
 import type { EnemyId } from './enemies';
 import { GAME } from './game';
+import { expandArena, type RegionDef } from './regions';
 
 export type ArenaId = 'courtyard' | 'graveyard' | 'keep';
 export type ObstacleKind = 'tomb' | 'tree' | 'pillar' | 'brazier';
@@ -35,6 +36,7 @@ export interface ArenaDef {
   hazard: Hazard | null; // hazard damage scales with the wave like enemy damage does
   bosses: EnemyId[]; // boss rotation for every 5th wave
   corpseLifeMult: number;
+  regions?: RegionDef[]; // v0.5: filled in by expandArena (config/regions.ts)
 }
 
 /** Deterministic scatter that keeps the player's spawn (the centre) and the wall clear. */
@@ -63,7 +65,7 @@ function grid(w: number, h: number, cols: number, rows: number, kind: ObstacleKi
 
 const { w, h, wall } = GAME.arena;
 
-export const ARENAS: Record<ArenaId, ArenaDef> = {
+const AUTHORED: Record<ArenaId, ArenaDef> = {
   courtyard: {
     id: 'courtyard',
     name: 'Castle Courtyard',
@@ -108,4 +110,6 @@ export const ARENAS: Record<ArenaId, ArenaDef> = {
   },
 };
 
+/** The playable maps: each authored arena is the core of a bigger map with wings behind gates (config/regions.ts). */
+export const ARENAS = Object.fromEntries(Object.entries(AUTHORED).map(([id, def]) => [id, expandArena(def)])) as Record<ArenaId, ArenaDef>;
 export const ARENA_IDS = Object.keys(ARENAS) as ArenaId[];

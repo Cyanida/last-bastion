@@ -28,11 +28,12 @@ import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTalents, showTitle, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showShrine, showTalents, showTitle, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
 import { TRAITS } from './config/traits';
 import { CLASS_ORDER } from './config/classes';
 import { MASTERY } from './config/economy';
 import { spendTalent } from './systems/talents';
+import { chooseBlessing } from './systems/regions';
 import { chooseUtilityUpgrade, utilityUpgradeOptions } from './systems/utility';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
@@ -283,6 +284,11 @@ function openChoice(g: Game): void {
       if (!chooseUtilityUpgrade(g, id)) g.pendingUtilityTiers.shift();
       resume();
     });
+  } else if (g.pendingShrine) {
+    showShrine(g.pendingShrine, (id) => {
+      chooseBlessing(g, id);
+      resume();
+    });
   } else if (g.pendingLevelUps > 0) openLevelUp(g);
   else openMerchant(g);
 }
@@ -309,7 +315,7 @@ function openMerchant(g: Game): void {
 
 const buildOf = (g: Game) => ({ relics: g.relics, tiers: g.relicTiers, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait });
 
-const hasChoice = (g: Game) => g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingLevelUps > 0 || g.pendingMerchant;
+const hasChoice = (g: Game) => g.pendingShrine !== null || g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingLevelUps > 0 || g.pendingMerchant;
 
 function togglePause(): void {
   if (state === 'playing' && game) {

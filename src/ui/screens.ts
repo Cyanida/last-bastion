@@ -8,6 +8,7 @@ import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../l
 import { curseMultiplier } from '../logic/curses';
 import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIER_UNLOCK_WAVE, TIERS, type BuildingId, type MetaId } from '../config/economy';
 import { relicDef, type RelicId } from '../config/relics';
+import { BLESSINGS, type BlessingId } from '../config/regions';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
 import { TRAIT_IDS, TRAITS, type TraitId } from '../config/traits';
 import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
@@ -448,6 +449,18 @@ export function showAbilityUpgrade(tier: number, options: readonly AbilityUpgrad
 }
 
 /** v0.4: the utility ability's two-way choices at levels 8 and 14. */
+/** v0.5: a shrine in an open wing offers a blessing for the rest of the run. */
+export function showShrine(options: readonly BlessingId[], onPick: (id: BlessingId) => void): void {
+  const el = show(`
+    <div class="levelup">
+      <h1 class="small">⛩️ An old shrine</h1>
+      <p class="sub">Kneel, and choose a blessing. It lasts the whole run.</p>
+      <div class="cards">${options.map((id, i) => `<button class="card panel boon special" data-pick="${id}"><div class="num">${i + 1}</div><h2>${BLESSINGS[id].name}</h2><p>${BLESSINGS[id].desc}</p></button>`).join('')}</div>
+    </div>`);
+  click(el, '[data-pick]', (b) => onPick(b.dataset.pick as BlessingId));
+  numberKeys(el);
+}
+
 export function showUtilityUpgrade(tier: number, options: readonly UtilityUpgradeId[], cls: ClassDef, onPick: (id: UtilityUpgradeId) => void): void {
   showTwoWay(`${UTILITIES[cls.id].name} — upgrade ${tier + 1}`, options.map((id) => ({ id, name: UTILITY_UPGRADES[id].name, desc: UTILITY_UPGRADES[id].desc })), (id) => onPick(id as UtilityUpgradeId));
 }

@@ -7,6 +7,8 @@ import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
 import type { Game } from '../core/types';
+import { FEATURES, REGIONS } from '../config/regions';
+import { wallPattern } from './arena';
 import { digitGlyphs, fogSprite, getSprite, glyphIndex, isNumeric, ringSprite, shadowSprite, textSprite, type Sprite } from './sprites';
 
 export interface View {
@@ -22,10 +24,16 @@ type Ctx = CanvasRenderingContext2D;
 export function cameraFor(g: Game, view: View): { x: number; y: number } {
   const vw = view.w / view.zoom;
   const vh = view.h / view.zoom;
-  const { w, h } = g.arena;
+  // v0.5: the open part of the map plus its walls; closed wings are not worth looking at
+  const pad = g.arena.wall;
+  const b = g.bounds.w > 0 ? g.bounds : { x: pad, y: pad, w: g.arena.w - 2 * pad, h: g.arena.h - 2 * pad };
+  const x0 = b.x - pad;
+  const y0 = b.y - pad;
+  const w = b.w + 2 * pad;
+  const h = b.h + 2 * pad;
   return {
-    x: vw >= w ? (w - vw) / 2 : clamp(g.player.x - vw / 2, 0, w - vw),
-    y: vh >= h ? (h - vh) / 2 : clamp(g.player.y - vh / 2, 0, h - vh),
+    x: vw >= w ? x0 + (w - vw) / 2 : clamp(g.player.x - vw / 2, x0, x0 + w - vw),
+    y: vh >= h ? y0 + (h - vh) / 2 : clamp(g.player.y - vh / 2, y0, y0 + h - vh),
   };
 }
 
@@ -56,7 +64,51 @@ function disc(ctx: Ctx, x: number, y: number, r: number): void {
   ctx.arc(x, y, r, 0, TAU);
 }
 
-/** Bottom-left corner: the whole arena at a glance. Commanders and bosses stand out: they are the objectives. */
+/**
+ * v0.5: a closed wing is darkness behind a portcullis; the hidden vault is solid stone until it opens. A handful of rects a frame.
+ */
+function drawClosedRegions(ctx: Ctx, g: Game, cx: number, cy: number, vw: number, vh: number): void {
+  const regions = g.arena.regions;
+  if (!regions) return;
+  if (g.arena.id !== closedArena) closedPattern = null; // the pattern belongs to one arena's stone
+  closedArena = g.arena.id;
+  const overlaps = (r: { x: number; y: number; w: number; h: number }) => r.x < cx + vw && r.x + r.w > cx && r.y < cy + vh && r.y + r.h > cy;
+  for (const r of regions) {
+    if (g.regionOpen[r.id]) continue;
+    const covers = r.gate ? [r.floor, r.gate] : [r.floor];
+    if (!covers.some(overlaps)) continue;
+    if (r.hidden) {
+      ctx.fillStyle = (closedPattern ??= ctx.createPattern(wallPattern(g.arena), 'repeat')!);
+      for (const q of covers) ctx.fillRect(q.x, q.y, q.w, q.h);
+      continue;
+    }
+    ctx.fillStyle = 'rgba(12,10,8,0.93)';
+    ctx.fillRect(r.floor.x, r.floor.y, r.floor.w, r.floor.h);
+    const gt = r.gate!;
+    // the portcullis sits in the wall part of the corridor: iron bars across it
+    ctx.fillStyle = '#1b1715';
+    ctx.fillRect(gt.x, gt.y, gt.w, gt.h);
+    ctx.fillStyle = '#5b5550';
+    const inner = gt.along === 'y' ? { x: gt.x, y: gt.y + REGIONS.gateReach, w: gt.w, h: gt.h - 2 * REGIONS.gateReach } : { x: gt.x + REGIONS.gateReach, y: gt.y, w: gt.w - 2 * REGIONS.gateReach, h: gt.h };
+    if (gt.along === 'y') for (let x = inner.x + 10; x < inner.x + inner.w; x += 22) ctx.fillRect(x, inner.y, 5, inner.h);
+    else for (let y = inner.y + 10; y < inner.y + inner.h; y += 22) ctx.fillRect(inner.x, y, inner.w, 5);
+    ctx.fillRect(inner.x, inner.y + inner.h / 2 - 3, inner.w, 6);
+    ctx.fillRect(inner.x + inner.w / 2 - 3, inner.y, 6, inner.h);
+  }
+  // the features in open wings: an altar, a strongbox, a lair's bones, a cache among the vents
+  for (const f of g.features) {
+    if (!g.regionOpen[f.wing] || (f.used && f.kind !== 'lair')) continue;
+    if (f.x < cx - 40 || f.x > cx + vw + 40 || f.y < cy - 40 || f.y > cy + vh + 40) continue;
+    const icon = textSprite(FEATURES[f.kind].icon, 34, '#ffffff', 64);
+    ctx.globalAlpha = f.used ? 0.35 : 0.8 + Math.sin(g.time * 3) * 0.2;
+    ctx.drawImage(icon, Math.round(f.x - icon.width / 2), Math.round(f.y - icon.height / 2));
+    ctx.globalAlpha = 1;
+  }
+}
+let closedPattern: CanvasPattern | null = null;
+let closedArena = '';
+
+/** Bottom-left corner: the whole map at a glance. Commanders and bosses stand out: they are the objectives. */
 function drawMinimap(ctx: Ctx, g: Game, view: View, cx: number, cy: number, vw: number, vh: number): void {
   const d = view.dpr;
   const w = 132 * d;
@@ -74,7 +126,19 @@ function drawMinimap(ctx: Ctx, g: Game, view: View, cx: number, cy: number, vw: 
     ctx.fillStyle = color;
     ctx.fillRect(x0 + x * k - size / 2, y0 + y * k - size / 2, size, size);
   };
-  for (const o of g.arena.obstacles) dot(o.x, o.y, 2 * d, '#55565c');
+  // v0.5: regions: lit once walked, dim while open but unexplored; closed wings show only their gate; the vault shows nothing
+  for (const r of g.arena.regions ?? []) {
+    if (r.hidden && !g.regionOpen[r.id]) continue;
+    const q = r.floor;
+    ctx.fillStyle = !g.regionOpen[r.id] ? 'rgba(90,70,50,0.18)' : g.regionSeen.includes(r.id) ? 'rgba(170,150,110,0.32)' : 'rgba(170,150,110,0.14)';
+    ctx.fillRect(x0 + q.x * k, y0 + q.y * k, q.w * k, q.h * k);
+    if (r.gate) {
+      ctx.fillStyle = g.regionOpen[r.id] ? 'rgba(170,150,110,0.32)' : '#8a6a3a';
+      ctx.fillRect(x0 + r.gate.x * k, y0 + r.gate.y * k, Math.max(2, r.gate.w * k), Math.max(2, r.gate.h * k));
+    }
+  }
+  for (const f of g.features) if (g.regionOpen[f.wing] && !f.used) dot(f.x, f.y, 5 * d, '#e9c95a');
+  for (const o of g.arena.obstacles) if (g.openRects.some((q) => o.x >= q.x && o.x <= q.x + q.w && o.y >= q.y && o.y <= q.y + q.h)) dot(o.x, o.y, 2 * d, '#55565c');
   for (const e of g.enemies) {
     if (e.hidden) continue;
     if (e.def.boss) dot(e.x, e.y, 7 * d, '#c23a2e');
@@ -117,6 +181,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(z, 0, 0, z, -Math.round(cx * z), -Math.round(cy * z));
   blitArena(ctx, arena, cx, cy, vw, vh);
+  drawClosedRegions(ctx, g, cx, cy, vw, vh);
   end('arena', _t);
   _t = begin();
   // corpses

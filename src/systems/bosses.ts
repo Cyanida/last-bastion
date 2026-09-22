@@ -21,11 +21,12 @@ function fireField(g: Game, e: Enemy) {
 
 /** The Dragon burns a whole strip of the map: a telegraphed band of fire, straight through where you stand. */
 function burnBand(g: Game, e: Enemy): void {
-  const { w, h, wall } = g.arena;
+  const b = g.bounds; // v0.5: only across the open part of the map
   const p = g.player;
   const vertical = g.rng() < 0.5;
-  const length = vertical ? h : w;
-  for (let along = wall + 60; along < length - wall; along += 170) {
+  const start = vertical ? b.y : b.x;
+  const length = vertical ? b.h : b.w;
+  for (let along = start + 60; along < start + length; along += 170) {
     for (const side of [0]) {
       const x = vertical ? p.x + side : along;
       const y = vertical ? along : p.y + side;

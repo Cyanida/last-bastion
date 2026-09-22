@@ -124,7 +124,8 @@ export function updateHud(g: Game): void {
   text('h-tier', `${g.tier.name} · ${g.arena.name}`);
 
   text('h-wave', g.wave > 0 ? `${actName(g.act)} · Wave ${g.wave}` : 'Prepare…');
-  const left = g.enemies.length + g.spawnQueue.length;
+  let left = g.spawnQueue.length;
+  for (const e of g.enemies) if (!e.side) left++; // v0.5: lairs, quest targets and events are not the wave
   text('h-left', g.breather > 0 && g.wave > 0 ? 'Next wave incoming' : `${left} enemies remaining`);
   $('h-mod').classList.toggle('hidden', !g.modifier);
   if (g.modifier) text('h-mod', `${MODIFIERS[g.modifier].name} — ${MODIFIERS[g.modifier].desc}`);
