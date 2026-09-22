@@ -12,6 +12,15 @@
 - **One scaling axis per Act**: Act I grows the count, Act II grows stats and elites (elite chance climbs 2.2x faster, two-affix elites), Act III grows composition (pricier units, more squads and commanders); beyond wave 30 a quadratic tail. BALANCE.md has the tables.
 - The simulation prints the level reached per wave per class against the target, and `npm run sim -- probe` revives the bot on death to read deaths per wave through wave 30 (no class hits a wall between waves 15 and 30).
 
+### Relics
+- **No slot cap.** A duplicate pickup raises the relic a tier (three tiers): every relic has tier 2 and 3 numbers in `config/relics.ts`, and its text is generated from them, so a card or tooltip always says exactly what this tier and the next one do.
+- **Tooltips everywhere**: drop cards, the HUD relic bar (hover or tap), pause and results screens (the build), the Merchant's held list, and a **relic compendium** in the Keep (discovered / undiscovered, how often found, all three tiers, synergies).
+- **12 synergies** that do something extra when both relics are held (Fire in the Hole, Shatter, Thunderclap, Reaper, Bulwark, Muster, Bastion, Pilgrim's Purse, Necropolis, Forager, Rebirth, Tempo) and **4 clashes** that warn (Restless, Overkill, Thin Blood, Blunted); both are listed on every card and tooltip, active ones marked.
+- **Stacking rules** (BALANCE.md): plain mods of a kind add up at face value to a soft cap and then have diminishing returns (never more than half the cap again), conditional bonuses (Sentinel's charge, the War Horn, the Crown) count in the same sum; on-hit and on-kill procs share their chance past three relics of the category; relic healing per wave is capped the same way; proc chains stop at depth 2. The HUD stats panel shows each sum, its effective value and the cap.
+- **Merchant**: buy a relic of a rarity (new, or a tier up), reroll one at the same tier, **sell** one for gold, or **salvage** it into Rune shards (kept in the save for the Keep's second currency).
+- **Drops**: the share of new relics in an offer shrinks with every relic held, so late drops are mostly upgrades. Relic damage now grows 9% per level (was 12%: characters are a third higher-level at the same wave).
+- `npm run sim -- relics` reports the **relic power index**: no relics vs a run's haul of 12 pickups vs every relic at tier 3.
+
 ## v0.3.1
 - The title screen shows the full version next to the build date ("build 2026-09-22 · v0.3.1"). This is the release that proves the auto-updater: an installed 0.3.0 finds it, downloads it and offers the restart.
 - Release workflow: only `latest*.yml` is attached as update metadata (0.3.0 also carried electron-builder's debug file).

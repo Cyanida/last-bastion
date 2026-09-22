@@ -5,11 +5,11 @@ import { CURSE_IDS, CURSES } from '../src/config/curses';
 import { ENEMIES } from '../src/config/enemies';
 import { createGame, summarizeRun, updateGame } from '../src/game';
 import { lockedCurses, unlockedCurses, withAchievements } from '../src/logic/achievements';
-import { actOf, arenaFor, bossForWave, dailySetup, formatSeed, hashSeed, isActEnd, merchantPrice, parseSeed, randomRelic, themeFor } from '../src/logic/acts';
+import { actOf, arenaFor, bossForWave, dailySetup, formatSeed, hashSeed, isActEnd, merchantPrice, parseSeed, themeFor } from '../src/logic/acts';
 import { curseMultiplier, curseValue } from '../src/logic/curses';
 import { applyRun, defaultSave } from '../src/logic/save';
 import { simulateRun } from '../src/sim/bot';
-import { merchantBuy, merchantHeal, merchantRemove, merchantReroll, nextAct } from '../src/systems/acts';
+import { merchantBuy, merchantHeal, merchantReroll, merchantSell, nextAct } from '../src/systems/acts';
 import { goldMult, healPlayer } from '../src/systems/combat';
 import { spawnEnemy } from '../src/systems/spawning';
 
@@ -91,17 +91,15 @@ describe('merchant pricing', () => {
     g.gold = 9999;
     g.player.hp = g.player.stats.hp;
     expect(merchantHeal(g)).toBe(false);
-    g.relicSlots = 1;
     expect(merchantBuy(g, 'rare')).toBe(true);
-    expect(merchantBuy(g, 'rare')).toBe(false); // full
+    expect(merchantBuy(g, 'rare')).toBe(true); // v0.4: no cap (a duplicate would be a tier up)
     const before = g.relics[0];
-    expect(merchantReroll(g, 0)).toBe(true);
+    expect(merchantReroll(g, before)).toBe(true);
+    expect(g.relics).toHaveLength(2);
+    expect(g.relics).not.toContain(before);
+    expect(merchantReroll(g, 'reliquary')).toBe(false); // not held
+    expect(merchantSell(g, g.relics[0])).toBe(true);
     expect(g.relics).toHaveLength(1);
-    expect(g.relics[0]).not.toBe(before);
-    expect(merchantReroll(g, 5)).toBe(false);
-    expect(merchantRemove(g, 0)).toBe(true);
-    expect(g.relics).toHaveLength(0);
-    expect(randomRelic(['whetstone'], ['whetstone'], 'common', () => 0)).toBeNull();
   });
 });
 

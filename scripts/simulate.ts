@@ -7,18 +7,27 @@
  * Wall probe:  npm run sim -- probe [runs=3] [tier=0]
  * The same bot, revived on death, through wave 30: deaths and seconds per band of 5 waves and the
  * level at the end of each band, per class. A wall is a band where deaths jump and stay up.
+ *
+ * Relic power index:  npm run sim -- relics [runs=3] [tier=0]
+ * Fresh runs with no relics at all, against runs that start with a full run's haul of pickups (RELIC_HAUL rolls by the drop rules,
+ * upgrades included) and against runs that start with every relic in the class pool at the top tier (the absurd upper bound).
+ * BALANCE.md wants the haul no more than about 1.5x as far as no relics; past that the caps get tightened.
  */
 import type { ArenaId } from '../src/config/arenas';
 import { CLASS_ORDER } from '../src/config/classes';
 import { MASTERY, META, META_IDS, TIERS } from '../src/config/economy';
+import { RELIC_MAX_TIER } from '../src/config/relics';
 import type { RunOptions } from '../src/game';
 import { expectedLevel } from '../src/logic/formulas';
+import { relicPoolFor } from '../src/logic/relics';
 import type { RunSummary } from '../src/logic/save';
 import { probeRun, simulateRun } from '../src/sim/bot';
 
-const probe = process.argv[2] === 'probe';
-const [runs = probe ? 3 : 6, tier = 0] = process.argv.slice(probe ? 3 : 2, probe ? 5 : 4).map(Number);
-const arena = (process.argv[probe ? 5 : 4] ?? 'courtyard') as ArenaId;
+const mode = ['probe', 'relics'].includes(process.argv[2] ?? '') ? process.argv[2] : '';
+const probe = mode === 'probe';
+const argAt = mode ? 3 : 2;
+const [runs = mode ? 3 : 6, tier = 0] = process.argv.slice(argAt, argAt + 2).map(Number);
+const arena = (process.argv[argAt + 2] ?? 'courtyard') as ArenaId;
 const maxed = Object.fromEntries(META_IDS.map((id) => [id, META[id].max]));
 
 const setups: [string, RunOptions][] = [
@@ -29,6 +38,29 @@ const setups: [string, RunOptions][] = [
 const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const pad = (s: string | number, n: number) => String(s).padStart(n);
+
+const RELIC_HAUL = 12; // about what a wave-30 run picks up: six boss choices, a few elite chests, a couple of Merchant buys
+
+if (mode === 'relics') {
+  console.log(`
+relic power index · ${runs} runs per cell · ${TIERS[tier].name} · ${arena} · fresh saves · avg wave reached
+`);
+  console.log(`${'class'.padEnd(12)}${pad('no relics', 11)}${pad('haul', 8)}${pad('index', 7)}${pad('all III', 9)}${pad('index', 7)}   (haul = ${RELIC_HAUL} pickups by the drop rules from wave 1 · all III = every relic in the pool at tier ${RELIC_MAX_TIER})`);
+  const started = Date.now();
+  const indexes: number[][] = [[], []];
+  const cell = (classId: (typeof CLASS_ORDER)[number], opts: RunOptions) => avg(Array.from({ length: runs }, (_, i) => simulateRun(classId, 1000 + i, { tier, arena, ...opts }, i % 2).wave));
+  for (const classId of CLASS_ORDER) {
+    const bare = cell(classId, { noRelics: true });
+    const haul = cell(classId, { relicPicks: RELIC_HAUL, noRelics: true });
+    const all = cell(classId, { relics: relicPoolFor(classId, []), relicTier: RELIC_MAX_TIER, noRelics: true });
+    indexes[0].push(haul / bare);
+    indexes[1].push(all / bare);
+    console.log(`${classId.padEnd(12)}${pad(bare.toFixed(1), 11)}${pad(haul.toFixed(1), 8)}${pad((haul / bare).toFixed(2), 7)}${pad(all.toFixed(1), 9)}${pad((all / bare).toFixed(2), 7)}`);
+  }
+  console.log(`${'ALL'.padEnd(12)}${pad('', 19)}${pad(avg(indexes[0]).toFixed(2), 7)}${pad('', 9)}${pad(avg(indexes[1]).toFixed(2), 7)}   target for the haul: about 1.5 or less · ${((Date.now() - started) / 1000).toFixed(0)}s
+`);
+  process.exit(0);
+}
 
 if (probe) {
   const TO = 30;

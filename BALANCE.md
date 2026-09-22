@@ -87,6 +87,44 @@ Fresh runs land where v0.3 left them (7.7 then), the maxed / fresh ratio is up f
 reached wave 35; the count plateau and the gentle Act III stat slope are what make Act II-III survivable at all), which is what the talent tree
 and the treasures are meant to build on. The spread between classes is 1.67x, worse than v0.3's 1.24x, and that is the balance pass's job (section 9).
 
+## v0.4: relics without a cap
+
+The cap is gone; a duplicate raises a relic a tier (three tiers, `config/relics.ts` has every relic's tier 2 and 3 numbers). What keeps that
+from running away is a set of stacking rules, all in `RELIC_STACKING`:
+
+| Rule | What it does | Where you see it |
+|---|---|---|
+| **Category sums** | Plain mods of a kind add up: Whetstone +12% and Blood Pact +50% are +62% damage, not ×1.68. Conditional bonuses (Sentinel's charge, the War Horn, the Crown) join the same sum. | HUD stats panel: "Relics: damage +62%" |
+| **Soft caps** | Face value up to the cap (damage +100%, attack speed +60%, armor +30%, speed +50%, cooldown cut 50%, gold +150%, XP +100%), then diminishing returns: the excess never adds more than half the cap again. | the panel shows the effective value and the raw sum struck through |
+| **Proc sharing** | Past three on-hit relics, every on-hit proc's chance is scaled by 3/N (the same for on-kill). | "On hit procs ×0.60" |
+| **Healing per wave** | Relic healing (Vampire Fang, Rally Banner) passes the same soft cap per wave, at 100% of max HP. The sustain stack was what made a relic build immortal. | "Relic healing (wave) 130% ~~210%~~" |
+| **Proc depth 2** | A relic may react to a relic's damage (a keg blast that kills feeds the Fang) but not to *that* reaction (the second blast does not blast again). | |
+| **Drops** | The share of new relics in a drop is `max(0.25, 1 - 0.09 × held)`: late drops are mostly upgrades. Top-tier relics are never offered again. | the offer screen says "a relic you already carry grows a tier stronger" |
+
+Synergies are twelve pairs that do something extra together, and four clashes that only warn; every card and tooltip lists them (`SYNERGIES`).
+
+### Relic power index
+
+`npm run sim -- relics` plays fresh runs with no relics at all, with a run's haul (12 pickups by the drop rules, upgrades included, from wave 1),
+and with every relic in the pool at tier 3 (the absurd upper bound), and reports the ratio of waves reached. The target was about 1.5 for the haul.
+
+| Class | No relics | Haul (12 pickups) | Index | Every relic at III | Index |
+|---|---|---|---|---|---|
+| Paladin | 8.3 | 26.3 | 3.16 | 57.0 | 6.84 |
+| Viking | 7.0 | 11.7 | 1.67 | 62.7 | 8.95 |
+| Angel | 7.3 | 8.3 | 1.14 | 48.3 | 6.59 |
+| Necromancer | 8.7 | 17.0 | 1.96 | 56.7 | 6.54 |
+| Archer | 7.7 | 11.0 | 1.43 | 45.0 | 5.87 |
+| **All** | | | **1.87** | | **6.96** |
+
+(Squire, courtyard, 3 runs per cell; the tier-3 runs stop at the 45-minute cap rather than dying.)
+
+The haul index sits above the target, and the single-relic ablation says why: the Dragon at wave 10 is a gate this bot never passes without relics
+(no-relic runs end at waves 5-8), and any single tier-3 relic gets it exactly to wave 10, where it dies. A build that gets past the Dragon then runs
+deep, because Acts II and III scale on one axis each. "Wave reached" is therefore bimodal, and no cap on relic numbers moves it much: what was
+tightened (the category sums, the healing cap, relic damage per level 0.12 -> 0.09) took the haul from 2.5 to 1.9 (three classes are at or under 1.7; the Paladin, whose Divine Shield plus any sustain makes him the tankiest, is at 3.2), and the rest is the gate.
+The balance pass (section 9) revisits this with the talent tree in place, and with the bot able to kite a boss the index will read the game rather than the gate.
+
 ## v0.3: Acts, squads and the director
 
 ### Intended difficulty per Act (Squire, no Keep upgrades)

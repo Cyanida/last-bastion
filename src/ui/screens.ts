@@ -3,11 +3,14 @@ import { ACHIEVEMENTS, type AchievementDef } from '../config/achievements';
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
 import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
-import { RELIC_WEIGHTS, type Rarity } from '../config/relics';
+import { RELIC_CATEGORIES, RELIC_IDS, RELIC_WEIGHTS, relicDesc, SYNERGIES, TIER_NUMERALS, type Rarity } from '../config/relics';
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
 import { MASTERY, META, META_IDS, TIER_UNLOCK_WAVE, TIERS, type MetaId } from '../config/economy';
 import { relicDef, type RelicId } from '../config/relics';
+import { activeSynergies, synergiesOf, type RelicTiers } from '../logic/relics';
+import { salvageValue, sellPrice } from '../systems/acts';
+import { esc, relicLine, relicTip, tierBadge } from './relicText';
 import type { QualitySetting } from '../config/game';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { onAction } from '../input';
@@ -56,9 +59,17 @@ function numberKeys(el: HTMLElement, other?: (a: Action) => void): void {
 
 const fmtStat = (k: StatKey, v: number) => (k === 'atkSpd' ? v.toFixed(2) : String(Math.round(v * 10) / 10));
 const fmtTime = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`);
-const relicCard = (id: RelicId, attrs: string, extra = '') => {
+/** A relic card: the tier it would be at after taking it (1 = new), its text at that tier, synergies with what is held. */
+const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, extra = '') => {
   const r = relicDef(id);
-  return `<button class="card panel boon relic-card ${r.rarity}" ${attrs}><div class="relic-icon">${r.icon}</div><h2>${r.name}</h2><div class="tag">${r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${r.desc}</p>${extra}</button>`;
+  const upgrade = tier > 1;
+  const syn = synergiesOf(id).map((sid) => {
+    const sd = SYNERGIES[sid];
+    const others = sd.relics.filter((o) => o !== id).map((o) => relicDef(o).name).join(' + ');
+    const on = sd.relics.every((o) => o === id || held.includes(o));
+    return `<div class="syn ${sd.anti ? 'anti' : on ? 'on' : ''}">${sd.anti ? '⚠' : on ? '✦' : '✧'} ${sd.name} <em>with ${others}</em></div>`;
+  }).join('');
+  return `<button class="card panel boon relic-card ${r.rarity}" ${attrs} data-tip="${esc(relicTip(id, tier, held))}"><div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag">${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''} · ${RELIC_CATEGORIES[r.category].name}</div><p>${relicDesc(id, tier)}</p>${syn}${extra}</button>`;
 };
 
 // ---------------------------------------------------------------- title & menus
@@ -189,7 +200,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   click(el, '[data-back]', on.back);
 }
 
-export function showKeep(save: Save, on: { buy: (id: MetaId) => void; back: () => void }): void {
+export function showKeep(save: Save, on: { buy: (id: MetaId) => void; compendium: () => void; back: () => void }): void {
   const row = (id: MetaId) => {
     const m = META[id];
     const rank = save.meta[id] ?? 0;
@@ -214,9 +225,11 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; back: () =
       <h2>Class mastery</h2>
       <p class="hint">Earned by playing a class: waves cleared, bosses slain, levels gained — multiplied by the difficulty tier.</p>
       <div class="masteries">${mastery}</div>
+      <button class="btn" data-compendium>Relic compendium</button>
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-buy]', (b) => on.buy(b.dataset.buy as MetaId));
+  click(el, '[data-compendium]', on.compendium);
   click(el, '[data-back]', on.back);
 }
 
@@ -310,28 +323,15 @@ export function showLevelUp(
   numberKeys(el, (a) => a === 'reroll' && canReroll && on.reroll());
 }
 
-export function showRelicOffer(options: RelicId[], held: RelicId[], slots: number, on: { take: (id: RelicId, replace?: number) => void; skip: () => void }): void {
-  const full = held.length >= slots;
+export function showRelicOffer(options: RelicId[], held: RelicId[], tiers: RelicTiers, on: { take: (id: RelicId) => void; skip: () => void }): void {
   const el = show(`
     <div class="levelup">
       <h1 class="small">${options.length > 1 ? 'Spoils of the fallen' : 'A relic!'}</h1>
-      <p class="sub">${full ? 'Your reliquary is full — choosing one means giving another up' : `Choose a relic (${held.length}/${slots} slots)`}</p>
-      <div class="cards">${options.map((id, i) => relicCard(id, `data-pick="${i}"`, `<div class="num">${i + 1}</div>`)).join('')}</div>
+      <p class="sub">${options.some((id) => held.includes(id)) ? 'A relic you already carry grows a tier stronger' : 'Choose a relic'} · ${held.length} carried</p>
+      <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div>`)).join('')}</div>
       <button class="btn" data-skip>Leave it</button>
     </div>`);
-  click(el, '[data-pick]', (b) => {
-    const id = options[Number(b.dataset.pick)];
-    if (!full) return on.take(id);
-    const el2 = show(`
-      <div class="levelup">
-        <h1 class="small">Give up which relic?</h1>
-        <p class="sub">for ${relicDef(id).icon} ${relicDef(id).name}</p>
-        <div class="cards">${held.map((h, i) => relicCard(h, `data-pick="${i}"`)).join('')}</div>
-        <button class="btn" data-skip>Keep them all</button>
-      </div>`);
-    click(el2, '[data-pick]', (c) => on.take(id, Number(c.dataset.pick)));
-    click(el2, '[data-skip]', on.skip);
-  });
+  click(el, '[data-pick]', (b) => on.take(options[Number(b.dataset.pick)]));
   click(el, '[data-skip]', on.skip);
   numberKeys(el);
 }
@@ -349,13 +349,28 @@ export function showAbilityUpgrade(tier: number, options: readonly AbilityUpgrad
   numberKeys(el);
 }
 
-export function showPause(info: { relics: RelicId[]; upgrades: AbilityUpgradeId[] }, onResume: () => void, onQuit: () => void): void {
-  const relics = info.relics.map((id) => `<div><span>${relicDef(id).icon} ${relicDef(id).name}</span><em>${relicDef(id).desc}</em></div>`).join('');
+export interface BuildInfo {
+  relics: RelicId[];
+  tiers: RelicTiers;
+  upgrades: AbilityUpgradeId[];
+}
+
+/** The current build: ability upgrades, relics with tiers (tooltips), active synergies and clashes. Pause and results screens. */
+export function buildHtml(info: BuildInfo): string {
+  const relics = info.relics.map((id) => {
+    const tier = info.tiers[id] ?? 1;
+    return `<div><span tabindex="0" data-tip="${esc(relicTip(id, tier, info.relics))}">${relicDef(id).icon} ${relicDef(id).name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}</span><em>${relicDesc(id, tier)}</em></div>`;
+  }).join('');
   const ups = info.upgrades.map((id) => `<div><span>✦ ${ABILITY_UPGRADES[id].name}</span><em>${ABILITY_UPGRADES[id].desc}</em></div>`).join('');
+  const syns = activeSynergies(info.relics).map((sid) => `<div class="syn ${SYNERGIES[sid].anti ? 'anti' : 'on'}"><span>${SYNERGIES[sid].anti ? '⚠' : '✦'} ${SYNERGIES[sid].name}</span><em>${SYNERGIES[sid].desc}</em></div>`).join('');
+  return relics || ups ? `<div class="build">${ups}${relics}${syns}</div>` : '';
+}
+
+export function showPause(info: BuildInfo, onResume: () => void, onQuit: () => void): void {
   const el = show(`
     <div class="panel dialog">
       <h1 class="small">Paused</h1>
-      ${relics || ups ? `<div class="build">${ups}${relics}</div>` : ''}
+      ${buildHtml(info)}
       <button class="btn big" data-resume>Resume</button>
       <button class="btn" data-quit>End run (keeps your gold)</button>
     </div>`);
@@ -381,6 +396,7 @@ export interface RunResult {
   seed: string; // type it on the class select screen to replay the run
   curseMult: number;
   daily: string | null;
+  build: BuildInfo;
 }
 
 export function showResults(r: RunResult, onRetry: () => void, onMenu: () => void): void {
@@ -404,6 +420,7 @@ export function showResults(r: RunResult, onRetry: () => void, onMenu: () => voi
         <div class="earned"><span>${r.cls.name} mastery</span><b>+${r.classXp} XP · rank ${r.masteryRank}</b></div>
       </div>
       ${unlocks ? `<div class="unlocks">${unlocks}</div>` : ''}
+      ${buildHtml(r.build)}
       <button class="btn big" data-retry>Fight again</button>
       <button class="btn" data-menu>Choose another champion</button>
     </div>`);
@@ -418,38 +435,62 @@ export interface MerchantInfo {
   hp: number;
   maxHp: number;
   relics: RelicId[];
-  slots: number;
+  tiers: RelicTiers;
+  salvage: number; // Rune shards so far
 }
 
 /** Between Acts. Everything here costs run gold, and run gold is what you would otherwise bank for the Keep. */
-export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r: Rarity) => void; reroll: (i: number) => void; remove: (i: number) => void; leave: () => void }): void {
+export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r: Rarity) => void; reroll: (id: RelicId) => void; sell: (id: RelicId) => void; salvage: (id: RelicId) => void; leave: () => void }): void {
   const price = (item: MerchantItem) => merchantPrice(item, info.act);
   const offer = (item: MerchantItem, attrs: string, title: string, text: string, enabled: boolean) =>
     `<button class="card panel boon shop" ${attrs} ${enabled && info.gold >= price(item) ? '' : 'disabled'}><h2>${title}</h2><p>${text}</p><div class="best">🪙 ${price(item)}</div></button>`;
-  const full = info.relics.length >= info.slots;
-  const held = info.relics.map((id, i) => {
-    const r = relicDef(id);
-    return `<div class="held ${r.rarity}"><span>${r.icon} ${r.name}</span>
-      <button class="chip" data-reroll="${i}" ${info.gold >= price('reroll') ? '' : 'disabled'} data-tip="Swap it for a random ${r.rarity} relic">Reroll 🪙 ${price('reroll')}</button>
-      <button class="chip" data-remove="${i}" ${info.gold >= price('remove') ? '' : 'disabled'} data-tip="Drop it to free the slot">Remove 🪙 ${price('remove')}</button></div>`;
+  const held = info.relics.map((id) => {
+    const tier = info.tiers[id] ?? 1;
+    return `<div class="held ${relicDef(id).rarity}">${relicLine(id, tier, info.relics)}
+      <button class="chip" data-reroll="${id}" ${info.gold >= price('reroll') ? '' : 'disabled'} data-tip="Swap it for a random ${relicDef(id).rarity} relic you do not carry, at the same tier">Reroll 🪙 ${price('reroll')}</button>
+      <button class="chip" data-sell="${id}" data-tip="Sell it for gold${tier > 1 ? ' (every tier counts)' : ''}">Sell +🪙 ${sellPrice(id, tier, info.act)}</button>
+      <button class="chip" data-salvage="${id}" data-tip="Break it into Rune shards: progress toward Runes, the Keep's second currency">Salvage +${salvageValue(id, tier)} ◆</button></div>`;
   }).join('');
   const el = show(`
     <div class="levelup merchant">
       <h1 class="small">${actName(info.act)} is won</h1>
-      <p class="sub">The Merchant waits by the gate. Purse: <b class="goldtext">🪙 ${info.gold}</b> — what you spend here never reaches the Keep.</p>
+      <p class="sub">The Merchant waits by the gate. Purse: <b class="goldtext">🪙 ${info.gold}</b>${info.salvage > 0 ? ` · shards: <b>${info.salvage} ◆</b>` : ''} — what you spend here never reaches the Keep.</p>
       <div class="cards">
         ${offer('heal', 'data-heal', 'Field Surgeon', `Heal half your HP (${Math.ceil(info.hp)} / ${Math.round(info.maxHp)}).`, info.hp < info.maxHp)}
-        ${(Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, full ? 'Your reliquary is full.' : `A random ${r} relic.`, !full)).join('')}
+        ${(Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, `A random ${r} relic: new, or a tier up for one you carry.`, true)).join('')}
       </div>
       ${held ? `<div class="panel heldlist">${held}</div>` : ''}
       <button class="btn big" data-leave>March on</button>
     </div>`);
   click(el, '[data-heal]', on.heal);
   click(el, '[data-buy]', (b) => on.buy(b.dataset.buy as Rarity));
-  click(el, '[data-reroll]', (b) => on.reroll(Number(b.dataset.reroll)));
-  click(el, '[data-remove]', (b) => on.remove(Number(b.dataset.remove)));
+  click(el, '[data-reroll]', (b) => on.reroll(b.dataset.reroll as RelicId));
+  click(el, '[data-sell]', (b) => on.sell(b.dataset.sell as RelicId));
+  click(el, '[data-salvage]', (b) => on.salvage(b.dataset.salvage as RelicId));
   click(el, '[data-leave]', on.leave);
   onActions((a) => a === 'confirm' && on.leave());
+}
+
+/** The relic compendium in the Keep: every relic, discovered or not, with tiers, synergies and how often it was found. */
+export function showCompendium(save: Save, onBack: () => void): void {
+  const found = (id: RelicId) => save.relicPicks[id] ?? 0;
+  const card = (id: RelicId) => {
+    const r = relicDef(id);
+    const n = found(id);
+    if (n === 0) return `<div class="card panel boon relic-card undiscovered" data-tip="${esc(`Not found yet. A ${r.rarity} ${RELIC_CATEGORIES[r.category].name.toLowerCase()} relic${r.classId ? ` for the ${CLASSES[r.classId].name}` : ''}.`)}"><div class="relic-icon">?</div><h2>Unknown</h2><div class="tag">${r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${RELIC_CATEGORIES[r.category].name}</p></div>`;
+    const tiers = [1, 2, 3].map((t) => `<div class="tierline"><b>${TIER_NUMERALS[t]}</b> ${relicDesc(id, t)}</div>`).join('');
+    const syn = synergiesOf(id).map((sid) => `<div class="syn ${SYNERGIES[sid].anti ? 'anti' : ''}">${SYNERGIES[sid].anti ? '⚠' : '✧'} ${SYNERGIES[sid].name} <em>with ${SYNERGIES[sid].relics.filter((o) => o !== id).map((o) => (found(o) ? relicDef(o).name : '?')).join(' + ')}</em>: ${SYNERGIES[sid].desc}</div>`).join('');
+    return `<div class="card panel boon relic-card ${r.rarity}"><div class="relic-icon">${r.icon}</div><h2>${r.name}</h2><div class="tag">${r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''} · ${RELIC_CATEGORIES[r.category].name} · found ${n}×</div>${tiers}${syn}</div>`;
+  };
+  const discovered = RELIC_IDS.filter((id) => found(id) > 0).length;
+  const el = show(`
+    <div class="panel dialog wide compendium">
+      <h1 class="small">Relic compendium</h1>
+      <p class="sub">${discovered} / ${RELIC_IDS.length} discovered · a duplicate raises a relic's tier (three tiers) · ${Object.values(RELIC_CATEGORIES).map((c) => c.name).join(', ')}: relics of a kind add up and pass a soft cap</p>
+      <div class="cards wrap">${(['common', 'rare', 'legendary'] as Rarity[]).map((rar) => RELIC_IDS.filter((id) => relicDef(id).rarity === rar).map(card).join('')).join('')}</div>
+      <button class="btn" data-back>Back</button>
+    </div>`);
+  click(el, '[data-back]', onBack);
 }
 
 export function showDaily(setup: DailySetup, best: number, onStart: () => void, onBack: () => void): void {

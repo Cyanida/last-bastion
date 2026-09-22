@@ -17,7 +17,7 @@ import { upgradeOptions } from './logic/abilityUpgrades';
 import { lockedArenas, lockedRelics, unlockedCurses, withAchievements } from './logic/achievements';
 import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from './logic/acts';
 import { curseMultiplier } from './logic/curses';
-import { merchantBuy, merchantHeal, merchantRemove, merchantReroll, nextAct } from './systems/acts';
+import { merchantBuy, merchantHeal, merchantReroll, merchantSalvage, merchantSell, nextAct } from './systems/acts';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryRank, rerollCost } from './logic/economy';
 import { applyRun, buyMeta, defaultSave, importSave, type Save } from './logic/save';
@@ -28,7 +28,7 @@ import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { buildHud, setMuteIcon, showHud, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showDaily, showKeep, showLevelUp, showMerchant, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTitle, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTitle, type TitleInfo } from './ui/screens';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
 
@@ -117,6 +117,7 @@ function toKeep(): void {
   menu();
   showKeep(save, {
     back: toTitle,
+    compendium: () => showCompendium(save, toKeep),
     buy(id: MetaId) {
       commit(buyMeta(save, id));
       toKeep();
@@ -228,8 +229,8 @@ function openChoice(g: Game): void {
   state = 'choice';
   setTouchControls(false);
   if (g.relicOffers.length > 0) {
-    showRelicOffer(g.relicOffers[0], g.relics, g.relicSlots, {
-      take: (id, replace) => void (resolveRelicOffer(g, id, replace), resume()),
+    showRelicOffer(g.relicOffers[0], g.relics, g.relicTiers, {
+      take: (id) => void (resolveRelicOffer(g, id), resume()),
       skip: () => void (resolveRelicOffer(g, null), resume()),
     });
   } else if (g.pendingAbilityTiers.length > 0) {
@@ -247,12 +248,13 @@ function openMerchant(g: Game): void {
   const act = g.act;
   const again = (ok: boolean) => ok && openMerchant(g);
   showMerchant(
-    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.relics, slots: g.relicSlots },
+    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.relics, tiers: g.relicTiers, salvage: g.salvage },
     {
       heal: () => again(merchantHeal(g)),
       buy: (r) => again(merchantBuy(g, r)),
-      reroll: (i) => again(merchantReroll(g, i)),
-      remove: (i) => again(merchantRemove(g, i)),
+      reroll: (id) => again(merchantReroll(g, id)),
+      sell: (id) => again(merchantSell(g, id)),
+      salvage: (id) => again(merchantSalvage(g, id)),
       leave() {
         nextAct(g);
         resume();
@@ -261,6 +263,8 @@ function openMerchant(g: Game): void {
   );
 }
 
+const buildOf = (g: Game) => ({ relics: g.relics, tiers: g.relicTiers, upgrades: g.player.upgrades });
+
 const hasChoice = (g: Game) => g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingLevelUps > 0 || g.pendingMerchant;
 
 function togglePause(): void {
@@ -268,7 +272,7 @@ function togglePause(): void {
     const g = game;
     state = 'paused';
     setTouchControls(false);
-    showPause({ relics: g.relics, upgrades: g.player.upgrades }, togglePause, () => endRun(g));
+    showPause(buildOf(g), togglePause, () => endRun(g));
   } else if (state === 'paused') resume();
 }
 
@@ -286,7 +290,7 @@ function endRun(g: Game): void {
       best: save.classes[id].bestWave, newBest: g.wave > prevBest,
       gold: Math.max(0, g.gold - g.goldStart), classXp: result.classXp, masteryRank: masteryRank(save.classes[id].xp),
       tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[save.tierUnlocked].name : null, earned, slain: g.over,
-      seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily,
+      seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily, build: buildOf(g),
     },
     () => (g.daily ? toDaily() : startRun(id)),
     toSelect,

@@ -5,7 +5,7 @@ import { TIERS } from './config/economy';
 import { ACTS } from './config/acts';
 import { curseMultiplier, curseValue } from './logic/curses';
 import { GAME } from './config/game';
-import { RELIC_SLOTS, relicDef, type RelicId } from './config/relics';
+import { relicDef, type RelicId } from './config/relics';
 import { FREE_REROLLS } from './config/upgrades';
 import { WAVES } from './config/waves';
 import { compact, mulberry32 } from './core/math';
@@ -39,6 +39,12 @@ export interface RunOptions {
   lockedRelics?: RelicId[];
   curses?: CurseId[];
   daily?: string; // date of the Daily Trial this run is
+  // simulation only (the relic power index, scripts/simulate.ts): start with these relics at this tier, or with this many pickups
+  // rolled by the drop rules; noRelics stops any further drops
+  relics?: RelicId[];
+  relicTier?: number;
+  relicPicks?: number;
+  noRelics?: boolean;
 }
 
 export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions = {}): Game {
@@ -81,7 +87,17 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     vars: {},
     baseMods: combineMods(neutralMods(), loadout.mods),
     relics: [],
-    relicSlots: RELIC_SLOTS + loadout.relicSlots,
+    relicTiers: {},
+    relicStatic: {},
+    relicDyn: {},
+    relicTotals: {},
+    relicModsDirty: true,
+    synergies: [],
+    relicsFound: [],
+    salvage: 0,
+    procDepth: 0,
+    reaperMark: null,
+    relicSlots: loadout.relicSlots,
     relicPool: relicPoolFor(classId, opts.lockedRelics ?? []),
     relicOffers: [],
     pendingAbilityTiers: [],
@@ -117,9 +133,15 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   g.vars.enemySpeed = curseValue(curses, 'frenzy', 'speed');
   g.vars.curseMult = curseMultiplier(curses);
   g.player.mods = { ...g.baseMods };
+  for (const id of opts.relics ?? []) for (let t = 0; t < (opts.relicTier ?? 1); t++) addRelic(g, id);
+  for (let i = 0; i < (opts.relicPicks ?? 0); i++) {
+    const [pick] = rollRelics(g.relicPool, g.relics, g.relicTiers, g.rng, 1);
+    if (pick) addRelic(g, pick);
+  }
+  if (opts.noRelics) g.relicPool = [];
   if (mastery.relic) {
     const commons = g.relicPool.filter((id) => relicDef(id).rarity === 'common');
-    const [gift] = rollRelics(commons, [], g.rng, 1);
+    const [gift] = rollRelics(commons, [], {}, g.rng, 1);
     if (gift) addRelic(g, gift);
   }
   return g;
@@ -140,6 +162,9 @@ export function summarizeRun(g: Game): RunSummary {
     elites: g.elitesKilled,
     flawlessBosses: g.flawlessBosses,
     relics: g.relics,
+    relicsFound: g.relicsFound,
+    relicTiers: g.relicTiers,
+    salvage: g.salvage,
     abilityUpgrades: g.player.upgrades.length,
     wave10Time: g.wave10Time,
     commanders: g.commandersKilled,

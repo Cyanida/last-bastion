@@ -3,10 +3,9 @@ import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
 import { CURSE_IDS, type CurseId } from '../config/curses';
 import type { EnemyId } from '../config/enemies';
-import { relicDef, type Rarity, type RelicId } from '../config/relics';
+import type { Rarity } from '../config/relics';
 import { WAVES } from '../config/waves';
 import { mulberry32 } from '../core/math';
-import type { Rng } from '../core/types';
 
 // ---------- Acts ----------
 export const actOf = (wave: number) => Math.max(1, Math.ceil(wave / ACTS.length));
@@ -36,17 +35,11 @@ export function bossForWave(wave: number, arena: ArenaId): EnemyId | null {
 }
 
 // ---------- Merchant ----------
-export type MerchantItem = 'heal' | 'reroll' | 'remove' | `buy:${Rarity}`;
+export type MerchantItem = 'heal' | 'reroll' | `buy:${Rarity}`;
 
 export function merchantPrice(item: MerchantItem, act: number): number {
-  const base = item.startsWith('buy:') ? MERCHANT.buy[item.slice(4) as Rarity] : item === 'heal' ? MERCHANT.heal.cost : MERCHANT[item as 'reroll' | 'remove'];
+  const base = item.startsWith('buy:') ? MERCHANT.buy[item.slice(4) as Rarity] : item === 'heal' ? MERCHANT.heal.cost : MERCHANT.reroll;
   return Math.round(base * (1 + MERCHANT.priceGrowth * (act - 1)));
-}
-
-/** A random relic of that rarity from the pool that is not held yet, or null. */
-export function randomRelic(pool: RelicId[], held: RelicId[], rarity: Rarity, rng: Rng): RelicId | null {
-  const options = pool.filter((id) => relicDef(id).rarity === rarity && !held.includes(id));
-  return options.length ? options[Math.floor(rng() * options.length)] : null;
 }
 
 // ---------- seeds and the Daily Trial ----------

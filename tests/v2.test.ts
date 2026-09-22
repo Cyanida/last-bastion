@@ -143,19 +143,16 @@ describe('relic hooks', () => {
     for (const id of g.relicOffers[0]) expect([undefined, 'paladin']).toContain(relicDef(id).classId);
   });
 
-  it('pool, rolls and the slot limit', () => {
+  it('pool and rolls (v0.4: no slot limit; a held relic at the top tier is never rolled again)', () => {
     const pool = relicPoolFor('viking', ['phoenixFeather']);
     expect(pool).toContain('wolfskin');
     expect(pool).not.toContain('reliquary');
     expect(pool).not.toContain('phoenixFeather');
-    const rolled = rollRelics(pool, ['whetstone'], mulberry32(3), 3);
+    const rolled = rollRelics(pool, ['whetstone'], { whetstone: 3 }, mulberry32(3), 3);
     expect(rolled).not.toContain('whetstone');
-    expect(rollRelics(['whetstone'], ['whetstone'], mulberry32(3), 3)).toEqual([]);
-
-    const full = RELIC_IDS.slice(0, 6);
-    expect(withRelic(full, 6, 'bloodPact')).toBe(full); // full and nothing given up
-    expect(withRelic(full, 6, 'bloodPact', 2)[2]).toBe('bloodPact');
-    expect(withRelic(full, 7, 'bloodPact')).toHaveLength(7); // the Keep's extra slot
+    expect(rollRelics(['whetstone'], ['whetstone'], { whetstone: 3 }, mulberry32(3), 3)).toEqual([]);
+    expect(withRelic({ whetstone: 3 }, 'whetstone')).toEqual({ whetstone: 3 });
+    expect(withRelic({}, 'bloodPact')).toEqual({ bloodPact: 1 });
   });
 });
 
@@ -362,7 +359,7 @@ describe('gold and cost calculations', () => {
     expect(startingStats(base, { hp: 99 }, 0).hp).toBe(s.hp); // ranks above the cap are ignored
 
     const g = createGame('archer', 1, { meta: maxed });
-    expect(g.relicSlots).toBe(7);
+    expect(g.relicSlots).toBe(metaLoadout(maxed).relicSlots); // v0.4: no longer a cap
     expect(g.rerolls).toBe(3);
     expect(g.gold).toBe(100);
     expect(summarizeRun(g).gold).toBe(0); // starting gold is not "earned"

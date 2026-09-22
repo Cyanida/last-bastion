@@ -26,7 +26,8 @@ export interface Save {
   gold: number;
   meta: MetaRanks;
   classes: Record<ClassId, ClassRecord>;
-  relicPicks: Partial<Record<RelicId, number>>;
+  relicPicks: Partial<Record<RelicId, number>>; // how often each relic was picked up or tiered up (the compendium)
+  runeShards: number; // v0.4: salvaged relics; Runes themselves arrive with the Keep rework
   achievements: string[];
   tierUnlocked: number; // highest difficulty index available
   counters: {
@@ -71,6 +72,9 @@ export interface RunSummary {
   daily?: string | null; // date of the Daily Trial this run was, if any
   seed?: number;
   levelAtWave?: number[];
+  relicsFound?: RelicId[]; // every pickup and tier-up (the compendium counts them)
+  relicTiers?: Partial<Record<RelicId, number>>;
+  salvage?: number; // Rune shards from salvaged relics
 }
 
 const emptyClass = (): ClassRecord => ({ bestWave: 0, runs: 0, kills: 0, time: 0, xp: 0 });
@@ -82,6 +86,7 @@ export function defaultSave(): Save {
     meta: {},
     classes: Object.fromEntries(CLASS_ORDER.map((id) => [id, emptyClass()])) as Record<ClassId, ClassRecord>,
     relicPicks: {},
+    runeShards: 0,
     achievements: [],
     tierUnlocked: 0,
     counters: { kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0 },
@@ -116,6 +121,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
       }
     }
     if (isObj(raw.relicPicks)) for (const [k, v] of Object.entries(raw.relicPicks)) save.relicPicks[k as RelicId] = num(v);
+    save.runeShards = Math.max(0, Math.floor(num(raw.runeShards)));
     if (Array.isArray(raw.achievements)) save.achievements = raw.achievements.filter((a): a is string => typeof a === 'string');
     save.tierUnlocked = Math.min(TIERS.length - 1, Math.floor(num(raw.tierUnlocked)));
     if (isObj(raw.counters)) {
@@ -171,7 +177,7 @@ export function applyRun(save: Save, run: RunSummary): { save: Save; classXp: nu
   const acts = run.actsCleared ?? 0;
   const tierUnlocked = run.tier === save.tierUnlocked && run.wavesCleared >= TIER_UNLOCK_WAVE && save.tierUnlocked < TIERS.length - 1;
   const relicPicks = { ...save.relicPicks };
-  for (const id of run.relics) relicPicks[id] = (relicPicks[id] ?? 0) + 1;
+  for (const id of run.relicsFound ?? run.relics) relicPicks[id] = (relicPicks[id] ?? 0) + 1; // v0.4: every pickup and tier-up counts
   return {
     classXp,
     tierUnlocked,
@@ -183,6 +189,7 @@ export function applyRun(save: Save, run: RunSummary): { save: Save; classXp: nu
         [run.classId]: { bestWave: Math.max(prev.bestWave, run.wave), runs: prev.runs + 1, kills: prev.kills + run.kills, time: prev.time + run.time, xp: prev.xp + classXp },
       },
       relicPicks,
+      runeShards: save.runeShards + (run.salvage ?? 0),
       tierUnlocked: save.tierUnlocked + (tierUnlocked ? 1 : 0),
       daily: run.daily ? { ...save.daily, [run.daily]: Math.max(save.daily[run.daily] ?? 0, run.wave) } : save.daily,
       counters: {

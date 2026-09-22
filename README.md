@@ -113,16 +113,17 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 ## A run
 
 - **Acts**: 10 waves each. Wave 5 brings a boss from the arena's rotation, wave 10 an **Act boss** with three phases (the Dragon burns strips of the map, the Warden seals you inside rings of stone). Then the **Merchant**, then the next arena and a themed Act.
-- **The Merchant** sells a heal, a random relic of the rarity you choose, a reroll or the removal of a relic, for run gold. That gold would otherwise be banked for the Keep.
+- **The Merchant** sells a heal and a random relic of the rarity you choose (new, or a tier up for one you carry), rerolls a relic, and buys relics back for gold or salvages them into Rune shards. Run gold spent here would otherwise be banked for the Keep.
 - **Enemies think**: ranged units keep their distance and reposition, melee units flank, wounded levies flee to healers. **Squads** march in formation behind a **commander** (Bannerman, Drummer, Chaplain, Hound Master): kill him and the squad scatters, routs or goes berserk. Commanders carry a bounty and show on the minimap.
 - **Damage types and status effects**: holy, shadow, fire, frost, physical; burn, chill (enough of it freezes), bleed, poison, stun, fear, curse. Knights have armor that breaks; shield bearers only break from behind; a shieldwall only holds while the line stands together.
-- **Level-ups, relics (31), ability upgrade tracks, elites and wave modifiers** as in v0.2.
+- **Relics (31)** have no slot cap since v0.4: a duplicate raises the relic a tier (three tiers, visibly stronger numbers). Every relic has a tooltip everywhere it appears (drop cards, the HUD bar, pause and results, the Merchant, the compendium in the Keep) with its current and next tier and its **synergies** (12 pairs that do something extra together) and **clashes** (4 pairs that warn). Relics of a kind add up and pass a soft cap (damage, attack speed, defense, utility; on-hit and on-kill procs share their chance past three relics; relic healing is capped per wave), shown in the HUD stats panel. Proc chains stop at depth 2. Late drops are mostly upgrades.
+- **Level-ups, ability upgrade tracks, elites and wave modifiers** as in v0.2.
 - **Curses** (class select screen): opt-in handicaps that raise the gold and class-XP multiplier. Unlocked through achievements.
 - **Daily Trial** (title screen): same seed, class, arena and curses for everyone that day. Any run's **seed** is on its results screen; type it on the class select to replay it.
 
 ## Between runs
 
-The Keep (permanent upgrades, class mastery), the Chronicle (26 achievements, statistics), difficulty tiers, and Settings (graphics quality, sound, updates, save data). See the v0.2 entry in the changelog for details; nothing was removed.
+The Keep (permanent upgrades, class mastery, the relic compendium), the Chronicle (26 achievements, statistics), difficulty tiers, and Settings (graphics quality, sound, updates, save data). See the v0.2 entry in the changelog for details; nothing was removed.
 
 ### Save format
 
@@ -177,14 +178,15 @@ public/        manifest + generated icons     build/  installer icon     docs/  
 
 - **Enemy**: a row in `config/enemies.ts`, a profile in `config/ai.ts`, an entry in `WAVES.pool` or a squad template. Only a new *kind* of action needs a function in `systems/specials.ts`. Resistances, armor and inflicted statuses are rows in `config/damage.ts`.
 - **Boss**: a def with `phases`, and a script registered with `registerBoss` in `systems/bosses.ts`.
-- **Relic / ability upgrade / class / arena**: as in v0.2 (data row + hook).
+- **Relic**: a row in `config/relics.ts` with its `category`, numbers `n` and two `tiers` overrides (the text is a function of the numbers, so every tier describes itself), plus a hook in `systems/relics.ts` if it reacts to events (read the tier's numbers through `n(g, id)`). A **synergy** is a row in `SYNERGIES` plus a `syn(g, id)` check inside the hooks it changes.
+- **Ability upgrade / class / arena**: as in v0.2 (data row + hook).
 - **Curse**: a row in `config/curses.ts`, read where it matters through `curseValue`, and an achievement that unlocks it.
 
 ## Known simplifications
 
 - No render interpolation between sim ticks (60 Hz sim; marked `ponytail:` in `main.ts`).
 - Obstacles and barriers are circle colliders; enemies slide around them rather than path-find.
-- Replacing or removing a relic does not undo one-time `acquire` effects (Blood Pact's HP cut stays).
+- Selling or salvaging a relic undoes Blood Pact's HP cut but not Phoenix Feather's charges (they stay until used).
 - Achievements are evaluated when the save changes (end of run, Keep purchase, import), not mid-run.
 - The Google Fonts are fetched from the network (and then cached by the service worker); fully offline from the very first start, or in the desktop app without a connection, headings fall back to a system serif.
 - In dev mode `window.__lb` exposes `start`, `run(ticks, holdAbility, mode)`, `bot(ticks)`, `draw()`, `save`, `quality` for automated smoke tests.

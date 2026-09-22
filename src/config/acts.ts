@@ -21,7 +21,6 @@ export const ACT_THEMES: { name: string; desc: string; bias: Bias }[] = [
 export const MERCHANT = {
   priceGrowth: 0.35,
   heal: { cost: 40, frac: 0.5 },
-  reroll: 45, // swap one of your relics for a random one of the same rarity
-  remove: 25, // drop a relic to free its slot
+  reroll: 45, // swap one of your relics for a random one of the same rarity (selling and salvage pay you instead: config/relics.ts RELIC_DROPS)
   buy: { common: 70, rare: 150, legendary: 330 } as Record<Rarity, number>,
 };

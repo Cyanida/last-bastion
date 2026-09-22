@@ -1,12 +1,13 @@
 import { MERCHANT } from '../config/acts';
 import { ARENAS } from '../config/arenas';
-import { relicDef, type Rarity } from '../config/relics';
+import { RELIC_DROPS, relicDef, type Rarity, type RelicId } from '../config/relics';
 import { sfx } from '../core/audio';
 import type { Game } from '../core/types';
-import { actName, arenaFor, merchantPrice, randomRelic, themeFor, type MerchantItem } from '../logic/acts';
+import { actName, arenaFor, merchantPrice, themeFor, type MerchantItem } from '../logic/acts';
+import { relicTier, rollRelics } from '../logic/relics';
 import { floatText } from './effects';
 import { gainXp } from './leveling';
-import { addRelic } from './relics';
+import { addRelic, removeRelic } from './relics';
 
 /** Pay for a Merchant item. Gold spent here never reaches the Keep: this run, or the next hundred? */
 function pay(g: Game, item: MerchantItem): boolean {
@@ -24,26 +25,44 @@ export function merchantHeal(g: Game): boolean {
   return true;
 }
 
+/** A random relic of that rarity: new, or a tier up for one you hold (the drop rules apply, so a full reliquary buys mostly upgrades). */
 export function merchantBuy(g: Game, rarity: Rarity): boolean {
-  if (g.relics.length >= g.relicSlots) return false;
-  const id = randomRelic(g.relicPool, g.relics, rarity, g.rng);
-  return id !== null && pay(g, `buy:${rarity}`) && addRelic(g, id);
+  const ofRarity = (id: RelicId) => relicDef(id).rarity === rarity;
+  const [id] = rollRelics(g.relicPool.filter(ofRarity), g.relics.filter(ofRarity), g.relicTiers, g.rng, 1);
+  return id !== undefined && pay(g, `buy:${rarity}`) && addRelic(g, id);
 }
 
-/** Swap a held relic for a random one of the same rarity. */
-export function merchantReroll(g: Game, index: number): boolean {
-  const old = g.relics[index];
-  if (!old) return false;
-  const id = randomRelic(g.relicPool, g.relics, relicDef(old).rarity, g.rng);
-  if (id === null || !pay(g, 'reroll')) return false;
-  g.relics = g.relics.filter((_, i) => i !== index);
-  return addRelic(g, id);
-}
-
-export function merchantRemove(g: Game, index: number): boolean {
-  if (!g.relics[index] || !pay(g, 'remove')) return false;
-  g.relics = g.relics.filter((_, i) => i !== index);
+/** Swap a held relic for a random new one of the same rarity, at the same tier. */
+export function merchantReroll(g: Game, id: RelicId): boolean {
+  const tier = relicTier(g.relicTiers, id);
+  if (tier === 0) return false;
+  const pool = g.relicPool.filter((r) => relicDef(r).rarity === relicDef(id).rarity && !g.relics.includes(r));
+  const [next] = rollRelics(pool, [], {}, g.rng, 1);
+  if (next === undefined || !pay(g, 'reroll')) return false;
+  removeRelic(g, id);
+  for (let t = 0; t < tier; t++) addRelic(g, next);
   return true;
+}
+
+export const sellPrice = (id: RelicId, tier: number, act: number): number => Math.round(merchantPrice(`buy:${relicDef(id).rarity}`, act) * RELIC_DROPS.sellFrac * tier);
+export const salvageValue = (id: RelicId, tier: number): number => RELIC_DROPS.salvage[relicDef(id).rarity] * tier;
+
+/** Sell a relic back for gold (all its tiers go). */
+export function merchantSell(g: Game, id: RelicId): boolean {
+  const tier = relicTier(g.relicTiers, id);
+  if (tier === 0) return false;
+  g.gold += sellPrice(id, tier, g.act);
+  sfx('xp');
+  return removeRelic(g, id);
+}
+
+/** Break a relic down into Rune shards (the Keep's second currency, v0.4) instead of gold. */
+export function merchantSalvage(g: Game, id: RelicId): boolean {
+  const tier = relicTier(g.relicTiers, id);
+  if (tier === 0) return false;
+  g.salvage += salvageValue(id, tier);
+  sfx('xp');
+  return removeRelic(g, id);
 }
 
 /** Leave the Merchant: on to the next Act, in the next arena. */

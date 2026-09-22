@@ -1,14 +1,16 @@
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
-import { relicDef } from '../config/relics';
+import { RELIC_CATEGORIES, RELIC_STACKING, relicDef } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
-import { STAT_KEYS, type Enemy, type Game, type StatKey } from '../core/types';
+import { STAT_KEYS, type Enemy, type Game, type Mods, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
 import { actName } from '../logic/acts';
+import { procScale, softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
+import { esc, relicTip, tierBadge } from './relicText';
 
 /** Tooltip for the enemy under the pointer (hover, or a tap on touch): what it is, what hurts it, what is on it. */
 export function updateInspect(e: Enemy | null, x: number, y: number): void {
@@ -88,7 +90,8 @@ function width(id: string, frac: number): void {
 }
 
 const fmt = (key: StatKey, v: number) => (key === 'atkSpd' ? v.toFixed(2) : String(Math.round(v * 10) / 10));
-const esc = (s: string) => s.replace(/"/g, '&quot;');
+let lastRelicKey = '';
+const MOD_NAMES: Partial<Record<keyof Mods, string>> = { damage: 'damage', atkSpd: 'attack speed', moveSpd: 'speed', cooldown: 'cooldown cut', pickup: 'pickup', xp: 'XP', gold: 'gold', armor: 'armor', crit: 'crit', pierce: 'pierce', minionAtkSpd: 'minion speed', minionDamage: 'minion damage' };
 
 export function updateHud(g: Game): void {
   const p = g.player;
@@ -117,15 +120,23 @@ export function updateHud(g: Game): void {
   const stats = STAT_KEYS.map((k) => `<div><span>${statLabel(k, p.cls)}</span><b>${fmt(k, p.stats[k])}</b></div>`).join('');
   const crit = Math.round(Math.min(0.6, critChance(p.stats.dex) + p.mods.crit) * 100);
   const armor = Math.round(Math.min(0.8, p.cls.armor + p.mods.armor) * 100);
-  html('h-stats', `${stats}<div class="dim"><span>Crit · Armor</span><b>${crit}% · ${armor}%</b></div><div class="dim"><span>Damage</span><b>×${(p.mods.damage * p.buff.damage).toFixed(2)}</b></div>`);
+  const relicStats = (Object.entries(g.relicTotals) as [keyof Mods, RelicModTotal][]).filter(([, t]) => t.count > 1 || t.raw > t.eff + 0.005);
+  const relicRows = relicStats.map(([key, t]) => `<div class="dim" data-tip="${esc(`${t.count} relics add up to +${Math.round(t.raw * 100)}% ${MOD_NAMES[key] ?? key}. Past the soft cap (+${Math.round(t.cap * 100)}%) each further relic counts for less: +${Math.round(t.eff * 100)}% in effect.`)}"><span>Relics: ${MOD_NAMES[key] ?? key}</span><b>+${Math.round(t.eff * 100)}%${t.raw > t.eff + 0.005 ? ` <s>${Math.round(t.raw * 100)}</s>` : ''}</b></div>`).join('');
+  const procs = (['onHit', 'onKill'] as const).map((c) => [c, procScale(g.relics, c)] as const).filter(([, s]) => s < 1).map(([c, s]) => `<div class="dim" data-tip="${esc(RELIC_CATEGORIES[c].desc)}"><span>${RELIC_CATEGORIES[c].name} procs</span><b>×${s.toFixed(2)}</b></div>`).join('');
+  const heal = g.vars.relicHeal ?? 0;
+  const healRow = heal > 0 ? `<div class="dim" data-tip="${esc(`Relics healed ${Math.round(heal * 100)}% of your max HP this wave. Past the soft cap (${Math.round(RELIC_STACKING.healCap * 100)}%) each further heal counts for less.`)}"><span>Relic healing (wave)</span><b>${Math.round(softCap(heal, RELIC_STACKING.healCap) * 100)}%${heal > RELIC_STACKING.healCap ? ` <s>${Math.round(heal * 100)}</s>` : ''}</b></div>` : '';
+  html('h-stats', `${stats}<div class="dim"><span>Crit · Armor</span><b>${crit}% · ${armor}%</b></div><div class="dim"><span>Damage</span><b>×${(p.mods.damage * p.buff.damage).toFixed(2)}</b></div>${relicRows}${procs}${healRow}`);
 
-  const slots = Array.from({ length: g.relicSlots }, (_, i) => {
-    const id = g.relics[i];
-    if (!id) return '<div class="relic empty"></div>';
-    const r = relicDef(id);
-    return `<div class="relic ${r.rarity}" tabindex="0" data-tip="${esc(`${r.name} — ${r.desc}`)}">${r.icon}</div>`;
-  }).join('');
-  html('h-relics', slots);
+  // relic bar: every held relic with its tier; hover or tap (focus) for the tooltip. Rebuilt only when the set changes.
+  const relicKey = g.relics.map((id) => `${id}${g.relicTiers[id]}`).join(',');
+  if (relicKey !== lastRelicKey) {
+    lastRelicKey = relicKey;
+    html('h-relics', g.relics.map((id) => {
+      const r = relicDef(id);
+      const tier = g.relicTiers[id] ?? 1;
+      return `<div class="relic ${r.rarity}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.relics))}">${r.icon}${tierBadge(tier)}</div>`;
+    }).join(''));
+  }
 
   text('h-ab-name', p.cls.ability.name);
   text('h-ab-desc', describeAbility(p));

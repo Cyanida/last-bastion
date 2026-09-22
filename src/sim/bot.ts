@@ -115,10 +115,7 @@ function scoreOption(g: Game, o: LevelUpOption): number {
 
 /** Resolve every pending choice the way the UI would, without the UI. `variant` picks the ability upgrade branch (0 or 1). */
 export function botChoose(g: Game, variant = 0): void {
-  while (g.relicOffers.length > 0) {
-    const full = g.relics.length >= g.relicSlots;
-    resolveRelicOffer(g, full ? null : g.relicOffers[0][0]);
-  }
+  while (g.relicOffers.length > 0) resolveRelicOffer(g, g.relicOffers[0][0]); // no cap since v0.4: always take the first (a held one = a tier up)
   while (g.pendingAbilityTiers.length > 0) {
     if (!chooseAbilityUpgrade(g, ABILITY_TRACKS[g.player.cls.id][g.pendingAbilityTiers[0]][variant])) g.pendingAbilityTiers.shift();
   }

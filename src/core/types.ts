@@ -5,7 +5,8 @@ import type { ClassDef } from '../config/classes';
 import type { TierDef } from '../config/economy';
 import type { AffixId } from '../config/elites';
 import type { EnemyDef, EnemyId } from '../config/enemies';
-import type { RelicId } from '../config/relics';
+import type { RelicId, SynergyId } from '../config/relics';
+import type { RelicTotals } from '../logic/relics';
 import type { ModifierId } from '../config/waves';
 import type { SpawnUnit, SquadPlan } from '../logic/director';
 import type { AiState } from '../logic/fsm';
@@ -330,10 +331,20 @@ export interface Game {
   timers: { t: number; fn: () => void }[]; // delayed actions (second volley, twin pulse...)
   vars: Record<string, number>; // scratch for relics and ability upgrades
   baseMods: Mods; // meta upgrades + tradeoffs; relics are layered on top each tick
-  relics: RelicId[];
-  relicSlots: number;
+  relics: RelicId[]; // held, in pickup order (no cap since v0.4: a duplicate pickup raises the tier)
+  relicTiers: Partial<Record<RelicId, number>>; // 1..RELIC_MAX_TIER per held relic
+  relicStatic: RelicTotals; // held relics' plain mods summed per key; rebuilt when relicModsDirty
+  relicDyn: Partial<Record<keyof Mods, number>>; // this tick's conditional bonuses from tick hooks (charges, horns, crowns)
+  relicTotals: RelicTotals; // static + dynamic, soft-capped: what went into p.mods this tick (the stats panel reads it)
+  relicModsDirty: boolean;
+  synergies: SynergyId[]; // active positive synergies (rebuilt with relicMods)
+  relicsFound: RelicId[]; // every pickup and tier-up this run, for the compendium
+  salvage: number; // Rune shards from salvaged relics
+  procDepth: number; // relic hooks running inside relic hooks; chains stop at RELIC_STACKING.procDepth
+  reaperMark: Enemy | null; // the Reaper synergy: the enemy the Hood last found below its threshold
+  relicSlots: number; // the Keep's old relic-slot ranks; no longer a cap (kept for save compatibility)
   relicPool: RelicId[]; // unlocked and allowed for this class
-  relicOffers: RelicId[][]; // queued choices (boss kill: 3, elite chest: 1)
+  relicOffers: RelicId[][]; // queued choices (boss kill: 3, elite chest: 1); a held relic in an offer means a tier up
   pendingAbilityTiers: number[];
   rerolls: number; // free rerolls per level-up screen
   gold: number;
