@@ -33,6 +33,9 @@ export function initAudio(): void {
   void ctx?.resume();
 }
 
+/** The one AudioContext and its noise buffer, for the menu music; null until the first gesture. */
+export const sharedAudio = () => (ctx && noise ? { ctx, noise } : null);
+
 export const isMuted = () => muted;
 export function toggleMute(): boolean {
   muted = !muted;

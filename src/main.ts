@@ -4,6 +4,7 @@ import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
 import { GAME, VIEW } from './config/game';
 import { initAudio, isMuted, toggleMute } from './core/audio';
+import { musicLevel, refreshMusic, setMusicLevel, startMenuMusic, stopMenuMusic } from './core/music';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
@@ -74,6 +75,7 @@ function menu(): void {
   onTitle = false;
   showHud(false);
   setTouchControls(false);
+  startMenuMusic();
 }
 
 function toTitle(): void {
@@ -161,7 +163,7 @@ function toSettings(): void {
   menu();
   const d = platform.desktop;
   showSettings(
-    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
+    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
     {
       back: toTitle,
       saveData: toSaveDialog,
@@ -173,6 +175,10 @@ function toSettings(): void {
       },
       mute() {
         mute();
+        toSettings();
+      },
+      music(level) {
+        setMusicLevel(level);
         toSettings();
       },
       perf() {
@@ -209,6 +215,7 @@ function toSaveDialog(): void {
 // ---------- run ----------
 function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {}): void {
   initAudio();
+  stopMenuMusic();
   clearOverlay();
   toasted.clear();
   lastToastCheck = '';
@@ -338,6 +345,7 @@ function openTalents(g: Game): void {
 function endRun(g: Game): void {
   state = 'results';
   setTouchControls(false);
+  startMenuMusic();
   const id = g.player.cls.id;
   const prevBest = save.classes[id].bestWave;
   const prevRank = masteryRank(save.classes[id].xp);
@@ -360,6 +368,7 @@ function endRun(g: Game): void {
 
 function mute(): void {
   setMuteIcon(toggleMute());
+  refreshMusic();
 }
 
 // ---------- simulation step ----------
@@ -491,7 +500,10 @@ setQuality(save.settings.quality);
 resize();
 initInput(canvas);
 document.documentElement.classList.toggle('touch', platform.touch);
-onFirstGesture(initAudio); // iOS: the AudioContext may only start from a touch
+onFirstGesture(() => {
+  initAudio(); // iOS: the AudioContext may only start from a touch
+  refreshMusic();
+});
 onAction((a) => {
   if (a === 'pause') togglePause();
   if (a === 'mute') mute();
