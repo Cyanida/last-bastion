@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.0 (in progress)
+
+- **Readable menus**: the menus now use Cinzel for headings and Alegreya Sans for text, like the HUD. The blackletter font is kept only for the title, and IM Fell English is gone.
+- **The web version updates only with a release**: GitHub Pages deploys the tagged commit after the release workflow succeeds, so work in progress on `main` never reaches players.
+
 ## v0.5.0 — Quests, a bigger map, sacred treasures, music, a readable HUD
 
 The rest of the Phase 4 plan (side quests with map expansion, the sacred treasures, the balance pass) plus two backlog items: menu music and HUD readability.

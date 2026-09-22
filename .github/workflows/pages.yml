@@ -1,8 +1,12 @@
 name: Deploy to GitHub Pages
 
+# The web version goes live with a release only (v0.6): once the Release workflow for a v* tag succeeds, this builds that
+# tagged commit, so work pushed to main between releases never reaches players. A manual run redeploys the latest tag.
+# workflow_run runs in the context of main, which is the only ref the github-pages environment accepts.
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ['Release (Windows installer)']
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -16,11 +20,18 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1' # the web build does not need the Electron binary
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - name: A manual run deploys the latest release tag
+        if: github.event_name == 'workflow_dispatch'
+        run: git checkout "$(git describe --tags --abbrev=0 --match 'v*')"
       - uses: actions/setup-node@v4
         with:
           node-version: 22

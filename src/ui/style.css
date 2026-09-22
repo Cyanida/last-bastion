@@ -5,8 +5,10 @@
   --gold: #c9a227;
   --blood: #8e1b1b;
   --stone: #34353a;
-  --heading: 'UnifrakturCook', 'Old English Text MT', serif;
-  --body: 'IM Fell English', Georgia, serif;
+  /* v0.6: readable type in the menus too. The blackletter stays on the title only; IM Fell English is gone. */
+  --title: 'UnifrakturCook', 'Old English Text MT', serif;
+  --heading: 'Cinzel', Georgia, serif;
+  --body: 'Alegreya Sans', 'Segoe UI', sans-serif;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #14110f; color: var(--ink); font-family: var(--body); user-select: none; }
@@ -38,8 +40,8 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 .bar.xp > span { font-size: 10px; line-height: 12px; }
 .stats > div { display: flex; justify-content: space-between; border-bottom: 1px dotted rgba(90, 61, 37, 0.5); padding: 1px 0; }
 .dim { opacity: 0.7; }
-/* IM Fell's old-style numerals read as letters at small sizes */
-.stats b, .bar > span { font-family: Georgia, serif; }
+/* numbers line up in columns */
+.stats b, .bar > span { font-variant-numeric: lining-nums tabular-nums; }
 
 /* ---------- HUD (v0.5 readability pass) ----------
    Shared looks for everything in a run (v0.6's markers, Last Stand and evolution cards should reuse them):
@@ -193,7 +195,7 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 .trow { display: flex; gap: 6px; justify-content: center; margin-bottom: 6px; }
 .talent { flex: 1; min-height: 58px; padding: 6px 8px; font: 13px var(--body); color: var(--ink); text-align: left; cursor: pointer; border: 2px solid #5a3d25; border-radius: 6px; background: linear-gradient(var(--parchment), var(--parchment-dark)); display: flex; flex-direction: column; gap: 2px; }
 .talent b { font-size: 14px; }
-.talent span { font-size: 12px; opacity: 0.85; }
+.talent span { font-size: 13px; opacity: 0.85; }
 .talent.open { border-color: var(--gold); box-shadow: 0 0 10px var(--gold); }
 .talent.taken { border-color: #3a6b2a; background: linear-gradient(#d9e3c4, #b9c9a0); }
 .talent.locked { opacity: 0.45; cursor: default; }
@@ -207,12 +209,12 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 .swatch i { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, #c23a2e, #3f6fae); display: block; }
 .swatch.on { border-color: var(--gold); box-shadow: 0 0 8px var(--gold); }
 @media (max-width: 760px) { .tree { grid-template-columns: 1fr; } }
-.hint { font-size: 12px; font-style: italic; opacity: 0.75; }
+.hint { font-size: 13px; font-style: italic; opacity: 0.75; }
 
 /* ---------- Screens ---------- */
 #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(rgba(20, 17, 15, 0.55), rgba(10, 8, 6, 0.92)); overflow: auto; padding: 20px; }
-h1 { font-family: var(--heading); font-size: clamp(56px, 10vw, 120px); margin: 0; color: #e9c95a; text-shadow: 0 4px 0 #2a1d10, 0 0 30px rgba(0, 0, 0, 0.9); font-weight: 700; }
-h1.small { font-size: clamp(36px, 5vw, 56px); }
+h1 { font-family: var(--title); font-size: clamp(56px, 10vw, 120px); margin: 0; color: #e9c95a; text-shadow: 0 4px 0 #2a1d10, 0 0 30px rgba(0, 0, 0, 0.9); font-weight: 700; }
+h1.small { font-family: var(--heading); font-size: clamp(32px, 4.5vw, 50px); }
 .dialog h1 { color: var(--ink); text-shadow: none; }
 .dialog h1.blood { color: var(--blood); }
 h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }

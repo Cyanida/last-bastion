@@ -72,7 +72,8 @@ npm run dev              # web, http://localhost:5173
 3. `.github/workflows/release.yml` runs on `windows-latest`: `npm ci`, type check, tests, `vite build`, then `electron-builder --publish always`.
    The GitHub Release ends up with the installer, its `.blockmap` (for differential updates) and `latest.yml` (what installed copies read to find the update). A last step fails the job if the `.exe` or `latest.yml` is missing.
 4. A version with a suffix (`0.4.0-beta.1`) is published as a **pre-release**; stable installs ignore those.
-5. Every push to `main` also redeploys the web build to GitHub Pages (`pages.yml`), which the PWA picks up as "new version available".
+5. When the release workflow succeeds, `pages.yml` deploys that tagged commit to GitHub Pages, which the PWA picks up as "new version available".
+   Pushes to `main` between releases never reach the web version; a manual run of `pages.yml` redeploys the latest tag.
 
 ### Testing the updater by hand
 
