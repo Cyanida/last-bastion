@@ -1,7 +1,7 @@
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
-import { RELIC_CATEGORIES, RELIC_STACKING, relicDef } from '../config/relics';
+import { RELIC_CATEGORIES, RELIC_STACKING, relicDef, type RelicId } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
 import { STAT_KEYS, type Enemy, type Game, type Mods, type Quest, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
@@ -35,53 +35,71 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
     ${armor ? `<div>${e.armorHp > 0 ? (armor.backBreak ? 'Shield up: strike it from behind' : `Armored: soaks ${Math.round(armor.reduction * 100)}% until broken`) : 'Armor broken'}</div>` : ''}
     ${e.def.aura ? `<div>Aura: ${e.def.aura.kind === 'heal' ? 'heals and rallies' : `+${Math.round((e.def.aura.value - 1) * 100)}% ${e.def.aura.kind}`} nearby allies</div>` : ''}
     ${statuses.length ? `<div>${statuses.join(' · ')}</div>` : ''}`);
-  el.style.left = `${Math.min(window.innerWidth - 240, x + 18)}px`;
-  el.style.top = `${Math.max(8, y - 20)}px`;
+  // right of the pointer, and above it in the lower half so it never runs off the bottom
+  el.style.left = `${Math.min(window.innerWidth - 260, x + 18)}px`;
+  const below = y < window.innerHeight / 2;
+  el.style.top = below ? `${Math.max(8, y - 20)}px` : '';
+  el.style.bottom = below ? '' : `${window.innerHeight - y - 20}px`;
 }
 
 const root = () => document.getElementById('hud')!;
 const $ = (id: string) => document.getElementById(id)!;
 
+/**
+ * Four corner stacks and two centre columns: elements in one stack flow and never overlap. The minimap is a canvas drawing;
+ * #h-map is its frame in the flow (renderer.ts drawMinimap draws inside it). Shared looks (style.css): .hud-panel (parchment,
+ * anchored), .hud-plate (dark, floating text and tooltips), .hud-badge (keys, tiers, chips).
+ */
 export function buildHud(onPause: () => void, onMute: () => void): void {
   root().innerHTML = `
-    <div class="hud-tl panel">
-      <div class="hud-name"><span id="h-class"></span> <span class="gold">Lv <span id="h-level"></span></span></div>
-      <div class="bar hp"><div id="h-hp-fill"></div><span id="h-hp-text"></span></div>
-      <div class="bar xp"><div id="h-xp-fill"></div><span id="h-xp-text"></span></div>
-      <div class="hud-purse"><span id="h-gold"></span><span id="h-tier" class="dim"></span></div>
-      <div id="h-status"></div>
+    <div class="hud-left">
+      <div class="hud-tl hud-panel">
+        <div class="hud-name"><span id="h-class"></span><span>Lv <span id="h-level"></span></span></div>
+        <div class="bar hp"><div id="h-hp-fill"></div><span id="h-hp-text"></span></div>
+        <div class="bar xp"><div id="h-xp-fill"></div><span id="h-xp-text"></span></div>
+        <div class="hud-purse"><span id="h-gold"></span><span id="h-tier"></span></div>
+        <div id="h-status"></div>
+      </div>
+      <div id="h-quests" class="hud-quests"></div>
+      <div id="h-map"></div>
+      <div class="hud-stats hud-panel" id="h-stats" tabindex="0"><div id="h-stats-grid"></div><div id="h-stats-all" class="hud-pop hud-plate"></div></div>
     </div>
-    <div id="h-inspect" class="panel hidden"></div>
+    <div class="hud-right">
+      <div class="hud-tr"><button id="btn-mute" title="Mute (M)"></button><button id="btn-pause" title="Pause (Esc / P)">❚❚</button></div>
+      <div class="hud-relics" id="h-relics"></div>
+      <div id="h-toasts"></div>
+    </div>
     <div class="hud-top">
-      <div id="h-wave" class="heading"></div>
-      <div id="h-left"></div>
-      <div id="h-mod" class="hidden"></div>
-      <div id="h-boss" class="hidden"><div id="h-boss-name" class="heading"></div><div class="bar boss"><div id="h-boss-fill"></div></div></div>
+      <div class="hud-wave hud-plate">
+        <div id="h-wave"></div>
+        <div id="h-left"></div>
+        <div id="h-mod" class="hidden"></div>
+        <div id="h-boss" class="hidden"><div id="h-boss-name"></div><div class="bar boss"><div id="h-boss-fill"></div></div></div>
+      </div>
+      <div id="h-banner" class="hud-plate"></div>
     </div>
-    <div class="hud-tr"><button id="btn-mute" title="Mute (M)"></button><button id="btn-pause" title="Pause (Esc / P)">❚❚</button></div>
-    <div id="h-quests" class="hud-quests"></div>
-    <div class="hud-stats panel" id="h-stats"></div>
-    <div class="hud-relics" id="h-relics"></div>
-    <div class="hud-ability panel">
-      <div id="h-ab-icon"><div id="h-ab-cd"></div><span id="h-ab-time"></span></div>
-      <div><div id="h-ab-name" class="heading"></div><div id="h-ab-desc"></div><div id="h-ab-ups" class="hint"></div></div>
-      <div id="h-ut-icon" tabindex="0"><div id="h-ut-cd"></div><span id="h-ut-time"></span></div>
+    <div class="hud-bottom">
+      <div id="h-talent" class="hud-plate hidden"></div>
+      <div class="hud-ability hud-panel">
+        <div class="hud-slot"><div id="h-ab-icon"><div id="h-ab-cd"></div><span id="h-ab-time"></span></div><b class="hud-badge hud-key">Space</b></div>
+        <div id="h-ab-text"><div id="h-ab-name"></div><div id="h-ab-desc"></div><div id="h-ab-ups"></div></div>
+        <div class="hud-slot" id="h-ut-slot" tabindex="0"><div id="h-ut-icon"><div id="h-ut-cd"></div><span id="h-ut-time"></span></div><span><b class="hud-badge hud-key">E</b> <span id="h-ut-name"></span></span></div>
+      </div>
     </div>
-    <div id="h-talent" class="hint hidden"></div>
-    <div id="h-banner" class="heading"></div>
-    <div id="h-toasts"></div>`;
+    <div id="h-inspect" class="hud-plate hidden"></div>`;
   $('btn-pause').onclick = onPause;
   $('btn-mute').onclick = onMute;
+  addEventListener('resize', () => (lastRelicKey = '')); // the relic bar's fit depends on the width
 }
 
 const TOAST_TIME = 4000;
 const TOAST_MAX = 3;
 
-/** v0.4: an achievement tier earned mid-run (v0.5: or a quest done or failed), under the wave banner. At most three at a time, gone after a few seconds. */
+/** v0.4: an achievement tier earned mid-run (v0.5: or a quest done or failed), in the top-right stack. At most three at a time (two on phones), gone after a few seconds. */
 export function toast(title: string, body: string, icon = '🏆'): void {
   const box = $('h-toasts');
   const el = document.createElement('div');
-  el.className = 'toast panel';
+  el.className = 'toast hud-plate';
   el.innerHTML = `<b>${icon} ${title}</b><span>${body}</span>`;
   box.appendChild(el);
   while (box.children.length > TOAST_MAX) box.firstElementChild!.remove();
@@ -104,6 +122,10 @@ function text(id: string, value: string): void {
 function html(id: string, value: string): void {
   const el = $(id);
   if (el.dataset.html !== value) el.innerHTML = el.dataset.html = value;
+}
+function tip(id: string, value: string): void {
+  const el = $(id);
+  if (el.dataset.tip !== value) el.dataset.tip = value;
 }
 function width(id: string, frac: number): void {
   const w = `${Math.max(0, Math.min(1, frac)) * 100}%`;
@@ -131,9 +153,9 @@ export function updateHud(g: Game): void {
   text('h-wave', g.wave > 0 ? `${actName(g.act)} · Wave ${g.wave}` : 'Prepare…');
   let left = g.spawnQueue.length;
   for (const e of g.enemies) if (!e.side) left++; // v0.5: lairs, quest targets and events are not the wave
-  text('h-left', g.breather > 0 && g.wave > 0 ? 'Next wave incoming' : `${left} enemies remaining`);
+  text('h-left', g.breather > 0 && g.wave > 0 ? 'Next wave incoming' : `${left} ${left === 1 ? 'enemy' : 'enemies'} remaining`);
   $('h-mod').classList.toggle('hidden', !g.modifier);
-  if (g.modifier) text('h-mod', `${MODIFIERS[g.modifier].name} — ${MODIFIERS[g.modifier].desc}`);
+  if (g.modifier) html('h-mod', `<b>${MODIFIERS[g.modifier].name}</b><span> — ${MODIFIERS[g.modifier].desc}</span>`); // phones show the name only
 
   const boss = g.enemies.find((e) => e.def.boss);
   $('h-boss').classList.toggle('hidden', !boss);
@@ -150,22 +172,34 @@ export function updateHud(g: Game): void {
   const procs = (['onHit', 'onKill'] as const).map((c) => [c, procScale(g.relics, c)] as const).filter(([, s]) => s < 1).map(([c, s]) => `<div class="dim" data-tip="${esc(RELIC_CATEGORIES[c].desc)}"><span>${RELIC_CATEGORIES[c].name} procs</span><b>×${s.toFixed(2)}</b></div>`).join('');
   const heal = g.vars.relicHeal ?? 0;
   const healRow = heal > 0 ? `<div class="dim" data-tip="${esc(`Relics healed ${Math.round(heal * 100)}% of your max HP this wave. Past the soft cap (${Math.round(RELIC_STACKING.healCap * 100)}%) each further heal counts for less.`)}"><span>Relic healing (wave)</span><b>${Math.round(softCap(heal, RELIC_STACKING.healCap) * 100)}%${heal > RELIC_STACKING.healCap ? ` <s>${Math.round(heal * 100)}</s>` : ''}</b></div>` : '';
-  html('h-stats', `${stats}<div class="dim"><span>Crit · Armor</span><b>${crit}% · ${armor}%</b></div><div class="dim"><span>Damage</span><b>×${(p.mods.damage * p.buff.damage).toFixed(2)}</b></div>${relicRows}${procs}${healRow}`);
+  const damage = `×${(p.mods.damage * p.buff.damage).toFixed(2)}`;
+  // in a fight: the six numbers that matter, in two columns; hover (tap) the panel for everything
+  const cell = (label: string, value: string) => `<div><span>${label}</span><b>${value}</b></div>`;
+  html('h-stats-grid', cell('Damage', damage) + cell('Attack', `${p.stats.atkSpd.toFixed(2)}/s`) + cell('Crit', `${crit}%`) + cell('Armor', `${armor}%`) + cell('Speed', String(Math.round(p.stats.moveSpd))) + cell(statLabel('secondary', p.cls), fmt('secondary', p.stats.secondary)));
+  html('h-stats-all', `${stats}<div class="dim"><span>Crit · Armor</span><b>${crit}% · ${armor}%</b></div><div class="dim"><span>Damage</span><b>${damage}</b></div>${relicRows}${procs}${healRow}`);
 
-  // relic bar: every held relic with its tier; hover or tap (focus) for the tooltip. Rebuilt only when the set changes.
+  // relic bar: one row of the newest relics that fit, older ones behind a "+N" chip (hover or tap); tap or hover a relic for its tooltip.
+  // Rebuilt only when the set changes (or the window is resized).
   const relicKey = g.relics.map((id) => `${id}${g.relicTiers[id]}`).join(',');
   if (relicKey !== lastRelicKey) {
     lastRelicKey = relicKey;
-    html('h-relics', g.relics.map((id) => {
+    const tile = (id: RelicId) => {
       const r = relicDef(id);
       const tier = g.relicTiers[id] ?? 1;
       return `<div class="relic ${r.rarity}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.relics))}">${r.icon}${tierBadge(tier)}</div>`;
-    }).join(''));
+    };
+    // 50px a tile; desktop keeps clear of the ability panel, touch (bar at the top) of the wave plate
+    const fit = Math.max(3, Math.min(8, Math.floor((innerWidth / 2 - (document.documentElement.classList.contains('compact') ? 140 : 300)) / 50)));
+    const older = g.relics.length > fit ? g.relics.slice(0, g.relics.length - fit) : [];
+    const more = older.length ? `<div class="relic more" tabindex="0">+${older.length}<div class="hud-pop hud-plate">${older.map(tile).join('')}</div></div>` : '';
+    html('h-relics', more + g.relics.slice(older.length).map(tile).join(''));
   }
 
   text('h-ab-name', p.cls.ability.name);
-  text('h-ab-desc', describeAbility(p));
-  text('h-ab-ups', p.upgrades.length ? p.upgrades.map((id) => ABILITY_UPGRADES[id].name).join(' · ') : 'Space / Right mouse');
+  const desc = describeAbility(p);
+  text('h-ab-desc', desc);
+  html('h-ab-ups', p.upgrades.map((id) => `<b class="hud-badge">${ABILITY_UPGRADES[id].name}</b>`).join(''));
+  tip('h-ab-text', `${p.cls.ability.name} (Space / Right mouse)\n${desc}${p.upgrades.length ? `\nUpgrades: ${p.upgrades.map((id) => ABILITY_UPGRADES[id].name).join(', ')}` : ''}`);
   const ready = p.abilityCd <= 0;
   $('h-ab-icon').classList.toggle('ready', ready);
   $('h-ab-icon').classList.toggle('active', p.abilityTime > 0);
@@ -182,12 +216,12 @@ export function updateHud(g: Game): void {
   const util = utilityDef(p);
   const unlocked = utilityUnlocked(p);
   const utilReady = unlocked && p.utilityCd <= 0;
-  const utilIcon = $('h-ut-icon');
-  utilIcon.classList.toggle('ready', utilReady);
-  utilIcon.classList.toggle('locked', !unlocked);
-  utilIcon.setAttribute('data-tip', esc(`${util.name} (E / Shift · X / RB)\n${describeUtility(p)}`));
+  $('h-ut-icon').classList.toggle('ready', utilReady);
+  $('h-ut-slot').classList.toggle('locked', !unlocked);
+  tip('h-ut-slot', `${util.name} (E / Shift · X / RB)${unlocked ? '' : ` · unlocks at level ${UTILITY.unlockLevel}`}\n${describeUtility(p)}`);
+  text('h-ut-name', util.name);
   $('h-ut-cd').style.height = unlocked ? `${(p.utilityCd / p.utilityCdMax) * 100}%` : '100%';
-  text('h-ut-time', !unlocked ? `${UTILITY.unlockLevel}` : utilReady ? util.icon : p.utilityCd.toFixed(1));
+  text('h-ut-time', !unlocked ? `Lv ${UTILITY.unlockLevel}` : utilReady ? util.icon : p.utilityCd.toFixed(1));
   const utilBtn = document.getElementById('btn-utility');
   if (utilBtn) {
     utilBtn.classList.toggle('ready', utilReady);
@@ -199,7 +233,7 @@ export function updateHud(g: Game): void {
   let lines = '';
   for (const q of g.quests) {
     if (q.state === 'offered') continue;
-    lines += `<div class="panel ${q.state}">${QUESTS[q.kind].icon} ${q.name} · ${q.state === 'active' ? questProgress(q) : q.state}</div>`;
+    lines += `<div class="hud-plate ${q.state}">${QUESTS[q.kind].icon} ${q.name} <b>${q.state === 'active' ? questProgress(q) : q.state}</b></div>`;
     if (q.state !== 'active' && !toastedQuests.has(q)) {
       toastedQuests.add(q);
       toast(q.state === 'done' ? `Quest done: ${q.name}` : `Quest failed: ${q.name}`, q.state === 'done' ? `${REWARDS[q.reward].icon} ${REWARDS[q.reward].name}` : 'No harm done. The board has more.', '📜');
@@ -215,4 +249,12 @@ export function updateHud(g: Game): void {
   const banner = $('h-banner');
   text('h-banner', g.banner.text);
   banner.style.opacity = String(Math.max(0, Math.min(1, g.banner.t)));
+
+  // the minimap's frame: hidden under the Blind curse, shaped like this arena (renderer.ts draws the map inside it)
+  const map = $('h-map');
+  map.classList.toggle('hidden', g.curses.includes('blind'));
+  if (map.dataset.arena !== g.arena.id) {
+    map.dataset.arena = g.arena.id;
+    map.style.aspectRatio = `${g.arena.w} / ${g.arena.h}`;
+  }
 }

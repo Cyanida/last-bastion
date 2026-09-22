@@ -553,9 +553,7 @@ function resize(): void {
   canvas.style.width = `${w}px`;
   canvas.style.height = `${h}px`;
   view.zoom = clamp(Math.min(w / VIEW.targetW, h / VIEW.targetH), VIEW.minZoom, VIEW.maxZoom) * view.dpr;
-  const root = document.documentElement;
-  root.style.setProperty('--hud-scale', String(clamp(Math.min(w / 1280, h / 720), 0.55, 1)));
-  root.classList.toggle('compact', h < 560);
+  document.documentElement.classList.toggle('compact', h < 560); // v0.5: phones get a denser HUD layout at full text size, not a scaled-down one
 }
 window.addEventListener('resize', resize);
 window.visualViewport?.addEventListener('resize', resize);
