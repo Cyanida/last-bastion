@@ -57,7 +57,7 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
-| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (129 tests) |
+| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (168 tests) |
 | `npm run test:perf` | headless Chromium frame-time test of Fog and Blood Moon against the built game (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
 | `npm run icons` | redraw all icons and the README QR code from code |
@@ -125,7 +125,7 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 
 ## Between runs
 
-The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks; a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the Chronicle (achievements, statistics), difficulty tiers, and Settings (graphics quality, sound, updates, save data).
+The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks; a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the **Chronicle** (62 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, updates, save data).
 
 ### Save format
 

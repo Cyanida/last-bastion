@@ -1,6 +1,8 @@
 # Changelog
 
-## v0.4.0 (in progress)
+## v0.4.0 — Performance, scaling, relics, talents, the Keep, achievements
+
+Playtest feedback, in order: frame drops in Fog and Blood Moon, level-ups slowing down late, stale runs, too few build choices, a Keep emptied by one good run, shallow achievements, the relic cap and missing tooltips. This release covers the first six of the nine planned increments; **side quests with map expansion, the sacred treasures and the balance pass follow in v0.5.**
 
 ### Performance
 - **Perf overlay** (F3, or Settings > Performance overlay): frame / update / render time, entity counts and draw calls, with a p95 over the last 300 frames.
@@ -36,7 +38,19 @@
 - **Account level** = every class's mastery rank added up (0-125), with milestones at 10 / 25 / 50 / 75 / 100 (gold, a reroll, XP, a talent point, damage).
 - **Caps**: gold from curses and the Daily Trial is capped per calendar day (600 / 400, +200 per Toll Gate rank), and a single run banks at most twice the run cap (1200, +400 per rank) with diminishing returns past it: one deep run no longer empties the Keep's shopping list.
 - `npm run sim -- economy` plays one save run after run, buying greedily, and reports when the Keep is fully raised (BALANCE.md; target 40-60 runs).
-- Save format **version 4** (buildings, Runes, daily gold, the trait and palettes in settings); v2 and v3 saves migrate.
+
+### Achievements
+- **62 deeds in six categories** (Survival, Combat, Champions, Collection, Challenges, Secrets), most with **bronze / silver / gold tiers** (152 tiers), counters and progress bars; 11 hidden deeds show only a hint until earned.
+- **Every tier pays**: Runes (1 / 2 / 4), and gold tiers add titles, trait unlocks, account-wide sprite palettes, permanent starting talent points or a sacred treasure step.
+- **15 class feats on real mechanics**: one Divine Shield absorbing 2,000 / 5,000 / 12,000; 100 kills in one Berserker Rage; 20 minions alive at once; 40 enemies under one Arrow Volley; 50 caught by one Corpse Explosion...
+- **Titles** are equipped in the Chronicle and shown on the title and results screens; an **in-run toast** announces a tier the moment it is earned; the **Chronicle** has category and earned / hidden filters and is reachable from the title screen and the Keep.
+- Existing deed ids keep their meaning (a stored id means "bronze earned"); `champion` and `legend` became tiers of `knight` and migrate.
+
+### Save
+- Format **version 4** (buildings, Runes, daily gold, achievement tiers and rewards, the trait and palettes in settings); v2 and v3 saves migrate, a v3 save is granted a Rune per achievement.
+
+### Known state, for v0.5
+- With talents and the utility abilities the balance bot's maxed runs go far deeper than fresh ones (ratio 4.1x, target 1.5-2x) and the Archer trails the other classes; the v0.5 balance pass steepens the tail past wave 30 and revisits the utility cooldowns and the class spread. The relic power index and the Keep's economy are re-run there too (achievement tiers now add early Rune income).
 
 ## v0.3.1
 - The title screen shows the full version next to the build date ("build 2026-09-22 · v0.3.1"). This is the release that proves the auto-updater: an installed 0.3.0 finds it, downloads it and offers the restart.

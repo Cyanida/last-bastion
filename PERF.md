@@ -85,3 +85,12 @@ builds the scenario through the `?debug` hook, lets the real loop run 300 frames
 `PERF_BUDGET_MS` (default 20). It runs in CI (`.github/workflows/perf.yml`) on every push to `main` with `PERF_BUDGET_MS=34`:
 GitHub's runners raster the canvas in software (no GPU) and are roughly twice as slow as a desktop, so 34 ms there (two vsyncs)
 is the equivalent of the 20 ms desktop budget. The number to watch over time is the p95 in the job's log, not just the pass mark.
+
+## At the v0.4.0 release
+
+CI run on the release commit (software raster, `PERF_BUDGET_MS=34`): Fog p95 **16.8 ms** (avg 17.0, update 0.6, render 0.9), Blood Moon p95 **16.7 ms**
+(avg 16.7, update 0.55, render 0.8), 243-250 enemies, 1,275-1,315 draw calls, detail 1.0: both at the 60 Hz vsync with under 2 ms of work per frame,
+so the v0.4 additions (relic tiers and stacking, talents, the utility ability, the achievement toasts) cost nothing measurable.
+On the development laptop the same test read p95 33.3 ms for both scenarios with 1.3 ms update / 2.7 ms render: that is the headless compositor
+presenting at 30 Hz while Teams and a video call were running, not the game. Read the update/render columns before the frame column when a
+local run fails.
