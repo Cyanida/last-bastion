@@ -153,7 +153,8 @@ export function updateHud(g: Game): void {
   text('h-wave', g.wave > 0 ? `${actName(g.act)} · Wave ${g.wave}` : 'Prepare…');
   let left = g.spawnQueue.length;
   for (const e of g.enemies) if (!e.side) left++; // v0.5: lairs, quest targets and events are not the wave
-  text('h-left', g.breather > 0 && g.wave > 0 ? 'Next wave incoming' : `${left} ${left === 1 ? 'enemy' : 'enemies'} remaining`);
+  const clock = `${Math.floor(g.time / 60)}:${String(Math.floor(g.time % 60)).padStart(2, '0')}`; // v0.6: the run's time
+  text('h-left', `${g.breather > 0 && g.wave > 0 ? 'Next wave incoming' : `${left} ${left === 1 ? 'enemy' : 'enemies'} remaining`} · ⏱ ${clock}`);
   $('h-mod').classList.toggle('hidden', !g.modifier);
   if (g.modifier) html('h-mod', `<b>${MODIFIERS[g.modifier].name}</b><span> — ${MODIFIERS[g.modifier].desc}</span>`); // phones show the name only
 

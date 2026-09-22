@@ -12,6 +12,7 @@ import { TREASURE_RULES } from '../config/treasures';
 import { curseMultiplier } from './curses';
 import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, runesForActBoss, type BuildingLevels, type MetaRanks } from './economy';
 import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
+import { keepRuns, readRunLog, type RunLog } from './runlog';
 
 export const SAVE_VERSION = 4;
 const READABLE_VERSIONS = [2, 3, 4]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
@@ -64,6 +65,7 @@ export interface Save {
     events: number; // wave events come upon
   };
   daily: Record<string, number>; // v0.3: 'YYYY-MM-DD' -> best wave in that day's trial
+  runs: RunLog[]; // v0.6: the last RUN_LOG.keep runs' timelines, oldest first (Run History)
   settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; palettes: Partial<Record<ClassId, number>> };
 }
 
@@ -100,6 +102,7 @@ export interface RunSummary {
   events?: number; // v0.5 wave events come upon
   questRunes?: number; // Runes from quest rewards, banked on top of the per-run boss cap
   treasure?: ChainRun; // v0.5: what the run did for its class's treasure chain
+  log?: RunLog; // v0.6: the run's timeline, for Run History
 }
 
 const emptyClass = (): ClassRecord => ({ bestWave: 0, runs: 0, kills: 0, time: 0, xp: 0 });
@@ -125,6 +128,7 @@ export function defaultSave(): Save {
     tierUnlocked: 0,
     counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
     daily: {},
+    runs: [],
     settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', palettes: {} },
   };
 }
@@ -186,6 +190,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
       for (const k of NUMERIC_COUNTERS) save.counters[k] = num(c[k]);
       if (Array.isArray(c.bossKinds)) save.counters.bossKinds = c.bossKinds.filter((b): b is EnemyId => typeof b === 'string');
     }
+    if (Array.isArray(raw.runs)) save.runs = keepRuns(raw.runs.map(readRunLog).filter((r): r is RunLog => r !== null));
     if (isObj(raw.daily)) for (const [day, wave] of Object.entries(raw.daily)) if (/^\d{4}-\d{2}-\d{2}$/.test(day) && num(wave) > 0) save.daily[day] = num(wave);
     if (isObj(raw.settings)) {
       const s = raw.settings;
@@ -238,7 +243,7 @@ export function buyBuilding(save: Save, id: BuildingId): Save {
 export const today = (): string => new Date().toISOString().slice(0, 10);
 
 /** Fold a run into the save: gold, class XP, records, counters, difficulty unlock. Achievements are evaluated separately. */
-export function applyRun(save: Save, run: RunSummary, date = today()): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number } {
+export function applyRun(save: Save, run: RunSummary, date = today(), at = new Date().toISOString()): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number } {
   const curses = run.curses ?? [];
   const loadout = metaLoadout(save.meta);
   const curseMult = curseMultiplier(curses) + curses.length * loadout.curseBonus;
@@ -292,6 +297,7 @@ export function applyRun(save: Save, run: RunSummary, date = today()): { save: S
       runeShards: Math.round(shards % RUNES.shardsPerRune),
       tierUnlocked: save.tierUnlocked + (tierUnlocked ? 1 : 0),
       daily: run.daily ? { ...save.daily, [run.daily]: Math.max(save.daily[run.daily] ?? 0, run.wave) } : save.daily,
+      runs: keepRuns(save.runs, run.log && { ...run.log, at }),
       counters: {
         ...feats,
         kills: c.kills + run.kills,

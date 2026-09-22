@@ -30,7 +30,7 @@ import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showSaveDialog, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRunHistory, showSaveDialog, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { TIER_NUMERALS } from './config/relics';
@@ -39,6 +39,7 @@ import { CLASS_ORDER } from './config/classes';
 import { MASTERY } from './config/economy';
 import { spendTalent } from './systems/talents';
 import { chooseBlessing } from './systems/regions';
+import { markBored } from './systems/runlog';
 import { takeQuests } from './systems/quests';
 import { peddlerBuy, peddlerPrice } from './systems/events';
 import { QUEST_BOARD } from './config/quests';
@@ -162,6 +163,7 @@ function toKeep(): void {
     chronicle: () => toChronicle(toKeep),
     mastery: (id) => showMastery(save, id, toKeep),
     treasures: () => showTreasures(save, null, toKeep),
+    history: () => showRunHistory(save.runs, toKeep),
     buy(id: MetaId) {
       commit(buyMeta(save, id));
       toKeep();
@@ -387,7 +389,20 @@ function togglePause(): void {
 }
 
 function pauseMenu(g: Game): void {
-  showPause(buildOf(g), togglePause, () => endRun(g), () => openTalents(g), () => showTreasures(applyRun(save, summarizeRun(g)).save, g.player.cls.id, () => pauseMenu(g))); // the log as it would stand if the run ended now
+  showPause(buildOf(g), {
+    resume: togglePause,
+    quit: () => endRun(g),
+    talents: () => openTalents(g),
+    treasures: () => showTreasures(applyRun(save, summarizeRun(g)).save, g.player.cls.id, () => pauseMenu(g)), // the log as it would stand if the run ended now
+    bored: () => markBored(g),
+  });
+}
+
+/** v0.6 playtest aid: F8 stamps "bored here" into the run log (the pause menu has a button for touch). */
+function bored(): void {
+  if (!game || state === 'menu' || state === 'results') return;
+  markBored(game);
+  toast('Noted', 'Marked in the run log: bored here.', '😴');
 }
 
 /** The talent tree, from the pause menu (the game stays paused). */
@@ -577,6 +592,7 @@ onAction((a) => {
   if (a === 'pause') togglePause();
   if (a === 'mute') mute();
   if (a === 'perf') togglePerf();
+  if (a === 'bored') bored();
 });
 buildHud(togglePause, mute);
 initTooltips();

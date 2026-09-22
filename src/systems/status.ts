@@ -1,4 +1,4 @@
-import { STATUS_TUNING, type DamageType } from '../config/damage';
+import { DAMAGE_TYPES, STATUS_TUNING, type DamageType } from '../config/damage';
 import type { Game } from '../core/types';
 import { tickStatuses } from '../logic/status';
 import { damageEnemy, damagePlayer } from './combat';
@@ -33,7 +33,7 @@ export function updateStatuses(g: Game, dt: number): void {
   for (const type of Object.keys(dots) as DamageType[]) p.dots[type] = (p.dots[type] ?? 0) + dots[type]!;
   if ((p.dotT -= dt) <= 0) {
     p.dotT = STATUS_TUNING.dotTick;
-    flush(p.dots, (amount) => damagePlayer(g, amount, true));
+    flush(p.dots, (amount, type) => damagePlayer(g, amount, true, null, `${DAMAGE_TYPES[type].name.toLowerCase()} damage over time`));
   }
   for (const m of g.minions) {
     if ((m.blessedT -= dt) > 0) m.hp = Math.min(m.maxHp, m.hp + STATUS_TUNING.blessedRegen * dt);

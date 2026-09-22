@@ -10,6 +10,7 @@ import type { TraitId } from '../config/traits';
 import type { BlessingId, FeatureKind, Rect, RegionId, WingId } from '../config/regions';
 import type { UtilityUpgradeId } from '../config/utility';
 import type { QuestKind, RewardKind } from '../config/quests';
+import type { RunLogDraft } from '../logic/runlog';
 import type { EventKind } from '../config/events';
 import type { TreasureId } from '../config/treasures';
 import type { RelicTotals } from '../logic/relics';
@@ -486,5 +487,6 @@ export interface Game {
   treasure: { id: TreasureId; tier: number } | null; // v0.5: the sacred treasure equipped at run start
   chain: Chain | null; // v0.5: the treasure chain, while mastery has opened it (never in a Daily Trial)
   banner: { text: string; t: number };
+  log: RunLogDraft; // v0.6 run log, recorded by systems/runlog.ts
   over: boolean;
 }

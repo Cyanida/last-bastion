@@ -192,7 +192,8 @@ function revive(g: Game): boolean {
   return true;
 }
 
-export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, attacker: Enemy | null = null): void {
+/** `cause` names what hurt when it was not an enemy (the run log's cause of death). */
+export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, attacker: Enemy | null = null, cause = 'something unseen'): void {
   const p = g.player;
   if (g.over || p.invulnT > 0) return;
   if (p.invulnerable) {
@@ -219,6 +220,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
     else if (!revive(g)) {
       p.hp = 0;
       g.over = true;
+      g.log.cause = attacker ? `${attacker.elite ? 'elite ' : ''}${attacker.def.name}` : cause;
       burst(g, p.x, p.y, BLOOD, 40, 260);
       return;
     }
@@ -400,7 +402,7 @@ export function updateFields(g: Game, dt: number): void {
       const inside = dist2(f.x, f.y, p.x, p.y) <= f.r * f.r;
       if (f.hostile) {
         if (inside) {
-          damagePlayer(g, f.dps * GAME.fieldTick, true);
+          damagePlayer(g, f.dps * GAME.fieldTick, true, null, `${DAMAGE_TYPES[f.dtype].name.toLowerCase()} on the ground`);
           if (f.apply) applyStatusTo(p.statuses, f.apply);
         }
         for (const m of g.minions) if (dist2(f.x, f.y, m.x, m.y) <= f.r * f.r) damageMinion(g, m, f.dps * GAME.fieldTick);

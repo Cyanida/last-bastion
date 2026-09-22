@@ -29,6 +29,8 @@ import type { Action } from '../input/mapping';
 import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { exportSave, type Save } from '../logic/save';
+import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
+import { ACTS } from '../config/acts';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
 import { getSprite, SPRITE_PALETTES } from '../render/sprites';
 
@@ -245,7 +247,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   click(el, '[data-back]', on.back);
 }
 
-export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; chronicle: () => void; treasures: () => void; back: () => void }): void {
+export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; chronicle: () => void; treasures: () => void; history: () => void; back: () => void }): void {
   const row = (id: MetaId) => {
     const m = META[id];
     const rank = save.meta[id] ?? 0;
@@ -290,10 +292,11 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
         ${nextMilestone ? `Account level ${nextMilestone.level}: <em>${nextMilestone.name}</em> — ${nextMilestone.desc}.` : 'Every account milestone reached.'}</p>
       <div class="masteries">${mastery}</div>
       <div class="milestones">${ACCOUNT_MILESTONES.map((m) => `<span class="${level >= m.level ? 'on' : ''}" data-tip="${esc(m.desc)}">${level >= m.level ? '✔ ' : ''}${m.level} ${m.name}</span>`).join('')}</div>
-      <div class="row"><button class="btn" data-compendium>Relic compendium</button><button class="btn" data-treasures>Sacred treasures</button><button class="btn" data-chronicle>Chronicle</button></div>
+      <div class="row"><button class="btn" data-compendium>Relic compendium</button><button class="btn" data-treasures>Sacred treasures</button><button class="btn" data-chronicle>Chronicle</button><button class="btn" data-history>Run history</button></div>
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-chronicle]', on.chronicle);
+  click(el, '[data-history]', on.history);
   click(el, '[data-buy]', (b) => on.buy(b.dataset.buy as MetaId));
   click(el, '[data-raise]', (b) => on.raise(b.dataset.raise as BuildingId));
   click(el, '[data-mastery]', (b) => on.mastery(b.dataset.mastery as ClassId));
@@ -301,6 +304,58 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
   click(el, '[data-treasures]', on.treasures);
   click(el, '[data-back]', on.back);
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
+}
+
+const MARK_ICONS: Record<MarkKind, string> = { level: '', relic: '💠', talent: '🌿', upgrade: '⬆️', board: '📜', quest: '✔️', event: '❗', shrine: '⛩️', boss: '💀', merchant: '🪙', act: '🚩', bored: '😴' };
+const MARK_NAMES: Record<MarkKind, string> = { level: 'Level', relic: 'Relic', talent: 'Talent', upgrade: 'Upgrade', board: 'Quest board', quest: 'Quest done', event: 'Event', shrine: 'Shrine', boss: 'Boss slain', merchant: 'Merchant', act: 'New Act', bored: 'Bored here' };
+
+/** v0.6: one run's timeline: a band per wave (width = how long it took), level-ups as ticks, everything else as icons above it. */
+function timeline(r: RunLog): string {
+  const at = (t: number) => `${((t / Math.max(1, r.time)) * 100).toFixed(2)}%`;
+  const waves = r.waves.map(([start, end, dmg, quiet], i) => {
+    const w = i + 1;
+    const took = (end || r.time) - start;
+    return `<i class="tw act${Math.floor(i / ACTS.length) % 2} ${w % 5 === 0 ? 'boss' : ''}" style="left:${at(start)};width:${at(took)}" data-tip="${esc(`Wave ${w} · ${fmtTime(took)}${end ? '' : ' (not cleared)'} · ${dmg} damage taken · ${Math.round(quiet)} s with under 5 enemies`)}"></i>`;
+  }).join('');
+  const ticks = r.marks.filter((m) => m[1] === 'level').map(([t]) => `<i class="tl" style="left:${at(t)}"></i>`).join('');
+  const marks = r.marks.filter((m) => m[1] !== 'level').map(([t, kind, detail]) => `<i class="tm m-${kind}" style="left:${at(t)}" data-tip="${esc(`${fmtTime(t)} · ${MARK_NAMES[kind]}${detail ? `: ${detail}` : ''}`)}">${MARK_ICONS[kind]}</i>`).join('');
+  const end = r.end === 'slain' ? `<i class="tm m-death" style="left:100%" data-tip="${esc(`${fmtTime(r.time)} · slain by ${r.cause || 'something unseen'}`)}">✖</i>` : '';
+  return `<div class="timeline"><div class="tmarks">${marks}${end}</div><div class="tbar">${waves}${ticks}</div></div>`;
+}
+
+/** v0.6: the Keep's Run History: the last runs, newest first, each with its timeline and build; the logs export as JSON. */
+export function showRunHistory(runs: RunLog[], onBack: () => void): void {
+  const avg = (f: (r: RunLog) => number) => runs.reduce((s, r) => s + f(r), 0) / Math.max(1, runs.length);
+  const bored = runs.reduce((n, r) => n + r.marks.filter((m) => m[1] === 'bored').length, 0);
+  const row = (r: RunLog) => {
+    const relics = Object.entries(r.relics).filter(([id]) => RELIC_IDS.includes(id as RelicId)).map(([id, tier]) => `<span data-tip="${esc(`${relicDef(id as RelicId).name} ${TIER_NUMERALS[tier] ?? ''}`)}">${relicDef(id as RelicId).icon}${tierBadge(tier)}</span>`).join('');
+    const talents = r.talents.map((id) => TALENT_BY_ID[id]?.name).filter(Boolean).join(' · ');
+    const ups = r.upgrades.map((id) => ABILITY_UPGRADES[id as AbilityUpgradeId]?.name ?? UTILITY_UPGRADES[id as UtilityUpgradeId]?.name).filter(Boolean).join(' · ');
+    const trait = r.trait !== 'none' && TRAIT_IDS.includes(r.trait as TraitId) ? `${TRAITS[r.trait as TraitId].icon} ${TRAITS[r.trait as TraitId].name}` : '';
+    const when = r.at ? new Date(r.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
+    return `<div class="run panel">
+      <div class="rhead"><b>${CLASSES[r.classId].name}</b><span>${TIERS[r.tier]?.name ?? ''} · ${ARENAS[r.arena].name}${r.daily ? ` · Daily Trial ${r.daily}` : ''}</span><span class="dim">${when}</span></div>
+      <div class="rstats">${actName(Math.max(1, Math.ceil(r.wave / ACTS.length)))} · wave ${r.wave} · ${fmtTime(r.time)} · level ${r.level} · ${r.kills} kills · ${r.end === 'slain' ? `slain by ${esc(r.cause || 'something unseen')}` : 'ended from the pause menu'}</div>
+      ${timeline(r)}
+      <div class="rbuild">${trait ? `<span>${trait}</span>` : ''}<span class="rrelics">${relics || '<em class="dim">no relics</em>'}</span></div>
+      ${talents || ups ? `<p class="hint">${[talents && `🌿 ${talents}`, ups && `⬆️ ${ups}`].filter(Boolean).join('<br>')}</p>` : ''}
+    </div>`;
+  };
+  const el = show(`
+    <div class="panel dialog wide history">
+      <h1 class="small">Run history</h1>
+      <p class="sub">${runs.length ? `The last ${runs.length} run${runs.length > 1 ? 's' : ''} · on average ${fmtTime(avg((r) => r.time))} and wave ${avg((r) => r.wave).toFixed(1)}${bored ? ` · ${bored} bored mark${bored > 1 ? 's' : ''}` : ''}` : 'No runs logged yet. Every run from v0.6 on is kept here (the last 50).'}</p>
+      <p class="hint">Each band is a wave, as wide as it lasted (darker: a boss wave); the small ticks are level-ups. Hover or tap anything for details. F8 in a run (or the pause menu) marks a moment you were bored.</p>
+      ${[...runs].reverse().map(row).join('')}
+      <div class="row">${runs.length ? '<button class="btn" data-export>Export as JSON</button>' : ''}<button class="btn" data-back>Back</button></div>
+    </div>`);
+  click(el, '[data-export]', () => {
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([exportRunLogs(runs)], { type: 'application/json' })), download: `last-bastion-runs-${new Date().toISOString().slice(0, 10)}.json` });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  click(el, '[data-back]', onBack);
+  onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
 
 /** v0.5: the sacred treasures' quest log, from the Keep and the pause menu (the current class first): every class's chain, step by step. */
@@ -644,20 +699,28 @@ export function buildHtml(info: BuildInfo): string {
   return relics || ups || trait || util || talents || sacred ? `<div class="build">${sacred}${trait}${talents}${ups}${util}${relics}${syns}</div>` : '';
 }
 
-export function showPause(info: BuildInfo, onResume: () => void, onQuit: () => void, onTalents?: () => void, onTreasures?: () => void): void {
+export function showPause(info: BuildInfo, on: { resume: () => void; quit: () => void; talents: () => void; treasures: () => void; bored: () => void }): void {
   const el = show(`
     <div class="panel dialog">
       <h1 class="small">Paused</h1>
       ${buildHtml(info)}
       <button class="btn big" data-resume>Resume</button>
-      ${onTalents ? `<button class="btn" data-talents>Talents${info.talentPoints > 0 ? ` (${info.talentPoints} to spend)` : ''}</button>` : ''}
-      ${onTreasures ? '<button class="btn" data-treasures>Sacred treasures</button>' : ''}
-      <button class="btn" data-quit>End run (keeps your gold)</button>
+      <button class="btn" data-talents>Talents${info.talentPoints > 0 ? ` (${info.talentPoints} to spend)` : ''}</button>
+      <button class="btn" data-treasures>Sacred treasures</button>
+      <div class="row">
+        <button class="btn small" data-bored data-tip="Playtest aid: stamps this moment into the run log (Keep › Run history). F8 does the same without pausing.">😴 Bored here</button>
+        <button class="btn" data-quit>End run (keeps your gold)</button>
+      </div>
     </div>`);
-  click(el, '[data-resume]', onResume);
-  click(el, '[data-talents]', () => onTalents?.());
-  click(el, '[data-treasures]', () => onTreasures?.());
-  click(el, '[data-quit]', onQuit);
+  click(el, '[data-resume]', on.resume);
+  click(el, '[data-talents]', on.talents);
+  click(el, '[data-treasures]', on.treasures);
+  click(el, '[data-quit]', on.quit);
+  click(el, '[data-bored]', (b) => {
+    on.bored();
+    b.textContent = '😴 Noted';
+    (b as HTMLButtonElement).disabled = true;
+  });
 }
 
 export interface RunResult {

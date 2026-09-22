@@ -16,11 +16,18 @@
  * Fresh runs with no relics at all, against runs that start with a full run's haul of pickups (RELIC_HAUL rolls by the drop rules,
  * upgrades included) and against runs that start with every relic in the class pool at the top tier (the absurd upper bound).
  * BALANCE.md wants the haul no more than about 1.5x as far as no relics; past that the caps get tightened.
+ *
+ * Pacing:  npm run sim -- pacing [runs=4] [tier=0]
+ * The run logs (v0.6) of fresh and maxed runs: run length, minutes per Act, the share of time with under 5 enemies alive, and the
+ * longest stretches with no new wave, pick, event, objective or boss. The rule is that none lasts longer than RUN_LOG.maxGap seconds.
  */
 import type { ArenaId } from '../src/config/arenas';
 import { CLASS_ORDER } from '../src/config/classes';
 import { BUILDING_IDS, BUILDINGS, MASTERY, META, META_IDS, TIERS } from '../src/config/economy';
 import { RELIC_MAX_TIER } from '../src/config/relics';
+import { ACTS } from '../src/config/acts';
+import { RUN_LOG } from '../src/config/game';
+import { actMinutes, quietStretches } from '../src/logic/runlog';
 import type { RunOptions } from '../src/game';
 import { lockedRelics, withAchievements } from '../src/logic/achievements';
 import { accountLevel, buildingLevel, metaCost, totalKeepCost } from '../src/logic/economy';
@@ -30,10 +37,10 @@ import { relicPoolFor } from '../src/logic/relics';
 import type { RunSummary } from '../src/logic/save';
 import { probeRun, simulateRun } from '../src/sim/bot';
 
-const mode = ['probe', 'relics', 'economy'].includes(process.argv[2] ?? '') ? process.argv[2] : '';
+const mode = ['probe', 'relics', 'economy', 'pacing'].includes(process.argv[2] ?? '') ? process.argv[2] : '';
 const probe = mode === 'probe';
 const argAt = mode ? 3 : 2;
-const [runs = mode === 'economy' ? 80 : mode ? 3 : 6, tier = 0] = process.argv.slice(argAt, argAt + 2).map(Number);
+const [runs = mode === 'economy' ? 80 : mode === 'pacing' ? 4 : mode ? 3 : 6, tier = 0] = process.argv.slice(argAt, argAt + 2).map(Number);
 const arena = (process.argv[argAt + 2] ?? 'courtyard') as ArenaId;
 const maxed = Object.fromEntries(META_IDS.map((id) => [id, META[id].max]));
 
@@ -103,6 +110,39 @@ if (mode === 'economy') {
     if (missing.length) console.log(`  deeds still missing: ${[...new Set(missing)].join(', ')}`);
   }
   console.log(`  ${((Date.now() - started) / 1000).toFixed(0)}s\n`);
+  process.exit(0);
+}
+
+if (mode === 'pacing') {
+  console.log(`
+pacing · ${runs} runs per cell · ${TIERS[tier].name} · ${arena} · from the run logs · rule: nothing new for at most ${RUN_LOG.maxGap} s
+`);
+  console.log(`${'class'.padEnd(12)}${'setup'.padEnd(7)}${pad('min', 6)}${pad('wave', 6)}${['I', 'II', 'III', 'IV'].map((a) => pad(`Act ${a}`, 8)).join('')}${pad('quiet', 7)}${pad('gap', 6)}${pad('>rule', 7)}  longest stretches (s @ wave)`);
+  const started = Date.now();
+  const all: { setup: string; gaps: number[]; over: number; runs: number }[] = [];
+  for (const classId of CLASS_ORDER) {
+    for (const [name, opts] of setups) {
+      const logs = Array.from({ length: runs }, (_, i) => simulateRun(classId, 1000 + i, opts, i % 2).log!);
+      const acts = [0, 1, 2, 3].map((a) => {
+        const done = logs.filter((l) => l.waves.length > (a + 1) * ACTS.length).map((l) => actMinutes(l, ACTS.length)[a]); // only Acts that were finished
+        return done.length ? `${avg(done).toFixed(1)}${done.length < logs.length ? '*' : ''}` : '-';
+      });
+      const stretches = logs.map((l) => quietStretches(l, 3));
+      const longest = stretches.map((s) => s[0]?.length ?? 0);
+      const over = stretches.filter((s) => (s[0]?.length ?? 0) > RUN_LOG.maxGap).length;
+      all.push({ setup: name, gaps: longest, over, runs: logs.length });
+      const worst = stretches.flat().sort((a, b) => b.length - a.length).slice(0, 3).map((s) => `${Math.round(s.length)}@${s.wave}`).join('  ');
+      const quiet = sum(logs.map((l) => sum(l.waves.map((w) => w[3])))) / sum(logs.map((l) => l.time));
+      console.log(`${classId.padEnd(12)}${name.padEnd(7)}${pad((avg(logs.map((l) => l.time)) / 60).toFixed(1), 6)}${pad(avg(logs.map((l) => l.wave)).toFixed(1), 6)}${acts.map((a) => pad(a, 8)).join('')}${pad(`${Math.round(quiet * 100)}%`, 7)}${pad(Math.round(avg(longest)), 6)}${pad(`${over}/${logs.length}`, 7)}  ${worst}`);
+    }
+  }
+  for (const setup of ['fresh', 'maxed']) {
+    const rows = all.filter((a) => a.setup === setup);
+    console.log(`${'ALL'.padEnd(12)}${setup.padEnd(7)}longest stretch per run: ${avg(rows.flatMap((r) => r.gaps)).toFixed(0)} s on average · ${sum(rows.map((r) => r.over))}/${sum(rows.map((r) => r.runs))} runs break the ${RUN_LOG.maxGap} s rule`);
+  }
+  console.log(`
+  (min: run length · Act: minutes an Act took, finished Acts only, * = not every run finished it · quiet: time with under ${RUN_LOG.quietBelow} enemies alive · gap: longest stretch without anything new, averaged over runs · ${((Date.now() - started) / 1000).toFixed(0)}s)
+`);
   process.exit(0);
 }
 

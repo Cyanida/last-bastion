@@ -57,7 +57,7 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
-| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (211 tests) |
+| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (219 tests) |
 | `npm run test:perf` | headless Chromium frame-time test of Fog and Blood Moon against the built game (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
 | `npm run icons` | redraw all icons and the README QR code from code |
@@ -109,6 +109,7 @@ The game needs nothing native: the PWA and the Capacitor app run the same `dist/
 | hover or tap an enemy | tooltip: state, affixes, weaknesses and resistances, armor, status effects |
 | F11 (desktop) | fullscreen |
 | F3 | performance overlay (frame / update / render time, entity counts, draw calls) |
+| F8 · pause menu button | playtest aid: mark "bored here" in the run log (Keep › Run history) |
 
 All of it goes through `src/input/`: devices are mapped to *intents* (move vector, ability, aim) and *actions* (pause, confirm, pick N...). The game and the screens never read raw events.
 
@@ -129,11 +130,11 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 
 ## Between runs
 
-The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks; a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the **Sacred Treasures** log, the **Chronicle** (65 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, menu music, updates, save data).
+The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks; a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the **Sacred Treasures** log, **Run history** (the last 50 runs, each with a timeline of its waves, level-ups, relics, quests, events, bosses and boredom marks, and its build; export as JSON), the **Chronicle** (65 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, menu music, updates, save data).
 
 ### Save format
 
-One object under the `localStorage` key `lastbastion.save`, `version: 4`. `logic/save.ts` `migrate` reads versions 2 (v0.2), 3 (v0.3) and 4 and validates every field, so older saves, partial or hand-edited imports all load; a v3 save is granted a Rune per achievement; if there is no save it migrates the v0.1 best-wave records.
+One object under the `localStorage` key `lastbastion.save`, `version: 4` (v0.6 added `runs`, the run logs, which older saves simply lack). `logic/save.ts` `migrate` reads versions 2 (v0.2), 3 (v0.3) and 4 and validates every field, so older saves, partial or hand-edited imports all load; a v3 save is granted a Rune per achievement; if there is no save it migrates the v0.1 best-wave records.
 
 ## Simulation
 
@@ -143,6 +144,7 @@ npm run sim -- 10 1 keep     # 10 runs per class, Knight tier, starting in the G
 npm run sim -- probe 3       # wall probe: the bot revived on death through wave 30, deaths and level per band of waves
 npm run sim -- relics 3      # relic power index: no relics vs a run's haul vs every relic at tier III
 npm run sim -- economy 80    # one save played run after run, buying the Keep greedily: when is it fully raised?
+npm run sim -- pacing 4      # from the run logs: run length, minutes per Act, quiet time, the longest stretches with nothing new
 ```
 
 A basic bot (`src/sim/bot.ts`: kite, dodge telegraphs and shots, ability on cooldown, visits the Merchant) plays full runs headlessly, with a fresh save and with everything maxed.

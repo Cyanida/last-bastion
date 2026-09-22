@@ -19,6 +19,7 @@ import { TALENT_ROW_CAP } from './config/economy';
 import { applyGrowth } from './logic/formulas';
 import { combineMods, neutralMods } from './logic/mods';
 import { relicPoolFor, rollRelics } from './logic/relics';
+import { newRunLog } from './logic/runlog';
 import type { RunSummary } from './logic/save';
 import type { TreasureRecord } from './logic/treasures';
 import { abilityPassives, updateAbility } from './systems/abilities';
@@ -33,6 +34,7 @@ import { applyTrait, talentPassives } from './systems/talents';
 import { initRegions, updateRegions } from './systems/regions';
 import { initQuests, updateQuests } from './systems/quests';
 import { updateEvents } from './systems/events';
+import { finishRunLog, startRunLog, updateRunLog } from './systems/runlog';
 import { updateTreasures } from './systems/treasures';
 import { updateUtility } from './systems/utility';
 import type { TraitId } from './config/traits';
@@ -177,6 +179,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     treasure: opts.treasure ? { id: TREASURES[classId].id, tier: Math.min(3, opts.treasure) } : null,
     chain: chain && { fragments: chain.fragments, trial: chain.trial, tier: chain.tier, unlocked: mastery.treasureStep, found: 0, passed: false, guardian: null, slain: false },
     banner: { text: '', t: 0 },
+    log: newRunLog(),
     over: false,
   };
   // curses that are plain numbers live in g.vars; the rest are read where they matter (spawning, director)
@@ -205,6 +208,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     const [gift] = rollRelics(commons, [], {}, g.rng, 1);
     if (gift) addRelic(g, gift);
   }
+  startRunLog(g);
   return g;
 }
 
@@ -241,6 +245,7 @@ export function summarizeRun(g: Game): RunSummary {
     quests: g.questsDone,
     events: g.eventsSeen,
     questRunes: g.questRunes,
+    log: finishRunLog(g),
     treasure: g.chain || g.treasure ? { found: g.chain?.found ?? 0, passed: g.chain?.passed ?? false, slain: g.chain?.slain ?? false, carried: g.treasure?.tier ?? 0 } : undefined,
   };
 }
@@ -310,6 +315,7 @@ export function updateGame(g: Game, dt: number): void {
   end('effectsU', _t);
 
   compact(g.enemies, (e) => !e.dead);
+  updateRunLog(g, dt); // after cleanup: it counts who is still alive
   compact(g.barriers, (b) => (b.life -= dt) > 0);
   for (const c of g.corpses) c.t += dt;
   compact(g.corpses, (c) => c.t < GAME.corpseLifetime * g.arena.corpseLifeMult);

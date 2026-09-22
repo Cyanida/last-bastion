@@ -3,6 +3,11 @@
 ## v0.6.0 (in progress)
 
 - **Readable menus**: the menus now use Cinzel for headings and Alegreya Sans for text, like the HUD. The blackletter font is kept only for the title, and IM Fell English is gone.
+- **Run log**: every run keeps a compact timeline in the save (the last 50): when each wave started and was cleared, the damage taken in it, the time with fewer than 5 enemies alive, and a mark for every level-up, relic, talent, ability upgrade, quest board, finished quest, event, shrine, boss kill, Merchant and new Act, plus what dealt the killing blow.
+- **Boredom marker**: F8 (or the 😴 button in the pause menu) stamps "bored here" with the moment (wave, enemies alive, HP, level) into the run log.
+- **Run history** in the Keep: the last 50 runs with class, difficulty, arena, duration, wave, level, cause of death and build, each with a timeline bar (a band per wave, as wide as it lasted; level-ups as ticks; everything else as icons with tooltips). **Export as JSON** saves the logs with a legend.
+- **Run timer** on the HUD, under the wave.
+- **`npm run sim -- pacing`**: run length, minutes per Act, the share of time with under 5 enemies alive, and the longest stretches with no new wave, pick, event, objective or boss, against the 90-second rule.
 - **The web version updates only with a release**: GitHub Pages deploys the tagged commit after the release workflow succeeds, so work in progress on `main` never reaches players.
 
 ## v0.5.0 — Quests, a bigger map, sacred treasures, music, a readable HUD

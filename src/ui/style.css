@@ -448,3 +448,25 @@ canvas#game { touch-action: none; }
 .talent.sacred { border-color: #7ec8d8; }
 .talent.sacred.open { box-shadow: 0 0 10px #7ec8d8; }
 @media (max-width: 760px) { .tstep { grid-template-columns: 1fr; gap: 0; } }
+
+/* v0.6 Run History (Keep) */
+.history .run { padding: 10px 14px; margin: 10px 0; text-align: left; }
+.rhead { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.rhead b { font: 700 18px var(--heading); }
+.rhead .dim { margin-left: auto; font-size: 13px; }
+.rstats { font-size: 15px; margin: 2px 0 6px; font-variant-numeric: lining-nums tabular-nums; }
+.timeline { position: relative; margin: 4px 10px 6px 0; }
+.tmarks { position: relative; height: 20px; }
+.tbar { position: relative; height: 16px; border-radius: 3px; background: rgba(42, 29, 16, 0.25); overflow: hidden; }
+.tw { position: absolute; top: 0; bottom: 0; border-right: 1px solid rgba(228, 211, 166, 0.8); background: #a88a52; }
+.tw.act1 { background: #8a6f47; }
+.tw.boss { background: #6b3a2a; }
+.tl { position: absolute; top: 0; width: 2px; height: 7px; background: rgba(42, 29, 16, 0.85); }
+.tm { position: absolute; bottom: 0; transform: translateX(-50%); font-size: 14px; line-height: 18px; font-style: normal; cursor: help; }
+.tm.m-bored { font-size: 17px; z-index: 1; }
+.tm.m-death { color: var(--blood); font-weight: 700; }
+.rbuild { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+.rrelics { display: flex; flex-wrap: wrap; gap: 4px; font-size: 18px; }
+.rrelics span { position: relative; cursor: help; }
+.rrelics .tier { position: absolute; right: -6px; bottom: -4px; font: 700 10px var(--body); font-style: normal; color: #6b4a08; }
+.history .run .hint { margin: 4px 0 0; }

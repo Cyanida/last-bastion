@@ -38,6 +38,9 @@ export const GAME = {
   maxTexts: 150, // v0.1 value, superseded by RENDER.maxTexts
 };
 
+/** v0.6 run log (logic/runlog.ts): how many runs the save keeps, and what counts as a quiet moment (fewer enemies alive than this). */
+export const RUN_LOG = { keep: 50, quietBelow: 5, maxGap: 90 }; // maxGap: the pacing rule, never longer than this without something new (sim -- pacing)
+
 /** Render quality levels. Auto starts on high and drops to low if early frames are slow (phones). */
 export type QualitySetting = 'auto' | 'low' | 'high';
 export const QUALITY = {
