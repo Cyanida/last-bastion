@@ -11,5 +11,6 @@ export default defineConfig({
     __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)),
   },
   plugins: [serviceWorker(pkg.version)],
-  test: { exclude: [...configDefaults.exclude, '.claude/**'] }, // agent worktrees live under .claude/
+  // agent worktrees live under .claude/; bot-driven tests play real runs, which a CI runner can take several seconds over
+  test: { exclude: [...configDefaults.exclude, '.claude/**'], testTimeout: 20000 },
 });
