@@ -22,7 +22,7 @@ export function gainXp(g: Game, amount: number): void {
     const tier = tierForLevel(p.level);
     if (tier >= 0) g.pendingAbilityTiers.push(tier);
     const utilityTier = UTILITY.tiers.indexOf(p.level);
-    if (utilityTier >= 0) g.pendingUtilityTiers.push(utilityTier);
+    if (utilityTier >= 0 && utilityTier < g.utilityTiers) g.pendingUtilityTiers.push(utilityTier); // the second tier is a mastery unlock
     if (talentPointsForLevel(p.level) > talentPointsForLevel(p.level - 1)) {
       g.talentPoints++;
       floatText(g, p.x, p.y - 48, 'TALENT POINT', '#e9c95a', 15);
@@ -35,7 +35,7 @@ export function gainXp(g: Game, amount: number): void {
 
 const takenTradeoffs = (g: Game) => TRADEOFF_IDS.filter((id) => g.vars[`tradeoff.${id}`]) as TradeoffId[];
 
-export const levelUpOptions = (g: Game): LevelUpOption[] => rollLevelUpOptions(g.rng, takenTradeoffs(g), () => rollRelics(g.relicPool, g.relics, g.relicTiers, g.rng, 1)[0] ?? null);
+export const levelUpOptions = (g: Game): LevelUpOption[] => rollLevelUpOptions(g.rng, takenTradeoffs(g), () => rollRelics(g.relicPool, g.relics, g.relicTiers, g.rng, 1, [], g.relicTierCap)[0] ?? null);
 
 export function chooseLevelUp(g: Game, o: LevelUpOption): void {
   const p = g.player;

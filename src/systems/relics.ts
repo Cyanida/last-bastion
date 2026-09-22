@@ -288,7 +288,7 @@ export function updateRelics(g: Game, dt: number): void {
 
 /** Take a relic: new at tier 1, held one a tier up. False only when it is already at the top tier. */
 export function addRelic(g: Game, id: RelicId): boolean {
-  const next = withRelic(g.relicTiers, id);
+  const next = withRelic(g.relicTiers, id, g.relicTierCap);
   if (next === g.relicTiers) return false;
   const upgrade = relicTier(g.relicTiers, id) > 0;
   g.relicTiers = next;
@@ -319,7 +319,7 @@ export function removeRelic(g: Game, id: RelicId): boolean {
 
 /** Queue a relic choice (boss kill: 3 options, elite chest: 1). The UI or the bot resolves it. */
 export function offerRelics(g: Game, count = BOSS_RELIC_CHOICES): void {
-  const options = rollRelics(g.relicPool, g.relics, g.relicTiers, g.rng, count, g.relicOffers.flat());
+  const options = rollRelics(g.relicPool, g.relics, g.relicTiers, g.rng, count, g.relicOffers.flat(), g.relicTierCap);
   if (options.length > 0) g.relicOffers.push(options);
 }
 

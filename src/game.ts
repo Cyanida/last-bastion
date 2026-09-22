@@ -13,7 +13,9 @@ import { begin, end } from './core/perf';
 import { SpatialHash } from './core/spatial';
 import type { Game } from './core/types';
 import { createPlayer } from './entities/actors';
-import { masteryBonus, metaLoadout, startingStats, type MetaRanks } from './logic/economy';
+import { accountPerks, masteryBonus, metaLoadout, startingStats, type MetaRanks } from './logic/economy';
+import { TALENT_ROW_CAP } from './config/economy';
+import { applyGrowth } from './logic/formulas';
 import { combineMods, neutralMods } from './logic/mods';
 import { relicPoolFor, rollRelics } from './logic/relics';
 import type { RunSummary } from './logic/save';
@@ -42,6 +44,9 @@ export interface RunOptions {
   lockedRelics?: RelicId[];
   curses?: CurseId[];
   trait?: TraitId; // v0.4 starting trait
+  palette?: number; // v0.4 sprite palette (must be unlocked by mastery)
+  accountLevel?: number; // v0.4: the sum of every class's mastery rank (account milestones)
+  libraryLevel?: number; // v0.4: caps the talent rows (TALENT_ROW_CAP)
   daily?: string; // date of the Daily Trial this run is
   // simulation only (the relic power index, scripts/simulate.ts): start with these relics at this tier, or with this many pickups
   // rolled by the drop rules; noRelics stops any further drops
@@ -56,6 +61,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   const arena = ARENAS[opts.arena ?? 'courtyard'];
   const mastery = masteryBonus(opts.classXp ?? 0);
   const loadout = metaLoadout(opts.meta ?? {});
+  const account = accountPerks(opts.accountLevel ?? 0);
   const curses = [...new Set(opts.curses ?? [])];
   const g: Game = {
     player: createPlayer(cls, arena, startingStats(cls.base, opts.meta ?? {}, mastery.secondary)),
@@ -89,7 +95,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     fields: [],
     timers: [],
     vars: {},
-    baseMods: combineMods(neutralMods(), loadout.mods),
+    baseMods: combineMods(combineMods(combineMods(neutralMods(), loadout.mods), account.mods), { utilityCd: 1 - mastery.utilityCd }),
     relics: [],
     relicTiers: {},
     relicStatic: {},
@@ -106,10 +112,16 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     relicOffers: [],
     pendingAbilityTiers: [],
     pendingUtilityTiers: [],
-    talentPoints: 0,
+    talentPoints: loadout.talentPoints + mastery.talentPoint + account.talentPoint,
+    talentRowCap: TALENT_ROW_CAP[Math.min(TALENT_ROW_CAP.length - 1, opts.libraryLevel ?? TALENT_ROW_CAP.length - 1)],
+    relicTierCap: loadout.relicTierCap,
+    utilityTiers: mastery.utilityTier ? 2 : 1,
+    eliteGold: loadout.eliteGold,
+    bossGold: loadout.bossGold,
     talentModsCache: null,
     trait: 'none',
-    rerolls: FREE_REROLLS + loadout.rerolls + mastery.reroll,
+    palette: mastery.palettes.includes(opts.palette ?? 0) ? opts.palette! : 0,
+    rerolls: FREE_REROLLS + loadout.rerolls + mastery.reroll + account.reroll,
     gold: loadout.gold,
     goldStart: loadout.gold,
     wavesCleared: 0,
@@ -140,8 +152,15 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   g.vars.damageTaken = curseValue(curses, 'glassBones', 'damage');
   g.vars.enemySpeed = curseValue(curses, 'frenzy', 'speed');
   g.vars.curseMult = curseMultiplier(curses);
+  g.vars['keep.relicChance'] = loadout.relicChance;
   applyTrait(g, opts.trait ?? 'none');
   g.player.mods = { ...g.baseMods };
+  // the Barracks' Veteran Levies and mastery's Seasoned: start a level or two up (growth, no boons)
+  for (let l = 0; l < loadout.startLevel + mastery.startLevel; l++) {
+    g.player.level++;
+    g.player.stats = applyGrowth(g.player.stats, cls.growth);
+    g.player.hp = g.player.stats.hp;
+  }
   for (const id of opts.relics ?? []) for (let t = 0; t < (opts.relicTier ?? 1); t++) addRelic(g, id);
   for (let i = 0; i < (opts.relicPicks ?? 0); i++) {
     const [pick] = rollRelics(g.relicPool, g.relics, g.relicTiers, g.rng, 1);

@@ -375,7 +375,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.globalAlpha = 1;
   }
   if (p.invulnT <= 0 || Math.floor(g.time * 16) % 2 === 0) {
-    drawSprite(ctx, getSprite(p.cls.sprite, GAME.spriteScale), p.x, p.y, p.flip, p.flash > 0);
+    drawSprite(ctx, getSprite(p.cls.sprite, GAME.spriteScale, g.palette), p.x, p.y, p.flip, p.flash > 0);
   }
   if (p.chillT > 0) {
     ctx.fillStyle = 'rgba(169,216,239,0.3)';

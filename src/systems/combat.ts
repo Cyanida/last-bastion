@@ -44,7 +44,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   g.kills++;
   const boss = e.def.boss;
   g.pickups.push({ x: e.x, y: e.y, value: e.xp, kind: 'xp' });
-  const gold = goldDrop(e.def.xp, boss ? 'boss' : e.elite ? 'elite' : 'regular', g.rng, goldMult(g), ELITES.goldMult);
+  const gold = goldDrop(e.def.xp, boss ? 'boss' : e.elite ? 'elite' : 'regular', g.rng, goldMult(g), ELITES.goldMult * g.eliteGold);
   if (gold > 0) g.pickups.push({ x: e.x + 8, y: e.y + 6, value: gold, kind: 'gold' });
   if (e.def.aura || e.def.onDeath) {
     // commanders are worth hunting: a bounty on top of the normal drop
@@ -62,7 +62,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   if (e.elite) {
     g.elitesKilled++;
     ring(g, e.x, e.y, 90, AFFIXES[e.affixes[0]].color, 0.5);
-    if (g.rng() < ELITES.relicChance * (g.vars['trait.relicChance'] ?? 1)) g.pickups.push({ x: e.x - 8, y: e.y - 6, value: 1, kind: 'relic' }); // Cursed Luck doubles it
+    if (g.rng() < ELITES.relicChance * (g.vars['trait.relicChance'] ?? 1) * (g.vars['keep.relicChance'] ?? 1)) g.pickups.push({ x: e.x - 8, y: e.y - 6, value: 1, kind: 'relic' }); // Cursed Luck doubles it, the Chapel adds
     if (e.affixes.includes('splitting')) {
       const n = AFFIXES.splitting.n;
       for (let i = 0; i < n.count; i++) {
@@ -75,7 +75,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   if (boss) {
     g.bossesKilled.push(e.def.id);
     if (!g.bossHit) g.flawlessBosses++;
-    g.gold += Math.round(GOLD.bossBonus * goldMult(g));
+    g.gold += Math.round((GOLD.bossBonus + g.bossGold) * goldMult(g));
     shake(g, 22);
     ring(g, e.x, e.y, 260, '#c9a227', 0.8);
     g.banner = { text: `${e.def.name} has fallen`, t: 2.5 };

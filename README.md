@@ -125,11 +125,11 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 
 ## Between runs
 
-The Keep (permanent upgrades, class mastery, the relic compendium), the Chronicle (26 achievements, statistics), difficulty tiers, and Settings (graphics quality, sound, updates, save data). See the v0.2 entry in the changelog for details; nothing was removed.
+The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks; a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the Chronicle (achievements, statistics), difficulty tiers, and Settings (graphics quality, sound, updates, save data).
 
 ### Save format
 
-One object under the `localStorage` key `lastbastion.save`, `version: 3`. `logic/save.ts` `migrate` reads version 2 (v0.2) and 3 and validates every field, so older saves, partial or hand-edited imports all load; if there is no save it migrates the v0.1 best-wave records.
+One object under the `localStorage` key `lastbastion.save`, `version: 4`. `logic/save.ts` `migrate` reads versions 2 (v0.2), 3 (v0.3) and 4 and validates every field, so older saves, partial or hand-edited imports all load; a v3 save is granted a Rune per achievement; if there is no save it migrates the v0.1 best-wave records.
 
 ## Simulation
 
@@ -137,6 +137,8 @@ One object under the `localStorage` key `lastbastion.save`, `version: 3`. `logic
 npm run sim                  # 6 runs per class, Squire, courtyard
 npm run sim -- 10 1 keep     # 10 runs per class, Knight tier, starting in the Great Keep
 npm run sim -- probe 3       # wall probe: the bot revived on death through wave 30, deaths and level per band of waves
+npm run sim -- relics 3      # relic power index: no relics vs a run's haul vs every relic at tier III
+npm run sim -- economy 80    # one save played run after run, buying the Keep greedily: when is it fully raised?
 ```
 
 A basic bot (`src/sim/bot.ts`: kite, dodge telegraphs and shots, ability on cooldown, visits the Merchant) plays full runs headlessly, with a fresh save and with everything maxed.
@@ -149,14 +151,15 @@ Everything numeric lives in `src/config/`; game logic never hard-codes balance.
 
 | File | Contents |
 |---|---|
-| `classes.ts`, `abilityUpgrades.ts`, `relics.ts`, `upgrades.ts` | classes, the 30 ability upgrades, relics, level-up boons |
+| `classes.ts`, `abilityUpgrades.ts`, `relics.ts`, `upgrades.ts` | classes, the 30 ability upgrades, relics (tiers, synergies, stacking), level-up boons |
+| `talents.ts`, `utility.ts`, `traits.ts` | talent trees, the utility abilities and their upgrades, starting traits |
 | `enemies.ts` | stats and behaviour parameters per enemy and boss |
 | `ai.ts` | per-type state machine profiles, squad reactions, aura timing |
 | `director.ts` | wave budget, class / modifier bias, squad templates, rubber band |
 | `damage.ts` | resistances, armor, status effects, what enemy hits inflict |
-| `waves.ts`, `elites.ts`, `arenas.ts` | unlock waves, scaling, modifiers, affixes, arenas and hazards |
+| `waves.ts`, `elites.ts`, `arenas.ts` | unlock waves, scaling per Act, the target level pace, modifiers, affixes, arenas and hazards |
 | `acts.ts`, `curses.ts` | Act length and bosses, themes, Merchant prices, curses |
-| `economy.ts`, `achievements.ts` | gold, the Keep, mastery, tiers, achievements and what they unlock |
+| `economy.ts`, `achievements.ts` | gold, Runes and the caps, the Keep's buildings and tracks, the 25-rank mastery, account milestones, tiers, achievements and what they unlock |
 | `game.ts` | formulas' constants, caps, quality levels, camera zoom |
 
 ## Structure

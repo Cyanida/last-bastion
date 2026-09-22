@@ -6,7 +6,7 @@ import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
 import { RELIC_CATEGORIES, RELIC_IDS, RELIC_WEIGHTS, relicDesc, SYNERGIES, TIER_NUMERALS, type Rarity } from '../config/relics';
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
-import { MASTERY, META, META_IDS, TIER_UNLOCK_WAVE, TIERS, type MetaId } from '../config/economy';
+import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIER_UNLOCK_WAVE, TIERS, type BuildingId, type MetaId } from '../config/economy';
 import { relicDef, type RelicId } from '../config/relics';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
 import { TRAIT_IDS, TRAITS, type TraitId } from '../config/traits';
@@ -20,10 +20,10 @@ import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { onAction } from '../input';
 import type { Action } from '../input/mapping';
 import { gateOf, lockedArenas, lockedCurses } from '../logic/achievements';
-import { masteryRank, metaCost } from '../logic/economy';
+import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { exportSave, type Save } from '../logic/save';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
-import { getSprite } from '../render/sprites';
+import { getSprite, SPRITE_PALETTES } from '../render/sprites';
 
 const overlay = () => document.getElementById('overlay')!;
 let stopActions: (() => void) | null = null;
@@ -80,6 +80,7 @@ const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, ex
 
 export interface TitleInfo {
   gold: number;
+  runes: number;
   label: string; // "V0.3 · Web"
   mobile: boolean;
   buildDate: string;
@@ -97,7 +98,7 @@ export function showTitle(info: TitleInfo, on: { start: () => void; daily: () =>
       <button class="btn big" data-go="start">Take up arms</button>
       <div class="row">
         ${info.daily.date ? `<button class="btn" data-go="daily">Daily Trial${info.daily.best ? ` · best ${info.daily.best}` : ''}</button>` : ''}
-        <button class="btn" data-go="keep">The Keep · 🪙 ${info.gold}</button>
+        <button class="btn" data-go="keep">The Keep · 🪙 ${info.gold}${info.runes ? ` · ◆ ${info.runes}` : ''}</button>
         <button class="btn" data-go="chronicle">Chronicle</button>
         <button class="btn" data-go="settings">Settings</button>
       </div>
@@ -144,15 +145,18 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
-export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void; trait: (id: TraitId) => void }): void {
+export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void; trait: (id: TraitId) => void; palette: (id: ClassId, n: number) => void }): void {
   const locked = lockedArenas(save);
   const card = (c: ClassDef) => {
     const rec = save.classes[c.id];
     const rank = masteryRank(rec.xp);
     const next = MASTERY[rank];
+    const palettes = masteryBonus(rec.xp).palettes;
+    const chosen = save.settings.palettes[c.id] ?? 0;
+    const swatches = palettes.length ? `<div class="swatches">${[0, ...palettes].map((n) => `<span class="swatch ${chosen === n ? 'on' : ''}" data-palette="${c.id}:${n}" data-tip="${['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours'][n]}"><i style="filter:${SPRITE_PALETTES[n] || 'none'}"></i></span>`).join('')}</div>` : '';
     return `
     <button class="card panel" data-class="${c.id}">
-      <div class="portrait" data-sprite="${c.sprite}"></div>
+      <div class="portrait" data-sprite="${c.sprite}" data-palette-n="${palettes.includes(chosen) ? chosen : 0}"></div>${swatches}
       <h2>${c.name}</h2>
       <div class="role">${c.role}</div>
       <div class="stats">
@@ -170,8 +174,8 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   };
   const tierBtn = (i: number) => {
     const t = TIERS[i];
-    const lockedTier = i > save.tierUnlocked;
-    const tip = lockedTier ? `Locked — clear wave ${TIER_UNLOCK_WAVE} on ${TIERS[i - 1].name}` : `Enemy HP ×${t.enemyHp}, damage ×${t.enemyDmg}, elites ×${t.eliteMult} · gold ×${t.gold}, class XP ×${t.classXp}`;
+    const lockedTier = i > save.tierUnlocked || i > buildingLevel(save.buildings, 'watchtower');
+    const tip = i > save.tierUnlocked ? `Locked — clear wave ${TIER_UNLOCK_WAVE} on ${TIERS[i - 1].name}` : lockedTier ? `Locked — raise the Watchtower to level ${i}` : `Enemy HP ×${t.enemyHp}, damage ×${t.enemyDmg}, elites ×${t.eliteMult} · gold ×${t.gold}, class XP ×${t.classXp}`;
     return `<button class="chip ${save.settings.tier === i ? 'on' : ''}" data-tier="${i}" ${lockedTier ? 'disabled' : ''} data-tip="${tip}">${lockedTier ? '🔒 ' : ''}${t.name}</button>`;
   };
   const lockedC = lockedCurses(save);
@@ -204,7 +208,12 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       <div class="cards">${CLASS_ORDER.map((id) => card(CLASSES[id])).join('')}</div>
       <button class="btn" data-back>Back</button>
     </div>`);
-  el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => slot.appendChild(getSprite(slot.dataset.sprite as ClassDef['sprite'], 6).img));
+  el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => slot.appendChild(getSprite(slot.dataset.sprite as ClassDef['sprite'], 6, Number(slot.dataset.paletteN ?? 0)).img));
+  el.querySelectorAll<HTMLElement>('[data-palette]').forEach((sw) => (sw.onclick = (e) => {
+    e.stopPropagation(); // the card underneath would start the run
+    const [cls, n] = sw.dataset.palette!.split(':');
+    on.palette(cls as ClassId, Number(n));
+  }));
   click(el, '[data-class]', (b) => on.pick(b.dataset.class as ClassId, el.querySelector<HTMLInputElement>('#seed')!.value));
   click(el, '[data-curse]', (b) => on.curse(b.dataset.curse as CurseId));
   click(el, '[data-trait]', (b) => on.trait(b.dataset.trait as TraitId));
@@ -213,37 +222,75 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   click(el, '[data-back]', on.back);
 }
 
-export function showKeep(save: Save, on: { buy: (id: MetaId) => void; compendium: () => void; back: () => void }): void {
+export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; back: () => void }): void {
   const row = (id: MetaId) => {
     const m = META[id];
     const rank = save.meta[id] ?? 0;
-    const cost = metaCost(id, rank);
-    const pips = Array.from({ length: m.max }, (_, i) => `<i class="${i < rank ? 'on' : ''}"></i>`).join('');
-    const btn = cost === null ? '<span class="maxed">Maxed</span>' : `<button class="btn small" data-buy="${id}" ${save.gold < cost ? 'disabled' : ''}>🪙 ${cost}</button>`;
+    const cap = rankCap(id, save.buildings);
+    const cost = metaCost(id, rank, save.buildings);
+    const pips = Array.from({ length: m.max }, (_, i) => `<i class="${i < rank ? 'on' : i < cap ? '' : 'capped'}"></i>`).join('');
+    const btn = rank >= m.max ? '<span class="maxed">Maxed</span>' : cost === null ? `<span class="maxed" data-tip="Raise the ${BUILDINGS[buildingOf(id)].name} to buy further ranks">Level cap</span>`
+      : `<button class="btn small" data-buy="${id}" ${save.gold < cost.gold || save.runes < cost.runes ? 'disabled' : ''}>🪙 ${cost.gold}${cost.runes ? ` · ◆ ${cost.runes}` : ''}</button>`;
     return `<div class="meta-row"><div><b>${m.name}</b><span>${m.desc}</span></div><div class="pips">${pips}</div>${btn}</div>`;
   };
+  const building = (id: BuildingId) => {
+    const b = BUILDINGS[id];
+    const level = buildingLevel(save.buildings, id);
+    const next = b.levels[level];
+    const deed = next?.achievement ? ACHIEVEMENTS.find((a) => a.id === next.achievement) : undefined;
+    const deedDone = !deed || save.achievements.includes(deed.id);
+    const can = next && deedDone && save.gold >= next.gold && save.runes >= next.runes;
+    const raise = !next ? '<span class="maxed">Fully raised</span>'
+      : `<button class="btn small" data-raise="${id}" ${can ? '' : 'disabled'} data-tip="${esc(`Level ${level + 1}: 🪙 ${next.gold} · ◆ ${next.runes}${deed ? `\nDeed: ${deed.name} — ${deed.desc}${deedDone ? ' ✔' : ''}` : ''}`)}">Raise · 🪙 ${next.gold} · ◆ ${next.runes}${deed && !deedDone ? ' · 🔒' : ''}</button>`;
+    const pips = b.levels.map((_, i) => `<i class="${i < level ? 'on' : ''}"></i>`).join('');
+    return `<div class="building panel"><div class="bhead"><b>${b.icon} ${b.name}</b><span class="pips">${pips}</span>${raise}</div><p class="hint">${b.desc}${deed && !deedDone ? ` · next deed: <em>${deed.name}</em>` : ''}</p>
+      <div class="meta">${b.upgrades.map(row).join('')}</div></div>`;
+  };
+  const level = accountLevel(CLASS_ORDER.map((id) => save.classes[id].xp));
+  const nextMilestone = ACCOUNT_MILESTONES.find((m) => m.level > level);
   const mastery = CLASS_ORDER.map((id) => {
     const xp = save.classes[id].xp;
     const rank = masteryRank(xp);
     const next = MASTERY[rank];
     const prev = rank > 0 ? MASTERY[rank - 1].xp : 0;
     const frac = next ? (xp - prev) / (next.xp - prev) : 1;
-    return `<div class="mastery"><b>${CLASSES[id].name}</b><span>Rank ${rank}/${MASTERY.length}</span><div class="bar xp"><div style="width:${frac * 100}%"></div></div><span class="dim">${next ? `Next: ${next.reward}` : 'Mastered'}</span></div>`;
+    return `<button class="mastery" data-mastery="${id}"><b>${CLASSES[id].name}</b><span>Rank ${rank}/${MASTERY.length}</span><div class="bar xp"><div style="width:${frac * 100}%"></div></div><span class="dim">${next ? `Next: ${next.name}` : 'Grandmaster'}</span></button>`;
   }).join('');
   const el = show(`
-    <div class="panel dialog wide">
+    <div class="panel dialog wide keep">
       <h1 class="small">The Keep</h1>
-      <p class="sub">Treasury: <b>🪙 ${save.gold}</b> — permanent upgrades for every champion</p>
-      <div class="meta">${META_IDS.map(row).join('')}</div>
-      <h2>Class mastery</h2>
-      <p class="hint">Earned by playing a class: waves cleared, bosses slain, levels gained — multiplied by the difficulty tier.</p>
+      <p class="sub">Treasury: <b>🪙 ${save.gold}</b> · <b>◆ ${save.runes}</b> Runes${save.runeShards ? ` <span class="dim">(${save.runeShards}/${RUNES.shardsPerRune} shards)</span>` : ''} — gold buys ranks, Runes (from Act bosses, quests and deeds) raise buildings and the top ranks</p>
+      <div class="buildings">${BUILDING_IDS.map(building).join('')}</div>
+      <h2>Class mastery · account level ${level}</h2>
+      <p class="hint">Earned by playing a class: waves cleared, bosses slain, levels gained, times the difficulty tier. Every rank unlocks something; tap a class for its track.
+        ${nextMilestone ? `Account level ${nextMilestone.level}: <em>${nextMilestone.name}</em> — ${nextMilestone.desc}.` : 'Every account milestone reached.'}</p>
       <div class="masteries">${mastery}</div>
+      <div class="milestones">${ACCOUNT_MILESTONES.map((m) => `<span class="${level >= m.level ? 'on' : ''}" data-tip="${esc(m.desc)}">${level >= m.level ? '✔ ' : ''}${m.level} ${m.name}</span>`).join('')}</div>
       <button class="btn" data-compendium>Relic compendium</button>
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-buy]', (b) => on.buy(b.dataset.buy as MetaId));
+  click(el, '[data-raise]', (b) => on.raise(b.dataset.raise as BuildingId));
+  click(el, '[data-mastery]', (b) => on.mastery(b.dataset.mastery as ClassId));
   click(el, '[data-compendium]', on.compendium);
   click(el, '[data-back]', on.back);
+  onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
+}
+
+/** A class's full 25-rank mastery track: every rank's name and unlock, reached or not. */
+export function showMastery(save: Save, classId: ClassId, onBack: () => void): void {
+  const xp = save.classes[classId].xp;
+  const rank = masteryRank(xp);
+  const rows = MASTERY.map((r, i) => `<div class="rank ${i < rank ? 'on' : ''}"><b>${i + 1}</b><span>${r.name}</span><em>${rewardText(r.reward)}</em><i>${i < rank ? '✔' : `${r.xp} XP`}</i></div>`).join('');
+  const el = show(`
+    <div class="panel dialog wide">
+      <h1 class="small">${CLASSES[classId].name} mastery</h1>
+      <p class="sub">Rank ${rank} / ${MASTERY.length} · ${Math.round(xp)} class XP${rank < MASTERY.length ? ` · next at ${MASTERY[rank].xp}` : ''}</p>
+      <div class="ranks">${rows}</div>
+      <button class="btn" data-back>Back</button>
+    </div>`);
+  click(el, '[data-back]', onBack);
+  onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
 
 export function showChronicle(save: Save, onBack: () => void): void {
@@ -454,9 +501,12 @@ export interface RunResult {
   level: number;
   best: number;
   newBest: boolean;
-  gold: number;
+  gold: number; // banked (after the run and daily caps)
+  goldRaw: number; // picked up in the run
+  runes: number;
   classXp: number;
   masteryRank: number;
+  masteryName: string | null; // a rank reached this run
   tier: string;
   tierUnlocked: string | null;
   earned: AchievementDef[];
@@ -484,8 +534,9 @@ export function showResults(r: RunResult, onRetry: () => void, onMenu: () => voi
         <div><span>${r.daily ? `Daily Trial ${r.daily}` : 'Run seed'}</span><b class="seed">${r.seed}</b></div>
         ${r.curseMult > 1 ? `<div><span>Curses</span><b>×${r.curseMult.toFixed(2)} gold &amp; XP</b></div>` : ''}
         <div><span>Best wave (${r.cls.name})</span><b>${r.best}</b></div>
-        <div class="earned"><span>Gold banked</span><b>🪙 +${r.gold}</b></div>
-        <div class="earned"><span>${r.cls.name} mastery</span><b>+${r.classXp} XP · rank ${r.masteryRank}</b></div>
+        <div class="earned"><span>Gold banked</span><b>🪙 +${r.gold}${r.goldRaw > r.gold ? ` <s>${r.goldRaw}</s>` : ''}</b></div>
+        ${r.runes > 0 ? `<div class="earned"><span>Runes</span><b>◆ +${r.runes}</b></div>` : ''}
+        <div class="earned"><span>${r.cls.name} mastery</span><b>+${r.classXp} XP · rank ${r.masteryRank}${r.masteryName ? ` — <em>${r.masteryName}</em>` : ''}</b></div>
       </div>
       ${unlocks ? `<div class="unlocks">${unlocks}</div>` : ''}
       ${buildHtml(r.build)}

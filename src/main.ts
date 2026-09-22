@@ -19,8 +19,8 @@ import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from 
 import { curseMultiplier } from './logic/curses';
 import { merchantBuy, merchantHeal, merchantReroll, merchantSalvage, merchantSell, nextAct } from './systems/acts';
 import { densestCluster, resolveAim } from './logic/aim';
-import { masteryRank, rerollCost } from './logic/economy';
-import { applyRun, buyMeta, defaultSave, importSave, type Save } from './logic/save';
+import { masteryBonus, masteryRank, rerollCost, accountLevel, buildingLevel } from './logic/economy';
+import { applyRun, buyMeta, defaultSave, importSave, type Save, buyBuilding } from './logic/save';
 import { buildArena } from './render/arena';
 import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
@@ -28,8 +28,10 @@ import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { buildHud, setMuteIcon, showHud, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTalents, showTitle, showUtilityUpgrade, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTalents, showTitle, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
 import { TRAITS } from './config/traits';
+import { CLASS_ORDER } from './config/classes';
+import { MASTERY } from './config/economy';
 import { spendTalent } from './systems/talents';
 import { chooseUtilityUpgrade, utilityUpgradeOptions } from './systems/utility';
 
@@ -77,7 +79,7 @@ function toTitle(): void {
   menu();
   onTitle = true;
   showTitle(
-    { gold: save.gold, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 } },
+    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 } },
     { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => (menu(), showChronicle(save, toTitle)), settings: toSettings },
   );
 }
@@ -109,8 +111,13 @@ function toSelect(): void {
       toSelect();
     },
     settings(arena, tier) {
-      if (lockedArenas(save).includes(arena) || tier > save.tierUnlocked) return;
+      if (lockedArenas(save).includes(arena) || tier > save.tierUnlocked || tier > buildingLevel(save.buildings, 'watchtower')) return;
       commit({ ...save, settings: { ...save.settings, arena, tier } });
+      toSelect();
+    },
+    palette(id, n) {
+      if (!masteryBonus(save.classes[id].xp).palettes.includes(n) && n !== 0) return;
+      commit({ ...save, settings: { ...save.settings, palettes: { ...save.settings.palettes, [id]: n } } });
       toSelect();
     },
     trait(id) {
@@ -127,8 +134,13 @@ function toKeep(): void {
   showKeep(save, {
     back: toTitle,
     compendium: () => showCompendium(save, toKeep),
+    mastery: (id) => showMastery(save, id, toKeep),
     buy(id: MetaId) {
       commit(buyMeta(save, id));
+      toKeep();
+    },
+    raise(id) {
+      commit(buyBuilding(save, id));
       toKeep();
     },
   });
@@ -197,6 +209,9 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {})
     curses: d ? d.curses : save.settings.curses.filter((c) => unlockedCurses(save).includes(c)),
     daily: d?.date,
     trait: d ? 'none' : save.settings.trait, // the Daily Trial is the same for everyone
+    accountLevel: accountLevel(CLASS_ORDER.map((c) => save.classes[c].xp)),
+    libraryLevel: buildingLevel(save.buildings, 'library'),
+    palette: save.settings.palettes[id] ?? 0,
   });
   play();
   showHud(true);
@@ -305,13 +320,16 @@ function endRun(g: Game): void {
   setTouchControls(false);
   const id = g.player.cls.id;
   const prevBest = save.classes[id].bestWave;
+  const prevRank = masteryRank(save.classes[id].xp);
   const result = applyRun(save, summarizeRun(g));
   const earned = commit(result.save);
+  const newRank = masteryRank(save.classes[id].xp);
   showResults(
     {
       cls: g.player.cls, wave: g.wave, kills: g.kills, time: g.time, level: g.player.level,
       best: save.classes[id].bestWave, newBest: g.wave > prevBest,
-      gold: Math.max(0, g.gold - g.goldStart), classXp: result.classXp, masteryRank: masteryRank(save.classes[id].xp),
+      gold: result.gold, goldRaw: Math.max(0, g.gold - g.goldStart), runes: result.runes, classXp: result.classXp, masteryRank: newRank,
+      masteryName: newRank > prevRank ? MASTERY[newRank - 1].name : null,
       tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[save.tierUnlocked].name : null, earned, slain: g.over,
       seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily, build: buildOf(g),
     },

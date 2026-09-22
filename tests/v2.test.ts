@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ABILITY_TRACKS, ABILITY_UPGRADES } from '../src/config/abilityUpgrades';
 import { ACHIEVEMENTS } from '../src/config/achievements';
 import { CLASS_ORDER, CLASSES } from '../src/config/classes';
-import { META, META_IDS, TIERS } from '../src/config/economy';
+import { META, META_IDS, TIERS, MASTERY } from '../src/config/economy';
 import { AFFIXES, ELITES } from '../src/config/elites';
 import { RELIC_IDS, RELICS, relicDef } from '../src/config/relics';
 import { TRADEOFF_IDS } from '../src/config/upgrades';
@@ -319,15 +319,15 @@ describe('affix application', () => {
 describe('gold and cost calculations', () => {
   it('Keep costs rise per rank and stop at the cap', () => {
     for (const id of META_IDS) {
-      for (let r = 1; r < META[id].max; r++) expect(metaCost(id, r)!).toBeGreaterThan(metaCost(id, r - 1)!);
+      for (let r = 1; r < META[id].max; r++) expect(metaCost(id, r)!.gold).toBeGreaterThanOrEqual(metaCost(id, r - 1)!.gold);
       expect(metaCost(id, META[id].max)).toBeNull();
     }
-    expect(metaCost('hp', 0)).toBe(META.hp.baseCost);
+    expect(metaCost('hp', 0)!.gold).toBe(META.hp.baseCost);
     expect(totalMetaCost()).toBeGreaterThan(5000); // a long-term goal, not one good run
   });
 
   it('buying deducts gold, respects the cap and poverty', () => {
-    const rich = { ...defaultSave(), gold: 1000 };
+    const rich = { ...defaultSave(), gold: 1000, buildings: { armory: 3, library: 3 } }; // v0.4: buildings raised, so the old caps apply
     const bought = buyMeta(rich, 'str');
     expect(bought.meta.str).toBe(1);
     expect(bought.gold).toBe(1000 - META.str.baseCost);
@@ -355,21 +355,24 @@ describe('gold and cost calculations', () => {
     expect(s.dex).toBe(base.dex + 5);
     expect(s.secondary).toBe(base.secondary + 3);
     expect(s.hp / base.hp).toBeLessThan(1.5); // helps, does not trivialize
-    expect(metaLoadout(maxed)).toMatchObject({ gold: 100, rerolls: 2, relicSlots: 1 });
+    expect(metaLoadout(maxed)).toMatchObject({ gold: 100, rerolls: 2, relicSlots: 1, relicTierCap: 3 });
     expect(startingStats(base, { hp: 99 }, 0).hp).toBe(s.hp); // ranks above the cap are ignored
 
     const g = createGame('archer', 1, { meta: maxed });
     expect(g.relicSlots).toBe(metaLoadout(maxed).relicSlots); // v0.4: no longer a cap
     expect(g.rerolls).toBe(3);
     expect(g.gold).toBe(100);
+    expect(g.player.level).toBe(1 + META.startLevel.max); // v0.4 Veteran Levies
+    expect(g.talentPoints).toBe(META.talentPoint.max);
     expect(summarizeRun(g).gold).toBe(0); // starting gold is not "earned"
   });
 
   it('mastery ranks and class XP', () => {
     expect(masteryRank(0)).toBe(0);
     expect(masteryRank(150)).toBe(1);
-    expect(masteryRank(1e9)).toBe(5);
-    expect(masteryBonus(1e9)).toEqual({ secondary: 5, relic: true, reroll: 1 });
+    expect(masteryRank(1e9)).toBe(MASTERY.length); // v0.4: 25 ranks
+    expect(masteryBonus(1e9)).toMatchObject({ secondary: 7, relic: true, reroll: 2, utilityTier: true, startLevel: 1 });
+    expect(masteryBonus(MASTERY[4].xp)).toMatchObject({ secondary: 1, relic: true, reroll: 1, utilityTier: true });
     const run = { wavesCleared: 8, bosses: 1, level: 9 };
     expect(classXpForRun(run, TIERS[1])).toBeGreaterThan(classXpForRun(run, TIERS[0]));
     expect(createGame('viking', 1, { classXp: 1e9 }).relics).toHaveLength(1); // rank 3: starts with a common relic

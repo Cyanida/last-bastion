@@ -29,6 +29,15 @@
 - The pause and results screens show the whole build: trait, talents (and unspent points), ability and utility upgrades, relics with tiers, active synergies and clashes.
 - The balance bot spends its points down one branch, takes utility upgrades and casts the utility.
 
+### Runes and the Keep
+- **Runes**, a second currency: Act bosses pay 1 / 1 / 2 (at most 4 a run), salvaged relics ten shards to a Rune; quests, treasure steps and achievement tiers pay them too (later increments). A save arriving from v0.3 is granted one Rune per achievement earned.
+- **The Keep is six buildings** (Armory, Barracks, Chapel, Library, Treasury, Watchtower), each holding a few upgrade tracks. A building's level caps how far its tracks can be bought; raising it costs gold, Runes and a deed (an achievement). Gold buys the base ranks, the top ranks cost Runes as well. New tracks: class XP, utility cooldown, starting level, relic drop chance, the Reliquary Vault (relics can reach tier III; the old seventh slot became this), salvage yield, starting talent points, gold income, Rune income, daily caps, curse bonus, elite and boss bounties. The Library's level opens talent rows (keystones at level 2); the Watchtower's level gates the difficulty tiers.
+- **Class mastery is a 25-rank track** with a named unlock at every rank (secondary stat, rerolls, a starting relic, talent points, utility cooldown, class XP, a starting level, the second utility upgrade choice, four titles, three sprite palettes, two treasure quest steps). The full track is on the class's mastery screen in the Keep; palettes are picked on the class select.
+- **Account level** = every class's mastery rank added up (0-125), with milestones at 10 / 25 / 50 / 75 / 100 (gold, a reroll, XP, a talent point, damage).
+- **Caps**: gold from curses and the Daily Trial is capped per calendar day (600 / 400, +200 per Toll Gate rank), and a single run banks at most twice the run cap (1200, +400 per rank) with diminishing returns past it: one deep run no longer empties the Keep's shopping list.
+- `npm run sim -- economy` plays one save run after run, buying greedily, and reports when the Keep is fully raised (BALANCE.md; target 40-60 runs).
+- Save format **version 4** (buildings, Runes, daily gold, the trait and palettes in settings); v2 and v3 saves migrate.
+
 ## v0.3.1
 - The title screen shows the full version next to the build date ("build 2026-09-22 · v0.3.1"). This is the release that proves the auto-updater: an installed 0.3.0 finds it, downloads it and offers the restart.
 - Release workflow: only `latest*.yml` is attached as update metadata (0.3.0 also carried electron-builder's debug file).

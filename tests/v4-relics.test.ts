@@ -31,7 +31,13 @@ describe('relic tiers (v0.4)', () => {
     tiers = withRelic(tiers, 'whetstone');
     expect(tiers.whetstone).toBe(RELIC_MAX_TIER);
     expect(withRelic(tiers, 'whetstone')).toBe(tiers); // same object: nothing changed
-    const g = createGame('paladin', 1);
+    expect(withRelic({ whetstone: 2 }, 'whetstone', 2)).toEqual({ whetstone: 2 }); // the Chapel's vault caps a fresh save at tier II
+    const fresh = createGame('paladin', 1);
+    addRelic(fresh, 'whetstone');
+    addRelic(fresh, 'whetstone');
+    expect(addRelic(fresh, 'whetstone')).toBe(false);
+    expect(fresh.relicTiers.whetstone).toBe(2);
+    const g = createGame('paladin', 1, { meta: { relicSlot: 1 } }); // Reliquary Vault: tier III
     for (const id of RELIC_IDS) addRelic(g, id);
     expect(g.relics.length).toBe(RELIC_IDS.length); // v0.3 stopped at 6
     expect(addRelic(g, 'whetstone')).toBe(true);
@@ -42,7 +48,7 @@ describe('relic tiers (v0.4)', () => {
   });
 
   it('a tiered relic really is stronger in play: Blood Pact III cuts less HP than Blood Pact I, and a tier up gives the difference back', () => {
-    const g = createGame('paladin', 1);
+    const g = createGame('paladin', 1, { meta: { relicSlot: 1 } });
     const base = g.player.stats.hp;
     addRelic(g, 'bloodPact');
     expect(g.player.stats.hp).toBeCloseTo(base * relicN('bloodPact', 1).hp);

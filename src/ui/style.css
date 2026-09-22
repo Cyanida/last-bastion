@@ -91,6 +91,10 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 .boon.talent { border-color: #3a6b2a; outline-color: #6fae4f; }
 .boon.talent .tag { color: #3a6b2a; opacity: 1; font-weight: bold; }
 .chip.trait { border-color: #6b5a3a; }
+.swatches { display: flex; gap: 6px; justify-content: center; margin: -4px 0 6px; }
+.swatch { width: 22px; height: 22px; border: 2px solid #5a3d25; border-radius: 50%; display: grid; place-items: center; cursor: pointer; }
+.swatch i { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, #c23a2e, #3f6fae); display: block; }
+.swatch.on { border-color: var(--gold); box-shadow: 0 0 8px var(--gold); }
 @media (max-width: 760px) { .tree { grid-template-columns: 1fr; } }
 #h-ab-desc { font-size: 14px; }
 .hint { font-size: 12px; font-style: italic; opacity: 0.75; }
@@ -204,7 +208,26 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .pips i.on { background: var(--gold); }
 .maxed { min-width: 84px; text-align: center; font-style: italic; color: #6b4a08; }
 .masteries { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
-.mastery { display: flex; flex-direction: column; font-size: 13px; }
+.mastery { display: flex; flex-direction: column; font-size: 13px; font-family: var(--body); color: var(--ink); text-align: left; background: none; border: 1px dotted rgba(90, 61, 37, 0.5); border-radius: 4px; padding: 6px; cursor: pointer; }
+.mastery:hover { border-color: var(--gold); }
+.buildings { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0 16px; }
+.building { padding: 10px 14px; }
+.bhead { display: flex; align-items: center; gap: 10px; }
+.bhead b { flex: 1; font-size: 18px; }
+.bhead .pips i { width: 12px; height: 12px; border-radius: 2px; }
+.building .hint { margin: 2px 0 6px; }
+.building .meta { grid-template-columns: 1fr; gap: 2px; }
+.pips i.capped { border-style: dashed; opacity: 0.5; }
+.milestones { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; font-size: 13px; }
+.milestones span { padding: 2px 10px; border: 1px solid #5a3d25; border-radius: 12px; opacity: 0.6; }
+.milestones span.on { opacity: 1; border-color: var(--gold); background: rgba(201, 162, 39, 0.15); }
+.ranks { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 20px; margin: 10px 0 14px; }
+.rank { display: grid; grid-template-columns: 26px 1fr 1fr auto; gap: 8px; align-items: center; font-size: 13px; padding: 3px 0; border-bottom: 1px dotted rgba(90, 61, 37, 0.4); opacity: 0.55; }
+.rank.on { opacity: 1; }
+.rank b { color: var(--gold); text-shadow: 0 0 2px #000; }
+.rank em { opacity: 0.85; }
+.rank i { font-style: normal; font-size: 12px; }
+@media (max-width: 760px) { .buildings, .ranks { grid-template-columns: 1fr; } }
 .mastery b { font-family: var(--heading); font-size: 20px; }
 .achs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 22px; }
 .ach { opacity: 0.8; }

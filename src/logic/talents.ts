@@ -11,10 +11,11 @@ export const branchPoints = (taken: string[], branch: string): number => taken.f
 export const takenKeystone = (taken: string[]): TalentNode | undefined => taken.map((id) => TALENT_BY_ID[id]).find((n) => n?.keystone);
 
 /** Why a node cannot be taken right now, or null when it can. */
-export function talentBlocker(taken: string[], id: string, unspent: number): string | null {
+export function talentBlocker(taken: string[], id: string, unspent: number, rowCap = TALENTS.rows - 1): string | null {
   const node = TALENT_BY_ID[id];
   if (!node) return 'unknown talent';
   if (taken.includes(id)) return 'already taken';
+  if (node.row > rowCap) return node.keystone ? 'the Library must be raised for keystones' : 'the Library must be raised for this row';
   if (unspent <= 0) return 'no talent points';
   if (node.requires.length > 0 && !node.requires.some((r) => taken.includes(r))) return `needs ${node.requires.map((r) => TALENT_BY_ID[r].name).join(' or ')}`;
   if (node.keystone) {
@@ -25,7 +26,7 @@ export function talentBlocker(taken: string[], id: string, unspent: number): str
   return null;
 }
 
-export const canTakeTalent = (taken: string[], id: string, unspent: number): boolean => talentBlocker(taken, id, unspent) === null;
+export const canTakeTalent = (taken: string[], id: string, unspent: number, rowCap = TALENTS.rows - 1): boolean => talentBlocker(taken, id, unspent, rowCap) === null;
 
 /** Every taken node's plain mods folded into one Mods (multiplicative keys multiply, additive keys add). */
 export function talentMods(taken: string[]): Mods {

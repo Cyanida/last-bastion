@@ -135,7 +135,7 @@ export function botChoose(g: Game, variant = 0): void {
   while (g.talentPoints > 0 && spent) {
     spent = false;
     for (let b = 0; b < 3 && !spent; b++) {
-      const next = branchPlan(g.player.cls.id, variant + b).find((id) => canTakeTalent(g.player.talents, id, g.talentPoints));
+      const next = branchPlan(g.player.cls.id, variant + b).find((id) => canTakeTalent(g.player.talents, id, g.talentPoints, g.talentRowCap));
       if (next) spent = spendTalent(g, next);
     }
   }

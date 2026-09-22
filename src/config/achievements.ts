@@ -34,7 +34,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'swift', name: 'Forced March', desc: 'Reach wave 10 in under 6 minutes.', target: 1, progress: (s) => (s.counters.fastestWave10 > 0 && s.counters.fastestWave10 <= 360 ? 1 : 0) },
   { id: 'treasurer', name: 'Treasurer', desc: 'Bank 5,000 gold in total.', target: 5000, progress: (s) => s.counters.goldEarned, unlocks: { curse: 'swarm' } },
   { id: 'patron', name: 'Lord of the Keep', desc: 'Buy 15 ranks of permanent upgrades.', target: 15, progress: (s) => META_IDS.reduce((n, id) => n + (s.meta[id] ?? 0), 0) },
-  { id: 'master', name: 'Master-at-Arms', desc: 'Reach mastery rank 5 with any class.', target: MASTERY[MASTERY.length - 1].xp, progress: (s) => Math.max(...classes(s).map((c) => c.xp)) },
+  { id: 'master', name: 'Master-at-Arms', desc: 'Reach mastery rank 5 with any class.', target: MASTERY[4].xp, progress: (s) => Math.max(...classes(s).map((c) => c.xp)) },
   { id: 'veteran', name: 'Veteran', desc: 'Finish 25 runs.', target: 25, progress: (s) => classes(s).reduce((n, c) => n + c.runs, 0) },
   { id: 'knight', name: 'Dubbed a Knight', desc: 'Clear wave 15 on Squire to unlock Knight difficulty.', target: 1, progress: (s) => s.tierUnlocked },
   { id: 'champion', name: 'Champion of the Realm', desc: 'Clear wave 15 on Knight to unlock Champion difficulty.', target: 2, progress: (s) => s.tierUnlocked },

@@ -1,16 +1,17 @@
 import { ARENA_IDS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
 import { CURSE_IDS, type CurseId } from '../config/curses';
-import { META, META_IDS, TIER_UNLOCK_WAVE, TIERS, type MetaId } from '../config/economy';
+import { ACTS } from '../config/acts';
+import { BUILDING_IDS, BUILDINGS, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, type BuildingId, type MetaId } from '../config/economy';
 import type { EnemyId } from '../config/enemies';
 import type { QualitySetting } from '../config/game';
 import type { RelicId } from '../config/relics';
 import { TRAIT_IDS, type TraitId } from '../config/traits';
 import { curseMultiplier } from './curses';
-import { classXpForRun, metaCost, type MetaRanks } from './economy';
+import { buildingLevel, classXpForRun, metaCost, metaLoadout, runesForActBoss, type BuildingLevels, type MetaRanks } from './economy';
 
-export const SAVE_VERSION = 3;
-const READABLE_VERSIONS = [2, 3]; // v2 (game v0.2) has the same shape minus the v0.3 fields, which get defaults
+export const SAVE_VERSION = 4;
+const READABLE_VERSIONS = [2, 3, 4]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
 export const SAVE_KEY = 'lastbastion.save';
 export const LEGACY_BEST_KEY = 'lastbastion.best'; // v0.1: { [classId]: bestWave }
 
@@ -28,7 +29,10 @@ export interface Save {
   meta: MetaRanks;
   classes: Record<ClassId, ClassRecord>;
   relicPicks: Partial<Record<RelicId, number>>; // how often each relic was picked up or tiered up (the compendium)
-  runeShards: number; // v0.4: salvaged relics; Runes themselves arrive with the Keep rework
+  runeShards: number; // v0.4: salvaged relics; RUNES.shardsPerRune of them become a Rune at the end of a run
+  runes: number; // v0.4: the Keep's second currency
+  buildings: BuildingLevels; // v0.4: the Keep's buildings, level 0..3
+  dailyGold: { date: string; curse: number; trial: number }; // v0.4: gold from curses and the Daily Trial banked today (capped)
   achievements: string[];
   tierUnlocked: number; // highest difficulty index available
   counters: {
@@ -48,7 +52,7 @@ export interface Save {
     dailies: number;
   };
   daily: Record<string, number>; // v0.3: 'YYYY-MM-DD' -> best wave in that day's trial
-  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId };
+  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; palettes: Partial<Record<ClassId, number>> };
 }
 
 /** What a finished (or abandoned) run reports. The v0.3 fields are optional so older callers keep working. */
@@ -91,11 +95,14 @@ export function defaultSave(): Save {
     classes: Object.fromEntries(CLASS_ORDER.map((id) => [id, emptyClass()])) as Record<ClassId, ClassRecord>,
     relicPicks: {},
     runeShards: 0,
+    runes: 0,
+    buildings: {},
+    dailyGold: { date: '', curse: 0, trial: 0 },
     achievements: [],
     tierUnlocked: 0,
     counters: { kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0 },
     daily: {},
-    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none' },
+    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', palettes: {} },
   };
 }
 
@@ -126,7 +133,16 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
     }
     if (isObj(raw.relicPicks)) for (const [k, v] of Object.entries(raw.relicPicks)) save.relicPicks[k as RelicId] = num(v);
     save.runeShards = Math.max(0, Math.floor(num(raw.runeShards)));
+    if (isObj(raw.buildings)) {
+      for (const id of BUILDING_IDS) {
+        const level = Math.min(BUILDINGS[id].levels.length, Math.floor(num(raw.buildings[id])));
+        if (level > 0) save.buildings[id] = level; // only real levels, so migrating a save twice changes nothing
+      }
+    }
+    if (isObj(raw.dailyGold) && typeof raw.dailyGold.date === 'string') save.dailyGold = { date: raw.dailyGold.date, curse: num(raw.dailyGold.curse), trial: num(raw.dailyGold.trial) };
     if (Array.isArray(raw.achievements)) save.achievements = raw.achievements.filter((a): a is string => typeof a === 'string');
+    // v3 -> v4: Runes did not exist; a save arriving from v0.3 is granted one per achievement earned (what the achievement tiers would have paid)
+    save.runes = raw.version === 4 ? Math.max(0, Math.floor(num(raw.runes))) : save.achievements.length;
     save.tierUnlocked = Math.min(TIERS.length - 1, Math.floor(num(raw.tierUnlocked)));
     if (isObj(raw.counters)) {
       const c = raw.counters;
@@ -141,6 +157,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
         tier: Math.min(save.tierUnlocked, Math.floor(num(s.tier))),
         quality: s.quality === 'low' || s.quality === 'high' ? s.quality : 'auto',
         trait: TRAIT_IDS.includes(s.trait as TraitId) ? (s.trait as TraitId) : 'none',
+        palettes: isObj(s.palettes) ? Object.fromEntries(CLASS_ORDER.filter((c) => num((s.palettes as Record<string, unknown>)[c]) > 0).map((c) => [c, Math.floor(num((s.palettes as Record<string, unknown>)[c]))])) : {},
         prerelease: s.prerelease === true,
         curses: Array.isArray(s.curses) ? CURSE_IDS.filter((id) => (s.curses as unknown[]).includes(id)) : [],
       };
@@ -164,37 +181,73 @@ export function importSave(text: string): Save | null {
   }
 }
 
-/** Buy one rank. Returns the same object when it cannot be bought (capped or too poor). */
+/** Buy one rank. Returns the same object when it cannot be bought (capped by the track or its building, or too poor). */
 export function buyMeta(save: Save, id: MetaId): Save {
   const rank = save.meta[id] ?? 0;
-  const cost = metaCost(id, rank);
-  if (cost === null || save.gold < cost) return save;
-  return { ...save, gold: save.gold - cost, meta: { ...save.meta, [id]: rank + 1 } };
+  const cost = metaCost(id, rank, save.buildings);
+  if (cost === null || save.gold < cost.gold || save.runes < cost.runes) return save;
+  return { ...save, gold: save.gold - cost.gold, runes: save.runes - cost.runes, meta: { ...save.meta, [id]: rank + 1 } };
 }
 
+/** Raise a building one level: gold, Runes and its deed (an achievement). Same object back when it cannot be done. */
+export function buyBuilding(save: Save, id: BuildingId): Save {
+  const level = buildingLevel(save.buildings, id);
+  const next = BUILDINGS[id].levels[level];
+  if (!next || save.gold < next.gold || save.runes < next.runes || (next.achievement && !save.achievements.includes(next.achievement))) return save;
+  return { ...save, gold: save.gold - next.gold, runes: save.runes - next.runes, buildings: { ...save.buildings, [id]: level + 1 } };
+}
+
+/** The date a run is banked on, for the daily caps (local calendar day). */
+export const today = (): string => new Date().toISOString().slice(0, 10);
+
 /** Fold a run into the save: gold, class XP, records, counters, difficulty unlock. Achievements are evaluated separately. */
-export function applyRun(save: Save, run: RunSummary): { save: Save; classXp: number; tierUnlocked: boolean } {
+export function applyRun(save: Save, run: RunSummary, date = today()): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number } {
   const curses = run.curses ?? [];
+  const loadout = metaLoadout(save.meta);
+  const curseMult = curseMultiplier(curses) + curses.length * loadout.curseBonus;
   // gold already carries the curse multiplier (it is applied as it drops); class XP gets it here
-  const classXp = Math.round(classXpForRun({ wavesCleared: run.wavesCleared, bosses: run.bosses.length, level: run.level }, TIERS[run.tier]) * curseMultiplier(curses));
+  const classXp = Math.round(classXpForRun({ wavesCleared: run.wavesCleared, bosses: run.bosses.length, level: run.level }, TIERS[run.tier]) * curseMult * (1 + (save.meta.classXp ?? 0) * META.classXp.perRank));
   const prev = save.classes[run.classId];
   const c = save.counters;
   const acts = run.actsCleared ?? 0;
+  // v0.4: the Treasury's income multiplier, then the daily caps on what curses and the Daily Trial add (BALANCE.md)
+  const dailyGold = save.dailyGold.date === date ? save.dailyGold : { date, curse: 0, trial: 0 };
+  const runCap = RUNES.runGoldCap + (save.meta.dailyCap ?? 0) * 400;
+  let gold = Math.round(run.gold * loadout.goldIncome);
+  if (gold > runCap) gold = Math.round(runCap + runCap * (1 - Math.exp(-(gold - runCap) / runCap))); // the same soft cap as relic stacking: at most twice the cap
+  const curseCap = RUNES.dailyCaps.curseGold + loadout.dailyCap;
+  const trialCap = RUNES.dailyCaps.trialGold + loadout.dailyCap;
+  const cursePart = curses.length > 0 ? Math.round(gold * (1 - 1 / curseMult)) : 0;
+  const curseAllowed = Math.min(cursePart, Math.max(0, curseCap - dailyGold.curse));
+  gold -= cursePart - curseAllowed;
+  const trialAllowed = run.daily ? Math.min(gold, Math.max(0, trialCap - dailyGold.trial)) : gold;
+  gold = trialAllowed;
+  // Runes: every Act boss slain pays, shards convert
+  const actBosses = run.bosses.filter((b) => ACTS.bosses.includes(b)).length;
+  let runes = 0;
+  for (let i = 0; i < actBosses; i++) runes += runesForActBoss(i, save.meta);
+  runes = Math.min(runes, RUNES.runCap + (save.meta.runeIncome ?? 0));
+  const shards = save.runeShards + Math.round((run.salvage ?? 0) * (1 + loadout.salvageBonus));
+  runes += Math.floor(shards / RUNES.shardsPerRune);
   const tierUnlocked = run.tier === save.tierUnlocked && run.wavesCleared >= TIER_UNLOCK_WAVE && save.tierUnlocked < TIERS.length - 1;
   const relicPicks = { ...save.relicPicks };
   for (const id of run.relicsFound ?? run.relics) relicPicks[id] = (relicPicks[id] ?? 0) + 1; // v0.4: every pickup and tier-up counts
   return {
     classXp,
     tierUnlocked,
+    runes,
+    gold,
     save: {
       ...save,
-      gold: save.gold + run.gold,
+      gold: save.gold + gold,
+      runes: save.runes + runes,
+      dailyGold: { date, curse: dailyGold.curse + curseAllowed, trial: dailyGold.trial + (run.daily ? trialAllowed : 0) },
       classes: {
         ...save.classes,
         [run.classId]: { bestWave: Math.max(prev.bestWave, run.wave), runs: prev.runs + 1, kills: prev.kills + run.kills, time: prev.time + run.time, xp: prev.xp + classXp },
       },
       relicPicks,
-      runeShards: save.runeShards + (run.salvage ?? 0),
+      runeShards: Math.round(shards % RUNES.shardsPerRune),
       tierUnlocked: save.tierUnlocked + (tierUnlocked ? 1 : 0),
       daily: run.daily ? { ...save.daily, [run.daily]: Math.max(save.daily[run.daily] ?? 0, run.wave) } : save.daily,
       counters: {

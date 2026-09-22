@@ -368,8 +368,14 @@ export interface Game {
   pendingAbilityTiers: number[];
   pendingUtilityTiers: number[]; // v0.4: utility ability choices due (UTILITY.tiers)
   talentPoints: number; // unspent
+  talentRowCap: number; // v0.4: the Library's level caps the talent rows (TALENT_ROW_CAP)
+  relicTierCap: number; // v0.4: the Chapel's vault: 2 until bought, then RELIC_MAX_TIER
+  utilityTiers: number; // v0.4: how many utility upgrade tiers this run offers (mastery rank 5 unlocks the second)
+  eliteGold: number; // v0.4 Watchtower bounties
+  bossGold: number;
   talentModsCache: Mods | null; // talent mods folded together; rebuilt when a talent is taken
   trait: TraitId;
+  palette: number; // v0.4: the class sprite's colours (mastery unlocks; SPRITE_PALETTES)
   rerolls: number; // free rerolls per level-up screen
   gold: number;
   goldStart: number;

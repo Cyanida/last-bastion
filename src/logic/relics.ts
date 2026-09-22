@@ -11,7 +11,7 @@ export function relicPoolFor(classId: ClassId, locked: RelicId[]): RelicId[] {
 }
 
 export const relicTier = (tiers: RelicTiers, id: RelicId): number => tiers[id] ?? 0;
-export const canUpgrade = (tiers: RelicTiers, id: RelicId): boolean => relicTier(tiers, id) > 0 && relicTier(tiers, id) < RELIC_MAX_TIER;
+export const canUpgrade = (tiers: RelicTiers, id: RelicId, cap = RELIC_MAX_TIER): boolean => relicTier(tiers, id) > 0 && relicTier(tiers, id) < Math.min(cap, RELIC_MAX_TIER);
 
 /** Share of new relics in a drop: shrinks with every relic held, so late drops are mostly upgrades. */
 export const newRelicShare = (heldCount: number): number => Math.max(RELIC_DROPS.minNewShare, 1 - heldCount * RELIC_DROPS.newDecayPerHeld);
@@ -20,11 +20,11 @@ export const newRelicShare = (heldCount: number): number => Math.max(RELIC_DROPS
  * Up to n distinct offers, weighted by rarity: new relics from the pool (weight scaled by newRelicShare) and upgrades of held relics
  * below the top tier. `exclude` keeps the same relic out of two offers queued at once.
  */
-export function rollRelics(pool: RelicId[], held: RelicId[], tiers: RelicTiers, rng: Rng, n: number, exclude: RelicId[] = []): RelicId[] {
+export function rollRelics(pool: RelicId[], held: RelicId[], tiers: RelicTiers, rng: Rng, n: number, exclude: RelicId[] = [], cap = RELIC_MAX_TIER): RelicId[] {
   const share = newRelicShare(held.length);
   const left = [
     ...pool.filter((id) => !held.includes(id) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] * share })),
-    ...held.filter((id) => canUpgrade(tiers, id) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] })),
+    ...held.filter((id) => canUpgrade(tiers, id, cap) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] })),
   ];
   const out: RelicId[] = [];
   while (out.length < n && left.length > 0) {
@@ -35,10 +35,10 @@ export function rollRelics(pool: RelicId[], held: RelicId[], tiers: RelicTiers, 
   return out;
 }
 
-/** Tiers after taking `id`: a new relic at tier 1, a held one a tier up (never past the top). Same object back = nothing changed. */
-export function withRelic(tiers: RelicTiers, id: RelicId): RelicTiers {
+/** Tiers after taking `id`: a new relic at tier 1, a held one a tier up (never past the cap). Same object back = nothing changed. */
+export function withRelic(tiers: RelicTiers, id: RelicId, cap = RELIC_MAX_TIER): RelicTiers {
   const tier = relicTier(tiers, id);
-  if (tier >= RELIC_MAX_TIER) return tiers;
+  if (tier >= Math.min(cap, RELIC_MAX_TIER)) return tiers;
   return { ...tiers, [id]: tier + 1 };
 }
 

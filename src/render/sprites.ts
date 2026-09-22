@@ -578,7 +578,10 @@ export interface Sprite {
   flashFlipped: HTMLCanvasElement;
 }
 
-function rasterize(rows: string[], scale: number, white: boolean, flip: boolean): HTMLCanvasElement {
+/** v0.4 mastery palettes: a canvas filter over the class sprite (0 = as drawn; Ashen, Gilded, Midnight). */
+export const SPRITE_PALETTES = ['', 'saturate(0.35) brightness(1.1)', 'sepia(1) saturate(2.2) hue-rotate(-10deg) brightness(1.1)', 'hue-rotate(200deg) saturate(1.3) brightness(0.8)'];
+
+function rasterize(rows: string[], scale: number, white: boolean, flip: boolean, palette = 0): HTMLCanvasElement {
   const w = rows[0].length;
   const c = document.createElement('canvas');
   c.width = w * scale;
@@ -592,21 +595,31 @@ function rasterize(rows: string[], scale: number, white: boolean, flip: boolean)
       ctx.fillRect((flip ? w - 1 - x : x) * scale, y * scale, scale, scale);
     }
   });
+  if (palette > 0 && !white && SPRITE_PALETTES[palette] && 'filter' in ctx) {
+    // recolour once, here, so the frame never pays for a filter
+    const tinted = document.createElement('canvas');
+    tinted.width = c.width;
+    tinted.height = c.height;
+    const t = tinted.getContext('2d')!;
+    t.filter = SPRITE_PALETTES[palette];
+    t.drawImage(c, 0, 0);
+    return tinted;
+  }
   return c;
 }
 
 const cache = new Map<string, Sprite>();
 
-export function getSprite(id: SpriteId, scale: number): Sprite {
-  const key = `${id}@${scale}`;
+export function getSprite(id: SpriteId, scale: number, palette = 0): Sprite {
+  const key = `${id}@${scale}@${palette}`;
   let s = cache.get(key);
   if (!s) {
     const rows = SPRITES[id];
     s = {
       w: rows[0].length * scale,
       h: rows.length * scale,
-      img: rasterize(rows, scale, false, false),
-      flipped: rasterize(rows, scale, false, true),
+      img: rasterize(rows, scale, false, false, palette),
+      flipped: rasterize(rows, scale, false, true, palette),
       flash: rasterize(rows, scale, true, false),
       flashFlipped: rasterize(rows, scale, true, true),
     };

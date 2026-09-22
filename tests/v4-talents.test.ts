@@ -3,6 +3,7 @@ import { CLASS_ORDER } from '../src/config/classes';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor } from '../src/config/talents';
 import { TRAIT_IDS, TRAITS } from '../src/config/traits';
 import { TALENT_CARD_CHANCE } from '../src/config/upgrades';
+import { MASTERY } from '../src/config/economy';
 import { UTILITIES, UTILITY, UTILITY_TRACKS, UTILITY_UPGRADES } from '../src/config/utility';
 import { mulberry32 } from '../src/core/math';
 import { createGame, updateGame } from '../src/game';
@@ -93,7 +94,10 @@ describe('talent trees (v0.4)', () => {
 
 describe('utility abilities', () => {
   it('unlock at level 3, own cooldown, tiers at levels 8 and 14 with two-way exclusive choices', () => {
-    const g = createGame('paladin', 1);
+    const plain = createGame('paladin', 1);
+    levelTo(plain, 14);
+    expect(plain.pendingUtilityTiers).toEqual([0]); // the second tier is mastery rank 5's unlock
+    const g = createGame('paladin', 1, { classXp: MASTERY[4].xp });
     g.input.utility = true;
     updateUtility(g, DT);
     expect(utilityUnlocked(g.player)).toBe(false);

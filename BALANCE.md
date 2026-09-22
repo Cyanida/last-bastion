@@ -95,6 +95,23 @@ bot lacked against a crowd, and a maxed save survives the Dragon often enough to
 to add, and far more of it than the 1.5-2x target; the balance pass (section 9) will steepen the tail past wave 30 and look at the utility cooldowns
 before the classes. The spread between fresh classes is 1.9x, the Archer still last.
 
+## v0.4: Runes and the Keep
+
+Playtest feedback: the Keep is emptied after a single good run, and cross-run progression feels thin. The Keep is now six buildings
+(`config/economy.ts` BUILDINGS): a building's level caps its tracks, raising it costs gold, **Runes** and a deed (an achievement). Gold buys the
+base ranks; the top ranks cost Runes too. Runes come only from Act bosses (1 / 1 / 2, at most 4 a run), quests and treasure steps (increments 7-8),
+achievement tiers (increment 6) and salvaged relics (ten shards to a Rune). Class mastery is 25 named ranks (about 40 runs of one class to the top:
+`MASTERY_XP_TOTAL * (rank/25)^1.5`), the account level is every rank added up.
+
+Three caps keep one run from buying everything: gold from curses and the Daily Trial is capped per day (600 / 400, +200 per Toll Gate rank), and
+a run banks at most twice `runGoldCap` (1200, +400 per rank) with the same diminishing curve as relic stacking past it. Without that last cap the
+economy sim banked 54,000 gold from one wave-60 run.
+
+**`npm run sim -- economy`** plays one save run after run (classes in turn, deeds earned as they come, everything bought greedily). The whole Keep
+costs 60,754 gold and 92 Runes; with the costs scaled 1.6x from the first draft it is **fully raised after run 43** (target 40-60). Runes are the
+bottleneck from run 20 on (56 of 82 ranks bought, 8 of 18 building levels, 0 Runes in hand), which is the intended shape; quests and achievement
+tiers will add Rune income later, and the balance pass re-runs this.
+
 ## v0.4: relics without a cap
 
 The cap is gone; a duplicate raises a relic a tier (three tiers, `config/relics.ts` has every relic's tier 2 and 3 numbers). What keeps that
