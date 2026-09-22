@@ -333,6 +333,7 @@ export function updateAbility(g: Game, dt: number): void {
     if (p.abilityTime <= 0) {
       p.abilityTime = 0;
       hook.expire?.(g, cfg);
+      emit(g, 'onAbilityEnd', {});
     }
   }
   p.reviveT = Math.max(0, p.reviveT - dt);

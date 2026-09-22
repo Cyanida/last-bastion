@@ -6,6 +6,7 @@ import { ACTS } from './config/acts';
 import { curseMultiplier, curseValue } from './logic/curses';
 import { GAME } from './config/game';
 import { relicDef, type RelicId } from './config/relics';
+import { TREASURES } from './config/treasures';
 import { FREE_REROLLS } from './config/upgrades';
 import { WAVES } from './config/waves';
 import { compact, mulberry32 } from './core/math';
@@ -19,6 +20,7 @@ import { applyGrowth } from './logic/formulas';
 import { combineMods, neutralMods } from './logic/mods';
 import { relicPoolFor, rollRelics } from './logic/relics';
 import type { RunSummary } from './logic/save';
+import type { TreasureRecord } from './logic/treasures';
 import { abilityPassives, updateAbility } from './systems/abilities';
 import { updateArena } from './systems/arena';
 import { healPlayer, updateFields, updatePlayerAttack, updateProjectiles, updateZones } from './systems/combat';
@@ -31,6 +33,7 @@ import { applyTrait, talentPassives } from './systems/talents';
 import { initRegions, updateRegions } from './systems/regions';
 import { initQuests, updateQuests } from './systems/quests';
 import { updateEvents } from './systems/events';
+import { updateTreasures } from './systems/treasures';
 import { updateUtility } from './systems/utility';
 import type { TraitId } from './config/traits';
 import { updateSpawning } from './systems/spawning';
@@ -53,6 +56,8 @@ export interface RunOptions {
   accountLevel?: number; // v0.4: the sum of every class's mastery rank (account milestones)
   libraryLevel?: number; // v0.4: caps the talent rows (TALENT_ROW_CAP)
   daily?: string; // date of the Daily Trial this run is
+  treasure?: number; // v0.5: tier of the class's sacred treasure to equip (0 or none: not equipped)
+  chain?: TreasureRecord; // v0.5: the class's treasure chain from the save (it only plays once mastery has opened it)
   // simulation only (the relic power index, scripts/simulate.ts): start with these relics at this tier, or with this many pickups
   // rolled by the drop rules; noRelics stops any further drops
   relics?: RelicId[];
@@ -68,6 +73,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   const loadout = metaLoadout(opts.meta ?? {});
   const account = accountPerks(opts.accountLevel ?? 0);
   const curses = [...new Set(opts.curses ?? [])];
+  const chain = opts.chain && mastery.treasureStep >= 1 ? opts.chain : null;
   const g: Game = {
     player: createPlayer(cls, arena, startingStats(cls.base, opts.meta ?? {}, mastery.secondary)),
     enemies: [],
@@ -167,6 +173,9 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     curses,
     daily: opts.daily ?? null,
     feats: {},
+    actFeats: {},
+    treasure: opts.treasure ? { id: TREASURES[classId].id, tier: Math.min(3, opts.treasure) } : null,
+    chain: chain && { fragments: chain.fragments, trial: chain.trial, tier: chain.tier, unlocked: mastery.treasureStep, found: 0, passed: false, guardian: null, slain: false },
     banner: { text: '', t: 0 },
     over: false,
   };
@@ -232,6 +241,7 @@ export function summarizeRun(g: Game): RunSummary {
     quests: g.questsDone,
     events: g.eventsSeen,
     questRunes: g.questRunes,
+    treasure: g.chain || g.treasure ? { found: g.chain?.found ?? 0, passed: g.chain?.passed ?? false, slain: g.chain?.slain ?? false, carried: g.treasure?.tier ?? 0 } : undefined,
   };
 }
 
@@ -254,6 +264,7 @@ export function updateGame(g: Game, dt: number): void {
   p.mods = { ...g.baseMods }; // rebuilt every tick: meta + tradeoffs, then relics, then passive ability upgrades
   updateRelics(g, dt);
   talentPassives(g);
+  updateTreasures(g);
   abilityPassives(g);
   healPlayer(g, (p.cls.regen + p.mods.regen) * dt, false);
 

@@ -8,6 +8,7 @@ import { speedFactor } from '../logic/status';
 import { floatText } from './effects';
 import { gainXp } from './leveling';
 import { offerRelics } from './relics';
+import { takeFragment } from './treasures';
 
 function pushOut(b: Body, o: Body): void {
   if (b === o) return;
@@ -92,7 +93,8 @@ export function updatePickups(g: Game, dt: number): void {
       else if (k.kind === 'gold') {
         g.gold += k.value;
         floatText(g, p.x, p.y - 26, `+${k.value}g`, '#c9a227', 12);
-      } else offerRelics(g, 1);
+      } else if (k.kind === 'fragment') takeFragment(g);
+      else offerRelics(g, 1);
       sfx('xp');
       return false;
     }

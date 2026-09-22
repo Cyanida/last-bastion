@@ -10,6 +10,7 @@ export interface GameEvents {
   onDamageTaken: { amount: number; attacker: Enemy | null };
   onBlocked: { amount: number; attacker: Enemy | null }; // damage stopped by invulnerability
   onAbilityUsed: { cooldown: number };
+  onAbilityEnd: Record<string, never>; // v0.5: the signature ability's active time ran out (after its own expire)
   onUtilityUsed: { id: string }; // v0.4
   onWaveStart: { wave: number };
 }

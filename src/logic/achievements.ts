@@ -4,6 +4,7 @@ import { CLASS_ORDER } from '../config/classes';
 import { CURSE_IDS, type CurseId } from '../config/curses';
 import type { RelicId } from '../config/relics';
 import { TRAITS } from '../config/traits';
+import { TREASURE_RULES } from '../config/treasures';
 import { masteryBonus } from './economy';
 import type { Save } from './save';
 
@@ -52,14 +53,17 @@ export function withAchievements(save: Save): { save: Save; earned: EarnedTier[]
     achievements: [...save.achievements, ...earned.map((e) => tierKey(e.id, e.tier))],
     titles: [...save.titles],
     palettes: [...save.palettes],
-    treasureSteps: { ...save.treasureSteps },
+    treasures: { ...save.treasures },
   };
   for (const { def, reward } of earned) {
     next.runes += reward.runes ?? 0;
     next.talentPoints += reward.talentPoint ?? 0;
     if (reward.title && !next.titles.includes(reward.title)) next.titles.push(reward.title);
     if (reward.palette !== undefined && !next.palettes.includes(reward.palette)) next.palettes.push(reward.palette);
-    if (reward.treasureStep) for (const id of def.classId ? [def.classId] : CLASS_ORDER) next.treasureSteps[id] = Math.max(next.treasureSteps[id], reward.treasureStep);
+    for (const id of reward.fragment ? (def.classId ? [def.classId] : CLASS_ORDER) : []) {
+      if (next.treasures[id].fragments < TREASURE_RULES.fragments) next.treasures[id] = { ...next.treasures[id], fragments: next.treasures[id].fragments + 1 };
+      else next.runes++;
+    }
   }
   return { earned, save: next };
 }
@@ -74,7 +78,7 @@ export function rewardText(reward: AchievementReward): string {
   if (reward.trait) parts.push(`trait ${TRAITS[reward.trait].name}`);
   if (reward.palette !== undefined) parts.push('a sprite palette for every class');
   if (reward.talentPoint) parts.push(`+${reward.talentPoint} starting talent point`);
-  if (reward.treasureStep) parts.push('a sacred treasure step');
+  if (reward.fragment) parts.push('a sacred treasure fragment (or a Rune)');
   return parts.join(' · ');
 }
 

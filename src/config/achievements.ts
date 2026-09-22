@@ -25,7 +25,7 @@ export interface AchievementReward {
   trait?: TraitId;
   palette?: number; // account-wide sprite palette (SPRITE_PALETTES)
   talentPoint?: number; // permanent starting talent point
-  treasureStep?: number; // sacred treasure quest step (increment 8; only stored)
+  fragment?: boolean; // v0.5: a fragment of the class's sacred treasure (a Rune once it has all three)
 }
 
 export interface AchievementTier {
@@ -94,19 +94,19 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // ---------------------------------------------------------------- champions (class feats, two per class plus its mastery track)
   { id: 'paladinShield', name: 'Bulwark', desc: 'Absorb 2,000, 5,000 and 12,000 damage with one Divine Shield.', category: 'class', classId: 'paladin', tiers: tiers([2000, 5000, 12000], { 3: { title: 'the Bulwark' } }), progress: (s) => s.counters.absorb },
   { id: 'paladinTaunt', name: 'Challenger', desc: 'Pull 10, 20 and 35 enemies with one Challenge.', category: 'class', classId: 'paladin', tiers: tiers([10, 20, 35]), progress: (s) => s.counters.taunted },
-  { id: 'paladinMastery', name: 'Oath-Keeper', desc: 'Reach Paladin mastery rank 5, 12 and 20.', category: 'class', classId: 'paladin', tiers: tiers([5, 12, 20], { 3: { treasureStep: 1 } }), progress: (s) => masteryRank(s.classes.paladin.xp) },
+  { id: 'paladinMastery', name: 'Oath-Keeper', desc: 'Reach Paladin mastery rank 5, 12 and 20.', category: 'class', classId: 'paladin', tiers: tiers([5, 12, 20], { 3: { fragment: true } }), progress: (s) => masteryRank(s.classes.paladin.xp) },
   { id: 'vikingRage', name: 'Blood Frenzy', desc: 'Slay 25, 60 and 100 enemies during one Berserker Rage.', category: 'class', classId: 'viking', tiers: tiers([25, 60, 100], { 3: { title: 'the Wrathful' } }), progress: (s) => s.counters.rageKills },
   { id: 'vikingLeap', name: 'Thunderfoot', desc: 'Strike 10, 20 and 30 enemies with one Leap.', category: 'class', classId: 'viking', tiers: tiers([10, 20, 30]), progress: (s) => s.counters.leapHits },
-  { id: 'vikingMastery', name: 'Shieldbiter', desc: 'Reach Viking mastery rank 5, 12 and 20.', category: 'class', classId: 'viking', tiers: tiers([5, 12, 20], { 3: { treasureStep: 1 } }), progress: (s) => masteryRank(s.classes.viking.xp) },
+  { id: 'vikingMastery', name: 'Shieldbiter', desc: 'Reach Viking mastery rank 5, 12 and 20.', category: 'class', classId: 'viking', tiers: tiers([5, 12, 20], { 3: { fragment: true } }), progress: (s) => masteryRank(s.classes.viking.xp) },
   { id: 'angelHeal', name: 'Mercy', desc: 'Heal 1,000, 4,000 and 10,000 with Heavenly Radiance in one run.', category: 'class', classId: 'angel', tiers: tiers([1000, 4000, 10000], { 3: { title: 'the Merciful' } }), progress: (s) => s.counters.radiance },
   { id: 'angelBlink', name: 'Featherfoot', desc: 'Blink 20, 50 and 100 times in one run.', category: 'class', classId: 'angel', tiers: tiers([20, 50, 100]), progress: (s) => s.counters.blinks },
-  { id: 'angelMastery', name: 'Choir of One', desc: 'Reach Angel mastery rank 5, 12 and 20.', category: 'class', classId: 'angel', tiers: tiers([5, 12, 20], { 3: { treasureStep: 1 } }), progress: (s) => masteryRank(s.classes.angel.xp) },
+  { id: 'angelMastery', name: 'Choir of One', desc: 'Reach Angel mastery rank 5, 12 and 20.', category: 'class', classId: 'angel', tiers: tiers([5, 12, 20], { 3: { fragment: true } }), progress: (s) => masteryRank(s.classes.angel.xp) },
   { id: 'necroHorde', name: 'Grave Legion', desc: 'Have 8, 14 and 20 minions alive at once.', category: 'class', classId: 'necromancer', tiers: tiers([8, 14, 20], { 3: { title: 'the Grave-Caller' } }), progress: (s) => s.counters.minions },
   { id: 'necroBlast', name: 'Corpse Carnival', desc: 'Catch 15, 30 and 50 enemies in one Corpse Explosion.', category: 'class', classId: 'necromancer', tiers: tiers([15, 30, 50]), progress: (s) => s.counters.corpseHits },
-  { id: 'necroMastery', name: 'Lord of Bones', desc: 'Reach Necromancer mastery rank 5, 12 and 20.', category: 'class', classId: 'necromancer', tiers: tiers([5, 12, 20], { 3: { treasureStep: 1 } }), progress: (s) => masteryRank(s.classes.necromancer.xp) },
+  { id: 'necroMastery', name: 'Lord of Bones', desc: 'Reach Necromancer mastery rank 5, 12 and 20.', category: 'class', classId: 'necromancer', tiers: tiers([5, 12, 20], { 3: { fragment: true } }), progress: (s) => masteryRank(s.classes.necromancer.xp) },
   { id: 'archerVolley', name: 'Arrow Storm', desc: 'Catch 12, 25 and 40 enemies under one Arrow Volley.', category: 'class', classId: 'archer', tiers: tiers([12, 25, 40], { 3: { title: 'the Storm' } }), progress: (s) => s.counters.volleyHits },
   { id: 'archerRoll', name: 'Tumbler', desc: 'Dodge roll 20, 50 and 100 times in one run.', category: 'class', classId: 'archer', tiers: tiers([20, 50, 100]), progress: (s) => s.counters.rolls },
-  { id: 'archerMastery', name: 'Keen Eye', desc: 'Reach Archer mastery rank 5, 12 and 20.', category: 'class', classId: 'archer', tiers: tiers([5, 12, 20], { 3: { treasureStep: 1 } }), progress: (s) => masteryRank(s.classes.archer.xp) },
+  { id: 'archerMastery', name: 'Keen Eye', desc: 'Reach Archer mastery rank 5, 12 and 20.', category: 'class', classId: 'archer', tiers: tiers([5, 12, 20], { 3: { fragment: true } }), progress: (s) => masteryRank(s.classes.archer.xp) },
 
   // ---------------------------------------------------------------- collection
   { id: 'collector', name: 'Reliquarian', desc: 'Hold 6, 10 and 15 relics in a single run.', category: 'collection', tiers: tiers([6, 10, 15]), progress: (s) => s.counters.maxRelics },
@@ -118,6 +118,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'runeHoard', name: 'Rune Hoard', desc: 'Hold 10, 30 and 60 Runes at once.', category: 'collection', tiers: tiers([10, 30, 60]), progress: (s) => s.runes },
   { id: 'ascended', name: 'Ascended', desc: 'Choose all three ability upgrades in one run.', category: 'collection', tiers: tiers([3]), progress: (s) => s.counters.maxAbilityUpgrades },
   { id: 'master', name: 'Master-at-Arms', desc: 'Reach mastery rank 5, 15 and 25 with any class.', category: 'collection', tiers: tiers([MASTERY[4].xp, MASTERY[14].xp, MASTERY[24].xp], { 3: { title: 'Master-at-Arms' } }), progress: (s) => top(classes(s).map((c) => c.xp)) },
+  { id: 'keeperOfRelics', name: 'Keeper of Relics', desc: 'Earn 1, 3 and 5 sacred treasures.', category: 'collection', tiers: tiers([1, 3, 5], { 3: { title: 'Keeper of Relics' } }), progress: (s) => CLASS_ORDER.filter((id) => s.treasures[id].tier > 0).length },
   { id: 'fiveMasters', name: 'Five Masters', desc: 'Reach mastery rank 3, 5 and 10 with every class.', category: 'collection', tiers: tiers([3, 5, 10], { 3: { title: 'the Paragon' } }), progress: minRank },
 
   // ---------------------------------------------------------------- challenges

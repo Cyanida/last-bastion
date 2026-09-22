@@ -51,7 +51,7 @@ describe('the quest board and the events are seeded', () => {
     for (const board of [1, 2, 3].map((act) => rollBoard(7, act))) {
       expect(board).toHaveLength(3);
       expect(new Set(board.map((q) => q.kind)).size).toBe(3); // three different quests
-      for (const q of board) expect(q.reward).not.toBe('fragment'); // the treasures' hook is never rolled yet
+      for (const q of board) expect(q.reward).not.toBe('fragment'); // only a class gathering its treasure's fragments finds one (v5-treasures)
     }
     const events = (seed: number) => Array.from({ length: 40 }, (_, w) => rollEvent(seed, w + 1));
     expect(events(5)).toEqual(events(5));
@@ -345,5 +345,5 @@ describe('the bot', () => {
       const run = simulateRun(cls, 21, {}, 0, 150);
       expect(run.wave).toBeGreaterThan(0);
     }
-  });
+  }, 30000); // five short bot runs: seconds, more on a busy CI runner
 });

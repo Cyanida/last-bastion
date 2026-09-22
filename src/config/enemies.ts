@@ -105,6 +105,7 @@ export interface EnemyDef {
   p2Lines?: number; // inquisitor: fan of lines
   p2RingFlasks?: number; // abbot: ring of flasks closing in on the player
   p2SpeedMult?: number;
+  palette?: number; // v0.5: a tint (render/sprites SPRITE_PALETTES), for the treasure guardians
 }
 
 const base = { boss: false, scale: 3, knockbackResist: 0, attackCd: 0.8 };

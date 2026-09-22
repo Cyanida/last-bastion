@@ -371,3 +371,16 @@ canvas#game { touch-action: none; }
 #h-inspect b { font-family: var(--heading); font-size: 19px; }
 #h-inspect em { color: #6b4a08; }
 #h-inspect i { font-style: normal; font-weight: bold; text-shadow: 0 0 2px #2a1d10, 0 0 1px #2a1d10; }
+
+/* v0.5 sacred treasures: the class select chip, the quest log, the hidden talent node */
+.treasure-chip { display: inline-flex; align-items: center; min-height: 44px; margin: 2px auto 6px; font-size: 14px; }
+.treasures .treasure { border-bottom: 1px dotted rgba(90, 61, 37, 0.5); padding-bottom: 6px; }
+.treasures .treasure.locked { opacity: 0.6; }
+.tsteps { display: grid; gap: 2px; margin: 6px 0; }
+.tstep { display: grid; grid-template-columns: 250px 1fr; gap: 10px; font-size: 14px; opacity: 0.5; }
+.tstep.done { opacity: 0.85; }
+.tstep.now { opacity: 1; }
+.tstep.now b { color: #7a3f00; }
+.talent.sacred { border-color: #7ec8d8; }
+.talent.sacred.open { box-shadow: 0 0 10px #7ec8d8; }
+@media (max-width: 760px) { .tstep { grid-template-columns: 1fr; gap: 0; } }

@@ -17,7 +17,7 @@ import { floatText, ring } from './effects';
 /** Spend a talent point. False when the node cannot be taken (prerequisites, keystone rules, no points). */
 export function spendTalent(g: Game, id: string): boolean {
   const p = g.player;
-  if (!canTakeTalent(p.talents, id, g.talentPoints, g.talentRowCap)) return false;
+  if (!canTakeTalent(p.talents, id, g.talentPoints, g.talentRowCap, g.treasure?.id)) return false;
   const node = TALENT_BY_ID[id];
   p.talents = [...p.talents, id];
   g.talentPoints--;

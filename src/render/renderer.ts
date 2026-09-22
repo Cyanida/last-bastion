@@ -215,7 +215,7 @@ function drawEdgeArrows(ctx: Ctx, marks: Mark[], view: View, cx: number, cy: num
   }
 }
 
-const FRIEND_SPRITES = { caravan: 'siegeTower', monk: 'priest', knight: 'knight' } as const;
+const FRIEND_SPRITES = { caravan: 'siegeTower', monk: 'priest', knight: 'knight', hound: 'wolf' } as const;
 const FRIEND_PALETTE = 2; // the gilded palette: allies read apart from the enemies that share their sprites
 
 /** Slow pan over an empty arena behind the menus. */
@@ -357,7 +357,15 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   for (const k of g.pickups) {
     if (!visible(k.x, k.y, 12)) continue;
     ctx.fillStyle = '#1a1614';
-    if (k.kind === 'relic') {
+    if (k.kind === 'fragment') {
+      // v0.5: a sacred treasure's fragment, a pale shard that bobs higher than a relic chest
+      const bob = Math.sin(g.time * 4) * 3;
+      ctx.fillRect(k.x - 6, k.y - 10 + bob, 12, 16);
+      ctx.fillStyle = '#7ec8d8';
+      ctx.fillRect(k.x - 4, k.y - 8 + bob, 8, 12);
+      ctx.fillStyle = '#e8f6fa';
+      ctx.fillRect(k.x - 1, k.y - 6 + bob, 2, 6);
+    } else if (k.kind === 'relic') {
       const bob = Math.sin(g.time * 5) * 2;
       ctx.fillRect(k.x - 8, k.y - 7 + bob, 16, 13);
       ctx.fillStyle = '#8a6a42';
@@ -412,7 +420,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
     const fuse = e.def.behavior === 'exploder' && e.state === 1 && Math.floor(e.timer * 14) % 2 === 0;
     if (e.hidden) ctx.globalAlpha = 0.12; // a vanished assassin, a dragon overhead: barely a shimmer
-    drawSprite(ctx, (e.spr ??= getSprite(e.def.sprite, e.def.scale + (e.elite ? ELITES.scaleBonus : 0))), e.x, e.y, e.flip, e.flash > 0 || fuse);
+    drawSprite(ctx, (e.spr ??= getSprite(e.def.sprite, e.def.scale + (e.elite ? ELITES.scaleBonus : 0), e.def.palette)), e.x, e.y, e.flip, e.flash > 0 || fuse);
     ctx.globalAlpha = 1;
     if (e.hidden) continue;
     if (e.def.reflect && e.attackTimer <= 0 && e.armorHp > 0) {

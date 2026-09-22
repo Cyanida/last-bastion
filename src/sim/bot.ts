@@ -20,6 +20,8 @@ import { eventMarks, questMarks } from '../logic/quests';
 import { peddlerBuy, peddlerPrice } from '../systems/events';
 import { regionAt } from '../logic/regions';
 import { regionsOf } from '../systems/regions';
+import { QUEST_BOARD } from '../config/quests';
+import { featureSpot } from '../config/regions';
 
 /**
  * A deliberately basic player: kite (or, for melee, wade in until hurt), step out of telegraphs,
@@ -122,22 +124,24 @@ export function botInput(g: Game): void {
 }
 
 /**
- * v0.5: the nearest quest objective, event or unused feature in an open wing. In another region it heads for the gate between
- * first (wings hang off the core), so it does not grind along a wall.
+ * v0.5: the nearest quest objective, event, unused feature in an open wing, or the open vault while its guardian sleeps. In another
+ * region it heads for the gate between first (wings hang off the core, the vault off the east wing), so it does not grind along a wall.
  */
 function nearestGoal(g: Game): { x: number; y: number } | null {
   const p = g.player;
+  const regions = regionsOf(g);
+  const vault = g.regionOpen.vault && g.chain && !g.chain.guardian && !g.chain.slain ? regions.find((r) => r.id === 'vault') : undefined;
   let best: { x: number; y: number } | null = null;
   let bestD = Infinity;
-  for (const m of [...questMarks(g), ...eventMarks(g), ...g.features.filter((f) => g.regionOpen[f.wing] && !f.used)]) {
+  for (const m of [...questMarks(g), ...eventMarks(g), ...g.features.filter((f) => g.regionOpen[f.wing] && !f.used), ...(vault ? [featureSpot(vault)] : [])]) {
     const d = Math.hypot(m.x - p.x, m.y - p.y);
     if (d < bestD) (bestD = d), (best = m);
   }
   if (!best) return null;
-  const regions = regionsOf(g);
   const here = regionAt(regions, p.x, p.y);
-  const there = regionAt(regions, best.x, best.y);
-  const gate = here && there && here !== there ? (here.id === 'core' ? there : here).gate : null;
+  let there = regionAt(regions, best.x, best.y);
+  if (there?.id === 'vault' && here && here.id !== 'east' && here.id !== 'vault') there = regions.find((r) => r.id === 'east') ?? there; // through the east wing
+  const gate = here && there && here !== there ? (here.id === 'core' || there.id === 'vault' ? there : here).gate : null;
   return gate && Math.hypot(p.x - (gate.x + gate.w / 2), p.y - (gate.y + gate.h / 2)) > 40 ? { x: gate.x + gate.w / 2, y: gate.y + gate.h / 2 } : best;
 }
 
@@ -154,7 +158,7 @@ function scoreOption(g: Game, o: LevelUpOption): number {
 /** Resolve every pending choice the way the UI would, without the UI. `variant` picks the ability upgrade branch (0 or 1) and the talent branch. */
 export function botChoose(g: Game, variant = 0): void {
   if (g.pendingShrine) chooseBlessing(g, g.pendingShrine[0]);
-  if (g.pendingBoard) takeQuests(g, [0, 1]);
+  if (g.pendingBoard) takeQuests(g, [0, 1, QUEST_BOARD.offered]); // the treasure trial, when offered, is the free card after the board's
   if (g.pendingShop) {
     // the first ware, and only with plenty of gold to spare
     const first = g.event?.wares[0];
@@ -173,7 +177,8 @@ export function botChoose(g: Game, variant = 0): void {
   while (g.talentPoints > 0 && spent) {
     spent = false;
     for (let b = 0; b < 3 && !spent; b++) {
-      const next = branchPlan(g.player.cls.id, variant + b).find((id) => canTakeTalent(g.player.talents, id, g.talentPoints, g.talentRowCap));
+      const plan = [`${g.player.cls.id}.treasure`, ...branchPlan(g.player.cls.id, variant + b)]; // the treasure's hidden node first, while it is equipped
+      const next = plan.find((id) => canTakeTalent(g.player.talents, id, g.talentPoints, g.talentRowCap, g.treasure?.id));
       if (next) spent = spendTalent(g, next);
     }
   }

@@ -8,8 +8,10 @@ import type { EnemyId } from '../config/enemies';
 import type { QualitySetting } from '../config/game';
 import type { RelicId } from '../config/relics';
 import { TRAIT_IDS, type TraitId } from '../config/traits';
+import { TREASURE_RULES } from '../config/treasures';
 import { curseMultiplier } from './curses';
-import { buildingLevel, classXpForRun, metaCost, metaLoadout, runesForActBoss, type BuildingLevels, type MetaRanks } from './economy';
+import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, runesForActBoss, type BuildingLevels, type MetaRanks } from './economy';
+import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
 
 export const SAVE_VERSION = 4;
 const READABLE_VERSIONS = [2, 3, 4]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
@@ -40,7 +42,7 @@ export interface Save {
   title: string | null; // the one worn
   palettes: number[]; // sprite palettes unlocked for every class
   talentPoints: number; // permanent extra talent points a run starts with
-  treasureSteps: Record<ClassId, number>; // sacred treasure quest step per class (increment 8)
+  treasures: Record<ClassId, TreasureRecord>; // v0.5 sacred treasure chain per class (logic/treasures.ts); was treasureSteps
   tierUnlocked: number; // highest difficulty index available
   counters: Record<FeatKey, number> & {
     kills: number;
@@ -97,10 +99,10 @@ export interface RunSummary {
   quests?: number; // v0.5 side quests completed
   events?: number; // v0.5 wave events come upon
   questRunes?: number; // Runes from quest rewards, banked on top of the per-run boss cap
+  treasure?: ChainRun; // v0.5: what the run did for its class's treasure chain
 }
 
 const emptyClass = (): ClassRecord => ({ bestWave: 0, runs: 0, kills: 0, time: 0, xp: 0 });
-const perClass = <T>(value: T): Record<ClassId, T> => Object.fromEntries(CLASS_ORDER.map((id) => [id, value])) as Record<ClassId, T>;
 const zeroFeats = (): Record<FeatKey, number> => Object.fromEntries(FEAT_KEYS.map((k) => [k, 0])) as Record<FeatKey, number>;
 
 export function defaultSave(): Save {
@@ -119,7 +121,7 @@ export function defaultSave(): Save {
     title: null,
     palettes: [],
     talentPoints: 0,
-    treasureSteps: perClass(0),
+    treasures: Object.fromEntries(CLASS_ORDER.map((id) => [id, emptyTreasure()])) as Record<ClassId, TreasureRecord>,
     tierUnlocked: 0,
     counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
     daily: {},
@@ -169,7 +171,13 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
     if (typeof raw.title === 'string') save.title = raw.title;
     if (Array.isArray(raw.palettes)) save.palettes = [...new Set(raw.palettes.map((p) => Math.floor(num(p))).filter((p) => p > 0))];
     save.talentPoints = Math.floor(num(raw.talentPoints));
-    if (isObj(raw.treasureSteps)) for (const id of CLASS_ORDER) save.treasureSteps[id] = Math.floor(num(raw.treasureSteps[id]));
+    for (const id of CLASS_ORDER) {
+      const t = isObj(raw.treasures) ? raw.treasures[id] : undefined;
+      // v0.5: the old treasureSteps (a gold mastery deed's "step") became a fragment each
+      const fragments = (v: unknown) => Math.min(TREASURE_RULES.fragments, Math.floor(num(v)));
+      if (isObj(t)) save.treasures[id] = { fragments: fragments(t.fragments), trial: t.trial === true, tier: Math.min(3, Math.floor(num(t.tier))), equipped: t.equipped !== false };
+      else if (isObj(raw.treasureSteps)) save.treasures[id].fragments = fragments(raw.treasureSteps[id]);
+    }
     // v3 -> v4: Runes did not exist; a save arriving from v0.3 is granted one per achievement earned (what the achievement tiers would have paid)
     save.runes = raw.version === 4 ? Math.max(0, Math.floor(num(raw.runes))) : save.achievements.length;
     save.tierUnlocked = Math.min(TIERS.length - 1, Math.floor(num(raw.tierUnlocked)));
@@ -278,6 +286,9 @@ export function applyRun(save: Save, run: RunSummary, date = today()): { save: S
         [run.classId]: { bestWave: Math.max(prev.bestWave, run.wave), runs: prev.runs + 1, kills: prev.kills + run.kills, time: prev.time + run.time, xp: prev.xp + classXp },
       },
       relicPicks,
+      treasures: run.treasure
+        ? { ...save.treasures, [run.classId]: advanceChain(run.classId, save.treasures[run.classId], run.treasure, { unlocked: masteryBonus(prev.xp).treasureStep, difficulty: run.tier, acts }) }
+        : save.treasures,
       runeShards: Math.round(shards % RUNES.shardsPerRune),
       tierUnlocked: save.tierUnlocked + (tierUnlocked ? 1 : 0),
       daily: run.daily ? { ...save.daily, [run.daily]: Math.max(save.daily[run.daily] ?? 0, run.wave) } : save.daily,

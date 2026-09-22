@@ -1,6 +1,7 @@
 import { RUNES } from '../config/economy';
 import { AFFIX_IDS, ELITES } from '../config/elites';
 import { QUEST_BOARD, QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
+import { TREASURES } from '../config/treasures';
 import { sfx } from '../core/audio';
 import { addListener, type GameEvents } from '../core/events';
 import { compact } from '../core/math';
@@ -9,12 +10,14 @@ import { createMinion } from '../entities/actors';
 import { enemyDmgMult } from '../logic/formulas';
 import { placeRng, rollBoard } from '../logic/quests';
 import { floorPoint, spawnPoint } from '../logic/regions';
+import { chainStep } from '../logic/treasures';
 import { nearestEnemy } from './combat';
 import { floatText, ring } from './effects';
 import { clearPoint } from './movement';
 import { lairKind, openNextWing } from './regions';
 import { offerRelics } from './relics';
 import { spawnEnemy } from './spawning';
+import { passTrial, takeFragment } from './treasures';
 
 /**
  * Side quests (v0.5, config/quests.ts). Each Act's board is rolled from the seed; the quests taken run their hook until done or
@@ -134,6 +137,15 @@ const HOOKS: Record<QuestKind, QuestHooks> = {
       if (dist(g.player, q) < QUESTS.chest.reach) end(g, q, true);
     },
   },
+
+  // v0.5 sacred treasures: the class's trial, a feat to reach this Act (config/treasures.ts; the target is in q.since)
+  trial: {
+    start() {},
+    update(g, q) {
+      q.progress = g.actFeats[TREASURES[g.player.cls.id].trial.feat] ?? 0;
+      if (q.progress >= q.since) end(g, q, true);
+    },
+  },
 };
 
 export function payReward(g: Game, reward: RewardKind): void {
@@ -141,7 +153,8 @@ export function payReward(g: Game, reward: RewardKind): void {
   else if (reward === 'gold') g.gold += REWARDS.gold.amount * g.act;
   else if (reward === 'rune') g.questRunes += RUNES.quest;
   else if (reward === 'talent') g.talentPoints++;
-  // 'fragment': the sacred treasures hook in here. Never rolled yet (config/quests.ts REWARD_ROLL).
+  else if (reward === 'fragment') takeFragment(g);
+  else if (reward === 'trial') passTrial(g);
 }
 
 function end(g: Game, q: Quest, done: boolean): void {
@@ -158,23 +171,35 @@ function end(g: Game, q: Quest, done: boolean): void {
   openNextWing(g);
 }
 
-/** A new Act (and a new run): what is still active fails, without penalty; a new board is up. */
+/**
+ * A new Act (and a new run): what is still active fails, without penalty; a new board is up. A class gathering its treasure's fragments
+ * may find one in place of a Rune reward; a class at its trial gets the trial as a free extra card (v0.5 treasures).
+ */
 export function initQuests(g: Game): void {
   for (const q of g.quests) if (q.state === 'active') end(g, q, false);
   compact(g.quests, (q) => q.state !== 'offered');
-  for (const [i, { kind, reward }] of rollBoard(g.seed, g.act).entries()) {
+  g.actFeats = {};
+  const step = g.chain && chainStep(g.chain, g.chain.unlocked);
+  const offer = (kind: QuestKind, reward: RewardKind, i: number) =>
     g.quests.push({ kind, reward, state: 'offered', name: QUESTS[kind].short, x: 0, y: 0, unit: null, foes: [], progress: 0, since: 0, t: 0, rng: placeRng(g.seed, 1000 * g.act + i) });
+  const board = rollBoard(g.seed, g.act, step === 'fragments');
+  for (const [i, { kind, reward }] of board.entries()) offer(kind, reward, i);
+  if (step === 'trial') {
+    const trial = TREASURES[g.player.cls.id].trial;
+    offer('trial', 'trial', board.length);
+    Object.assign(g.quests[g.quests.length - 1], { name: trial.name, since: trial.n });
   }
   g.pendingBoard = true;
 }
 
-/** The board's answer: up to QUEST_BOARD.take of the offered quests, by their index on the board. Taking none is fine. */
+/** The board's answer: up to QUEST_BOARD.take of the offered quests, by their index on the board (the trial comes free on top). Taking none is fine. */
 export function takeQuests(g: Game, picks: number[]): void {
   const offered = g.quests.filter((q) => q.state === 'offered');
   compact(g.quests, (q) => q.state !== 'offered');
-  for (const i of [...new Set(picks)].slice(0, QUEST_BOARD.take)) {
+  let taken = 0;
+  for (const i of new Set(picks)) {
     const q = offered[i];
-    if (!q) continue;
+    if (!q || (q.kind !== 'trial' && taken++ >= QUEST_BOARD.take)) continue;
     q.state = 'active';
     g.quests.push(q);
     HOOKS[q.kind].start(g, q);

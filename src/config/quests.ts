@@ -14,19 +14,22 @@ export const QUESTS = {
   },
   shrine: { name: 'Hold the shrine', short: 'Shrine', icon: '🕯️', desc: 'Stand in the old circle for 60 seconds in total while a wave is on.', radius: 110, seconds: 60 },
   chest: { name: 'Find the hidden chest', short: 'Hidden chest', icon: '🗝️', desc: 'A chest lies hidden on the open map, marked nowhere. It glints when you come close.', glint: 320, reach: 36 },
+  // v0.5 sacred treasures: never rolled; a free extra card on the board of a class at step 2 of its chain (config/treasures.ts names it)
+  trial: { name: 'The trial', short: 'Trial', icon: '⚜️', desc: 'Prove yourself worthy of your sacred treasure.' },
 };
 export type QuestKind = keyof typeof QUESTS;
-export const QUEST_KINDS = Object.keys(QUESTS) as QuestKind[];
+export const QUEST_KINDS = (Object.keys(QUESTS) as QuestKind[]).filter((k) => k !== 'trial'); // what the board rolls from
 
 export const QUEST_BOARD = { offered: 3, take: 2, linger: 3 }; // linger: seconds a finished quest stays on the tracker
 
-/** What a quest pays, rolled with it. 'fragment' is the sacred treasures' hook (v0.5 treasures): defined, never rolled yet. */
+/** What a quest pays, rolled with it. 'fragment' replaces a Rune on the board of a class collecting its treasure's fragments; 'trial' is the trial's own. */
 export const REWARDS = {
   relic: { name: 'A relic', icon: '🏺', desc: 'Choose one of three relics.' },
   gold: { name: 'Gold', icon: '🪙', desc: 'Gold to spend this run; more in every later Act.', amount: 90 }, // times the Act
   rune: { name: 'A Rune', icon: '◆', desc: 'A Rune for the Keep, banked when the run ends, on top of what the bosses pay.' }, // RUNES.quest
   talent: { name: 'A talent point', icon: '✦', desc: 'One more talent point, to spend from the pause menu.' },
-  fragment: { name: 'A treasure fragment', icon: '🧩', desc: 'A piece of a sacred treasure.' },
+  fragment: { name: 'A treasure fragment', icon: '🧩', desc: "A piece of your class's sacred treasure (a Rune once all three are found)." },
+  trial: { name: 'The way to the vault', icon: '🗝️', desc: "The treasure's guardian stirs: the hidden vault opens after the mid-Act boss." },
 };
 export type RewardKind = keyof typeof REWARDS;
 export const REWARD_ROLL: RewardKind[] = ['relic', 'gold', 'rune', 'talent'];

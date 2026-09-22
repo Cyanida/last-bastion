@@ -13,14 +13,16 @@ const BOARD_SALT = 0x5eedb0a2;
 const EVENT_SALT = 0x0e7e4711;
 const PLACE_SALT = 0x91ace5;
 
-/** The Act's board: distinct quests, each with the reward it pays. */
-export function rollBoard(seed: number, act: number): { kind: QuestKind; reward: RewardKind }[] {
+/** The Act's board: distinct quests, each with the reward it pays. `fragment`: a treasure fragment in place of the first Rune (v0.5 treasures). */
+export function rollBoard(seed: number, act: number, fragment = false): { kind: QuestKind; reward: RewardKind }[] {
   const rng = waveRng(seed ^ BOARD_SALT, act);
   const left = [...QUEST_KINDS];
   const out: { kind: QuestKind; reward: RewardKind }[] = [];
   while (out.length < QUEST_BOARD.offered && left.length) {
     out.push({ kind: left.splice(Math.floor(rng() * left.length), 1)[0], reward: REWARD_ROLL[Math.floor(rng() * REWARD_ROLL.length)] });
   }
+  const rune = fragment ? out.find((q) => q.reward === 'rune') : undefined;
+  if (rune) rune.reward = 'fragment';
   return out;
 }
 
@@ -65,6 +67,7 @@ export function questProgress(q: Quest): string {
   if (q.kind === 'monk') return `${q.unit?.speed ? 'walking' : 'waiting'}${hp}`;
   if (q.kind === 'elite') return q.foes.length ? 'on the field' : `comes with wave ${q.since}`;
   if (q.kind === 'shrine') return `${Math.floor(q.progress)}/${QUESTS.shrine.seconds} s`;
+  if (q.kind === 'trial') return `${Math.floor(q.progress)}/${q.since}`;
   return 'hidden';
 }
 

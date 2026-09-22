@@ -11,6 +11,7 @@ import type { BlessingId, FeatureKind, Rect, RegionId, WingId } from '../config/
 import type { UtilityUpgradeId } from '../config/utility';
 import type { QuestKind, RewardKind } from '../config/quests';
 import type { EventKind } from '../config/events';
+import type { TreasureId } from '../config/treasures';
 import type { RelicTotals } from '../logic/relics';
 import type { ModifierId } from '../config/waves';
 import type { SpawnUnit, SquadPlan } from '../logic/director';
@@ -224,7 +225,7 @@ export interface Minion extends Body {
   blessedT: number; // v0.3: blessed minions hit harder and regenerate
   status: Status | null; // applied by its hits
   // v0.5 friendly units from quests and events; a skeleton has none of these
-  kind?: 'caravan' | 'monk' | 'knight';
+  kind?: 'caravan' | 'monk' | 'knight' | 'hound'; // hound: the Bow of the Wild Hunt's (v0.5 treasures)
   passive?: boolean; // does not attack or chase: walks its path (if any) at `speed`
   path?: { x: number; y: number }[]; // waypoints, walked in a loop
   pathI?: number;
@@ -280,7 +281,7 @@ export interface Pickup {
   x: number;
   y: number;
   value: number;
-  kind: 'xp' | 'gold' | 'relic';
+  kind: 'xp' | 'gold' | 'relic' | 'fragment'; // fragment: a sacred treasure's (v0.5)
 }
 
 /** A wing's feature (v0.5): a shrine, a strongbox, a lair or a vent field with a cache. */
@@ -305,9 +306,21 @@ export interface Quest {
   unit: Minion | null; // the caravan, the monk
   foes: Enemy[]; // the camps, the named elite
   progress: number; // waves survived, camps burnt, seconds held
-  since: number; // g.wavesCleared when taken (the caravan); the wave the named elite comes with
+  since: number; // g.wavesCleared when taken (the caravan); the wave the named elite comes with; the trial's target
   t: number; // once over: seconds left on the tracker
   rng: Rng; // its own seeded stream (logic/quests.ts placeRng), for where it puts things
+}
+
+/** v0.5 sacred treasures: the class's chain as the save had it, plus what this run added (config/treasures.ts, systems/treasures.ts). */
+export interface Chain {
+  fragments: number; // held: the save's plus the ones picked up this run
+  trial: boolean; // passed, before or during this run
+  tier: number; // the treasure's tier owned (0 = not earned yet)
+  unlocked: number; // mastery's treasureStep: 1 = the chain, 2 = the tier III follow-up
+  found: number; // fragments picked up this run
+  passed: boolean; // the trial was passed in this run
+  guardian: Enemy | null; // awake in the vault
+  slain: boolean; // the guardian fell this run
 }
 
 /** This wave's event (v0.5, config/events.ts). systems/events.ts. */
@@ -468,6 +481,9 @@ export interface Game {
   curses: CurseId[];
   daily: string | null; // date, when this run is a Daily Trial
   feats: Record<string, number>; // v0.4 class feats this run (config/achievements FEAT_KEYS, systems/feats.ts)
+  actFeats: Record<string, number>; // v0.5: the same, this Act only (the treasure trials)
+  treasure: { id: TreasureId; tier: number } | null; // v0.5: the sacred treasure equipped at run start
+  chain: Chain | null; // v0.5: the treasure chain, while mastery has opened it (never in a Daily Trial)
   banner: { text: string; t: number };
   over: boolean;
 }

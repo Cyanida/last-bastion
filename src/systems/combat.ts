@@ -280,7 +280,10 @@ export function updatePlayerAttack(g: Game, dt: number): void {
       damageEnemy(g, e, hit.amount, hit.crit, Math.cos(a) * atk.knockback, Math.sin(a) * atk.knockback, 'attack', atk.type);
     }
   } else {
-    for (let i = -p.buff.multishot / 2; i <= p.buff.multishot / 2; i++) {
+    // v0.5 the Bow of the Wild Hunt (systems/treasures.ts sets splitEvery): every n-th shot splits into three
+    const every = g.vars.splitEvery ?? 0;
+    const shots = p.buff.multishot + (every > 0 && (g.vars.shots = (g.vars.shots ?? 0) + 1) % every === 0 ? 2 : 0);
+    for (let i = -shots / 2; i <= shots / 2; i++) {
       const hit = rollPlayerHit(g, atk.damage, atk.scaling);
       fireProjectile(g, p.x, p.y - 6, p.facing + i * 0.18, {
         damage: hit.amount,

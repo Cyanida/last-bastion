@@ -10,6 +10,7 @@ import { gainXp } from './leveling';
 import { addRelic, removeRelic } from './relics';
 import { initRegions } from './regions';
 import { initQuests } from './quests';
+import { takeFragment } from './treasures';
 
 /** Pay for a Merchant item. Gold spent here never reaches the Keep: this run, or the next hundred? */
 function pay(g: Game, item: MerchantItem): boolean {
@@ -80,6 +81,7 @@ export function nextAct(g: Game): void {
   for (const k of g.pickups) {
     if (k.kind === 'xp') gainXp(g, k.value);
     else if (k.kind === 'gold') g.gold += k.value;
+    else if (k.kind === 'fragment') takeFragment(g);
   }
   for (const e of g.enemies) e.dead = true;
   g.enemies.length = g.pickups.length = g.corpses.length = g.fields.length = g.zones.length = g.projectiles.length = g.barriers.length = g.squads.length = 0;

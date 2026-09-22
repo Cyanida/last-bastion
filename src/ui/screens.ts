@@ -12,6 +12,9 @@ import { BLESSINGS, type BlessingId } from '../config/regions';
 import { QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
 import { TRAIT_IDS, TRAITS, type TraitId } from '../config/traits';
+import { ENEMIES } from '../config/enemies';
+import { TREASURE_RULES, TREASURES, treasureDesc, type TreasureId } from '../config/treasures';
+import { chainStep, followUpText, inText, nextFragmentBoss, rankFor } from '../logic/treasures';
 import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
 import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
 import { activeSynergies, synergiesOf, type RelicTiers } from '../logic/relics';
@@ -153,7 +156,7 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
-export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void; trait: (id: TraitId) => void; palette: (id: ClassId, n: number) => void }): void {
+export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void; trait: (id: TraitId) => void; palette: (id: ClassId, n: number) => void; treasure: (id: ClassId) => void }): void {
   const locked = lockedArenas(save);
   const card = (c: ClassDef) => {
     const rec = save.classes[c.id];
@@ -162,6 +165,10 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     const palettes = [...new Set([...masteryBonus(rec.xp).palettes, ...save.palettes])].sort(); // mastery's own plus the account-wide ones from deeds
     const chosen = save.settings.palettes[c.id] ?? 0;
     const swatches = palettes.length ? `<div class="swatches">${[0, ...palettes].map((n) => `<span class="swatch ${chosen === n ? 'on' : ''}" data-palette="${c.id}:${n}" data-tip="${['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours'][n]}"><i style="filter:${SPRITE_PALETTES[n] || 'none'}"></i></span>`).join('')}</div>` : '';
+    // v0.5: the sacred treasure, once earned: on (taken into the run) or off
+    const t = TREASURES[c.id];
+    const tr = save.treasures[c.id];
+    const treasure = tr.tier ? `<span class="chip treasure-chip ${tr.equipped ? 'on' : ''}" data-treasure="${c.id}" data-tip="${esc(`${tr.equipped ? 'Equipped' : 'Left in the Keep'} — tap to switch.\n${treasureDesc(c.id, tr.tier)}`)}">${t.icon} ${t.name} ${TIER_NUMERALS[tr.tier]}</span>` : '';
     return `
     <button class="card panel" data-class="${c.id}">
       <div class="portrait" data-sprite="${c.sprite}" data-palette-n="${palettes.includes(chosen) ? chosen : 0}"></div>${swatches}
@@ -172,6 +179,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       </div>
       <div class="ability"><b class="gold">${c.ability.name}</b><p>${c.ability.desc}</p></div>
       <div class="ability"><b class="gold">${c.secondary.name}</b><p>${c.secondary.desc}</p></div>
+      ${treasure}
       <div class="best">${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
     </button>`;
   };
@@ -222,6 +230,10 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     const [cls, n] = sw.dataset.palette!.split(':');
     on.palette(cls as ClassId, Number(n));
   }));
+  el.querySelectorAll<HTMLElement>('[data-treasure]').forEach((chip) => (chip.onclick = (e) => {
+    e.stopPropagation(); // the card underneath would start the run
+    on.treasure(chip.dataset.treasure as ClassId);
+  }));
   click(el, '[data-class]', (b) => on.pick(b.dataset.class as ClassId, el.querySelector<HTMLInputElement>('#seed')!.value));
   click(el, '[data-curse]', (b) => on.curse(b.dataset.curse as CurseId));
   click(el, '[data-trait]', (b) => on.trait(b.dataset.trait as TraitId));
@@ -230,7 +242,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   click(el, '[data-back]', on.back);
 }
 
-export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; chronicle: () => void; back: () => void }): void {
+export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; chronicle: () => void; treasures: () => void; back: () => void }): void {
   const row = (id: MetaId) => {
     const m = META[id];
     const rank = save.meta[id] ?? 0;
@@ -275,7 +287,7 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
         ${nextMilestone ? `Account level ${nextMilestone.level}: <em>${nextMilestone.name}</em> — ${nextMilestone.desc}.` : 'Every account milestone reached.'}</p>
       <div class="masteries">${mastery}</div>
       <div class="milestones">${ACCOUNT_MILESTONES.map((m) => `<span class="${level >= m.level ? 'on' : ''}" data-tip="${esc(m.desc)}">${level >= m.level ? '✔ ' : ''}${m.level} ${m.name}</span>`).join('')}</div>
-      <div class="row"><button class="btn" data-compendium>Relic compendium</button><button class="btn" data-chronicle>Chronicle</button></div>
+      <div class="row"><button class="btn" data-compendium>Relic compendium</button><button class="btn" data-treasures>Sacred treasures</button><button class="btn" data-chronicle>Chronicle</button></div>
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-chronicle]', on.chronicle);
@@ -283,8 +295,42 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
   click(el, '[data-raise]', (b) => on.raise(b.dataset.raise as BuildingId));
   click(el, '[data-mastery]', (b) => on.mastery(b.dataset.mastery as ClassId));
   click(el, '[data-compendium]', on.compendium);
+  click(el, '[data-treasures]', on.treasures);
   click(el, '[data-back]', on.back);
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
+}
+
+/** v0.5: the sacred treasures' quest log, from the Keep and the pause menu (the current class first): every class's chain, step by step. */
+export function showTreasures(save: Save, first: ClassId | null, onBack: () => void): void {
+  const order = first ? [first, ...CLASS_ORDER.filter((id) => id !== first)] : CLASS_ORDER;
+  const step = (done: boolean, now: boolean, title: string, text: string) => `<div class="tstep ${done ? 'done' : now ? 'now' : ''}"><b>${done ? '✔' : now ? '➤' : '·'} ${title}</b><span>${text}</span></div>`;
+  const block = (id: ClassId) => {
+    const t = TREASURES[id];
+    const rec = save.treasures[id];
+    const unlocked = masteryBonus(save.classes[id].xp).treasureStep;
+    const at = chainStep(rec, unlocked);
+    const head = `<h2>${t.icon} ${t.name}${rec.tier ? ` ${TIER_NUMERALS[rec.tier]}` : ''} <span class="dim">· ${CLASSES[id].name}</span></h2>`;
+    if (at === 'locked') return `<div class="treasure locked">${head}<p class="hint">Locked — reach ${CLASSES[id].name} mastery rank ${rankFor(1)} (${MASTERY[rankFor(1) - 1].name}) to hear the first rumours.</p></div>`;
+    const next = nextFragmentBoss(id, { ...rec, unlocked });
+    const n = TREASURE_RULES.fragments;
+    const steps = [
+      step(rec.fragments >= n, at === 'fragments', `Fragments ${rec.fragments}/${n}`, next ? `The next falls from ${inText(ENEMIES[next].name)}, an Act boss, in a run of the ${CLASSES[id].name}. A quest may pay one too.` : 'All found.'),
+      step(rec.trial, at === 'trial', t.trial.name, `${t.trial.desc} It comes as a free extra card on the quest board.`),
+      step(rec.tier >= 1, at === 'guardian', t.guardian.name, 'Sleeps in the hidden vault, which opens after the mid-Act boss. Slay it to claim the treasure.'),
+      ...t.followUps.map((f, i) => step(rec.tier >= i + 2, rec.tier === i + 1, `${f.name} · tier ${TIER_NUMERALS[i + 2]}`, followUpText(id, i as 0 | 1))),
+    ];
+    return `<div class="treasure">${head}<p>${treasureDesc(id, Math.max(1, rec.tier))}</p><div class="tsteps">${steps.join('')}</div>
+      <p class="hint">Hidden talent while it is equipped: <b>${t.talent.name}</b> — ${t.talent.desc}</p></div>`;
+  };
+  const el = show(`
+    <div class="panel dialog wide treasures">
+      <h1 class="small">Sacred treasures</h1>
+      <p class="sub">One for every champion, earned over many runs, kept forever. Take it into a run from the champion select screen.</p>
+      ${order.map(block).join('')}
+      <button class="btn" data-back>Back</button>
+    </div>`);
+  click(el, '[data-back]', onBack);
+  onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
 
 /** A class's full 25-rank mastery track: every rank's name and unlock, reached or not. */
@@ -466,15 +512,16 @@ export function showShrine(options: readonly BlessingId[], onPick: (id: Blessing
   numberKeys(el);
 }
 
-/** v0.5: the Act's quest board. Tap a quest (or its number) to take or drop it, up to `take`; setting out with none is fine. */
-export function showBoard(act: number, quests: { kind: QuestKind; reward: RewardKind }[], take: number, onSetOut: (picks: number[]) => void): void {
+/** v0.5: the Act's quest board. Tap a quest (or its number) to take or drop it, up to `take` (a treasure trial is free on top); setting out with none is fine. */
+export function showBoard(act: number, quests: { kind: QuestKind; reward: RewardKind; name: string; desc?: string }[], take: number, onSetOut: (picks: number[]) => void): void {
   const picks: number[] = [];
   const reward = (r: RewardKind) => (r === 'gold' ? `${REWARDS.gold.amount * act} gold` : REWARDS[r].name);
+  const trial = (i: number) => quests[i]?.kind === 'trial';
   const el = show(`
     <div class="levelup board">
       <h1 class="small">📜 ${actName(act)} · The quest board</h1>
       <p class="sub">Take up to ${take}. None of it is required: a failed quest costs nothing, and every one done opens a gate.</p>
-      <div class="cards">${quests.map((q, i) => `<button class="card panel boon quest" data-quest="${i}"><div class="num">${i + 1}</div><h2>${QUESTS[q.kind].icon} ${QUESTS[q.kind].name}</h2><p>${QUESTS[q.kind].desc}</p><div class="best" data-tip="${esc(REWARDS[q.reward].desc)}">${REWARDS[q.reward].icon} ${reward(q.reward)}</div></button>`).join('')}</div>
+      <div class="cards">${quests.map((q, i) => `<button class="card panel boon quest ${trial(i) ? 'special' : ''}" data-quest="${i}"><div class="num">${i + 1}</div><h2>${QUESTS[q.kind].icon} ${trial(i) ? q.name : QUESTS[q.kind].name}</h2>${trial(i) ? '<div class="tag">Sacred treasure · free, on top of the others</div>' : ''}<p>${q.desc ?? QUESTS[q.kind].desc}</p><div class="best" data-tip="${esc(REWARDS[q.reward].desc)}">${REWARDS[q.reward].icon} ${reward(q.reward)}</div></button>`).join('')}</div>
       <button class="btn big" data-leave></button>
     </div>`);
   const go = el.querySelector<HTMLElement>('[data-leave]')!;
@@ -482,7 +529,7 @@ export function showBoard(act: number, quests: { kind: QuestKind; reward: Reward
   const toggle = (i: number) => {
     if (i >= quests.length) return;
     if (picks.includes(i)) picks.splice(picks.indexOf(i), 1);
-    else if (picks.length < take) picks.push(i);
+    else if (trial(i) || picks.filter((p) => !trial(p)).length < take) picks.push(i);
     el.querySelectorAll<HTMLElement>('[data-quest]').forEach((b) => b.classList.toggle('on', picks.includes(Number(b.dataset.quest))));
     label();
   };
@@ -535,9 +582,9 @@ function showTwoWay(title: string, options: { id: string; name: string; desc: st
  * v0.4: the talent tree, from the pause menu. Three branch columns, four rows, big buttons: taken, available (glowing) or locked
  * (dim, the tooltip says what it needs). Spending is immediate; the screen re-renders itself.
  */
-export function showTalents(info: { classId: ClassId; taken: string[]; points: number }, on: { spend: (id: string) => boolean; back: () => void }): void {
+export function showTalents(info: { classId: ClassId; taken: string[]; points: number; treasure?: TreasureId | null }, on: { spend: (id: string) => boolean; back: () => void }): void {
   const branches = TALENT_BRANCHES[info.classId];
-  const nodes = talentsFor(info.classId);
+  const nodes = talentsFor(info.classId, info.treasure);
   const keystone = takenKeystone(info.taken);
   const column = (b: BranchDef) => {
     const mine = nodes.filter((n) => n.branch === b.id);
@@ -545,10 +592,10 @@ export function showTalents(info: { classId: ClassId; taken: string[]; points: n
     return `<div class="branch"><h2>${b.name}</h2><p class="hint">${b.desc} · ${branchPoints(info.taken, b.id)} points</p>
       ${rows.map((row) => `<div class="trow">${row.map((n) => {
         const taken = info.taken.includes(n.id);
-        const why = taken ? null : talentBlocker(info.taken, n.id, info.points);
+        const why = taken ? null : talentBlocker(info.taken, n.id, info.points, undefined, info.treasure);
         const state = taken ? 'taken' : why === null ? 'open' : 'locked';
-        const tip = `${n.name}${n.keystone ? ' · keystone' : ''}\n${n.desc}${why && !taken ? `\n(${why})` : ''}`;
-        return `<button class="talent ${state} ${n.keystone ? 'keystone' : ''}" data-talent="${n.id}" ${state === 'open' ? '' : 'disabled'} data-tip="${esc(tip)}"><b>${taken ? '✔ ' : ''}${n.name}</b><span>${n.desc}</span></button>`;
+        const tip = `${n.name}${n.keystone ? ' · keystone' : ''}${n.treasure ? ' · sacred treasure' : ''}\n${n.desc}${why && !taken ? `\n(${why})` : ''}`;
+        return `<button class="talent ${state} ${n.keystone ? 'keystone' : ''} ${n.treasure ? 'sacred' : ''}" data-talent="${n.id}" ${state === 'open' ? '' : 'disabled'} data-tip="${esc(tip)}"><b>${taken ? '✔ ' : ''}${n.name}</b><span>${n.desc}</span></button>`;
       }).join('')}</div>`).join('')}
     </div>`;
   };
@@ -575,6 +622,7 @@ export interface BuildInfo {
   talentPoints: number;
   utilityUpgrades: UtilityUpgradeId[];
   trait: TraitId;
+  sacred?: { name: string; desc: string }[]; // v0.5: the treasure equipped, and this run's progress on its chain
 }
 
 /** The current build: ability upgrades, relics with tiers (tooltips), active synergies and clashes. Pause and results screens. */
@@ -587,21 +635,24 @@ export function buildHtml(info: BuildInfo): string {
   const ups = info.upgrades.map((id) => `<div><span>✦ ${ABILITY_UPGRADES[id].name}</span><em>${ABILITY_UPGRADES[id].desc}</em></div>`).join('');
   const util = info.utilityUpgrades.map((id) => `<div><span>${UTILITIES[info.classId].icon} ${UTILITY_UPGRADES[id].name}</span><em>${UTILITY_UPGRADES[id].desc}</em></div>`).join('');
   const talents = info.talents.length || info.talentPoints ? `<div><span>🌿 Talents${info.talentPoints ? ` · ${info.talentPoints} unspent` : ''}</span><em>${info.talents.map((id) => TALENT_BY_ID[id]?.name).join(' · ') || 'none yet'}</em></div>` : '';
+  const sacred = (info.sacred ?? []).map((s) => `<div><span>${s.name}</span><em>${s.desc}</em></div>`).join('');
   const syns = activeSynergies(info.relics).map((sid) => `<div class="syn ${SYNERGIES[sid].anti ? 'anti' : 'on'}"><span>${SYNERGIES[sid].anti ? '⚠' : '✦'} ${SYNERGIES[sid].name}</span><em>${SYNERGIES[sid].desc}</em></div>`).join('');
-  return relics || ups || trait || util || talents ? `<div class="build">${trait}${talents}${ups}${util}${relics}${syns}</div>` : '';
+  return relics || ups || trait || util || talents || sacred ? `<div class="build">${sacred}${trait}${talents}${ups}${util}${relics}${syns}</div>` : '';
 }
 
-export function showPause(info: BuildInfo, onResume: () => void, onQuit: () => void, onTalents?: () => void): void {
+export function showPause(info: BuildInfo, onResume: () => void, onQuit: () => void, onTalents?: () => void, onTreasures?: () => void): void {
   const el = show(`
     <div class="panel dialog">
       <h1 class="small">Paused</h1>
       ${buildHtml(info)}
       <button class="btn big" data-resume>Resume</button>
       ${onTalents ? `<button class="btn" data-talents>Talents${info.talentPoints > 0 ? ` (${info.talentPoints} to spend)` : ''}</button>` : ''}
+      ${onTreasures ? '<button class="btn" data-treasures>Sacred treasures</button>' : ''}
       <button class="btn" data-quit>End run (keeps your gold)</button>
     </div>`);
   click(el, '[data-resume]', onResume);
   click(el, '[data-talents]', () => onTalents?.());
+  click(el, '[data-treasures]', () => onTreasures?.());
   click(el, '[data-quit]', onQuit);
 }
 

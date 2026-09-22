@@ -1,5 +1,6 @@
 import type { Mods, StatKey } from '../core/types';
 import type { ClassId } from './classes';
+import { TREASURES, type TreasureId } from './treasures';
 
 /**
  * Talent trees: three branches per class, seven nodes each in four rows. A node needs one of `requires` taken first;
@@ -25,6 +26,7 @@ export interface TalentNode {
   mods?: Partial<Mods>;
   stats?: Partial<Record<StatKey, number>>; // flat adds
   n?: Record<string, number>; // read by systems: talentN(g, key)
+  treasure?: TreasureId; // v0.5: a hidden node, shown and takeable only while this sacred treasure is equipped
 }
 
 export interface BranchDef {
@@ -194,7 +196,14 @@ const TREES = {
   ],
 };
 
+/** v0.5: one hidden node per class (config/treasures.ts), in the branch that fits its treasure, on the first row with no prerequisite. */
+export const HIDDEN_TALENTS: TalentNode[] = (Object.keys(TREASURES) as ClassId[]).map((classId) => {
+  const t = TREASURES[classId];
+  return { id: `${classId}.treasure`, classId, row: 0, requires: [], treasure: t.id, ...t.talent };
+});
+
 export const TALENT_BRANCHES: Record<ClassId, BranchDef[]> = Object.fromEntries(Object.entries(TREES).map(([c, bs]) => [c, bs.map((b) => b.def)])) as Record<ClassId, BranchDef[]>;
 export const TALENT_NODES: TalentNode[] = Object.values(TREES).flatMap((bs) => bs.flatMap((b) => b.nodes));
-export const TALENT_BY_ID: Record<string, TalentNode> = Object.fromEntries(TALENT_NODES.map((n) => [n.id, n]));
-export const talentsFor = (classId: ClassId): TalentNode[] => TALENT_NODES.filter((n) => n.classId === classId);
+export const TALENT_BY_ID: Record<string, TalentNode> = Object.fromEntries([...TALENT_NODES, ...HIDDEN_TALENTS].map((n) => [n.id, n]));
+/** A class's tree; `treasure`: with the hidden node of that treasure, when it is the one equipped. */
+export const talentsFor = (classId: ClassId, treasure?: TreasureId | null): TalentNode[] => [...TALENT_NODES, ...HIDDEN_TALENTS].filter((n) => n.classId === classId && (!n.treasure || n.treasure === treasure));

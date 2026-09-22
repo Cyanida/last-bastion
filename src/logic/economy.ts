@@ -72,7 +72,7 @@ export interface MasteryBonus {
   utilityTier: boolean;
   titles: string[];
   palettes: number[];
-  treasureStep: number; // highest unlocked
+  treasureStep: number; // v0.5 sacred treasures: 1 = the chain is open, 2 = the tier III follow-up too
 }
 
 /** Sum of the rewards of all ranks reached. */
@@ -110,7 +110,7 @@ export function rewardText(r: MasteryReward): string {
     case 'utilityTier': return 'A second utility upgrade choice at level 14';
     case 'title': return `Title: ${r.title}`;
     case 'palette': return 'A new sprite palette';
-    case 'treasureStep': return r.step === 1 ? 'Sacred treasure: fragments can drop from Act bosses' : 'Sacred treasure: the trial can be taken';
+    case 'treasureStep': return r.step === 1 ? 'Sacred treasure: its quest begins, fragments drop from Act bosses' : 'Sacred treasure: the tier III follow-up can be earned';
   }
 }
 

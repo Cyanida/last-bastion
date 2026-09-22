@@ -136,6 +136,6 @@ describe('migration', () => {
     expect(save.title).toBeNull();
     expect(save.palettes).toEqual([]);
     expect(save.talentPoints).toBe(0);
-    expect(save.treasureSteps).toEqual({ paladin: 0, viking: 0, angel: 0, necromancer: 0, archer: 0 });
+    expect(save.treasures).toEqual(defaultSave().treasures);
   });
 });

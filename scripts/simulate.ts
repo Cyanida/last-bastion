@@ -39,7 +39,7 @@ const maxed = Object.fromEntries(META_IDS.map((id) => [id, META[id].max]));
 
 const setups: [string, RunOptions][] = [
   ['fresh', { tier, arena }],
-  ['maxed', { tier, arena, meta: maxed, classXp: MASTERY[MASTERY.length - 1].xp }],
+  ['maxed', { tier, arena, meta: maxed, classXp: MASTERY[MASTERY.length - 1].xp, treasure: 3 }], // v0.5: with the class's sacred treasure at tier III
 ];
 
 const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;

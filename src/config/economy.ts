@@ -163,7 +163,7 @@ export type MasteryReward =
   | { kind: 'utilityTier' } // the second utility upgrade (level 14) is offered
   | { kind: 'title'; title: string }
   | { kind: 'palette'; palette: number } // sprite recolour
-  | { kind: 'treasureStep'; step: number }; // sacred treasure quest step unlocked (increment 8)
+  | { kind: 'treasureStep'; step: number }; // v0.5 sacred treasures: 1 opens the chain, 2 the tier III follow-up (logic/treasures.ts)
 
 export interface MasteryRank {
   xp: number; // total class XP needed
@@ -193,7 +193,7 @@ const ranks: [string, MasteryReward][] = [
   ['Storied', { kind: 'classXp', amount: 0.05 }],
   ['Third Thoughts', { kind: 'reroll', amount: 1 }],
   ['Seasoned', { kind: 'startLevel', amount: 1 }],
-  ['The Trial', { kind: 'treasureStep', step: 2 }],
+  ['Relic-Bearer', { kind: 'treasureStep', step: 2 }],
   ['Paragon', { kind: 'secondary', amount: 2 }],
   ['Master', { kind: 'title', title: 'Master' }],
   ['Midnight Colours', { kind: 'palette', palette: 3 }],

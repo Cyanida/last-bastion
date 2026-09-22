@@ -29,7 +29,10 @@ import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showSaveDialog, showSettings, showShrine, showTalents, showTitle, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showSaveDialog, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
+import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
+import { inText } from './logic/treasures';
+import { TIER_NUMERALS } from './config/relics';
 import { TRAITS } from './config/traits';
 import { CLASS_ORDER } from './config/classes';
 import { MASTERY } from './config/economy';
@@ -141,6 +144,12 @@ function toSelect(): void {
       commit({ ...save, settings: { ...save.settings, trait: save.settings.trait === id ? 'none' : id } });
       toSelect();
     },
+    treasure(id) {
+      const rec = save.treasures[id];
+      if (rec.tier === 0) return;
+      commit({ ...save, treasures: { ...save.treasures, [id]: { ...rec, equipped: !rec.equipped } } });
+      toSelect();
+    },
   });
 }
 
@@ -151,6 +160,7 @@ function toKeep(): void {
     compendium: () => showCompendium(save, toKeep),
     chronicle: () => toChronicle(toKeep),
     mastery: (id) => showMastery(save, id, toKeep),
+    treasures: () => showTreasures(save, null, toKeep),
     buy(id: MetaId) {
       commit(buyMeta(save, id));
       toKeep();
@@ -222,7 +232,9 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {})
   clearOverlay();
   toasted.clear();
   lastToastCheck = '';
+  lastChain = '';
   const d = opts.daily;
+  const rec = save.treasures[id];
   game = createGame(id, opts.seed ?? Date.now() >>> 0, {
     arena: d ? d.arena : save.settings.arena,
     tier: d ? 0 : save.settings.tier,
@@ -237,6 +249,8 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {})
     palette: save.settings.palettes[id] ?? 0,
     palettes: save.palettes,
     bonusTalentPoints: save.talentPoints,
+    treasure: d || !rec.equipped ? 0 : rec.tier, // the Daily Trial is the same for everyone: no treasure, no chain
+    chain: d ? undefined : rec,
   });
   play();
   showHud(true);
@@ -300,7 +314,8 @@ function openChoice(g: Game): void {
       resume();
     });
   } else if (g.pendingBoard) {
-    showBoard(g.act, g.quests.filter((q) => q.state === 'offered'), QUEST_BOARD.take, (picks) => {
+    const trial = TREASURES[g.player.cls.id].trial;
+    showBoard(g.act, g.quests.filter((q) => q.state === 'offered').map((q) => (q.kind === 'trial' ? { ...q, desc: trial.desc } : q)), QUEST_BOARD.take, (picks) => {
       takeQuests(g, picks);
       resume();
     });
@@ -343,7 +358,21 @@ function openMerchant(g: Game): void {
   );
 }
 
-const buildOf = (g: Game) => ({ relics: g.relics, tiers: g.relicTiers, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait });
+const buildOf = (g: Game) => ({ relics: g.relics, tiers: g.relicTiers, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait, sacred: sacredLines(g) });
+
+/** v0.5: the sacred treasure carried, and what this run has done for the class's chain so far (pause and results). */
+function sacredLines(g: Game): { name: string; desc: string }[] {
+  const t = TREASURES[g.player.cls.id];
+  const c = g.chain;
+  const out = g.treasure ? [{ name: `${t.icon} ${t.name} ${TIER_NUMERALS[g.treasure.tier]}`, desc: treasureDesc(g.player.cls.id, g.treasure.tier) }] : [];
+  const trial = g.quests.find((q) => q.kind === 'trial' && q.state === 'active');
+  const news = [
+    ...(c?.found ? [`${c.found} fragment${c.found > 1 ? 's' : ''} found (${c.fragments}/${TREASURE_RULES.fragments})`] : []),
+    ...(trial ? [`${trial.name}: ${Math.floor(trial.progress)}/${trial.since}`] : c?.passed ? [`${t.trial.name} passed`] : []),
+    ...(c?.slain ? [`${t.guardian.name} slain`] : c?.guardian ? [`${t.guardian.name} is awake`] : g.regionOpen.vault ? ['the hidden vault is open'] : []),
+  ];
+  return news.length ? [...out, { name: '🧩 Treasure quest this run', desc: news.join(' · ') }] : out;
+}
 
 const hasChoice = (g: Game) => g.pendingShrine !== null || g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant;
 
@@ -352,15 +381,19 @@ function togglePause(): void {
     const g = game;
     state = 'paused';
     setTouchControls(false);
-    showPause(buildOf(g), togglePause, () => endRun(g), () => openTalents(g));
+    pauseMenu(g);
   } else if (state === 'paused') resume();
+}
+
+function pauseMenu(g: Game): void {
+  showPause(buildOf(g), togglePause, () => endRun(g), () => openTalents(g), () => showTreasures(applyRun(save, summarizeRun(g)).save, g.player.cls.id, () => pauseMenu(g))); // the log as it would stand if the run ended now
 }
 
 /** The talent tree, from the pause menu (the game stays paused). */
 function openTalents(g: Game): void {
-  showTalents({ classId: g.player.cls.id, taken: g.player.talents, points: g.talentPoints }, {
+  showTalents({ classId: g.player.cls.id, taken: g.player.talents, points: g.talentPoints, treasure: g.treasure?.id }, {
     spend: (id) => spendTalent(g, id),
-    back: () => showPause(buildOf(g), togglePause, () => endRun(g), () => openTalents(g)),
+    back: () => pauseMenu(g),
   });
 }
 
@@ -426,10 +459,24 @@ function checkToasts(g: Game): void {
   }
 }
 
+/** v0.5: the treasure chain's moments, toasted once each: a fragment, the guardian (the trial is a quest: the HUD toasts it). */
+let lastChain = '';
+function chainToasts(g: Game): void {
+  const c = g.chain;
+  const key = c ? `${c.found}:${c.slain}` : '';
+  if (!c || key === lastChain) return;
+  const found = Number(lastChain.split(':')[0] || 0);
+  lastChain = key;
+  const t = TREASURES[g.player.cls.id];
+  if (c.found > found) toast(`A fragment of ${inText(t.name)}`, `${c.fragments} of ${TREASURE_RULES.fragments} found. ${c.fragments < TREASURE_RULES.fragments ? 'The next lies with another Act boss.' : 'Its trial waits on the next quest board.'}`, '🧩');
+  else if (c.slain) toast(`${t.guardian.name} has fallen`, `${t.icon} ${t.name} is yours${c.tier > 0 ? ' — whole at last' : ''}. ◆ ${TREASURE_RULES.guardianRunes} Runes when the run ends.`, t.icon);
+}
+
 function afterStep(g: Game): void {
   if (g.over) endRun(g);
   else {
     checkToasts(g);
+    chainToasts(g);
     if (hasChoice(g)) openChoice(g);
   }
 }
