@@ -16,6 +16,7 @@ export const enraged = (e: Enemy) => e.affixes.includes('enraged') && e.hp < e.m
 export const hitDamage = (e: Enemy) => e.damage * (enraged(e) ? AFFIXES.enraged.n.damage : 1) * (e.buffT > 0 ? e.buffDmg : 1);
 
 export function move(e: Enemy, angle: number, speed: number, dt: number): void {
+  if (e.waypoint) angle = Math.atan2(e.waypoint.y - e.y, e.waypoint.x - e.x); // v0.5: another floor: through the gate first
   e.x += Math.cos(angle) * speed * dt;
   e.y += Math.sin(angle) * speed * dt;
 }

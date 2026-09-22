@@ -55,15 +55,10 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 .hud-panel, .hud-tr button, .relic, #h-map { border: 2px solid #5a3d25; border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(201, 162, 39, 0.5), 0 4px 12px rgba(0, 0, 0, 0.55); }
 .hud-panel, .hud-tr button, .relic { background: linear-gradient(var(--parchment), var(--parchment-dark)); color: var(--ink); }
 .hud-panel { padding: 8px 12px; }
-.hud-plate, #hud [data-tip]:hover::after, #hud [data-tip]:focus::after { background: rgba(20, 17, 15, 0.72); color: var(--hud-light); border: 1px solid rgba(201, 162, 39, 0.35); border-radius: 6px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45); }
+.hud-plate, #tooltip.hud { background: rgba(20, 17, 15, 0.72); color: var(--hud-light); border: 1px solid rgba(201, 162, 39, 0.35); border-radius: 6px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45); }
 .hud-plate { padding: 3px 10px; }
 .hud-badge, .relic .tier { display: inline-block; padding: 1px 6px; border-radius: 8px; font: 700 13px/15px var(--hud-text); font-style: normal; color: #f3d77a; background: #2a1d10; border: 1px solid var(--gold); white-space: nowrap; }
 .touch .hud-key { display: none; } /* the on-screen buttons need no key names */
-/* tooltips: hover on desktop, tap (focus) on touch */
-#hud [data-tip]:hover::after, #hud [data-tip]:focus::after {
-  content: attr(data-tip); position: absolute; z-index: 5; bottom: calc(100% + 8px); right: 0; width: 260px; padding: 8px 10px;
-  font: 14px/1.35 var(--hud-text); text-align: left; white-space: pre-line; background: rgba(20, 17, 15, 0.94);
-}
 /* popovers (all stats, older relics): open upward; the ::before bridges the gap so the pointer can move in */
 .hud-pop { display: none; position: absolute; z-index: 4; bottom: calc(100% + 8px); padding: 8px 12px; background: rgba(20, 17, 15, 0.94); white-space: nowrap; }
 .hud-pop::before { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 10px; }
@@ -131,7 +126,7 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 .relic.more .hud-pop { left: 0; right: 0; flex-wrap: wrap; justify-content: flex-end; gap: 10px 6px; padding: 8px; cursor: default; }
 .relic.more:hover .hud-pop, .relic.more:focus-within .hud-pop { display: flex; }
 .touch .hud-relics { position: relative; } /* thumbs own the bottom corners: the bar sits under pause and mute */
-.touch .hud-relics .hud-pop, .touch .hud-relics [data-tip]:hover::after, .touch .hud-relics [data-tip]:focus::after { top: calc(100% + 8px); bottom: auto; }
+.touch .hud-relics .hud-pop { top: calc(100% + 8px); bottom: auto; }
 
 /* top centre: the wave plate, the banner under it */
 .hud-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 4vh; text-align: center; }
@@ -204,7 +199,6 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 .talent.locked { opacity: 0.45; cursor: default; }
 .talent.keystone { min-height: 70px; border-width: 3px; }
 .talent.keystone.open { border-color: #e07b28; box-shadow: 0 0 14px #e07b28; }
-.talent[data-tip]:hover::after { bottom: auto; top: calc(100% + 6px); right: auto; left: 0; width: 220px; z-index: 6; }
 .boon.talent { border-color: #3a6b2a; outline-color: #6fae4f; }
 .boon.talent .tag { color: #3a6b2a; opacity: 1; font-weight: bold; }
 .chip.trait { border-color: #6b5a3a; }
@@ -259,12 +253,11 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 
 /* tooltips: relic slots, arena / difficulty chips */
 [data-tip] { position: relative; }
-[data-tip]:hover::after {
-  content: attr(data-tip); position: absolute; z-index: 5; bottom: calc(100% + 8px); right: 0; width: 250px; padding: 8px 10px;
-  font: 14px/1.25 var(--body); text-align: left; white-space: pre-line; color: var(--ink);
-  background: linear-gradient(var(--parchment), var(--parchment-dark)); border: 2px solid #5a3d25; border-radius: 3px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
-}
-.pickers [data-tip]:hover::after { bottom: auto; top: calc(100% + 8px); right: auto; left: 0; }
+/* v0.5: one floating tooltip for every [data-tip] (ui/tooltip.ts): parchment in the menus, a dark plate over the arena */
+#tooltip { display: none; position: fixed; z-index: 50; max-width: min(280px, calc(100vw - 12px)); padding: 8px 10px; pointer-events: none;
+  font: 14px/1.3 var(--body); text-align: left; white-space: pre-line; color: var(--ink);
+  background: linear-gradient(var(--parchment), var(--parchment-dark)); border: 2px solid #5a3d25; border-radius: 3px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6); }
+#tooltip.hud { font: 14px/1.35 var(--hud-text); color: var(--hud-light); padding: 8px 10px; background: rgba(20, 17, 15, 0.94); border-radius: 6px; }
 
 .relic.rare, .relic-card.rare, .boon.rare { border-color: #3f6fae; outline-color: #6f9fe0; }
 .relic.legendary, .relic-card.legendary, .boon.epic { border-color: #a0522d; outline-color: #e07b28; }

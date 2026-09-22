@@ -81,13 +81,13 @@ describe('the Keep: buildings, caps and costs', () => {
   });
 
   it('the Library caps talent rows, the Chapel caps relic tiers, the Watchtower gates tiers', () => {
-    expect(TALENT_ROW_CAP[0]).toBe(1);
+    expect(TALENT_ROW_CAP[0]).toBe(2); // v0.5: three rows open on a fresh save
     const g = createGame('paladin', 1, { libraryLevel: 0 });
     g.talentPoints = 9;
     const plan = branchPlan('paladin', 0);
-    for (const id of plan.slice(0, 4)) expect(spendTalent(g, id)).toBe(true);
-    expect(spendTalent(g, plan[4])).toBe(false); // row 2 needs Library level 1
-    const open = createGame('paladin', 1, { libraryLevel: 2 });
+    for (const id of plan.slice(0, 6)) expect(spendTalent(g, id)).toBe(true);
+    expect(spendTalent(g, plan[6])).toBe(false); // the keystone needs Library level 1
+    const open = createGame('paladin', 1, { libraryLevel: 1 });
     open.talentPoints = 9;
     for (const id of plan) expect(spendTalent(open, id)).toBe(true); // keystone included
     expect(createGame('paladin', 1).relicTierCap).toBe(2);

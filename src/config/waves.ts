@@ -12,8 +12,13 @@ export const WAVES = {
    * Act I gentle (count does the work), Act II steep (stats and elites), Act III gentle again (composition does the work),
    * and beyond wave `beyondFrom` a quadratic term makes sure every run eventually ends.
    */
-  hp: { slopes: [0.05, 0.11, 0.05] as number[], beyondFrom: 30, beyondQuad: 0.012 },
-  dmg: { slopes: [0.03, 0.06, 0.03] as number[], beyondFrom: 30, beyondQuad: 0.005 },
+  hp: { slopes: [0.05, 0.11, 0.05] as number[], beyondFrom: 30, beyondQuad: 0.03 }, // v0.5: was 0.012; runs past the Dragon ran on to wave 45+ (BALANCE.md)
+  dmg: { slopes: [0.03, 0.06, 0.03] as number[], beyondFrom: 30, beyondQuad: 0.012 }, // v0.5: was 0.005
+  /**
+   * v0.5: past wave `from` every heal (lifesteal, kills, relics, treasures, regen) is `perWave` weaker per wave, down to `floor`.
+   * Sustain scales with the kill count, and late waves are huge: without this a sustain build never died (BALANCE.md).
+   */
+  healFalloff: { from: 30, perWave: 0.04, floor: 0.15 },
   /**
    * Enemy XP value = unit XP (which the director buys more of every wave: raw XP per wave grows about linearly, 60 at wave 5
    * to 330 at wave 35) x (1 + perWave*(w-1)) x actDecay^(act-1). The Act factor is what makes the pace slide from one level a

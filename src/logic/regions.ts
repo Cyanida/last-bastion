@@ -99,6 +99,21 @@ export function spawnPoint(floors: Rect[], rng: Rng, px: number, py: number, min
   return best;
 }
 
+/**
+ * v0.5 navigation without pathfinding: the regions form a star (the core in the middle, each wing off it, the vault off the east wing),
+ * so the way from one floor to another is always through a known gate. Returns the gate to walk to, or null when a straight line will
+ * do (same floor, or already in a corridor). Nobody is stuck pressing on a wall with its target on the other side.
+ */
+export function waypoint(regions: RegionDef[], ex: number, ey: number, tx: number, ty: number): { x: number; y: number } | null {
+  const from = regionAt(regions, ex, ey);
+  const to = regionAt(regions, tx, ty);
+  if (!from || !to || from.id === to.id) return null;
+  const gateOf = (id: RegionId) => regions.find((r) => r.id === id)!.gate!;
+  // leave a wing (or the vault) through its own gate; from the core, enter the target's wing (the vault is reached via the east wing)
+  const gate = from.id === 'core' ? gateOf(to.id === 'vault' ? 'east' : to.id) : from.id === 'east' && to.id === 'vault' ? gateOf('vault') : gateOf(from.id);
+  return { x: gate.x + gate.w / 2, y: gate.y + gate.h / 2 };
+}
+
 /** A point anywhere on the open floors (weighted by area), `inset` from their edges: where quests and events put things. */
 export function floorPoint(floors: Rect[], rng: Rng, inset = 80): { x: number; y: number } {
   let pick = rng() * floors.reduce((s, f) => s + f.w * f.h, 0);

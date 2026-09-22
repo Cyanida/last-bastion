@@ -20,6 +20,7 @@ import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
 import { activeSynergies, synergiesOf, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
 import { esc, relicLine, relicTip, tierBadge } from './relicText';
+import { dropStaleTooltip } from './tooltip';
 import type { QualitySetting } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
@@ -39,6 +40,7 @@ function show(html: string): HTMLElement {
   const el = overlay();
   el.innerHTML = html;
   el.classList.remove('hidden');
+  dropStaleTooltip();
   return el;
 }
 
@@ -47,6 +49,7 @@ export function clearOverlay(): void {
   stopActions = null;
   overlay().classList.add('hidden');
   overlay().innerHTML = '';
+  dropStaleTooltip(); // after the old screen is gone, so its tooltip goes with it
 }
 
 /** Screens never read keys: they react to input-layer actions (keyboard, gamepad...). */
@@ -582,7 +585,7 @@ function showTwoWay(title: string, options: { id: string; name: string; desc: st
  * v0.4: the talent tree, from the pause menu. Three branch columns, four rows, big buttons: taken, available (glowing) or locked
  * (dim, the tooltip says what it needs). Spending is immediate; the screen re-renders itself.
  */
-export function showTalents(info: { classId: ClassId; taken: string[]; points: number; treasure?: TreasureId | null }, on: { spend: (id: string) => boolean; back: () => void }): void {
+export function showTalents(info: { classId: ClassId; taken: string[]; points: number; rowCap: number; treasure?: TreasureId | null }, on: { spend: (id: string) => boolean; back: () => void }): void {
   const branches = TALENT_BRANCHES[info.classId];
   const nodes = talentsFor(info.classId, info.treasure);
   const keystone = takenKeystone(info.taken);
@@ -592,17 +595,18 @@ export function showTalents(info: { classId: ClassId; taken: string[]; points: n
     return `<div class="branch"><h2>${b.name}</h2><p class="hint">${b.desc} · ${branchPoints(info.taken, b.id)} points</p>
       ${rows.map((row) => `<div class="trow">${row.map((n) => {
         const taken = info.taken.includes(n.id);
-        const why = taken ? null : talentBlocker(info.taken, n.id, info.points, undefined, info.treasure);
+        const why = taken ? null : talentBlocker(info.taken, n.id, info.points, info.rowCap, info.treasure);
         const state = taken ? 'taken' : why === null ? 'open' : 'locked';
+        const library = !taken && n.row > info.rowCap; // locked by the Keep, not by this run: say so on the node itself
         const tip = `${n.name}${n.keystone ? ' · keystone' : ''}${n.treasure ? ' · sacred treasure' : ''}\n${n.desc}${why && !taken ? `\n(${why})` : ''}`;
-        return `<button class="talent ${state} ${n.keystone ? 'keystone' : ''} ${n.treasure ? 'sacred' : ''}" data-talent="${n.id}" ${state === 'open' ? '' : 'disabled'} data-tip="${esc(tip)}"><b>${taken ? '✔ ' : ''}${n.name}</b><span>${n.desc}</span></button>`;
+        return `<button class="talent ${state} ${n.keystone ? 'keystone' : ''} ${n.treasure ? 'sacred' : ''}" data-talent="${n.id}" ${state === 'open' ? '' : 'disabled'} data-tip="${esc(tip)}"><b>${taken ? '✔ ' : library ? '🔒 ' : ''}${n.name}</b><span>${library ? 'Raise the Library in the Keep to open the keystones.' : n.desc}</span></button>`;
       }).join('')}</div>`).join('')}
     </div>`;
   };
   const el = show(`
     <div class="panel dialog wide talents">
       <h1 class="small">Talents</h1>
-      <p class="sub">${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${TALENTS.levelsPerPoint} levels · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}</p>
+      <p class="sub">${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${TALENTS.levelsPerPoint} levels · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}${info.rowCap < TALENTS.rows - 1 ? ' · <b>keystones open when the Library is raised in the Keep</b>' : ''}</p>
       <div class="tree">${branches.map(column).join('')}</div>
       <button class="btn big" data-back>Back</button>
     </div>`);

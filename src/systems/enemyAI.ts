@@ -13,6 +13,8 @@ import { angleTo, distTo, enraged, keepRange, move, moveTo, POISON, seek, shootA
 import { hurtTarget } from './combat';
 import { burst, ring, shake } from './effects';
 import { SPECIALS } from './specials';
+import { waypoint } from '../logic/regions';
+import { regionsOf } from './regions';
 
 const HOSTILE = '#c23a2e';
 
@@ -397,6 +399,9 @@ export function updateEnemies(g: Game, dt: number): void {
     if (e.affixes.includes('frostAura') && dist2(e.x, e.y, p.x, p.y) < AFFIXES.frostAura.n.radius ** 2) p.chillT = AFFIXES.frostAura.n.linger;
     if (e.def.aura) pulseAura(g, e, dt);
 
+    // v0.5: with more than one floor open, head for the gate when the player is on another floor
+    // ponytail: navigates toward the player, not toward a minion it targets; fine while minions stay near the player
+    e.waypoint = g.openFloors.length > 1 ? waypoint(regionsOf(g), e.x, e.y, p.x, p.y) : null;
     const script = BOSSES[e.def.id];
     if (isStunned(e.statuses)) e.telegraph = null; // stunned or frozen solid: no thinking, no moving
     else if (script) script(g, e, dt);

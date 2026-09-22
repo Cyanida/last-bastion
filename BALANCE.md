@@ -1,5 +1,47 @@
 # Balance notes
 
+## v0.5: quests, the bigger map, sacred treasures
+
+The v0.5 balance pass was scoped to the new content and the tail: the maxed/fresh gap and the class spread are v0.6's job (it reworks the
+Keep's stat ranks into sidegrades and targets the Archer), so this section records the state it hands over.
+
+**What the new content did.** Quests (their rewards, and the wings they open) made Act I stronger, most of all for the melee bot, which walks
+to objectives and fights there. Ablation on 6 fresh Viking runs (average wave): baseline 27.2, no quests 8.0, no wing features 12.3,
+no events 19.3, no breather pacing 27.2, all of it off 7.2 (v0.4's level). "Wave reached" is bimodal: a run either dies at the Act I Dragon
+or, having passed it, runs deep. So the useful metric is the **gate**: how many fresh runs kill the Dragon. Over 16 seeds per class about
+20% pass (Viking 5-7, Angel 4-7, Paladin 2-4, Necromancer 0-1, Archer 0-1 out of 16). Allowing only one quest in Act I changed nothing
+measurable (16/80 against 15/80), so the board stays at two. A fifth of fresh bot runs beating the Dragon is fine ("beating it fresh is a
+very good run"); the per-class gap is the v0.6 class-spread item.
+
+**What was wrong, and fixed.**
+- *Enemies stuck behind walls.* The first map build let enemies steer straight at the player; anything spawned in a wing pressed against the
+  wall between it and the core. Late waves were mostly stuck, which is why deep runs looked immortal. Enemies, minions, the caravan and the monk
+  now route through the right gate (`waypoint` in `logic/regions.ts`: the regions form a star, so the next gate is always known). Real
+  pathfinding around obstacles is on the v0.6 list.
+- *The tail.* Past wave 30 HP now grows with 0.03 × (w − 30)² (was 0.012) and damage with 0.012 × (w − 30)² (was 0.005), and every heal
+  is 4% weaker per wave past 30 (down to 15%: `WAVES.healFalloff`), because sustain scales with the huge late kill counts.
+- *The talent tree.* The Library's level caps the rows; a fresh save now opens three rows (the keystones need the Library's first level), and
+  the tree screen shows a locked row as locked (it used to look open and ignore the click).
+
+### Simulation, v0.5 (Squire, courtyard, 6 runs per cell; maxed = every Keep rank, mastery 25, the class's treasure at tier III)
+
+| Class | Fresh: avg wave (min-max) | Maxed: avg wave (min-max) | Ratio |
+|---|---|---|---|
+| Paladin | 14.7 (4-44) | 48.7 (46-52) | 3.32 |
+| Viking | 23.5 (5-51) | 48.7 (6-58) | 2.07 |
+| Angel | 11.7 (3-46) | 49.3 (44-56) | 4.23 |
+| Necromancer | 8.5 (4-12) | 23.2 (2-54) | 2.73 |
+| Archer | 6.5 (2-10) | 33.5 (11-54) | 5.15 |
+| **All** | **13.0** | **40.7** | **3.14** |
+
+The XP pace still holds: fresh runs that get there are level 12 / 16 / 20-21 / 24 / 28 at waves 10 / 15 / 20 / 25 / 30 (target 11 / 14.8 /
+18.5 / 21.3 / 24). **Most maxed runs end at the sim's 45-minute cap, not in death** (wave 46-58 at 45 minutes, level 40-47): a fully developed
+character outgrows the enemies, and the tail only catches it around wave 60. That is the v0.6 finding to act on: its Keep rework (sidegrades,
+not power) and the Act IV ending (the Usurper) give runs a length, where the tail alone cannot.
+
+**Economy** (`npm run sim -- economy`): the Keep is fully raised after **run 40** (target 40-60). Achievement tiers and quest Runes mean
+Runes are no longer the bottleneck late; gold is. It sits at the fast end of the target; v0.6's Keep rework re-runs it.
+
 ## v0.4: the XP curve and one scaling axis per Act
 
 Playtest feedback: level-ups slow down late while enemies keep multiplying. Two causes, both fixed in config.

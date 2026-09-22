@@ -11,6 +11,7 @@ import { enemyCost, waveBudget } from '../src/logic/director';
 import { questMarks, rollBoard, rollEvent } from '../src/logic/quests';
 import { applyRun, defaultSave, type RunSummary } from '../src/logic/save';
 import { pacingBudget, pacingOf } from '../src/logic/waves';
+import { waypoint } from '../src/logic/regions';
 import { botStep, simulateRun } from '../src/sim/bot';
 import { nextAct } from '../src/systems/acts';
 import { killEnemy } from '../src/systems/combat';
@@ -18,6 +19,7 @@ import { peddlerBuy, peddlerPrice } from '../src/systems/events';
 import { skeletonCount } from '../src/systems/minions';
 import { takeQuests, updateQuests } from '../src/systems/quests';
 import { spawnEnemy } from '../src/systems/spawning';
+import { openRegion } from '../src/systems/regions';
 
 const DT = 1 / 60;
 const openWings = (g: Game) => Object.keys(g.regionOpen).length;
@@ -346,4 +348,22 @@ describe('the bot', () => {
       expect(run.wave).toBeGreaterThan(0);
     }
   }, 30000); // five short bot runs: seconds, more on a busy CI runner
+});
+
+describe('navigation through gates (v0.5)', () => {
+  it('an enemy on another floor heads for the gate, then reaches the player', () => {
+    const g = createGame('paladin', 3);
+    const east = g.arena.regions!.find((r) => r.id === 'east')!;
+    const north = g.arena.regions!.find((r) => r.id === 'north')!;
+    openRegion(g, 'east');
+    openRegion(g, 'north');
+    expect(waypoint(g.arena.regions!, east.floor.x + 100, east.floor.y + 100, g.player.x, g.player.y)).toEqual({ x: east.gate!.x + east.gate!.w / 2, y: east.gate!.y + east.gate!.h / 2 });
+    expect(waypoint(g.arena.regions!, g.player.x, g.player.y, g.player.x + 10, g.player.y)).toBeNull(); // same floor
+    expect(waypoint(g.arena.regions!, g.player.x, g.player.y, north.floor.x + 50, north.floor.y + 50)).toEqual({ x: north.gate!.x + north.gate!.w / 2, y: north.gate!.y + north.gate!.h / 2 });
+    // a wolf in the far corner of the east wing, the player in the core: it must arrive, not press on the wall
+    g.breather = 999;
+    const wolf = spawnEnemy(g, 'wolf', east.floor.x + east.floor.w - 40, east.floor.y + 40);
+    for (let i = 0; i < 60 * 20 && Math.hypot(wolf.x - g.player.x, wolf.y - g.player.y) > 120; i++) updateGame(g, 1 / 60);
+    expect(Math.hypot(wolf.x - g.player.x, wolf.y - g.player.y)).toBeLessThan(120);
+  });
 });

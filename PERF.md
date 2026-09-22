@@ -94,3 +94,10 @@ so the v0.4 additions (relic tiers and stacking, talents, the utility ability, t
 On the development laptop the same test read p95 33.3 ms for both scenarios with 1.3 ms update / 2.7 ms render: that is the headless compositor
 presenting at 30 Hz while Teams and a video call were running, not the game. Read the update/render columns before the frame column when a
 local run fails.
+
+## At the v0.5.0 release
+
+Local headless run on the release build (desktop budget 20 ms): Fog p95 **16.8 ms** (update 1.3, render 2.2), Blood Moon p95 **16.8 ms**
+(update 1.3, render 2.2), 249-250 enemies, 1,070-1,268 draw calls, detail 1.0. The v0.5 additions (the bigger map with its closed-region
+overlay, gate waypoints for every enemy and minion each tick, quests, events, the reworked HUD and the shared tooltip) stay under 4 ms of work
+a frame; the heaviest sections are still drawing the enemies and their shadows.

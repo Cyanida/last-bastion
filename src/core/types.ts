@@ -171,6 +171,7 @@ export interface Enemy extends Body {
   auraT: number; // commanders: countdown to the next aura pulse
   hidden: boolean; // cannot be auto-targeted (assassins, a flying dragon)
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
+  waypoint: { x: number; y: number } | null; // v0.5: the gate to walk to when the player is on another floor (logic/regions waypoint)
   statuses: StatusMap;
   dots: Partial<Record<DamageType, number>>;
   dotT: number;

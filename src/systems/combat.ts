@@ -11,7 +11,7 @@ import type { Body, DamageSource, Enemy, Game, Minion, Player, Projectile, Statu
 import { addField, fireProjectile, recycleProjectile } from '../entities/hazards';
 import { goldDrop } from '../logic/economy';
 import { inRects } from '../logic/regions';
-import { attackDamage, mitigate, rollCrit } from '../logic/formulas';
+import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
 import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
@@ -230,7 +230,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
 export function healPlayer(g: Game, amount: number, show = true): number {
   const p = g.player;
   if (g.breather > 0 && g.wave > 0 && g.curses.includes('noRespite')) return 0; // No Respite: nothing mends between waves
-  const healed = Math.min(p.stats.hp - p.hp, amount);
+  const healed = Math.min(p.stats.hp - p.hp, amount * healFactor(g.wave)); // v0.5: sustain fades past wave 30
   if (healed <= 0) return 0;
   p.hp += healed;
   if (show) floatText(g, p.x, p.y - 34, `+${Math.round(healed)}`, '#6f8f4e', 15);

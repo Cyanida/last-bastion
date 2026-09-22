@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.5.0 — Quests, a bigger map, sacred treasures, music, a readable HUD
+
+The rest of the Phase 4 plan (side quests with map expansion, the sacred treasures, the balance pass) plus two backlog items: menu music and HUD readability.
+
+### A bigger map
+- **Every arena is the core of a bigger map**: four wings behind portcullis gates and a hidden vault in one corner. An Act starts with only the core open; the mid-Act boss and every finished quest open the next wing (seeded order).
+- **Each wing holds a feature** (seeded per Act): a **shrine** (choose one of three blessings that last the run), a **strongbox** (gold and a relic), a **lair** (an elite sleeper with two affixes and guards; a choice of relics when it falls) or a **vent field** guarding a gold cache.
+- Enemies come from the edges of **the whole open map**; closed wings are darkness behind bars, the vault is solid stone until it opens. The minimap shows what you have explored, what is open and what is still barred.
+
+### Side quests, events, pacing
+- **A quest board at the start of every Act**: three seeded quests, take up to two, no penalty for failing. **Protect the caravan** (two waves), **destroy the siege camps**, **escort the monk** to the chapel, **hunt the named elite**, **hold the shrine** (60 s), **find the hidden chest** (it glints when you are close). Rewards: a relic, gold, a Rune or a talent point; every finished quest also opens a wing.
+- **Seeded events**, at most one a wave (so a Daily Trial is the same for everyone): a **wandering merchant** with a small shop, a **cursed chest** (relics, and elites around it), an **ambush** from two sides, a **lost knight** who fights beside you for a wave, a **plague cart** leaking poison across the field.
+- **Pacing**: waves 3 and 8 of every Act are **breathers** (a lighter wave that always brings an event), waves 4 and 9 are heavier.
+- A **quest tracker** in the HUD, markers in the world and on the minimap, arrows to off-screen objectives.
+
+### Sacred treasures
+- One per class: the **Holy Grail**, **Mjölnir's Shard**, the **Halo of Dawn**, the **Book of the Dead**, the **Bow of the Wild Hunt**. Each is a build-defining effect that scales with the class's secondary stat, in three tiers.
+- **Earned over several runs** (from mastery rank 10): three **fragments** from set Act bosses while playing the class, then the class's **trial** on an Act board, then the treasure's **guardian** in the hidden vault. Tier II: carry it through two Acts in one run. Tier III: mastery rank 20 and the guardian slain again on Knight or harder.
+- Equipped from the class select (not in the Daily Trial); each treasure opens a **hidden talent node**. A **Sacred Treasures** log in the Keep and the pause menu shows every chain.
+
+### Music and the HUD
+- **Menu music**, composed live in code (no audio files, copyright-free by construction): a D Dorian harp, flute, drone and bells that vary on every pass. It plays on the menus and the results screen, fades out when a run starts, follows the mute, and has a **Music** setting (Off / Low / Medium / High).
+- **A readable HUD**: clear fonts (Cinzel, Alegreya Sans with even-width numbers) instead of blackletter, 14 px minimum text, dark plates behind floating text, a compact six-number stats panel with the full list on hover or tap, a one-line ability panel with the utility slot labelled with its key, a single-row relic bar with a "+N" overflow, and a minimap no panel can cover. Phones get a denser layout at full text size instead of shrunken text.
+
+### Balance and fixes
+- **Enemies no longer get stuck behind walls**: anything in a wing whose target is on another floor walks through the right gate (enemies, minions, the caravan and the monk). Real pathfinding around obstacles is planned for v0.6.
+- **The talent tree**: three rows are open on a fresh save (the keystones need the Library's first level), and a locked row now looks locked; it used to look open and ignore the click.
+- **Tooltips**: one shared tooltip for every menu and the HUD. It stays inside the window, never covers the element you move to next, and goes away when the screen changes (the old ones were clipped in scrolling dialogs and could stick).
+- The difficulty tail past wave 30 is steeper (HP ×0.03 and damage ×0.012 per wave squared, from 0.012 / 0.005), and healing fades by 4% a wave past wave 30 (down to 15%). See BALANCE.md for what the sim shows and what is left for v0.6.
+- New achievements: **Errant** (quests), **Worldly** (events), **Keeper of Relics** (sacred treasures).
+
+### Known state, for v0.6
+- The basic balance bot passes the Act I Dragon on a fresh save with the melee classes far more often than with the ranged ones, and a maxed save still reaches several times as deep as a fresh one. v0.6 reworks the Keep's stat ranks into sidegrades and targets the class spread; BALANCE.md has the numbers.
+
 ## v0.4.0 — Performance, scaling, relics, talents, the Keep, achievements
 
 Playtest feedback, in order: frame drops in Fog and Blood Moon, level-ups slowing down late, stale runs, too few build choices, a Keep emptied by one good run, shallow achievements, the relic cap and missing tooltips. This release covers the first six of the nine planned increments; **side quests with map expansion, the sacred treasures and the balance pass follow in v0.5.**

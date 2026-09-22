@@ -1,7 +1,7 @@
 # Last Bastion — V0.3
 
 A 2D top-down medieval wave-survival game. TypeScript + Vite, HTML5 Canvas 2D, no engine, no asset files:
-sprites are pixel grids in code, sound is WebAudio synthesis. One codebase, three ways to play.
+sprites are pixel grids in code, sound effects and the menu music are WebAudio synthesis. One codebase, three ways to play.
 
 | | |
 |---|---|
@@ -57,7 +57,7 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
-| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (168 tests) |
+| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (211 tests) |
 | `npm run test:perf` | headless Chromium frame-time test of Fog and Blood Moon against the built game (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
 | `npm run icons` | redraw all icons and the README QR code from code |
@@ -114,6 +114,9 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 ## A run
 
 - **Acts**: 10 waves each. Wave 5 brings a boss from the arena's rotation, wave 10 an **Act boss** with three phases (the Dragon burns strips of the map, the Warden seals you inside rings of stone). Then the **Merchant**, then the next arena and a themed Act.
+- **The map grows** (v0.5): an Act starts in the arena's core; four wings wait behind gates, each with a feature (a shrine with a blessing, a strongbox, a lair, a vent field with a cache), and a hidden vault. The mid-Act boss and every finished quest open the next wing. Enemies come from the edges of the whole open map.
+- **Quests and events**: a board at every Act start offers three seeded quests (take up to two, no penalty for failing); waves 3 and 8 are lighter breathers with a seeded event (merchant, cursed chest, ambush, a knight ally, a plague cart).
+- **Sacred treasures**: one per class, earned over several runs (fragments from Act bosses, a trial, the guardian in the vault), equipped at the class select.
 - **The Merchant** sells a heal and a random relic of the rarity you choose (new, or a tier up for one you carry), rerolls a relic, and buys relics back for gold or salvages them into Rune shards. Run gold spent here would otherwise be banked for the Keep.
 - **Enemies think**: ranged units keep their distance and reposition, melee units flank, wounded levies flee to healers. **Squads** march in formation behind a **commander** (Bannerman, Drummer, Chaplain, Hound Master): kill him and the squad scatters, routs or goes berserk. Commanders carry a bounty and show on the minimap.
 - **Damage types and status effects**: holy, shadow, fire, frost, physical; burn, chill (enough of it freezes), bleed, poison, stun, fear, curse. Knights have armor that breaks; shield bearers only break from behind; a shieldwall only holds while the line stands together.
@@ -125,7 +128,7 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 
 ## Between runs
 
-The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks; a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the **Chronicle** (62 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, updates, save data).
+The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks; a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the **Sacred Treasures** log, the **Chronicle** (65 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, menu music, updates, save data).
 
 ### Save format
 

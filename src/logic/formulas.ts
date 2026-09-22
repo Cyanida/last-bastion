@@ -66,6 +66,12 @@ function actScaled(wave: number, c: { slopes: number[]; beyondFrom: number; beyo
 }
 
 export const enemyHpMult = (wave: number): number => actScaled(wave, WAVES.hp);
+
+/** v0.5: how much of any heal still lands on this wave (1 until WAVES.healFalloff.from, then less each wave, never below the floor). */
+export function healFactor(wave: number): number {
+  const f = WAVES.healFalloff;
+  return Math.max(f.floor, 1 - Math.max(0, wave - f.from) * f.perWave);
+}
 export const enemyDmgMult = (wave: number): number => actScaled(wave, WAVES.dmg);
 
 /** Per-level automatic growth. Returns a new stats object. */

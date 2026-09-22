@@ -126,7 +126,7 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
     capFrac: [0.34, 0.67, 1, 1],
   },
   library: {
-    name: 'Library', icon: '📚', desc: 'Talent rows and keystones, boons and experience.',
+    name: 'Library', icon: '📚', desc: 'Its first level opens the talent keystones; boons and experience.',
     upgrades: ['talentPoint', 'rerolls', 'xp'],
     levels: [{ gold: 400, runes: 1, achievement: 'ascended' }, { gold: 1280, runes: 3, achievement: 'wave20' }, { gold: 3200, runes: 6, achievement: 'act2' }],
     capFrac: [0.34, 0.67, 1, 1],
@@ -146,8 +146,8 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
 };
 export const BUILDING_IDS = Object.keys(BUILDINGS) as BuildingId[];
 
-/** The Library's level caps the talent rows anyone can take: rows 0-1 in a ruin, row 2 at level 1, keystones at level 2. */
-export const TALENT_ROW_CAP = [1, 2, 3, 3];
+/** The Library's level caps the talent rows: three rows in a ruin, the keystones (row 3) from level 1. (v0.4 opened only two rows at first: it read as a broken tree.) */
+export const TALENT_ROW_CAP = [2, 3, 3, 3];
 
 /** Class XP from one run, before the tier multiplier. */
 export const CLASS_XP = { perWaveCleared: 10, perBoss: 30, perLevel: 2 };

@@ -28,6 +28,7 @@ import { botInput, botStep } from './sim/bot';
 import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
+import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showSaveDialog, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
@@ -391,7 +392,7 @@ function pauseMenu(g: Game): void {
 
 /** The talent tree, from the pause menu (the game stays paused). */
 function openTalents(g: Game): void {
-  showTalents({ classId: g.player.cls.id, taken: g.player.talents, points: g.talentPoints, treasure: g.treasure?.id }, {
+  showTalents({ classId: g.player.cls.id, taken: g.player.talents, points: g.talentPoints, rowCap: g.talentRowCap, treasure: g.treasure?.id }, {
     spend: (id) => spendTalent(g, id),
     back: () => pauseMenu(g),
   });
@@ -578,6 +579,7 @@ onAction((a) => {
   if (a === 'perf') togglePerf();
 });
 buildHud(togglePause, mute);
+initTooltips();
 setMuteIcon(isMuted());
 commit(save); // writes the migrated save once, and grants anything an older record already earned
 
