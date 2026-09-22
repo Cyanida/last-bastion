@@ -64,6 +64,7 @@ if (mode === 'economy') {
     const result = simulateRun(classId, 5000 + i, {
       tier, arena, meta: save.meta, classXp: save.classes[classId].xp, lockedRelics: lockedRelics(save),
       accountLevel: accountLevel(CLASS_ORDER.map((c) => save.classes[c].xp)), libraryLevel: buildingLevel(save.buildings, 'library'),
+      bonusTalentPoints: save.talentPoints, // v0.4: deeds pay permanent talent points
     }, i % 2);
     const applied = applyRun(save, result, `day-${Math.floor(i / 5)}`); // five runs a day: the daily caps bite as they would
     save = withAchievements(applied.save).save;

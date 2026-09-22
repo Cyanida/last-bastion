@@ -401,6 +401,7 @@ export interface Game {
   merchantSpent: number;
   curses: CurseId[];
   daily: string | null; // date, when this run is a Daily Trial
+  feats: Record<string, number>; // v0.4 class feats this run (config/achievements FEAT_KEYS, systems/feats.ts)
   banner: { text: string; t: number };
   over: boolean;
 }

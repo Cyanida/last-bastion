@@ -6,6 +6,7 @@ import { addField } from '../entities/hazards';
 import { abilityCooldown } from '../logic/formulas';
 import { applyStatus, damageEnemy, healPlayer, rollPlayerHit } from './combat';
 import { burst, floatText, ring, shake } from './effects';
+import { feat, featAdd } from './feats';
 import { clampToArena } from './movement';
 
 /**
@@ -55,6 +56,7 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
       if (has(p, 'chains')) applyStatus(e, { apply: [{ id: 'stun', time: U.chains.n.stun }] }, g);
       pulled++;
     }
+    feat(g, 'taunted', pulled);
     if (has(p, 'rallyingCry')) healPlayer(g, p.stats.hp * Math.min(U.rallyingCry.n.max, pulled * U.rallyingCry.n.heal));
     if (has(p, 'consecration')) addField(g, { x: p.x, y: p.y, r: U.consecration.n.radius, life: U.consecration.n.time, dps: U.consecration.n.dps * power, hostile: false, color: '#f2d675', dtype: 'holy' });
     ring(g, p.x, p.y, n.radius, '#f2d675', 0.5);
@@ -78,6 +80,7 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
       damageEnemy(g, e, hit.amount, hit.crit, Math.cos(a) * n.knockback, Math.sin(a) * n.knockback, 'ability');
       hits++;
     }
+    feat(g, 'leapHits', hits);
     if (has(p, 'bloodLanding')) healPlayer(g, hits * U.bloodLanding.n.heal, false);
     if (has(p, 'warCry')) g.vars.warCry = g.time + U.warCry.n.time;
     ring(g, p.x, p.y, radius, '#c23a2e', 0.4);
@@ -103,6 +106,7 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
     }
     burst(g, from.x, from.y, '#f2e6a0', 12, 160);
     burst(g, p.x, p.y, '#f2e6a0', 12, 160);
+    featAdd(g, 'blinks');
     return true;
   },
 
@@ -114,15 +118,18 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
     const corpses = g.corpses.filter((c) => Math.hypot(c.x - p.x, c.y - p.y) <= radius);
     if (corpses.length === 0) return false;
     const hit = rollPlayerHit(g, n.damage * (has(p, 'boneShards') ? U.boneShards.n.damage : 1) * p.mods.utilityPower, 'int');
+    let caught = 0;
     for (const c of corpses) {
       for (const e of g.hash.query(c.x, c.y, blast, [])) {
         const a = Math.atan2(e.y - c.y, e.x - c.x);
         damageEnemy(g, e, hit.amount, hit.crit, Math.cos(a) * 160, Math.sin(a) * 160, 'ability', 'shadow');
+        caught++;
       }
       if (has(p, 'gravedust')) addField(g, { x: c.x, y: c.y, r: blast * 0.7, life: U.gravedust.n.time, dps: U.gravedust.n.dps * p.mods.utilityPower, hostile: false, color: '#6f8f4e', dtype: 'shadow', apply: { id: 'poison', power: U.gravedust.n.dps * 0.5 } });
       ring(g, c.x, c.y, blast, '#8a5cc6', 0.4);
       burst(g, c.x, c.y, '#8a5cc6', 10, 200);
     }
+    feat(g, 'corpseHits', caught);
     if (has(p, 'harvest')) healPlayer(g, corpses.length * U.harvest.n.heal, false);
     g.corpses = g.corpses.filter((c) => !corpses.includes(c));
     shake(g, Math.min(12, 3 + corpses.length));
@@ -147,6 +154,7 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
       apply: has(p, 'sharpCaltrops') ? { id: 'bleed', power: dps * 0.5 } : { id: 'slow', stacks: 1, time: 1 },
     });
     burst(g, from.x, from.y, '#6f8f4e', 8, 120);
+    featAdd(g, 'rolls');
     return true;
   },
 };

@@ -14,7 +14,7 @@ import type { Game } from './core/types';
 import { createGame, summarizeRun, updateGame } from './game';
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
 import { upgradeOptions } from './logic/abilityUpgrades';
-import { lockedArenas, lockedRelics, unlockedCurses, withAchievements } from './logic/achievements';
+import { lockedArenas, lockedRelics, rewardText, tierKey, unlockedCurses, withAchievements } from './logic/achievements';
 import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from './logic/acts';
 import { curseMultiplier } from './logic/curses';
 import { merchantBuy, merchantHeal, merchantReroll, merchantSalvage, merchantSell, nextAct } from './systems/acts';
@@ -27,7 +27,7 @@ import { botInput, botStep } from './sim/bot';
 import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
-import { buildHud, setMuteIcon, showHud, updateHud, updateInspect } from './ui/hud';
+import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showRelicOffer, showResults, showSaveDialog, showSettings, showTalents, showTitle, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
 import { TRAITS } from './config/traits';
 import { CLASS_ORDER } from './config/classes';
@@ -79,9 +79,18 @@ function toTitle(): void {
   menu();
   onTitle = true;
   showTitle(
-    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 } },
-    { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => (menu(), showChronicle(save, toTitle)), settings: toSettings },
+    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 }, title: save.title },
+    { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings },
   );
+}
+
+/** The Chronicle, from the title screen or the Keep. Equipping a title commits and re-opens it. */
+function toChronicle(back: () => void): void {
+  menu();
+  showChronicle(save, back, (title) => {
+    commit({ ...save, title });
+    toChronicle(back);
+  });
 }
 
 /** Same seed, class, arena and curses for everyone on a given date. Locks do not apply: it is a fixed challenge. */
@@ -116,7 +125,7 @@ function toSelect(): void {
       toSelect();
     },
     palette(id, n) {
-      if (!masteryBonus(save.classes[id].xp).palettes.includes(n) && n !== 0) return;
+      if (n !== 0 && !masteryBonus(save.classes[id].xp).palettes.includes(n) && !save.palettes.includes(n)) return;
       commit({ ...save, settings: { ...save.settings, palettes: { ...save.settings.palettes, [id]: n } } });
       toSelect();
     },
@@ -134,6 +143,7 @@ function toKeep(): void {
   showKeep(save, {
     back: toTitle,
     compendium: () => showCompendium(save, toKeep),
+    chronicle: () => toChronicle(toKeep),
     mastery: (id) => showMastery(save, id, toKeep),
     buy(id: MetaId) {
       commit(buyMeta(save, id));
@@ -199,6 +209,8 @@ function toSaveDialog(): void {
 function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {}): void {
   initAudio();
   clearOverlay();
+  toasted.clear();
+  lastToastCheck = '';
   const d = opts.daily;
   game = createGame(id, opts.seed ?? Date.now() >>> 0, {
     arena: d ? d.arena : save.settings.arena,
@@ -212,6 +224,8 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {})
     accountLevel: accountLevel(CLASS_ORDER.map((c) => save.classes[c].xp)),
     libraryLevel: buildingLevel(save.buildings, 'library'),
     palette: save.settings.palettes[id] ?? 0,
+    palettes: save.palettes,
+    bonusTalentPoints: save.talentPoints,
   });
   play();
   showHud(true);
@@ -330,7 +344,7 @@ function endRun(g: Game): void {
       best: save.classes[id].bestWave, newBest: g.wave > prevBest,
       gold: result.gold, goldRaw: Math.max(0, g.gold - g.goldStart), runes: result.runes, classXp: result.classXp, masteryRank: newRank,
       masteryName: newRank > prevRank ? MASTERY[newRank - 1].name : null,
-      tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[save.tierUnlocked].name : null, earned, slain: g.over,
+      tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[save.tierUnlocked].name : null, earned, title: save.title, slain: g.over,
       seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily, build: buildOf(g),
     },
     () => (g.daily ? toDaily() : startRun(id)),
@@ -357,9 +371,29 @@ function sampleInput(g: Game): void {
   g.input = { moveX: intent.moveX, moveY: intent.moveY, aimX: aim.x, aimY: aim.y, ability: intent.ability, utility: intent.utility, showAim: intent.showAim };
 }
 
+/**
+ * Achievement tiers earned mid-run, toasted as they happen. Checked only when a wave or a boss went down (a full
+ * provisional applyRun + withAchievements is too much for every tick); the real commit still happens at run end.
+ */
+const toasted = new Set<string>();
+let lastToastCheck = '';
+function checkToasts(g: Game): void {
+  const key = `${g.wavesCleared}:${g.bossesKilled.length}`;
+  if (key === lastToastCheck) return;
+  lastToastCheck = key;
+  for (const e of withAchievements(applyRun(save, summarizeRun(g)).save).earned) {
+    if (toasted.has(tierKey(e.id, e.tier))) continue;
+    toasted.add(tierKey(e.id, e.tier));
+    toast(`${e.def.name} · ${['Bronze', 'Silver', 'Gold'][e.tier - 1]}`, `${e.def.desc} — ${rewardText(e.reward)}`);
+  }
+}
+
 function afterStep(g: Game): void {
   if (g.over) endRun(g);
-  else if (hasChoice(g)) openChoice(g);
+  else {
+    checkToasts(g);
+    if (hasChoice(g)) openChoice(g);
+  }
 }
 
 function step(): void {

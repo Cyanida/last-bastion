@@ -225,13 +225,15 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
   emit(g, 'onDamageTaken', { amount: taken, attacker });
 }
 
-export function healPlayer(g: Game, amount: number, show = true): void {
+/** Returns the HP actually restored (0 when already full or healing is blocked), which the class feats count. */
+export function healPlayer(g: Game, amount: number, show = true): number {
   const p = g.player;
-  if (g.breather > 0 && g.wave > 0 && g.curses.includes('noRespite')) return; // No Respite: nothing mends between waves
+  if (g.breather > 0 && g.wave > 0 && g.curses.includes('noRespite')) return 0; // No Respite: nothing mends between waves
   const healed = Math.min(p.stats.hp - p.hp, amount);
-  if (healed <= 0) return;
+  if (healed <= 0) return 0;
   p.hp += healed;
   if (show) floatText(g, p.x, p.y - 34, `+${Math.round(healed)}`, '#6f8f4e', 15);
+  return healed;
 }
 
 export function damageMinion(g: Game, m: Minion, amount: number): void {

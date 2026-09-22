@@ -1,3 +1,4 @@
+import { FEAT_KEYS, type FeatKey } from '../config/achievements';
 import { ARENA_IDS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
 import { CURSE_IDS, type CurseId } from '../config/curses';
@@ -33,9 +34,15 @@ export interface Save {
   runes: number; // v0.4: the Keep's second currency
   buildings: BuildingLevels; // v0.4: the Keep's buildings, level 0..3
   dailyGold: { date: string; curse: number; trial: number }; // v0.4: gold from curses and the Daily Trial banked today (capped)
-  achievements: string[];
+  achievements: string[]; // earned tiers: "id" (bronze), "id:2", "id:3"
+  // v0.4 achievement rewards
+  titles: string[]; // earned titles (mastery adds more, logic/achievements earnedTitles)
+  title: string | null; // the one worn
+  palettes: number[]; // sprite palettes unlocked for every class
+  talentPoints: number; // permanent extra talent points a run starts with
+  treasureSteps: Record<ClassId, number>; // sacred treasure quest step per class (increment 8)
   tierUnlocked: number; // highest difficulty index available
-  counters: {
+  counters: Record<FeatKey, number> & {
     kills: number;
     bosses: number;
     elites: number;
@@ -83,9 +90,12 @@ export interface RunSummary {
   relicsFound?: RelicId[]; // every pickup and tier-up (the compendium counts them)
   relicTiers?: Partial<Record<RelicId, number>>;
   salvage?: number; // Rune shards from salvaged relics
+  feats?: Record<string, number>; // v0.4 class feats this run (config/achievements FEAT_KEYS)
 }
 
 const emptyClass = (): ClassRecord => ({ bestWave: 0, runs: 0, kills: 0, time: 0, xp: 0 });
+const perClass = <T>(value: T): Record<ClassId, T> => Object.fromEntries(CLASS_ORDER.map((id) => [id, value])) as Record<ClassId, T>;
+const zeroFeats = (): Record<FeatKey, number> => Object.fromEntries(FEAT_KEYS.map((k) => [k, 0])) as Record<FeatKey, number>;
 
 export function defaultSave(): Save {
   return {
@@ -99,8 +109,13 @@ export function defaultSave(): Save {
     buildings: {},
     dailyGold: { date: '', curse: 0, trial: 0 },
     achievements: [],
+    titles: [],
+    title: null,
+    palettes: [],
+    talentPoints: 0,
+    treasureSteps: perClass(0),
     tierUnlocked: 0,
-    counters: { kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0 },
+    counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0 },
     daily: {},
     settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', palettes: {} },
   };
@@ -108,7 +123,10 @@ export function defaultSave(): Save {
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const num = (v: unknown, fallback = 0) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback);
-const NUMERIC_COUNTERS = ['kills', 'bosses', 'elites', 'goldEarned', 'flawlessBosses', 'maxRelics', 'maxAbilityUpgrades', 'fastestWave10', 'commanders', 'actsCleared', 'cursedActs', 'dailies'] as const;
+const NUMERIC_COUNTERS = ['kills', 'bosses', 'elites', 'goldEarned', 'flawlessBosses', 'maxRelics', 'maxAbilityUpgrades', 'fastestWave10', 'commanders', 'actsCleared', 'cursedActs', 'dailies', ...FEAT_KEYS] as const;
+
+/** v0.4: achievements that became a tier of another one. Anything not listed keeps its id. */
+const RENAMED_ACHIEVEMENTS: Record<string, string> = { champion: 'knight:2', legend: 'knight:3' };
 
 /**
  * Any stored value -> a valid current save. Handles: nothing stored, the v0.1 best-wave map, a v2 save (v0.2) and a v3 save.
@@ -140,7 +158,12 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
       }
     }
     if (isObj(raw.dailyGold) && typeof raw.dailyGold.date === 'string') save.dailyGold = { date: raw.dailyGold.date, curse: num(raw.dailyGold.curse), trial: num(raw.dailyGold.trial) };
-    if (Array.isArray(raw.achievements)) save.achievements = raw.achievements.filter((a): a is string => typeof a === 'string');
+    if (Array.isArray(raw.achievements)) save.achievements = raw.achievements.filter((a): a is string => typeof a === 'string').map((a) => RENAMED_ACHIEVEMENTS[a] ?? a);
+    if (Array.isArray(raw.titles)) save.titles = [...new Set(raw.titles.filter((t): t is string => typeof t === 'string'))];
+    if (typeof raw.title === 'string') save.title = raw.title;
+    if (Array.isArray(raw.palettes)) save.palettes = [...new Set(raw.palettes.map((p) => Math.floor(num(p))).filter((p) => p > 0))];
+    save.talentPoints = Math.floor(num(raw.talentPoints));
+    if (isObj(raw.treasureSteps)) for (const id of CLASS_ORDER) save.treasureSteps[id] = Math.floor(num(raw.treasureSteps[id]));
     // v3 -> v4: Runes did not exist; a save arriving from v0.3 is granted one per achievement earned (what the achievement tiers would have paid)
     save.runes = raw.version === 4 ? Math.max(0, Math.floor(num(raw.runes))) : save.achievements.length;
     save.tierUnlocked = Math.min(TIERS.length - 1, Math.floor(num(raw.tierUnlocked)));
@@ -232,6 +255,8 @@ export function applyRun(save: Save, run: RunSummary, date = today()): { save: S
   const tierUnlocked = run.tier === save.tierUnlocked && run.wavesCleared >= TIER_UNLOCK_WAVE && save.tierUnlocked < TIERS.length - 1;
   const relicPicks = { ...save.relicPicks };
   for (const id of run.relicsFound ?? run.relics) relicPicks[id] = (relicPicks[id] ?? 0) + 1; // v0.4: every pickup and tier-up counts
+  // class feats are kept as "the best a single run managed", so an achievement can ask for something within one run
+  const feats = Object.fromEntries(FEAT_KEYS.map((k) => [k, Math.max(c[k], run.feats?.[k] ?? 0)])) as Record<FeatKey, number>;
   return {
     classXp,
     tierUnlocked,
@@ -251,6 +276,7 @@ export function applyRun(save: Save, run: RunSummary, date = today()): { save: S
       tierUnlocked: save.tierUnlocked + (tierUnlocked ? 1 : 0),
       daily: run.daily ? { ...save.daily, [run.daily]: Math.max(save.daily[run.daily] ?? 0, run.wave) } : save.daily,
       counters: {
+        ...feats,
         kills: c.kills + run.kills,
         bosses: c.bosses + run.bosses.length,
         elites: c.elites + run.elites,

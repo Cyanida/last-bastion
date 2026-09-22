@@ -1,5 +1,5 @@
 import { ABILITY_UPGRADES, type AbilityUpgradeId } from '../config/abilityUpgrades';
-import { ACHIEVEMENTS, type AchievementDef } from '../config/achievements';
+import { ACHIEVEMENTS, CATEGORIES, tierReward, type AchievementCategory, type AchievementDef } from '../config/achievements';
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
 import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
@@ -19,7 +19,7 @@ import type { QualitySetting } from '../config/game';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { onAction } from '../input';
 import type { Action } from '../input/mapping';
-import { gateOf, lockedArenas, lockedCurses } from '../logic/achievements';
+import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { exportSave, type Save } from '../logic/save';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
@@ -86,6 +86,7 @@ export interface TitleInfo {
   buildDate: string;
   notice: { text: string; button: string; action: () => void } | null; // "new version available"
   daily: { date: string; best: number };
+  title: string | null; // v0.4: the equipped title (Chronicle)
 }
 
 export function showTitle(info: TitleInfo, on: { start: () => void; daily: () => void; keep: () => void; chronicle: () => void; settings: () => void }): void {
@@ -93,6 +94,7 @@ export function showTitle(info: TitleInfo, on: { start: () => void; daily: () =>
     <div class="title">
       <h1>Last Bastion</h1>
       <div class="version">${info.label}${info.mobile ? ' <span class="badge">Mobile</span>' : ''}</div>
+      ${info.title ? `<div class="epithet">${info.title}</div>` : ''}
       <p class="sub">The walls have fallen silent. The courtyard has not.</p>
       ${info.notice ? `<div class="notice panel"><span>${info.notice.text}</span><button class="btn small" data-notice>${info.notice.button}</button></div>` : ''}
       <button class="btn big" data-go="start">Take up arms</button>
@@ -151,7 +153,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     const rec = save.classes[c.id];
     const rank = masteryRank(rec.xp);
     const next = MASTERY[rank];
-    const palettes = masteryBonus(rec.xp).palettes;
+    const palettes = [...new Set([...masteryBonus(rec.xp).palettes, ...save.palettes])].sort(); // mastery's own plus the account-wide ones from deeds
     const chosen = save.settings.palettes[c.id] ?? 0;
     const swatches = palettes.length ? `<div class="swatches">${[0, ...palettes].map((n) => `<span class="swatch ${chosen === n ? 'on' : ''}" data-palette="${c.id}:${n}" data-tip="${['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours'][n]}"><i style="filter:${SPRITE_PALETTES[n] || 'none'}"></i></span>`).join('')}</div>` : '';
     return `
@@ -222,7 +224,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   click(el, '[data-back]', on.back);
 }
 
-export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; back: () => void }): void {
+export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; chronicle: () => void; back: () => void }): void {
   const row = (id: MetaId) => {
     const m = META[id];
     const rank = save.meta[id] ?? 0;
@@ -237,8 +239,9 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
     const b = BUILDINGS[id];
     const level = buildingLevel(save.buildings, id);
     const next = b.levels[level];
-    const deed = next?.achievement ? ACHIEVEMENTS.find((a) => a.id === next.achievement) : undefined;
-    const deedDone = !deed || save.achievements.includes(deed.id);
+    const gate = next?.achievement ? tierOf(next.achievement) : undefined; // a deed may name a tier ("wave20:2")
+    const deed = gate && { name: gate.tier > 1 ? `${gate.def.name} ${TIER_NUMERALS[gate.tier]}` : gate.def.name, desc: gate.def.desc };
+    const deedDone = !next?.achievement || save.achievements.includes(next.achievement);
     const can = next && deedDone && save.gold >= next.gold && save.runes >= next.runes;
     const raise = !next ? '<span class="maxed">Fully raised</span>'
       : `<button class="btn small" data-raise="${id}" ${can ? '' : 'disabled'} data-tip="${esc(`Level ${level + 1}: 🪙 ${next.gold} · ◆ ${next.runes}${deed ? `\nDeed: ${deed.name} — ${deed.desc}${deedDone ? ' ✔' : ''}` : ''}`)}">Raise · 🪙 ${next.gold} · ◆ ${next.runes}${deed && !deedDone ? ' · 🔒' : ''}</button>`;
@@ -266,9 +269,10 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
         ${nextMilestone ? `Account level ${nextMilestone.level}: <em>${nextMilestone.name}</em> — ${nextMilestone.desc}.` : 'Every account milestone reached.'}</p>
       <div class="masteries">${mastery}</div>
       <div class="milestones">${ACCOUNT_MILESTONES.map((m) => `<span class="${level >= m.level ? 'on' : ''}" data-tip="${esc(m.desc)}">${level >= m.level ? '✔ ' : ''}${m.level} ${m.name}</span>`).join('')}</div>
-      <button class="btn" data-compendium>Relic compendium</button>
+      <div class="row"><button class="btn" data-compendium>Relic compendium</button><button class="btn" data-chronicle>Chronicle</button></div>
       <button class="btn" data-back>Back</button>
     </div>`);
+  click(el, '[data-chronicle]', on.chronicle);
   click(el, '[data-buy]', (b) => on.buy(b.dataset.buy as MetaId));
   click(el, '[data-raise]', (b) => on.raise(b.dataset.raise as BuildingId));
   click(el, '[data-mastery]', (b) => on.mastery(b.dataset.mastery as ClassId));
@@ -293,14 +297,42 @@ export function showMastery(save: Save, classId: ClassId, onBack: () => void): v
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
 
-export function showChronicle(save: Save, onBack: () => void): void {
+/** Chronicle filters live here so equipping a title (which re-opens the screen) does not reset them. */
+const chronicleView: { cat: AchievementCategory | 'all'; state: 'all' | 'earned' | 'progress' | 'hidden' } = { cat: 'all', state: 'all' };
+const TIER_NAMES = ['Bronze', 'Silver', 'Gold'];
+const TOTAL_TIERS = ACHIEVEMENTS.reduce((n, a) => n + a.tiers.length, 0);
+
+export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: string | null) => void): void {
+  const again = () => showChronicle(save, onBack, onEquip);
   const ach = (a: AchievementDef) => {
-    const done = save.achievements.includes(a.id);
-    const cur = Math.min(a.target, a.progress(save));
-    const unlock = a.unlocks?.arena ? `Unlocks arena: ${ARENAS[a.unlocks.arena].name}` : a.unlocks?.relic ? `Unlocks relic: ${relicDef(a.unlocks.relic).name}` : '';
-    return `<div class="ach ${done ? 'done' : ''}"><div><b>${done ? '✔ ' : ''}${a.name}</b><span>${a.desc}${unlock ? ` <em>${unlock}</em>` : ''}</span></div>
-      <div class="bar xp"><div style="width:${(cur / a.target) * 100}%"></div><span>${Math.floor(cur)} / ${a.target}</span></div></div>`;
+    const tier = earnedTier(save, a.id);
+    const secret = a.hidden === true && tier === 0;
+    const next = a.tiers[tier];
+    const last = a.tiers[a.tiers.length - 1].target;
+    const cur = Math.min(last, a.progress(save));
+    const marks = a.tiers.slice(0, -1).map((t) => `<i style="left:${(t.target / last) * 100}%"></i>`).join('');
+    const unlock = a.unlocks?.arena ? `Unlocks arena: ${ARENAS[a.unlocks.arena].name}` : a.unlocks?.relic ? `Unlocks relic: ${relicDef(a.unlocks.relic).name}` : a.unlocks?.curse ? `Unlocks curse: ${CURSES[a.unlocks.curse].name}` : '';
+    const pips = a.tiers.map((_, i) => `<i class="${i < tier ? 'on' : ''}" data-tip="${esc(`${TIER_NAMES[i]}: ${a.tiers[i].target} · ${tierRewardText(tierReward(a, i + 1))}`)}">${i < tier ? '✔' : '·'}</i>`).join('');
+    return `<div class="ach ${tier > 0 ? 'done' : ''}">
+      <div><b>${tier > 0 ? '✔ ' : ''}${secret ? '???' : a.name}${tier > 0 ? ` <em class="badge">${TIER_NAMES[tier - 1]}</em>` : ''}</b>
+        <span>${secret ? a.hint ?? 'A secret deed.' : a.desc}${unlock ? ` <em>${unlock}</em>` : ''}</span>
+        <span class="dim">${CATEGORIES[a.category]}${a.classId ? ` · ${CLASSES[a.classId].name}` : ''} · ${next ? `next: ${tierRewardText(tierReward(a, tier + 1))}` : 'all tiers earned'}</span></div>
+      <div class="bar xp ticks"><div style="width:${(cur / last) * 100}%"></div>${marks}<span>${Math.floor(cur)} / ${next ? next.target : last}</span></div>
+      <div class="tierpips">${pips}</div></div>`;
   };
+  const shown = ACHIEVEMENTS.filter((a) => {
+    const tier = earnedTier(save, a.id);
+    if (chronicleView.cat !== 'all' && a.category !== chronicleView.cat) return false;
+    if (chronicleView.state === 'earned') return tier > 0;
+    if (chronicleView.state === 'progress') return tier < a.tiers.length && !(a.hidden && tier === 0);
+    if (chronicleView.state === 'hidden') return a.hidden === true;
+    return true;
+  });
+  const chip = (key: 'cat' | 'state', value: string, label: string) => `<button class="chip ${chronicleView[key] === value ? 'on' : ''}" data-filter="${key}:${value}">${label}</button>`;
+  const titles = earnedTitles(save);
+  const titleChips = onEquip
+    ? `<div class="titles">${[`<button class="chip ${save.title === null ? 'on' : ''}" data-equip="">Bare name</button>`, ...titles.map((t) => `<button class="chip ${save.title === t ? 'on' : ''}" data-equip="${esc(t)}">${t}</button>`)].join('')}</div>`
+    : '';
   const records = CLASS_ORDER.map((id) => save.classes[id]);
   const favorite = (Object.entries(save.relicPicks) as [RelicId, number][]).sort((a, b) => b[1] - a[1])[0];
   const rows = CLASS_ORDER.map((id) => {
@@ -310,8 +342,15 @@ export function showChronicle(save: Save, onBack: () => void): void {
   const el = show(`
     <div class="panel dialog wide">
       <h1 class="small">Chronicle</h1>
-      <h2>Deeds — ${save.achievements.length} / ${ACHIEVEMENTS.length}</h2>
-      <div class="achs">${ACHIEVEMENTS.map(ach).join('')}</div>
+      <h2>Deeds — ${save.achievements.length} / ${TOTAL_TIERS} tiers</h2>
+      <div class="filters">
+        <div>${chip('cat', 'all', 'All')}${(Object.keys(CATEGORIES) as AchievementCategory[]).map((c) => chip('cat', c, CATEGORIES[c])).join('')}</div>
+        <div>${chip('state', 'all', 'Everything')}${chip('state', 'earned', 'Earned')}${chip('state', 'progress', 'In progress')}${chip('state', 'hidden', 'Secrets')}</div>
+      </div>
+      <div class="achs">${shown.map(ach).join('') || '<p class="hint">Nothing here yet.</p>'}</div>
+      <h2>Titles</h2>
+      <p class="hint">${titles.length ? 'Earned from deeds and mastery ranks. The one you wear shows on the title screen and after every run.' : 'Deeds and mastery ranks grant titles; none yet.'}</p>
+      ${titleChips}
       <h2>Statistics</h2>
       <table class="stats-table"><tr><th>Class</th><th>Best wave</th><th>Kills</th><th>Runs</th><th>Playtime</th><th>Mastery</th></tr>${rows}</table>
       <div class="stats wide">
@@ -323,7 +362,14 @@ export function showChronicle(save: Save, onBack: () => void): void {
       </div>
       <button class="btn" data-back>Back</button>
     </div>`);
+  click(el, '[data-filter]', (b) => {
+    const [key, value] = b.dataset.filter!.split(':');
+    Object.assign(chronicleView, { [key]: value });
+    again();
+  });
+  click(el, '[data-equip]', (b) => onEquip?.(b.dataset.equip || null));
   click(el, '[data-back]', onBack);
+  onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
 
 export function showSaveDialog(save: Save, on: { import: (text: string) => boolean; reset: () => void; back: () => void }): void {
@@ -509,7 +555,8 @@ export interface RunResult {
   masteryName: string | null; // a rank reached this run
   tier: string;
   tierUnlocked: string | null;
-  earned: AchievementDef[];
+  earned: EarnedTier[];
+  title: string | null; // the equipped title
   slain: boolean; // false = the player ended the run from the pause menu
   seed: string; // type it on the class select screen to replay the run
   curseMult: number;
@@ -520,12 +567,12 @@ export interface RunResult {
 export function showResults(r: RunResult, onRetry: () => void, onMenu: () => void): void {
   const unlocks = [
     ...(r.tierUnlocked ? [`<div class="unlock">⚔ Difficulty unlocked: <b>${r.tierUnlocked}</b></div>`] : []),
-    ...r.earned.map((a) => `<div class="unlock">🏆 <b>${a.name}</b> — ${a.desc}${a.unlocks?.arena ? ` <em>New arena: ${ARENAS[a.unlocks.arena].name}</em>` : ''}${a.unlocks?.relic ? ` <em>New relic: ${relicDef(a.unlocks.relic).name}</em>` : ''}</div>`),
+    ...r.earned.map((e) => `<div class="unlock">🏆 <b>${e.def.name} · ${TIER_NAMES[e.tier - 1]}</b> — ${e.def.desc} <em>${tierRewardText(e.reward)}</em>${e.tier === 1 && e.def.unlocks?.arena ? ` <em>New arena: ${ARENAS[e.def.unlocks.arena].name}</em>` : ''}${e.tier === 1 && e.def.unlocks?.relic ? ` <em>New relic: ${relicDef(e.def.unlocks.relic).name}</em>` : ''}</div>`),
   ].join('');
   const el = show(`
     <div class="panel dialog">
       <h1 class="small blood">${r.slain ? 'Thou art slain' : 'The run ends'}</h1>
-      <p class="sub">${r.cls.name} · ${r.tier}${r.newBest ? ' — <span class="gold">new record!</span>' : ''}</p>
+      <p class="sub">${r.cls.name}${r.title ? `, <em>${r.title}</em>` : ''} · ${r.tier}${r.newBest ? ' — <span class="gold">new record!</span>' : ''}</p>
       <div class="stats wide">
         <div><span>Reached</span><b>${actName(Math.max(1, Math.ceil(r.wave / 10)))} · wave ${r.wave}</b></div>
         <div><span>Enemies slain</span><b>${r.kills}</b></div>

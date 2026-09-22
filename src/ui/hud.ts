@@ -65,9 +65,24 @@ export function buildHud(onPause: () => void, onMute: () => void): void {
       <div id="h-ut-icon" tabindex="0"><div id="h-ut-cd"></div><span id="h-ut-time"></span></div>
     </div>
     <div id="h-talent" class="hint hidden"></div>
-    <div id="h-banner" class="heading"></div>`;
+    <div id="h-banner" class="heading"></div>
+    <div id="h-toasts"></div>`;
   $('btn-pause').onclick = onPause;
   $('btn-mute').onclick = onMute;
+}
+
+const TOAST_TIME = 4000;
+const TOAST_MAX = 3;
+
+/** v0.4: an achievement tier earned mid-run, under the wave banner. At most three at a time, gone after a few seconds. */
+export function toast(title: string, body: string): void {
+  const box = $('h-toasts');
+  const el = document.createElement('div');
+  el.className = 'toast panel';
+  el.innerHTML = `<b>🏆 ${title}</b><span>${body}</span>`;
+  box.appendChild(el);
+  while (box.children.length > TOAST_MAX) box.firstElementChild!.remove();
+  setTimeout(() => el.remove(), TOAST_TIME);
 }
 
 export function setMuteIcon(muted: boolean): void {

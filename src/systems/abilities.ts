@@ -11,6 +11,7 @@ import { pickAbilityUpgrade } from '../logic/abilityUpgrades';
 import { abilityCooldown, attackDamage } from '../logic/formulas';
 import { applyStatus, damageEnemy, healPlayer, rollPlayerHit } from './combat';
 import { burst, floatText, ring, shake } from './effects';
+import { feat, featAdd } from './feats';
 
 /**
  * One hook per signature ability. A new class = a ClassDef in config/classes.ts,
@@ -114,6 +115,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       onBlocked(g, ev) {
         const p = g.player;
         p.absorbed += ev.amount;
+        feat(g, 'absorb', p.absorbed);
         if (has(p, 'mirrorShield') && ev.attacker) {
           const n = U.mirrorShield.n;
           damageEnemy(g, ev.attacker, ev.amount * n.reflect * (1 + p.stats.secondary * n.perFaith), false, 0, 0, 'ability', 'holy');
@@ -132,6 +134,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const rage = p.stats.secondary;
       activeFor(p, scale.berserkerRage(c, rage, 1).duration);
       g.vars.frenzy = 0;
+      g.vars.rageKills = 0;
       if (has(p, 'dreadHowl')) {
         const n = U.dreadHowl.n;
         for (const e of g.hash.query(p.x, p.y, n.radius, near)) if (!e.def.boss) e.fearT = n.time + rage * n.perRage;
@@ -175,7 +178,9 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
     on: {
       onKill(g) {
         const p = g.player;
-        if (p.abilityTime <= 0 || !has(p, 'frenzy')) return;
+        if (p.abilityTime <= 0) return;
+        feat(g, 'rageKills', (g.vars.rageKills = (g.vars.rageKills ?? 0) + 1));
+        if (!has(p, 'frenzy')) return;
         const n = U.frenzy.n;
         g.vars.frenzy = Math.min(n.cap + p.stats.secondary * n.capPerRage, (g.vars.frenzy ?? 0) + n.perKill);
       },
@@ -193,7 +198,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const grace = p.stats.secondary;
       const s = scale.heavenlyRadiance(c, grace);
       const status: Status | null = has(p, 'blindingLight') ? { slowMul: U.blindingLight.n.slow, slowT: U.blindingLight.n.time } : null;
-      healPlayer(g, attackDamage(s.heal, p.stats.int));
+      featAdd(g, 'radiance', healPlayer(g, attackDamage(s.heal, p.stats.int)));
       const dmg = attackDamage(c.damage, p.stats.int, p.mods.damage);
       let slain = 0;
       for (const e of g.hash.query(p.x, p.y, s.radius, near)) {
@@ -254,6 +259,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
         burst(g, at.x, at.y, c.aura, 10);
       }
       activeFor(p, 0.4);
+      feat(g, 'minions', g.minions.length);
       floatText(g, p.x, p.y - 40, `${corpses.length} risen`, c.aura, 15);
       return true;
     },
@@ -286,6 +292,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       if (has(p, 'pinning')) Object.assign(status, { slowMul: U.pinning.n.slow, slowT: U.pinning.n.time });
       if (has(p, 'markedForDeath')) Object.assign(status, { markMul: U.markedForDeath.n.mult, markT: U.markedForDeath.n.time });
 
+      feat(g, 'volleyHits', g.hash.query(tx, ty, c.radius, near).length); // what the volley comes down on; the arrows land over the next second
       const fire = has(p, 'ballista') ? () => ballistaShot(g, c, angle, status) : () => volleyZones(g, c, tx, ty, status);
       fire();
       if (has(p, 'doubleVolley')) after(g, U.doubleVolley.n.delay, fire);

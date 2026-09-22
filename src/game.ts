@@ -44,7 +44,9 @@ export interface RunOptions {
   lockedRelics?: RelicId[];
   curses?: CurseId[];
   trait?: TraitId; // v0.4 starting trait
-  palette?: number; // v0.4 sprite palette (must be unlocked by mastery)
+  palette?: number; // v0.4 sprite palette (must be unlocked by mastery or an achievement)
+  palettes?: number[]; // v0.4: palettes unlocked account-wide by achievements, on top of the class's mastery ones
+  bonusTalentPoints?: number; // v0.4: permanent talent points from achievements (save.talentPoints)
   accountLevel?: number; // v0.4: the sum of every class's mastery rank (account milestones)
   libraryLevel?: number; // v0.4: caps the talent rows (TALENT_ROW_CAP)
   daily?: string; // date of the Daily Trial this run is
@@ -112,7 +114,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     relicOffers: [],
     pendingAbilityTiers: [],
     pendingUtilityTiers: [],
-    talentPoints: loadout.talentPoints + mastery.talentPoint + account.talentPoint,
+    talentPoints: loadout.talentPoints + mastery.talentPoint + account.talentPoint + (opts.bonusTalentPoints ?? 0),
     talentRowCap: TALENT_ROW_CAP[Math.min(TALENT_ROW_CAP.length - 1, opts.libraryLevel ?? TALENT_ROW_CAP.length - 1)],
     relicTierCap: loadout.relicTierCap,
     utilityTiers: mastery.utilityTier ? 2 : 1,
@@ -120,7 +122,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     bossGold: loadout.bossGold,
     talentModsCache: null,
     trait: 'none',
-    palette: mastery.palettes.includes(opts.palette ?? 0) ? opts.palette! : 0,
+    palette: [...mastery.palettes, ...(opts.palettes ?? [])].includes(opts.palette ?? 0) ? opts.palette! : 0,
     rerolls: FREE_REROLLS + loadout.rerolls + mastery.reroll + account.reroll,
     gold: loadout.gold,
     goldStart: loadout.gold,
@@ -145,6 +147,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     merchantSpent: 0,
     curses,
     daily: opts.daily ?? null,
+    feats: {},
     banner: { text: '', t: 0 },
     over: false,
   };
@@ -196,6 +199,7 @@ export function summarizeRun(g: Game): RunSummary {
     relicsFound: g.relicsFound,
     relicTiers: g.relicTiers,
     salvage: g.salvage,
+    feats: g.feats,
     abilityUpgrades: g.player.upgrades.length,
     wave10Time: g.wave10Time,
     commanders: g.commandersKilled,
