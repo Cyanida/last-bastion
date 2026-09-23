@@ -466,6 +466,9 @@ export interface Game {
   bossGold: number;
   talentModsCache: Mods | null; // talent mods folded together; rebuilt when a talent is taken
   trait: TraitId;
+  trait2: TraitId; // v0.6: the Second Banner's second trait ('none' without it)
+  banishes: number; // v0.6: Quartermaster's Ledger: level-up cards left to strike from the run
+  bannedStats: StatKey[]; // v0.6: stat boons struck from this run's level-ups
   palette: number; // v0.4: the class sprite's colours (mastery unlocks; SPRITE_PALETTES)
   rerolls: number; // free rerolls per level-up screen
   gold: number;

@@ -15,8 +15,36 @@ import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, rune
 import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
 import { keepRuns, readRunLog, type RunLog } from './runlog';
 
-export const SAVE_VERSION = 4;
-const READABLE_VERSIONS = [2, 3, 4]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
+export const SAVE_VERSION = 5; // v0.6: the Keep's rework (refunds below)
+const READABLE_VERSIONS = [2, 3, 4, 5]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
+
+/**
+ * v0.6: Keep ranks that v0.5 sold and v0.6 took away or cut short: the Armory's four damage tracks, the top two ranks of HP and speed,
+ * the second rank of Veteran Levies. A save from before v0.6 gets back exactly what those ranks cost (v0.5's prices).
+ */
+const LEGACY_META: Record<string, { max: number; keep: number; baseCost: number; growth: number; runesFrom: number; runeCost: number }> = {
+  str: { max: 5, keep: 0, baseCost: 65, growth: 1.6, runesFrom: 3, runeCost: 1 },
+  dex: { max: 5, keep: 0, baseCost: 65, growth: 1.6, runesFrom: 3, runeCost: 1 },
+  int: { max: 5, keep: 0, baseCost: 65, growth: 1.6, runesFrom: 3, runeCost: 1 },
+  atkSpd: { max: 5, keep: 0, baseCost: 80, growth: 1.6, runesFrom: 3, runeCost: 1 },
+  hp: { max: 5, keep: 3, baseCost: 65, growth: 1.6, runesFrom: 3, runeCost: 1 },
+  moveSpd: { max: 5, keep: 3, baseCost: 80, growth: 1.6, runesFrom: 3, runeCost: 1 },
+  startLevel: { max: 2, keep: 1, baseCost: 800, growth: 2, runesFrom: 1, runeCost: 2 },
+};
+
+/** What a pre-v0.6 save's removed and trimmed ranks cost, to hand back. */
+export function legacyRefund(meta: Record<string, unknown>): { gold: number; runes: number } {
+  let gold = 0;
+  let runes = 0;
+  for (const [id, m] of Object.entries(LEGACY_META)) {
+    const rank = Math.min(m.max, Math.floor(num(meta[id])));
+    for (let r = m.keep; r < rank; r++) {
+      gold += Math.round(m.baseCost * Math.pow(m.growth, r));
+      if (r >= m.runesFrom) runes += m.runeCost;
+    }
+  }
+  return { gold, runes };
+}
 export const SAVE_KEY = 'lastbastion.save';
 export const LEGACY_BEST_KEY = 'lastbastion.best'; // v0.1: { [classId]: bestWave }
 
@@ -77,9 +105,10 @@ export interface Save {
   daily: Record<string, number>; // v0.3: 'YYYY-MM-DD' -> best wave in that day's trial
   runs: RunLog[]; // v0.6: the last RUN_LOG.keep runs' timelines, oldest first (Run History)
   wins: Record<ClassId, number>; // v0.6: times each class beat the Usurper
+  refund: { gold: number; runes: number } | null; // v0.6: what the Keep's rework handed back, shown once in the Keep
   evolutions: EvolutionId[]; // v0.6: evolutions ever taken (the compendium shows their recipes in full)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
-  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; palettes: Partial<Record<ClassId, number>> };
+  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; palettes: Partial<Record<ClassId, number>> };
 }
 
 /** What a finished (or abandoned) run reports. The v0.3 fields are optional so older callers keep working. */
@@ -145,10 +174,11 @@ export function defaultSave(): Save {
     counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
     daily: {},
     runs: [],
+    refund: null,
     evolutions: [],
     wins: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     endless: Object.fromEntries(CLASS_ORDER.map((id) => [id, []])) as unknown as Record<ClassId, EndlessEntry[]>,
-    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', palettes: {} },
+    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', trait2: 'none', palettes: {} },
   };
 }
 
@@ -202,7 +232,14 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
       else if (isObj(raw.treasureSteps)) save.treasures[id].fragments = fragments(raw.treasureSteps[id]);
     }
     // v3 -> v4: Runes did not exist; a save arriving from v0.3 is granted one per achievement earned (what the achievement tiers would have paid)
-    save.runes = raw.version === 4 ? Math.max(0, Math.floor(num(raw.runes))) : save.achievements.length;
+    save.runes = (raw.version as number) >= 4 ? Math.max(0, Math.floor(num(raw.runes))) : save.achievements.length;
+    // v4 -> v5 (v0.6): the Keep's removed and trimmed ranks are refunded at what they cost
+    if ((raw.version as number) < 5 && isObj(raw.meta)) {
+      const back = legacyRefund(raw.meta);
+      save.gold += back.gold;
+      save.runes += back.runes;
+      if (back.gold || back.runes) save.refund = back;
+    } else if (isObj(raw.refund) && num(raw.refund.gold) + num(raw.refund.runes) > 0) save.refund = { gold: num(raw.refund.gold), runes: num(raw.refund.runes) };
     save.tierUnlocked = Math.min(TIERS.length - 1, Math.floor(num(raw.tierUnlocked)));
     if (isObj(raw.counters)) {
       const c = raw.counters;
@@ -230,6 +267,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
         tier: Math.min(save.tierUnlocked, Math.floor(num(s.tier))),
         quality: s.quality === 'low' || s.quality === 'high' ? s.quality : 'auto',
         trait: TRAIT_IDS.includes(s.trait as TraitId) ? (s.trait as TraitId) : 'none',
+        trait2: TRAIT_IDS.includes(s.trait2 as TraitId) ? (s.trait2 as TraitId) : 'none',
         palettes: isObj(s.palettes) ? Object.fromEntries(CLASS_ORDER.filter((c) => num((s.palettes as Record<string, unknown>)[c]) > 0).map((c) => [c, Math.floor(num((s.palettes as Record<string, unknown>)[c]))])) : {},
         prerelease: s.prerelease === true,
         curses: Array.isArray(s.curses) ? CURSE_IDS.filter((id) => (s.curses as unknown[]).includes(id)) : [],

@@ -21,13 +21,13 @@ import { curseMultiplier } from './logic/curses';
 import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReroll, merchantSalvage, merchantSell, nextAct } from './systems/acts';
 import { questTake } from './systems/quests';
 import { densestCluster, resolveAim } from './logic/aim';
-import { masteryBonus, masteryRank, rerollCost, accountLevel, buildingLevel } from './logic/economy';
+import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
 import { applyRun, buyMeta, defaultSave, importSave, type Save, buyBuilding } from './logic/save';
 import { buildArena } from './render/arena';
 import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
 import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
-import { chooseLevelUp, levelUpOptions } from './systems/leveling';
+import { banishOption, chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
@@ -147,7 +147,11 @@ function toSelect(): void {
     trait(id) {
       const need = TRAITS[id].unlock.achievement;
       if (need && !save.achievements.includes(need)) return;
-      commit({ ...save, settings: { ...save.settings, trait: save.settings.trait === id ? 'none' : id } });
+      // v0.6: with the Second Banner two traits can be on; a third choice replaces the newer one
+      const slots = metaLoadout(save.meta).traitSlots;
+      const on = [save.settings.trait, save.settings.trait2].filter((t) => t !== 'none');
+      const next = id === 'none' ? [] : on.includes(id) ? on.filter((t) => t !== id) : [...on, id].slice(-slots);
+      commit({ ...save, settings: { ...save.settings, trait: next[0] ?? 'none', trait2: next[1] ?? 'none' } });
       toSelect();
     },
     treasure(id) {
@@ -177,6 +181,7 @@ function toKeep(): void {
       toKeep();
     },
   });
+  if (save.refund) commit({ ...save, refund: null }); // v0.6: the rework's refund notice shows once
 }
 
 function toSettings(): void {
@@ -251,6 +256,7 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {})
     curses: d ? d.curses : save.settings.curses.filter((c) => unlockedCurses(save).includes(c)),
     daily: d?.date,
     trait: d ? 'none' : save.settings.trait, // the Daily Trial is the same for everyone
+    trait2: d ? 'none' : save.settings.trait2,
     accountLevel: accountLevel(CLASS_ORDER.map((c) => save.classes[c].xp)),
     libraryLevel: buildingLevel(save.buildings, 'library'),
     palette: save.settings.palettes[id] ?? 0,
@@ -279,11 +285,13 @@ function openLevelUp(g: Game): void {
   let paid = 0;
   const offer = (): void => {
     const p = g.player;
-    showLevelUp(p.level - g.pendingLevelUps + 1, levelUpOptions(g), p.cls, p.stats, { free, cost: rerollCost(paid), gold: g.gold }, {
+    const options = levelUpOptions(g);
+    showLevelUp(p.level - g.pendingLevelUps + 1, options, p.cls, p.stats, { free, cost: rerollCost(paid), gold: g.gold }, {
       pick(o) {
         chooseLevelUp(g, o);
         resume();
       },
+      banish: g.banishes > 0 ? (o) => banishOption(g, o) && offer() : undefined, // v0.6: struck for good, and a fresh hand
       reroll() {
         if (free > 0) free--;
         else if (g.gold >= rerollCost(paid)) g.gold -= rerollCost(paid++);
@@ -310,10 +318,12 @@ function openChoice(g: Game): void {
       bank: () => endRun(g),
     });
   } else if (g.relicOffers.length > 0) {
+    const armorer = g.vars.armorerOffer === 1;
+    g.vars.armorerOffer = 0;
     showRelicOffer(g.relicOffers[0], g.relics, g.relicTiers, {
       take: (id) => void (resolveRelicOffer(g, id), resume()),
       skip: () => void (resolveRelicOffer(g, null), resume()),
-    });
+    }, armorer ? "The Armorer's choice" : undefined);
   } else if (g.pendingAbilityTiers.length > 0) {
     const tier = g.pendingAbilityTiers[0];
     showAbilityUpgrade(tier, upgradeOptions(g.player.cls.id, tier), g.player.cls, (id) => {

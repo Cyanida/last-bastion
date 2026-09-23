@@ -132,10 +132,10 @@ export function accountPerks(level: number): { mods: Partial<Mods>; reroll: numb
 export function startingStats(base: Stats, meta: MetaRanks, secondaryBonus: number): Stats {
   return {
     hp: Math.round(base.hp * (1 + rank(meta, 'hp') * META.hp.perRank)),
-    str: base.str + rank(meta, 'str') * META.str.perRank,
-    dex: base.dex + rank(meta, 'dex') * META.dex.perRank,
-    int: base.int + rank(meta, 'int') * META.int.perRank,
-    atkSpd: base.atkSpd * (1 + rank(meta, 'atkSpd') * META.atkSpd.perRank),
+    str: base.str,
+    dex: base.dex,
+    int: base.int,
+    atkSpd: base.atkSpd,
     moveSpd: base.moveSpd * (1 + rank(meta, 'moveSpd') * META.moveSpd.perRank),
     secondary: base.secondary + secondaryBonus,
   };
@@ -144,6 +144,7 @@ export function startingStats(base: Stats, meta: MetaRanks, secondaryBonus: numb
 /** The non-stat part of the Keep: what a run starts with. */
 export function metaLoadout(meta: MetaRanks): {
   gold: number; rerolls: number; relicSlots: number; relicTierCap: number; talentPoints: number; startLevel: number;
+  traitSlots: number; startRelic: boolean; banishes: number; // v0.6 sidegrades
   relicChance: number; salvageBonus: number; curseBonus: number; eliteGold: number; bossGold: number; goldIncome: number; dailyCap: number; mods: Partial<Mods>;
 } {
   return {
@@ -153,6 +154,9 @@ export function metaLoadout(meta: MetaRanks): {
     relicTierCap: rank(meta, 'relicSlot') > 0 ? 3 : 2,
     talentPoints: rank(meta, 'talentPoint') * META.talentPoint.perRank,
     startLevel: rank(meta, 'startLevel') * META.startLevel.perRank,
+    traitSlots: 1 + rank(meta, 'traitSlot'),
+    startRelic: rank(meta, 'startRelic') > 0,
+    banishes: rank(meta, 'banish') * META.banish.perRank,
     relicChance: 1 + rank(meta, 'relicChance') * META.relicChance.perRank,
     salvageBonus: rank(meta, 'salvage') * META.salvage.perRank,
     curseBonus: rank(meta, 'curseBonus') * META.curseBonus.perRank,

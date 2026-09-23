@@ -54,6 +54,7 @@ export interface RunOptions {
   lockedRelics?: RelicId[];
   curses?: CurseId[];
   trait?: TraitId; // v0.4 starting trait
+  trait2?: TraitId; // v0.6: a second one, with the Second Banner
   palette?: number; // v0.4 sprite palette (must be unlocked by mastery or an achievement)
   palettes?: number[]; // v0.4: palettes unlocked account-wide by achievements, on top of the class's mastery ones
   bonusTalentPoints?: number; // v0.4: permanent talent points from achievements (save.talentPoints)
@@ -135,6 +136,9 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     bossGold: loadout.bossGold,
     talentModsCache: null,
     trait: 'none',
+    trait2: 'none',
+    banishes: loadout.banishes,
+    bannedStats: [],
     palette: [...mastery.palettes, ...(opts.palettes ?? [])].includes(opts.palette ?? 0) ? opts.palette! : 0,
     rerolls: FREE_REROLLS + loadout.rerolls + mastery.reroll + account.reroll,
     gold: loadout.gold,
@@ -201,6 +205,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   initRegions(g);
   initQuests(g);
   applyTrait(g, opts.trait ?? 'none');
+  if (loadout.traitSlots > 1 && opts.trait2 && opts.trait2 !== opts.trait) applyTrait(g, opts.trait2, true);
   g.player.mods = { ...g.baseMods };
   // the Barracks' Veteran Levies and mastery's Seasoned: start a level or two up (growth, no boons)
   for (let l = 0; l < loadout.startLevel + mastery.startLevel; l++) {
@@ -214,6 +219,12 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     if (pick) addRelic(g, pick);
   }
   if (opts.noRelics) g.relicPool = [];
+  if (loadout.startRelic) {
+    // v0.6 Armorer's Choice: the run opens on a choice of three common relics
+    const commons = g.relicPool.filter((id) => relicDef(id).rarity === 'common');
+    const choice = rollRelics(commons, [], {}, g.rng, 3);
+    if (choice.length) (g.relicOffers.push(choice), (g.vars.armorerOffer = 1));
+  }
   if (mastery.relic) {
     const commons = g.relicPool.filter((id) => relicDef(id).rarity === 'common');
     const [gift] = rollRelics(commons, [], {}, g.rng, 1);

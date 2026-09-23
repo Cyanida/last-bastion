@@ -33,13 +33,14 @@ export function spendTalent(g: Game, id: string): boolean {
 }
 
 /** Apply the starting trait once, at run start: multipliers on the base stats, mods into the run's base mods. */
-export function applyTrait(g: Game, id: TraitId): void {
+export function applyTrait(g: Game, id: TraitId, second = false): void {
   const t = TRAITS[id];
   const p = g.player;
   for (const [key, mult] of Object.entries(t.stats ?? {}) as [StatKey, number][]) p.stats[key] = Math.round(p.stats[key] * mult);
   p.hp = Math.min(p.hp, p.stats.hp);
   if (t.mods) combineMods(g.baseMods, t.mods);
-  g.trait = id;
+  if (second) g.trait2 = id; // v0.6: the Second Banner's
+  else g.trait = id;
   if (t.n) for (const [k, v] of Object.entries(t.n)) g.vars[`trait.${k}`] = v;
 }
 

@@ -39,7 +39,7 @@ export const VICTORY = {
 };
 
 export type MetaId =
-  | 'hp' | 'str' | 'dex' | 'int' | 'atkSpd' | 'moveSpd' // Armory
+  | 'hp' | 'moveSpd' | 'traitSlot' | 'startRelic' | 'banish' // Armory (v0.6: str, dex, int and atkSpd became the three sidegrades)
   | 'classXp' | 'utilityCd' | 'startLevel' // Barracks
   | 'relicChance' | 'relicSlot' | 'salvage' // Chapel (relicSlot became the tier III vault in v0.4)
   | 'talentPoint' | 'rerolls' | 'xp' // Library
@@ -58,20 +58,21 @@ export interface MetaDef {
 }
 
 /**
- * Power budget: all six stat tracks maxed is about +20% EHP and +35% DPS (BALANCE.md). Gold buys the base ranks; the top ranks of
- * every track also cost Runes, and a track's rank cap follows its building's level (BUILDINGS).
+ * Gold buys the base ranks; the top ranks of a track also cost Runes, and a track's rank cap follows its building's level (BUILDINGS).
+ * v0.6: the Keep adds options, not power. The Armory's four damage tracks (Strength, Dexterity, Intelligence, attack speed: +35% DPS
+ * when maxed) became three sidegrades, HP and speed stop at three ranks, and Veteran Levies at one (BALANCE.md). Old ranks were
+ * refunded in the save migration (logic/save.ts LEGACY_META).
  */
 export const META: Record<MetaId, MetaDef> = {
-  hp: { name: 'Hearty Stock', desc: '+4% max HP per rank', max: 5, baseCost: 65, growth: 1.6, perRank: 0.04, runesFrom: 3, runeCost: 1 },
-  str: { name: 'Drill Yard', desc: '+1 Strength per rank', max: 5, baseCost: 65, growth: 1.6, perRank: 1, runesFrom: 3, runeCost: 1 },
-  dex: { name: 'Archery Butts', desc: '+1 Dexterity per rank', max: 5, baseCost: 65, growth: 1.6, perRank: 1, runesFrom: 3, runeCost: 1 },
-  int: { name: 'Scriptorium', desc: '+1 Intelligence per rank', max: 5, baseCost: 65, growth: 1.6, perRank: 1, runesFrom: 3, runeCost: 1 },
-  atkSpd: { name: 'Balanced Arms', desc: '+2% attack speed per rank', max: 5, baseCost: 80, growth: 1.6, perRank: 0.02, runesFrom: 3, runeCost: 1 },
-  moveSpd: { name: 'Good Boots', desc: '+2% movement speed per rank', max: 5, baseCost: 80, growth: 1.6, perRank: 0.02, runesFrom: 3, runeCost: 1 },
+  hp: { name: 'Hearty Stock', desc: '+4% max HP per rank', max: 3, baseCost: 65, growth: 1.6, perRank: 0.04, runesFrom: 2, runeCost: 1 },
+  moveSpd: { name: 'Good Boots', desc: '+2% movement speed per rank', max: 3, baseCost: 80, growth: 1.6, perRank: 0.02, runesFrom: 2, runeCost: 1 },
+  traitSlot: { name: 'Second Banner', desc: 'Choose two starting traits instead of one', max: 1, baseCost: 900, growth: 1, perRank: 1, runesFrom: 0, runeCost: 3 },
+  startRelic: { name: "Armorer's Choice", desc: 'Every run starts with a choice of three common relics', max: 1, baseCost: 700, growth: 1, perRank: 1, runesFrom: 0, runeCost: 2 },
+  banish: { name: "Quartermaster's Ledger", desc: 'Strike one level-up card from the run for good, once per rank a run', max: 3, baseCost: 260, growth: 1.8, perRank: 1, runesFrom: 2, runeCost: 1 },
 
   classXp: { name: 'Drill Sergeant', desc: '+10% class XP per rank', max: 3, baseCost: 190, growth: 1.8, perRank: 0.1 },
   utilityCd: { name: 'Sparring Ring', desc: 'Utility ability recharges 5% faster per rank', max: 3, baseCost: 240, growth: 1.8, perRank: 0.05, runesFrom: 2, runeCost: 1 },
-  startLevel: { name: 'Veteran Levies', desc: 'Start every run one level higher per rank', max: 2, baseCost: 800, growth: 2, perRank: 1, runesFrom: 1, runeCost: 2 },
+  startLevel: { name: 'Veteran Levies', desc: 'Start every run one level higher', max: 1, baseCost: 800, growth: 2, perRank: 1, runesFrom: 1, runeCost: 2 },
 
   relicChance: { name: 'Reliquary Guard', desc: 'Elites drop relics 10% more often per rank', max: 3, baseCost: 190, growth: 1.8, perRank: 0.1 },
   relicSlot: { name: 'Reliquary Vault', desc: 'Relics can be raised to tier III', max: 1, baseCost: 1440, growth: 1, perRank: 1, runesFrom: 0, runeCost: 4 },
@@ -119,8 +120,8 @@ export interface BuildingDef {
  */
 export const BUILDINGS: Record<BuildingId, BuildingDef> = {
   armory: {
-    name: 'Armory', icon: '⚔️', desc: 'Core stats for every champion.',
-    upgrades: ['hp', 'str', 'dex', 'int', 'atkSpd', 'moveSpd'],
+    name: 'Armory', icon: '⚔️', desc: 'Sturdier bodies, and more ways to start a run.',
+    upgrades: ['hp', 'moveSpd', 'traitSlot', 'startRelic', 'banish'],
     levels: [{ gold: 320, runes: 1, achievement: 'firstBlood' }, { gold: 1120, runes: 3, achievement: 'wave10' }, { gold: 2880, runes: 6, achievement: 'act1' }],
     capFrac: [0.4, 0.6, 0.8, 1],
   },

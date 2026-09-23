@@ -215,7 +215,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     const need = t.unlock.achievement ? ACHIEVEMENTS.find((a) => a.id === t.unlock.achievement) : undefined;
     const lockedT = need !== undefined && !save.achievements.includes(need.id);
     const tip = lockedT ? `Locked — ${need!.name}: ${need!.desc}` : t.desc;
-    return `<button class="chip trait ${save.settings.trait === id ? 'on' : ''}" data-trait="${id}" ${lockedT ? 'disabled' : ''} data-tip="${esc(tip)}">${lockedT ? '🔒 ' : `${t.icon} `}${t.name}</button>`;
+    return `<button class="chip trait ${save.settings.trait === id || (id !== 'none' && save.settings.trait2 === id) ? 'on' : ''}" data-trait="${id}" ${lockedT ? 'disabled' : ''} data-tip="${esc(tip)}">${lockedT ? '🔒 ' : `${t.icon} `}${t.name}</button>`;
   };
   const el = show(`
     <div class="select">
@@ -290,6 +290,7 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
     <div class="panel dialog wide keep">
       <h1 class="small">The Keep</h1>
       <p class="sub">Treasury: <b>🪙 ${save.gold}</b> · <b>◆ ${save.runes}</b> Runes${save.runeShards ? ` <span class="dim">(${save.runeShards}/${RUNES.shardsPerRune} shards)</span>` : ''} — gold buys ranks, Runes (from Act bosses, quests and deeds) raise buildings and the top ranks</p>
+      ${save.refund ? `<p class="hint"><b>The Keep was rebuilt for v0.6:</b> the Armory's damage drills became new ways to start a run, and the top ranks of a few tracks were cut. What those ranks cost came back: <b>🪙 ${save.refund.gold}${save.refund.runes ? ` and ◆ ${save.refund.runes}` : ''}</b>.</p>` : ''}
       <div class="buildings">${BUILDING_IDS.map(building).join('')}</div>
       <h2>Class mastery · account level ${level}</h2>
       <p class="hint">Earned by playing a class: waves cleared, bosses slain, levels gained, times the difficulty tier. Every rank unlocks something; tap a class for its track.
@@ -520,7 +521,7 @@ export function showSaveDialog(save: Save, on: { import: (text: string) => boole
 export function showLevelUp(
   level: number, options: LevelUpOption[], cls: ClassDef, stats: Stats,
   reroll: { free: number; cost: number; gold: number },
-  on: { pick: (o: LevelUpOption) => void; reroll: () => void },
+  on: { pick: (o: LevelUpOption) => void; reroll: () => void; banish?: (o: LevelUpOption) => void },
   tiers: RelicTiers = {},
 ): void {
   const canReroll = reroll.free > 0 || reroll.gold >= reroll.cost;
@@ -534,20 +535,25 @@ export function showLevelUp(
           const kind = o.kind === 'tradeoff' ? 'tradeoff' : o.kind === 'talent' ? 'talent' : o.kind === 'evolution' ? 'evolution' : o.kind === 'relic' ? `relic-card ${relicDef(o.id).rarity}` : o.rarity;
           const special = (o.kind === 'stat' && o.key === 'secondary') || o.kind === 'talent' || o.kind === 'evolution' ? 'special' : '';
           const now = o.kind === 'stat' ? `<div class="best">now ${fmtStat(o.key, stats[o.key])}</div>` : '';
-          return `<button class="card panel boon ${kind} ${special}" data-pick="${i}"><div class="num">${i + 1}</div><h2>${t.title}</h2><div class="tag">${t.tag}</div><p>${t.desc}</p>${now}</button>`;
+          const strike = on.banish && o.kind !== 'evolution' ? `<span class="banish" data-banish="${i}" data-tip="Quartermaster's Ledger: strike this card from the run for good (and get a fresh hand)">✕</span>` : '';
+          return `<button class="card panel boon ${kind} ${special}" data-pick="${i}">${strike}<div class="num">${i + 1}</div><h2>${t.title}</h2><div class="tag">${t.tag}</div><p>${t.desc}</p>${now}</button>`;
         }).join('')}
       </div>
       <button class="btn" data-reroll ${canReroll ? '' : 'disabled'}>Reroll (R) — ${reroll.free > 0 ? `${reroll.free} free` : `🪙 ${reroll.cost}`}</button>
     </div>`);
   click(el, '[data-pick]', (b) => on.pick(options[Number(b.dataset.pick)]));
+  el.querySelectorAll<HTMLElement>('[data-banish]').forEach((b) => (b.onclick = (ev) => {
+    ev.stopPropagation(); // not a pick
+    on.banish?.(options[Number(b.dataset.banish)]);
+  }));
   click(el, '[data-reroll]', on.reroll);
   numberKeys(el, (a) => a === 'reroll' && canReroll && on.reroll());
 }
 
-export function showRelicOffer(options: RelicId[], held: RelicId[], tiers: RelicTiers, on: { take: (id: RelicId) => void; skip: () => void }): void {
+export function showRelicOffer(options: RelicId[], held: RelicId[], tiers: RelicTiers, on: { take: (id: RelicId) => void; skip: () => void }, title?: string): void {
   const el = show(`
     <div class="levelup">
-      <h1 class="small">${options.length > 1 ? 'Spoils of the fallen' : 'A relic!'}</h1>
+      <h1 class="small">${title ?? (options.length > 1 ? 'Spoils of the fallen' : 'A relic!')}</h1>
       <p class="sub">${options.some((id) => held.includes(id)) ? 'A relic you already carry grows a tier stronger' : 'Choose a relic'} · ${held.length} carried</p>
       <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div>`)).join('')}</div>
       <button class="btn" data-skip>Leave it</button>

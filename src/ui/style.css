@@ -502,3 +502,8 @@ canvas#game { touch-action: none; }
 .route.merchant { outline: 2px solid #c9a227; outline-offset: -6px; }
 .route.pilgrim { outline: 2px solid #6fae4f; outline-offset: -6px; }
 .route.siege { outline: 2px solid #5a5d64; outline-offset: -6px; }
+
+/* v0.6 Quartermaster's Ledger: strike a level-up card */
+.boon .banish { position: absolute; top: 6px; right: 8px; width: 24px; height: 24px; line-height: 22px; border-radius: 50%; border: 1px solid #8e1b1b; color: #8e1b1b; font-size: 13px; background: rgba(228, 211, 166, 0.9); cursor: pointer; }
+.boon .banish:hover { background: #8e1b1b; color: #f3ead0; }
+.boon { position: relative; }

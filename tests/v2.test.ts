@@ -329,10 +329,10 @@ describe('gold and cost calculations', () => {
 
   it('buying deducts gold, respects the cap and poverty', () => {
     const rich = { ...defaultSave(), gold: 1000, buildings: { armory: 3, library: 3 } }; // v0.4: buildings raised, so the old caps apply
-    const bought = buyMeta(rich, 'str');
-    expect(bought.meta.str).toBe(1);
-    expect(bought.gold).toBe(1000 - META.str.baseCost);
-    expect(buyMeta({ ...defaultSave(), gold: 1 }, 'str').meta.str).toBeUndefined();
+    const bought = buyMeta(rich, 'hp');
+    expect(bought.meta.hp).toBe(1);
+    expect(bought.gold).toBe(1000 - META.hp.baseCost);
+    expect(buyMeta({ ...defaultSave(), gold: 1 }, 'hp').meta.hp).toBeUndefined();
     const capped = { ...rich, meta: { rerolls: META.rerolls.max } };
     expect(buyMeta(capped, 'rerolls')).toBe(capped);
   });
@@ -352,8 +352,8 @@ describe('gold and cost calculations', () => {
     const maxed = Object.fromEntries(META_IDS.map((id) => [id, META[id].max]));
     const base = CLASSES.archer.base;
     const s = startingStats(base, maxed, 3);
-    expect(s.hp).toBe(Math.round(base.hp * 1.2));
-    expect(s.dex).toBe(base.dex + 5);
+    expect(s.hp).toBe(Math.round(base.hp * 1.12));
+    expect(s.dex).toBe(base.dex); // v0.6: the Keep sells no damage
     expect(s.secondary).toBe(base.secondary + 3);
     expect(s.hp / base.hp).toBeLessThan(1.5); // helps, does not trivialize
     expect(metaLoadout(maxed)).toMatchObject({ gold: 100, rerolls: 2, relicSlots: 1, relicTierCap: 3 });
@@ -460,7 +460,7 @@ describe('save migration', () => {
     expect(importSave('not json')).toBeNull();
     expect(importSave('{"paladin": 7}')).toBeNull();
     const fixed = importSave(JSON.stringify({ version: 2, gold: -5, meta: { hp: 999, bogus: 3 }, tierUnlocked: 42, settings: { arena: 'moon', tier: 9 }, classes: { paladin: { bestWave: 4 } } }))!;
-    expect(fixed.gold).toBe(0);
+    expect(fixed.gold).toBe(fixed.refund!.gold); // negative gold repaired to 0, plus v0.6's refund for the trimmed HP ranks
     expect(fixed.meta.hp).toBe(META.hp.max);
     expect(fixed.tierUnlocked).toBe(TIERS.length - 1);
     expect(fixed.settings.arena).toBe('courtyard');

@@ -117,8 +117,8 @@ describe('save migration v0.2 -> v0.3', () => {
   it('keeps everything a v0.2 save had', () => {
     const s = migrate(v2);
     expect(s.version).toBe(SAVE_VERSION);
-    expect(s.gold).toBe(966);
-    expect(s.meta).toEqual({ hp: 1, str: 2 });
+    expect(s.gold).toBe(966 + 169); // plus v0.6's refund of the two Strength ranks
+    expect(s.meta).toEqual({ hp: 1 });
     expect(s.achievements).toEqual(['wave10', 'firstBlood']);
     expect(s.tierUnlocked).toBe(1);
     expect(s.classes.paladin).toEqual(v2.classes.paladin);

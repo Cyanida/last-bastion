@@ -10,8 +10,8 @@ import { STAT_KEYS } from '../core/types';
 import { combineMods } from './mods';
 
 /** n distinct upgrade options. 'secondary' is the class's own stat, so every class's pool differs. */
-export function rollUpgrades(rng: Rng, n = UPGRADE_CHOICES): StatKey[] {
-  const pool = [...STAT_KEYS];
+export function rollUpgrades(rng: Rng, n = UPGRADE_CHOICES, banned: readonly StatKey[] = []): StatKey[] {
+  const pool = STAT_KEYS.filter((k) => !banned.includes(k)); // v0.6: struck from the run by the Quartermaster's Ledger
   const out: StatKey[] = [];
   while (out.length < n && pool.length) out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
   return out;
@@ -57,11 +57,14 @@ function rollRarity(rng: Rng): UpgradeRarity {
  * Three distinct boons, each with a rolled rarity; sometimes the last one is a tradeoff not taken yet this run, a talent point,
  * or a relic rolled by the drop rules (`relic` supplies one, or null when the pool is empty).
  */
-export function rollLevelUpOptions(rng: Rng, taken: TradeoffId[] = [], relic: (() => RelicId | null) | null = null): LevelUpOption[] {
-  const options: LevelUpOption[] = rollUpgrades(rng).map((key) => ({ kind: 'stat', key, rarity: rollRarity(rng) }));
+export function rollLevelUpOptions(rng: Rng, taken: TradeoffId[] = [], relic: (() => RelicId | null) | null = null, banned: readonly StatKey[] = [], noTalent = false): LevelUpOption[] {
+  const options: LevelUpOption[] = rollUpgrades(rng, UPGRADE_CHOICES, banned).map((key) => ({ kind: 'stat', key, rarity: rollRarity(rng) }));
   const tradeoffs = TRADEOFF_IDS.filter((id) => !taken.includes(id));
   const roll = rng();
-  if (roll < TALENT_CARD_CHANCE) options[options.length - 1] = { kind: 'talent' };
+  if (options.length === 0) return options;
+  if (roll < TALENT_CARD_CHANCE) {
+    if (!noTalent) options[options.length - 1] = { kind: 'talent' };
+  }
   else if (roll < TALENT_CARD_CHANCE + RELIC_CARD_CHANCE && relic) {
     const id = relic();
     if (id) options[options.length - 1] = { kind: 'relic', id };

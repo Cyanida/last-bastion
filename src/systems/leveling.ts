@@ -38,11 +38,22 @@ export function gainXp(g: Game, amount: number): void {
 const takenTradeoffs = (g: Game) => TRADEOFF_IDS.filter((id) => g.vars[`tradeoff.${id}`]) as TradeoffId[];
 
 export function levelUpOptions(g: Game): LevelUpOption[] {
-  const options = rollLevelUpOptions(g.rng, takenTradeoffs(g), () => rollRelics(g.relicPool, g.relics, g.relicTiers, g.rng, 1, [], g.relicTierCap)[0] ?? null);
+  const options = rollLevelUpOptions(g.rng, takenTradeoffs(g), () => rollRelics(g.relicPool, g.relics, g.relicTiers, g.rng, 1, [], g.relicTierCap)[0] ?? null, g.bannedStats, g.vars.banTalent === 1);
   // v0.6: a complete evolution recipe is always the first card, until it is taken (rerolls keep it)
   const [ready] = readyEvolutions(buildState(g));
   if (ready) options[0] = { kind: 'evolution', id: ready };
   return options;
+}
+
+/** v0.6 Quartermaster's Ledger: strike a level-up card from the run for good (a stat boon, the talent card, a relic, a tradeoff). */
+export function banishOption(g: Game, o: LevelUpOption): boolean {
+  if (g.banishes <= 0 || o.kind === 'evolution') return false;
+  if (o.kind === 'stat') g.bannedStats = [...g.bannedStats, o.key];
+  else if (o.kind === 'talent') g.vars.banTalent = 1;
+  else if (o.kind === 'relic') g.relicPool = g.relicPool.filter((id) => id !== o.id);
+  else g.vars[`tradeoff.${o.id}`] = 1; // counts as taken: never offered again, and changes nothing
+  g.banishes--;
+  return true;
 }
 
 export function chooseLevelUp(g: Game, o: LevelUpOption): void {

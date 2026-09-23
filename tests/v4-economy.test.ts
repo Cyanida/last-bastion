@@ -69,12 +69,12 @@ describe('the Keep: buildings, caps and costs', () => {
     expect(rankCap('hp', {})).toBe(2);
     expect(rankCap('hp', { armory: 3 })).toBe(META.hp.max);
     expect(metaCost('hp', 2, {})).toBeNull(); // capped by the ruin
-    expect(metaCost('hp', 2, { armory: 1 })).not.toBeNull();
+    expect(metaCost('hp', 2, { armory: 2 })).not.toBeNull();
     expect(metaCost('hp', 0)!.runes).toBe(0);
     expect(metaCost('hp', META.hp.runesFrom!)!.runes).toBe(META.hp.runeCost);
-    const rich = { ...defaultSave(), gold: 9999, runes: 0, buildings: { armory: 3 }, meta: { hp: 3 } };
+    const rich = { ...defaultSave(), gold: 9999, runes: 0, buildings: { armory: 3 }, meta: { hp: 2 } };
     expect(buyMeta(rich, 'hp')).toBe(rich); // no Runes
-    expect(buyMeta({ ...rich, runes: 1 }, 'hp').meta.hp).toBe(4);
+    expect(buyMeta({ ...rich, runes: 1 }, 'hp').meta.hp).toBe(3);
     const total = totalKeepCost();
     expect(total.gold).toBeGreaterThan(10000);
     expect(total.runes).toBeGreaterThan(50);
