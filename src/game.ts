@@ -250,6 +250,7 @@ export function summarizeRun(g: Game): RunSummary {
     trait: g.trait,
     relicsFound: g.player.relics.found,
     relicTiers: g.player.relics.tiers,
+    duos: g.player.relics.duos,
     salvage: g.salvage,
     feats: g.feats,
     abilityUpgrades: g.player.upgrades.length,

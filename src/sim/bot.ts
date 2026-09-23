@@ -182,7 +182,10 @@ export function botChoose(g: Game, variant = 0): void {
     if (g.gold > 3 * peddlerPrice(g) && g.player.hp < g.player.stats.hp * 0.6) peddlerBuy(g); // v0.7: his healing draught, when hurt and rich
     g.pendingShop = false;
   }
-  while (g.player.relics.offers.length > 0) resolveRelicOffer(g, g.player.relics.offers[0].options[0]); // no cap since v0.4: always take the first (a held one = a tier up)
+  while (g.player.relics.offers.length > 0) {
+    const o = g.player.relics.offers[0]; // a duo when there is one (v0.7 A5), else the first relic, else skip
+    if (!resolveRelicOffer(g, o.duo ?? o.options[0] ?? null)) g.player.relics.offers.shift(); // never stuck on a moment
+  }
   while (g.pendingAbilityTiers.length > 0) {
     if (!chooseAbilityUpgrade(g, ABILITY_TRACKS[g.player.cls.id][g.pendingAbilityTiers[0]][variant])) g.pendingAbilityTiers.shift();
   }

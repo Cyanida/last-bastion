@@ -1,10 +1,10 @@
 import { ROUTES } from '../config/routes';
-import { ATTUNEMENT, BOSS_RELIC_CHOICES, FAMILIES, FAMILY_IDS, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type FamilyId, type RelicId, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, BOSS_RELIC_CHOICES, duoOf, DUOS, FAMILIES, isDuo, FAMILY_IDS, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { sfx } from '../core/audio';
 import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
 import { combineMods } from '../logic/mods';
-import { attuneAll, foldRelicMods, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
+import { attuneAll, duoFamilies, foldRelicMods, readyDuos, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
 import { floatText, ring } from './effects';
 import { relicContext } from './relicContext';
 import { credit, familySets, rawBy, type RelicHooks } from './relicCore';
@@ -15,6 +15,7 @@ import { GRAVE_RELICS, GRAVE_SETS } from './relicFamilies/grave';
 import { HOLY_RELICS, HOLY_SETS } from './relicFamilies/holy';
 import { STEEL_RELICS, STEEL_SETS } from './relicFamilies/steel';
 import { STORM_RELICS, STORM_SETS } from './relicFamilies/storm';
+import { DUO_HOOKS } from './relicFamilies/duos';
 
 /**
  * v0.7 relic engine (RELICS.md): relic moments and offers, per-relic contribution, and the dispatch of every held relic's hooks and every
@@ -44,7 +45,7 @@ function reachedSets(p: Player): RelicHooks[] {
 function shareOut(g: Game, p: Player, key: keyof Mods, amount: number, frac: number): void {
   const t = p.relics.totals[key];
   if (!t || t.raw <= 0 || frac <= 0) return;
-  for (const [id, keys] of Object.entries(rawBy.get(p) ?? {}) as [RelicId, Partial<Record<keyof Mods, number>>][]) {
+  for (const [id, keys] of Object.entries(rawBy.get(p) ?? {}) as [RelicKey, Partial<Record<keyof Mods, number>>][]) {
     const r = keys[key];
     if (r && r > 0) credit(g, p, id, 'damage', (amount * frac * r) / t.raw);
   }
@@ -98,6 +99,10 @@ addListener((g, name, ev) => {
       relicContext.acting = id;
       run(HOOKS[id], g, name, ev, p);
     }
+    for (const id of p.relics.duos) {
+      relicContext.acting = id;
+      run(DUO_HOOKS[id], g, name, ev, p);
+    }
     relicContext.acting = null;
     for (const set of reachedSets(p)) run(set, g, name, ev, p);
   } finally {
@@ -118,7 +123,7 @@ export function updateRelics(g: Game, dt: number): void {
   const r = p.relics;
   if (r.dirty) {
     r.static = relicModTotals(r.held, r.tiers);
-    r.sets = familySets(r.held, r.duos);
+    r.sets = familySets(r.held, duoFamilies(r.duos));
     r.dirty = false;
   }
   for (const key of Object.keys(r.dyn) as (keyof Mods)[]) r.dyn[key] = 0;
@@ -127,7 +132,7 @@ export function updateRelics(g: Game, dt: number): void {
   g.vars['relic.bleedSlow'] = 0;
   g.vars['corpse.mult'] = 1;
   // the per-relic weights for contribution (RELICS.md): static mods, then the tick hooks add their conditional bonuses
-  const raw: Partial<Record<RelicId, Partial<Record<keyof Mods, number>>>> = {};
+  const raw: Partial<Record<RelicKey, Partial<Record<keyof Mods, number>>>> = {};
   for (const id of r.held) {
     const mods = relicMods(id, relicTier(r.tiers, id));
     if (mods) raw[id] = Object.fromEntries(Object.entries(mods).map(([k, v]) => [k, BONUS_KEYS.has(k as keyof Mods) ? (k === 'cooldown' ? 1 - v! : v! - 1) : v!]));
@@ -136,6 +141,10 @@ export function updateRelics(g: Game, dt: number): void {
   for (const id of r.held) {
     relicContext.acting = id;
     HOOKS[id]?.tick?.(g, dt, p);
+  }
+  for (const id of r.duos) {
+    relicContext.acting = id;
+    DUO_HOOKS[id]?.tick?.(g, dt, p);
   }
   relicContext.acting = null;
   for (const set of reachedSets(p)) set.tick?.(g, dt, p);
@@ -227,6 +236,12 @@ export function relicPreview(p: Player, id: RelicId): string[] {
     const set = (SET_LEVELS as readonly number[]).includes(n + 1) ? `: ${FAMILIES[fam].sets[(n + 1) as SetLevel][0]}` : '';
     lines.push(`${FAMILIES[fam].icon} ${FAMILIES[fam].name} ${n} → ${n + 1}${set}`);
   }
+  const duo = duoOf(id);
+  const partner = duo && DUOS[duo].from.find((s) => s !== id)!;
+  if (duo && partner && r.held.includes(partner) && !r.duos.includes(duo)) {
+    const busy = r.duos.find((d) => DUOS[d].from.includes(partner));
+    lines.push(busy ? `Would pair with ${relicDef(partner).name} for ${DUOS[duo].name}, but it already feeds ${DUOS[busy].name}` : `✦ Completes the duo ${DUOS[duo].icon} ${DUOS[duo].name} with ${relicDef(partner).name}: offered at the next relic moment`);
+  }
   return lines;
 }
 
@@ -234,13 +249,13 @@ export function relicPreview(p: Player, id: RelicId): string[] {
  * v0.7: each held relic's share of this run, in % with one decimal, best first: of all damage dealt, all healing received, and all damage its
  * armor turned away (of damage taken plus turned away). What the results screen's Relics section and the run log show.
  */
-export function relicShares(g: Game, p: Player = g.player): { id: RelicId; tier: number; from: RelicSource; damage: number; healing: number; mitigation: number }[] {
+export function relicShares(g: Game, p: Player = g.player): { id: RelicKey; tier: number; from: RelicSource; damage: number; healing: number; mitigation: number }[] {
   const r = p.relics;
   const pct = (v: number, of: number) => (of > 0 ? Math.round((v / of) * 1000) / 10 : 0);
   const taken = (g.vars.taken ?? 0) + (g.vars.prevented ?? 0);
-  return r.held.map((id) => {
+  return [...r.held, ...r.duos].map((id) => {
     const s = r.stats[id] ?? { damage: 0, healing: 0, prevented: 0 };
-    return { id, tier: relicTier(r.tiers, id), from: r.from[id] ?? 'other', damage: pct(s.damage, g.vars.dealt ?? 0), healing: pct(s.healing, g.vars.healed ?? 0), mitigation: pct(s.prevented, taken) };
+    return { id, tier: isDuo(id) ? 0 : relicTier(r.tiers, id), from: r.from[id] ?? 'other', damage: pct(s.damage, g.vars.dealt ?? 0), healing: pct(s.healing, g.vars.healed ?? 0), mitigation: pct(s.prevented, taken) };
   }).sort((a, b) => Math.max(b.damage, b.healing, b.mitigation) - Math.max(a.damage, a.healing, a.mitigation));
 }
 
@@ -258,18 +273,33 @@ function roll(p: Player, pool: RelicId[], n: number): RelicId[] {
  */
 export function offerRelics(g: Game, count = BOSS_RELIC_CHOICES, from: RelicSource = 'other', p: Player = g.player, pool = p.relics.pool): void {
   const options = roll(p, pool, count);
-  if (!options.length) return;
-  p.relics.offers.push({ from, options, rerolls: momentRerolls(g) });
+  // v0.7 A5: the first completed duo not already on a queued moment comes along as a gold fourth card (one a moment)
+  const duo = readyDuos(p.relics).find((d) => !p.relics.offers.some((o) => o.duo === d));
+  if (!options.length && !duo) return;
+  p.relics.offers.push({ from, options, rerolls: momentRerolls(g), ...(duo ? { duo } : {}) });
   g.vars[`moments.${from}`] = (g.vars[`moments.${from}`] ?? 0) + 1; // counted for the sims (RELICS.md: 12-16 a run)
 }
 
 /** Take one of the first queued moment's options. */
-export function resolveRelicOffer(g: Game, id: RelicId | null, p: Player = g.player): boolean {
+export function resolveRelicOffer(g: Game, id: RelicKey | null, p: Player = g.player): boolean {
   const offer = p.relics.offers[0];
   if (!offer) return false;
   if (id === null) return skipRelicOffer(g, p);
-  if (!offer.options.includes(id) || !addRelic(g, id, offer.from)) return false;
+  if (isDuo(id) ? offer.duo !== id || !formDuo(g, p, id) : !offer.options.includes(id) || !addRelic(g, id, offer.from)) return false;
   p.relics.offers.shift();
+  return true;
+}
+
+/** v0.7 A5: take a ready duo: it counts toward both its families from now on, and its two source relics feed no other duo. */
+export function formDuo(g: Game, p: Player, id: DuoId): boolean {
+  if (!readyDuos(p.relics).includes(id)) return false;
+  p.relics.duos = [...p.relics.duos, id];
+  p.relics.dirty = true;
+  const d = DUOS[id];
+  floatText(g, p.x, p.y - 60, `${d.icon} ${d.name}`, '#f2c94c', 18);
+  ring(g, p.x, p.y, 80, '#f2c94c', 0.7);
+  sfx('levelup');
+  emit(g, 'onDuoFormed', { id });
   return true;
 }
 

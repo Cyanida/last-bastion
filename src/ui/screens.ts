@@ -7,7 +7,7 @@ import { FAMILIES, FAMILY_IDS, preferredFamilies, type Rarity, RELIC_IDS, RELIC_
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
 import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
-import { relicDef, type RelicId } from '../config/relics';
+import { DUO_IDS, DUOS, keyIcon, keyName, relicDef, type DuoId, type RelicId, type RelicKey } from '../config/relics';
 import { BLESSINGS, type BlessingId } from '../config/regions';
 import { QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
@@ -17,9 +17,9 @@ import { TREASURE_RULES, TREASURES, treasureDesc, type TreasureId } from '../con
 import { chainStep, followUpText, inText, nextFragmentBoss, rankFor } from '../logic/treasures';
 import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
 import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
-import { familySets, type RelicTiers } from '../logic/relics';
+import { duoFamilies, familySets, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
-import { esc, recipeLines, relicLine, relicTip, tierBadge } from './relicText';
+import { duoTip, esc, keyTip, recipeLines, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
 import type { QualitySetting } from '../config/game';
@@ -90,6 +90,12 @@ const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, ex
   const fam = FAMILIES[r.family];
   const upgrade = tier > 1;
   return `<button class="card panel boon relic-card ${r.rarity}" style="--fam:${fam.color}" ${attrs} data-tip="${esc(relicTip(id, tier, held))}"><div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam.icon} ${fam.name}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${relicDesc(id, tier)}</p>${extra}</button>`;
+};
+
+/** v0.7 A5: a duo as a gold card: it takes the moment's pick and counts toward both its families. */
+const duoCard = (id: DuoId, attrs: string, extra = '') => {
+  const d = DUOS[id];
+  return `<button class="card panel boon evolution duo-card" ${attrs} data-tip="${esc(duoTip(id))}"><div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${d.desc}</p><div class="preview">From ${d.from.map((r) => relicDef(r).name).join(' + ')} · counts toward both families</div>${extra}</button>`;
 };
 
 // ---------------------------------------------------------------- title & menus
@@ -582,20 +588,20 @@ const MOMENT_TITLES: Record<RelicSource, string> = { boss: 'Spoils of the fallen
  */
 export function showRelicOffer(
   offer: RelicOffer, held: RelicId[], tiers: RelicTiers, info: { skip: { gold: number; shards: number }; preview: (id: RelicId) => string[] },
-  on: { take: (id: RelicId) => void; skip: () => void; reroll: () => void },
+  on: { take: (id: RelicKey) => void; skip: () => void; reroll: () => void },
 ): void {
   const { options } = offer;
   const el = show(`
     <div class="levelup">
       <h1 class="small">${MOMENT_TITLES[offer.from]}</h1>
       <p class="sub">Choose a relic · ${held.length} carried</p>
-      <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div>${[...info.preview(id), ...recipeLines({ relic: id })].map((l) => `<div class="preview">${esc(l)}</div>`).join('')}`)).join('')}</div>
+      <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div>${[...info.preview(id), ...recipeLines({ relic: id })].map((l) => `<div class="preview">${esc(l)}</div>`).join('')}`)).join('')}${offer.duo ? duoCard(offer.duo, `data-pick="${options.length}"`, `<div class="num">${options.length + 1}</div>`) : ''}</div>
       <div class="row">
         <button class="btn" data-reroll ${offer.rerolls > 0 ? '' : 'disabled'}>Reroll (R) · ${offer.rerolls} left</button>
         <button class="btn" data-skip data-tip="Take nothing from this moment: gold for this run and a Rune shard for the Keep">Skip · 🪙 ${info.skip.gold} · ◆ ${info.skip.shards} shard</button>
       </div>
     </div>`);
-  click(el, '[data-pick]', (b) => on.take(options[Number(b.dataset.pick)]));
+  click(el, '[data-pick]', (b) => on.take(Number(b.dataset.pick) < options.length ? options[Number(b.dataset.pick)] : offer.duo!));
   click(el, '[data-skip]', on.skip);
   click(el, '[data-reroll]', () => offer.rerolls > 0 && on.reroll());
   numberKeys(el, (a) => a === 'reroll' && offer.rerolls > 0 && on.reroll());
@@ -725,6 +731,7 @@ export interface BuildInfo {
   relics: RelicId[];
   tiers: RelicTiers;
   attune?: RelicTiers; // v0.7 A4: progress to the next tier, 0..1
+  duos?: DuoId[]; // v0.7 A5: formed duos
   upgrades: AbilityUpgradeId[];
   classId: ClassId;
   talents: string[];
@@ -749,13 +756,14 @@ export function buildHtml(info: BuildInfo): string {
   const talents = info.talents.length || info.talentPoints ? `<div><span>🌿 Talents${info.talentPoints ? ` · ${info.talentPoints} unspent` : ''}</span><em>${info.talents.map((id) => TALENT_BY_ID[id]?.name).join(' · ') || 'none yet'}</em></div>` : '';
   const sacred = (info.sacred ?? []).map((s) => `<div><span>${s.name}</span><em>${s.desc}</em></div>`).join('');
   // v0.7: the set bonuses reached, per family
-  const syns = Object.entries(familySets(info.relics, [])).map(([f, st]) => {
+  const duos = (info.duos ?? []).map((id) => `<div class="evolved"><span tabindex="0" data-tip="${esc(duoTip(id))}">${DUOS[id].icon} ${DUOS[id].name}</span><em>${DUOS[id].desc}</em></div>`).join('');
+  const syns = Object.entries(familySets(info.relics, duoFamilies(info.duos ?? []))).map(([f, st]) => {
     const fam = FAMILIES[f as keyof typeof FAMILIES];
     const next = ([2, 4, 6] as const).find((l) => l > st.count);
     const reached = ([2, 4, 6] as const).filter((l) => st.level >= l).map((l) => `${fam.sets[l][0]}: ${fam.sets[l][1]}`).join(' ');
     return `<div class="syn ${st.level ? 'on' : ''}"><span>${fam.icon} ${fam.name} ${st.count}</span><em>${reached || 'no set bonus yet'}${next ? ` · next at ${next}: ${fam.sets[next][0]}` : ''}</em></div>`;
   }).join('');
-  return relics || ups || trait || util || talents || sacred || evos ? `<div class="build">${evos}${sacred}${trait}${talents}${ups}${util}${relics}${syns}</div>` : '';
+  return relics || ups || trait || util || talents || sacred || evos ? `<div class="build">${evos}${sacred}${trait}${talents}${ups}${util}${relics}${duos}${syns}</div>` : '';
 }
 
 export function showPause(info: BuildInfo, on: { resume: () => void; quit: () => void; talents: () => void; treasures: () => void; bored: () => void }): void {
@@ -814,7 +822,7 @@ export interface RunResult {
   goals: Goal[]; // v0.6: the three closest goals, after this run
   contracts: Contract[]; // weekly contracts this run completed
   restart: string; // what Quick Restart keeps: "Viking · Stalwart · Oath 3"
-  relicShares: { id: RelicId; tier: number; from: RelicSource; damage: number; healing: number; mitigation: number }[]; // v0.7: which relics carried the run
+  relicShares: { id: RelicKey; tier: number; from: RelicSource; damage: number; healing: number; mitigation: number }[]; // v0.7: which relics carried the run
   wins: number; // the class's wins, this one included
   masteryNext: { name: string; need: number } | null; // the next mastery rank and the class XP still missing
   endless: { score: number; rank: number; board: EndlessEntry[] } | null; // the run went on into Endless
@@ -861,7 +869,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
         ${r.masteryNext ? `<div><span>Next mastery rank</span><b>${r.masteryNext.name} · ${r.masteryNext.need} XP to go</b></div>` : ''}
       </div>
       ${r.goals.length ? `<h2>Next</h2><div class="goals">${r.goals.map((g) => `<div class="goal"><span>${esc(g.text)}</span><div class="bar xp"><div style="width:${Math.round(g.frac * 100)}%"></div></div></div>`).join('')}</div>` : ''}
-      ${r.relicShares.length ? `<h2>Relics</h2><table class="stats-table relics-table"><tr><th>Relic</th><th>Found</th><th>Damage</th><th>Healing</th><th>Mitigation</th></tr>${r.relicShares.map((s) => `<tr><td><span data-tip="${esc(relicTip(s.id, s.tier, r.relicShares.map((x) => x.id)))}">${relicDef(s.id).icon} ${relicDef(s.id).name}${s.tier > 1 ? ` ${TIER_NUMERALS[s.tier]}` : ''}</span></td><td>${RELIC_SOURCE_NAMES[s.from]}</td><td>${s.damage ? `${s.damage}%` : '-'}</td><td>${s.healing ? `${s.healing}%` : '-'}</td><td>${s.mitigation ? `${s.mitigation}%` : '-'}</td></tr>`).join('')}</table><p class="hint">Each relic's share of all the damage you dealt, the healing you received and the damage turned away this run.</p>` : ''}
+      ${r.relicShares.length ? `<h2>Relics</h2><table class="stats-table relics-table"><tr><th>Relic</th><th>Found</th><th>Damage</th><th>Healing</th><th>Mitigation</th></tr>${r.relicShares.map((s) => `<tr><td><span data-tip="${esc(keyTip(s.id, s.tier, r.relicShares.map((x) => x.id as RelicId)))}">${keyIcon(s.id)} ${keyName(s.id)}${s.tier > 1 ? ` ${TIER_NUMERALS[s.tier]}` : s.tier === 0 ? ' (duo)' : ''}</span></td><td>${RELIC_SOURCE_NAMES[s.from]}</td><td>${s.damage ? `${s.damage}%` : '-'}</td><td>${s.healing ? `${s.healing}%` : '-'}</td><td>${s.mitigation ? `${s.mitigation}%` : '-'}</td></tr>`).join('')}</table><p class="hint">Each relic's share of all the damage you dealt, the healing you received and the damage turned away this run.</p>` : ''}
       ${unlocks ? `<div class="unlocks">${unlocks}</div>` : ''}
       ${board}
       ${buildHtml(r.build)}
@@ -967,6 +975,13 @@ export function showCompendium(save: Save, onBack: () => void): void {
       <h1 class="small">Relic compendium</h1>
       <p class="sub">${discovered} / ${RELIC_IDS.length} discovered · seven families; 2, 4 and 6 of a family unlock its set bonuses · a relic attunes as it works: tier II, then it awakens</p>
       ${FAMILY_IDS.map(family).join('')}
+      <h2>Duos · ${save.duos.length} / ${DUO_IDS.length} discovered</h2>
+      <p class="hint">Hold both relics of a recipe and a relic moment offers the duo as a gold fourth card; it counts toward both families, and each relic feeds one duo. A discovered duo shows in full.</p>
+      <div class="recipes">${DUO_IDS.map((id) => {
+        const d = DUOS[id];
+        const known = save.duos.includes(id);
+        return `<div class="recipe ${known ? 'known' : ''}"><span>${known ? `${d.icon} ${d.name}` : '? Unknown duo'} <em>${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</em></span>${known ? `<p>${d.desc}</p>` : ''}<i>${d.from.map((r) => relicDef(r).name).join(' + ')}</i></div>`;
+      }).join('')}</div>
       <h2>Evolutions · ${save.evolutions.length} / ${EVOLUTION_IDS.length} discovered</h2>
       <p class="hint">Three for each champion's signature ability, two for the second one. Meet both halves of a recipe in a run and the next level-up offers it as a gold card; one of each kind a run. A discovered recipe shows in full.</p>
       <div class="recipes">${CLASS_ORDER.map((c) => `<div class="recipe-class"><b>${CLASSES[c].name}</b>${EVOLUTION_IDS.filter((id) => EVOLUTIONS[id].classId === c).map((id) => {

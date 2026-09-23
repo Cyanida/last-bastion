@@ -1,5 +1,6 @@
 import { GAME } from '../../config/game';
 import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
+import { emit } from '../../core/events';
 import type { Enemy, Game } from '../../core/types';
 import { addField } from '../../entities/hazards';
 import * as scale from '../../logic/abilities';
@@ -19,6 +20,7 @@ export function freeze(g: Game, e: Enemy, time: number): void {
   if (e.def.boss) return;
   applyStatus(e, { apply: [{ id: 'stun', time }] }, g);
   e.frozenT = Math.max(e.frozenT, g.time + time);
+  emit(g, 'onFreeze', { enemy: e }); // as a chill that tips over does (combat.applyStatus)
 }
 
 const touchCd = new WeakMap<Enemy, number>();

@@ -3,7 +3,7 @@ import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ENEMIES } from '../config/enemies';
 import { EVENTS } from '../config/events';
 import { RUN_LOG } from '../config/game';
-import { RELIC_MAX_TIER, relicDef, TIER_NUMERALS } from '../config/relics';
+import { DUOS, RELIC_MAX_TIER, relicDef, TIER_NUMERALS } from '../config/relics';
 import { TALENT_BY_ID } from '../config/talents';
 import { UTILITY_UPGRADES } from '../config/utility';
 import { addListener, type GameEvents } from '../core/events';
@@ -103,6 +103,7 @@ export function finishRunLog(g: Game): RunLog {
 
 addListener((g, name, ev) => {
   if (name === 'onWaveStart') g.log.waves.push([round1(g.time), 0, 0, 0]);
+  else if (name === 'onDuoFormed') mark(g, 'relic', `Duo: ${DUOS[(ev as GameEvents['onDuoFormed']).id].name}`);
   else if (name === 'onRelicTier') {
     const { id, tier } = ev as GameEvents['onRelicTier'];
     mark(g, 'attune', `${relicDef(id).name} ${TIER_NUMERALS[tier]}${tier >= RELIC_MAX_TIER ? `, awakened: ${relicDef(id).awaken.name}` : ''}`);

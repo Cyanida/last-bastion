@@ -6,7 +6,7 @@ import type { ClassDef } from '../config/classes';
 import type { TierDef } from '../config/economy';
 import type { AffixId } from '../config/elites';
 import type { EnemyDef, EnemyId } from '../config/enemies';
-import type { FamilyId, RelicId } from '../config/relics';
+import type { FamilyId, RelicId, DuoId, RelicKey } from '../config/relics';
 import type { TraitId } from '../config/traits';
 import type { BlessingId, FeatureKind, Rect, RegionId, WingId } from '../config/regions';
 import type { UtilityUpgradeId } from '../config/utility';
@@ -45,6 +45,7 @@ export interface RelicOffer {
   from: RelicSource;
   options: RelicId[];
   rerolls: number;
+  duo?: DuoId; // v0.7 A5: a ready duo, the gold fourth card
 }
 
 /**
@@ -68,7 +69,7 @@ export interface RelicState {
   totals: RelicTotals; // static + dynamic, soft-capped: what went into p.mods this tick (the stats panel reads it)
   dirty: boolean;
   sets: Partial<Record<FamilyId, { count: number; straight: number; level: 0 | 2 | 4 | 6; strength: number }>>; // family counts and set levels, rebuilt with the mods
-  duos: [FamilyId, FamilyId][]; // v0.7 A5: the families of every formed duo (a duo counts for both)
+  duos: DuoId[]; // v0.7 A5: formed duos, in order (a duo counts toward both its families)
 }
 
 export interface Mods {
@@ -305,7 +306,7 @@ export interface Projectile extends Body {
   hit: Enemy[];
   status: Status | null;
   source: DamageSource;
-  by?: RelicId; // v0.7: fired by this relic (its damage is credited to it)
+  by?: RelicKey; // v0.7: fired by this relic or duo (its damage is credited to it)
   dtype: DamageType;
 }
 
@@ -341,7 +342,7 @@ export interface Field extends Body {
   tickT: number;
   dtype: DamageType;
   apply: StatusApply | null; // put on whoever stands in it, every tick
-  by?: RelicId; // v0.7: laid by this relic (its damage is credited to it)
+  by?: RelicKey; // v0.7: laid by this relic or duo (its damage is credited to it)
 }
 
 export interface Pickup {

@@ -538,3 +538,4 @@ canvas#game { touch-action: none; }
 .card .fam-line { font-size: 13px; margin-top: 4px; }
 .relic .att { position: absolute; left: 4px; right: 4px; bottom: 3px; height: 3px; border-radius: 2px; background: rgba(42, 29, 16, 0.35); overflow: hidden; }
 .relic .att::after { content: ''; position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--att, 0)); background: var(--gold); transition: transform 0.4s; }
+.relic.duo { border-color: #c9a227; box-shadow: 0 0 0 2px #f2c94c inset, 0 0 10px rgba(242, 201, 76, 0.6); } /* v0.7 A5 */

@@ -1,6 +1,8 @@
-import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
+import { DUOS, FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
+import type { Enemy } from '../../core/types';
+import { relicContext } from '../relicContext';
 import { applyStatus, damageEnemy } from '../combat';
-import { awakened, bonus, credit, fullArmorStacks, gainArmorStacks, nOf, nova, relicDamage, relicHeal, sOf, strength, type RelicHooks } from '../relicCore';
+import { awakened, bonus, credit, fullArmorStacks, gainArmorStacks, hasDuo, nOf, nova, relicDamage, relicHeal, sOf, strength, strike, type RelicHooks } from '../relicCore';
 
 /**
  * 🛡️ Steel (RELICS.md): armor stacks, block and thorns. Relics block hits (combat.damagePlayer's onIncoming), throw damage back or build armor
@@ -51,7 +53,13 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const n = nOf(p, 'shockSigil');
       if (g.time < (g.vars.shockReady ?? 0)) return;
       g.vars.shockReady = g.time + n.cooldown;
-      const hit = nova(g, p.x, p.y, n.radius, relicDamage(p, n.damage), n.knockback, '#7ec8d8');
+      const rod = hasDuo(p, 'lightningRod') ? DUOS.lightningRod.n : null; // Lightning Rod: a strike on every enemy the shockwave hits
+      const strikeAt = (e: Enemy) => {
+        relicContext.acting = 'lightningRod';
+        strike(g, e.x, e.y, relicDamage(p, n.damage) * rod!.mult, rod!.radius);
+        relicContext.acting = 'shockSigil';
+      };
+      const hit = nova(g, p.x, p.y, n.radius, relicDamage(p, n.damage), n.knockback, '#7ec8d8', 'physical', rod ? strikeAt : undefined);
       if (awakened(p, 'shockSigil')) gainArmorStacks(g, p, hit); // Quake Plate
     },
   },

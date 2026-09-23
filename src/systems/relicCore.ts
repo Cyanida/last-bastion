@@ -1,5 +1,5 @@
 import { STATUSES, type DamageType } from '../config/damage';
-import { ATTUNEMENT, FAMILIES, RELIC_DAMAGE_PER_LEVEL, RELIC_MAX_TIER, RELIC_STACKING, RELICS, relicDef, relicN, type FamilyId, type RelicId, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, FAMILIES, keyColor, keyIcon, RELIC_DAMAGE_PER_LEVEL, RELIC_MAX_TIER, RELIC_STACKING, RELICS, relicN, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { TAU } from '../core/math';
 import type { Enemy, Game, Minion, Mods, Player } from '../core/types';
 import { createMinion } from '../entities/actors';
@@ -22,6 +22,7 @@ export const tierOf = (p: Player, id: RelicId): number => p.relics.tiers[id] ?? 
 export const has = (p: Player, id: RelicId): boolean => tierOf(p, id) > 0;
 export const nOf = (p: Player, id: RelicId) => relicN(id, tierOf(p, id));
 export const awakened = (p: Player, id: RelicId): boolean => tierOf(p, id) >= RELIC_MAX_TIER;
+export const hasDuo = (p: Player, id: DuoId): boolean => p.relics.duos.includes(id);
 /** The class's secondary stat: Faith, Rage, Grace, Soul Power, Focus. */
 export const sOf = (p: Player): number => p.stats.secondary;
 export const relicDamage = (p: Player, base: number): number => base * (1 + p.level * RELIC_DAMAGE_PER_LEVEL);
@@ -72,7 +73,7 @@ export function chainFrom(g: Game, p: Player, from: Enemy, amount: number, jumps
     line(g, at.x, at.y, next.x, next.y, FAMILIES.storm.color);
     damageEnemy(g, next, amount, crit, 0, 0, 'relic');
     each?.(next);
-    emit(g, 'onChain', { enemy: next });
+    emit(g, 'onChain', { enemy: next, from: at, amount });
     at = next;
   }
 }
@@ -114,6 +115,7 @@ export function gainWard(g: Game, p: Player, amount: number): void {
   const before = p.ward;
   p.ward = Math.min(Math.max(p.ward, wardMax(p)), p.ward + amount);
   if (relicContext.acting) credit(g, p, relicContext.acting, 'prevented', p.ward - before); // ward is damage it will stop
+  if (hasDuo(p, 'consecration') && p.ward - before >= 1) gainArmorStacks(g, p, 1); // Consecration
   ring(g, p.x, p.y, p.r + 14, FAMILIES.holy.color, 0.3);
 }
 
@@ -133,8 +135,8 @@ export const fullArmorStacks = (p: Player): boolean => p.armorStacks >= armorSta
 // ---------------------------------------------------------------- skeletons for any class
 
 /** Skeletons raised by relics and sets (tagged, so a family can count its own). */
-export const relicSkeletons = new WeakMap<Minion, RelicId | FamilyId>();
-export function raiseSkeleton(g: Game, p: Player, x: number, y: number, by: RelicId | FamilyId, o: { hp: number; damage: number; life: number }): Minion {
+export const relicSkeletons = new WeakMap<Minion, RelicKey | FamilyId>();
+export function raiseSkeleton(g: Game, p: Player, x: number, y: number, by: RelicKey | FamilyId, o: { hp: number; damage: number; life: number }): Minion {
   const m = createMinion(x, y, { hp: o.hp, damage: relicDamage(p, o.damage), speed: 165, attackCd: 0.7, life: o.life });
   relicSkeletons.set(m, by);
   g.minions.push(m);
@@ -142,7 +144,7 @@ export function raiseSkeleton(g: Game, p: Player, x: number, y: number, by: Reli
   ring(g, x, y, 30, FAMILIES.grave.color);
   return m;
 }
-export const skeletonsBy = (g: Game, by: RelicId | FamilyId): number => g.minions.filter((m) => relicSkeletons.get(m) === by).length;
+export const skeletonsBy = (g: Game, by: RelicKey | FamilyId): number => g.minions.filter((m) => relicSkeletons.get(m) === by).length;
 
 /** A cone in front of the player (Dragon's Tongue): every enemy within `range` and `arc` radians of `angle`. */
 export function cone(g: Game, p: Player, angle: number, range: number, arc: number): Enemy[] {
@@ -164,7 +166,7 @@ export type RelicHooks = { [K in EventName]?: (g: Game, ev: GameEvents[K], p: Pl
 };
 
 /** RELICS.md: credit a relic with what it did; `proc` also flashes its icon over the player (at most every 1.2 s per relic). */
-export function credit(g: Game, p: Player, id: RelicId, kind: 'damage' | 'healing' | 'prevented', amount: number, proc = false): void {
+export function credit(g: Game, p: Player, id: RelicKey, kind: 'damage' | 'healing' | 'prevented', amount: number, proc = false): void {
   if (!(amount > 0)) return;
   const s = (p.relics.stats[id] ??= { damage: 0, healing: 0, prevented: 0 });
   s[kind] += amount;
@@ -174,11 +176,11 @@ export function credit(g: Game, p: Player, id: RelicId, kind: 'damage' | 'healin
 }
 
 const RELIC_FLASH = 1.2;
-export function flash(g: Game, p: Player, id: RelicId): void {
+export function flash(g: Game, p: Player, id: RelicKey): void {
   const key = `flash.${id}`;
   if (g.time - (g.vars[key] ?? -99) < RELIC_FLASH) return;
   g.vars[key] = g.time;
-  floatText(g, p.x + (g.rng() - 0.5) * 30, p.y - p.r - 34, relicDef(id).icon, FAMILIES[relicDef(id).family].color, 15);
+  floatText(g, p.x + (g.rng() - 0.5) * 30, p.y - p.r - 34, keyIcon(id), keyColor(id), 15);
 }
 
 /** Healing from relics passes a soft cap per wave (a share of max HP): sustain relics add up, then each heals less. */
@@ -193,7 +195,7 @@ export function relicHeal(g: Game, p: Player, amount: number, show = false): num
 }
 
 /** Each held relic's raw bonus per mod key this tick (static mods plus conditional bonuses): the weights for sharing out a total. */
-export const rawBy = new WeakMap<Player, Partial<Record<RelicId, Partial<Record<keyof Mods, number>>>>>();
+export const rawBy = new WeakMap<Player, Partial<Record<RelicKey, Partial<Record<keyof Mods, number>>>>>();
 /** A tick hook's conditional bonus (a charge, a count, a missing-HP bonus): it joins the held relics' plain mods at face value. */
 export function bonus(p: Player, key: keyof Mods, amount: number): void {
   if (!amount) return;

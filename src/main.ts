@@ -413,7 +413,7 @@ function openMerchant(g: Game): void {
   );
 }
 
-const buildOf = (g: Game) => ({ relics: g.player.relics.held, tiers: g.player.relics.tiers, attune: g.player.relics.attune, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait, sacred: sacredLines(g), evolutions: g.evolutions });
+const buildOf = (g: Game) => ({ relics: g.player.relics.held, tiers: g.player.relics.tiers, attune: g.player.relics.attune, duos: g.player.relics.duos, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait, sacred: sacredLines(g), evolutions: g.evolutions });
 
 /** v0.5: the sacred treasure carried, and what this run has done for the class's chain so far (pause and results). */
 function sacredLines(g: Game): { name: string; desc: string }[] {

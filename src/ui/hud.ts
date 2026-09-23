@@ -4,12 +4,12 @@ import { SKILL } from '../config/game';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
-import { FAMILIES, FAMILY_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, type FamilyId, type RelicId } from '../config/relics';
+import { DUOS, FAMILIES, FAMILY_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, type FamilyId, type RelicId } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
 import { STAT_KEYS, type Enemy, type Game, type Mods, type Quest, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
 import { actName } from '../logic/acts';
-import { familySets, softCap, type RelicModTotal } from '../logic/relics';
+import { duoFamilies, familySets, softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
@@ -17,7 +17,7 @@ import { describeUtility, utilityDef, utilityUnlocked } from '../systems/utility
 import { UTILITY } from '../config/utility';
 import { QUESTS, REWARDS } from '../config/quests';
 import { questProgress } from '../logic/quests';
-import { esc, relicTip, setRecipeBuild, tierBadge } from './relicText';
+import { duoTip, esc, relicTip, setRecipeBuild, tierBadge } from './relicText';
 
 /** Tooltip for the enemy under the pointer (hover, or a tap on touch): what it is, what hurts it, what is on it. */
 export function updateInspect(e: Enemy | null, x: number, y: number): void {
@@ -187,7 +187,7 @@ export function updateHud(g: Game): void {
 
   // relic bar: one row of the newest relics that fit, older ones behind a "+N" chip (hover or tap); tap or hover a relic for its tooltip.
   // Rebuilt only when the set changes (or the window is resized).
-  const relicKey = `${g.player.relics.held.map((id) => `${id}${g.player.relics.tiers[id]}`).join(',')}|${g.player.talents.length}|${g.evolutions.length}|${g.player.upgrades.length}|${g.player.utilityUpgrades.length}`; // v0.6: recipes change the tooltips too
+  const relicKey = `${g.player.relics.held.map((id) => `${id}${g.player.relics.tiers[id]}`).join(',')}|${g.player.relics.duos.join(',')}|${g.player.talents.length}|${g.evolutions.length}|${g.player.upgrades.length}|${g.player.utilityUpgrades.length}`; // v0.6: recipes change the tooltips too
   if (relicKey !== lastRelicKey) {
     lastRelicKey = relicKey;
     lastAttKey = ''; // new tiles: draw their attunement bars again
@@ -201,9 +201,10 @@ export function updateHud(g: Game): void {
     const fit = Math.max(3, Math.min(8, Math.floor((innerWidth / 2 - (document.documentElement.classList.contains('compact') ? 140 : 300)) / 50)));
     const older = g.player.relics.held.length > fit ? g.player.relics.held.slice(0, g.player.relics.held.length - fit) : [];
     const more = older.length ? `<div class="relic more" tabindex="0">+${older.length}<div class="hud-pop hud-plate">${older.map(tile).join('')}</div></div>` : '';
-    html('h-relics', more + g.player.relics.held.slice(older.length).map(tile).join(''));
+    const duos = g.player.relics.duos.map((d) => `<div class="relic duo" tabindex="0" data-tip="${esc(duoTip(d))}">${DUOS[d].icon}</div>`).join(''); // v0.7 A5
+    html('h-relics', more + g.player.relics.held.slice(older.length).map(tile).join('') + duos);
     // v0.7: the family row: icon and count per family held; a reached threshold (2, 4, 6) lights up, and flashes when it is new
-    const sets = familySets(g.player.relics.held, g.player.relics.duos);
+    const sets = familySets(g.player.relics.held, duoFamilies(g.player.relics.duos));
     html('h-families', FAMILY_IDS.filter((f) => sets[f]).map((f) => {
       const st = sets[f]!;
       const fam = FAMILIES[f];

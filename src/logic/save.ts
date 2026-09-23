@@ -11,7 +11,7 @@ import { ACTS } from '../config/acts';
 import { BUILDING_IDS, BUILDINGS, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
 import type { EnemyId } from '../config/enemies';
 import type { QualitySetting } from '../config/game';
-import type { RelicId } from '../config/relics';
+import { DUO_IDS, type DuoId, type RelicId } from '../config/relics';
 import { TRAIT_IDS, type TraitId } from '../config/traits';
 import { TREASURE_RULES } from '../config/treasures';
 import { curseMultiplier } from './curses';
@@ -115,6 +115,7 @@ export interface Save {
   contracts: ContractState; // v0.6: the weekly contracts' progress (a new week starts from nothing)
   refund: { gold: number; runes: number } | null; // v0.6: what the Keep's rework handed back, shown once in the Keep
   evolutions: EvolutionId[]; // v0.6: evolutions ever taken (the compendium shows their recipes in full)
+  duos: DuoId[]; // v0.7: duos ever formed (the compendium shows them in full)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
   settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
 }
@@ -156,6 +157,7 @@ export interface RunSummary {
   log?: RunLog; // v0.6: the run's timeline, for Run History
   won?: boolean; // v0.6: the Usurper fell
   evolutions?: EvolutionId[]; // v0.6: taken this run
+  duos?: DuoId[]; // v0.7: formed this run
   endlessScore?: number; // v0.6: 0 unless the run went on into Endless
 }
 
@@ -185,6 +187,7 @@ export function defaultSave(): Save {
     runs: [],
     refund: null,
     evolutions: [],
+    duos: [],
     wins: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     oaths: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     contracts: { week: '', progress: Array(CONTRACTS_PER_WEEK).fill(0) },
@@ -273,6 +276,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
       }
     }
     if (Array.isArray(raw.evolutions)) save.evolutions = EVOLUTION_IDS.filter((id) => (raw.evolutions as unknown[]).includes(id));
+    if (Array.isArray(raw.duos)) save.duos = DUO_IDS.filter((id) => (raw.duos as unknown[]).includes(id));
     if (Array.isArray(raw.runs)) save.runs = keepRuns(raw.runs.map(readRunLog).filter((r): r is RunLog => r !== null));
     if (isObj(raw.daily)) for (const [day, wave] of Object.entries(raw.daily)) if (/^\d{4}-\d{2}-\d{2}$/.test(day) && num(wave) > 0) save.daily[day] = num(wave);
     if (isObj(raw.settings)) {
@@ -407,6 +411,7 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
       oaths: oathKept ? { ...save.oaths, [run.classId]: oathKept } : save.oaths,
       contracts: contracts.state,
       evolutions: EVOLUTION_IDS.filter((id) => save.evolutions.includes(id) || run.evolutions?.includes(id)),
+      duos: DUO_IDS.filter((id) => save.duos.includes(id) || run.duos?.includes(id)),
       endless: { ...save.endless, [run.classId]: board },
       counters: {
         ...feats,

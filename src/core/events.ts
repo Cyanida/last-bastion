@@ -1,4 +1,4 @@
-import type { RelicId } from '../config/relics';
+import type { DuoId, RelicId } from '../config/relics';
 import type { DamageSource, Enemy, Game } from './types';
 
 /**
@@ -19,10 +19,11 @@ export interface GameEvents {
   onBlock: { amount: number; attacker: Enemy | null }; // a hit blocked (Steel)
   onHeal: { amount: number; over: number }; // HP restored, and what went past full (Holy's Radiance)
   onFreeze: { enemy: Enemy }; // chill tipped over into a freeze
-  onChain: { enemy: Enemy }; // a chain jumped to this enemy (Storm)
+  onChain: { enemy: Enemy; from: Enemy; amount: number }; // a chain jumped from `from` to `enemy` for `amount` (Storm)
   onRevive: Record<string, never>; // a revive charge was spent (Phoenix Feather's Rebirth)
   onRelicTier: { id: RelicId; tier: number }; // A4: attunement raised a relic a tier (the hook for the 0.7.1 stinger)
   onWaveCleared: { wave: number };
+  onDuoFormed: { id: DuoId }; // A5: a duo was taken (the run log; a stinger in 0.7.1)
 }
 export type EventName = keyof GameEvents;
 export type Handlers = { [K in EventName]?: (g: Game, ev: GameEvents[K]) => void };

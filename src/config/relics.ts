@@ -309,3 +309,36 @@ export const relicDesc = (id: RelicId, tier: number): string => {
 
 /** The families this class prefers (it can max them with straight pieces), in the order of FAMILY_IDS. */
 export const preferredFamilies = (classId: ClassId): FamilyId[] => FAMILY_IDS.filter((f) => (FAMILIES[f].preferredBy as readonly ClassId[]).includes(classId));
+
+/**
+ * v0.7 A5 duo relics (RELICS.md): hold both source relics (of two families) and a relic moment offers the duo as a gold fourth card that
+ * takes the pick. A formed duo counts toward both families; each source relic feeds at most one formed duo. Effects: systems/relicFamilies/duos.ts.
+ */
+export interface DuoDef { name: string; icon: string; families: [FamilyId, FamilyId]; from: [RelicId, RelicId]; desc: string; n: Record<string, number> }
+const duo = (name: string, icon: string, families: [FamilyId, FamilyId], from: [RelicId, RelicId], desc: string, n: Record<string, number> = {}): DuoDef => ({ name, icon, families, from, desc, n });
+export const DUOS = {
+  thermalShock: duo('Thermal Shock', '♨️', ['flame', 'frost'], ['brimstoneOil', 'frostBrand'], 'A burning enemy that freezes takes the rest of its burn damage twice, at once.', { mult: 2 }),
+  wildfire: duo('Wildfire', '🌋', ['flame', 'storm'], ['emberheart', 'stormPennant'], 'Chains copy the burn stacks of the enemy they jump from.'),
+  boilingBlood: duo('Boiling Blood', '🫕', ['flame', 'blood'], ['salamanderScale', 'serratedEdge'], 'Enemies that burn and bleed take both ticks 50% faster.', { faster: 0.5, every: 0.5 }),
+  funeralPyre: duo('Funeral Pyre', '🪦', ['flame', 'grave'], ['dragonsTongue', 'gravediggersSpade'], 'Fire that touches a corpse detonates it (a Pyre explosion).', { touch: 40, damage: 40, every: 0.5 }),
+  hailstorm: duo('Hailstorm', '🌪️', ['frost', 'storm'], ['everfrostCrown', 'thunderDrum'], 'Chains chill; a chain that hits a frozen enemy jumps twice more.', { chill: 1, jumps: 2, range: 170 }),
+  rimeDead: duo('Rime Dead', '🧟', ['frost', 'grave'], ['wintersGrasp', 'soulLantern'], "Skeletons' hits chill, and frozen enemies you kill rise as skeletons (up to 4).", { chill: 1, max: 4, hp: 50, damage: 10, life: 15 }),
+  glacierPlate: duo('Glacier Plate', '🏔️', ['frost', 'steel'], ['shatterglass', 'towerShield'], 'A block freezes the attacker.', { freeze: 1.5 }),
+  redLightning: duo('Red Lightning', '💢', ['storm', 'blood'], ['tempestEye', 'butchersHook'], 'Chains add a bleed stack, and a crit on a bleeding enemy chains to two more enemies.', { bleed: 1, power: 0.1, jumps: 2, mult: 0.5, range: 170 }),
+  lightningRod: duo('Lightning Rod', '🗼', ['storm', 'steel'], ['stormcallersHorn', 'shockSigil'], 'The shockwave calls a lightning strike on every enemy it hits.', { mult: 0.6, radius: 50 }),
+  martyrsCovenant: duo("Martyr's Covenant", '📜', ['blood', 'holy'], ['bloodPact', 'guardiansAegis'], '30% of the damage you take comes back as ward over 3 s.', { share: 0.3, over: 3 }),
+  requiem: duo('Requiem', '🎼', ['holy', 'grave'], ['haloOfMercy', 'deathmask'], 'Cursed enemies always drop a mercy orb.'),
+  consecration: duo('Consecration', '⛪', ['holy', 'steel'], ['rallyBanner', 'thornMail'], 'Ward you gain also gives an armor stack, and a block heals 2% of your max HP.', { heal: 0.02 }),
+} satisfies Record<string, DuoDef>;
+export type DuoId = keyof typeof DUOS;
+export const DUO_IDS = Object.keys(DUOS) as DuoId[];
+export const DUO_COLOR = '#f2c94c';
+/** Anything that does relic work: a relic or a duo (credit, contribution, proc icons). */
+export type RelicKey = RelicId | DuoId;
+export const isDuo = (k: RelicKey): k is DuoId => k in DUOS;
+export const keyName = (k: RelicKey): string => (isDuo(k) ? DUOS[k].name : relicDef(k).name);
+export const keyIcon = (k: RelicKey): string => (isDuo(k) ? DUOS[k].icon : relicDef(k).icon);
+export const keyColor = (k: RelicKey): string => (isDuo(k) ? DUO_COLOR : FAMILIES[relicDef(k).family].color);
+/** The duo a relic is a source of (every source relic is in exactly one recipe). */
+export const duoOf = (id: RelicId): DuoId | undefined => DUO_IDS.find((d) => DUOS[d].from.includes(id));
+

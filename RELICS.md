@@ -133,6 +133,19 @@ mostly relics whose condition was not met (Glacial Heart, Rally Banner at full H
 Measured with the bot (maxed saves, one seed per class, 40 waves): a relic picked in Act I reaches tier II at wave 15/20/22 (p25/median/p75) and
 tier III at wave 25/28/33; one picked in Act II needs 7/10/13 waves to tier II. A8 tunes the rates with the full sim.
 
+## A5 · Duo relics (built)
+
+The 12 duos below live in `DUOS` (`config/relics.ts`), their effects in `systems/relicFamilies/duos.ts` (Lightning Rod in the Shockwave Sigil,
+Consecration's ward half in `gainWard`). A duo is **ready** when both source relics are held, neither feeds a formed duo and it is not formed
+yet; ready duos queue in the order they completed. Each relic moment carries at most one, the first ready duo not already on a queued moment,
+as a gold fourth card that takes the pick; a skipped duo comes back at the next moment, and a ready duo makes a moment even with nothing left to
+find. A formed duo counts toward both families (a 6 completed with it works at 125%), shows in the HUD, the pause screen and the Relics results
+(its damage and healing credited to it), lands in the run log and emits `onDuoFormed`. The pick screen says when a relic would complete a duo;
+relic tooltips name their duo; the compendium shows each recipe as a hint until the duo is formed once (`save.duos`).
+
+First measure (the first-pick bot, maxed saves, 10 runs): 2.5 duos a run, 3 or more in 5 of 10, above the target (1-2, 3+ under 15%). That bot
+holds ~22 relics by wave 40 and takes every duo; A8 measures with the family-following bot and, if it stays high, offers fewer duos (no cap).
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
@@ -276,7 +289,7 @@ source relic can feed only one formed duo.
 | **Hailstorm** | Frost + Storm | Everfrost Crown + Thunder Drum | Chains chill; a chain that hits a frozen enemy jumps twice more |
 | **Rime Dead** | Frost + Grave | Winter's Grasp + Soul Lantern | Skeletons' hits chill, and frozen enemies you kill rise as skeletons |
 | **Glacier Plate** | Frost + Steel | Shatterglass + Tower Shield | A block freezes the attacker |
-| **Red Lightning** | Storm + Blood | Tempest Eye + Butcher's Hook | Chains add a bleed stack, and crits on bleeding enemies always chain |
+| **Red Lightning** | Storm + Blood | Tempest Eye + Butcher's Hook | Chains add a bleed stack, and a crit on a bleeding enemy chains to two more enemies (built: Tempest Eye already chains every crit, so "always chain" gave nothing) |
 | **Lightning Rod** | Storm + Steel | Stormcaller's Horn + Shockwave Sigil | The shockwave calls a lightning strike on every enemy it hits |
 | **Martyr's Covenant** | Blood + Holy | Blood Pact + Guardian's Aegis | 30% of the damage you take comes back as ward over 3 s |
 | **Requiem** | Holy + Grave | Halo of Mercy + Deathmask | Cursed enemies always drop a mercy orb |

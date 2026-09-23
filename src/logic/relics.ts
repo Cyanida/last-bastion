@@ -1,5 +1,5 @@
 import type { ClassId } from '../config/classes';
-import { ATTUNEMENT, DUO_SIX_STRENGTH, FAMILY_IDS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type FamilyId, type RelicId, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, DUO_IDS, DUO_SIX_STRENGTH, DUOS, FAMILY_IDS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng } from '../core/types';
 import { mulberry32 } from '../core/math';
@@ -17,13 +17,26 @@ export const emptyRelics = (): RelicState => ({
 export type RelicTiers = Partial<Record<RelicId, number>>;
 
 /** A4: attunement a relic earns by doing its work, up to ATTUNEMENT.workCap a wave (the tier-up itself happens in systems/relics updateRelics). */
-export function addWork(r: RelicState, id: RelicId, amount: number): void {
+export function addWork(r: RelicState, key: RelicKey, amount: number): void {
+  const id = key as RelicId; // a duo is never held: it has no tiers and does not attune
   if (!r.held.includes(id) || (r.tiers[id] ?? 0) >= RELIC_MAX_TIER) return;
   const add = Math.min(amount, ATTUNEMENT.workCap - (r.work[id] ?? 0));
   if (!(add > 0)) return;
   r.work[id] = (r.work[id] ?? 0) + add;
   r.attune[id] = (r.attune[id] ?? 0) + add;
 }
+/**
+ * v0.7 A5: duos ready to be offered: both source relics held, neither feeding a formed duo, not formed yet; the first completed first (by when
+ * its second source relic was taken).
+ */
+export function readyDuos(r: Pick<RelicState, 'held' | 'duos'>): DuoId[] {
+  const used = new Set<RelicId>(r.duos.flatMap((d) => DUOS[d].from));
+  const done = (d: DuoId) => Math.max(...DUOS[d].from.map((id) => r.held.indexOf(id)));
+  return DUO_IDS.filter((d) => !r.duos.includes(d) && DUOS[d].from.every((id) => r.held.includes(id) && !used.has(id))).sort((a, b) => done(a) - done(b));
+}
+/** The two families of every formed duo, for familySets. */
+export const duoFamilies = (duos: DuoId[]): [FamilyId, FamilyId][] => duos.map((d) => DUOS[d].families);
+
 /** A4: attunement every held relic below the top tier gains (a wave cleared, an elite killed). */
 export function attuneAll(r: RelicState, amount: number): void {
   for (const id of r.held) if ((r.tiers[id] ?? 0) < RELIC_MAX_TIER) r.attune[id] = (r.attune[id] ?? 0) + amount;

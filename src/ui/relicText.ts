@@ -1,5 +1,5 @@
 import { CLASSES } from '../config/classes';
-import { FAMILIES, RELIC_MAX_TIER, relicDef, relicDesc, TIER_NUMERALS, type RelicId } from '../config/relics';
+import { duoOf, DUOS, FAMILIES, isDuo, RELIC_MAX_TIER, relicDef, relicDesc, TIER_NUMERALS, type DuoId, type RelicId, type RelicKey } from '../config/relics';
 import { EVOLUTIONS } from '../config/evolutions';
 import { nearlyReady, requirementNames, requirementText, type BuildState } from '../logic/evolutions';
 
@@ -27,9 +27,19 @@ export function relicTip(id: RelicId, tier: number, held: RelicId[] = []): strin
   if (tier < 2) lines.push(`Tier II: ${relicDesc(id, 2)}`);
   if (tier < RELIC_MAX_TIER) lines.push(`Awakens at tier III, ${r.awaken.name}: ${r.awaken.desc}`);
   lines.push(`${fam.name} (${fam.mechanic}), ${count} held: ${([2, 4, 6] as const).map((n) => `${n} ${fam.sets[n][0]}`).join(' · ')}`);
+  const duo = duoOf(id);
+  if (duo) lines.push(`Duo: with ${relicDef(DUOS[duo].from.find((s) => s !== id)!).name} it forms ${DUOS[duo].icon} ${DUOS[duo].name}`);
   lines.push(...recipeLines({ relic: id }));
   return lines.join('\n');
 }
+
+/** v0.7 A5: a duo's tooltip: its families, sources and effect. */
+export function duoTip(id: DuoId): string {
+  const d = DUOS[id];
+  return [`${d.name} · duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}`, d.desc, `From ${d.from.map((r) => relicDef(r).name).join(' + ')}; counts toward both families.`].join('\n');
+}
+/** A relic's or a duo's tooltip. */
+export const keyTip = (id: RelicKey, tier: number, held: RelicId[] = []): string => (isDuo(id) ? duoTip(id) : relicTip(id, tier, held));
 
 export const tierBadge = (tier: number): string => (tier > 1 ? `<i class="tier">${TIER_NUMERALS[tier]}</i>` : '');
 
