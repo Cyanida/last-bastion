@@ -41,7 +41,7 @@ export const VICTORY = {
 export type MetaId =
   | 'hp' | 'moveSpd' | 'traitSlot' | 'startRelic' | 'banish' // Armory (v0.6: str, dex, int and atkSpd became the three sidegrades)
   | 'classXp' | 'utilityCd' | 'startLevel' // Barracks
-  | 'relicChance' | 'relicSlot' | 'salvage' // Chapel (relicSlot became the tier III vault in v0.4)
+  | 'relicChance' | 'relicSlot' | 'salvage' // Chapel (v0.7: relicChance = rerolls at relic moments, relicSlot = a fourth boss option)
   | 'talentPoint' | 'rerolls' | 'xp' // Library
   | 'startGold' | 'pickup' | 'goldIncome' | 'runeIncome' | 'dailyCap' // Treasury
   | 'curseBonus' | 'eliteGold' | 'bossGold'; // Watchtower
@@ -74,8 +74,8 @@ export const META: Record<MetaId, MetaDef> = {
   utilityCd: { name: 'Sparring Ring', desc: 'Utility ability recharges 5% faster per rank', max: 3, baseCost: 240, growth: 1.8, perRank: 0.05, runesFrom: 2, runeCost: 1 },
   startLevel: { name: 'Veteran Levies', desc: 'Start every run one level higher', max: 1, baseCost: 800, growth: 2, perRank: 1, runesFrom: 1, runeCost: 2 },
 
-  relicChance: { name: 'Reliquary Guard', desc: 'Elites drop relics 10% more often per rank', max: 3, baseCost: 190, growth: 1.8, perRank: 0.1 },
-  relicSlot: { name: 'Reliquary Vault', desc: 'Relics can be raised to tier III', max: 1, baseCost: 1440, growth: 1, perRank: 1, runesFrom: 0, runeCost: 4 },
+  relicChance: { name: 'Reliquary Guard', desc: 'One more reroll at every relic moment per rank', max: 2, baseCost: 190, growth: 1.8, perRank: 1 }, // v0.7: was elite relic drops (max 3; the third rank is refunded)
+  relicSlot: { name: 'Reliquary Vault', desc: 'Wave bosses offer a fourth relic to choose from', max: 1, baseCost: 1440, growth: 1, perRank: 1, runesFrom: 0, runeCost: 4 },
   salvage: { name: 'Smelter', desc: 'Salvage yields 50% more shards per rank', max: 2, baseCost: 320, growth: 2, perRank: 0.5 },
 
   talentPoint: { name: 'Lectern', desc: 'Start every run with one talent point per rank', max: 2, baseCost: 640, growth: 2, perRank: 1, runesFrom: 1, runeCost: 2 },

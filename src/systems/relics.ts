@@ -111,7 +111,7 @@ addListener((g, name, ev) => {
   }
   // v0.7: every wave boss is a relic moment (a lair's boss is the lair's moment; the Usurper ends the run)
   const slain = name === 'onKill' ? (ev as GameEvents['onKill']).enemy : null;
-  if (slain?.def.boss && !slain.side && slain.def.id !== 'usurper') offerRelics(g, undefined, 'boss');
+  if (slain?.def.boss && !slain.side && slain.def.id !== 'usurper') offerRelics(g, BOSS_RELIC_CHOICES + (g.vars['keep.bossChoices'] ?? 0), 'boss'); // + the Reliquary Vault
 });
 
 /**
@@ -259,8 +259,8 @@ export function relicShares(g: Game, p: Player = g.player): { id: RelicKey; tier
   }).sort((a, b) => Math.max(b.damage, b.healing, b.mitigation) - Math.max(a.damage, a.healing, a.mitigation));
 }
 
-/** Rerolls a moment starts with: the base, the Cursed Luck trait, the Elite path's Act. */
-export const momentRerolls = (g: Game): number => RELIC_MOMENTS.rerolls + (g.vars['trait.rerolls'] ?? 0) + (g.route?.focus === 'elite' ? ROUTES.elite.rerolls : 0);
+/** Rerolls a moment starts with: the base, the Cursed Luck trait, the Keep's Reliquary Guard, the Elite path's Act. */
+export const momentRerolls = (g: Game): number => RELIC_MOMENTS.rerolls + (g.vars['trait.rerolls'] ?? 0) + (g.vars['keep.relicRerolls'] ?? 0) + (g.route?.focus === 'elite' ? ROUTES.elite.rerolls : 0);
 
 function roll(p: Player, pool: RelicId[], n: number): RelicId[] {
   const r = p.relics;

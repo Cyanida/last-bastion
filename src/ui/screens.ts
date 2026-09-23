@@ -312,7 +312,7 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
     <div class="panel dialog wide keep">
       <h1 class="small">The Keep</h1>
       <p class="sub">Treasury: <b>🪙 ${save.gold}</b> · <b>◆ ${save.runes}</b> Runes${save.runeShards ? ` <span class="dim">(${save.runeShards}/${RUNES.shardsPerRune} shards)</span>` : ''} — gold buys ranks, Runes (from Act bosses, quests and deeds) raise buildings and the top ranks</p>
-      ${save.refund ? `<p class="hint"><b>The Keep was rebuilt for v0.6:</b> the Armory's damage drills became new ways to start a run, and the top ranks of a few tracks were cut. What those ranks cost came back: <b>🪙 ${save.refund.gold}${save.refund.runes ? ` and ◆ ${save.refund.runes}` : ''}</b>.</p>` : ''}
+      ${save.refund ? `<p class="hint">${(save.refund.version ?? 'v0.6').split(',').map((v) => REFUND_NOTES[v] ?? '').join(' ')} What those ranks cost came back: <b>🪙 ${save.refund.gold}${save.refund.runes ? ` and ◆ ${save.refund.runes}` : ''}</b>.</p>` : ''}
       <div class="buildings">${BUILDING_IDS.map(building).join('')}</div>
       <h2>Class mastery · account level ${level}</h2>
       <p class="hint">Earned by playing a class: waves cleared, bosses slain, levels gained, times the difficulty tier. Every rank unlocks something; tap a class for its track.
@@ -579,6 +579,11 @@ export function showLevelUp(
   numberKeys(el, (a) => a === 'reroll' && canReroll && on.reroll());
 }
 
+/** Why the Keep handed something back, per rework (save.refund.version). */
+const REFUND_NOTES: Record<string, string> = {
+  'v0.6': "<b>The Keep was rebuilt for v0.6:</b> the Armory's damage drills became new ways to start a run, and the top ranks of a few tracks were cut.",
+  'v0.7': "<b>The Chapel changed with v0.7's relics:</b> Reliquary Guard now gives rerolls at relic moments (two ranks at most), the Reliquary Vault a fourth choice at wave bosses; a third Guard rank is handed back.",
+};
 const RELIC_SOURCE_NAMES: Record<RelicSource, string> = { boss: 'a boss', lair: 'a lair', strongbox: 'a strongbox', quest: 'a quest', merchant: 'the Merchant', start: 'the start', other: '-' };
 const MOMENT_TITLES: Record<RelicSource, string> = { boss: 'Spoils of the fallen', lair: "The lair's hoard", strongbox: 'A strongbox', quest: 'A reward for your quest', merchant: "The merchant's pick", start: "The Armorer's choice", other: 'A relic' };
 
@@ -959,7 +964,7 @@ export function showCompendium(save: Save, onBack: () => void): void {
     const r = relicDef(id);
     const n = found(id);
     const who = r.classId ? ` · ${CLASSES[r.classId].name}` : '';
-    if (n === 0) return `<div class="card panel boon relic-card undiscovered" style="--fam:${FAMILIES[r.family].color}" data-tip="${esc(`Not found yet. A ${r.rarity} ${FAMILIES[r.family].name} relic${r.classId ? ` for the ${CLASSES[r.classId].name}` : ''}.`)}"><div class="relic-icon">?</div><h2>Unknown</h2><div class="tag">${r.rarity}${who}</div></div>`;
+    if (n === 0) return `<div class="card panel boon relic-card undiscovered" style="--fam:${FAMILIES[r.family].color}" data-tip="${esc(`Not found yet. A ${r.rarity} ${FAMILIES[r.family].name} relic${r.classId ? ` for the ${CLASSES[r.classId].name}` : ''}.`)}"><div class="relic-icon">?</div><h2>Unknown</h2><div class="tag">${r.rarity}${who}${save.newRelics.includes(id) ? ' · <b class="new">new in v0.7</b>' : ''}</div></div>`;
     const tiers = [1, 2].map((t) => `<div class="tierline"><b>${TIER_NUMERALS[t]}</b> ${relicDesc(id, t)}</div>`).join('');
     return `<div class="card panel boon relic-card ${r.rarity}" style="--fam:${FAMILIES[r.family].color}"><div class="relic-icon">${r.icon}</div><h2>${r.name}</h2><div class="tag">${r.rarity}${who} · found ${n}×</div>${tiers}<div class="tierline"><b>III</b> <em>${r.awaken.name}</em>: ${r.awaken.desc}</div></div>`;
   };

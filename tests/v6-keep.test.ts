@@ -22,7 +22,7 @@ describe('the Keep rework migration (v0.6)', () => {
     expect(s.meta).toEqual({ hp: META.hp.max, startLevel: 1, rerolls: 1 });
     expect(s.gold).toBe(100 + 3319);
     expect(s.runes).toBe(5 + 6);
-    expect(s.refund).toEqual({ gold: 3319, runes: 6 });
+    expect(s.refund).toEqual({ gold: 3319, runes: 6, version: 'v0.6' });
   });
 
   it('migrating a migrated save changes nothing (no second refund)', () => {

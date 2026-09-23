@@ -68,7 +68,7 @@ describe('weekly contract completion (v0.6)', () => {
   it('banking a run advances the contracts and pays their Runes with the run', () => {
     const date = '2026-09-23';
     const wk = weeklyContracts(weekKey(date));
-    const big: RunSummary = { classId: wk.find((k) => k.classId)?.classId ?? 'viking', tier: 0, wave: 40, wavesCleared: 40, kills: 5000, time: 2000, level: 30, gold: 0, bosses: Array(12).fill('dragon'), elites: 200, flawlessBosses: 0, relics: Array(9).fill('whetstone'), abilityUpgrades: 3, wave10Time: 300, quests: 9, commanders: 30, actsCleared: 4, evolutions: ['meteorArrow', 'stormVolley', 'huntersMark'] };
+    const big: RunSummary = { classId: wk.find((k) => k.classId)?.classId ?? 'viking', tier: 0, wave: 40, wavesCleared: 40, kills: 5000, time: 2000, level: 30, gold: 0, bosses: Array(12).fill('dragon'), elites: 200, flawlessBosses: 0, relics: Array(9).fill('frostBrand'), abilityUpgrades: 3, wave10Time: 300, quests: 9, commanders: 30, actsCleared: 4, evolutions: ['meteorArrow', 'stormVolley', 'huntersMark'] };
     const r = applyRun(defaultSave(), big, date);
     expect(r.contracts).toHaveLength(3);
     const quiet = applyRun(r.save, big, date);

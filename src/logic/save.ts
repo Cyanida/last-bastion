@@ -11,7 +11,8 @@ import { ACTS } from '../config/acts';
 import { BUILDING_IDS, BUILDINGS, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
 import type { EnemyId } from '../config/enemies';
 import type { QualitySetting } from '../config/game';
-import { DUO_IDS, type DuoId, type RelicId } from '../config/relics';
+import { DUO_IDS, RELIC_IDS, type DuoId, type RelicId } from '../config/relics';
+import { duoFamilies, familySets } from './relics';
 import { TRAIT_IDS, type TraitId } from '../config/traits';
 import { TREASURE_RULES } from '../config/treasures';
 import { curseMultiplier } from './curses';
@@ -19,8 +20,8 @@ import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, rune
 import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
 import { keepRuns, readRunLog, type RunLog } from './runlog';
 
-export const SAVE_VERSION = 5; // v0.6: the Keep's rework (refunds below)
-export const READABLE_VERSIONS = [2, 3, 4, 5]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
+export const SAVE_VERSION = 6; // v0.7: the relic rework (compendium, Keep refund and new counters below)
+export const READABLE_VERSIONS = [2, 3, 4, 5, 6]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
 
 /**
  * v0.6: Keep ranks that v0.5 sold and v0.6 took away or cut short: the Armory's four damage tracks, the top two ranks of HP and speed,
@@ -51,7 +52,7 @@ export function legacyRefund(meta: Record<string, unknown>): { gold: number; run
 }
 export const SAVE_KEY = 'lastbastion.save';
 /** v0.7: which game versions wrote a save format, for the backup list (Settings › Save data). */
-export const saveFormatLabel = (version: number): string => ({ 2: 'v0.2', 3: 'v0.3', 4: 'v0.4-v0.5', 5: 'v0.6' } as Record<number, string>)[version] ?? (version ? `save format ${version}` : 'unreadable');
+export const saveFormatLabel = (version: number): string => ({ 2: 'v0.2', 3: 'v0.3', 4: 'v0.4-v0.5', 5: 'v0.6', 6: 'v0.7' } as Record<number, string>)[version] ?? (version ? `save format ${version}` : 'unreadable');
 export const LEGACY_BEST_KEY = 'lastbastion.best'; // v0.1: { [classId]: bestWave }
 
 export interface ClassRecord {
@@ -96,6 +97,9 @@ export interface Save {
     goldEarned: number;
     flawlessBosses: number;
     maxRelics: number; // most relics held in one run
+    sixSets: number; // v0.7: runs that completed a family's 6-set
+    maxDuos: number; // v0.7: most duos formed in one run
+    maxAwakened: number; // v0.7: most relics awakened (tier III) in one run
     maxAbilityUpgrades: number;
     fastestWave10: number; // seconds, 0 = never
     bossKinds: EnemyId[];
@@ -113,7 +117,8 @@ export interface Save {
   wins: Record<ClassId, number>; // v0.6: times each class beat the Usurper
   oaths: Record<ClassId, number>; // v0.6: the highest Oath each class has kept (won under), 0 = none
   contracts: ContractState; // v0.6: the weekly contracts' progress (a new week starts from nothing)
-  refund: { gold: number; runes: number } | null; // v0.6: what the Keep's rework handed back, shown once in the Keep
+  refund: { gold: number; runes: number; version?: string } | null; // what a Keep rework handed back (v0.6, v0.7), shown once in the Keep
+  newRelics: RelicId[]; // v0.7: relics that arrived with the rework, marked new in the compendium until found
   evolutions: EvolutionId[]; // v0.6: evolutions ever taken (the compendium shows their recipes in full)
   duos: DuoId[]; // v0.7: duos ever formed (the compendium shows them in full)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
@@ -182,12 +187,13 @@ export function defaultSave(): Save {
     talentPoints: 0,
     treasures: Object.fromEntries(CLASS_ORDER.map((id) => [id, emptyTreasure()])) as Record<ClassId, TreasureRecord>,
     tierUnlocked: 0,
-    counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
+    counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, sixSets: 0, maxDuos: 0, maxAwakened: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
     daily: {},
     runs: [],
     refund: null,
     evolutions: [],
     duos: [],
+    newRelics: [],
     wins: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     oaths: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     contracts: { week: '', progress: Array(CONTRACTS_PER_WEEK).fill(0) },
@@ -198,7 +204,14 @@ export function defaultSave(): Save {
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const num = (v: unknown, fallback = 0) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback);
-const NUMERIC_COUNTERS = ['kills', 'bosses', 'elites', 'goldEarned', 'flawlessBosses', 'maxRelics', 'maxAbilityUpgrades', 'fastestWave10', 'commanders', 'actsCleared', 'cursedActs', 'dailies', 'quests', 'events', ...FEAT_KEYS] as const;
+const NUMERIC_COUNTERS = ['kills', 'bosses', 'elites', 'goldEarned', 'flawlessBosses', 'maxRelics', 'sixSets', 'maxDuos', 'maxAwakened', 'maxAbilityUpgrades', 'fastestWave10', 'commanders', 'actsCleared', 'cursedActs', 'dailies', 'quests', 'events', ...FEAT_KEYS] as const;
+
+/** v0.7: relics renamed in the rework (their compendium count moves over); every other v0.6 relic that is gone has no successor. */
+const RENAMED_RELICS: Record<string, RelicId> = { echoBell: 'thunderDrum', hawkeyeQuiver: 'galeforceQuiver' };
+/** v0.7: the relics a v0.6 player could already know (kept, or renamed onto): the rest are new to them. */
+const V06_RELICS: RelicId[] = ['vampireFang', 'thornMail', 'rallyBanner', 'stormPennant', 'shockSigil', 'frostBrand', 'brimstoneOil', 'serratedEdge', 'hexDoll', 'gravePact', 'bloodPact', 'phoenixFeather', 'soulLantern', 'reliquary', 'wolfskin', 'seraphHalo', 'boneChime', 'thunderDrum', 'galeforceQuiver'];
+/** v0.6's price of Reliquary Guard (it had 3 ranks). */
+const V06_GUARD = { baseCost: 190, growth: 1.8 };
 
 /** v0.4: achievements that became a tier of another one. Anything not listed keeps its id. */
 const RENAMED_ACHIEVEMENTS: Record<string, string> = { champion: 'knight:2', legend: 'knight:3' };
@@ -224,7 +237,14 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
         if (isObj(c)) save.classes[id] = { bestWave: num(c.bestWave), runs: num(c.runs), kills: num(c.kills), time: num(c.time), xp: num(c.xp) };
       }
     }
-    if (isObj(raw.relicPicks)) for (const [k, v] of Object.entries(raw.relicPicks)) save.relicPicks[k as RelicId] = num(v);
+    if (isObj(raw.relicPicks)) {
+      for (const [k, v] of Object.entries(raw.relicPicks)) {
+        const id = (RENAMED_RELICS[k] ?? k) as RelicId; // v0.7: kept relics keep their count, the two that were renamed move over
+        if (RELIC_IDS.includes(id)) save.relicPicks[id] = (save.relicPicks[id] ?? 0) + num(v);
+      }
+    }
+    if ((raw.version as number) < 6) save.newRelics = RELIC_IDS.filter((id) => !V06_RELICS.includes(id)); // v0.7: everything new is marked new
+    else if (Array.isArray(raw.newRelics)) save.newRelics = RELIC_IDS.filter((id) => (raw.newRelics as unknown[]).includes(id));
     save.runeShards = Math.max(0, Math.floor(num(raw.runeShards)));
     if (isObj(raw.buildings)) {
       for (const id of BUILDING_IDS) {
@@ -247,13 +267,16 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
     }
     // v3 -> v4: Runes did not exist; a save arriving from v0.3 is granted one per achievement earned (what the achievement tiers would have paid)
     save.runes = (raw.version as number) >= 4 ? Math.max(0, Math.floor(num(raw.runes))) : save.achievements.length;
-    // v4 -> v5 (v0.6): the Keep's removed and trimmed ranks are refunded at what they cost
-    if ((raw.version as number) < 5 && isObj(raw.meta)) {
-      const back = legacyRefund(raw.meta);
-      save.gold += back.gold;
+    // refunds at what the ranks cost: v4 -> v5 (v0.6) the Keep's removed and trimmed ranks; v5 -> v6 (v0.7) Reliquary Guard's third rank
+    const version = raw.version as number;
+    if (version < 6 && isObj(raw.meta)) {
+      const back = version < 5 ? legacyRefund(raw.meta) : { gold: 0, runes: 0 };
+      const guard = Math.floor(num(raw.meta.relicChance)) >= 3 ? Math.round(V06_GUARD.baseCost * Math.pow(V06_GUARD.growth, 2)) : 0;
+      save.gold += back.gold + guard;
       save.runes += back.runes;
-      if (back.gold || back.runes) save.refund = back;
-    } else if (isObj(raw.refund) && num(raw.refund.gold) + num(raw.refund.runes) > 0) save.refund = { gold: num(raw.refund.gold), runes: num(raw.refund.runes) };
+      const why = [back.gold || back.runes ? 'v0.6' : '', guard ? 'v0.7' : ''].filter(Boolean).join(',');
+      if (why) save.refund = { gold: back.gold + guard, runes: back.runes, version: why };
+    } else if (isObj(raw.refund) && num(raw.refund.gold) + num(raw.refund.runes) > 0) save.refund = { gold: num(raw.refund.gold), runes: num(raw.refund.runes), ...(typeof raw.refund.version === 'string' ? { version: raw.refund.version } : {}) };
     if (isObj(raw.contracts) && typeof raw.contracts.week === 'string' && Array.isArray(raw.contracts.progress)) {
       save.contracts = { week: raw.contracts.week, progress: Array.from({ length: CONTRACTS_PER_WEEK }, (_, i) => Math.max(0, num((raw.contracts as { progress: unknown[] }).progress[i]))) };
     }
@@ -421,6 +444,9 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
         goldEarned: c.goldEarned + run.gold,
         flawlessBosses: c.flawlessBosses + run.flawlessBosses,
         maxRelics: Math.max(c.maxRelics, run.relics.length),
+        sixSets: c.sixSets + (Object.values(familySets(run.relics, duoFamilies(run.duos ?? []))).some((st) => st!.level === 6) ? 1 : 0),
+        maxDuos: Math.max(c.maxDuos, run.duos?.length ?? 0),
+        maxAwakened: Math.max(c.maxAwakened, Object.values(run.relicTiers ?? {}).filter((t) => t === 3).length),
         maxAbilityUpgrades: Math.max(c.maxAbilityUpgrades, run.abilityUpgrades),
         fastestWave10: run.wave10Time > 0 && (c.fastestWave10 === 0 || run.wave10Time < c.fastestWave10) ? run.wave10Time : c.fastestWave10,
         bossKinds: [...new Set([...c.bossKinds, ...run.bosses])],

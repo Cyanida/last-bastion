@@ -143,21 +143,21 @@ export function startingStats(base: Stats, meta: MetaRanks, secondaryBonus: numb
 
 /** The non-stat part of the Keep: what a run starts with. */
 export function metaLoadout(meta: MetaRanks): {
-  gold: number; rerolls: number; relicSlots: number; relicTierCap: number; talentPoints: number; startLevel: number;
+  gold: number; rerolls: number; relicSlots: number; talentPoints: number; startLevel: number;
   traitSlots: number; startRelic: boolean; banishes: number; // v0.6 sidegrades
-  relicChance: number; salvageBonus: number; curseBonus: number; eliteGold: number; bossGold: number; goldIncome: number; dailyCap: number; mods: Partial<Mods>;
+  relicRerolls: number; bossChoices: number; salvageBonus: number; curseBonus: number; eliteGold: number; bossGold: number; goldIncome: number; dailyCap: number; mods: Partial<Mods>;
 } {
   return {
     gold: rank(meta, 'startGold') * META.startGold.perRank,
     rerolls: rank(meta, 'rerolls') * META.rerolls.perRank,
     relicSlots: rank(meta, 'relicSlot') * META.relicSlot.perRank,
-    relicTierCap: rank(meta, 'relicSlot') > 0 ? 3 : 2,
     talentPoints: rank(meta, 'talentPoint') * META.talentPoint.perRank,
     startLevel: rank(meta, 'startLevel') * META.startLevel.perRank,
     traitSlots: 1 + rank(meta, 'traitSlot'),
     startRelic: rank(meta, 'startRelic') > 0,
     banishes: rank(meta, 'banish') * META.banish.perRank,
-    relicChance: 1 + rank(meta, 'relicChance') * META.relicChance.perRank,
+    relicRerolls: rank(meta, 'relicChance') * META.relicChance.perRank, // v0.7 Reliquary Guard
+    bossChoices: rank(meta, 'relicSlot'), // v0.7 Reliquary Vault: options added at wave-boss moments
     salvageBonus: rank(meta, 'salvage') * META.salvage.perRank,
     curseBonus: rank(meta, 'curseBonus') * META.curseBonus.perRank,
     eliteGold: 1 + rank(meta, 'eliteGold') * META.eliteGold.perRank,

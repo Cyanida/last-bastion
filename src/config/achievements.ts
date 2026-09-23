@@ -115,6 +115,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // ---------------------------------------------------------------- collection
   { id: 'collector', name: 'Reliquarian', desc: 'Hold 6, 10 and 15 relics in a single run.', category: 'collection', tiers: tiers([6, 10, 15]), progress: (s) => s.counters.maxRelics },
   { id: 'curator', name: 'Curator', desc: 'Discover 10, 20 and 28 different relics.', category: 'collection', tiers: tiers([10, 20, 28], { 3: { palette: 3 } }), progress: (s) => relicPicks(s).filter((n) => n > 0).length },
+  { id: 'sixSet', name: 'Six of a Kind', desc: "Complete a family's 6-set in 1, 5 and 15 runs.", category: 'collection', tiers: tiers([1, 5, 15], { 3: { title: 'the Sixfold' } }), progress: (s) => s.counters.sixSets }, // v0.7
+  { id: 'duos', name: 'Bound in Pairs', desc: 'Form 1, 2 and 3 duos in one run.', category: 'collection', tiers: tiers([1, 2, 3]), progress: (s) => s.counters.maxDuos }, // v0.7
+  { id: 'awakening', name: 'The Awakening', desc: 'Awaken 1, 2 and 4 relics in one run.', category: 'collection', tiers: tiers([1, 2, 4], { 3: { title: 'the Awakener' } }), progress: (s) => s.counters.maxAwakened }, // v0.7
   { id: 'hoarder', name: 'Devoted', desc: 'Find the same relic 5, 15 and 30 times.', category: 'collection', tiers: tiers([5, 15, 30]), progress: (s) => top(relicPicks(s)) },
   { id: 'treasurer', name: 'Treasurer', desc: 'Bank 5,000, 25,000 and 100,000 gold in total.', category: 'collection', tiers: tiers([5000, 25000, 100000], { 1: { trait: 'scavenger' }, 3: { title: 'the Wealthy' } }), progress: (s) => s.counters.goldEarned, unlocks: { curse: 'swarm' } },
   { id: 'patron', name: 'Lord of the Keep', desc: 'Buy 15, 45 and 82 ranks of permanent upgrades.', category: 'collection', tiers: tiers([15, 45, 82], { 3: { title: 'Lord of the Keep', talentPoint: 1 } }), progress: (s) => META_IDS.reduce((n, id) => n + (s.meta[id] ?? 0), 0) },

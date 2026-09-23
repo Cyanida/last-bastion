@@ -146,6 +146,18 @@ relic tooltips name their duo; the compendium shows each recipe as a hint until 
 First measure (the first-pick bot, maxed saves, 10 runs): 2.5 duos a run, 3 or more in 5 of 10, above the target (1-2, 3+ under 15%). That bot
 holds ~22 relics by wave 40 and takes every duo; A8 measures with the family-following bot and, if it stays high, offers fewer duos (no cap).
 
+## A7 · Keep, achievements, migration (built)
+
+- **Keep (Chapel).** Reliquary Guard (elite relic drops, 3 ranks) now gives **one more reroll at every relic moment per rank**, 2 ranks at most;
+  a third rank is handed back at v0.6's price (616 gold) with a one-time notice in the Keep. The Reliquary Vault (tier III, which attunement
+  now gives everyone) becomes **a fourth option at wave-boss relic moments**. Armorer's Choice stays.
+- **Achievements.** No v0.6 achievement asked for tiers or synergies, so nothing had to be migrated; earned ones stay earned. New:
+  Six of a Kind (a 6-set in 1, 5 and 15 runs), Bound in Pairs (1, 2 and 3 duos in one run), The Awakening (1, 2 and 4 relics awakened in one run),
+  read from new save counters (`sixSets`, `maxDuos`, `maxAwakened`).
+- **Save format 6.** The compendium keeps every kept relic's count, moves Echo Bell to Thunder Drum and Hawkeye Quiver to Galeforce Quiver, drops
+  the removed relics, and marks the 31 relics a v0.6 player could not know as "new in v0.7" until found. Discovered duos are saved (A5). The
+  pre-migration save stays in the backups (A1).
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown

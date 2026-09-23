@@ -197,7 +197,8 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   g.vars.damageTaken = curseValue(curses, 'glassBones', 'damage');
   g.vars.enemySpeed = curseValue(curses, 'frenzy', 'speed');
   g.vars.curseMult = curseMultiplier(curses);
-  g.vars['keep.relicChance'] = loadout.relicChance;
+  g.vars['keep.relicRerolls'] = loadout.relicRerolls;
+  g.vars['keep.bossChoices'] = loadout.bossChoices;
   initRegions(g);
   initQuests(g);
   applyTrait(g, opts.trait ?? 'none');

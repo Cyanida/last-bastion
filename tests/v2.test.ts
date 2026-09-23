@@ -356,7 +356,7 @@ describe('gold and cost calculations', () => {
     expect(s.dex).toBe(base.dex); // v0.6: the Keep sells no damage
     expect(s.secondary).toBe(base.secondary + 3);
     expect(s.hp / base.hp).toBeLessThan(1.5); // helps, does not trivialize
-    expect(metaLoadout(maxed)).toMatchObject({ gold: 100, rerolls: 2, relicSlots: 1, relicTierCap: 3 });
+    expect(metaLoadout(maxed)).toMatchObject({ gold: 100, rerolls: 2, relicSlots: 1, relicRerolls: 2, bossChoices: 1 }); // v0.7: the Chapel's relic tracks
     expect(startingStats(base, { hp: 99 }, 0).hp).toBe(s.hp); // ranks above the cap are ignored
 
     const g = createGame('archer', 1, { meta: maxed });
