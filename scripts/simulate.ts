@@ -124,7 +124,7 @@ pacing · ${runs} runs per cell · ${TIERS[tier].name} · ${arena} · from the r
     for (const [name, opts] of setups) {
       const logs = Array.from({ length: runs }, (_, i) => simulateRun(classId, 1000 + i, opts, i % 2).log!);
       const acts = [0, 1, 2, 3].map((a) => {
-        const done = logs.filter((l) => l.waves.length > (a + 1) * ACTS.length).map((l) => actMinutes(l, ACTS.length)[a]); // only Acts that were finished
+        const done = logs.filter((l) => l.waves.length > (a + 1) * ACTS.length || (l.won && l.waves.length === (a + 1) * ACTS.length)).map((l) => actMinutes(l, ACTS.length)[a]); // only Acts that were finished (a win ends on Act IV's last wave)
         return done.length ? `${avg(done).toFixed(1)}${done.length < logs.length ? '*' : ''}` : '-';
       });
       const stretches = logs.map((l) => quietStretches(l, 3));

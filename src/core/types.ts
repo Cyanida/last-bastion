@@ -172,6 +172,7 @@ export interface Enemy extends Body {
   auraT: number; // commanders: countdown to the next aura pulse
   hidden: boolean; // cannot be auto-targeted (assassins, a flying dragon)
   warded: boolean; // v0.6: takes no damage at all (the Usurper while his Royal Flames burn)
+  pulled: boolean; // v0.6: one of a wave's last stragglers, coming straight at the player (WAVES.stragglers)
   hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
   waypoint: { x: number; y: number } | null; // v0.5: the gate to walk to when the player is on another floor (logic/regions waypoint)

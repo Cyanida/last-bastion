@@ -15,6 +15,7 @@ import { pacingBudget } from '../logic/waves';
 import { spawnPoint } from '../logic/regions';
 import { slotPosition } from '../logic/squads';
 import { floatText } from './effects';
+import { killEnemy } from './combat';
 import { createSquad } from './squads';
 
 const MIN_SPAWN_DIST = 380;
@@ -88,6 +89,35 @@ function startWave(g: Game): void {
   emit(g, 'onWaveStart', { wave: g.wave });
 }
 
+/**
+ * v0.6: the last few weak enemies of a wave (WAVES.stragglers) get a short grace, then come straight at the player; siege structures
+ * that cannot come give up the field. Elites and bosses are never stragglers: they are fights, not leftovers.
+ */
+function pullStragglers(g: Game, dt: number): void {
+  const s = WAVES.stragglers;
+  let left = 0;
+  let strong = false;
+  for (const e of g.enemies) {
+    if (e.side) continue;
+    left++;
+    if (e.elite || e.def.boss) strong = true;
+  }
+  if (left === 0 || left > s.count || strong) {
+    g.vars.stragglers = 0;
+    return;
+  }
+  if ((g.vars.stragglers = (g.vars.stragglers ?? 0) + dt) < s.grace) return;
+  for (const e of g.enemies) {
+    if (e.side || e.pulled || e.dead) continue;
+    if (e.def.structure) killEnemy(g, e, 'hazard');
+    else {
+      e.pulled = true;
+      e.telegraph = null;
+      floatText(g, e.x, e.y - e.r - 18, '!', '#f4a595', 18);
+    }
+  }
+}
+
 export function updateSpawning(g: Game, dt: number): void {
   if (g.pendingMerchant) return; // between Acts: nothing spawns until the Merchant has been visited
   if (g.breather > 0) {
@@ -115,10 +145,12 @@ export function updateSpawning(g: Game, dt: number): void {
   }
   // wave over: everything dead, or the stragglers have had their time (no stalemates, no safe farming)
   g.vars.overtime = (g.vars.overtime ?? 0) + dt;
+  pullStragglers(g, dt);
   const cleared = !g.enemies.some((e) => !e.side); // v0.5: a lair, a quest target or an event does not hold the wave open
   const limit = curseValue(g.curses, 'timedWaves', 'overtime', WAVES.overtime);
   if (cleared || (g.vars.overtime > limit && !g.enemies.some((e) => e.def.boss && !e.side))) {
     g.vars.overtime = 0;
+    g.vars.stragglers = 0;
     g.breather = !cleared ? 0.01 : curseValue(g.curses, 'noRespite', 'breather', WAVES.breather);
     if (isActEnd(g.wave)) g.pendingMerchant = true; // the UI (or the bot) visits the Merchant, then calls nextAct
     g.wavesCleared = g.wave;

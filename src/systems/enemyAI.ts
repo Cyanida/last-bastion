@@ -1,7 +1,7 @@
 import { AI, AI_TUNING, AURA_PULSE, DEFAULT_AI } from '../config/ai';
 import { AFFIXES } from '../config/elites';
 import type { EnemyId } from '../config/enemies';
-import { MODIFIERS } from '../config/waves';
+import { MODIFIERS, WAVES } from '../config/waves';
 import { sfx } from '../core/audio';
 import { dist2, TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
@@ -15,6 +15,7 @@ import { burst, ring, shake } from './effects';
 import { SPECIALS } from './specials';
 import { waypoint } from '../logic/regions';
 import { regionsOf } from './regions';
+import { markPhase } from './runlog';
 
 const HOSTILE = '#c23a2e';
 
@@ -364,6 +365,7 @@ export { pickTarget };
 
 function enterPhase(g: Game, e: Enemy, phase: number): void {
   e.phase = phase;
+  markPhase(g, `${e.def.name}: phase ${phase}`);
   e.special = Math.min(e.special, 1.2);
   g.banner = { text: `${e.def.name} is enraged`, t: 2.2 };
   ring(g, e.x, e.y, 200, HOSTILE, 0.7);
@@ -404,7 +406,11 @@ export function updateEnemies(g: Game, dt: number): void {
     e.waypoint = g.openFloors.length > 1 ? waypoint(regionsOf(g), e.x, e.y, p.x, p.y) : null;
     const script = BOSSES[e.def.id];
     if (isStunned(e.statuses)) e.telegraph = null; // stunned or frozen solid: no thinking, no moving
-    else if (script) script(g, e, dt);
+    else if (e.pulled) {
+      // v0.6: a straggler: straight at the player, no more keeping its distance (spawning.ts pullStragglers)
+      seek(e, p, e.speed * WAVES.stragglers.speed, dt);
+      touch(g, e, p);
+    } else if (script) script(g, e, dt);
     else runStateMachine(g, e, dt);
   }
 }

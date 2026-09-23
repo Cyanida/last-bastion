@@ -63,6 +63,8 @@ describe('the final Act (v0.6)', () => {
     tick(g, 2);
     expect(u.warded).toBe(false);
     expect(damageEnemy(g, u, 100)).toBeGreaterThan(0);
+    // each step is a beat in the run log (the pacing rule counts them)
+    expect(g.log.marks.filter((m) => m[1] === 'phase').map((m) => m[2])).toEqual(['The Usurper: phase 2', 'A Royal Flame is out (1 left)', 'A Royal Flame is out (0 left)']);
   });
 
   it('a phase runs its minimum time: until then his HP holds at the threshold, and in phase 3 he cannot fall', () => {

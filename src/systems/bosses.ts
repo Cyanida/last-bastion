@@ -9,6 +9,7 @@ import { hurtTarget } from './combat';
 import { pickTarget, registerBoss } from './enemyAI';
 import { burst, floatText, ring, shake } from './effects';
 import { regionsOf } from './regions';
+import { markPhase } from './runlog';
 import { spawnEnemy } from './spawning';
 
 /**
@@ -258,7 +259,10 @@ registerBoss(FINAL.boss, (g, e, dt) => {
     g.vars['usurper.firm'] = g.time + 1.2;
     floatText(g, e.x, e.y - e.r - 24, 'UNYIELDING', '#e9c95a', 15);
   }
-  if (e.warded && !g.enemies.some((f) => f.def.id === U.ward.flameId && !f.dead)) {
+  const flames = e.warded ? g.enemies.filter((f) => f.def.id === U.ward.flameId && !f.dead).length : 0;
+  if (e.warded && flames < (g.vars['usurper.flames'] ?? flames)) markPhase(g, `A Royal Flame is out (${flames} left)`);
+  g.vars['usurper.flames'] = flames;
+  if (e.warded && flames === 0) {
     // the last flame is out (on the dais or still on his way there): the ward breaks and he staggers
     e.warded = false;
     e.state = 12;

@@ -38,6 +38,11 @@ export const WAVES = {
    */
   pacing: { breather: [3, 8] as number[], heavy: [4, 9] as number[], breatherBudget: 0.55, heavyBudget: 1.2 },
   overtime: 60, // seconds after the last spawn; then the next wave arrives anyway (never while a boss lives)
+  /**
+   * v0.6: the tail of a wave. Once the spawns are done and at most `count` enemies are left, none of them elite or a boss, they get `grace`
+   * seconds; then they come to you (straight at you, `speed` times faster) and siege structures give up the field. Nobody hunts stragglers.
+   */
+  stragglers: { count: 4, grace: 5, speed: 1.6 },
   firstWaveDelay: 1.5,
   bossEvery: 5,
   bossEscortFrac: 0.4, // boss waves get this fraction of the normal enemy count

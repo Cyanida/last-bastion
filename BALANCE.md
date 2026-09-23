@@ -1,5 +1,32 @@
 # Balance notes
 
+## v0.6: stragglers and the 90-second rule
+
+The tail of every wave was the dead time: after the last spawn, the last few enemies (often a crossbowman keeping his distance, or a
+ballista across the map) held the wave open until the 60-second overtime ran out, which is where the 85-second stretches with nothing
+new came from. Now the last `WAVES.stragglers.count` (4) weak enemies get 5 seconds, then come straight at the player 1.6× faster, and a
+structure left alone gives up. Elites and bosses are never stragglers. Boss phases and the Usurper's flames count as beats.
+
+`npm run sim -- pacing 3` (Squire, courtyard; * = not every run finished that Act; a win ends on wave 40):
+
+| Class | Setup | Minutes | Wave | Act I | Act II | Act III | Act IV | Won | < 5 enemies | Longest stretch |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Paladin | fresh | 5.1 | 8.3 | - | - | - | - | 0/3 | 23% | 42 s |
+| Paladin | maxed | 32.3 | 40.0 | 5.6 | 8.3 | 8.4 | 10.0 | 3/3 | 19% | 76 s |
+| Viking | fresh | 14.3 | 20.3 | 5.9* | 6.7* | 7.7* | 10.4* | 1/3 | 22% | 52 s |
+| Viking | maxed | 18.9 | 30.0 | 4.8* | 6.1* | 6.3* | 8.5* | 2/3 | 23% | 54 s |
+| Angel | fresh | 6.1 | 10.0 | 6.3* | 7.4* | - | - | 0/3 | 32% | 36 s |
+| Angel | maxed | 27.3 | 40.0 | 5.3 | 6.8 | 6.7 | 8.5 | 3/3 | 25% | 58 s |
+| Necromancer | fresh | 4.0 | 8.3 | - | - | - | - | 0/3 | 28% | 28 s |
+| Necromancer | maxed | 17.1 | 30.0 | 4.7* | 5.9* | 5.6* | 7.1* | 2/3 | 25% | 46 s |
+| Archer | fresh | 2.6 | 6.3 | - | - | - | - | 0/3 | 29% | 30 s |
+| Archer | maxed | 19.0 | 30.7 | 4.6 | 6.7* | 6.4* | 7.8* | 2/3 | 25% | 46 s |
+
+- **No run breaks the 90-second rule** (0 of 30; before this change 5 of 15 maxed runs did, all in the Usurper fight, which had no beats).
+- Quiet time (fewer than 5 enemies alive) fell from 25-36% to 19-32%, and every Act got shorter.
+- A winning maxed run now takes **27-32 minutes**, a little under the 30-40 target. Maxed is the fully upgraded Keep, which increment 7
+  makes weaker on purpose (sidegrades instead of stat ranks); the run length gets checked again after that, in the final balance pass.
+
 ## v0.6: the Usurper
 
 **The fight.** Base HP 4000 (×6.5 at wave 40: about 26,000), three Royal Flames of 700 (about 4,600 each). HP turned out to be the wrong
