@@ -68,7 +68,7 @@ npm run dev              # web, http://localhost:5173
 
 ### How a release is made
 
-1. Bump `"version"` in `package.json`, update `CHANGELOG.md`, commit.
+1. Bump `"version"` in `package.json`, update `CHANGELOG.md`, commit. The top CHANGELOG entry becomes the in-game **What's new** screen at build time (v0.7.1): its heading, the first sentence under it and the first ten bullets that open with a **bold name**, so lead with the changes players should see.
 2. `npm run release` → creates and pushes the tag `v<version>`.
 3. `.github/workflows/release.yml` runs on `windows-latest`: `npm ci`, type check, tests, `vite build`, then `electron-builder --publish always`.
    The GitHub Release ends up with the installer, its `.blockmap` (for differential updates) and `latest.yml` (what installed copies read to find the update). The last steps fail the job if the `.exe` or `latest.yml` is missing, or (v0.7) if the published `latest.yml`'s version, path, url, size or sha512 do not match the tag and the built installer.
@@ -146,6 +146,7 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 - **Oaths** (v0.6, class select screen): after a class's first win, Oaths 1-20, each adding one fixed hardship on top of those below it (curses, wave modifiers, bosses that rise again, three-affix elites, no Merchant in Act II, no Last Stand...). The first win at each level pays; each class shows the highest Oath it has kept. Free curses stay for custom runs.
 - **Weekly contracts** (v0.6, title screen): three seeded objectives a week that pay Runes when a banked run completes them.
 - **After a run** (v0.6): the results screen shows the three closest goals and a Quick restart with the same champion, traits and Oath.
+- **What's new** (v0.7.1, title screen): the main points of this version's CHANGELOG entry; it also opens by itself once after an update.
 - **Daily Trial** (title screen): same seed, class, arena and curses for everyone that day. Any run's **seed** is on its results screen; type it on the class select to replay it.
 
 ## Between runs

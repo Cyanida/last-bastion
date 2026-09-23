@@ -6,6 +6,7 @@ import { GAME, VIEW } from './config/game';
 import { effectsLevel, initAudio, isMuted, setEffectsLevel, toggleMute } from './core/audio';
 import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLevel, setRunMusic, startMenuMusic, stopMenuMusic } from './core/music';
 import { moodOf } from './logic/runMusic';
+import { showWhatsNewNow } from './logic/whatsNew';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
@@ -35,7 +36,7 @@ import { banishOption, chooseLevelUp, levelUpOptions } from './systems/leveling'
 import { relicPreview, relicShares, rerollRelicOffer, resolveRelicOffer, skipRelicOffer, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, type TitleInfo } from './ui/screens';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
@@ -106,9 +107,22 @@ function toTitle(): void {
   menu();
   onTitle = true;
   showTitle(
-    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 }, title: save.title, contracts: titleContracts() },
-    { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings },
+    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 }, title: save.title, contracts: titleContracts(), whatsNew: platform.whatsNew !== null },
+    { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings, whatsNew: toWhatsNew },
   );
+}
+
+/** v0.7.1: What's new, from the title screen; and once by itself on the first start of a new version (its own localStorage key). */
+function toWhatsNew(): void {
+  menu();
+  showWhatsNew(platform.whatsNew!, toTitle);
+}
+function whatsNewOnce(): void {
+  const key = 'lastbastion.whatsNew';
+  const seen = localStorage.getItem(key);
+  const show = showWhatsNewNow(seen, platform.whatsNew?.version, platform.version, CLASS_ORDER.some((id) => save.classes[id].runs > 0));
+  if (seen !== platform.version) localStorage.setItem(key, platform.version);
+  if (show) toWhatsNew();
 }
 
 /** The Chronicle, from the title screen or the Keep. Equipping a title commits and re-opens it. */
@@ -689,6 +703,7 @@ if (platform.desktop) {
 if (loaded.restored) setNotice({ text: `Your save could not be read; the backup from ${new Date(loaded.restored.at).toLocaleString()} was loaded instead (the unreadable one is kept as a backup)`, button: 'OK', action: () => setNotice(null) });
 
 toTitle();
+whatsNewOnce();
 requestAnimationFrame(frame);
 
 // Handle for automated smoke and perf tests: drive the sim without real time or real input. Dev builds always; a production build with ?debug.

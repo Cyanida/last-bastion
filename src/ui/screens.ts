@@ -43,6 +43,7 @@ import { OATHS } from '../config/oaths';
 import { oathCap, oathReward } from '../logic/oaths';
 import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
+import type { WhatsNew } from '../logic/whatsNew';
 
 const overlay = () => document.getElementById('overlay')!;
 let stopActions: (() => void) | null = null;
@@ -110,13 +111,15 @@ export interface TitleInfo {
   daily: { date: string; best: number };
   title: string | null; // v0.4: the equipped title (Chronicle)
   contracts: { text: string; progress: number; target: number; runes: number }[]; // v0.6: this week's
+  whatsNew: boolean; // v0.7.1: this build has a What's new screen
 }
 
-export function showTitle(info: TitleInfo, on: { start: () => void; daily: () => void; keep: () => void; chronicle: () => void; settings: () => void }): void {
+export function showTitle(info: TitleInfo, on: { start: () => void; daily: () => void; keep: () => void; chronicle: () => void; settings: () => void; whatsNew: () => void }): void {
   const el = show(`
     <div class="title">
       <h1>Last Bastion</h1>
       <div class="version">${info.label}${info.mobile ? ' <span class="badge">Mobile</span>' : ''}</div>
+      ${info.whatsNew ? '<button class="btn small whatsnew-link" data-go="whatsNew">What’s new</button>' : ''}
       ${info.title ? `<div class="epithet">${info.title}</div>` : ''}
       <p class="sub">The walls have fallen silent. The courtyard has not.</p>
       ${info.notice ? `<div class="notice panel"><span>${info.notice.text}</span><button class="btn small" data-notice>${info.notice.button}</button></div>` : ''}
@@ -1023,4 +1026,19 @@ export function showDaily(setup: DailySetup, best: number, onStart: () => void, 
   click(el, '[data-start]', onStart);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'confirm' ? onStart() : a === 'cancel' && onBack()));
+}
+
+/** v0.7.1: what changed in this version, from the top CHANGELOG entry (logic/whatsNew.ts, at build time). Once after an update, and from the title screen. */
+export function showWhatsNew(w: WhatsNew, onBack: () => void): void {
+  const el = show(`
+    <div class="panel dialog wide whatsnew">
+      <h1 class="small">What’s new in v${w.version}</h1>
+      ${w.title ? `<p class="sub"><b>${esc(w.title)}</b></p>` : ''}
+      ${w.intro ? `<p>${esc(w.intro)}</p>` : ''}
+      <ul>${w.points.map((p) => `<li><b>${esc(p.name)}</b>${p.text ? ` — ${esc(p.text)}` : ''}</li>`).join('')}</ul>
+      ${w.more ? `<p class="hint">…and ${w.more} more change${w.more > 1 ? 's' : ''}.</p>` : ''}
+      <button class="btn big" data-back>Continue</button>
+    </div>`);
+  click(el, '[data-back]', onBack);
+  onActions((a) => (a === 'confirm' || a === 'cancel' || a === 'pause') && onBack());
 }

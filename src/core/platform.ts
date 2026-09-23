@@ -1,4 +1,5 @@
 import { isTouchDevice } from '../input';
+import type { WhatsNew } from '../logic/whatsNew';
 
 /** What the Electron preload exposes (electron/preload.cjs). Absent in a browser. */
 export interface DesktopApi {
@@ -20,12 +21,14 @@ declare global {
 }
 declare const __APP_VERSION__: string;
 declare const __BUILD_DATE__: string;
+declare const __WHATS_NEW__: WhatsNew | null;
 
 export const platform = {
   desktop: typeof window !== 'undefined' ? window.desktop : undefined,
   touch: isTouchDevice(),
   version: __APP_VERSION__,
   buildDate: __BUILD_DATE__,
+  whatsNew: __WHATS_NEW__, // v0.7.1
   get name(): 'Desktop' | 'Web' {
     return this.desktop ? 'Desktop' : 'Web';
   },

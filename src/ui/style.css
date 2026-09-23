@@ -540,3 +540,8 @@ canvas#game { touch-action: none; }
 .relic .att::after { content: ''; position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--att, 0)); background: var(--gold); transition: transform 0.4s; }
 .relic.duo { border-color: #c9a227; box-shadow: 0 0 0 2px #f2c94c inset, 0 0 10px rgba(242, 201, 76, 0.6); } /* v0.7 A5 */
 .relic-card .tag .new { color: #8a5a00; font-style: normal; } /* v0.7 A7: new in the compendium */
+
+/* v0.7.1 What's new */
+.btn.small.whatsnew-link { margin: 8px auto 0; }
+.whatsnew ul { padding-left: 20px; }
+.whatsnew li { margin: 6px 0; }
