@@ -49,6 +49,16 @@ export function relicPoolFor(classId: ClassId, locked: RelicId[]): RelicId[] {
 
 export const relicTier = (tiers: RelicTiers, id: RelicId): number => tiers[id] ?? 0;
 
+/**
+ * v0.7.1 B7: what the Merchant's Reforge carries over, half a relic's attunement. A relic's attunement is (tier - 1) + its bar: 0 for a fresh
+ * tier I, 2 once awakened (the bar stops there). Half of that goes to the new relic as tier + bar: awakened -> tier II with an empty bar,
+ * tier II at 50% -> tier I at 75%, tier I at 60% -> tier I at 30%.
+ */
+export function halfAttunement(tier: number, attune: number): { tier: number; attune: number } {
+  const kept = (tier - 1 + (tier >= RELIC_MAX_TIER ? 0 : Math.min(1, attune))) / 2;
+  return { tier: 1 + Math.floor(kept), attune: kept - Math.floor(kept) };
+}
+
 /** Up to n distinct relics from the pool, weighted by rarity; never one already held (v0.7: no duplicates) or in `exclude`. */
 export function rollRelics(pool: RelicId[], held: RelicId[], rng: Rng, n: number, exclude: RelicId[] = []): RelicId[] {
   const left = pool.filter((id) => !held.includes(id) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] }));

@@ -8,7 +8,7 @@ import { RELIC_DROPS, relicDef, type Rarity, type RelicId, RELIC_MOMENTS } from 
 import { sfx } from '../core/audio';
 import type { Game } from '../core/types';
 import { actName, arenaFor, isActEnd, merchantPrice, themeFor, type MerchantItem } from '../logic/acts';
-import { relicTier, rollRelics } from '../logic/relics';
+import { halfAttunement, relicTier, rollRelics } from '../logic/relics';
 import { floatText } from './effects';
 import { gainXp } from './leveling';
 import { addRelic, offerRelics, removeRelic } from './relics';
@@ -51,6 +51,29 @@ export function merchantReroll(g: Game, id: RelicId): boolean {
   if (next === undefined || !pay(g, 'reroll')) return false;
   removeRelic(g, id);
   addRelic(g, next, 'merchant', tier);
+  return true;
+}
+
+/** v0.7.1 B7: the relics a Reforge of `id` can become: the others of its family this player may find and does not hold (none for a cursed relic). */
+export function reforgeChoices(g: Game, id: RelicId): RelicId[] {
+  const r = g.player.relics;
+  const family = relicDef(id).family;
+  return family ? r.pool.filter((x) => relicDef(x).family === family && !r.held.includes(x)) : [];
+}
+
+/**
+ * v0.7.1 B7: Reforge: swap a held relic for a random other relic of its family (weighted by rarity, from the player's relic stream), which
+ * starts with half its attunement (logic/relics.ts halfAttunement). A duo it feeds stays formed, as when it is sold.
+ */
+export function merchantReforge(g: Game, id: RelicId): boolean {
+  const r = g.player.relics;
+  const tier = relicTier(r.tiers, id);
+  const [next] = tier ? rollRelics(reforgeChoices(g, id), [], r.rng, 1) : [];
+  if (next === undefined || !pay(g, 'reforge')) return false;
+  const kept = halfAttunement(tier, r.attune[id] ?? 0);
+  removeRelic(g, id);
+  addRelic(g, next, 'merchant', kept.tier);
+  r.attune[next] = kept.attune;
   return true;
 }
 

@@ -25,7 +25,7 @@ import { curseMultiplier } from './logic/curses';
 import { oathCap } from './logic/oaths';
 import { closestGoals } from './logic/goals';
 import { currentProgress, weekKey, weeklyContracts } from './logic/contracts';
-import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReroll, merchantSalvage, merchantSell, nextAct } from './systems/acts';
+import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReforge, merchantReroll, merchantSalvage, merchantSell, nextAct, reforgeChoices } from './systems/acts';
 import { questTake } from './systems/quests';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
@@ -460,11 +460,12 @@ function openMerchant(g: Game): void {
   const act = g.act;
   const again = (ok: boolean) => ok && openMerchant(g);
   showMerchant(
-    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.player.relics.held, tiers: g.player.relics.tiers, salvage: g.salvage, relicsLeft: g.midMerchant ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant },
+    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.player.relics.held, tiers: g.player.relics.tiers, attune: g.player.relics.attune, reforgeable: g.player.relics.held.filter((id) => reforgeChoices(g, id).length > 0), salvage: g.salvage, relicsLeft: g.midMerchant ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant },
     {
       heal: () => again(merchantHeal(g)),
       buy: (r) => void (merchantBuy(g, r) && openChoice(g)), // v0.7: the pick of three opens, then the Merchant again
       reroll: (id) => again(merchantReroll(g, id)),
+      reforge: (id) => again(merchantReforge(g, id)), // v0.7.1 B7
       sell: (id) => again(merchantSell(g, id)),
       salvage: (id) => again(merchantSalvage(g, id)),
       leave() {

@@ -17,7 +17,7 @@ import { TREASURE_RULES, TREASURES, treasureDesc, type TreasureId } from '../con
 import { chainStep, followUpText, inText, nextFragmentBoss, rankFor } from '../logic/treasures';
 import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
 import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
-import { duoFamilies, familySets, type RelicTiers } from '../logic/relics';
+import { duoFamilies, familySets, halfAttunement, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
 import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
@@ -942,20 +942,26 @@ export interface MerchantInfo {
   maxHp: number;
   relics: RelicId[];
   tiers: RelicTiers;
+  attune: Partial<Record<RelicId, number>>; // v0.7.1 B7: the Reforge keeps half of it
+  reforgeable: RelicId[]; // v0.7.1 B7: held relics with another of their family left to become
   salvage: number; // Rune shards so far
   relicsLeft: number; // v0.7: relic moments he still sells this visit
   mid?: boolean; // v0.6: the Merchant path's visit halfway through an Act
 }
 
 /** Between Acts. Everything here costs run gold, and run gold is what you would otherwise bank for the Keep. */
-export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r: Rarity) => void; reroll: (id: RelicId) => void; sell: (id: RelicId) => void; salvage: (id: RelicId) => void; leave: () => void }): void {
+export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r: Rarity) => void; reroll: (id: RelicId) => void; reforge: (id: RelicId) => void; sell: (id: RelicId) => void; salvage: (id: RelicId) => void; leave: () => void }): void {
   const price = (item: MerchantItem) => merchantPrice(item, info.act);
   const offer = (item: MerchantItem, attrs: string, title: string, text: string, enabled: boolean) =>
     `<button class="card panel boon shop" ${attrs} ${enabled && info.gold >= price(item) ? '' : 'disabled'}><h2>${title}</h2><p>${text}</p><div class="best">🪙 ${price(item)}</div></button>`;
   const held = info.relics.map((id) => {
     const tier = info.tiers[id] ?? 1;
+    const fam = relicDef(id).family;
+    const kept = halfAttunement(tier, info.attune[id] ?? 0);
+    const forge = !fam ? 'A cursed relic has no family to reforge within' : !info.reforgeable.includes(id) ? `You carry every ${FAMILIES[fam].name} relic you can find` : `Swap it for a random other ${FAMILIES[fam].name} relic you do not carry, keeping half its attunement: tier ${TIER_NUMERALS[kept.tier]}${kept.attune > 0 ? `, ${Math.round(kept.attune * 100)}% toward ${TIER_NUMERALS[kept.tier + 1]}` : ''}`;
     return `<div class="held ${relicClass(id)}">${relicLine(id, tier, info.relics)}
       <button class="chip" data-reroll="${id}" ${info.gold >= price('reroll') ? '' : 'disabled'} data-tip="Swap it for a random ${relicDef(id).rarity} relic you do not carry, at the same tier">Reroll 🪙 ${price('reroll')}</button>
+      <button class="chip" data-reforge="${id}" ${info.gold >= price('reforge') && info.reforgeable.includes(id) ? '' : 'disabled'} data-tip="${esc(forge)}">Reforge 🪙 ${price('reforge')}</button>
       <button class="chip" data-sell="${id}" data-tip="Sell it for gold${tier > 1 ? ' (every tier counts)' : ''}">Sell +🪙 ${sellPrice(id, tier, info.act)}</button>
       <button class="chip" data-salvage="${id}" data-tip="Break it into Rune shards: progress toward Runes, the Keep's second currency">Salvage +${salvageValue(id, tier)} ◆</button></div>`;
   }).join('');
@@ -973,6 +979,7 @@ export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r
   click(el, '[data-heal]', on.heal);
   click(el, '[data-buy]', (b) => on.buy(b.dataset.buy as Rarity));
   click(el, '[data-reroll]', (b) => on.reroll(b.dataset.reroll as RelicId));
+  click(el, '[data-reforge]', (b) => on.reforge(b.dataset.reforge as RelicId));
   click(el, '[data-sell]', (b) => on.sell(b.dataset.sell as RelicId));
   click(el, '[data-salvage]', (b) => on.salvage(b.dataset.salvage as RelicId));
   click(el, '[data-leave]', on.leave);

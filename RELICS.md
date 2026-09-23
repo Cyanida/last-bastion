@@ -246,6 +246,23 @@ in `config/relics.ts` (`CURSED`, and the six entries at the end of `RELICS`).
 
 *In the relic sim* (`sim -- relics 8`, maxed saves; the bot takes every cursed relic it is offered): 20 cursed relics were held at wave 20 across 33 runs. Tyrant's Banner reached 25% from wave 21 on, Crimson Chalice 23% and Hungering Blade 13%. Every A8 target still holds: 6-sets in 41% of winning runs, 1.10 duos, a power index of 2.04. Cursed relics sit above the family band (3-35%) on purpose. The Chalice's 46% share of healing is its lifesteal doing the healing, paid for with 30% of max HP.
 
+## B7 · Reforge at the Merchant (v0.7.2)
+
+Next to Reroll (a random relic of the same rarity, at the same tier), **Reforge** swaps a held relic for a random other relic of **its family**:
+one the player can find and does not hold, weighted by rarity and drawn from the player's relic stream. The new relic keeps **half the
+attunement**. A relic's attunement is (tier − 1) + its bar: 0 for a fresh tier I, 2 once awakened (an awakened relic's bar no longer counts).
+Half of that goes over as tier plus bar (`logic/relics.ts` `halfAttunement`):
+
+| Reforged | Attunement | Half | The new relic |
+|---|---|---|---|
+| Tier I, bar 60% | 0.6 | 0.3 | tier I, 30% |
+| Tier II, empty | 1 | 0.5 | tier I, 50% |
+| Tier II, bar 50% | 1.5 | 0.75 | tier I, 75% |
+| Awakened (III) | 2 | 1 | tier II, empty |
+
+It costs 30 gold (+35% an Act; `MERCHANT.reforge`). A cursed relic has no family, so it cannot be reforged. A duo the old relic fed stays formed,
+as when it is sold. Reroll keeps the tier but not the family; Reforge keeps the family count but halves the attunement.
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
