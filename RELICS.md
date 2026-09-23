@@ -73,11 +73,11 @@ Share of all damage dealt, all healing received and all damage the relic's armor
 | Lucky Coin | common | 40 | 0.0% | 0.0% | 0.0% | 0.0% | **dead weight** |
 | Scholar's Tome | common | 40 | 0.0% | 0.0% | 0.0% | 0.0% | **dead weight** |
 | Lodestone | common | 40 | 0.0% | 0.0% | 0.0% | 0.0% | **dead weight** |
-| Frost Brand | rare | 40 | 0.0% | 0.0% | 0.0% | 0.0% | not measured (see below) |
-| Phoenix Feather | legendary | 40 | 0.0% | 0.0% | 0.0% | 0.0% | not measured (see below) |
-| Reliquary of Saints | rare | 11 | 0.0% | 0.0% | 0.0% | 0.0% | not measured (see below) |
-| Wolfskin Cloak | rare | 10 | 0.0% | 0.0% | 0.0% | 0.0% | not measured (see below) |
-| Seraph's Halo | rare | 10 | 0.0% | 0.0% | 0.0% | 0.0% | not measured (see below) |
+| Frost Brand | rare | 40 | 0.0% | 0.0% | 0.0% | 0.0% | not measured (see Method) |
+| Phoenix Feather | legendary | 40 | 0.0% | 0.0% | 0.0% | 0.0% | not measured (see Method) |
+| Reliquary of Saints | rare | 11 | 0.0% | 0.0% | 0.0% | 0.0% | not measured (see Method) |
+| Wolfskin Cloak | rare | 10 | 0.0% | 0.0% | 0.0% | 0.0% | not measured (see Method) |
+| Seraph's Halo | rare | 10 | 0.0% | 0.0% | 0.0% | 0.0% | not measured (see Method) |
 
 ### How often the stacking rules bite (Act III)
 
