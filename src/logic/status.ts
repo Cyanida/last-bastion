@@ -15,6 +15,7 @@ export interface StatusApply {
   stacks?: number;
   time?: number;
   power?: number;
+  max?: number; // v0.7: a higher stack cap for this application (Flame's Stoked)
 }
 
 /** Applies one effect following its stacking rule. Returns 'frozen' when Chilled stacks tipped over into a freeze. */
@@ -24,8 +25,9 @@ export function applyStatusTo(map: StatusMap, a: StatusApply, boss = false): 'ap
   const time = a.time ?? def.duration;
   const power = a.power ?? 0;
   const cur = map[a.id];
-  if (!cur) map[a.id] = { stacks: Math.min(def.maxStacks, a.stacks ?? 1), time, power };
-  else if (def.stacking === 'stacks') Object.assign(cur, { stacks: Math.min(def.maxStacks, cur.stacks + (a.stacks ?? 1)), time: Math.max(cur.time, time), power: Math.max(cur.power, power) });
+  const max = Math.max(def.maxStacks, a.max ?? 0);
+  if (!cur) map[a.id] = { stacks: Math.min(max, a.stacks ?? 1), time, power };
+  else if (def.stacking === 'stacks') Object.assign(cur, { stacks: Math.min(max, cur.stacks + (a.stacks ?? 1)), time: Math.max(cur.time, time), power: Math.max(cur.power, power) });
   else if (def.stacking === 'strongest') Object.assign(cur, { power: Math.max(cur.power, power), time: Math.min(STATUS_TUNING.poisonMaxTime, cur.time + time) });
   else cur.time = Math.max(cur.time, time);
 

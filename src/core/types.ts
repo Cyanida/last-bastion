@@ -6,7 +6,7 @@ import type { ClassDef } from '../config/classes';
 import type { TierDef } from '../config/economy';
 import type { AffixId } from '../config/elites';
 import type { EnemyDef, EnemyId } from '../config/enemies';
-import type { RelicId, SynergyId } from '../config/relics';
+import type { FamilyId, RelicId } from '../config/relics';
 import type { TraitId } from '../config/traits';
 import type { BlessingId, FeatureKind, Rect, RegionId, WingId } from '../config/regions';
 import type { UtilityUpgradeId } from '../config/utility';
@@ -66,8 +66,8 @@ export interface RelicState {
   dyn: Partial<Record<keyof Mods, number>>; // this tick's conditional bonuses from tick hooks (charges, horns, crowns)
   totals: RelicTotals; // static + dynamic, soft-capped: what went into p.mods this tick (the stats panel reads it)
   dirty: boolean;
-  synergies: SynergyId[]; // active positive synergies (rebuilt with the mods)
-  reaperMark: Enemy | null; // the Reaper synergy: the enemy the Hood last found below its threshold
+  sets: Partial<Record<FamilyId, { count: number; straight: number; level: 0 | 2 | 4 | 6; strength: number }>>; // family counts and set levels, rebuilt with the mods
+  duos: [FamilyId, FamilyId][]; // v0.7 A5: the families of every formed duo (a duo counts for both)
 }
 
 export interface Mods {
@@ -129,6 +129,9 @@ export interface Body {
 export interface Player extends Body {
   cls: ClassDef;
   relics: RelicState; // v0.7: this player's relics
+  ward: number; // v0.7: absorbs damage before HP (Holy)
+  armorStacks: number; // v0.7: +3% armor each (Steel), they fade a few seconds after the last was gained
+  armorStackT: number; // when the last armor stack was gained
   stats: Stats;
   hp: number;
   level: number;
@@ -219,6 +222,7 @@ export interface Enemy extends Body {
   lineIn: number; // v0.6: when the player last stood in its line or aim telegraph (perfect dodge)
   lastTele: Telegraph | null; // v0.6: the telegraph it had last tick (perfect dodge checks it when it fires)
   pulled: boolean; // v0.6: one of a wave's last stragglers, coming straight at the player (WAVES.stragglers)
+  frozenT: number; // v0.7: frozen until this time (chill tipped over; Frost reads it)
   hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
   secondWind: number; // v0.6 Oath: a boss rises once more from the brink with this fraction of its HP; 0 = none (or spent)
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave

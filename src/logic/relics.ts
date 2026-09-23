@@ -1,5 +1,5 @@
 import type { ClassId } from '../config/classes';
-import { RELIC_DROPS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, SYNERGIES, SYNERGY_IDS, type RelicId, type SynergyId } from '../config/relics';
+import { DUO_SIX_STRENGTH, FAMILY_IDS, RELIC_DROPS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type FamilyId, type RelicId, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng } from '../core/types';
 import { mulberry32 } from '../core/math';
@@ -11,7 +11,7 @@ export const relicStream = (seed: number, player: number): Rng => mulberry32(has
 /** An empty relic state; createGame fills in the pool, the tier cap and the stream. */
 export const emptyRelics = (): RelicState => ({
   held: [], tiers: {}, pool: [], offers: [], tierCap: 3, found: [], from: {}, stats: {}, rng: mulberry32(0),
-  static: {}, dyn: {}, totals: {}, dirty: true, synergies: [], reaperMark: null,
+  static: {}, dyn: {}, totals: {}, dirty: true, sets: {}, duos: [],
 });
 
 export type RelicTiers = Partial<Record<RelicId, number>>;
@@ -88,12 +88,24 @@ export function withRelic(tiers: RelicTiers, id: RelicId, cap = RELIC_MAX_TIER):
   return { ...tiers, [id]: tier + 1 };
 }
 
-/** Synergies whose relics are all held (clashes included: the caller filters on `anti`). */
-export function activeSynergies(held: RelicId[]): SynergyId[] {
-  return SYNERGY_IDS.filter((id) => SYNERGIES[id].relics.every((r) => held.includes(r as RelicId)));
-}
+/** v0.7 (RELICS.md): a family's count, straight pieces (not duos), set level, and the strength its set works at. */
+export interface SetState { count: number; straight: number; level: 0 | SetLevel; strength: number }
 
-export const synergiesOf = (id: RelicId): SynergyId[] => SYNERGY_IDS.filter((s) => (SYNERGIES[s].relics as RelicId[]).includes(id));
+/**
+ * Family counts and set levels. `duoFamilies`: the two families of every formed duo (a duo counts for both). A 6 reached without 6 straight
+ * pieces (a family the class does not prefer, completed with a duo) works at DUO_SIX_STRENGTH.
+ */
+export function familySets(held: RelicId[], duoFamilies: [FamilyId, FamilyId][]): Partial<Record<FamilyId, SetState>> {
+  const out: Partial<Record<FamilyId, SetState>> = {};
+  for (const f of FAMILY_IDS) {
+    const straight = held.filter((id) => relicDef(id).family === f).length;
+    const count = straight + duoFamilies.filter((d) => d.includes(f)).length;
+    if (!count) continue;
+    const level = count >= 6 ? 6 : count >= 4 ? 4 : count >= 2 ? 2 : 0;
+    out[f] = { count, straight, level, strength: level === 6 && straight < 6 ? DUO_SIX_STRENGTH : 1 };
+  }
+  return out;
+}
 
 /** Soft cap: face value up to the cap, diminishing returns past it (the excess is squeezed into at most half the cap again). */
 export function softCap(sum: number, cap: number): number {

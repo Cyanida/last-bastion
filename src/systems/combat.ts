@@ -1,5 +1,5 @@
 import { relicContext } from './relicContext';
-import { RELIC_COLOR } from '../config/relics';
+import { FAMILIES, RELIC_COLOR } from '../config/relics';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
@@ -95,10 +95,25 @@ export function applyStatus(e: Enemy, s: Status | null, g?: Game): void {
   const list: StatusApply[] = [...(s.apply ?? [])];
   if (s.slowT) list.push({ id: 'slow', stacks: slowStacks(s.slowMul ?? 0.5), time: s.slowT });
   if (s.markT) list.push({ id: 'curse', stacks: curseStacks(s.markMul ?? 1.3), time: s.markT });
+  // v0.7 set bonuses on every status the player puts on an enemy: Flame's Stoked, Frost's Biting Cold, Blood's Open Wounds
+  // ponytail: the player is g.player; with co-op the status has to say whose it is
+  const sets = g?.player.relics.sets;
+  if (sets) {
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i];
+      if (a.id === 'burn' && (sets.flame?.level ?? 0) >= 2) list[i] = { ...a, max: STATUSES.burn.maxStacks + FAMILIES.flame.n.stacksBonus, power: (a.power ?? 0) * (1 + FAMILIES.flame.n.burnPerS * g!.player.stats.secondary) };
+      else if (a.id === 'slow' && (sets.frost?.level ?? 0) >= 2) list[i] = { ...a, stacks: Math.ceil((a.stacks ?? 1) * FAMILIES.frost.n.chillMult) };
+      else if (a.id === 'bleed' && (sets.blood?.level ?? 0) >= 2) list[i] = { ...a, stacks: (a.stacks ?? 1) + FAMILIES.blood.n.extraStacks };
+    }
+  }
   for (const a of list) {
     if (a.id === 'fear') {
       if (!e.def.boss) e.fearT = Math.max(e.fearT, a.time ?? STATUSES.fear.duration);
-    } else if (applyStatusTo(e.statuses, a, e.def.boss) === 'frozen' && g) floatText(g, e.x, e.y - e.r - 20, 'FROZEN', STATUSES.slow.color, 14);
+    } else if (applyStatusTo(e.statuses, a, e.def.boss) === 'frozen' && g) {
+      floatText(g, e.x, e.y - e.r - 20, 'FROZEN', STATUSES.slow.color, 14);
+      e.frozenT = g.time + (e.statuses.stun?.time ?? 0); // v0.7: Frost reads it
+      emit(g, 'onFreeze', { enemy: e });
+    }
   }
 }
 
@@ -182,8 +197,9 @@ function revive(g: Game): boolean {
     frac = ABILITY_UPGRADES.guardianAngel.n.hp;
     p.reviveT = 0;
   } else if (p.revives > 0) {
-    frac = GAME.reviveHp;
+    frac = g.vars['phoenix.hp'] ?? GAME.reviveHp; // v0.7: Phoenix Feather's tier
     p.revives--;
+    emit(g, 'onRevive', {});
   } else return false;
   p.hp = p.stats.hp * frac;
   p.invulnT = GAME.reviveGrace;
@@ -218,7 +234,21 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
     floatText(g, p.x, p.y - 34, 'dodge', '#f2e6a0', 13);
     return;
   }
-  const taken = mitigate(amount * damageTakenFactor(p.statuses) * (g.vars.damageTaken ?? 1) * tauntedDamageMult(g, attacker), Math.min(GAME.armorCap, p.cls.armor + p.mods.armor));
+  // v0.7: relics may shrink the hit or block it (Steel, Frost, Grave); a blocked hit does nothing, but blocking is an event of its own
+  const incoming = { amount, attacker, blocked: false };
+  emit(g, 'onIncoming', incoming);
+  if (incoming.blocked) {
+    floatText(g, p.x, p.y - 34, 'BLOCK', '#a8b0bc', 14);
+    emit(g, 'onBlock', { amount, attacker });
+    return;
+  }
+  let taken = mitigate(incoming.amount * damageTakenFactor(p.statuses) * (g.vars.damageTaken ?? 1) * tauntedDamageMult(g, attacker), Math.min(GAME.armorCap, p.cls.armor + p.mods.armor));
+  if (p.ward > 0) {
+    // v0.7 ward (Holy): it takes the hit first
+    const soak = Math.min(p.ward, taken);
+    p.ward -= soak;
+    taken -= soak;
+  }
   p.hp -= taken;
   p.flash = 0.12;
   g.bossHit = true;
@@ -242,7 +272,9 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
 export function healPlayer(g: Game, amount: number, show = true): number {
   const p = g.player;
   if (g.breather > 0 && g.wave > 0 && g.curses.includes('noRespite')) return 0; // No Respite: nothing mends between waves
-  const healed = Math.min(p.stats.hp - p.hp, amount * healFactor(g.wave)); // v0.5: sustain fades past wave 30
+  const heal = amount * healFactor(g.wave) * (g.vars.relicHealMult ?? 1); // v0.5: sustain fades past wave 30; v0.7: Blessed Water
+  const healed = Math.min(p.stats.hp - p.hp, heal);
+  if (heal > 0) emit(g, 'onHeal', { amount: Math.max(0, healed), over: heal - Math.max(0, healed) }); // v0.7: Holy turns overhealing into ward and pulses
   if (healed <= 0) return 0;
   p.hp += healed;
   g.vars.healed = (g.vars.healed ?? 0) + healed; // v0.7: the denominator of the relics' healing share (RELICS.md)

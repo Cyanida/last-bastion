@@ -61,7 +61,7 @@ describe('evolution recipes (v0.6)', () => {
     const whole = { ...half, talents: [keystoneOf('paladin.bulwark')] };
     expect(readyEvolutions(whole)).toEqual(['aegisOfDawn']);
     const relicHalf = build({ classId: 'angel', utilityUpgrades: ['afterimage'] });
-    expect(completes(relicHalf, { relic: 'echoBell' })).toEqual(['starfall']);
+    expect(completes(relicHalf, { relic: 'thunderDrum' })).toEqual(['starfall']);
   });
 
   it('one signature and one utility evolution a run', () => {

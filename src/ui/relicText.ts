@@ -1,6 +1,5 @@
 import { CLASSES } from '../config/classes';
-import { RELIC_CATEGORIES, RELIC_MAX_TIER, relicDef, relicDesc, SYNERGIES, TIER_NUMERALS, type RelicId } from '../config/relics';
-import { synergiesOf } from '../logic/relics';
+import { FAMILIES, RELIC_MAX_TIER, relicDef, relicDesc, TIER_NUMERALS, type RelicId } from '../config/relics';
 import { EVOLUTIONS } from '../config/evolutions';
 import { nearlyReady, requirementNames, requirementText, type BuildState } from '../logic/evolutions';
 
@@ -17,19 +16,16 @@ export function recipeLines(what: { relic?: RelicId; talent?: string }): string[
     .map((n) => `✦ One step from ${EVOLUTIONS[n.id].icon} ${EVOLUTIONS[n.id].name}: it needs ${requirementText(n.missing)}`);
 }
 
-/** Everything a relic tooltip says: rarity, category, tier, this tier's effect, the next tier's, and its synergies and clashes. */
+/** Everything a relic tooltip says: family, rarity, tier, this tier's effect, what attunement brings next, and the evolution recipes. */
 export function relicTip(id: RelicId, tier: number, held: RelicId[] = []): string {
   const r = relicDef(id);
-  const lines = [`${r.name} · ${r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''} · ${RELIC_CATEGORIES[r.category].name}${tier > 0 ? ` · tier ${TIER_NUMERALS[tier]} of ${TIER_NUMERALS[RELIC_MAX_TIER]}` : ''}`];
+  const fam = FAMILIES[r.family];
+  const count = held.filter((h) => relicDef(h).family === r.family).length;
+  const lines = [`${r.name} · ${fam.icon} ${fam.name} · ${r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}${tier > 0 ? ` · tier ${TIER_NUMERALS[tier]} of ${TIER_NUMERALS[RELIC_MAX_TIER]}` : ''}`];
   lines.push(relicDesc(id, Math.max(1, tier)));
-  if (tier > 0 && tier < RELIC_MAX_TIER) lines.push(`Next tier: ${relicDesc(id, tier + 1)}`);
-  else if (tier >= RELIC_MAX_TIER) lines.push('Top tier.');
-  for (const sid of synergiesOf(id)) {
-    const s = SYNERGIES[sid];
-    const others = s.relics.filter((o) => o !== id).map((o) => relicDef(o).name).join(' + ');
-    const active = s.relics.every((o) => held.includes(o));
-    lines.push(`${s.anti ? '⚠ Clashes with' : active ? '✦ Synergy on with' : '✧ Synergy with'} ${others}: ${s.desc}`);
-  }
+  if (tier > 0 && tier < 2) lines.push(`Tier II: ${relicDesc(id, 2)}`);
+  if (tier < RELIC_MAX_TIER) lines.push(`Awakens at tier III, ${r.awaken.name}: ${r.awaken.desc}`);
+  lines.push(`${fam.name} (${fam.mechanic}), ${count} held: ${([2, 4, 6] as const).map((n) => `${n} ${fam.sets[n][0]}`).join(' · ')}`);
   lines.push(...recipeLines({ relic: id }));
   return lines.join('\n');
 }

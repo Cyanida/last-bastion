@@ -10,7 +10,7 @@ import { branchPlan } from '../src/logic/talents';
 
 const run = (over: Partial<RunSummary> = {}): RunSummary => ({
   classId: 'paladin', tier: 0, wave: 11, wavesCleared: 10, kills: 200, time: 400, level: 11, gold: 300,
-  bosses: ['blackKnight', 'dragon'], elites: 4, flawlessBosses: 0, relics: ['whetstone'], abilityUpgrades: 1, wave10Time: 0, ...over,
+  bosses: ['blackKnight', 'dragon'], elites: 4, flawlessBosses: 0, relics: ['frostBrand'], abilityUpgrades: 1, wave10Time: 0, ...over,
 });
 
 describe('Runes (v0.4)', () => {

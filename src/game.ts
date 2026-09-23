@@ -342,7 +342,7 @@ export function updateGame(g: Game, dt: number): void {
   updateRunLog(g, dt); // after cleanup: it counts who is still alive
   compact(g.barriers, (b) => (b.life -= dt) > 0);
   for (const c of g.corpses) c.t += dt;
-  compact(g.corpses, (c) => c.t < GAME.corpseLifetime * g.arena.corpseLifeMult);
+  compact(g.corpses, (c) => c.t < GAME.corpseLifetime * g.arena.corpseLifeMult * (g.vars['corpse.mult'] ?? 1)); // v0.7: Grave's Charnel
   _t = begin();
   updateSpawning(g, dt); // after cleanup so "no enemies left" is accurate
   end('spawning', _t);

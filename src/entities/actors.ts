@@ -15,6 +15,9 @@ export function createPlayer(cls: ClassDef, arena: ArenaDef, stats: Stats = cls.
   return {
     cls,
     relics: emptyRelics(), // createGame fills in the pool, the tier cap and the relic stream
+    ward: 0,
+    armorStacks: 0,
+    armorStackT: 0,
     stats: { ...stats },
     x: arena.w / 2,
     y: arena.h / 2,
@@ -107,6 +110,7 @@ export function createEnemy(def: EnemyDef, x: number, y: number, hpMult: number,
     lastTele: null,
     pulled: false,
     hpFloor: 0,
+    frozenT: 0,
     secondWind: 0,
     statuses: {},
     dots: {},

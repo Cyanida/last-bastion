@@ -109,7 +109,7 @@ describe('save migration v0.2 -> v0.3', () => {
   const v2 = {
     version: 2, gold: 966, meta: { hp: 1, str: 2 }, achievements: ['wave10', 'firstBlood'], tierUnlocked: 1,
     classes: { paladin: { bestWave: 7, runs: 3, kills: 300, time: 900, xp: 410 }, archer: { bestWave: 12, runs: 1, kills: 90, time: 200, xp: 106 } },
-    relicPicks: { whetstone: 4 },
+    relicPicks: { frostBrand: 4 },
     counters: { kills: 390, bosses: 5, elites: 12, goldEarned: 1200, flawlessBosses: 1, maxRelics: 3, maxAbilityUpgrades: 2, fastestWave10: 340, bossKinds: ['blackKnight', 'abbot'] },
     settings: { arena: 'graveyard', tier: 1 },
   };
@@ -123,7 +123,7 @@ describe('save migration v0.2 -> v0.3', () => {
     expect(s.tierUnlocked).toBe(1);
     expect(s.classes.paladin).toEqual(v2.classes.paladin);
     expect(s.classes.archer.bestWave).toBe(12);
-    expect(s.relicPicks.whetstone).toBe(4);
+    expect(s.relicPicks.frostBrand).toBe(4);
     expect(s.counters.bossKinds).toEqual(['blackKnight', 'abbot']);
     expect(s.counters.fastestWave10).toBe(340);
     expect(s.settings.arena).toBe('graveyard');

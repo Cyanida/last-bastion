@@ -5,12 +5,10 @@ import { createGame } from '../src/game';
 import { relicStream, rollOffer } from '../src/logic/relics';
 import { rollLevelUpOptions } from '../src/logic/upgrades';
 import { killEnemy } from '../src/systems/combat';
-import { offerRelics, rerollRelicOffer, resolveRelicOffer, skipRelicOffer, skipReward } from '../src/systems/relics';
+import { familyOf, offerRelics, rerollRelicOffer, resolveRelicOffer, skipRelicOffer, skipReward } from '../src/systems/relics';
 import { spawnEnemy } from '../src/systems/spawning';
 
-// families come in A3; the rule is generic, so a made-up split of the current relics tests it
-const FAM = Object.fromEntries(RELIC_IDS.map((id, i) => [id, ['flame', 'frost', 'storm'][i % 3]])) as Record<RelicId, string>;
-const familyOf = (id: RelicId) => FAM[id];
+const FAM = Object.fromEntries(RELIC_IDS.map((id) => [id, familyOf(id)])) as Record<RelicId, string>;
 
 describe('relic offers (v0.7)', () => {
   it('once a family is held, every offer has one relic from a held family and one from another', () => {

@@ -3,7 +3,7 @@ import { ACHIEVEMENTS, CATEGORIES, tierReward, type AchievementCategory, type Ac
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
 import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
-import { RELIC_CATEGORIES, RELIC_IDS, RELIC_WEIGHTS, relicDesc, SYNERGIES, TIER_NUMERALS, type Rarity } from '../config/relics';
+import { FAMILIES, FAMILY_IDS, preferredFamilies, RELIC_IDS, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS, type Rarity } from '../config/relics';
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
 import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
@@ -17,7 +17,7 @@ import { TREASURE_RULES, TREASURES, treasureDesc, type TreasureId } from '../con
 import { chainStep, followUpText, inText, nextFragmentBoss, rankFor } from '../logic/treasures';
 import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
 import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
-import { activeSynergies, synergiesOf, type RelicTiers } from '../logic/relics';
+import { familySets, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
 import { esc, recipeLines, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
@@ -87,14 +87,9 @@ const fmtTime = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.flo
 /** A relic card: the tier it would be at after taking it (1 = new), its text at that tier, synergies with what is held. */
 const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, extra = '') => {
   const r = relicDef(id);
+  const fam = FAMILIES[r.family];
   const upgrade = tier > 1;
-  const syn = synergiesOf(id).map((sid) => {
-    const sd = SYNERGIES[sid];
-    const others = sd.relics.filter((o) => o !== id).map((o) => relicDef(o).name).join(' + ');
-    const on = sd.relics.every((o) => o === id || held.includes(o));
-    return `<div class="syn ${sd.anti ? 'anti' : on ? 'on' : ''}">${sd.anti ? '⚠' : on ? '✦' : '✧'} ${sd.name} <em>with ${others}</em></div>`;
-  }).join('');
-  return `<button class="card panel boon relic-card ${r.rarity}" ${attrs} data-tip="${esc(relicTip(id, tier, held))}"><div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag">${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''} · ${RELIC_CATEGORIES[r.category].name}</div><p>${relicDesc(id, tier)}</p>${syn}${extra}</button>`;
+  return `<button class="card panel boon relic-card ${r.rarity}" style="--fam:${fam.color}" ${attrs} data-tip="${esc(relicTip(id, tier, held))}"><div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam.icon} ${fam.name}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${relicDesc(id, tier)}</p>${extra}</button>`;
 };
 
 // ---------------------------------------------------------------- title & menus
@@ -202,6 +197,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       <div class="ability"><b class="gold">${c.ability.name}</b><p>${c.ability.desc}</p></div>
       <div class="ability"><b class="gold">${c.secondary.name}</b><p>${c.secondary.desc}</p></div>
       ${treasure}
+      <div class="fam-line" data-tip="${esc(`Can max these relic families: ${preferredFamilies(c.id).map((f) => FAMILIES[f].name).join(', ')}. Every family is open to every class; these reach their 6-set with straight pieces.`)}">Families: ${preferredFamilies(c.id).map((f) => `<span style="color:${FAMILIES[f].color}">${FAMILIES[f].icon} ${FAMILIES[f].name}</span>`).join(' ')}</div>
       ${save.wins[c.id] ? `<div class="oath-line">⚜ ${save.oaths[c.id] ? `Oath ${save.oaths[c.id]} kept` : 'No Oath kept yet'}${sworn ? ` · this run: <b>${oathOf(c.id) ? `Oath ${oathOf(c.id)}` : 'custom'}</b>` : ''}</div>` : ''}
       <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
     </button>`;
@@ -750,7 +746,13 @@ export function buildHtml(info: BuildInfo): string {
   const util = info.utilityUpgrades.map((id) => `<div><span>${UTILITIES[info.classId].icon} ${UTILITY_UPGRADES[id].name}</span><em>${UTILITY_UPGRADES[id].desc}</em></div>`).join('');
   const talents = info.talents.length || info.talentPoints ? `<div><span>🌿 Talents${info.talentPoints ? ` · ${info.talentPoints} unspent` : ''}</span><em>${info.talents.map((id) => TALENT_BY_ID[id]?.name).join(' · ') || 'none yet'}</em></div>` : '';
   const sacred = (info.sacred ?? []).map((s) => `<div><span>${s.name}</span><em>${s.desc}</em></div>`).join('');
-  const syns = activeSynergies(info.relics).map((sid) => `<div class="syn ${SYNERGIES[sid].anti ? 'anti' : 'on'}"><span>${SYNERGIES[sid].anti ? '⚠' : '✦'} ${SYNERGIES[sid].name}</span><em>${SYNERGIES[sid].desc}</em></div>`).join('');
+  // v0.7: the set bonuses reached, per family
+  const syns = Object.entries(familySets(info.relics, [])).map(([f, st]) => {
+    const fam = FAMILIES[f as keyof typeof FAMILIES];
+    const next = ([2, 4, 6] as const).find((l) => l > st.count);
+    const reached = ([2, 4, 6] as const).filter((l) => st.level >= l).map((l) => `${fam.sets[l][0]}: ${fam.sets[l][1]}`).join(' ');
+    return `<div class="syn ${st.level ? 'on' : ''}"><span>${fam.icon} ${fam.name} ${st.count}</span><em>${reached || 'no set bonus yet'}${next ? ` · next at ${next}: ${fam.sets[next][0]}` : ''}</em></div>`;
+  }).join('');
   return relics || ups || trait || util || talents || sacred || evos ? `<div class="build">${evos}${sacred}${trait}${talents}${ups}${util}${relics}${syns}</div>` : '';
 }
 
@@ -940,23 +942,29 @@ export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r
   onActions((a) => a === 'confirm' && on.leave());
 }
 
-/** The relic compendium in the Keep: every relic, discovered or not, with tiers, synergies and how often it was found. */
+/** The relic compendium in the Keep (v0.7): every relic by family, discovered or not, with its tiers and awakening, and each family's sets. */
 export function showCompendium(save: Save, onBack: () => void): void {
   const found = (id: RelicId) => save.relicPicks[id] ?? 0;
   const card = (id: RelicId) => {
     const r = relicDef(id);
     const n = found(id);
-    if (n === 0) return `<div class="card panel boon relic-card undiscovered" data-tip="${esc(`Not found yet. A ${r.rarity} ${RELIC_CATEGORIES[r.category].name.toLowerCase()} relic${r.classId ? ` for the ${CLASSES[r.classId].name}` : ''}.`)}"><div class="relic-icon">?</div><h2>Unknown</h2><div class="tag">${r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${RELIC_CATEGORIES[r.category].name}</p></div>`;
-    const tiers = [1, 2, 3].map((t) => `<div class="tierline"><b>${TIER_NUMERALS[t]}</b> ${relicDesc(id, t)}</div>`).join('');
-    const syn = synergiesOf(id).map((sid) => `<div class="syn ${SYNERGIES[sid].anti ? 'anti' : ''}">${SYNERGIES[sid].anti ? '⚠' : '✧'} ${SYNERGIES[sid].name} <em>with ${SYNERGIES[sid].relics.filter((o) => o !== id).map((o) => (found(o) ? relicDef(o).name : '?')).join(' + ')}</em>: ${SYNERGIES[sid].desc}</div>`).join('');
-    return `<div class="card panel boon relic-card ${r.rarity}"><div class="relic-icon">${r.icon}</div><h2>${r.name}</h2><div class="tag">${r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''} · ${RELIC_CATEGORIES[r.category].name} · found ${n}×</div>${tiers}${syn}</div>`;
+    const who = r.classId ? ` · ${CLASSES[r.classId].name}` : '';
+    if (n === 0) return `<div class="card panel boon relic-card undiscovered" style="--fam:${FAMILIES[r.family].color}" data-tip="${esc(`Not found yet. A ${r.rarity} ${FAMILIES[r.family].name} relic${r.classId ? ` for the ${CLASSES[r.classId].name}` : ''}.`)}"><div class="relic-icon">?</div><h2>Unknown</h2><div class="tag">${r.rarity}${who}</div></div>`;
+    const tiers = [1, 2].map((t) => `<div class="tierline"><b>${TIER_NUMERALS[t]}</b> ${relicDesc(id, t)}</div>`).join('');
+    return `<div class="card panel boon relic-card ${r.rarity}" style="--fam:${FAMILIES[r.family].color}"><div class="relic-icon">${r.icon}</div><h2>${r.name}</h2><div class="tag">${r.rarity}${who} · found ${n}×</div>${tiers}<div class="tierline"><b>III</b> <em>${r.awaken.name}</em>: ${r.awaken.desc}</div></div>`;
+  };
+  const family = (f: (typeof FAMILY_IDS)[number]) => {
+    const fam = FAMILIES[f];
+    const prefer = (fam.preferredBy as readonly string[]).map((c) => CLASSES[c as keyof typeof CLASSES].name).join(', ');
+    return `<h2 style="color:${fam.color}">${fam.icon} ${fam.name}</h2><p class="hint">${fam.mechanic}. ${([2, 4, 6] as const).map((l) => `<b>${l} ${fam.sets[l][0]}</b>: ${fam.sets[l][1]}`).join(' ')} Can be maxed by: ${prefer}.</p>
+      <div class="cards wrap">${RELIC_IDS.filter((id) => relicDef(id).family === f).map(card).join('')}</div>`;
   };
   const discovered = RELIC_IDS.filter((id) => found(id) > 0).length;
   const el = show(`
     <div class="panel dialog wide compendium">
       <h1 class="small">Relic compendium</h1>
-      <p class="sub">${discovered} / ${RELIC_IDS.length} discovered · a duplicate raises a relic's tier (three tiers) · ${Object.values(RELIC_CATEGORIES).map((c) => c.name).join(', ')}: relics of a kind add up and pass a soft cap</p>
-      <div class="cards wrap">${(['common', 'rare', 'legendary'] as Rarity[]).map((rar) => RELIC_IDS.filter((id) => relicDef(id).rarity === rar).map(card).join('')).join('')}</div>
+      <p class="sub">${discovered} / ${RELIC_IDS.length} discovered · seven families; 2, 4 and 6 of a family unlock its set bonuses · a relic attunes as it works: tier II, then it awakens</p>
+      ${FAMILY_IDS.map(family).join('')}
       <h2>Evolutions · ${save.evolutions.length} / ${EVOLUTION_IDS.length} discovered</h2>
       <p class="hint">Three for each champion's signature ability, two for the second one. Meet both halves of a recipe in a run and the next level-up offers it as a gold card; one of each kind a run. A discovered recipe shows in full.</p>
       <div class="recipes">${CLASS_ORDER.map((c) => `<div class="recipe-class"><b>${CLASSES[c].name}</b>${EVOLUTION_IDS.filter((id) => EVOLUTIONS[id].classId === c).map((id) => {

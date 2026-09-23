@@ -1,33 +1,38 @@
 import type { Mods } from '../core/types';
 import type { ClassId } from './classes';
 
+/**
+ * v0.7 relics (RELICS.md, approved revision 2): seven families, each with one core mechanic and set bonuses at 2, 4 and 6 relics held.
+ * Every relic belongs to one family; class relics (three per class, one in each of its preferred families) are only offered to their class.
+ * A relic grows by attunement (A4): tier II strengthens its numbers, tier III awakens it (an extra behaviour with its own name).
+ * Numbers live here; the behaviour is in systems/relicFamilies/<family>.ts.
+ */
 export type Rarity = 'common' | 'rare' | 'legendary';
-/** Stacking category (BALANCE.md): plain mods of a category add up and pass a soft cap; procs of a category share their chance past a count. */
-export type RelicCategory = 'damage' | 'attackSpeed' | 'defense' | 'utility' | 'onHit' | 'onKill';
-
-export interface RelicTier {
-  n?: Record<string, number>;
-  mods?: Partial<Mods>;
-}
+export type FamilyId = 'flame' | 'frost' | 'storm' | 'blood' | 'holy' | 'grave' | 'steel';
 
 export interface RelicDef {
   name: string;
   rarity: Rarity;
   icon: string;
-  category: RelicCategory;
-  desc: string; // tier 1 text
+  family: FamilyId;
+  classId?: ClassId; // a class relic: only offered to this class
+  mods?: Partial<Mods>; // a few relics also carry a plain bonus (Blood Pact's damage, Tempest Eye's crit)
+  n: Record<string, number>; // tier I numbers, read by the family module
+  tiers: [{ n?: Record<string, number>; mods?: Partial<Mods> }, { n?: Record<string, number>; mods?: Partial<Mods> }]; // tier II, tier III (awakened: II's numbers)
+  awaken: { name: string; desc: string };
+  desc: string; // tier I text
   describe: (n: Record<string, number>) => string; // text for any tier's numbers
-  classId?: ClassId; // only offered to this class
-  mods?: Partial<Mods>; // plain passive modifiers, no hook needed
-  n: Record<string, number>; // numbers read by the hook in systems/relics.ts
-  tiers: [RelicTier, RelicTier]; // tier 2 and tier 3: numbers and mods that change
 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-/** Keeps each relic's numbers typed (RELICS.stormPennant.n.chance) and its text in sync with them. */
-function relic<N extends Record<string, number>>(r: Omit<RelicDef, 'desc' | 'describe' | 'n' | 'tiers'> & { n: N; desc: (n: N) => string; tiers: [{ n?: Partial<N>; mods?: Partial<Mods> }, { n?: Partial<N>; mods?: Partial<Mods> }] }) {
-  return { ...r, desc: r.desc(r.n), describe: r.desc as (n: Record<string, number>) => string };
+/** Keeps each relic's numbers typed and its text in sync with them. Tier III (awakened) keeps tier II's numbers. */
+function relic<N extends Record<string, number>>(r: {
+  name: string; rarity: Rarity; icon: string; family: FamilyId; classId?: ClassId; mods?: Partial<Mods>; mods2?: Partial<Mods>;
+  n: N; n2: Partial<N>; awaken: [string, string]; desc: (n: N) => string;
+}): RelicDef {
+  const { n2, mods2, awaken, desc, ...rest } = r;
+  return { ...rest, tiers: [{ n: n2 as Record<string, number>, mods: mods2 }, {}], awaken: { name: awaken[0], desc: awaken[1] }, desc: desc(r.n), describe: desc as (n: Record<string, number>) => string };
 }
 
 export const RELIC_MAX_TIER = 3;
@@ -36,11 +41,10 @@ export const RELIC_WEIGHTS: Record<Rarity, number> = { common: 60, rare: 30, leg
 export const BOSS_RELIC_CHOICES = 3;
 
 /**
- * v0.7: relics come only at fixed moments: every mid-Act and Act boss, lairs, strongboxes, a quest whose reward is a relic, a Merchant
- * purchase (the Merchant between Acts, or a wandering peddler) and the run start (Armorer's Choice). Every moment is a pick of one from
- * `choices`, with a visible Skip (paying run gold and a Rune shard) and `rerolls` rerolls. Offers lean `heldFamilyWeight` times toward the
- * families you hold, and always show at least one relic from a family you hold (once you hold one) and one from a family you don't.
- * Target: 12-16 moments in a full four-Act run (RELICS.md).
+ * v0.7: relics come only at fixed moments: every mid-Act and Act boss, lairs, strongboxes, a quest whose reward is a relic, the Merchant
+ * between Acts, and the run start (Armorer's Choice). Every moment is a pick of one from `choices`, with a visible Skip (paying run gold and
+ * a Rune shard) and `rerolls` rerolls. Offers lean `heldFamilyWeight` times toward the families you hold, and always show at least one relic
+ * from a family you hold (once you hold one) and one from a family you don't. Target: 12-16 moments in a full four-Act run (RELICS.md).
  */
 export const RELIC_MOMENTS = {
   choices: 3,
@@ -49,10 +53,11 @@ export const RELIC_MOMENTS = {
   heldFamilyWeight: 2,
   merchantPerVisit: 1, // the Merchant sells one relic moment a visit between Acts (not at the Merchant path's caravan): at most 3 a run
 };
-/** Relic damage has no attack stat behind it, so it grows with character level instead. */
-export const RELIC_DAMAGE_PER_LEVEL = 0.09; // v0.3: 0.12, when a wave-30 character was level 18; now it is level 25
 
-/** Drops: the share of new relics in an offer shrinks with every relic held (late drops are mostly upgrades). Selling and salvage at the Merchant. */
+/** Relic damage has no attack stat behind it, so it grows with character level instead. */
+export const RELIC_DAMAGE_PER_LEVEL = 0.09;
+
+/** Drops: the share of new relics in an offer shrinks with every relic held. Selling and salvage at the Merchant. */
 export const RELIC_DROPS = {
   newDecayPerHeld: 0.09,
   minNewShare: 0.25,
@@ -61,221 +66,228 @@ export const RELIC_DROPS = {
 };
 
 /**
- * Stacking: the same mod from several relics adds up at face value (v0.7: the category soft caps and proc sharing are gone; with a dozen
- * deliberate relics a run no longer holds everything, RELICS.md). Healing from relics still passes a soft cap per wave (`healCap`, a share of
- * max HP). Proc chains stop at `procDepth`: a relic reacting to a relic's damage is fine, a third link is not.
+ * Relic bonuses add up at face value (v0.7: no category soft caps, no proc sharing). Healing from relics still passes a soft cap per wave
+ * (`healCap`, a share of max HP). Proc chains stop at `procDepth`: a relic reacting to a relic's damage is fine, a third link is not.
  */
 export const RELIC_STACKING = {
   procDepth: 2,
   healCap: 1, // relic healing per wave, as a share of max HP: face value up to this, diminishing past it (never more than 1.5x)
 };
-/** v0.7: relic damage numbers and proc icons, until families bring their own colours (A3). */
+/** Proc icons and damage numbers of relics without a family colour. */
 export const RELIC_COLOR = '#d9a8ff';
 
-export const RELIC_CATEGORIES: Record<RelicCategory, { name: string; desc: string }> = {
-  damage: { name: 'Damage', desc: 'Damage bonuses add up.' },
-  attackSpeed: { name: 'Attack speed', desc: 'Attack speed bonuses add up.' },
-  defense: { name: 'Defense', desc: 'Armor bonuses add up.' },
-  utility: { name: 'Utility', desc: 'Speed, gold, XP and pickup bonuses add up per kind.' },
-  onHit: { name: 'On hit', desc: 'Every on-hit relic procs on its own chance.' },
-  onKill: { name: 'On kill', desc: 'Every on-kill relic procs on its own chance.' },
-};
+/** A 6-set completed with a duo (in a family you cannot max with straight pieces) is the rarer route, so it is the stronger one (Jesse, #5). */
+export const DUO_SIX_STRENGTH = 1.25;
+
+/**
+ * The families. `preferredBy`: the classes that can max it with straight pieces (5 relics any class finds + that class's own class relic).
+ * Set bonus numbers are read by systems/relicFamilies/<family>.ts; `...PerS` numbers grow with the class's secondary stat.
+ */
+export const FAMILIES = {
+  flame: {
+    name: 'Flame', icon: '🔥', color: '#e8793a', mechanic: 'Burn stacks and fire bursts', preferredBy: ['paladin', 'angel', 'archer'],
+    sets: {
+      2: ['Stoked', 'Burns stack one higher, and burn damage grows 1% per point of your secondary stat.'],
+      4: ['Pyre', 'Burning enemies explode on death: 20% of their max HP (+1% per point of your secondary stat) around them.'],
+      6: ['Inferno', 'All your damage adds a burn stack, and every 2 s each burning enemy spreads a stack to its nearest neighbour.'],
+    },
+    n: { stacksBonus: 1, burnPerS: 0.01, pyreFrac: 0.2, pyrePerS: 0.01, pyreRadius: 90, spreadEvery: 2, spreadRange: 160 },
+  },
+  frost: {
+    name: 'Frost', icon: '❄️', color: '#8ec9e8', mechanic: 'Chill, freeze, shatter', preferredBy: ['angel', 'necromancer', 'archer'],
+    sets: {
+      2: ['Biting Cold', 'Chill builds 50% faster.'],
+      4: ['Shatter', 'Frozen enemies shatter when killed: 30% of their max HP (+1% per point of your secondary stat) to enemies around them.'],
+      6: ['Rimewalker', 'You leave a frost trail that chills, and an enemy that touches you freezes for 0.6 s (each enemy at most every 3 s).'],
+    },
+    n: { chillMult: 1.5, shatterFrac: 0.3, shatterPerS: 0.01, shatterRadius: 110, trailEvery: 0.3, trailLife: 2, trailRadius: 45, touchFreeze: 0.6, touchCd: 3 },
+  },
+  storm: {
+    name: 'Storm', icon: '⚡', color: '#f2e6a0', mechanic: 'Chains and speed', preferredBy: ['viking', 'archer'],
+    sets: {
+      2: ['Arc', 'Every 5th hit chains to a second enemy for 60% (every 4th from 15 in your secondary stat).'],
+      4: ['Thunderstrike', 'Crits call a lightning strike: 50% of the hit to everything around the target.'],
+      6: ['Tempest', 'Chains jump 50% further, and 10 kills within 5 s reset your utility cooldown.'],
+    },
+    n: { arcEvery: 5, arcEveryAt15: 4, arcMult: 0.6, arcRange: 170, strikeMult: 0.5, strikeRadius: 60, rangeMult: 1.5, streakKills: 10, streakWindow: 5 },
+  },
+  blood: {
+    name: 'Blood', icon: '🩸', color: '#c23a2e', mechanic: 'Bleed, and HP for power', preferredBy: ['viking'],
+    sets: {
+      2: ['Open Wounds', 'Every bleed you apply adds one stack more.'],
+      4: ['Bloodlust', '+1% damage for every 2% of HP missing (max 40%), and killing a bleeding enemy heals 1% of your max HP.'],
+      6: ['Blood Magic', 'While your signature ability cools down you can cast it anyway by paying 20% of your current HP (once per cooldown).'],
+    },
+    n: { extraStacks: 1, perMissing: 0.5, lustMax: 0.4, killHeal: 0.01, hpCost: 0.2 },
+  },
+  holy: {
+    name: 'Holy', icon: '✨', color: '#f0d77a', mechanic: 'Healing, ward and blessing', preferredBy: ['paladin', 'angel', 'necromancer'],
+    sets: {
+      2: ['Blessed', 'Healing also grants ward: 25% of the heal (your ward holds up to 15% of your max HP, +1% per point of your secondary stat).'],
+      4: ['Radiance', 'Overhealing becomes a holy pulse around you: twice the overheal as damage.'],
+      6: ['Communion', "Your ward's maximum doubles, and your heals and ward also reach your minions and nearby allies at full strength."],
+    },
+    n: { wardShare: 0.25, wardMax: 0.15, wardMaxPerS: 0.01, pulseMult: 2, pulseRadius: 150, wardMaxMult: 2 },
+  },
+  grave: {
+    name: 'Grave', icon: '💀', color: '#9a7fc0', mechanic: 'Corpses, summons and curse', preferredBy: ['necromancer'],
+    sets: {
+      2: ['Charnel', 'Corpses last twice as long, and walking over one attunes your Grave relics.'],
+      4: ['Undying Host', 'Every 10th kill raises a skeleton for you, whatever your class (max 3, +1 per 10 in your secondary stat).'],
+      6: ['Legion', "Your minions' hits trigger your on-hit relic effects."],
+    },
+    n: { corpseMult: 2, every: 10, max: 3, maxPer10S: 1, hp: 50, damage: 10, life: 20 },
+  },
+  steel: {
+    name: 'Steel', icon: '🛡️', color: '#a8b0bc', mechanic: 'Armor stacks, block, thorns', preferredBy: ['paladin', 'viking'],
+    sets: {
+      2: ['Bulwark', 'Blocking or taking a hit gives an armor stack (+3% armor each, 5 at most, +1 per 10 in your secondary stat; they fade 4 s after the last).'],
+      4: ['Spiked', 'Thorns: an enemy that hits you takes 2 × your armor % of the hit back.'],
+      6: ['Juggernaut', 'At full armor stacks your next attack releases them all as a shockwave.'],
+    },
+    n: { stackArmor: 0.03, stacksMax: 5, stacksPer10S: 1, fade: 4, thornsMult: 2, quakePerStack: 20, quakeRadius: 160 },
+  },
+} satisfies Record<FamilyId, { name: string; icon: string; color: string; mechanic: string; preferredBy: ClassId[]; sets: Record<2 | 4 | 6, [string, string]>; n: Record<string, number> }>;
+export const FAMILY_IDS = Object.keys(FAMILIES) as FamilyId[];
+export const SET_LEVELS = [2, 4, 6] as const;
+export type SetLevel = (typeof SET_LEVELS)[number];
 
 export const RELICS = {
-  // ---------- common ----------
-  whetstone: relic({ name: 'Whetstone', rarity: 'common', icon: '🗡️', category: 'damage', mods: { damage: 1.12 }, n: { bonus: 0.12 }, desc: (n) => `+${pct(n.bonus)} damage.`, tiers: [{ n: { bonus: 0.18 }, mods: { damage: 1.18 } }, { n: { bonus: 0.25 }, mods: { damage: 1.25 } }] }),
-  swiftBoots: relic({ name: 'Swift Boots', rarity: 'common', icon: '🥾', category: 'utility', mods: { moveSpd: 1.1 }, n: { bonus: 0.1 }, desc: (n) => `+${pct(n.bonus)} movement speed.`, tiers: [{ n: { bonus: 0.15 }, mods: { moveSpd: 1.15 } }, { n: { bonus: 0.2 }, mods: { moveSpd: 1.2 } }] }),
-  luckyCoin: relic({ name: 'Lucky Coin', rarity: 'common', icon: '🪙', category: 'utility', mods: { gold: 1.3 }, n: { bonus: 0.3 }, desc: (n) => `+${pct(n.bonus)} gold found.`, tiers: [{ n: { bonus: 0.45 }, mods: { gold: 1.45 } }, { n: { bonus: 0.6 }, mods: { gold: 1.6 } }] }),
-  scholarTome: relic({ name: "Scholar's Tome", rarity: 'common', icon: '📖', category: 'utility', mods: { xp: 1.15 }, n: { bonus: 0.15 }, desc: (n) => `+${pct(n.bonus)} experience.`, tiers: [{ n: { bonus: 0.22 }, mods: { xp: 1.22 } }, { n: { bonus: 0.3 }, mods: { xp: 1.3 } }] }),
-  lodestone: relic({ name: 'Lodestone', rarity: 'common', icon: '🧲', category: 'utility', mods: { pickup: 1.75 }, n: { bonus: 0.75 }, desc: (n) => `+${pct(n.bonus)} pickup radius.`, tiers: [{ n: { bonus: 1.25 }, mods: { pickup: 2.25 } }, { n: { bonus: 1.75 }, mods: { pickup: 2.75 } }] }),
-  ironBand: relic({ name: 'Iron Band', rarity: 'common', icon: '💍', category: 'defense', mods: { armor: 0.08 }, n: { bonus: 0.08 }, desc: (n) => `+${pct(n.bonus)} armor.`, tiers: [{ n: { bonus: 0.12 }, mods: { armor: 0.12 } }, { n: { bonus: 0.16 }, mods: { armor: 0.16 } }] }),
-  vampireFang: relic({
-    name: 'Vampire Fang', rarity: 'common', icon: '🦷', category: 'onKill', n: { heal: 1.5 },
-    desc: (n) => `Heal ${n.heal} HP for every enemy slain.`,
-    tiers: [{ n: { heal: 2.5 } }, { n: { heal: 4 } }],
-  }),
-  thornMail: relic({
-    name: 'Thorn Mail', rarity: 'common', icon: '🌵', category: 'defense', n: { mult: 4 },
-    desc: (n) => `Enemies that hurt you take ${n.mult}× that damage back.`,
-    tiers: [{ n: { mult: 6 } }, { n: { mult: 9 } }],
-  }),
-  rallyBanner: relic({
-    name: 'Rally Banner', rarity: 'common', icon: '🚩', category: 'defense', n: { heal: 0.15 },
-    desc: (n) => `Heal ${pct(n.heal)} of max HP at the start of every wave.`,
-    tiers: [{ n: { heal: 0.22 } }, { n: { heal: 0.3 } }],
-  }),
+  // ---------------------------------------------------------------- 🔥 Flame
+  brimstoneOil: relic({ name: 'Brimstone Oil', rarity: 'common', icon: '🔥', family: 'flame', n: { chance: 0.25, power: 0.2 }, n2: { chance: 0.35 },
+    awaken: ['Hellfire', 'Ability hits add 2 burn stacks.'], desc: (n) => `Attacks have a ${pct(n.chance)} chance to add a burn stack (${pct(n.power)} of the hit per second).` }),
+  emberheart: relic({ name: 'Emberheart', rarity: 'common', icon: '🧡', family: 'flame', n: { per: 0.06, max: 5, radius: 250 }, n2: { per: 0.08 },
+    awaken: ['Kindled', 'While 5 or more burning enemies are near, every hit adds a burn stack.'], desc: (n) => `+${pct(n.per)} damage for each burning enemy within ${n.radius} px (up to ${n.max}).` }),
+  cinderCharm: relic({ name: 'Cinder Charm', rarity: 'common', icon: '🪔', family: 'flame', n: { stacks: 1, range: 220 }, n2: { stacks: 2 },
+    awaken: ['Ember Storm', 'The ember splits in three.'], desc: (n) => `A burning enemy you kill throws an ember at the nearest enemy: ${n.stacks} burn stack${n.stacks > 1 ? 's' : ''}.` }),
+  salamanderScale: relic({ name: 'Salamander Scale', rarity: 'rare', icon: '🦎', family: 'flame', n: { bonus: 0.25, stacks: 3 }, n2: { bonus: 0.35 },
+    awaken: ['Scorched Earth', 'An enemy that dies at full burn stacks leaves a fire patch for 3 s that adds burn stacks.'], desc: (n) => `Enemies at ${n.stacks}+ burn stacks take ${pct(n.bonus)} more damage from you.` }),
+  dragonsTongue: relic({ name: "Dragon's Tongue", rarity: 'legendary', icon: '🐉', family: 'flame', n: { every: 8, stacks: 3, range: 230, arc: 0.9 }, n2: { every: 6, stacks: 4 },
+    awaken: ['Wyrmfire', 'The cone detonates every burn it touches for its remaining damage at once.'], desc: (n) => `Every ${n.every} s your next attack also breathes a cone of fire: ${n.stacks} burn stacks.` }),
+  fireArrows: relic({ name: 'Fire Arrows', rarity: 'rare', icon: '🏹', family: 'flame', classId: 'archer', n: { perFocus: 0.02 }, n2: { perFocus: 0.03 },
+    awaken: ['Rain of Cinders', "The Volley's area keeps burning for 3 s."], desc: (n) => `Arrow Volley's arrows each add a burn stack; burn damage +${pct(n.perFocus)} per Focus.` }),
+  sunfireCenser: relic({ name: 'Sunfire Censer', rarity: 'rare', icon: '🕯️', family: 'flame', classId: 'angel', n: { per: 6 }, n2: { per: 4 },
+    awaken: ['Solar Flare', 'Enemies killed by Radiance burst into fire (a Pyre explosion).'], desc: (n) => `Heavenly Radiance adds 1 + Grace/${n.per} burn stacks to everything it hits.` }),
+  radiantBrand: relic({ name: 'Radiant Brand', rarity: 'rare', icon: '☀️', family: 'flame', classId: 'paladin', n: { base: 2, per: 5 }, n2: { per: 4 },
+    awaken: ['Pillar of Dawn', 'While the shield holds, burning enemies touching you take their burn damage again every second.'], desc: (n) => `Divine Shield's burst adds ${n.base} + Faith/${n.per} burn stacks.` }),
 
-  // ---------- rare ----------
-  stormPennant: relic({
-    name: 'Storm Pennant', rarity: 'rare', icon: '⚡', category: 'onHit', n: { chance: 0.3, range: 170, mult: 0.6, arcs: 1 },
-    desc: (n) => `Attacks have a ${pct(n.chance)} chance to arc to ${n.arcs > 1 ? `${n.arcs} more enemies` : 'a second enemy'} for ${pct(n.mult)} damage.`,
-    tiers: [{ n: { chance: 0.4, mult: 0.7 } }, { n: { chance: 0.5, mult: 0.8, arcs: 2 } }],
-  }),
-  powderKeg: relic({
-    name: 'Powder Keg', rarity: 'rare', icon: '💥', category: 'onKill', n: { chance: 0.2, radius: 85, hpFrac: 0.5 },
-    desc: (n) => `Slain enemies have a ${pct(n.chance)} chance to explode for ${pct(n.hpFrac)} of their max HP.`,
-    tiers: [{ n: { chance: 0.3, hpFrac: 0.65 } }, { n: { chance: 0.4, hpFrac: 0.8, radius: 100 } }],
-  }),
-  sentinelStance: relic({
-    name: "Sentinel's Stance", rarity: 'rare', icon: '🗿', category: 'damage', n: { perSec: 0.2, max: 0.6 },
-    desc: (n) => `Standing still charges up to +${pct(n.max)} damage. Moving resets it.`,
-    tiers: [{ n: { perSec: 0.3, max: 0.8 } }, { n: { perSec: 0.4, max: 1 } }],
-  }),
-  shockSigil: relic({
-    name: 'Shockwave Sigil', rarity: 'rare', icon: '🌀', category: 'defense', n: { cooldown: 4, radius: 150, damage: 30, knockback: 380 },
-    desc: (n) => `Taking damage releases a shockwave (${n.damage}+ damage, ${n.cooldown}s cooldown).`,
-    tiers: [{ n: { cooldown: 3, damage: 45 } }, { n: { cooldown: 2, damage: 60, radius: 180 } }],
-  }),
-  warHorn: relic({
-    name: 'War Horn', rarity: 'rare', icon: '📯', category: 'attackSpeed', n: { atkSpd: 0.4, time: 12 },
-    desc: (n) => `+${pct(n.atkSpd)} attack speed for ${n.time}s at the start of every wave.`,
-    tiers: [{ n: { atkSpd: 0.55, time: 16 } }, { n: { atkSpd: 0.7, time: 20 } }],
-  }),
-  executioner: relic({
-    name: "Executioner's Hood", rarity: 'rare', icon: '🪓', category: 'damage', n: { threshold: 0.25, bonus: 1 },
-    desc: (n) => `Attacks deal +${pct(n.bonus)} damage to enemies below ${pct(n.threshold)} HP.`,
-    tiers: [{ n: { threshold: 0.3, bonus: 1.5 } }, { n: { threshold: 0.35, bonus: 2 } }],
-  }),
-  echoBell: relic({
-    name: 'Echo Bell', rarity: 'rare', icon: '🔔', category: 'damage', n: { radius: 150, damage: 28 },
-    desc: (n) => `Using your ability rings the bell: ${n.damage}+ damage to everything nearby.`,
-    tiers: [{ n: { damage: 42, radius: 170 } }, { n: { damage: 56, radius: 190 } }],
-  }),
-  frostBrand: relic({
-    name: 'Frost Brand', rarity: 'rare', icon: '❄️', category: 'onHit', n: { chance: 0.25, slow: 0.5, time: 2 },
-    desc: (n) => `Attacks have a ${pct(n.chance)} chance to chill: ${pct(1 - n.slow)} slower for ${n.time}s.`,
-    tiers: [{ n: { chance: 0.35, time: 2.5 } }, { n: { chance: 0.45, time: 3, slow: 0.4 } }],
-  }),
+  // ---------------------------------------------------------------- ❄️ Frost
+  frostBrand: relic({ name: 'Frost Brand', rarity: 'common', icon: '❄️', family: 'frost', n: { chance: 0.25, chill: 1 }, n2: { chance: 0.35 },
+    awaken: ['Hoarfrost', 'Chilled enemies deal 20% less damage.'], desc: (n) => `Attacks have a ${pct(n.chance)} chance to chill.` }),
+  wintersGrasp: relic({ name: "Winter's Grasp", rarity: 'common', icon: '🧤', family: 'frost', n: { chill: 2 }, n2: { chill: 3 },
+    awaken: ['Deep Freeze', 'Enemies your ability freezes stay frozen 1 s longer.'], desc: (n) => `Your signature ability chills everything it hits (${n.chill} chill).` }),
+  shatterglass: relic({ name: 'Shatterglass', rarity: 'rare', icon: '🔹', family: 'frost', n: { critDamage: 0.25 }, n2: { critDamage: 0.4 },
+    awaken: ['Splinter', 'A crit on a frozen enemy sprays 3 ice shards that chill.'], desc: (n) => `Your hits on frozen enemies always crit, with +${pct(n.critDamage)} crit damage.` }),
+  glacialHeart: relic({ name: 'Glacial Heart', rarity: 'rare', icon: '💠', family: 'frost', n: { reduce: 0.15, count: 3, radius: 220 }, n2: { reduce: 0.2 },
+    awaken: ['Cold Blood', 'Every freeze near you gives +20% attack speed for 2 s.'], desc: (n) => `While ${n.count} or more chilled enemies are near you, you take ${pct(n.reduce)} less damage.` }),
+  everfrostCrown: relic({ name: 'Everfrost Crown', rarity: 'legendary', icon: '👑', family: 'frost', n: { every: 10, radius: 200, chill: 3 }, n2: { every: 7 },
+    awaken: ['Blizzard', 'The nova leaves a freezing field for 3 s.'], desc: (n) => `Every ${n.every} s a frost nova around you chills everything within ${n.radius} px (${n.chill} chill).` }),
+  rimebow: relic({ name: 'Rimebow', rarity: 'rare', icon: '🎯', family: 'frost', classId: 'archer', n: { chill: 2, perFocus: 0.03 }, n2: { perFocus: 0.04 },
+    awaken: ['Frozen Volley', 'Arrow Volley freezes what it hits for 0.5 s.'], desc: (n) => `Crits chill (${n.chill} chill); your chill lasts ${pct(n.perFocus)} longer per Focus.` }),
+  frostwardHalo: relic({ name: 'Frostward Halo', rarity: 'rare', icon: '🌨️', family: 'frost', classId: 'angel', n: { chill: 2, heal: 0.15, max: 3 }, n2: { heal: 0.2 },
+    awaken: ['Winter Grace', 'Freezing an enemy near you grants ward (2% of your max HP).'], desc: (n) => `Heavenly Radiance chills (${n.chill} chill) and heals ${pct(n.heal)} more per frozen enemy near you (up to ${n.max}).` }),
+  lichLantern: relic({ name: 'Lich Lantern', rarity: 'rare', icon: '🏮', family: 'frost', classId: 'necromancer', n: { per: 15 }, n2: { per: 10 },
+    awaken: ['Frost Legion', 'Skeletons burst in a frost nova when they expire.'], desc: (n) => `Skeletons' hits chill: 1 chill, +1 per ${n.per} Soul Power.` }),
 
-  brimstoneOil: relic({
-    name: 'Brimstone Oil', rarity: 'rare', icon: '🔥', category: 'onHit', n: { chance: 0.3, power: 0.15 },
-    desc: (n) => `Attacks have a ${pct(n.chance)} chance to ignite: a stacking burn worth ${pct(n.power)} of the hit per second.`,
-    tiers: [{ n: { chance: 0.4, power: 0.2 } }, { n: { chance: 0.5, power: 0.25 } }],
-  }),
-  serratedEdge: relic({
-    name: 'Serrated Edge', rarity: 'rare', icon: '🩹', category: 'onHit', n: { stacks: 2, power: 0.1 },
-    desc: (n) => `Critical hits open wounds: ${n.stacks} stacks of bleed worth ${pct(n.power)} of the hit per second each.`,
-    tiers: [{ n: { stacks: 3, power: 0.13 } }, { n: { stacks: 4, power: 0.16 } }],
-  }),
-  hexDoll: relic({
-    name: 'Hex Doll', rarity: 'rare', icon: '🪆', category: 'onHit', n: { stacks: 1 },
-    desc: (n) => `Your signature ability curses what it hits: ${n.stacks} stack${n.stacks > 1 ? 's' : ''} per hit, +12% damage taken per stack, up to 3.`,
-    tiers: [{ n: { stacks: 2 } }, { n: { stacks: 3 } }],
-  }),
-  gravePact: relic({
-    name: 'Grave Pact', rarity: 'rare', icon: '🕯️', category: 'utility', n: { time: 7 },
-    desc: (n) => `Using your ability blesses your minions for ${n.time}s: +30% damage and they mend themselves.`,
-    tiers: [{ n: { time: 10 } }, { n: { time: 13 } }],
-  }),
+  // ---------------------------------------------------------------- ⚡ Storm
+  stormPennant: relic({ name: 'Storm Pennant', rarity: 'common', icon: '⚡', family: 'storm', n: { chance: 0.25, mult: 0.6, range: 170 }, n2: { chance: 0.35, mult: 0.7 },
+    awaken: ['Thunderhead', 'Chains jump twice.'], desc: (n) => `Attacks have a ${pct(n.chance)} chance to chain to another enemy for ${pct(n.mult)} damage.` }),
+  quicksilverSpurs: relic({ name: 'Quicksilver Spurs', rarity: 'common', icon: '🥾', family: 'storm', n: { per: 0.02, max: 10, time: 4 }, n2: { per: 0.03 },
+    awaken: ['Blur', 'At full stacks your utility cools down 50% faster.'], desc: (n) => `Every chain or crit gives +${pct(n.per)} attack and movement speed for ${n.time} s (up to ${n.max} stacks).` }),
+  tempestEye: relic({ name: 'Tempest Eye', rarity: 'rare', icon: '👁️', family: 'storm', mods: { crit: 0.1 }, mods2: { crit: 0.15 }, n: { crit: 0.1, mult: 0.4, range: 170 }, n2: { crit: 0.15, mult: 0.5 },
+    awaken: ['Eye of the Storm', 'Chain hits can crit.'], desc: (n) => `+${pct(n.crit)} crit chance; crits chain to another enemy for ${pct(n.mult)}.` }),
+  thunderDrum: relic({ name: 'Thunder Drum', rarity: 'rare', icon: '🥁', family: 'storm', n: { damage: 30, radius: 170, mult: 0.5, range: 170 }, n2: { damage: 45 },
+    awaken: ['Rolling Thunder', 'The thunderclap sounds again 1 s later.'], desc: (n) => `Using your ability sounds a thunderclap: ${n.damage}+ damage around you (grows with level), chaining from every enemy hit.` }),
+  stormcallersHorn: relic({ name: "Stormcaller's Horn", rarity: 'legendary', icon: '📯', family: 'storm', n: { every: 15, mult: 3, radius: 70, range: 400 }, n2: { every: 12 },
+    awaken: ['Skyfury', 'The strike chains to 3 more enemies.'], desc: (n) => `Every ${n.every} kills a lightning strike hits the toughest enemy near you (${n.mult}× your hit).` }),
+  galeforceQuiver: relic({ name: 'Galeforce Quiver', rarity: 'rare', icon: '🪶', family: 'storm', classId: 'archer', n: { per: 4, mult: 0.5, range: 170 }, n2: { per: 3 },
+    awaken: ['Gale Shot', 'Every 10th arrow is a lightning bolt that chains 5 times.'], desc: (n) => `Arrows pierce one more enemy per ${n.per} Focus, and every third arrow hit chains to another enemy (${pct(n.mult)}).` }),
+  stormbornPelt: relic({ name: 'Stormborn Pelt', rarity: 'rare', icon: '🌩️', family: 'storm', classId: 'viking', n: { every: 4, perRage: 0.01, range: 170 }, n2: { every: 3 },
+    awaken: ['Thunder God', 'Kills during Rage extend it by 0.03 s × Rage (up to double length).'], desc: (n) => `During Berserker Rage every ${n.every}th hit chains to another enemy for 50% + ${pct(n.perRage)} per Rage.` }),
 
-  // ---------- legendary ----------
-  bloodPact: relic({
-    name: 'Blood Pact', rarity: 'legendary', icon: '🩸', category: 'damage', mods: { damage: 1.5 }, n: { hp: 0.7, bonus: 0.5 },
-    desc: (n) => `+${pct(n.bonus)} damage, but max HP is cut to ${pct(n.hp)}.`,
-    tiers: [{ n: { hp: 0.75, bonus: 0.65 }, mods: { damage: 1.65 } }, { n: { hp: 0.8, bonus: 0.8 }, mods: { damage: 1.8 } }],
-  }),
-  hourglass: relic({
-    name: 'Sands of Chronos', rarity: 'legendary', icon: '⏳', category: 'utility', mods: { cooldown: 0.65 }, n: { cut: 0.35 },
-    desc: (n) => `Signature ability cooldown reduced by ${pct(n.cut)}.`,
-    tiers: [{ n: { cut: 0.45 }, mods: { cooldown: 0.55 } }, { n: { cut: 0.55 }, mods: { cooldown: 0.45 } }],
-  }),
-  phoenixFeather: relic({
-    name: 'Phoenix Feather', rarity: 'legendary', icon: '🪶', category: 'defense', n: { charges: 1 },
-    desc: (n) => (n.charges > 1 ? `${n.charges} times per run, rise from death with half your HP.` : 'Once per run, rise from death with half your HP.'),
-    tiers: [{ n: { charges: 2 } }, { n: { charges: 3 } }],
-  }),
-  soulLantern: relic({
-    name: 'Soul Lantern', rarity: 'legendary', icon: '🏮', category: 'onKill', n: { chance: 0.12, max: 4, life: 9, hp: 40, damage: 8 },
-    desc: (n) => `Slain enemies have a ${pct(n.chance)} chance to rise as a skeleton ally (max ${n.max}).`,
-    tiers: [{ n: { chance: 0.18, max: 6 } }, { n: { chance: 0.24, max: 8, damage: 12 } }],
-  }),
-  conquerorCrown: relic({
-    name: "Conqueror's Crown", rarity: 'legendary', icon: '👑', category: 'damage', n: { perWave: 0.03, max: 0.75 },
-    desc: (n) => `+${pct(n.perWave)} damage for every wave cleared while you wear it (max +${pct(n.max)}).`,
-    tiers: [{ n: { perWave: 0.04, max: 1 } }, { n: { perWave: 0.05, max: 1.25 } }],
-  }),
+  // ---------------------------------------------------------------- 🩸 Blood
+  serratedEdge: relic({ name: 'Serrated Edge', rarity: 'common', icon: '🩹', family: 'blood', n: { stacks: 2, power: 0.1 }, n2: { stacks: 3 },
+    awaken: ['Haemorrhage', '+20% crit damage against bleeding enemies.'], desc: (n) => `Crits open ${n.stacks} bleed stacks (${pct(n.power)} of the hit per second each).` }),
+  butchersHook: relic({ name: "Butcher's Hook", rarity: 'common', icon: '🪝', family: 'blood', n: { slow: 0.15, bonus: 0.15 }, n2: { slow: 0.2, bonus: 0.2 },
+    awaken: ['Gutting', 'A bleeding enemy you kill passes its bleed to 2 enemies near it.'], desc: (n) => `Bleeding enemies are ${pct(n.slow)} slower and take ${pct(n.bonus)} more damage from your attacks.` }),
+  berserkerTooth: relic({ name: 'Berserker Tooth', rarity: 'rare', icon: '🦷', family: 'blood', n: { per: 3, max: 0.3 }, n2: { per: 2, max: 0.4 },
+    awaken: ['Last Blood', 'Below 25% HP every bleed you apply is doubled.'], desc: (n) => `+1% attack speed for every ${n.per}% of HP missing (up to ${pct(n.max)}).` }),
+  vampireFang: relic({ name: 'Vampire Fang', rarity: 'rare', icon: '🧛', family: 'blood', n: { leech: 0.03 }, n2: { leech: 0.05 },
+    awaken: ['Thirst', 'Below half HP it heals twice as much.'], desc: (n) => `Hits on bleeding enemies heal you ${pct(n.leech)} of the damage.` }),
+  bloodPact: relic({ name: 'Blood Pact', rarity: 'legendary', icon: '🩸', family: 'blood', mods: { damage: 1.4 }, mods2: { damage: 1.55 }, n: { bonus: 0.4, hp: 0.75 }, n2: { bonus: 0.55, hp: 0.8 },
+    awaken: ['Covenant', 'Below half HP kills restore 1% of your max HP.'], desc: (n) => `+${pct(n.bonus)} damage, but your max HP is cut to ${pct(n.hp)}.` }),
+  wolfskin: relic({ name: 'Wolfskin Cloak', rarity: 'rare', icon: '🐺', family: 'blood', classId: 'viking', n: { per: 15 }, n2: { per: 10 },
+    awaken: ['Blood Frenzy', 'Bleeding enemies you kill during Rage give +5% attack speed for the rest of it (up to 25%).'], desc: (n) => `During Berserker Rage your hits add a bleed stack, +1 per ${n.per} Rage.` }),
 
-  // ---------- class relics: each leans on that class's secondary stat ----------
-  reliquary: relic({
-    name: 'Reliquary of Saints', rarity: 'rare', icon: '⚱️', category: 'defense', classId: 'paladin', n: { perFaith: 0.02 },
-    desc: (n) => `Every hit you take shaves ${n.perFaith}s × Faith off Divine Shield's cooldown.`,
-    tiers: [{ n: { perFaith: 0.03 } }, { n: { perFaith: 0.04 } }],
-  }),
-  wolfskin: relic({
-    name: 'Wolfskin Cloak', rarity: 'rare', icon: '🐺', category: 'utility', classId: 'viking', n: { perRage: 0.03, cap: 1 },
-    desc: (n) => `Kills during Berserker Rage extend it by ${n.perRage}s × Rage (up to ${n.cap === 1 ? 'double' : `${1 + n.cap}×`} length).`,
-    tiers: [{ n: { perRage: 0.045, cap: 1.5 } }, { n: { perRage: 0.06, cap: 2 } }],
-  }),
-  seraphHalo: relic({
-    name: "Seraph's Halo", rarity: 'rare', icon: '😇', category: 'damage', classId: 'angel', n: { base: 4, perGrace: 0.8, mult: 1.5 },
-    desc: (n) => `Heavenly Radiance also fires ${n.base} + Grace × ${n.perGrace} light bolts in all directions.`,
-    tiers: [{ n: { base: 6, mult: 1.8 } }, { n: { base: 8, mult: 2.1, perGrace: 1 } }],
-  }),
-  boneChime: relic({
-    name: 'Bone Chime', rarity: 'rare', icon: '🎐', category: 'attackSpeed', classId: 'necromancer', n: { inherit: 0.5, perSoul: 0.02 },
-    desc: (n) => `Minions inherit ${pct(n.inherit)} of your attack speed, plus ${pct(n.perSoul)} per Soul Power.`,
-    tiers: [{ n: { inherit: 0.7, perSoul: 0.03 } }, { n: { inherit: 0.9, perSoul: 0.04 } }],
-  }),
-  hawkeyeQuiver: relic({
-    name: 'Hawkeye Quiver', rarity: 'rare', icon: '🏹', category: 'utility', classId: 'archer', n: { per: 4 },
-    desc: (n) => `Your arrows pierce one extra enemy for every ${n.per} Focus.`,
-    tiers: [{ n: { per: 3 } }, { n: { per: 2 } }],
-  }),
+  // ---------------------------------------------------------------- ✨ Holy
+  rallyBanner: relic({ name: 'Rally Banner', rarity: 'common', icon: '🚩', family: 'holy', n: { heal: 0.12 }, n2: { heal: 0.18 },
+    awaken: ['Hymn', 'The heal also grants that much ward.'], desc: (n) => `Heal ${pct(n.heal)} of your max HP at the start of every wave.` }),
+  blessedWater: relic({ name: 'Blessed Water', rarity: 'common', icon: '💧', family: 'holy', n: { bonus: 0.2 }, n2: { bonus: 0.3 },
+    awaken: ['Baptism', 'Every heal also cleanses one status (poison, bleed, curse or chill).'], desc: (n) => `Your healing is ${pct(n.bonus)} stronger.` }),
+  guardiansAegis: relic({ name: "Guardian's Aegis", rarity: 'rare', icon: '🔰', family: 'holy', n: { every: 12, ward: 0.1 }, n2: { every: 9 },
+    awaken: ['Faithful', 'While warded, +15% damage.'], desc: (n) => `Every ${n.every} s gain ward equal to ${pct(n.ward)} of your max HP.` }),
+  haloOfMercy: relic({ name: 'Halo of Mercy', rarity: 'rare', icon: '😇', family: 'holy', n: { chance: 0.08, heal: 0.05 }, n2: { chance: 0.12 },
+    awaken: ['Grace', 'Mercy orbs also grant that much ward.'], desc: (n) => `Kills have a ${pct(n.chance)} chance to release a mercy orb that heals you ${pct(n.heal)} of your max HP.` }),
+  phoenixFeather: relic({ name: 'Phoenix Feather', rarity: 'legendary', icon: '🪶', family: 'holy', n: { hp: 0.5, radius: 220, damage: 60 }, n2: { hp: 1 },
+    awaken: ['Rebirth', 'Rising sets everything near you ablaze with holy fire.'], desc: (n) => `Once per run, rise from death with ${pct(n.hp)} of your HP.` }),
+  reliquary: relic({ name: 'Reliquary of Saints', rarity: 'rare', icon: '⚱️', family: 'holy', classId: 'paladin', n: { perFaith: 0.02 }, n2: { perFaith: 0.03 },
+    awaken: ["Martyr's Relic", 'Divine Shield also grants ward equal to 1% of your max HP per Faith when it ends.'], desc: (n) => `Every hit you take shaves ${n.perFaith} s × Faith off Divine Shield's cooldown.` }),
+  seraphHalo: relic({ name: "Seraph's Halo", rarity: 'rare', icon: '🪽', family: 'holy', classId: 'angel', n: { base: 4, perGrace: 0.8, mult: 1.5 }, n2: { base: 6, perGrace: 1 },
+    awaken: ['Choir of Light', 'The bolts heal you for 1% of your max HP each when they hit.'], desc: (n) => `Heavenly Radiance also fires ${n.base} + Grace × ${n.perGrace} light bolts in all directions.` }),
+  hallowedBones: relic({ name: 'Hallowed Bones', rarity: 'rare', icon: '🦴', family: 'holy', classId: 'necromancer', n: { ward: 0.2, heal: 0.01, perSoul: 0.001 }, n2: { ward: 0.3 },
+    awaken: ['Sanctified Legion', "Skeletons' hits heal you for 0.5% of the damage."], desc: (n) => `Skeletons you raise carry a ward of ${pct(n.ward)} of their HP, and a skeleton that expires heals you ${pct(n.heal)} of your max HP (+0.1% per Soul Power).` }),
+
+  // ---------------------------------------------------------------- 💀 Grave
+  soulLantern: relic({ name: 'Soul Lantern', rarity: 'legendary', icon: '🔮', family: 'grave', n: { chance: 0.1, max: 4, life: 9, hp: 40, damage: 8 }, n2: { chance: 0.15, max: 6 },
+    awaken: ['Lantern of the Lost', 'Skeletons burst in shadow when they expire.'], desc: (n) => `Kills have a ${pct(n.chance)} chance to raise a skeleton ally (up to ${n.max}).` }),
+  hexDoll: relic({ name: 'Hex Doll', rarity: 'rare', icon: '🪆', family: 'grave', n: { stacks: 1 }, n2: { stacks: 2 },
+    awaken: ['Voodoo', 'A cursed enemy that dies passes its curse to the nearest enemy.'], desc: (n) => `Your signature ability curses what it hits: ${n.stacks} stack${n.stacks > 1 ? 's' : ''} per hit (+12% damage taken per stack, up to 3).` }),
+  gravePact: relic({ name: 'Grave Pact', rarity: 'rare', icon: '🕯️', family: 'grave', n: { time: 7 }, n2: { time: 10 },
+    awaken: ['Unholy Pact', "Blessed minions' hits curse."], desc: (n) => `Your ability blesses your minions for ${n.time} s (+30% damage, they mend); with no minions it raises a skeleton for that long.` }),
+  gravediggersSpade: relic({ name: "Gravedigger's Spade", rarity: 'common', icon: '⚰️', family: 'grave', n: { per: 0.03, max: 5, radius: 150 }, n2: { per: 0.04 },
+    awaken: ['Exhume', 'Every 20 s the oldest corpse near you rises as a skeleton.'], desc: (n) => `+${pct(n.per)} damage for every corpse within ${n.radius} px (up to ${n.max}).` }),
+  deathmask: relic({ name: 'Deathmask', rarity: 'common', icon: '🎭', family: 'grave', n: { reduce: 0.15 }, n2: { reduce: 0.2 },
+    awaken: ['Mark of the Grave', 'A cursed enemy you kill leaves a corpse that bursts in shadow after 1 s.'], desc: (n) => `Cursed enemies deal ${pct(n.reduce)} less damage.` }),
+  boneChime: relic({ name: 'Bone Chime', rarity: 'rare', icon: '🎐', family: 'grave', classId: 'necromancer', n: { inherit: 0.5, perSoul: 0.02 }, n2: { inherit: 0.7, perSoul: 0.03 },
+    awaken: ['Death Knell', 'Every 20th minion hit tolls the chime: a shadow burst around that minion.'], desc: (n) => `Minions inherit ${pct(n.inherit)} of your attack speed, plus ${pct(n.perSoul)} per Soul Power.` }),
+
+  // ---------------------------------------------------------------- 🛡️ Steel
+  towerShield: relic({ name: 'Tower Shield', rarity: 'common', icon: '🛡️', family: 'steel', n: { chance: 0.1 }, n2: { chance: 0.14 },
+    awaken: ['Shield Wall', 'A block knocks the attacker back and stuns it for 0.5 s.'], desc: (n) => `${pct(n.chance)} chance to block a hit.` }),
+  thornMail: relic({ name: 'Thorn Mail', rarity: 'common', icon: '🌵', family: 'steel', n: { mult: 3 }, n2: { mult: 4 },
+    awaken: ['Briar Plate', 'Blocked hits are thrown back too.'], desc: (n) => `Enemies that hit you take ${n.mult}× that damage back.` }),
+  anvilHeart: relic({ name: 'Anvil Heart', rarity: 'rare', icon: '⚒️', family: 'steel', n: { per: 2 }, n2: { per: 1.5 },
+    awaken: ['Forgefire', 'At full armor stacks your hits stagger (a short slow).'], desc: (n) => `+1% damage for every ${n.per}% armor you have.` }),
+  shockSigil: relic({ name: 'Shockwave Sigil', rarity: 'rare', icon: '🌀', family: 'steel', n: { cooldown: 4, radius: 150, damage: 30, knockback: 380 }, n2: { cooldown: 3, damage: 45 },
+    awaken: ['Quake Plate', 'The shockwave gives an armor stack for every enemy it hits.'], desc: (n) => `Taking damage releases a shockwave (${n.damage}+ damage, every ${n.cooldown} s at most).` }),
+  unbreakable: relic({ name: 'Unbreakable', rarity: 'legendary', icon: '🗿', family: 'steel', n: { every: 30, over: 0.25 }, n2: { every: 20 },
+    awaken: ['Adamant', 'After it blocks, +50% armor for 4 s.'], desc: (n) => `Once every ${n.every} s, a hit that would take more than ${pct(n.over)} of your HP is blocked.` }),
+  aegisFaithful: relic({ name: 'Aegis of the Faithful', rarity: 'rare', icon: '⛨', family: 'steel', classId: 'paladin', n: { per: 5 }, n2: { per: 4 },
+    awaken: ['Consecrated Steel', "At full armor stacks Divine Shield's burst is 50% larger."], desc: (n) => `When Divine Shield ends you gain an armor stack per ${n.per} Faith.` }),
+  ironhide: relic({ name: 'Ironhide', rarity: 'rare', icon: '🐗', family: 'steel', classId: 'viking', n: { every: 2 }, n2: { every: 1.5 },
+    awaken: ['Unstoppable', 'During Rage, blocked hits heal 2% of your max HP.'], desc: (n) => `Berserker Rage gives an armor stack every ${n.every} s.` }),
 };
 
 export type RelicId = keyof typeof RELICS;
 export const RELIC_IDS = Object.keys(RELICS) as RelicId[];
 export const relicDef = (id: RelicId): RelicDef => RELICS[id];
 
-/** The numbers of a relic at a tier (1..RELIC_MAX_TIER). */
+/** The numbers of a relic at a tier (1..RELIC_MAX_TIER). Tier III (awakened) keeps tier II's numbers. */
 export function relicN(id: RelicId, tier: number): Record<string, number> {
   const def = RELICS[id];
-  let n = def.n;
-  for (let t = 2; t <= tier; t++) n = { ...n, ...def.tiers[t - 2].n };
-  return n;
+  return tier >= 2 ? { ...def.n, ...def.tiers[0].n } : def.n;
 }
 
 export function relicMods(id: RelicId, tier: number): Partial<Mods> | undefined {
   const def = RELICS[id];
-  let mods = def.mods;
-  for (let t = 2; t <= tier; t++) if (def.tiers[t - 2].mods) mods = { ...mods, ...def.tiers[t - 2].mods };
-  return mods;
+  return tier >= 2 && def.tiers[0].mods ? { ...def.mods, ...def.tiers[0].mods } : def.mods;
 }
 
-export const relicDesc = (id: RelicId, tier: number): string => (tier <= 1 ? RELICS[id].desc : RELICS[id].describe(relicN(id, tier)));
+export const relicDesc = (id: RelicId, tier: number): string => {
+  const def = RELICS[id];
+  const text = tier <= 1 ? def.desc : def.describe(relicN(id, tier));
+  return tier >= RELIC_MAX_TIER ? `${text} Awakened, ${def.awaken.name}: ${def.awaken.desc}` : text;
+};
 
-/**
- * Synergies: pairs that do something extra together (systems/relics.ts implements them), and clashes that only warn.
- * Every relic's tooltip lists the ones it is part of.
- */
-export interface SynergyDef {
-  name: string;
-  relics: RelicId[];
-  desc: string;
-  anti?: boolean;
-  n: Record<string, number>;
-}
-
-const SYN = {
-  fireInTheHole: { name: 'Fire in the Hole', relics: ['brimstoneOil', 'powderKeg'], desc: 'Keg blasts ignite everything they hit.', n: { power: 0.2 } },
-  shatter: { name: 'Shatter', relics: ['frostBrand', 'serratedEdge'], desc: 'Chilling a bleeding enemy doubles its bleed stacks.', n: { mult: 2 } },
-  thunderclap: { name: 'Thunderclap', relics: ['stormPennant', 'echoBell'], desc: 'The bell also stuns what it hits for a moment.', n: { stun: 0.6 } },
-  reaper: { name: 'Reaper', relics: ['vampireFang', 'executioner'], desc: "The Fang heals triple on enemies slain below the Hood's threshold.", n: { mult: 3 } },
-  bulwark: { name: 'Bulwark', relics: ['thornMail', 'shockSigil'], desc: "The shockwave's cooldown is halved.", n: { mult: 0.5 } },
-  muster: { name: 'Muster', relics: ['rallyBanner', 'warHorn'], desc: "The Banner's heal is doubled while the Horn sounds.", n: { mult: 2 } },
-  bastion: { name: 'Bastion', relics: ['sentinelStance', 'ironBand'], desc: 'Standing still also charges armor: +2% a second, up to +20%.', n: { perSec: 0.02, max: 0.2 } },
-  pilgrimsPurse: { name: "Pilgrim's Purse", relics: ['luckyCoin', 'scholarTome'], desc: '+10% gold and +10% experience on top.', n: { bonus: 0.1 } },
-  necropolis: { name: 'Necropolis', relics: ['soulLantern', 'gravePact'], desc: 'Skeletons rise already blessed.', n: {} },
-  forager: { name: 'Forager', relics: ['swiftBoots', 'lodestone'], desc: 'Pickups are drawn in from half again as far.', n: { mult: 1.5 } },
-  rebirth: { name: 'Rebirth', relics: ['phoenixFeather', 'bloodPact'], desc: 'The Phoenix returns you at full HP.', n: {} },
-  tempo: { name: 'Tempo', relics: ['hourglass', 'echoBell'], desc: 'Every ring of the bell refunds a second of cooldown.', n: { refund: 1 } },
-  // ---- clashes: warnings only ----
-  restless: { name: 'Restless', relics: ['sentinelStance', 'swiftBoots'], desc: 'Moving resets the Stance; speed does nothing for it.', anti: true, n: {} },
-  overkill: { name: 'Overkill', relics: ['executioner', 'powderKeg'], desc: 'Keg blasts finish the enemies the Hood wants to execute.', anti: true, n: {} },
-  thinBlood: { name: 'Thin Blood', relics: ['bloodPact', 'rallyBanner'], desc: 'The Banner heals a share of a smaller pool.', anti: true, n: {} },
-  blunted: { name: 'Blunted', relics: ['thornMail', 'ironBand'], desc: 'Armor shrinks the hits Thorn Mail throws back.', anti: true, n: {} },
-} satisfies Record<string, SynergyDef>;
-
-export type SynergyId = keyof typeof SYN;
-export const SYNERGIES: Record<SynergyId, SynergyDef> = SYN;
-export const SYNERGY_IDS = Object.keys(SYN) as SynergyId[];
+/** The families this class prefers (it can max them with straight pieces), in the order of FAMILY_IDS. */
+export const preferredFamilies = (classId: ClassId): FamilyId[] => FAMILY_IDS.filter((f) => (FAMILIES[f].preferredBy as readonly ClassId[]).includes(classId));

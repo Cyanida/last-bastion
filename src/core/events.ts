@@ -13,6 +13,13 @@ export interface GameEvents {
   onAbilityEnd: Record<string, never>; // v0.5: the signature ability's active time ran out (after its own expire)
   onUtilityUsed: { id: string }; // v0.4
   onWaveStart: { wave: number };
+  // v0.7 relic families (RELICS.md)
+  onIncoming: { amount: number; attacker: Enemy | null; blocked: boolean }; // before a hit lands: listeners may shrink it or block it
+  onBlock: { amount: number; attacker: Enemy | null }; // a hit blocked (Steel)
+  onHeal: { amount: number; over: number }; // HP restored, and what went past full (Holy's Radiance)
+  onFreeze: { enemy: Enemy }; // chill tipped over into a freeze
+  onChain: { enemy: Enemy }; // a chain jumped to this enemy (Storm)
+  onRevive: Record<string, never>; // a revive charge was spent (Phoenix Feather's Rebirth)
 }
 export type EventName = keyof GameEvents;
 export type Handlers = { [K in EventName]?: (g: Game, ev: GameEvents[K]) => void };

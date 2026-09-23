@@ -4,12 +4,12 @@ import { SKILL } from '../config/game';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
-import { RELIC_STACKING, relicDef, type RelicId } from '../config/relics';
+import { FAMILIES, FAMILY_IDS, RELIC_STACKING, relicDef, type FamilyId, type RelicId } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
 import { STAT_KEYS, type Enemy, type Game, type Mods, type Quest, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
 import { actName } from '../logic/acts';
-import { softCap, type RelicModTotal } from '../logic/relics';
+import { familySets, softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
@@ -69,6 +69,7 @@ export function buildHud(onPause: () => void, onMute: () => void): void {
     </div>
     <div class="hud-right">
       <div class="hud-tr"><button id="btn-mute" title="Mute (M)"></button><button id="btn-pause" title="Pause (Esc / P)">❚❚</button></div>
+      <div class="hud-families" id="h-families"></div>
       <div class="hud-relics" id="h-relics"></div>
       <div id="h-toasts"></div>
     </div>
@@ -139,6 +140,7 @@ function width(id: string, frac: number): void {
 const toastedQuests = new WeakSet<Quest>(); // v0.5: each finished quest is toasted once
 
 const fmt = (key: StatKey, v: number) => (key === 'atkSpd' ? v.toFixed(2) : String(Math.round(v * 10) / 10));
+const lastLevels: Partial<Record<FamilyId, number>> = {}; // v0.7: family set levels last shown (a new threshold flashes)
 let lastRelicKey = '';
 const MOD_NAMES: Partial<Record<keyof Mods, string>> = { damage: 'damage', atkSpd: 'attack speed', moveSpd: 'speed', cooldown: 'cooldown cut', pickup: 'pickup', xp: 'XP', gold: 'gold', armor: 'armor', crit: 'crit', pierce: 'pierce', minionAtkSpd: 'minion speed', minionDamage: 'minion damage' };
 
@@ -198,6 +200,17 @@ export function updateHud(g: Game): void {
     const older = g.player.relics.held.length > fit ? g.player.relics.held.slice(0, g.player.relics.held.length - fit) : [];
     const more = older.length ? `<div class="relic more" tabindex="0">+${older.length}<div class="hud-pop hud-plate">${older.map(tile).join('')}</div></div>` : '';
     html('h-relics', more + g.player.relics.held.slice(older.length).map(tile).join(''));
+    // v0.7: the family row: icon and count per family held; a reached threshold (2, 4, 6) lights up, and flashes when it is new
+    const sets = familySets(g.player.relics.held, g.player.relics.duos);
+    html('h-families', FAMILY_IDS.filter((f) => sets[f]).map((f) => {
+      const st = sets[f]!;
+      const fam = FAMILIES[f];
+      const fresh = st.level > (lastLevels[f] ?? 0);
+      lastLevels[f] = st.level;
+      const next = ([2, 4, 6] as const).find((l) => l > st.count);
+      const tip = `${fam.name} · ${st.count} held${st.level ? ` · ${([2, 4, 6] as const).filter((l) => st.level >= l).map((l) => fam.sets[l][0]).join(', ')}` : ''}${next ? `\nNext at ${next}: ${fam.sets[next][0]}, ${fam.sets[next][1]}` : ''}${st.strength > 1 ? '\nCompleted with a duo: its 6 works at 125%.' : ''}`;
+      return `<div class="fam-chip ${st.level ? 'on' : ''} ${fresh ? 'flash' : ''}" style="--fam:${fam.color}" tabindex="0" data-tip="${esc(tip)}">${fam.icon}<b>${st.count}</b></div>`;
+    }).join(''));
   }
 
   const sig = evolutionIn(g, 'signature'); // v0.6: an evolved ability wears its new name

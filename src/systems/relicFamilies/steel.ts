@@ -1,0 +1,116 @@
+import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
+import { applyStatus, damageEnemy } from '../combat';
+import { awakened, bonus, credit, fullArmorStacks, gainArmorStacks, nOf, nova, relicDamage, relicHeal, sOf, strength, type RelicHooks } from '../relicCore';
+
+/**
+ * 🛡️ Steel (RELICS.md): armor stacks, block and thorns. Relics block hits (combat.damagePlayer's onIncoming), throw damage back or build armor
+ * stacks; the sets give an armor stack for every hit or block (Bulwark), turn armor into thorns (Spiked) and release full stacks as a
+ * shockwave (Juggernaut).
+ */
+const F = FAMILIES.steel;
+const armorOf = (p: { cls: { armor: number }; mods: { armor: number }; armorStacks: number }) => p.cls.armor + p.mods.armor + p.armorStacks * F.n.stackArmor;
+
+export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
+  towerShield: {
+    onIncoming(g, ev, p) {
+      if (!ev.blocked && g.rng() < nOf(p, 'towerShield').chance) {
+        ev.blocked = true;
+        credit(g, p, 'towerShield', 'prevented', ev.amount, true);
+      }
+    },
+    onBlock(g, ev, p) {
+      const e = ev.attacker;
+      if (!awakened(p, 'towerShield') || !e || e.dead) return;
+      const a = Math.atan2(e.y - p.y, e.x - p.x); // Shield Wall
+      e.kx += Math.cos(a) * 400 * (1 - e.def.knockbackResist);
+      e.ky += Math.sin(a) * 400 * (1 - e.def.knockbackResist);
+      applyStatus(e, { apply: [{ id: 'stun', time: 0.5 }] }, g);
+    },
+  },
+
+  thornMail: {
+    onDamageTaken(g, ev, p) {
+      if (ev.attacker) damageEnemy(g, ev.attacker, ev.amount * nOf(p, 'thornMail').mult, false, 0, 0, 'relic');
+    },
+    onBlock(g, ev, p) {
+      if (awakened(p, 'thornMail') && ev.attacker) damageEnemy(g, ev.attacker, ev.amount * nOf(p, 'thornMail').mult, false, 0, 0, 'relic'); // Briar Plate
+    },
+  },
+
+  anvilHeart: {
+    tick(_g, _dt, p) {
+      bonus(p, 'damage', (armorOf(p) * 100) / nOf(p, 'anvilHeart').per / 100);
+    },
+    onHit(g, ev, p) {
+      if (awakened(p, 'anvilHeart') && ev.source === 'attack' && fullArmorStacks(p)) applyStatus(ev.enemy, { apply: [{ id: 'slow', stacks: 2, time: 1 }] }, g); // Forgefire
+    },
+  },
+
+  shockSigil: {
+    onDamageTaken(g, _ev, p) {
+      const n = nOf(p, 'shockSigil');
+      if (g.time < (g.vars.shockReady ?? 0)) return;
+      g.vars.shockReady = g.time + n.cooldown;
+      const hit = nova(g, p.x, p.y, n.radius, relicDamage(p, n.damage), n.knockback, '#7ec8d8');
+      if (awakened(p, 'shockSigil')) gainArmorStacks(g, p, hit); // Quake Plate
+    },
+  },
+
+  unbreakable: {
+    onIncoming(g, ev, p) {
+      const n = nOf(p, 'unbreakable');
+      if (ev.blocked || g.time < (g.vars['unbreakable.ready'] ?? 0) || ev.amount <= p.hp * n.over) return;
+      ev.blocked = true;
+      g.vars['unbreakable.ready'] = g.time + n.every;
+      credit(g, p, 'unbreakable', 'prevented', ev.amount, true);
+      if (awakened(p, 'unbreakable')) g.vars['adamant.until'] = g.time + 4; // Adamant
+    },
+    tick(g, _dt, p) {
+      if (g.time < (g.vars['adamant.until'] ?? 0)) bonus(p, 'armor', (p.cls.armor + p.mods.armor) * 0.5);
+    },
+  },
+
+  aegisFaithful: {
+    onAbilityEnd(g, _ev, p) {
+      gainArmorStacks(g, p, Math.floor(sOf(p) / nOf(p, 'aegisFaithful').per));
+    },
+    onHit(g, ev, p) {
+      if (awakened(p, 'aegisFaithful') && ev.source === 'ability' && fullArmorStacks(p)) damageEnemy(g, ev.enemy, ev.amount * 0.5, false, 0, 0, 'relic', 'holy'); // Consecrated Steel
+    },
+  },
+
+  ironhide: {
+    tick(g, dt, p) {
+      if (p.abilityTime <= 0) return;
+      if ((g.vars['ironhide.t'] = (g.vars['ironhide.t'] ?? 0) + dt) < nOf(p, 'ironhide').every) return;
+      g.vars['ironhide.t'] = 0;
+      gainArmorStacks(g, p, 1);
+    },
+    onBlock(g, _ev, p) {
+      if (awakened(p, 'ironhide') && p.abilityTime > 0) relicHeal(g, p, p.stats.hp * 0.02); // Unstoppable
+    },
+  },
+};
+
+export const STEEL_SETS: Partial<Record<SetLevel, RelicHooks>> = {
+  2: {
+    onBlock(g, _ev, p) {
+      gainArmorStacks(g, p, 1); // Bulwark
+    },
+    onDamageTaken(g, _ev, p) {
+      gainArmorStacks(g, p, 1);
+    },
+  },
+  4: {
+    onDamageTaken(g, ev, p) {
+      if (ev.attacker) damageEnemy(g, ev.attacker, ev.amount * F.n.thornsMult * armorOf(p) * strength(p, 'steel'), false, 0, 0, 'relic'); // Spiked
+    },
+  },
+  6: {
+    onHit(g, ev, p) {
+      if (ev.source !== 'attack' || !fullArmorStacks(p)) return; // Juggernaut: full stacks go out as a shockwave
+      nova(g, ev.enemy.x, ev.enemy.y, F.n.quakeRadius, relicDamage(p, F.n.quakePerStack) * p.armorStacks * strength(p, 'steel'), 300, F.color);
+      p.armorStacks = 0;
+    },
+  },
+};
