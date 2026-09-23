@@ -6,6 +6,7 @@ import { relicStream, rollOffer } from '../src/logic/relics';
 import { rollLevelUpOptions } from '../src/logic/upgrades';
 import { killEnemy } from '../src/systems/combat';
 import { familyOf, offerRelics, rerollRelicOffer, resolveRelicOffer, skipRelicOffer, skipReward } from '../src/systems/relics';
+import { updateRegions } from '../src/systems/regions';
 import { spawnEnemy } from '../src/systems/spawning';
 
 const FAM = Object.fromEntries(RELIC_IDS.map((id) => [id, familyOf(id)])) as Record<RelicId, string>;
@@ -95,3 +96,21 @@ describe('relic moments (v0.7)', () => {
     for (let i = 0; i < 200; i++) expect(rollLevelUpOptions(rng, [], null).some((o) => o.kind === 'relic')).toBe(false);
   });
 });
+
+describe('strongboxes (v0.7 A8, Jesse on #13)', () => {
+  it('a strongbox pays gold and a Rune shard, and is no relic moment', () => {
+    const g = createGame('paladin', 1);
+    const f = g.features[0];
+    f.kind = 'chest';
+    g.regionOpen[f.wing] = true;
+    g.player.x = f.x;
+    g.player.y = f.y;
+    const { gold, salvage } = g;
+    updateRegions(g, 1 / 60);
+    expect(f.used).toBe(true);
+    expect(g.gold).toBeGreaterThan(gold);
+    expect(g.salvage).toBe(salvage + 1);
+    expect(g.player.relics.offers).toHaveLength(0);
+  });
+});
+

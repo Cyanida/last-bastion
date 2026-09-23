@@ -1,4 +1,3 @@
-import { RELIC_MOMENTS } from '../config/relics';
 import { ENEMIES, type EnemyId } from '../config/enemies';
 import { BLESSING_IDS, BLESSINGS, FEATURES, featureSpot, REGIONS, WING_IDS, type BlessingId, type RegionDef, type RegionId, type WingId } from '../config/regions';
 import { sfx } from '../core/audio';
@@ -102,8 +101,8 @@ export function updateRegions(g: Game, dt: number): void {
     } else if (f.kind === 'chest' && !f.used && near) {
       f.used = true;
       g.gold += REGIONS.chestGold * g.act;
-      floatText(g, f.x, f.y - 30, `+${REGIONS.chestGold * g.act}g`, '#c9a227', 15);
-      offerRelics(g, RELIC_MOMENTS.choices, 'strongbox');
+      g.salvage += 1; // v0.7 A8 (Jesse, #13): gold and a Rune shard, no longer a relic moment (a full run met ~17 moments and 6-sets came in ~70% of wins)
+      floatText(g, f.x, f.y - 30, `+${REGIONS.chestGold * g.act}g · ◆ shard`, '#c9a227', 15);
       ring(g, f.x, f.y, 70, '#c9a227', 0.5);
       sfx('xp');
     } else if (f.kind === 'lair' && !f.used && inWing) {

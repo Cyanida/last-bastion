@@ -59,7 +59,7 @@ describe('duo offers', () => {
     expect(readyDuos(g.player.relics)).toEqual(['thermalShock']);
   });
 
-  it('one duo a moment, at wave bosses (A8), as a fourth option; queued moments offer different duos, and a skipped duo comes back', () => {
+  it('one duo a moment, as a fourth option; queued moments offer different duos, and a skipped duo comes back', () => {
     const g = game(['emberheart', 'stormPennant', 'brimstoneOil', 'frostBrand']);
     offerRelics(g, 3, 'boss');
     offerRelics(g, 3, 'boss');

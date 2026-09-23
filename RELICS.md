@@ -108,7 +108,7 @@ powerful and belongs in a set bonus (Grave's Legion) or a class relic with a wat
 
 ## A2 · Relic moments (built)
 
-Relics now come only at fixed moments (`RELIC_MOMENTS` in `config/relics.ts`): every wave boss (waves 5, 10, ... 35), lairs, strongboxes, a quest
+Relics now come only at fixed moments (`RELIC_MOMENTS` in `config/relics.ts`): every wave boss (waves 5, 10, ... 35), lairs, strongboxes (until A8), a quest
 whose reward is a relic, the Merchant between Acts (one relic moment a visit; none at the Merchant path's caravan) and Armorer's Choice at the
 start. Elites drop gold instead, level-ups offer no relics, the cursed chest pays gold and a Rune shard, and the wandering peddler sells a
 healing draught. Every moment is a pick of one from three with one reroll (two with Cursed Luck or on the Elite path) and a visible Skip that
@@ -163,20 +163,23 @@ holds ~22 relics by wave 40 and takes every duo; A8 measures with the family-fol
 `config/relics.ts` is the source of truth for every number; the tables below are the approved design, and A8 changed these:
 
 - **Rules:**
+  - Strongboxes pay gold and a Rune shard instead of a relic moment (Jesse, #13). A full run meets about 14 moments.
   - Offers no longer lean toward held families (the one-of-yours, one-new rule stays).
   - Legendary weight 10 → 2; class relics come half as often.
-  - Duos are offered at wave-boss moments only.
-  - Relic damage per level 0.09 → 0.12.
+  - Duos are offered at wave-boss and lair moments.
+  - Relic damage per level 0.09 → 0.18.
   - A relic's chill makes the enemy take 4% more damage per stack (Frost's measurable job).
 - **Sets:**
-  - Stoked: burn damage +2% per point of secondary stat (was 1%).
-  - Arc: every 4th hit for 90% (every 3rd from 15 secondary; was every 5th for 60%).
+  - Stoked: burn damage +3% per point of secondary stat (was 1%).
+  - Arc: every 4th hit for full damage (every 3rd from 15 secondary; was every 5th for 60%).
+  - Bloodlust: up to 50% (was 40%).
   - Open Wounds: +2 bleed stacks (was +1).
   - Spiked: 4 × armor % (was 2 ×).
 - **Relics (I / II):**
 
   | Relic | Now | Was |
   |---|---|---|
+  | Salamander Scale | +35% / 50% | 25% / 35% |
   | Brimstone Oil | 35% / 50% chance, burn power 0.5 | 25% / 35%, power 0.2 |
   | Emberheart | 20% / 25% per burning enemy | 6% / 8% |
   | Cinder Charm | 2 / 3 stacks | 1 / 2 |
@@ -203,10 +206,8 @@ holds ~22 relics by wave 40 and takes every duo; A8 measures with the family-fol
   | Thermal Shock | the rest of the burn ×1.25 | ×2 |
 
 - **Red Lightning**, as built in A5: a crit on a bleeding enemy chains to two more enemies.
-- **Open (#13, question for Jesse):**
-  - 6-sets come in about 70% of winning runs, mostly five pieces plus a duo.
-  - About 17 relic moments per full run.
-  - 21 relics read under 3% in 17-relic builds.
+- **Answered on #13 (Jesse): fewer relic moments.** Strongboxes no longer give a relic. 6-sets stay at about 65% of winning runs,
+  mostly five pieces plus a duo; counting a duo as half a piece per family is offered for v0.7.1.
 
 ## A0b · The new relic list (approved, revision 2)
 

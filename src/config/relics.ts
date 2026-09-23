@@ -41,7 +41,7 @@ export const RELIC_WEIGHTS: Record<Rarity, number> = { common: 60, rare: 30, leg
 export const BOSS_RELIC_CHOICES = 3;
 
 /**
- * v0.7: relics come only at fixed moments: every mid-Act and Act boss, lairs, strongboxes, a quest whose reward is a relic, the Merchant
+ * v0.7: relics come only at fixed moments: every mid-Act and Act boss, lairs, a quest whose reward is a relic, the Merchant
  * between Acts, and the run start (Armorer's Choice). Every moment is a pick of one from `choices`, with a visible Skip (paying run gold and
  * a Rune shard) and `rerolls` rerolls. Offers lean `heldFamilyWeight` times toward the families you hold, and always show at least one relic
  * from a family you hold (once you hold one) and one from a family you don't. Target: 12-16 moments in a full four-Act run (RELICS.md).
@@ -52,12 +52,12 @@ export const RELIC_MOMENTS = {
   skip: { gold: 30, goldPerAct: 30, shards: 1 },
   heldFamilyWeight: 1, // A8: 2 put a 6-set in 85-90% of winning runs; the held/new-family rule alone keeps families coming (0.6 changed nothing)
   classRelicWeight: 0.5, // A8: class relics come half as often (a straight 6-set in a preferred family needs its class relic)
-  duoAt: ['boss'] as string[], // A8: the moments that can carry a ready duo (offered at every moment, 3+ duos came in a quarter of winning runs)
+  duoAt: ['boss', 'lair'] as string[], // A8: the moments that can carry a ready duo (at every moment, duos completed most 6-sets)
   merchantPerVisit: 1, // the Merchant sells one relic moment a visit between Acts (not at the Merchant path's caravan): at most 3 a run
 };
 
 /** Relic damage has no attack stat behind it, so it grows with character level instead. */
-export const RELIC_DAMAGE_PER_LEVEL = 0.12; // A8: 0.09 left the relic power index at 1.35-1.6 in Act II; 0.14 put Act III at 2.6
+export const RELIC_DAMAGE_PER_LEVEL = 0.18; // A8: 0.09 left the relic power index at 1.35-1.6 in Act II (and runs hold fewer relics since strongboxes stopped being moments)
 
 /**
  * v0.7 attunement (A4): a held relic grows by doing its work. Progress runs 0 to 1 toward the next tier (II strengthens, III awakens).
@@ -107,11 +107,11 @@ export const FAMILIES = {
   flame: {
     name: 'Flame', icon: '🔥', color: '#e8793a', mechanic: 'Burn stacks and fire bursts', preferredBy: ['paladin', 'angel', 'archer'],
     sets: {
-      2: ['Stoked', 'Burns stack one higher, and burn damage grows 2% per point of your secondary stat.'],
+      2: ['Stoked', 'Burns stack one higher, and burn damage grows 3% per point of your secondary stat.'],
       4: ['Pyre', 'Burning enemies explode on death: 20% of their max HP (+1% per point of your secondary stat) around them.'],
       6: ['Inferno', 'All your damage adds a burn stack, and every 2 s each burning enemy spreads a stack to its nearest neighbour.'],
     },
-    n: { stacksBonus: 1, burnPerS: 0.02, pyreFrac: 0.2, pyrePerS: 0.01, pyreRadius: 90, spreadEvery: 2, spreadRange: 160 },
+    n: { stacksBonus: 1, burnPerS: 0.03, pyreFrac: 0.2, pyrePerS: 0.01, pyreRadius: 90, spreadEvery: 2, spreadRange: 160 },
   },
   frost: {
     name: 'Frost', icon: '❄️', color: '#8ec9e8', mechanic: 'Chill (a relic\'s chill: +4% damage taken per stack), freeze, shatter', preferredBy: ['angel', 'necromancer', 'archer'],
@@ -125,20 +125,20 @@ export const FAMILIES = {
   storm: {
     name: 'Storm', icon: '⚡', color: '#f2e6a0', mechanic: 'Chains and speed', preferredBy: ['viking', 'archer'],
     sets: {
-      2: ['Arc', 'Every 4th hit chains to a second enemy for 90% (every 3rd from 15 in your secondary stat).'],
+      2: ['Arc', 'Every 4th hit chains to a second enemy for full damage (every 3rd from 15 in your secondary stat).'],
       4: ['Thunderstrike', 'Crits call a lightning strike: 50% of the hit to everything around the target.'],
       6: ['Tempest', 'Chains jump 50% further, and 10 kills within 5 s reset your utility cooldown.'],
     },
-    n: { arcEvery: 4, arcEveryAt15: 3, arcMult: 0.9, arcRange: 170, strikeMult: 0.5, strikeRadius: 60, rangeMult: 1.5, streakKills: 10, streakWindow: 5 },
+    n: { arcEvery: 4, arcEveryAt15: 3, arcMult: 1, arcRange: 170, strikeMult: 0.5, strikeRadius: 60, rangeMult: 1.5, streakKills: 10, streakWindow: 5 },
   },
   blood: {
     name: 'Blood', icon: '🩸', color: '#c23a2e', mechanic: 'Bleed, and HP for power', preferredBy: ['viking'],
     sets: {
       2: ['Open Wounds', 'Every bleed you apply adds two stacks more.'],
-      4: ['Bloodlust', '+1% damage for every 2% of HP missing (max 40%), and killing a bleeding enemy heals 1% of your max HP.'],
+      4: ['Bloodlust', '+1% damage for every 2% of HP missing (max 50%), and killing a bleeding enemy heals 1% of your max HP.'],
       6: ['Blood Magic', 'While your signature ability cools down you can cast it anyway by paying 20% of your current HP (once per cooldown).'],
     },
-    n: { extraStacks: 2, perMissing: 0.5, lustMax: 0.4, killHeal: 0.01, hpCost: 0.2 },
+    n: { extraStacks: 2, perMissing: 0.5, lustMax: 0.5, killHeal: 0.01, hpCost: 0.2 },
   },
   holy: {
     name: 'Holy', icon: '✨', color: '#f0d77a', mechanic: 'Healing, ward and blessing', preferredBy: ['paladin', 'angel', 'necromancer'],
@@ -180,7 +180,7 @@ export const RELICS = {
     awaken: ['Kindled', 'While 5 or more burning enemies are near, every hit adds a burn stack.'], desc: (n) => `+${pct(n.per)} damage for each burning enemy within ${n.radius} px (up to ${n.max}).` }),
   cinderCharm: relic({ name: 'Cinder Charm', rarity: 'common', icon: '🪔', family: 'flame', n: { stacks: 2, range: 220 }, n2: { stacks: 3 },
     awaken: ['Ember Storm', 'The ember splits in three.'], desc: (n) => `A burning enemy you kill throws an ember at the nearest enemy: ${n.stacks} burn stack${n.stacks > 1 ? 's' : ''}.` }),
-  salamanderScale: relic({ name: 'Salamander Scale', rarity: 'rare', icon: '🦎', family: 'flame', n: { bonus: 0.25, stacks: 3 }, n2: { bonus: 0.35 },
+  salamanderScale: relic({ name: 'Salamander Scale', rarity: 'rare', icon: '🦎', family: 'flame', n: { bonus: 0.35, stacks: 3 }, n2: { bonus: 0.5 },
     awaken: ['Scorched Earth', 'An enemy that dies at full burn stacks leaves a fire patch for 3 s that adds burn stacks.'], desc: (n) => `Enemies at ${n.stacks}+ burn stacks take ${pct(n.bonus)} more damage from you.` }),
   dragonsTongue: relic({ name: "Dragon's Tongue", rarity: 'legendary', icon: '🐉', family: 'flame', n: { every: 6, stacks: 3, range: 230, arc: 0.9 }, n2: { every: 4, stacks: 4 },
     awaken: ['Wyrmfire', 'The cone detonates every burn it touches for its remaining damage at once.'], desc: (n) => `Every ${n.every} s your next attack also breathes a cone of fire: ${n.stacks} burn stacks.` }),
