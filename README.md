@@ -57,7 +57,7 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
-| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (219 tests) |
+| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (227 tests) |
 | `npm run test:perf` | headless Chromium frame-time test of Fog and Blood Moon against the built game (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
 | `npm run icons` | redraw all icons and the README QR code from code |
@@ -115,6 +115,7 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 
 ## A run
 
+- **A run has an ending** (v0.6): four Acts, then **the Usurper**. Act IV is always fought in **the Last Bastion** (pillared hall, a throne, a gatehouse that burns on a rhythm) against his own host. He fights in three phases: a cleave and a marked lunge with his guard at his side; then he hides on his throne behind a **ward** that only the three **Royal Flames** keep alive, while burning pitch and crossbow volleys rain on you; then the crown's wrath (burning bands across the whole hall that cross where you stand, rings of broken ground rolling out from him, chained lunges). Each phase has a minimum length, so even a huge build sees it. His fall wins the run: **bank the win**, or march on into **Endless** (the old infinite waves, for a score on a per-class leaderboard). The first win with a class pays far more than later ones.
 - **Acts**: 10 waves each. Wave 5 brings a boss from the arena's rotation, wave 10 an **Act boss** with three phases (the Dragon burns strips of the map, the Warden seals you inside rings of stone). Then the **Merchant**, then the next arena and a themed Act.
 - **The map grows** (v0.5): an Act starts in the arena's core; four wings wait behind gates, each with a feature (a shrine with a blessing, a strongbox, a lair, a vent field with a cache), and a hidden vault. The mid-Act boss and every finished quest open the next wing. Enemies come from the edges of the whole open map.
 - **Quests and events**: a board at every Act start offers three seeded quests (take up to two, no penalty for failing); waves 3 and 8 are lighter breathers with a seeded event (merchant, cursed chest, ambush, a knight ally, a plague cart).
@@ -130,7 +131,7 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 
 ## Between runs
 
-The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks; a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the **Sacred Treasures** log, **Run history** (the last 50 runs, each with a timeline of its waves, level-ups, relics, quests, events, bosses and boredom marks, and its build; export as JSON), the **Chronicle** (65 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, menu music, updates, save data).
+The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks; a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the **Sacred Treasures** log, **Run history** (the last 50 runs, each with a timeline of its waves, level-ups, relics, quests, events, bosses and boredom marks, and its build; export as JSON), the **Chronicle** (68 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, menu music, updates, save data).
 
 ### Save format
 

@@ -150,7 +150,7 @@ export function updateHud(g: Game): void {
   text('h-gold', `🪙 ${g.gold}`);
   text('h-tier', `${g.tier.name} · ${g.arena.name}`);
 
-  text('h-wave', g.wave > 0 ? `${actName(g.act)} · Wave ${g.wave}` : 'Prepare…');
+  text('h-wave', g.wave > 0 ? `${g.victory === 'endless' ? 'Endless · ' : ''}${actName(g.act)} · Wave ${g.wave}` : 'Prepare…');
   let left = g.spawnQueue.length;
   for (const e of g.enemies) if (!e.side) left++; // v0.5: lairs, quest targets and events are not the wave
   const clock = `${Math.floor(g.time / 60)}:${String(Math.floor(g.time % 60)).padStart(2, '0')}`; // v0.6: the run's time
@@ -161,7 +161,7 @@ export function updateHud(g: Game): void {
   const boss = g.enemies.find((e) => e.def.boss);
   $('h-boss').classList.toggle('hidden', !boss);
   if (boss) {
-    text('h-boss-name', boss.phase === 2 ? `${boss.def.name} — enraged` : boss.def.name);
+    text('h-boss-name', boss.warded ? `${boss.def.name} — warded: put out the Royal Flames` : boss.phase >= 2 ? `${boss.def.name} — enraged` : boss.def.name);
     width('h-boss-fill', boss.hp / boss.maxHp);
   }
 

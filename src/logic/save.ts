@@ -3,7 +3,7 @@ import { ARENA_IDS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
 import { CURSE_IDS, type CurseId } from '../config/curses';
 import { ACTS } from '../config/acts';
-import { BUILDING_IDS, BUILDINGS, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, type BuildingId, type MetaId } from '../config/economy';
+import { BUILDING_IDS, BUILDINGS, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
 import type { EnemyId } from '../config/enemies';
 import type { QualitySetting } from '../config/game';
 import type { RelicId } from '../config/relics';
@@ -25,6 +25,15 @@ export interface ClassRecord {
   kills: number;
   time: number; // seconds
   xp: number; // mastery
+}
+
+/** v0.6: one Endless run on a class's leaderboard. */
+export interface EndlessEntry {
+  score: number;
+  wave: number;
+  kills: number;
+  time: number;
+  at: string; // ISO
 }
 
 export interface Save {
@@ -66,6 +75,8 @@ export interface Save {
   };
   daily: Record<string, number>; // v0.3: 'YYYY-MM-DD' -> best wave in that day's trial
   runs: RunLog[]; // v0.6: the last RUN_LOG.keep runs' timelines, oldest first (Run History)
+  wins: Record<ClassId, number>; // v0.6: times each class beat the Usurper
+  endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
   settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; palettes: Partial<Record<ClassId, number>> };
 }
 
@@ -103,6 +114,8 @@ export interface RunSummary {
   questRunes?: number; // Runes from quest rewards, banked on top of the per-run boss cap
   treasure?: ChainRun; // v0.5: what the run did for its class's treasure chain
   log?: RunLog; // v0.6: the run's timeline, for Run History
+  won?: boolean; // v0.6: the Usurper fell
+  endlessScore?: number; // v0.6: 0 unless the run went on into Endless
 }
 
 const emptyClass = (): ClassRecord => ({ bestWave: 0, runs: 0, kills: 0, time: 0, xp: 0 });
@@ -129,6 +142,8 @@ export function defaultSave(): Save {
     counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
     daily: {},
     runs: [],
+    wins: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
+    endless: Object.fromEntries(CLASS_ORDER.map((id) => [id, []])) as unknown as Record<ClassId, EndlessEntry[]>,
     settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', palettes: {} },
   };
 }
@@ -190,6 +205,17 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
       for (const k of NUMERIC_COUNTERS) save.counters[k] = num(c[k]);
       if (Array.isArray(c.bossKinds)) save.counters.bossKinds = c.bossKinds.filter((b): b is EnemyId => typeof b === 'string');
     }
+    for (const id of CLASS_ORDER) {
+      if (isObj(raw.wins)) save.wins[id] = Math.floor(num(raw.wins[id]));
+      const board = isObj(raw.endless) ? raw.endless[id] : undefined;
+      if (Array.isArray(board)) {
+        save.endless[id] = board
+          .filter((e): e is Record<string, unknown> => isObj(e) && num(e.score) > 0)
+          .map((e) => ({ score: num(e.score), wave: num(e.wave), kills: num(e.kills), time: num(e.time), at: typeof e.at === 'string' ? e.at : '' }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, VICTORY.leaderboard);
+      }
+    }
     if (Array.isArray(raw.runs)) save.runs = keepRuns(raw.runs.map(readRunLog).filter((r): r is RunLog => r !== null));
     if (isObj(raw.daily)) for (const [day, wave] of Object.entries(raw.daily)) if (/^\d{4}-\d{2}-\d{2}$/.test(day) && num(wave) > 0) save.daily[day] = num(wave);
     if (isObj(raw.settings)) {
@@ -243,13 +269,16 @@ export function buyBuilding(save: Save, id: BuildingId): Save {
 export const today = (): string => new Date().toISOString().slice(0, 10);
 
 /** Fold a run into the save: gold, class XP, records, counters, difficulty unlock. Achievements are evaluated separately. */
-export function applyRun(save: Save, run: RunSummary, date = today(), at = new Date().toISOString()): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number } {
+export function applyRun(save: Save, run: RunSummary, date = today(), at = new Date().toISOString()): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number } {
   const curses = run.curses ?? [];
   const loadout = metaLoadout(save.meta);
   const curseMult = curseMultiplier(curses) + curses.length * loadout.curseBonus;
   // gold already carries the curse multiplier (it is applied as it drops); class XP gets it here
-  const classXp = Math.round(classXpForRun({ wavesCleared: run.wavesCleared, bosses: run.bosses.length, level: run.level }, TIERS[run.tier]) * curseMult * (1 + (save.meta.classXp ?? 0) * META.classXp.perRank));
   const prev = save.classes[run.classId];
+  // v0.6: a win pays on top, outside every cap; the first with a class pays the most
+  const firstWin = run.won === true && save.wins[run.classId] === 0;
+  const win = { runes: run.won ? VICTORY.win.runes + (firstWin ? VICTORY.firstWin.runes : 0) : 0, gold: firstWin ? VICTORY.firstWin.gold : 0, classXp: run.won ? VICTORY.win.classXp + (firstWin ? VICTORY.firstWin.classXp : 0) : 0 };
+  const classXp = Math.round(classXpForRun({ wavesCleared: run.wavesCleared, bosses: run.bosses.length, level: run.level }, TIERS[run.tier]) * curseMult * (1 + (save.meta.classXp ?? 0) * META.classXp.perRank)) + win.classXp;
   const c = save.counters;
   const acts = run.actsCleared ?? 0;
   // v0.4: the Treasury's income multiplier, then the daily caps on what curses and the Daily Trial add (BALANCE.md)
@@ -263,14 +292,18 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
   const curseAllowed = Math.min(cursePart, Math.max(0, curseCap - dailyGold.curse));
   gold -= cursePart - curseAllowed;
   const trialAllowed = run.daily ? Math.min(gold, Math.max(0, trialCap - dailyGold.trial)) : gold;
-  gold = trialAllowed;
+  gold = trialAllowed + win.gold;
   // Runes: every Act boss slain pays, shards convert
   const actBosses = run.bosses.filter((b) => ACTS.bosses.includes(b)).length;
   let runes = 0;
   for (let i = 0; i < actBosses; i++) runes += runesForActBoss(i, save.meta);
   runes = Math.min(runes, RUNES.runCap + (save.meta.runeIncome ?? 0)) + (run.questRunes ?? 0); // v0.5: quest Runes are not capped
   const shards = save.runeShards + Math.round((run.salvage ?? 0) * (1 + loadout.salvageBonus));
-  runes += Math.floor(shards / RUNES.shardsPerRune);
+  runes += Math.floor(shards / RUNES.shardsPerRune) + win.runes;
+  // v0.6: the Endless leaderboard (per class, best first); endlessRank is 1-based, 0 = not on it
+  const entry: EndlessEntry | null = run.endlessScore ? { score: run.endlessScore, wave: run.wave, kills: run.kills, time: run.time, at } : null;
+  const board = entry ? [...save.endless[run.classId], entry].sort((a, b) => b.score - a.score).slice(0, VICTORY.leaderboard) : save.endless[run.classId];
+  const endlessRank = entry ? board.indexOf(entry) + 1 : 0;
   const tierUnlocked = run.tier === save.tierUnlocked && run.wavesCleared >= TIER_UNLOCK_WAVE && save.tierUnlocked < TIERS.length - 1;
   const relicPicks = { ...save.relicPicks };
   for (const id of run.relicsFound ?? run.relics) relicPicks[id] = (relicPicks[id] ?? 0) + 1; // v0.4: every pickup and tier-up counts
@@ -281,6 +314,8 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
     tierUnlocked,
     runes,
     gold,
+    firstWin,
+    endlessRank,
     save: {
       ...save,
       gold: save.gold + gold,
@@ -298,6 +333,8 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
       tierUnlocked: save.tierUnlocked + (tierUnlocked ? 1 : 0),
       daily: run.daily ? { ...save.daily, [run.daily]: Math.max(save.daily[run.daily] ?? 0, run.wave) } : save.daily,
       runs: keepRuns(save.runs, run.log && { ...run.log, at }),
+      wins: run.won ? { ...save.wins, [run.classId]: save.wins[run.classId] + 1 } : save.wins,
+      endless: { ...save.endless, [run.classId]: board },
       counters: {
         ...feats,
         kills: c.kills + run.kills,

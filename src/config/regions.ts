@@ -100,8 +100,9 @@ export function expandArena(def: ArenaDef): ArenaDef {
     { id: 'core', name: WING_NAMES.core, floor: core, gate: null },
     ...(['north', 'east', 'south', 'west', 'vault'] as const).map((id) => ({ id, name: WING_NAMES[id], floor: floors[id], gate: gates[id], hidden: id === 'vault' || undefined })),
   ];
-  const shifted = def.obstacles.map((o) => ({ ...o, x: o.x + d, y: o.y + d }));
-  const scatterKind = def.obstacles.find((o) => o.kind !== 'brazier');
+  const shift = <T extends { x: number; y: number }>(o: T): T => ({ ...o, x: o.x + d, y: o.y + d });
+  const shifted = def.obstacles.map(shift);
+  const scatterKind = def.obstacles.find((o) => o.kind !== 'brazier' && o.kind !== 'throne');
   const wingObstacles: Obstacle[] = [];
   if (scatterKind) {
     for (const id of WING_IDS) {
@@ -115,7 +116,8 @@ export function expandArena(def: ArenaDef): ArenaDef {
       }
     }
   }
-  return { ...def, w: W, h: H, obstacles: [...shifted, ...wingObstacles], regions };
+  const final = def.final && { throne: shift(def.final.throne), flames: def.final.flames.map(shift) };
+  return { ...def, w: W, h: H, obstacles: [...shifted, ...wingObstacles], regions, final };
 }
 
 /** The point a wing's feature stands on: the middle of its floor. */

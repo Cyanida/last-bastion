@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ACT_THEMES, ACTS, MERCHANT } from '../src/config/acts';
+import { ACT_THEMES, ACTS, FINAL, MERCHANT } from '../src/config/acts';
 import { ARENA_IDS } from '../src/config/arenas';
 import { CURSE_IDS, CURSES } from '../src/config/curses';
 import { ENEMIES } from '../src/config/enemies';
@@ -29,10 +29,11 @@ describe('Acts', () => {
     for (const id of ACTS.bosses) expect(ENEMIES[id].phases).toBe(3);
   });
 
-  it('every Act moves to the next arena and gets a theme; Act I is always The Levy', () => {
-    expect([1, 2, 3, 4].map((a) => arenaFor(a, 'graveyard'))).toEqual(['graveyard', 'keep', 'courtyard', 'graveyard']);
+  it('every Act moves to the next arena and gets a theme; Act I is always The Levy, Act IV the Last Bastion (v0.6)', () => {
+    expect([1, 2, 3, 4, 5].map((a) => arenaFor(a, 'graveyard'))).toEqual(['graveyard', 'keep', 'courtyard', 'bastion', 'graveyard']);
     expect(themeFor(1, 12345)).toBe(ACT_THEMES[0]);
-    const later = [2, 3, 4, 5].map((a) => themeFor(a, 7).name);
+    expect(themeFor(4, 12345)).toBe(FINAL.theme);
+    const later = [2, 3, 5, 6].map((a) => themeFor(a, 7).name);
     expect(new Set(later).size).toBe(4); // all four other themes before any repeats
     expect(later).not.toContain(ACT_THEMES[0].name);
   });

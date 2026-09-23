@@ -21,6 +21,7 @@ import { peddlerBuy, peddlerPrice } from '../systems/events';
 import { regionAt } from '../logic/regions';
 import { regionsOf } from '../systems/regions';
 import { QUEST_BOARD } from '../config/quests';
+import { goEndless } from '../systems/victory';
 import { featureSpot } from '../config/regions';
 
 /**
@@ -37,18 +38,21 @@ export function botInput(g: Game): void {
   let nx = p.x;
   let ny = p.y;
   let nd = Infinity;
-  let fx = 0;
-  let fy = 0;
+  // two pushes: away from the crowd (for fleeing), and out of anything marked to hurt (always, v0.6: even while advancing)
+  let cx = 0;
+  let cy = 0;
+  let zx = 0;
+  let zy = 0;
   for (const e of g.enemies) {
     const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
-    if (d < nd) {
+    if (d < nd && !e.warded) { // v0.6: a warded Usurper is not a target; his Royal Flames are
       nd = d;
       nx = e.x;
       ny = e.y;
     }
     if (d < 170) {
-      fx += (p.x - e.x) / d;
-      fy += (p.y - e.y) / d;
+      cx += (p.x - e.x) / d;
+      cy += (p.y - e.y) / d;
     }
     const t = e.telegraph; // sidestep charge lines
     if (t) {
@@ -56,8 +60,8 @@ export function botInput(g: Game): void {
       const across = -(p.x - e.x) * Math.sin(t.angle) + (p.y - e.y) * Math.cos(t.angle);
       if (along > -20 && along < t.length + 20 && Math.abs(across) < t.width / 2 + 40) {
         const side = across >= 0 ? 1 : -1;
-        fx += -Math.sin(t.angle) * side * 6;
-        fy += Math.cos(t.angle) * side * 6;
+        zx += -Math.sin(t.angle) * side * 6;
+        zy += Math.cos(t.angle) * side * 6;
       }
     }
   }
@@ -68,8 +72,8 @@ export function botInput(g: Game): void {
     const d = Math.hypot(p.x - z.x, p.y - z.y) || 1;
     if (d < z.r + 30) {
       danger = true;
-      fx += ((p.x - z.x) / d) * 5;
-      fy += ((p.y - z.y) / d) * 5;
+      zx += ((p.x - z.x) / d) * 5;
+      zy += ((p.y - z.y) / d) * 5;
     }
   }
 
@@ -82,26 +86,30 @@ export function botInput(g: Game): void {
     const v = Math.hypot(pr.vx, pr.vy) || 1;
     if (d > 220 || (dx * pr.vx + dy * pr.vy) / (d * v) < 0.9) continue;
     const side = dx * pr.vy - dy * pr.vx >= 0 ? 1 : -1;
-    fx += (-pr.vy / v) * side * -4;
-    fy += (pr.vx / v) * side * -4;
+    zx += (-pr.vy / v) * side * -4;
+    zy += (pr.vx / v) * side * -4;
   }
 
   let mx = 0;
   let my = 0;
-  // melee wades in while healthy, and always hunts when nothing is close (a lone crossbowman must not plink it to death)
+  // melee wades in while healthy, and always hunts when nothing is close (a lone crossbowman must not plink it to death);
+  // v0.6: with nothing close it also keeps coming through marked ground (a Royal Flame across the hall under burning pitch), and
+  // ranged closes in when its target is out of reach. In a crowd, marked ground still means back off: that plays much faster (BALANCE.md).
   const crowded = nd < 170;
-  const brave = melee && !danger && (p.hp > p.stats.hp * 0.4 || !crowded);
+  const pressOn = g.enemies.some((e) => e.warded); // the Usurper's ward: the pitch never stops, so waiting for safe ground never ends
+  const brave = melee ? (!danger || !crowded || pressOn) && (p.hp > p.stats.hp * 0.4 || !crowded) : nd > p.cls.attack.range * 0.9 && !crowded && nd < Infinity;
   const goal = !danger && nd > 250 ? nearestGoal(g) : null; // v0.5: a quiet moment goes to the quests, events and features
   if (goal) {
     mx = goal.x - p.x;
     my = goal.y - p.y;
   } else if (brave && nd < Infinity) {
-    mx = nx - p.x;
-    my = ny - p.y;
-  } else if (fx || fy) {
+    // advance; on marked ground the push out of it outweighs the pull, so it sidesteps on the way in
+    mx = danger ? ((nx - p.x) / nd) * 3 + zx : nx - p.x;
+    my = danger ? ((ny - p.y) / nd) * 3 + zy : ny - p.y;
+  } else if (cx || cy || zx || zy) {
     // flee, with a pull to the middle so it does not pin itself in a corner
-    mx = fx + (g.arena.w / 2 - p.x) * 0.002;
-    my = fy + (g.arena.h / 2 - p.y) * 0.002;
+    mx = cx + zx + (g.arena.w / 2 - p.x) * 0.002;
+    my = cy + zy + (g.arena.h / 2 - p.y) * 0.002;
   } else {
     let best = Infinity;
     for (const k of g.pickups) {
@@ -200,9 +208,16 @@ export function botStep(g: Game, variant = 0): void {
   updateGame(g, DT);
 }
 
-export function simulateRun(classId: ClassId, seed: number, opts: RunOptions = {}, variant = 0, maxSeconds = 45 * 60): RunSummary {
+/** A whole run by the bot. A win is banked on the spot, unless `endless`: then it goes on past the Usurper until it dies or runs out of time. */
+export function simulateRun(classId: ClassId, seed: number, opts: RunOptions = {}, variant = 0, maxSeconds = 45 * 60, endless = false): RunSummary {
   const g = createGame(classId, seed, opts);
-  while (!g.over && g.time < maxSeconds) botStep(g, variant);
+  while (!g.over && g.time < maxSeconds) {
+    if (g.victory === 'pending') {
+      if (!endless) break;
+      goEndless(g);
+    }
+    botStep(g, variant);
+  }
   return summarizeRun(g);
 }
 

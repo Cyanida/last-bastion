@@ -6,7 +6,7 @@ import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
 import { RELIC_CATEGORIES, RELIC_IDS, RELIC_WEIGHTS, relicDesc, SYNERGIES, TIER_NUMERALS, type Rarity } from '../config/relics';
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
-import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIER_UNLOCK_WAVE, TIERS, type BuildingId, type MetaId } from '../config/economy';
+import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
 import { relicDef, type RelicId } from '../config/relics';
 import { BLESSINGS, type BlessingId } from '../config/regions';
 import { QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
@@ -28,7 +28,7 @@ import { onAction } from '../input';
 import type { Action } from '../input/mapping';
 import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
-import { exportSave, type Save } from '../logic/save';
+import { exportSave, type EndlessEntry, type Save } from '../logic/save';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
 import { ACTS } from '../config/acts';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
@@ -185,7 +185,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       <div class="ability"><b class="gold">${c.ability.name}</b><p>${c.ability.desc}</p></div>
       <div class="ability"><b class="gold">${c.secondary.name}</b><p>${c.secondary.desc}</p></div>
       ${treasure}
-      <div class="best">${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
+      <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
     </button>`;
   };
   const arenaBtn = (id: ArenaId) => {
@@ -746,19 +746,41 @@ export interface RunResult {
   curseMult: number;
   daily: string | null;
   build: BuildInfo;
+  // v0.6
+  act: number;
+  won: boolean; // the Usurper fell in this run
+  firstWin: boolean; // ...and it is the class's first win (it pays VICTORY.firstWin)
+  wins: number; // the class's wins, this one included
+  masteryNext: { name: string; need: number } | null; // the next mastery rank and the class XP still missing
+  endless: { score: number; rank: number; board: EndlessEntry[] } | null; // the run went on into Endless
 }
 
-export function showResults(r: RunResult, onRetry: () => void, onMenu: () => void): void {
+/**
+ * The end of a run, and (v0.6) the moment the Usurper falls. With `bank` and `endless` it is the victory screen: the run as it would
+ * bank right now, and the choice. With `retry` and `menu` the run is over and banked.
+ */
+export function showResults(r: RunResult, on: { retry: () => void; menu: () => void } | { bank: () => void; endless: () => void }): void {
+  const deciding = 'bank' in on;
+  const title = deciding ? 'The Usurper has fallen' : r.endless ? (r.slain ? 'The Endless takes you' : 'The Endless ends') : r.won ? 'Victory' : r.slain ? 'Thou art slain' : 'The run ends';
+  const winLine = r.won
+    ? `<div class="earned"><span>${r.firstWin ? `First win with the ${r.cls.name}` : `Win ${r.wins} with the ${r.cls.name}`}</span><b>◆ +${VICTORY.win.runes + (r.firstWin ? VICTORY.firstWin.runes : 0)}${r.firstWin ? ` · 🪙 +${VICTORY.firstWin.gold}` : ''} · +${VICTORY.win.classXp + (r.firstWin ? VICTORY.firstWin.classXp : 0)} XP <em>(counted in the totals)</em></b></div>`
+    : '';
+  const board = r.endless
+    ? `<h2>Endless · ${r.cls.name}</h2><table class="stats-table endless"><tr><th>#</th><th>Score</th><th>Wave</th><th>Kills</th><th>Time</th></tr>${r.endless.board.map((e, i) => `<tr class="${i + 1 === r.endless!.rank ? 'on' : ''}"><td>${i + 1}</td><td>${e.score}</td><td>${e.wave}</td><td>${e.kills}</td><td>${fmtTime(e.time)}</td></tr>`).join('')}</table>`
+    : '';
   const unlocks = [
     ...(r.tierUnlocked ? [`<div class="unlock">⚔ Difficulty unlocked: <b>${r.tierUnlocked}</b></div>`] : []),
     ...r.earned.map((e) => `<div class="unlock">🏆 <b>${e.def.name} · ${TIER_NAMES[e.tier - 1]}</b> — ${e.def.desc} <em>${tierRewardText(e.reward)}</em>${e.tier === 1 && e.def.unlocks?.arena ? ` <em>New arena: ${ARENAS[e.def.unlocks.arena].name}</em>` : ''}${e.tier === 1 && e.def.unlocks?.relic ? ` <em>New relic: ${relicDef(e.def.unlocks.relic).name}</em>` : ''}</div>`),
   ].join('');
   const el = show(`
-    <div class="panel dialog">
-      <h1 class="small blood">${r.slain ? 'Thou art slain' : 'The run ends'}</h1>
-      <p class="sub">${r.cls.name}${r.title ? `, <em>${r.title}</em>` : ''} · ${r.tier}${r.newBest ? ' — <span class="gold">new record!</span>' : ''}</p>
+    <div class="panel dialog ${r.won ? 'victory' : ''}">
+      <h1 class="small ${r.won && !r.endless ? 'gold' : 'blood'}">${title}</h1>
+      <p class="sub">${r.cls.name}${r.title ? `, <em>${r.title}</em>` : ''} · ${r.tier}${r.newBest ? ' — <span class="gold">new record!</span>' : ''}${deciding ? '<br>Bank the win now, or march on into Endless: waves without end, for a score. Either way the win counts when the run is banked.' : ''}</p>
+      ${deciding ? '<div class="row"><button class="btn big" data-endless>March on into Endless</button><button class="btn big" data-bank>Bank the win</button></div>' : ''}
       <div class="stats wide">
-        <div><span>Reached</span><b>${actName(Math.max(1, Math.ceil(r.wave / 10)))} · wave ${r.wave}</b></div>
+        <div><span>Reached</span><b>${r.endless ? 'Endless · ' : ''}${actName(r.act)} · wave ${r.wave}</b></div>
+        ${r.endless ? `<div class="earned"><span>Endless score</span><b>${r.endless.score}${r.endless.rank ? ` · #${r.endless.rank} for the ${r.cls.name}` : ''}</b></div>` : ''}
+        ${winLine}
         <div><span>Enemies slain</span><b>${r.kills}</b></div>
         <div><span>Time survived</span><b>${fmtTime(r.time)}</b></div>
         <div><span>Level</span><b>${r.level}</b></div>
@@ -768,15 +790,21 @@ export function showResults(r: RunResult, onRetry: () => void, onMenu: () => voi
         <div class="earned"><span>Gold banked</span><b>🪙 +${r.gold}${r.goldRaw > r.gold ? ` <s>${r.goldRaw}</s>` : ''}</b></div>
         ${r.runes > 0 ? `<div class="earned"><span>Runes</span><b>◆ +${r.runes}</b></div>` : ''}
         <div class="earned"><span>${r.cls.name} mastery</span><b>+${r.classXp} XP · rank ${r.masteryRank}${r.masteryName ? ` — <em>${r.masteryName}</em>` : ''}</b></div>
+        ${r.masteryNext ? `<div><span>Next mastery rank</span><b>${r.masteryNext.name} · ${r.masteryNext.need} XP to go</b></div>` : ''}
       </div>
       ${unlocks ? `<div class="unlocks">${unlocks}</div>` : ''}
+      ${board}
       ${buildHtml(r.build)}
-      <button class="btn big" data-retry>Fight again</button>
-      <button class="btn" data-menu>Choose another champion</button>
+      ${deciding ? '' : '<button class="btn big" data-retry>Fight again</button><button class="btn" data-menu>Choose another champion</button>'}
     </div>`);
-  click(el, '[data-retry]', onRetry);
-  click(el, '[data-menu]', onMenu);
-  onActions((a) => a === 'confirm' && onRetry());
+  if ('bank' in on) {
+    click(el, '[data-endless]', on.endless);
+    click(el, '[data-bank]', on.bank);
+  } else {
+    click(el, '[data-retry]', on.retry);
+    click(el, '[data-menu]', on.menu);
+    onActions((a) => a === 'confirm' && on.retry());
+  }
 }
 
 export interface MerchantInfo {

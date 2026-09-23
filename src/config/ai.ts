@@ -38,6 +38,7 @@ export const AI: Partial<Record<EnemyId, AiProfile>> = {
   // v0.5 side content: they hold their ground (the cart is moved by its event)
   siegeCamp: { reach: 'support', flank: 0, range: [0, 9999], special: { id: 'muster', cd: 12, range: 650 } }, // musters only when you come near
   plagueCart: { reach: 'support', flank: 0, range: [0, 9999] },
+  royalFlame: { reach: 'support', flank: 0, range: [0, 9999] }, // v0.6: stands and burns (the Usurper's script makes it flare)
 };
 
 /** Shared movement numbers for the states. */

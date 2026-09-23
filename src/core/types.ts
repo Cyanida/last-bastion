@@ -171,6 +171,8 @@ export interface Enemy extends Body {
   buffT: number;
   auraT: number; // commanders: countdown to the next aura pulse
   hidden: boolean; // cannot be auto-targeted (assassins, a flying dragon)
+  warded: boolean; // v0.6: takes no damage at all (the Usurper while his Royal Flames burn)
+  hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
   waypoint: { x: number; y: number } | null; // v0.5: the gate to walk to when the player is on another floor (logic/regions waypoint)
   statuses: StatusMap;
@@ -488,5 +490,7 @@ export interface Game {
   chain: Chain | null; // v0.5: the treasure chain, while mastery has opened it (never in a Daily Trial)
   banner: { text: string; t: number };
   log: RunLogDraft; // v0.6 run log, recorded by systems/runlog.ts
+  victory: 'none' | 'pending' | 'endless'; // v0.6: the Usurper fell (pending: the choice to bank or go on is up); endless: gone on past him
+  victoryKills: number; // v0.6: kills when he fell (the Endless score counts from there)
   over: boolean;
 }

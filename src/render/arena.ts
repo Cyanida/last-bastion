@@ -49,6 +49,27 @@ function drawObstacle(ctx: Ctx, o: Obstacle): void {
     ctx.fillStyle = '#5a5d64';
     ctx.fillRect(o.x - 2, o.y - o.r * 1.2, 4, o.r * 1.2);
     ctx.fillRect(o.x - o.r * 0.5, o.y - o.r * 0.85, o.r, 4);
+  } else if (o.kind === 'throne') {
+    // v0.6: the Usurper's throne: a dark dais, a red seat and a tall gilded back with spikes
+    const r = o.r;
+    ctx.fillStyle = '#1a1614';
+    ctx.fillRect(o.x - r * 1.3, o.y - r * 0.2, r * 2.6, r * 1.3);
+    ctx.fillStyle = '#3a3440';
+    ctx.fillRect(o.x - r * 1.2, o.y - r * 0.1, r * 2.4, r * 1.1);
+    ctx.fillStyle = '#1a1614';
+    ctx.fillRect(o.x - r * 0.85, o.y - r * 1.6, r * 1.7, r * 1.9);
+    ctx.fillStyle = '#c9a227';
+    ctx.fillRect(o.x - r * 0.75, o.y - r * 1.5, r * 1.5, r * 1.7);
+    for (const dx of [-0.6, 0, 0.6]) {
+      ctx.beginPath();
+      ctx.moveTo(o.x + (dx - 0.15) * r, o.y - r * 1.5);
+      ctx.lineTo(o.x + dx * r, o.y - r * (dx === 0 ? 2.1 : 1.85));
+      ctx.lineTo(o.x + (dx + 0.15) * r, o.y - r * 1.5);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#8e1b1b';
+    ctx.fillRect(o.x - r * 0.55, o.y - r * 1.25, r * 1.1, r * 1.3);
+    ctx.fillRect(o.x - r * 0.75, o.y - r * 0.05, r * 1.5, r * 0.45);
   } else if (o.kind === 'tree') {
     ctx.strokeStyle = '#1f1712';
     ctx.lineWidth = 5;
@@ -150,6 +171,18 @@ export function buildArena(def: ArenaDef): HTMLCanvasElement {
     ctx.beginPath();
     ctx.ellipse(rng() * w, rng() * h, 8 + rng() * 22, 5 + rng() * 12, rng() * 3, 0, Math.PI * 2);
     ctx.fill();
+  }
+  // v0.6 Last Bastion: a red runner from the south wall up to the throne, gold at the edges
+  const core = def.regions?.find((r) => r.id === 'core')?.floor;
+  if (theme.carpet && def.final && core) {
+    const cw = 150;
+    const top = def.final.throne.y;
+    ctx.fillStyle = '#c9a227';
+    ctx.fillRect(def.final.throne.x - cw / 2 - 6, top, cw + 12, core.y + core.h - top);
+    ctx.fillStyle = theme.carpet;
+    ctx.fillRect(def.final.throne.x - cw / 2, top, cw, core.y + core.h - top);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    for (let y = top + 40; y < core.y + core.h; y += 80) ctx.fillRect(def.final.throne.x - cw / 2 + 10, y, cw - 20, 3);
   }
   for (const o of def.obstacles) drawObstacle(ctx, o);
 

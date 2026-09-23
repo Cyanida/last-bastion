@@ -18,7 +18,7 @@
  * BALANCE.md wants the haul no more than about 1.5x as far as no relics; past that the caps get tightened.
  *
  * Pacing:  npm run sim -- pacing [runs=4] [tier=0]
- * The run logs (v0.6) of fresh and maxed runs: run length, minutes per Act, the share of time with under 5 enemies alive, and the
+ * The run logs (v0.6) of fresh and maxed runs: run length, minutes per Act, wins, the share of time with under 5 enemies alive, and the
  * longest stretches with no new wave, pick, event, objective or boss. The rule is that none lasts longer than RUN_LOG.maxGap seconds.
  */
 import type { ArenaId } from '../src/config/arenas';
@@ -117,7 +117,7 @@ if (mode === 'pacing') {
   console.log(`
 pacing · ${runs} runs per cell · ${TIERS[tier].name} · ${arena} · from the run logs · rule: nothing new for at most ${RUN_LOG.maxGap} s
 `);
-  console.log(`${'class'.padEnd(12)}${'setup'.padEnd(7)}${pad('min', 6)}${pad('wave', 6)}${['I', 'II', 'III', 'IV'].map((a) => pad(`Act ${a}`, 8)).join('')}${pad('quiet', 7)}${pad('gap', 6)}${pad('>rule', 7)}  longest stretches (s @ wave)`);
+  console.log(`${'class'.padEnd(12)}${'setup'.padEnd(7)}${pad('min', 6)}${pad('wave', 6)}${['I', 'II', 'III', 'IV'].map((a) => pad(`Act ${a}`, 8)).join('')}${pad('won', 5)}${pad('quiet', 7)}${pad('gap', 6)}${pad('>rule', 7)}  longest stretches (s @ wave)`);
   const started = Date.now();
   const all: { setup: string; gaps: number[]; over: number; runs: number }[] = [];
   for (const classId of CLASS_ORDER) {
@@ -133,7 +133,7 @@ pacing · ${runs} runs per cell · ${TIERS[tier].name} · ${arena} · from the r
       all.push({ setup: name, gaps: longest, over, runs: logs.length });
       const worst = stretches.flat().sort((a, b) => b.length - a.length).slice(0, 3).map((s) => `${Math.round(s.length)}@${s.wave}`).join('  ');
       const quiet = sum(logs.map((l) => sum(l.waves.map((w) => w[3])))) / sum(logs.map((l) => l.time));
-      console.log(`${classId.padEnd(12)}${name.padEnd(7)}${pad((avg(logs.map((l) => l.time)) / 60).toFixed(1), 6)}${pad(avg(logs.map((l) => l.wave)).toFixed(1), 6)}${acts.map((a) => pad(a, 8)).join('')}${pad(`${Math.round(quiet * 100)}%`, 7)}${pad(Math.round(avg(longest)), 6)}${pad(`${over}/${logs.length}`, 7)}  ${worst}`);
+      console.log(`${classId.padEnd(12)}${name.padEnd(7)}${pad((avg(logs.map((l) => l.time)) / 60).toFixed(1), 6)}${pad(avg(logs.map((l) => l.wave)).toFixed(1), 6)}${acts.map((a) => pad(a, 8)).join('')}${pad(`${logs.filter((l) => l.won).length}/${logs.length}`, 5)}${pad(`${Math.round(quiet * 100)}%`, 7)}${pad(Math.round(avg(longest)), 6)}${pad(`${over}/${logs.length}`, 7)}  ${worst}`);
     }
   }
   for (const setup of ['fresh', 'maxed']) {
@@ -141,7 +141,7 @@ pacing · ${runs} runs per cell · ${TIERS[tier].name} · ${arena} · from the r
     console.log(`${'ALL'.padEnd(12)}${setup.padEnd(7)}longest stretch per run: ${avg(rows.flatMap((r) => r.gaps)).toFixed(0)} s on average · ${sum(rows.map((r) => r.over))}/${sum(rows.map((r) => r.runs))} runs break the ${RUN_LOG.maxGap} s rule`);
   }
   console.log(`
-  (min: run length · Act: minutes an Act took, finished Acts only, * = not every run finished it · quiet: time with under ${RUN_LOG.quietBelow} enemies alive · gap: longest stretch without anything new, averaged over runs · ${((Date.now() - started) / 1000).toFixed(0)}s)
+  (min: run length · Act: minutes an Act took, finished Acts only, * = not every run finished it · won: beat the Usurper (a win is banked, v0.6) · quiet: time with under ${RUN_LOG.quietBelow} enemies alive · gap: longest stretch without anything new, averaged over runs · ${((Date.now() - started) / 1000).toFixed(0)}s)
 `);
   process.exit(0);
 }

@@ -1,4 +1,4 @@
-import { ACT_THEMES, ACTS, MERCHANT } from '../config/acts';
+import { ACT_THEMES, ACTS, FINAL, MERCHANT } from '../config/acts';
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
 import { CURSE_IDS, type CurseId } from '../config/curses';
@@ -13,23 +13,25 @@ export const isActEnd = (wave: number) => wave > 0 && wave % ACTS.length === 0;
 export const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 export const actName = (act: number) => `Act ${ROMAN[act - 1] ?? act}`;
 
-/** Act I is always The Levy; later Acts walk the other themes, starting at a seed-dependent one. */
+/** Act I is always The Levy and Act IV the Usurper's host; the others walk the rest of the themes, starting at a seed-dependent one. */
 export function themeFor(act: number, seed: number): (typeof ACT_THEMES)[number] {
   if (act <= 1) return ACT_THEMES[0];
+  if (act === FINAL.act) return FINAL.theme;
   const rest = ACT_THEMES.length - 1;
-  return ACT_THEMES[1 + ((act - 2 + (Math.abs(seed) % rest)) % rest)];
+  return ACT_THEMES[1 + ((act - 2 - (act > FINAL.act ? 1 : 0) + (Math.abs(seed) % rest)) % rest)];
 }
 
-/** Each Act moves on to the next arena, starting from the one the run began in. */
+/** Each Act moves on to the next arena, starting from the one the run began in. Act IV is the Last Bastion; Endless (Act V on) carries on the rotation. */
 export function arenaFor(act: number, start: ArenaId): ArenaId {
-  return ARENA_IDS[(ARENA_IDS.indexOf(start) + act - 1) % ARENA_IDS.length];
+  if (act === FINAL.act) return FINAL.arena;
+  return ARENA_IDS[(ARENA_IDS.indexOf(start) + act - 1 - (act > FINAL.act ? 1 : 0)) % ARENA_IDS.length];
 }
 
 /** Wave x0 ends the Act with an Act boss; wave x5 brings a boss from the current arena's rotation. */
 export function bossForWave(wave: number, arena: ArenaId): EnemyId | null {
   if (wave % WAVES.bossEvery !== 0) return null;
   const act = actOf(wave);
-  if (isActEnd(wave)) return ACTS.bosses[(act - 1) % ACTS.bosses.length];
+  if (isActEnd(wave)) return act === FINAL.act ? FINAL.boss : ACTS.bosses[(act - 1) % ACTS.bosses.length];
   const rotation = ARENAS[arena].bosses;
   return rotation[(act - 1) % rotation.length];
 }

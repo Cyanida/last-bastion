@@ -178,7 +178,7 @@ function drawMinimap(ctx: Ctx, g: Game, view: View, cx: number, cy: number, vw: 
     }
   }
   for (const o of g.arena.obstacles) if (g.openRects.some((q) => o.x >= q.x && o.x <= q.x + q.w && o.y >= q.y && o.y <= q.y + q.h)) dot(o.x, o.y, 2 * d, '#5d5e64');
-  for (const e of g.enemies) if (!e.hidden && !e.def.boss && !e.def.aura && !e.def.onDeath) dot(e.x, e.y, (e.elite ? 3 : 2) * d, e.elite ? '#e8913a' : '#d0584c');
+  for (const e of g.enemies) if (!e.hidden && !e.def.boss && !e.def.aura && !e.def.onDeath && !e.def.structure) dot(e.x, e.y, (e.elite ? 3 : 2) * d, e.elite ? '#e8913a' : '#d0584c');
   for (const m of g.minions) dot(m.x, m.y, 2 * d, '#7ec8d8');
   ctx.strokeStyle = '#14110f';
   ctx.lineWidth = 1.5 * d;
@@ -187,6 +187,8 @@ function drawMinimap(ctx: Ctx, g: Game, view: View, cx: number, cy: number, vw: 
     if (e.hidden) continue;
     if (e.def.boss) mark(e.x, e.y, 4.5 * d, '#e0402f', 'square');
     else if (e.def.aura || e.def.onDeath) mark(e.x, e.y, 3 * d, '#ff9f43', 'square'); // commanders: the targets to hunt
+    else if (e.def.id === 'royalFlame') mark(e.x, e.y, 4 * d, '#f2c94c', 'diamond'); // v0.6: the Usurper's ward anchors: the objective
+    else if (e.def.structure) dot(e.x, e.y, 3 * d, '#d0584c');
   }
   for (const m of marks) if (!m.hidden) mark(m.x, m.y, 3.5 * d, '#9fe07b', 'diamond'); // v0.5 quests and events (not the hidden chest)
   mark(g.player.x, g.player.y, 3.5 * d, '#ffffff', 'disc');
@@ -495,6 +497,25 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.lineWidth = 2;
       disc(ctx, e.x, e.y - e.r * 0.4, e.r * 1.7);
       ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    if (e.warded) {
+      // v0.6: the Usurper's ward, a pulsing gold bubble; every Royal Flame still burning ties a gold thread to it
+      ctx.globalAlpha = 0.45 + 0.2 * Math.sin(g.time * 5);
+      ctx.strokeStyle = '#e9c95a';
+      ctx.lineWidth = 3;
+      for (const f of g.enemies) {
+        if (f.def.id !== 'royalFlame' || f.dead) continue;
+        ctx.beginPath();
+        ctx.moveTo(f.x, f.y - f.r);
+        ctx.lineTo(e.x, e.y - e.r * 0.4);
+        ctx.stroke();
+      }
+      ctx.lineWidth = 4;
+      disc(ctx, e.x, e.y - e.r * 0.4, e.r * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(233,201,90,0.12)';
+      ctx.fill();
       ctx.globalAlpha = 1;
     }
     // status effects: one pip per effect (taller with more stacks), an ice block when frozen solid

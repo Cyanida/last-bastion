@@ -7,7 +7,8 @@
  * the frame-to-frame times it recorded. Measuring the live loop matters: a synchronous "render 300 times" loop never
  * yields to the compositor, so the canvas raster work piles up and is paid in 40 ms lumps that a real frame never sees.
  *
- * The horde is topped up to 250 every half second so it does not thin out while measuring.
+ * The horde is topped up to 250 every half second so it does not thin out while measuring. v0.6 adds the Usurper in his last phase in the
+ * Last Bastion (royal decrees and quake rings: the most telegraph zones at once), with 150 of his host around him.
  * Fails when the 95th-percentile frame time exceeds PERF_BUDGET_MS (default 20 ms, the desktop target: one frame at
  * 60 Hz is 16.7 ms, so a p95 under 20 means at most a few dropped frames in 5 s). CI runners raster in software
  * and are slower than a desktop, so the workflow passes a looser budget.
@@ -17,7 +18,7 @@ import { chromium } from 'playwright';
 
 const BUDGET = Number(process.env.PERF_BUDGET_MS ?? 20);
 const PORT = 4179;
-const SCENARIOS = ['fog', 'bloodMoon'];
+const SCENARIOS = ['fog', 'bloodMoon', 'usurper'];
 const FRAMES = 300;
 
 const preview = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', shell: process.platform === 'win32' });
@@ -54,20 +55,32 @@ for (const modifier of SCENARIOS) {
     g.player.upgrades.push('dreadHowl', 'whirlwind', 'frenzy');
     g.baseMods.xp = 0; // no level-ups: a choice screen would pause the sim mid-measurement
     g.relicPool = []; // no relic offers either
-    g.wave = 19;
-    g.breather = 0.01;
+    const final = modifier === 'usurper';
+    if (final) lb.skipTo(4, 40);
+    else {
+      g.wave = 19;
+      g.breather = 0.01;
+    }
     g.tier = { ...g.tier, eliteMult: 2 };
     lb.run(2, false, true);
-    g.modifier = modifier;
+    for (let i = 0; final && i < 900 && !g.enemies.some((e) => e.def.id === 'usurper'); i++) lb.run(1, false, true);
+    const u = g.enemies.find((e) => e.def.id === 'usurper');
+    if (final && !u) throw new Error('the Usurper never came');
+    if (u) {
+      u.phase = 3; // straight to the crown's wrath: decrees and quake rings
+      g.vars['usurper.phase'] = 3;
+      u.maxHp = u.hp = 1e9; // and he must not fall while it is measured
+    }
+    if (!final) g.modifier = modifier;
     const kinds = ['peasant', 'wolf', 'crossbow', 'knight', 'shieldBearer', 'cultist'];
     const topUp = () => {
-      while (g.enemies.length + g.spawnQueue.length < 250) g.spawnQueue.push({ id: kinds[(g.enemies.length + g.spawnQueue.length) % 6], affixes: g.enemies.length % 9 === 0 ? ['shielded'] : [], squad: -1, commander: false });
+      while (g.enemies.length + g.spawnQueue.length < (final ? 150 : 250)) g.spawnQueue.push({ id: kinds[(g.enemies.length + g.spawnQueue.length) % 6], affixes: g.enemies.length % 9 === 0 ? ['shielded'] : [], squad: -1, commander: false });
       g.spawnTimer = 0;
       g.spawnInterval = 0.01;
     };
     topUp();
     lb.run(180, true, true); // the fight is on: particles, numbers, procs, and the sprite caches are warm
-    window.__topUp = setInterval(() => lb.state === 'playing' && (g.modifier = modifier, topUp()), 500);
+    window.__topUp = setInterval(() => lb.state === 'playing' && (final || (g.modifier = modifier), topUp()), 500);
     lb.setPerf(true); // section timers and draw counts, like the overlay
     lb.resetPerf();
   }, modifier);
@@ -91,7 +104,7 @@ await browser.close();
 stop();
 
 let failed = false;
-console.log(`\nperf test · wave 20 · 250 enemies · ${FRAMES} live frames · budget p95 <= ${BUDGET} ms\n`);
+console.log(`\nperf test · wave 20 · 250 enemies (the Usurper: wave 40, 150) · ${FRAMES} live frames · budget p95 <= ${BUDGET} ms\n`);
 for (const r of results) {
   const ok = r.p95 <= BUDGET;
   failed ||= !ok;

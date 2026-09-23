@@ -10,7 +10,7 @@ export type MarkKind = 'level' | 'relic' | 'talent' | 'upgrade' | 'board' | 'que
 export type Mark = [t: number, kind: MarkKind, detail: string];
 /** One per wave, index = wave - 1: when it started, when it was cleared (0 = never), damage taken, seconds with fewer than RUN_LOG.quietBelow enemies alive. */
 export type WaveRow = [start: number, end: number, damage: number, quiet: number];
-export type RunEnd = 'slain' | 'quit';
+export type RunEnd = 'slain' | 'quit' | 'won'; // won: banked right after the Usurper (a win that went on into Endless ends slain or quit, with `won` set)
 
 export interface RunLog {
   at: string; // when the run was banked (ISO)
@@ -26,6 +26,7 @@ export interface RunLog {
   level: number;
   kills: number;
   end: RunEnd;
+  won: boolean; // v0.6: the Usurper fell in this run
   cause: string; // what dealt the killing blow ('' when the run was ended from the pause menu)
   relics: Record<string, number>; // id -> tier, in the order they were found
   talents: string[];
@@ -78,7 +79,8 @@ export function readRunLog(raw: unknown): RunLog | null {
     wave: raw.wave,
     level: fin(raw.level) ? raw.level : 1,
     kills: fin(raw.kills) ? raw.kills : 0,
-    end: raw.end === 'quit' ? 'quit' : 'slain',
+    end: raw.end === 'quit' || raw.end === 'won' ? raw.end : 'slain',
+    won: raw.won === true || raw.end === 'won',
     cause: typeof raw.cause === 'string' ? raw.cause : '',
     relics,
     talents: strs(raw.talents),

@@ -27,6 +27,17 @@ export const RUNES = {
   runGoldCap: 1200,
 };
 
+/**
+ * v0.6: what beating the Usurper pays (logic/save.ts applyRun), on top of the run's own gold, Runes and class XP and outside their caps.
+ * Front-loaded: the first win with a class pays far more than any later one.
+ */
+export const VICTORY = {
+  firstWin: { runes: 10, gold: 1000, classXp: 600 },
+  win: { runes: 2, classXp: 250 },
+  scorePerWave: 100, // Endless score for every wave cleared past the Usurper (plus one per kill)
+  leaderboard: 5, // Endless scores kept per class
+};
+
 export type MetaId =
   | 'hp' | 'str' | 'dex' | 'int' | 'atkSpd' | 'moveSpd' // Armory
   | 'classXp' | 'utilityCd' | 'startLevel' // Barracks

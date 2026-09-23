@@ -77,6 +77,10 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'marathon', name: 'Long Campaign', desc: 'Spend 5, 20 and 50 hours in the courtyard.', category: 'survival', tiers: tiers([18000, 72000, 180000], { 3: { title: 'the Sleepless' } }), progress: totalTime },
   { id: 'act1', name: 'Curtain Call', desc: 'Clear Act I: ten waves and its boss.', category: 'survival', tiers: tiers([1]), progress: (s) => s.counters.actsCleared, unlocks: { curse: 'noRespite' } },
   { id: 'act2', name: 'Second Act', desc: 'Clear two, three and four Acts in one run.', category: 'survival', tiers: tiers([2, 3, 4], { 3: { title: 'the Relentless', talentPoint: 1 } }), progress: (s) => s.counters.actsCleared, unlocks: { curse: 'frenzy' } },
+  // v0.6: the Usurper and beyond
+  { id: 'usurper', name: 'Kingslayer', desc: 'Beat the Usurper: win 1, 5 and 20 runs.', category: 'survival', tiers: tiers([1, 5, 20], { 1: { title: 'Kingslayer' }, 3: { title: 'the Liberator', talentPoint: 1 } }), progress: (s) => CLASS_ORDER.reduce((n, id) => n + s.wins[id], 0) },
+  { id: 'crowns', name: 'Five Crowns', desc: 'Win with two, four and all five champions.', category: 'survival', tiers: tiers([2, 4, 5], { 3: { title: 'Crownbreaker', talentPoint: 1 } }), progress: (s) => CLASS_ORDER.filter((id) => s.wins[id] > 0).length },
+  { id: 'endless', name: 'Beyond the Throne', desc: 'Past the Usurper, in Endless: reach wave 45, 50 and 60.', category: 'survival', tiers: tiers([45, 50, 60], { 3: { title: 'the Endless' } }), progress: bestWave },
   { id: 'swift', name: 'Forced March', desc: 'Reach wave 10 in under 6, 5 and 4 minutes.', category: 'survival', tiers: tiers([1, 2, 3], { 3: { title: 'the Swift' } }), progress: (s) => [360, 300, 240].filter((limit) => s.counters.fastestWave10 > 0 && s.counters.fastestWave10 <= limit).length },
 
   // ---------------------------------------------------------------- combat

@@ -30,7 +30,7 @@ import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRunHistory, showSaveDialog, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { TIER_NUMERALS } from './config/relics';
@@ -40,6 +40,7 @@ import { MASTERY } from './config/economy';
 import { spendTalent } from './systems/talents';
 import { chooseBlessing } from './systems/regions';
 import { markBored } from './systems/runlog';
+import { endlessScore, goEndless } from './systems/victory';
 import { takeQuests } from './systems/quests';
 import { peddlerBuy, peddlerPrice } from './systems/events';
 import { QUEST_BOARD } from './config/quests';
@@ -295,7 +296,16 @@ function openLevelUp(g: Game): void {
 function openChoice(g: Game): void {
   state = 'choice';
   setTouchControls(false);
-  if (g.relicOffers.length > 0) {
+  if (g.victory === 'pending') {
+    // v0.6: the Usurper fell. The screen shows the run as it would bank now; going on keeps it running into Endless.
+    showResults(runResult(g, false), {
+      endless() {
+        goEndless(g);
+        resume();
+      },
+      bank: () => endRun(g),
+    });
+  } else if (g.relicOffers.length > 0) {
     showRelicOffer(g.relicOffers[0], g.relics, g.relicTiers, {
       take: (id) => void (resolveRelicOffer(g, id), resume()),
       skip: () => void (resolveRelicOffer(g, null), resume()),
@@ -377,7 +387,7 @@ function sacredLines(g: Game): { name: string; desc: string }[] {
   return news.length ? [...out, { name: '🧩 Treasure quest this run', desc: news.join(' · ') }] : out;
 }
 
-const hasChoice = (g: Game) => g.pendingShrine !== null || g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant;
+const hasChoice = (g: Game) => g.victory === 'pending' || g.pendingShrine !== null || g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant;
 
 function togglePause(): void {
   if (state === 'playing' && game) {
@@ -413,29 +423,38 @@ function openTalents(g: Game): void {
   });
 }
 
-/** Death or "end run": either way the run is banked. */
+/**
+ * What the results screen shows: the run banked (commitIt), or as it would bank right now (the victory screen, before the player
+ * chooses between banking and Endless). Both go through the same applyRun, so the preview is what banking pays.
+ */
+function runResult(g: Game, commitIt: boolean): RunResult {
+  const id = g.player.cls.id;
+  const prevBest = save.classes[id].bestWave;
+  const prevRank = masteryRank(save.classes[id].xp);
+  const result = applyRun(save, summarizeRun(g));
+  const checked = commitIt ? { save: result.save, earned: commit(result.save) } : withAchievements(result.save);
+  const after = commitIt ? save : checked.save;
+  const newRank = masteryRank(after.classes[id].xp);
+  return {
+    cls: g.player.cls, wave: g.wave, kills: g.kills, time: g.time, level: g.player.level,
+    best: after.classes[id].bestWave, newBest: g.wave > prevBest,
+    gold: result.gold, goldRaw: Math.max(0, g.gold - g.goldStart), runes: result.runes, classXp: result.classXp, masteryRank: newRank,
+    masteryName: newRank > prevRank ? MASTERY[newRank - 1].name : null,
+    masteryNext: MASTERY[newRank] ? { name: MASTERY[newRank].name, need: Math.max(0, Math.round(MASTERY[newRank].xp - after.classes[id].xp)) } : null,
+    tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[after.tierUnlocked].name : null, earned: checked.earned, title: after.title, slain: g.over,
+    seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily, build: buildOf(g),
+    act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id],
+    endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
+  };
+}
+
+/** Death, "end run", or banking a win: the run is banked. */
 function endRun(g: Game): void {
   state = 'results';
   setTouchControls(false);
   startMenuMusic();
   const id = g.player.cls.id;
-  const prevBest = save.classes[id].bestWave;
-  const prevRank = masteryRank(save.classes[id].xp);
-  const result = applyRun(save, summarizeRun(g));
-  const earned = commit(result.save);
-  const newRank = masteryRank(save.classes[id].xp);
-  showResults(
-    {
-      cls: g.player.cls, wave: g.wave, kills: g.kills, time: g.time, level: g.player.level,
-      best: save.classes[id].bestWave, newBest: g.wave > prevBest,
-      gold: result.gold, goldRaw: Math.max(0, g.gold - g.goldStart), runes: result.runes, classXp: result.classXp, masteryRank: newRank,
-      masteryName: newRank > prevRank ? MASTERY[newRank - 1].name : null,
-      tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[save.tierUnlocked].name : null, earned, title: save.title, slain: g.over,
-      seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily, build: buildOf(g),
-    },
-    () => (g.daily ? toDaily() : startRun(id)),
-    toSelect,
-  );
+  showResults(runResult(g, true), { retry: () => (g.daily ? toDaily() : startRun(id)), menu: toSelect });
 }
 
 function mute(): void {
@@ -675,6 +694,13 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
         };
       },
       start: startRun,
+      /** v0.6: jump ahead for tests: straight on to `act` (no Merchant visits), with `wave` next to start. */
+      skipTo(act: number, wave: number) {
+        if (!game) return;
+        while (game.act < act) nextAct(game);
+        game.wave = game.wavesCleared = wave - 1;
+        game.breather = 0.01;
+      },
       /** What the balance bot would do right now. Tests turn this into real touch or key events and step with mode 'input'. */
       botIntent() {
         if (!game) return null;
@@ -685,7 +711,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       /** Advance n ticks with real UI flow; choice screens are answered by clicking their first option. mode: 'input' reads the real input layer. */
       run(n: number, ability = false, mode: boolean | 'input' = false) {
         for (let i = 0; i < n && game && state !== 'results'; i++) {
-          if (state === 'choice') (document.querySelector('[data-pick], [data-leave]') as HTMLElement).click();
+          if (state === 'choice') (document.querySelector('[data-pick], [data-leave], [data-bank]') as HTMLElement).click(); // v0.6: a win is banked
           if (state !== 'playing') continue;
           if (mode === 'input') sampleInput(game);
           else if (mode) botInput(game); // the bot moves and casts, but the real choice screens still open
@@ -696,7 +722,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       },
       /** Let the balance bot play n ticks (it answers choices itself, so no screens open). */
       bot(n: number, variant = 0) {
-        for (let i = 0; i < n && game && state === 'playing'; i++) {
+        for (let i = 0; i < n && game && state === 'playing' && game.victory !== 'pending'; i++) {
           botStep(game, variant);
           if (game.over) endRun(game);
         }

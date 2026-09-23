@@ -25,7 +25,7 @@ export function nearestEnemy(g: Game, x: number, y: number, range: number, exclu
   let best: Enemy | null = null;
   let bestD = Infinity;
   for (const e of g.hash.query(x, y, range, nearest)) {
-    if (e.dead || e.hidden || e === exclude) continue;
+    if (e.dead || e.hidden || e.warded || e === exclude) continue; // v0.6: nothing auto-targets a warded enemy (hitting it does nothing)
     const d = dist2(x, y, e.x, e.y);
     if (d < bestD) {
       bestD = d;
@@ -103,6 +103,11 @@ export function applyStatus(e: Enemy, s: Status | null, g?: Game): void {
  */
 export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx = 0, ky = 0, source: DamageSource = 'attack', type: DamageType = 'physical'): number {
   if (e.dead) return 0;
+  if (e.warded) {
+    if (e.flash <= 0) floatText(g, e.x, e.y - e.r - 20, 'WARDED', '#e9c95a', 14); // at most once per flash, or it floods the screen
+    e.flash = 0.25;
+    return 0;
+  }
   const typeMult = typeMultiplier(e.def.id, type);
   amount *= typeMult * damageTakenFactor(e.statuses);
   if (e.def.boss && source !== 'hazard') amount *= g.player.mods.bossDamage;
@@ -141,8 +146,8 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
       return 0;
     }
   }
-  const dealt = Math.min(e.hp, amount);
-  e.hp -= amount;
+  const dealt = Math.max(0, Math.min(e.hp - e.hpFloor, amount));
+  e.hp = Math.max(e.hpFloor, e.hp - amount); // v0.6: a boss phase that has not run its course holds at its threshold
   // numbers take the colour of their damage type; "!" marks a weakness, "-" a resistance
   damageNumber(g, e, amount, crit ? '#f2c94c' : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');
   burst(g, e.x, e.y, BLOOD, crit ? 6 : 2);
@@ -246,9 +251,9 @@ export function damageMinion(g: Game, m: Minion, amount: number): void {
 }
 
 /** Enemies hit whatever they are fighting through this. */
-export function hurtTarget(g: Game, t: Player | Minion, amount: number, ignoreIFrames = false, attacker: Enemy | null = null): void {
+export function hurtTarget(g: Game, t: Player | Minion, amount: number, ignoreIFrames = false, attacker: Enemy | null = null, cause?: string): void {
   const before = t.hp;
-  if (t === g.player) damagePlayer(g, amount, ignoreIFrames, attacker);
+  if (t === g.player) damagePlayer(g, amount, ignoreIFrames, attacker, cause);
   else damageMinion(g, t as Minion, amount);
   // some enemies leave something behind: wolves make you bleed, cultists set you alight, the Lich curses
   const inflicts = attacker && t.hp < before ? ENEMY_STATUS[attacker.def.id] : undefined;
@@ -331,7 +336,7 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
   for (const o of obstacles) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
   for (const o of g.barriers) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
   if (pr.hostile) {
-    if (dist2(pr.x, pr.y, p.x, p.y) <= (pr.r + p.r) ** 2) return (hurtTarget(g, p, pr.damage, true), false);
+    if (dist2(pr.x, pr.y, p.x, p.y) <= (pr.r + p.r) ** 2) return (hurtTarget(g, p, pr.damage, true, null, pr.dtype === 'physical' ? 'an arrow' : `a bolt of ${DAMAGE_TYPES[pr.dtype].name.toLowerCase()}`), false);
     for (const m of g.minions) if (dist2(pr.x, pr.y, m.x, m.y) <= (pr.r + m.r) ** 2) return (hurtTarget(g, m, pr.damage, true), false);
     return true;
   }

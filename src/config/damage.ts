@@ -31,6 +31,8 @@ export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>
   assassin: { holy: 1.25 },
   dragon: { fire: 0.1, frost: 1.5, physical: 0.9 },
   warden: { physical: 0.85, shadow: 1.3 },
+  usurper: { shadow: 0.7, holy: 1.25, physical: 0.9 },
+  royalFlame: { fire: 0.1, frost: 2 }, // fire feeds it; frost puts it out
 };
 
 /**

@@ -29,7 +29,9 @@ export type EnemyId =
   | 'inquisitor'
   | 'abbot'
   | 'siegeCamp'
-  | 'plagueCart';
+  | 'plagueCart'
+  | 'usurper'
+  | 'royalFlame';
 
 export type Behavior =
   | 'chaser'
@@ -250,6 +252,16 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     ...boss, id: 'warden', name: 'The Warden', sprite: 'warden', behavior: 'chaser', phases: 3,
     hp: 1050, damage: 22, speed: 80, radius: 30, xp: 120,
     specialCd: 7.5, windup: 1.0, specialMult: 1.5, zoneRadius: 46, summon: 'knight', summonCount: 2, p2SpeedMult: 1.1,
+  },
+  // ---- v0.6: the end of the run (config/acts.ts FINAL, systems/bosses.ts) ----
+  usurper: {
+    ...boss, id: 'usurper', name: 'The Usurper', sprite: 'usurper', behavior: 'chaser', scale: 5, phases: 3,
+    hp: 4000, damage: 26, speed: 86, radius: 34, xp: 250, specialCd: 3.4, specialMult: 1.6, p2SpeedMult: 1.15, // specialCd: his first attack; then FINAL.usurper.specialCd per phase
+  },
+  // his ward's anchors: three braziers on stands; while one burns he cannot be hurt
+  royalFlame: {
+    ...base, id: 'royalFlame', name: 'Royal Flame', sprite: 'royalFlame', behavior: 'support', structure: true, scale: 4,
+    hp: 700, damage: 0, speed: 0, radius: 22, xp: 12, knockbackResist: 1,
   },
   abbot: {
     ...boss, id: 'abbot', name: 'The Plague Abbot', sprite: 'abbot', behavior: 'bossAbbot',

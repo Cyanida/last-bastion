@@ -3,8 +3,8 @@ import type { EnemyId } from './enemies';
 import { GAME } from './game';
 import { expandArena, type RegionDef } from './regions';
 
-export type ArenaId = 'courtyard' | 'graveyard' | 'keep';
-export type ObstacleKind = 'tomb' | 'tree' | 'pillar' | 'brazier';
+export type ArenaId = 'courtyard' | 'graveyard' | 'keep' | 'bastion';
+export type ObstacleKind = 'tomb' | 'tree' | 'pillar' | 'brazier' | 'throne';
 export interface Obstacle {
   kind: ObstacleKind;
   x: number;
@@ -14,7 +14,8 @@ export interface Obstacle {
 
 export type Hazard =
   | { kind: 'graspingHands'; every: number; count: number; radius: number; delay: number; damage: number; spread: number }
-  | { kind: 'braziers'; every: number; radius: number; delay: number; damage: number };
+  | { kind: 'braziers'; every: number; radius: number; delay: number; damage: number }
+  | { kind: 'gatehouse'; every: number; radius: number; delay: number; damage: number; spacing: number }; // v0.6: fire rolls through the Last Bastion's south gate
 
 export interface ArenaDef {
   id: ArenaId;
@@ -31,12 +32,14 @@ export interface ArenaDef {
     patch: string; // rgba of the soft patches (moss, mist, carpet)
     wall: string;
     wallTop: string;
+    carpet?: string; // v0.6: a runner from the south wall up to the throne
   };
   obstacles: Obstacle[];
   hazard: Hazard | null; // hazard damage scales with the wave like enemy damage does
   bosses: EnemyId[]; // boss rotation for every 5th wave
   corpseLifeMult: number;
   regions?: RegionDef[]; // v0.5: filled in by expandArena (config/regions.ts)
+  final?: { throne: { x: number; y: number }; flames: { x: number; y: number }[] }; // v0.6: the Usurper's throne and his Royal Flames (the Last Bastion only)
 }
 
 /** Deterministic scatter that keeps the player's spawn (the centre) and the wall clear. */
@@ -108,8 +111,26 @@ const AUTHORED: Record<ArenaId, ArenaDef> = {
     bosses: ['inquisitor', 'blackKnight', 'abbot'],
     corpseLifeMult: 1,
   },
+  // v0.6: Act IV, always. Never a starting arena (not in ARENA_IDS).
+  bastion: {
+    id: 'bastion',
+    name: 'The Last Bastion',
+    desc: 'The Usurper’s own castle: high walls, a burning gatehouse, a throne at the end of the hall.',
+    feature: 'Fire rolls through the gatehouse on a rhythm and burns friend and foe. The Usurper waits on his throne.',
+    w: 2000, h: 1500, wall,
+    theme: { tile: 'flagstone', mortar: '#26232a', stones: ['#57555e', '#4e4c55', '#605d66', '#4a4850'], patch: 'rgba(90,20,20,0.3)', wall: '#2a2830', wallTop: '#46434e', carpet: '#6b1a1a' },
+    obstacles: [
+      ...[-1, 1].flatMap((side) => [360, 560, 760, 960, 1160].map((y) => ({ kind: 'pillar' as const, x: 1000 + side * 300, y, r: 28 }))),
+      { kind: 'throne', x: 1000, y: 230, r: 44 }, // clear of the north gate's corridor
+    ],
+    hazard: { kind: 'gatehouse', every: 9, radius: 80, delay: 1.6, damage: 24, spacing: 170 },
+    bosses: ['blackKnight', 'inquisitor', 'warlord'],
+    corpseLifeMult: 1,
+    final: { throne: { x: 1000, y: 230 }, flames: [{ x: 340, y: 560 }, { x: 1660, y: 560 }, { x: 1000, y: 1240 }] },
+  },
 };
 
 /** The playable maps: each authored arena is the core of a bigger map with wings behind gates (config/regions.ts). */
 export const ARENAS = Object.fromEntries(Object.entries(AUTHORED).map(([id, def]) => [id, expandArena(def)])) as Record<ArenaId, ArenaDef>;
-export const ARENA_IDS = Object.keys(ARENAS) as ArenaId[];
+/** The arenas a run can start in, and that Acts rotate through. The Last Bastion is only ever Act IV (config/acts.ts FINAL). */
+export const ARENA_IDS: ArenaId[] = ['courtyard', 'graveyard', 'keep'];

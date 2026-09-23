@@ -20,6 +20,18 @@ export function updateArena(g: Game, dt: number): void {
       const d = i === 0 ? 0 : g.rng() * hz.spread;
       addZone(g, { x: p.x + Math.cos(a) * d, y: p.y + Math.sin(a) * d, r: hz.radius, delay: hz.delay + i * 0.15, damage, hostile: true, color: '#8fb08a' });
     }
+  } else if (hz.kind === 'gatehouse') {
+    // v0.6 Last Bastion: the gatehouse burns. A marked row of fire rolls across the south end of the hall, one side to the other,
+    // and like the braziers it burns the horde too: lure them through it
+    const core = g.arena.regions!.find((r) => r.id === 'core')!.floor;
+    const y = core.y + core.h - 140;
+    const n = Math.floor(core.w / hz.spacing);
+    const fromLeft = g.rng() < 0.5;
+    for (let i = 0; i <= n; i++) {
+      const x = core.x + hz.spacing / 2 + (fromLeft ? i : n - i) * ((core.w - hz.spacing) / n);
+      addZone(g, { x, y, r: hz.radius, delay: hz.delay + i * 0.09, damage, hostile: true, color: '#e07b28', dtype: 'fire' });
+      addZone(g, { x, y, r: hz.radius, delay: hz.delay + i * 0.09, damage: damage * 3, hostile: false, color: '#e07b28', dtype: 'fire' });
+    }
   } else {
     // braziers burn friend and foe: one hostile zone and one friendly zone on the same spot
     for (const o of g.arena.obstacles) {

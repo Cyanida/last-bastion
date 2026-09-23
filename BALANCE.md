@@ -1,5 +1,33 @@
 # Balance notes
 
+## v0.6: the Usurper
+
+**The fight.** Base HP 4000 (×6.5 at wave 40: about 26,000), three Royal Flames of 700 (about 4,600 each). HP turned out to be the wrong
+knob: late characters kill in bursts (a revived fresh Viking carries ~19 relics at tier II by wave 40, the Necromancer's skeletons took
+the Usurper from 20,000 to 0 in three seconds), so raising his HP from 3500 to 5500 changed the fight time by almost nothing, and only the
+weak-damage Paladin would have paid for it. Instead **every phase has a minimum length** (`FINAL.usurper.minPhase`: 20 s for the first; he
+cannot fall before 25 s of the last), enforced by an HP floor on the enemy (`Enemy.hpFloor`). Phase 2 needs none: the flames are spread
+across the hall and take their time.
+
+Time from wave 40's start to his fall, with the minimums (2 seeds each; "fresh" = no Keep, revived on death like the wall probe):
+
+| | Paladin | Viking | Angel | Necromancer | Archer |
+|---|---|---|---|---|---|
+| fresh, revived | 117 s / 398 s (1 death) | 73 s / 92 s | 75 s / 88 s | 71 s / 93 s (1 death) | 74 s / 71 s (2 deaths each) |
+| maxed | 85 s, and one death to him | 76 s / 106 s | 73 s | 70 s / 68 s | died to him |
+
+He is the deadliest boss in the game: he killed 2 of the 8 maxed bots that reached him (the bot stands in quake rings). Maxed runs reach
+him after **26-36 minutes**, so a winning run takes 28-38: inside the 30-40 minute target. The Paladin is the outlier on fight length
+(low damage by design): that is the class-spread work in increment 7, not his HP.
+
+**The bot had to learn the fight.** It used to drop everything and flee whenever it stood near a marked zone, and a ranged bot never
+walked toward a target out of reach. Under the ward's burning pitch that meant it never reached a Royal Flame. An A/B on the same seeds
+showed the obvious fix (always advance, sidestepping zones) makes Act I **65% slower** (8.1 minutes against 4.6-5.2 for a maxed Viking):
+pushing into a crowd through marked ground plays worse than backing off and letting the crowd bunch up. So the bot now advances through
+marked ground only when nothing is close, or while a boss is warded; ranged classes close in on targets out of reach; and nothing
+auto-targets a warded enemy (players' auto-attacks included). With that the maxed Viking's Acts take 4.4-4.7 / 5.5-6.2 / 6.0-6.3 minutes,
+at or below the baseline.
+
 ## v0.6: the run as it stood (measured before any v0.6 change)
 
 **How a run goes (v0.5).** You pick a champion, an arena, a difficulty, curses and a trait. Act I starts in that arena with only the core

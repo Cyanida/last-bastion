@@ -35,6 +35,7 @@ import { initRegions, updateRegions } from './systems/regions';
 import { initQuests, updateQuests } from './systems/quests';
 import { updateEvents } from './systems/events';
 import { finishRunLog, startRunLog, updateRunLog } from './systems/runlog';
+import { endlessScore } from './systems/victory';
 import { updateTreasures } from './systems/treasures';
 import { updateUtility } from './systems/utility';
 import type { TraitId } from './config/traits';
@@ -180,6 +181,8 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     chain: chain && { fragments: chain.fragments, trial: chain.trial, tier: chain.tier, unlocked: mastery.treasureStep, found: 0, passed: false, guardian: null, slain: false },
     banner: { text: '', t: 0 },
     log: newRunLog(),
+    victory: 'none',
+    victoryKills: 0,
     over: false,
   };
   // curses that are plain numbers live in g.vars; the rest are read where they matter (spawning, director)
@@ -246,6 +249,8 @@ export function summarizeRun(g: Game): RunSummary {
     events: g.eventsSeen,
     questRunes: g.questRunes,
     log: finishRunLog(g),
+    won: g.victory !== 'none',
+    endlessScore: endlessScore(g),
     treasure: g.chain || g.treasure ? { found: g.chain?.found ?? 0, passed: g.chain?.passed ?? false, slain: g.chain?.slain ?? false, carried: g.treasure?.tier ?? 0 } : undefined,
   };
 }
