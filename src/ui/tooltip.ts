@@ -1,10 +1,13 @@
+import { GLOSSARY, type Term } from '../config/glossary';
 import { clamp } from '../core/math';
+import { esc } from './relicText';
 
 /**
  * One floating tooltip for every `[data-tip]` element, menus and HUD alike (v0.5). CSS pseudo-element tooltips were clipped by
  * scrolling dialogs and the screen edge, and caught the pointer themselves, so a tooltip over a neighbour kept the wrong element
  * hovered. This one sits above its element (below when there is no room), stays inside the window and never takes the pointer.
  * Hover shows it on desktop, a tap (focus) on touch; it goes away when the pointer leaves, on a click, or on scroll.
+ * v0.7.1: glossary terms in a tip are underlined and explained underneath (glossed).
  */
 let box: HTMLDivElement | null = null;
 let owner: HTMLElement | null = null;
@@ -16,7 +19,7 @@ function place(el: HTMLElement): void {
   if (!text) return hide();
   box ??= document.body.appendChild(Object.assign(document.createElement('div'), { id: 'tooltip' }));
   owner = el;
-  box.textContent = text;
+  box.innerHTML = glossed(text);
   box.classList.toggle('hud', el.closest('#hud') !== null);
   box.style.display = 'block';
   const r = el.getBoundingClientRect();
@@ -29,6 +32,20 @@ function place(el: HTMLElement): void {
 function hide(): void {
   if (box) box.style.display = 'none';
   owner = null;
+}
+
+const TERM_OF = new Map<string, Term>(GLOSSARY.flatMap((term) => term.forms.map((f) => [f, term] as const)));
+const TERMS = new RegExp(`\\b(${[...TERM_OF.keys()].sort((a, b) => b.length - a.length).join('|')})\\b`, 'gi');
+
+/** v0.7.1: a tip as HTML: every glossary term underlined, and each one's definition once underneath, in the order they came up. */
+export function glossed(text: string): string {
+  const found: Term[] = [];
+  const body = esc(text).replace(TERMS, (word) => {
+    const term = TERM_OF.get(word.toLowerCase())!;
+    if (!found.includes(term)) found.push(term);
+    return `<u>${word}</u>`;
+  });
+  return found.length ? `${body}<div class="gloss">${found.map((term) => `<b>${term.name}</b>: ${term.def}`).join('<br>')}</div>` : body;
 }
 
 const tipOf = (target: EventTarget | null): HTMLElement | null => (target instanceof Element ? target.closest<HTMLElement>('[data-tip]') : null);

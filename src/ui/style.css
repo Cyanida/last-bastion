@@ -545,3 +545,9 @@ canvas#game { touch-action: none; }
 .btn.small.whatsnew-link { margin: 8px auto 0; }
 .whatsnew ul { padding-left: 20px; }
 .whatsnew li { margin: 6px 0; }
+
+/* v0.7.1 glossary: underlined terms in tooltips, their definitions under a rule, and the Glossary page */
+#tooltip u { text-decoration: underline dotted; text-underline-offset: 2px; }
+#tooltip .gloss { margin-top: 6px; padding-top: 5px; border-top: 1px dotted currentColor; font-size: 13px; line-height: 1.3; white-space: normal; }
+.glossary dt { font-weight: bold; margin-top: 10px; }
+.glossary dd { margin: 2px 0 0; }

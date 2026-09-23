@@ -36,7 +36,7 @@ import { banishOption, chooseLevelUp, levelUpOptions } from './systems/leveling'
 import { relicPreview, relicShares, rerollRelicOffer, resolveRelicOffer, skipRelicOffer, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, type TitleInfo } from './ui/screens';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
@@ -203,6 +203,7 @@ function toKeep(): void {
     mastery: (id) => showMastery(save, id, toKeep),
     treasures: () => showTreasures(save, null, toKeep),
     history: () => showRunHistory(save.runs, toKeep),
+    glossary: () => showGlossary(toKeep),
     buy(id: MetaId) {
       commit(buyMeta(save, id));
       toKeep();
@@ -470,6 +471,7 @@ function pauseMenu(g: Game): void {
     quit: () => endRun(g),
     talents: () => openTalents(g),
     treasures: () => showTreasures(applyRun(save, summarizeRun(g)).save, g.player.cls.id, () => pauseMenu(g)), // the log as it would stand if the run ended now
+    glossary: () => showGlossary(() => pauseMenu(g)),
     bored: () => markBored(g),
   });
 }

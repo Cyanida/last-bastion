@@ -44,6 +44,7 @@ import { oathCap, oathReward } from '../logic/oaths';
 import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
+import { GLOSSARY } from '../config/glossary';
 
 const overlay = () => document.getElementById('overlay')!;
 let stopActions: (() => void) | null = null;
@@ -282,7 +283,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   click(el, '[data-back]', on.back);
 }
 
-export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; chronicle: () => void; treasures: () => void; history: () => void; back: () => void }): void {
+export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; chronicle: () => void; treasures: () => void; history: () => void; glossary: () => void; back: () => void }): void {
   const row = (id: MetaId) => {
     const m = META[id];
     const rank = save.meta[id] ?? 0;
@@ -328,11 +329,12 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
         ${nextMilestone ? `Account level ${nextMilestone.level}: <em>${nextMilestone.name}</em> — ${nextMilestone.desc}.` : 'Every account milestone reached.'}</p>
       <div class="masteries">${mastery}</div>
       <div class="milestones">${ACCOUNT_MILESTONES.map((m) => `<span class="${level >= m.level ? 'on' : ''}" data-tip="${esc(m.desc)}">${level >= m.level ? '✔ ' : ''}${m.level} ${m.name}</span>`).join('')}</div>
-      <div class="row"><button class="btn" data-compendium>Relic compendium</button><button class="btn" data-treasures>Sacred treasures</button><button class="btn" data-chronicle>Chronicle</button><button class="btn" data-history>Run history</button></div>
+      <div class="row"><button class="btn" data-compendium>Relic compendium</button><button class="btn" data-treasures>Sacred treasures</button><button class="btn" data-chronicle>Chronicle</button><button class="btn" data-history>Run history</button><button class="btn" data-glossary>Glossary</button></div>
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-chronicle]', on.chronicle);
   click(el, '[data-history]', on.history);
+  click(el, '[data-glossary]', on.glossary);
   click(el, '[data-buy]', (b) => on.buy(b.dataset.buy as MetaId));
   click(el, '[data-raise]', (b) => on.raise(b.dataset.raise as BuildingId));
   click(el, '[data-mastery]', (b) => on.mastery(b.dataset.mastery as ClassId));
@@ -780,7 +782,7 @@ export function buildHtml(info: BuildInfo): string {
   return relics || ups || trait || util || talents || sacred || evos ? `<div class="build">${evos}${sacred}${trait}${talents}${ups}${util}${relics}${duos}${syns}</div>` : '';
 }
 
-export function showPause(info: BuildInfo, on: { resume: () => void; quit: () => void; talents: () => void; treasures: () => void; bored: () => void }): void {
+export function showPause(info: BuildInfo, on: { resume: () => void; quit: () => void; talents: () => void; treasures: () => void; glossary: () => void; bored: () => void }): void {
   const el = show(`
     <div class="panel dialog">
       <h1 class="small">Paused</h1>
@@ -788,6 +790,7 @@ export function showPause(info: BuildInfo, on: { resume: () => void; quit: () =>
       <button class="btn big" data-resume>Resume</button>
       <button class="btn" data-talents>Talents${info.talentPoints > 0 ? ` (${info.talentPoints} to spend)` : ''}</button>
       <button class="btn" data-treasures>Sacred treasures</button>
+      <button class="btn" data-glossary>Glossary</button>
       <div class="row">
         <button class="btn small" data-bored data-tip="Playtest aid: stamps this moment into the run log (Keep › Run history). F8 does the same without pausing.">😴 Bored here</button>
         <button class="btn" data-quit>End run (keeps your gold)</button>
@@ -796,6 +799,7 @@ export function showPause(info: BuildInfo, on: { resume: () => void; quit: () =>
   click(el, '[data-resume]', on.resume);
   click(el, '[data-talents]', on.talents);
   click(el, '[data-treasures]', on.treasures);
+  click(el, '[data-glossary]', on.glossary);
   click(el, '[data-quit]', on.quit);
   click(el, '[data-bored]', (b) => {
     on.bored();
@@ -1041,4 +1045,17 @@ export function showWhatsNew(w: WhatsNew, onBack: () => void): void {
     </div>`);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'confirm' || a === 'cancel' || a === 'pause') && onBack());
+}
+
+/** v0.7.1: every game term and what it means (config/glossary.ts), from the pause menu and the Keep. Tooltips underline the same words. */
+export function showGlossary(onBack: () => void): void {
+  const el = show(`
+    <div class="panel dialog wide glossary">
+      <h1 class="small">Glossary</h1>
+      <p class="sub">The words the game uses, and what they mean. Tooltips underline them and explain them too.</p>
+      <dl>${[...GLOSSARY].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<dt>${t.name}</dt><dd>${t.def}</dd>`).join('')}</dl>
+      <button class="btn" data-back>Back</button>
+    </div>`);
+  click(el, '[data-back]', onBack);
+  onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }

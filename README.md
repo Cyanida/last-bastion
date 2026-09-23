@@ -146,6 +146,7 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 - **Oaths** (v0.6, class select screen): after a class's first win, Oaths 1-20, each adding one fixed hardship on top of those below it (curses, wave modifiers, bosses that rise again, three-affix elites, no Merchant in Act II, no Last Stand...). The first win at each level pays; each class shows the highest Oath it has kept. Free curses stay for custom runs.
 - **Weekly contracts** (v0.6, title screen): three seeded objectives a week that pay Runes when a banked run completes them.
 - **After a run** (v0.6): the results screen shows the three closest goals and a Quick restart with the same champion, traits and Oath.
+- **Glossary** (v0.7.1, pause menu and the Keep): the game's terms (burn, chill, freeze, bleed, poison, curse, evolution, elite, commander, perfect dodge, Last Stand, Oath) defined once in `src/config/glossary.ts`; every tooltip underlines the ones it uses and explains them underneath.
 - **What's new** (v0.7.1, title screen): the main points of this version's CHANGELOG entry; it also opens by itself once after an update.
 - **Daily Trial** (title screen): same seed, class, arena and curses for everyone that day. Any run's **seed** is on its results screen; type it on the class select to replay it.
 
