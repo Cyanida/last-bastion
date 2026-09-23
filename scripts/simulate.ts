@@ -17,6 +17,7 @@
  * upgrades included) and against runs that start with every relic in the class pool at the top tier (the absurd upper bound).
  * BALANCE.md wants the haul no more than about 1.5x as far as no relics; past that the caps get tightened.
  *
+ * Depth past the win (v0.6):  npm run sim -- deep [runs=3] [tier=0]: the default table, wins going on into Endless.
  * Pacing:  npm run sim -- pacing [runs=4] [tier=0]
  * The run logs (v0.6) of fresh and maxed runs: run length, minutes per Act, wins, the share of time with under 5 enemies alive, and the
  * longest stretches with no new wave, pick, event, objective or boss. The rule is that none lasts longer than RUN_LOG.maxGap seconds.
@@ -37,7 +38,8 @@ import { relicPoolFor } from '../src/logic/relics';
 import type { RunSummary } from '../src/logic/save';
 import { probeRun, simulateRun } from '../src/sim/bot';
 
-const mode = ['probe', 'relics', 'economy', 'pacing'].includes(process.argv[2] ?? '') ? process.argv[2] : '';
+const mode = ['probe', 'relics', 'economy', 'pacing', 'deep'].includes(process.argv[2] ?? '') ? process.argv[2] : '';
+const deep = mode === 'deep'; // v0.6: the default table, but a win marches on into Endless, so depth is not capped at wave 40
 const probe = mode === 'probe';
 const argAt = mode ? 3 : 2;
 const [runs = mode === 'economy' ? 80 : mode === 'pacing' ? 4 : mode ? 3 : 6, tier = 0] = process.argv.slice(argAt, argAt + 2).map(Number);
@@ -190,7 +192,7 @@ if (probe) {
   process.exit(0);
 }
 
-console.log(`\n${runs} runs per cell · ${TIERS[tier].name} · ${arena} · alternating ability-upgrade branches\n`);
+console.log(`\n${runs} runs per cell · ${TIERS[tier].name} · ${arena} · alternating ability-upgrade branches${deep ? ' · deep: wins go on into Endless (up to 60 minutes)' : ''}\n`);
 console.log(`${'class'.padEnd(12)}${pad('fresh', 8)}${pad('min-max', 9)}${pad('maxed', 8)}${pad('min-max', 9)}${pad('ratio', 7)}${pad('lvl', 6)}${pad('gold', 7)}${pad('min', 6)}${pad('cmdr', 6)}${pad('elites', 7)}${pad('acts*', 6)}`);
 console.log('  (lvl, gold, minutes, commanders and elites slain: fresh runs · acts*: Acts cleared by maxed runs. Squads, the director, status effects and the Merchant all run as in the game.)');
 
@@ -199,7 +201,7 @@ const totals: Record<string, number[]> = { fresh: [], maxed: [] };
 const paceRuns: Record<string, RunSummary[]> = {};
 for (const classId of CLASS_ORDER) {
   const cells = setups.map(([name, opts]) => {
-    const results = Array.from({ length: runs }, (_, i) => simulateRun(classId, 1000 + i, opts, i % 2));
+    const results = Array.from({ length: runs }, (_, i) => simulateRun(classId, 1000 + i, opts, i % 2, deep ? 60 * 60 : undefined, deep));
     if (name === 'fresh') paceRuns[classId] = results;
     const waves = results.map((r) => r.wave);
     totals[name].push(avg(waves));

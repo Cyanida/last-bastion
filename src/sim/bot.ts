@@ -31,6 +31,7 @@ import { featureSpot } from '../config/regions';
  */
 
 const DT = 1 / GAME.tickRate;
+const ORBIT = 3; // v0.6: how hard ranged circles while fleeing (tangent against straight away); 0-4 tried, BALANCE.md
 
 export function botInput(g: Game): void {
   const p = g.player;
@@ -107,9 +108,11 @@ export function botInput(g: Game): void {
     mx = danger ? ((nx - p.x) / nd) * 3 + zx : nx - p.x;
     my = danger ? ((ny - p.y) / nd) * 3 + zy : ny - p.y;
   } else if (cx || cy || zx || zy) {
-    // flee, with a pull to the middle so it does not pin itself in a corner
-    mx = cx + zx + (g.arena.w / 2 - p.x) * 0.002;
-    my = cy + zy + (g.arena.h / 2 - p.y) * 0.002;
+    // flee, with a pull to the middle so it does not pin itself in a corner; v0.6: ranged circles the crowd (kiting) instead of
+    // backing straight off into a wall, the way players kite
+    const orbit = melee ? 0 : ORBIT;
+    mx = cx - cy * orbit + zx + (g.arena.w / 2 - p.x) * 0.002;
+    my = cy + cx * orbit + zy + (g.arena.h / 2 - p.y) * 0.002;
   } else {
     let best = Infinity;
     for (const k of g.pickups) {
@@ -126,7 +129,7 @@ export function botInput(g: Game): void {
   g.input.moveY = len > 4 ? my / len : 0;
   g.input.aimX = nx;
   g.input.aimY = ny;
-  g.input.ability = nd < 220 || p.cls.id === 'necromancer';
+  g.input.ability = nd < ('castRange' in p.cls.ability ? p.cls.ability.castRange : 220) || p.cls.id === 'necromancer'; // v0.6: the Volley at its reach, as players do
   // the utility: the Paladin when enemies are close, the Necromancer when corpses lie around, the rest when crowded or hurt
   g.input.utility = p.cls.id === 'necromancer' ? g.corpses.length >= 3 && nd < 300 : p.cls.id === 'paladin' ? nd < 200 : crowded || p.hp < p.stats.hp * 0.4;
 }

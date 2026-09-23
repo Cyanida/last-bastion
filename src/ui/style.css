@@ -512,3 +512,12 @@ canvas#game { touch-action: none; }
 .pickers.oath b { margin: 0 8px; color: #e9c95a; font-family: var(--heading); }
 .pickers.oath .hint { margin-left: 10px; }
 .card .oath-line { font-size: 13px; color: #6b4a12; margin-top: 4px; }
+
+/* v0.6 results: the closest goals; title: the weekly contracts */
+.goals { display: grid; gap: 6px; margin: 4px 0 10px; text-align: left; }
+.goal span { display: block; font-size: 14px; }
+.goal .bar { height: 6px; margin-top: 2px; }
+.contracts { margin: 14px auto 0; max-width: 520px; padding: 10px 14px; text-align: left; font-size: 15px; color: #2b1d10; }
+.contracts .dim { color: #6b5a44; font-size: 13px; }
+.contracts .contract { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-top: 1px dotted rgba(90, 61, 37, 0.5); }
+.contracts .contract.done { color: #3f6b2a; }

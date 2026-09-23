@@ -19,11 +19,13 @@ import { lockedArenas, lockedRelics, rewardText, tierKey, unlockedCurses, withAc
 import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from './logic/acts';
 import { curseMultiplier } from './logic/curses';
 import { oathCap } from './logic/oaths';
+import { closestGoals } from './logic/goals';
+import { currentProgress, weekKey, weeklyContracts } from './logic/contracts';
 import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReroll, merchantSalvage, merchantSell, nextAct } from './systems/acts';
 import { questTake } from './systems/quests';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
-import { applyRun, buyMeta, defaultSave, importSave, type Save, buyBuilding } from './logic/save';
+import { applyRun, buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from './logic/save';
 import { buildArena } from './render/arena';
 import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
@@ -91,11 +93,18 @@ function menu(): void {
   startMenuMusic();
 }
 
+/** v0.6: this week's contracts and how far along they are. */
+function titleContracts() {
+  const week = weekKey(today());
+  const progress = currentProgress(save.contracts, week);
+  return weeklyContracts(week).map((c, i) => ({ text: c.text, progress: progress[i], target: c.target, runes: c.runes }));
+}
+
 function toTitle(): void {
   menu();
   onTitle = true;
   showTitle(
-    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 }, title: save.title },
+    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 }, title: save.title, contracts: titleContracts() },
     { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings },
   );
 }
@@ -323,6 +332,7 @@ function openChoice(g: Game): void {
         resume();
       },
       bank: () => endRun(g),
+      restart: () => (endRun(g), again(g)),
     });
   } else if (g.relicOffers.length > 0) {
     const armorer = g.vars.armorerOffer === 1;
@@ -471,18 +481,22 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     masteryNext: MASTERY[newRank] ? { name: MASTERY[newRank].name, need: Math.max(0, Math.round(MASTERY[newRank].xp - after.classes[id].xp)) } : null,
     tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[after.tierUnlocked].name : null, earned: checked.earned, title: after.title, slain: g.over,
     seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily, build: buildOf(g),
-    act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept,
+    act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
+    goals: closestGoals(after, id, weekKey(today())),
+    restart: g.daily ? `the Daily Trial ${g.daily}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
   };
 }
+
+/** v0.6 Quick Restart: the same class, traits and Oath (they live in the settings), or today's Daily Trial again. */
+const again = (g: Game): void => (g.daily ? toDaily() : startRun(g.player.cls.id));
 
 /** Death, "end run", or banking a win: the run is banked. */
 function endRun(g: Game): void {
   state = 'results';
   setTouchControls(false);
   startMenuMusic();
-  const id = g.player.cls.id;
-  showResults(runResult(g, true), { retry: () => (g.daily ? toDaily() : startRun(id)), menu: toSelect });
+  showResults(runResult(g, true), { retry: () => again(g), menu: toSelect });
 }
 
 function mute(): void {

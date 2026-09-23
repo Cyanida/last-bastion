@@ -39,6 +39,8 @@ import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
 import { getSprite, SPRITE_PALETTES } from '../render/sprites';
 import { OATHS } from '../config/oaths';
 import { oathCap, oathReward } from '../logic/oaths';
+import type { Goal } from '../logic/goals';
+import type { Contract } from '../logic/contracts';
 
 const overlay = () => document.getElementById('overlay')!;
 let stopActions: (() => void) | null = null;
@@ -104,6 +106,7 @@ export interface TitleInfo {
   notice: { text: string; button: string; action: () => void } | null; // "new version available"
   daily: { date: string; best: number };
   title: string | null; // v0.4: the equipped title (Chronicle)
+  contracts: { text: string; progress: number; target: number; runes: number }[]; // v0.6: this week's
 }
 
 export function showTitle(info: TitleInfo, on: { start: () => void; daily: () => void; keep: () => void; chronicle: () => void; settings: () => void }): void {
@@ -121,6 +124,8 @@ export function showTitle(info: TitleInfo, on: { start: () => void; daily: () =>
         <button class="btn" data-go="chronicle">Chronicle</button>
         <button class="btn" data-go="settings">Settings</button>
       </div>
+      <div class="contracts panel"><b>This week's contracts</b> <span class="dim">· new ones every Monday · Runes when a run completes one</span>
+        ${info.contracts.map((c) => `<div class="contract ${c.progress >= c.target ? 'done' : ''}"><span>${c.progress >= c.target ? '✔ ' : ''}${c.text}</span><span>${c.progress.toLocaleString('en')}/${c.target.toLocaleString('en')} · ◆ ${c.runes}</span></div>`).join('')}</div>
       <p class="hint">${info.mobile ? 'Left thumb moves · right thumb casts your signature ability (hold and drag to aim) · attacks are automatic' : 'WASD / arrows or gamepad to move · attacks are automatic · Space or right mouse for your signature ability · Esc / P to pause · M to mute'}</p>
       <p class="hint build">build ${info.buildDate}</p>
     </div>`);
@@ -778,6 +783,9 @@ export interface RunResult {
   firstWin: boolean; // ...and it is the class's first win (it pays VICTORY.firstWin)
   oath: number; // v0.6: the Oath sworn, 0 = a custom run
   oathKept: number; // the Oath level kept for the first time by this win (it pays oathReward), 0 = none
+  goals: Goal[]; // v0.6: the three closest goals, after this run
+  contracts: Contract[]; // weekly contracts this run completed
+  restart: string; // what Quick Restart keeps: "Viking · Stalwart · Oath 3"
   wins: number; // the class's wins, this one included
   masteryNext: { name: string; need: number } | null; // the next mastery rank and the class XP still missing
   endless: { score: number; rank: number; board: EndlessEntry[] } | null; // the run went on into Endless
@@ -787,7 +795,7 @@ export interface RunResult {
  * The end of a run, and (v0.6) the moment the Usurper falls. With `bank` and `endless` it is the victory screen: the run as it would
  * bank right now, and the choice. With `retry` and `menu` the run is over and banked.
  */
-export function showResults(r: RunResult, on: { retry: () => void; menu: () => void } | { bank: () => void; endless: () => void }): void {
+export function showResults(r: RunResult, on: { retry: () => void; menu: () => void } | { bank: () => void; endless: () => void; restart: () => void }): void {
   const deciding = 'bank' in on;
   const title = deciding ? 'The Usurper has fallen' : r.endless ? (r.slain ? 'The Endless takes you' : 'The Endless ends') : r.won ? 'Victory' : r.slain ? 'Thou art slain' : 'The run ends';
   const winLine = r.won
@@ -799,13 +807,14 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
     : '';
   const unlocks = [
     ...(r.tierUnlocked ? [`<div class="unlock">⚔ Difficulty unlocked: <b>${r.tierUnlocked}</b></div>`] : []),
+    ...r.contracts.map((c) => `<div class="unlock">📜 Weekly contract done: <b>${c.text}</b> <em>◆ +${c.runes}</em></div>`),
     ...r.earned.map((e) => `<div class="unlock">🏆 <b>${e.def.name} · ${TIER_NAMES[e.tier - 1]}</b> — ${e.def.desc} <em>${tierRewardText(e.reward)}</em>${e.tier === 1 && e.def.unlocks?.arena ? ` <em>New arena: ${ARENAS[e.def.unlocks.arena].name}</em>` : ''}${e.tier === 1 && e.def.unlocks?.relic ? ` <em>New relic: ${relicDef(e.def.unlocks.relic).name}</em>` : ''}</div>`),
   ].join('');
   const el = show(`
     <div class="panel dialog ${r.won ? 'victory' : ''}">
       <h1 class="small ${r.won && !r.endless ? 'gold' : 'blood'}">${title}</h1>
       <p class="sub">${r.cls.name}${r.title ? `, <em>${r.title}</em>` : ''} · ${r.tier}${r.oath ? ` · Oath ${r.oath}` : ''}${r.newBest ? ' — <span class="gold">new record!</span>' : ''}${deciding ? '<br>Bank the win now, or march on into Endless: waves without end, for a score. Either way the win counts when the run is banked.' : ''}</p>
-      ${deciding ? '<div class="row"><button class="btn big" data-endless>March on into Endless</button><button class="btn big" data-bank>Bank the win</button></div>' : ''}
+      ${deciding ? `<div class="row"><button class="btn big" data-endless>March on into Endless</button><button class="btn big" data-bank>Bank the win</button><button class="btn" data-restart data-tip="Bank the win and start again at once: ${esc(r.restart)}">Bank and restart</button></div>` : ''}
       <div class="stats wide">
         <div><span>Reached</span><b>${r.endless ? 'Endless · ' : ''}${actName(r.act)} · wave ${r.wave}</b></div>
         ${r.endless ? `<div class="earned"><span>Endless score</span><b>${r.endless.score}${r.endless.rank ? ` · #${r.endless.rank} for the ${r.cls.name}` : ''}</b></div>` : ''}
@@ -822,14 +831,16 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
         <div class="earned"><span>${r.cls.name} mastery</span><b>+${r.classXp} XP · rank ${r.masteryRank}${r.masteryName ? ` — <em>${r.masteryName}</em>` : ''}</b></div>
         ${r.masteryNext ? `<div><span>Next mastery rank</span><b>${r.masteryNext.name} · ${r.masteryNext.need} XP to go</b></div>` : ''}
       </div>
+      ${r.goals.length ? `<h2>Next</h2><div class="goals">${r.goals.map((g) => `<div class="goal"><span>${esc(g.text)}</span><div class="bar xp"><div style="width:${Math.round(g.frac * 100)}%"></div></div></div>`).join('')}</div>` : ''}
       ${unlocks ? `<div class="unlocks">${unlocks}</div>` : ''}
       ${board}
       ${buildHtml(r.build)}
-      ${deciding ? '' : '<button class="btn big" data-retry>Fight again</button><button class="btn" data-menu>Choose another champion</button>'}
+      ${deciding ? '' : `<button class="btn big" data-retry data-tip="Enter">Quick restart · ${esc(r.restart)}</button><button class="btn" data-menu>Choose another champion</button>`}
     </div>`);
   if ('bank' in on) {
     click(el, '[data-endless]', on.endless);
     click(el, '[data-bank]', on.bank);
+    click(el, '[data-restart]', on.restart);
   } else {
     click(el, '[data-retry]', on.retry);
     click(el, '[data-menu]', on.menu);

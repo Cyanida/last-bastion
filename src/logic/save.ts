@@ -1,5 +1,7 @@
 import { OATHS } from '../config/oaths';
 import { oathReward } from './oaths';
+import { advanceContracts, weekKey, type Contract, type ContractState } from './contracts';
+import { CONTRACTS_PER_WEEK } from '../config/contracts';
 import { EVOLUTION_IDS, type EvolutionId } from '../config/evolutions';
 import { FEAT_KEYS, type FeatKey } from '../config/achievements';
 import { ARENA_IDS, type ArenaId } from '../config/arenas';
@@ -108,6 +110,7 @@ export interface Save {
   runs: RunLog[]; // v0.6: the last RUN_LOG.keep runs' timelines, oldest first (Run History)
   wins: Record<ClassId, number>; // v0.6: times each class beat the Usurper
   oaths: Record<ClassId, number>; // v0.6: the highest Oath each class has kept (won under), 0 = none
+  contracts: ContractState; // v0.6: the weekly contracts' progress (a new week starts from nothing)
   refund: { gold: number; runes: number } | null; // v0.6: what the Keep's rework handed back, shown once in the Keep
   evolutions: EvolutionId[]; // v0.6: evolutions ever taken (the compendium shows their recipes in full)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
@@ -182,6 +185,7 @@ export function defaultSave(): Save {
     evolutions: [],
     wins: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     oaths: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
+    contracts: { week: '', progress: Array(CONTRACTS_PER_WEEK).fill(0) },
     endless: Object.fromEntries(CLASS_ORDER.map((id) => [id, []])) as unknown as Record<ClassId, EndlessEntry[]>,
     settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
   };
@@ -245,6 +249,9 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
       save.runes += back.runes;
       if (back.gold || back.runes) save.refund = back;
     } else if (isObj(raw.refund) && num(raw.refund.gold) + num(raw.refund.runes) > 0) save.refund = { gold: num(raw.refund.gold), runes: num(raw.refund.runes) };
+    if (isObj(raw.contracts) && typeof raw.contracts.week === 'string' && Array.isArray(raw.contracts.progress)) {
+      save.contracts = { week: raw.contracts.week, progress: Array.from({ length: CONTRACTS_PER_WEEK }, (_, i) => Math.max(0, num((raw.contracts as { progress: unknown[] }).progress[i]))) };
+    }
     save.tierUnlocked = Math.min(TIERS.length - 1, Math.floor(num(raw.tierUnlocked)));
     if (isObj(raw.counters)) {
       const c = raw.counters;
@@ -319,7 +326,7 @@ export function buyBuilding(save: Save, id: BuildingId): Save {
 export const today = (): string => new Date().toISOString().slice(0, 10);
 
 /** Fold a run into the save: gold, class XP, records, counters, difficulty unlock. Achievements are evaluated separately. */
-export function applyRun(save: Save, run: RunSummary, date = today(), at = new Date().toISOString()): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number } {
+export function applyRun(save: Save, run: RunSummary, date = today(), at = new Date().toISOString()): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number; contracts: Contract[] } {
   const curses = run.curses ?? [];
   const loadout = metaLoadout(save.meta);
   const curseMult = curseMultiplier(curses) + curses.length * loadout.curseBonus;
@@ -353,6 +360,12 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
   runes = Math.min(runes, RUNES.runCap + (save.meta.runeIncome ?? 0)) + (run.questRunes ?? 0); // v0.5: quest Runes are not capped
   const shards = save.runeShards + Math.round((run.salvage ?? 0) * (1 + loadout.salvageBonus));
   runes += Math.floor(shards / RUNES.shardsPerRune) + win.runes;
+  // v0.6: the weekly contracts (their Runes are outside the caps too)
+  const contracts = advanceContracts(save.contracts, weekKey(date), {
+    classId: run.classId, kills: run.kills, elites: run.elites, bosses: run.bosses.length, quests: run.quests ?? 0, commanders: run.commanders ?? 0,
+    wave: run.wave, acts: acts, evolutions: run.evolutions?.length ?? 0, relics: run.relics.length,
+  });
+  runes += contracts.runes;
   // v0.6: the Endless leaderboard (per class, best first); endlessRank is 1-based, 0 = not on it
   const entry: EndlessEntry | null = run.endlessScore ? { score: run.endlessScore, wave: run.wave, kills: run.kills, time: run.time, at } : null;
   const board = entry ? [...save.endless[run.classId], entry].sort((a, b) => b.score - a.score).slice(0, VICTORY.leaderboard) : save.endless[run.classId];
@@ -370,6 +383,7 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
     firstWin,
     endlessRank,
     oathKept,
+    contracts: contracts.completed,
     save: {
       ...save,
       gold: save.gold + gold,
@@ -389,6 +403,7 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
       runs: keepRuns(save.runs, run.log && { ...run.log, at }),
       wins: run.won ? { ...save.wins, [run.classId]: save.wins[run.classId] + 1 } : save.wins,
       oaths: oathKept ? { ...save.oaths, [run.classId]: oathKept } : save.oaths,
+      contracts: contracts.state,
       evolutions: EVOLUTION_IDS.filter((id) => save.evolutions.includes(id) || run.evolutions?.includes(id)),
       endless: { ...save.endless, [run.classId]: board },
       counters: {

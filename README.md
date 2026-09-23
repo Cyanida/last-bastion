@@ -57,7 +57,7 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
-| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (287 tests) |
+| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (312 tests) |
 | `npm run test:perf` | headless Chromium frame-time test of Fog and Blood Moon against the built game (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
 | `npm run icons` | redraw all icons and the README QR code from code |
@@ -131,11 +131,14 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 - **Talents**: a point every 3 levels, spent from the pause menu in one of three branches per class (seven nodes each, prerequisites, an exclusive keystone at the bottom). **Second ability** at level 3 with two-way upgrades at levels 8 and 14. **Starting trait** chosen on the class select screen, unlocked by achievements.
 - **Level-ups** offer stat boons, tradeoffs, talent points and relics; **ability upgrade tracks, elites and wave modifiers** as in v0.2.
 - **Curses** (class select screen): opt-in handicaps that raise the gold and class-XP multiplier. Unlocked through achievements.
+- **Oaths** (v0.6, class select screen): after a class's first win, Oaths 1-20, each adding one fixed hardship on top of those below it (curses, wave modifiers, bosses that rise again, three-affix elites, no Merchant in Act II, no Last Stand...). The first win at each level pays; each class shows the highest Oath it has kept. Free curses stay for custom runs.
+- **Weekly contracts** (v0.6, title screen): three seeded objectives a week that pay Runes when a banked run completes them.
+- **After a run** (v0.6): the results screen shows the three closest goals and a Quick restart with the same champion, traits and Oath.
 - **Daily Trial** (title screen): same seed, class, arena and curses for everyone that day. Any run's **seed** is on its results screen; type it on the class select to replay it.
 
 ## Between runs
 
-The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks; a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the **Sacred Treasures** log, **Run history** (the last 50 runs, each with a timeline of its waves, level-ups, relics, quests, events, bosses and boredom marks, and its build; export as JSON), the **Chronicle** (68 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, menu music, updates, save data).
+The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks (since v0.6 more options than power: a second starting trait, a starting relic choice, level-up banishes); a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the **Sacred Treasures** log, **Run history** (the last 50 runs, each with a timeline of its waves, level-ups, relics, quests, events, bosses and boredom marks, and its build; export as JSON), the **Chronicle** (68 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, menu music, updates, save data).
 
 ### Save format
 
@@ -149,6 +152,7 @@ npm run sim -- 10 1 keep     # 10 runs per class, Knight tier, starting in the G
 npm run sim -- probe 3       # wall probe: the bot revived on death through wave 30, deaths and level per band of waves
 npm run sim -- relics 3      # relic power index: no relics vs a run's haul vs every relic at tier III
 npm run sim -- economy 80    # one save played run after run, buying the Keep greedily: when is it fully raised?
+npm run sim -- deep 3        # the fresh / maxed table, but wins march on into Endless: depth is not capped at wave 40
 npm run sim -- pacing 4      # from the run logs: run length, minutes per Act, quiet time, the longest stretches with nothing new
 ```
 
@@ -169,7 +173,7 @@ Everything numeric lives in `src/config/`; game logic never hard-codes balance.
 | `director.ts` | wave budget, class / modifier bias, squad templates, rubber band |
 | `damage.ts` | resistances, armor, status effects, what enemy hits inflict |
 | `waves.ts`, `elites.ts`, `arenas.ts` | unlock waves, scaling per Act, the target level pace, modifiers, affixes, arenas and hazards |
-| `acts.ts`, `curses.ts` | Act length and bosses, themes, Merchant prices, curses |
+| `acts.ts`, `curses.ts`, `oaths.ts`, `contracts.ts` | Act length and bosses, themes, Merchant prices, curses, the Oath ladder, weekly contracts |
 | `economy.ts`, `achievements.ts` | gold, Runes and the caps, the Keep's buildings and tracks, the 25-rank mastery, account milestones, tiers, achievements and what they unlock |
 | `game.ts` | formulas' constants, caps, quality levels, camera zoom |
 
