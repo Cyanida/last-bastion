@@ -1,5 +1,37 @@
 # Balance notes
 
+## v0.6: the run as it stood (measured before any v0.6 change)
+
+**How a run goes (v0.5).** You pick a champion, an arena, a difficulty, curses and a trait. Act I starts in that arena with only the core
+open and a quest board (take two of three). An Act is 10 waves. Waves 3 and 8 are lighter "breathers" that always bring an event, waves 4 and 9 are
+heavier, wave 5 brings a boss from the arena's rotation (its death opens the next wing), and wave 10 is the Act boss (the Dragon, then the
+Warden, in turn). The Merchant comes next, then the next arena with a new theme and a new board. Each Act scales one thing: Act I the count,
+Act II stats and elites, Act III composition and commanders. Past wave 30 HP and damage grow quadratically and heals fade. **Runs had no
+ending**: they went on until death or "End run".
+
+**How long it takes** (`npm run sim -- pacing 4`, Squire, courtyard, 4 runs per cell, the 45-minute sim cap; * = not every run finished that Act):
+
+| Class | Setup | Minutes | Wave | Act I | Act II | Act III | Act IV | Time with < 5 enemies | Longest stretch with nothing new |
+|---|---|---|---|---|---|---|---|---|---|
+| Paladin | fresh | 17.0 | 18.5 | 7.4* | 10.8* | 9.6* | 12.1* | 23% | 56 s |
+| Paladin | maxed | 45.0 | 49.0 | 6.0 | 9.0 | 9.0 | 10.1 | 20% | 85 s |
+| Viking | fresh | 25.5 | 30.3 | 5.8* | 8.4* | 7.5* | 10.6* | 25% | 63 s |
+| Viking | maxed | 34.4 | 44.5 | 4.9* | 6.9* | 6.9* | 8.4* | 26% | 69 s |
+| Angel | fresh | 13.0 | 15.3 | 7.0* | 10.9* | 9.9* | 9.7* | 29% | 47 s |
+| Angel | maxed | 45.0 | 50.0 | 5.7 | 8.1 | 9.1 | 11.1 | 34% | 85 s |
+| Necromancer | fresh | 5.0 | 9.3 | 6.3* | - | - | - | 32% | 47 s |
+| Necromancer | maxed | 25.3 | 31.8 | 5.1* | 8.4* | 9.1* | 11.1* | 39% | 65 s |
+| Archer | fresh | 3.0 | 6.0 | - | - | - | - | 34% | 29 s |
+| Archer | maxed | 26.1 | 31.5 | 5.1 | 7.5* | 10.4* | 9.9* | 38% | 66 s |
+
+What it says:
+- **Four Acts already take 30-40 minutes** for a run that gets through them (Act I 5-7 minutes, the later Acts 7-12 each). The Usurper at the
+  end of Act IV gives v0.6 its 30-40 minute run without stretching anything.
+- **No run broke the 90-second rule**, but late waves come close: the 85-second stretches are waves 37-54 where the last stragglers hold the wave open
+  until the 60-second overtime runs out (`WAVES.overtime`). That is the straggler fix (increment 3).
+- **A fifth to two fifths of the time fewer than 5 enemies are alive**: the tail of every wave, plus breaks. Also increment 3.
+- The bot's class spread is unchanged from v0.5 (Archer and Necromancer weakest for the bot, strongest for human players; see the v0.6 spec notes).
+
 ## v0.5: quests, the bigger map, sacred treasures
 
 The v0.5 balance pass was scoped to the new content and the tail: the maxed/fresh gap and the class spread are v0.6's job (it reworks the
