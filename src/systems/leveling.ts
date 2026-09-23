@@ -60,7 +60,7 @@ export function chooseLevelUp(g: Game, o: LevelUpOption): void {
   const p = g.player;
   if (o.kind === 'talent') g.talentPoints++;
   else if (o.kind === 'evolution') evolve(g, o.id);
-  else if (o.kind === 'relic') addRelic(g, o.id);
+  else if (o.kind === 'relic') addRelic(g, o.id, 'levelup');
   else if (o.kind === 'tradeoff') {
     const next = applyTradeoff(p.stats, g.baseMods, o.id);
     p.stats = next.stats;

@@ -143,6 +143,9 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     talentModsCache: null,
     trait: 'none',
     trait2: 'none',
+    relicStats: {},
+    relicFrom: {},
+    relicOfferFrom: [],
     oath,
     banishes: loadout.banishes,
     bannedStats: [],
@@ -223,19 +226,19 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   for (const id of opts.relics ?? []) for (let t = 0; t < (opts.relicTier ?? 1); t++) addRelic(g, id);
   for (let i = 0; i < (opts.relicPicks ?? 0); i++) {
     const [pick] = rollRelics(g.relicPool, g.relics, g.relicTiers, g.rng, 1);
-    if (pick) addRelic(g, pick);
+    if (pick) addRelic(g, pick, 'start');
   }
   if (opts.noRelics) g.relicPool = [];
   if (loadout.startRelic) {
     // v0.6 Armorer's Choice: the run opens on a choice of three common relics
     const commons = g.relicPool.filter((id) => relicDef(id).rarity === 'common');
     const choice = rollRelics(commons, [], {}, g.rng, 3);
-    if (choice.length) (g.relicOffers.push(choice), (g.vars.armorerOffer = 1));
+    if (choice.length) (g.relicOffers.push(choice), g.relicOfferFrom.push('start'), (g.vars.armorerOffer = 1));
   }
   if (mastery.relic) {
     const commons = g.relicPool.filter((id) => relicDef(id).rarity === 'common');
     const [gift] = rollRelics(commons, [], {}, g.rng, 1);
-    if (gift) addRelic(g, gift);
+    if (gift) addRelic(g, gift, 'start');
   }
   startRunLog(g);
   return g;

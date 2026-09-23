@@ -243,6 +243,7 @@ export function healPlayer(g: Game, amount: number, show = true): number {
   const healed = Math.min(p.stats.hp - p.hp, amount * healFactor(g.wave)); // v0.5: sustain fades past wave 30
   if (healed <= 0) return 0;
   p.hp += healed;
+  g.vars.healed = (g.vars.healed ?? 0) + healed; // v0.7: the denominator of the relics' healing share (RELICS.md)
   if (show) floatText(g, p.x, p.y - 34, `+${Math.round(healed)}`, '#6f8f4e', 15);
   return healed;
 }

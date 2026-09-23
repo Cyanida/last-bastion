@@ -88,7 +88,7 @@ function springAmbush(g: Game): void {
 
 function openCursedChest(g: Game, ev: WaveEvent): void {
   const p = g.player;
-  offerRelics(g, 3);
+  offerRelics(g, 3, 'event');
   const pool = unlockedPool(g.wave, null);
   for (let i = 0; i < EVENTS.cursedChest.elites; i++) {
     const a = (i / EVENTS.cursedChest.elites) * TAU + g.rng();
@@ -147,7 +147,7 @@ export const peddlerPrice = (g: Game, id: RelicId): number => merchantPrice(`buy
 export function peddlerBuy(g: Game, id: RelicId): boolean {
   const wares = g.event?.wares ?? [];
   const price = peddlerPrice(g, id);
-  if (!wares.includes(id) || g.gold < price || !addRelic(g, id)) return false;
+  if (!wares.includes(id) || g.gold < price || !addRelic(g, id, 'event')) return false;
   g.gold -= price;
   g.merchantSpent += price;
   wares.splice(wares.indexOf(id), 1);

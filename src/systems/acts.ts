@@ -36,7 +36,7 @@ export function merchantHeal(g: Game): boolean {
 export function merchantBuy(g: Game, rarity: Rarity): boolean {
   const ofRarity = (id: RelicId) => relicDef(id).rarity === rarity;
   const [id] = rollRelics(g.relicPool.filter(ofRarity), g.relics.filter(ofRarity), g.relicTiers, g.rng, 1, [], g.relicTierCap);
-  return id !== undefined && pay(g, `buy:${rarity}`) && addRelic(g, id);
+  return id !== undefined && pay(g, `buy:${rarity}`) && addRelic(g, id, 'merchant');
 }
 
 /** Swap a held relic for a random new one of the same rarity, at the same tier. */

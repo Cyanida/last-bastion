@@ -102,7 +102,7 @@ export function updateRegions(g: Game, dt: number): void {
       f.used = true;
       g.gold += REGIONS.chestGold * g.act;
       floatText(g, f.x, f.y - 30, `+${REGIONS.chestGold * g.act}g`, '#c9a227', 15);
-      offerRelics(g, 1);
+      offerRelics(g, 1, 'strongbox');
       ring(g, f.x, f.y, 70, '#c9a227', 0.5);
       sfx('xp');
     } else if (f.kind === 'lair' && !f.used && inWing) {
@@ -159,6 +159,6 @@ addListener((g, name, ev) => {
     lair.boss = null;
     g.gold += REGIONS.lairBoss.gold * g.act;
     floatText(g, e.x, e.y - 40, `+${REGIONS.lairBoss.gold * g.act}g`, '#c9a227', 16);
-    offerRelics(g);
+    offerRelics(g, undefined, 'lair');
   }
 });

@@ -34,6 +34,9 @@ export type Rng = () => number;
 export type DamageSource = 'attack' | 'ability' | 'minion' | 'relic' | 'hazard';
 
 /** Run-wide modifiers, rebuilt every tick from meta upgrades, tradeoffs, relics and passive ability upgrades. */
+/** v0.7 (RELICS.md): a relic's share of the run, credited as it happens. */
+export interface RelicStat { damage: number; healing: number; prevented: number }
+
 export interface Mods {
   // multipliers
   damage: number;
@@ -468,6 +471,9 @@ export interface Game {
   bossGold: number;
   talentModsCache: Mods | null; // talent mods folded together; rebuilt when a talent is taken
   trait: TraitId;
+  relicStats: Record<string, RelicStat>; // v0.7 (RELICS.md): what each held relic did this run
+  relicFrom: Record<string, string>; // v0.7: where each held relic came from (boss, elite, levelup, merchant...)
+  relicOfferFrom: string[]; // the source of each queued relic offer, parallel to relicOffers
   trait2: TraitId; // v0.6: the Second Banner's second trait ('none' without it)
   oath: OathStack; // v0.6: the Oath sworn for this run (level 0: a custom run, nothing asked)
   banishes: number; // v0.6: Quartermaster's Ledger: level-up cards left to strike from the run
