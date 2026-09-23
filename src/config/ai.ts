@@ -1,4 +1,5 @@
 import type { AiProfile } from '../logic/fsm';
+import type { DamageType } from './damage';
 import type { EnemyId } from './enemies';
 
 /**
@@ -39,6 +40,49 @@ export const AI: Partial<Record<EnemyId, AiProfile>> = {
   siegeCamp: { reach: 'support', flank: 0, range: [0, 9999], special: { id: 'muster', cd: 12, range: 650 } }, // musters only when you come near
   plagueCart: { reach: 'support', flank: 0, range: [0, 9999] },
   royalFlame: { reach: 'support', flank: 0, range: [0, 9999] }, // v0.6: stands and burns (the Usurper's script makes it flare)
+};
+
+/**
+ * v0.6: telegraphed patterns that force movement (systems/patterns.ts). From Act `from` on, the enemy adds this to whatever it
+ * does, every `cd` seconds once its target is within `range`. Every one warns first: aim lines for shots, ground markers for zones,
+ * and the enemy glows while it winds up. damage: times its hit.
+ *   fan / ring: `count` shots along marked lines (`spread` radians wide; a ring is a full circle) after `windup`
+ *   mortar: `count` blasts, one where you stand and the rest within `spread`
+ *   circle: `count` blasts on a circle of `spread` around you (step inside or out)
+ *   cross: a + of blasts through where you stand, `count` per arm, `spread` apart
+ *   slam: one blast of `radius` around itself (it has to be close)
+ */
+export type PatternKind = 'fan' | 'ring' | 'mortar' | 'circle' | 'cross' | 'slam';
+export interface Pattern {
+  kind: PatternKind;
+  from: number; // Act
+  cd: number;
+  range: number;
+  windup: number;
+  damage: number;
+  count: number;
+  spread: number;
+  radius: number; // zones: blast radius; shots: projectile speed is `radius * 5` px/s
+  dtype?: DamageType;
+}
+
+export const PATTERNS: Partial<Record<EnemyId, Pattern>> = {
+  crossbow: { kind: 'fan', from: 3, cd: 5.5, range: 420, windup: 0.7, damage: 0.9, count: 3, spread: 0.45, radius: 60 },
+  ballista: { kind: 'mortar', from: 3, cd: 7, range: 750, windup: 1.3, damage: 1.2, count: 3, spread: 120, radius: 70 },
+  engineer: { kind: 'mortar', from: 3, cd: 9, range: 500, windup: 1.2, damage: 1.0, count: 2, spread: 90, radius: 65 },
+  siegeTower: { kind: 'mortar', from: 3, cd: 8, range: 800, windup: 1.4, damage: 1.2, count: 4, spread: 140, radius: 70 },
+  plagueDoctor: { kind: 'circle', from: 3, cd: 8, range: 420, windup: 1.2, damage: 1.2, count: 6, spread: 150, radius: 60, dtype: 'shadow' },
+  priest: { kind: 'cross', from: 3, cd: 8, range: 450, windup: 1.0, damage: 1.0, count: 3, spread: 75, radius: 45, dtype: 'holy' },
+  knight: { kind: 'slam', from: 3, cd: 6, range: 100, windup: 0.9, damage: 1.5, count: 1, spread: 0, radius: 110 },
+  mirrorKnight: { kind: 'slam', from: 3, cd: 7, range: 110, windup: 0.9, damage: 1.5, count: 1, spread: 0, radius: 120 },
+  boneCollector: { kind: 'slam', from: 3, cd: 7, range: 110, windup: 1.0, damage: 1.6, count: 1, spread: 0, radius: 120, dtype: 'shadow' },
+  // bosses from Act III (the mid-Act bosses at 25 and 35, the Dragon at 30): one more thing to move for, on top of their script
+  blackKnight: { kind: 'cross', from: 3, cd: 7, range: 700, windup: 1.1, damage: 1.3, count: 5, spread: 90, radius: 55 },
+  warlord: { kind: 'ring', from: 3, cd: 8, range: 600, windup: 0.9, damage: 0.8, count: 14, spread: 6.2832, radius: 52 },
+  lich: { kind: 'ring', from: 3, cd: 7, range: 600, windup: 0.8, damage: 0.8, count: 16, spread: 6.2832, radius: 56, dtype: 'shadow' },
+  inquisitor: { kind: 'circle', from: 3, cd: 8, range: 600, windup: 1.3, damage: 1.2, count: 8, spread: 170, radius: 62, dtype: 'fire' },
+  abbot: { kind: 'circle', from: 3, cd: 7, range: 600, windup: 1.2, damage: 1.1, count: 7, spread: 150, radius: 60, dtype: 'shadow' },
+  dragon: { kind: 'circle', from: 3, cd: 9, range: 700, windup: 1.3, damage: 1.2, count: 8, spread: 180, radius: 64, dtype: 'fire' },
 };
 
 /** Shared movement numbers for the states. */

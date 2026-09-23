@@ -731,6 +731,32 @@ function renderText(text: string, size: number, color: string): HTMLCanvasElemen
   ctx.fillText(text, c.width / 2, c.height / 2);
   return c;
 }
+const outlines = new WeakMap<Sprite, Map<string, [HTMLCanvasElement, HTMLCanvasElement]>>();
+/**
+ * v0.6: a 2 px silhouette outline of a sprite in one colour, [facing right, flipped], drawn under the sprite: elites, commanders,
+ * and anything winding up a telegraphed attack. Rendered once per sprite and colour from its white hit-flash silhouette.
+ */
+export function outlineSprite(s: Sprite, color: string): [HTMLCanvasElement, HTMLCanvasElement] {
+  let byColor = outlines.get(s);
+  if (!byColor) outlines.set(s, (byColor = new Map()));
+  let o = byColor.get(color);
+  if (o) return o;
+  const make = (silhouette: HTMLCanvasElement) => {
+    const c = document.createElement('canvas');
+    c.width = s.w + 4;
+    c.height = s.h + 4;
+    const ctx = c.getContext('2d')!;
+    for (const [dx, dy] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-2, -2], [2, -2], [-2, 2], [2, 2]]) ctx.drawImage(silhouette, 2 + dx, 2 + dy);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, c.width, c.height);
+    return c;
+  };
+  o = [make(s.flash), make(s.flashFlipped)];
+  byColor.set(color, o);
+  return o;
+}
+
 /** A word rendered once (outline + fill): "FROZEN", "blocked", "+18 gold". Bounded LRU so the map cannot grow forever. */
 export function textSprite(text: string, size: number, color: string, limit: number): HTMLCanvasElement {
   const key = `${text}|${size}|${color}`;

@@ -130,6 +130,7 @@ describe('relic hooks', () => {
     expect(g.over).toBe(false);
     expect(g.player.hp).toBeCloseTo(g.player.stats.hp * 0.5);
     g.player.invulnT = 0;
+    g.lastStand = 'off'; // v0.6: otherwise the Last Stand catches the second blow
     damagePlayer(g, 9999, true);
     expect(g.over).toBe(true);
   });

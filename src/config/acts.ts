@@ -39,7 +39,7 @@ export const FINAL = {
       stand: 95, // he stands this far in front of the throne
       retreatSpeed: 3, // times his speed on the way back
       pitch: { every: 2.4, count: 5, spread: 230, radius: 72, delay: 1.3 }, // burning pitch from the walls, around the player
-      volley: { every: 3.2, bolts: 7, spread: 0.9, speed: 330 }, // crossbows on the dais: a fan at the player
+      volley: { every: 3.2, bolts: 7, spread: 0.9, speed: 330, windup: 0.6 }, // crossbows on the dais: a fan at the player, lines marked first
       pulse: { every: 5, radius: 135, delay: 1.1 }, // each flame flares around itself
       stagger: 3, // seconds he stands dazed when the last flame dies
     },

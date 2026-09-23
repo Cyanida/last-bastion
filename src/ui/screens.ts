@@ -306,8 +306,8 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
-const MARK_ICONS: Record<MarkKind, string> = { level: '', relic: '💠', talent: '🌿', upgrade: '⬆️', board: '📜', quest: '✔️', event: '❗', shrine: '⛩️', boss: '💀', phase: '⚜️', merchant: '🪙', act: '🚩', bored: '😴' };
-const MARK_NAMES: Record<MarkKind, string> = { level: 'Level', relic: 'Relic', talent: 'Talent', upgrade: 'Upgrade', board: 'Quest board', quest: 'Quest done', event: 'Event', shrine: 'Shrine', boss: 'Boss slain', phase: 'Boss', merchant: 'Merchant', act: 'New Act', bored: 'Bored here' };
+const MARK_ICONS: Record<MarkKind, string> = { level: '', relic: '💠', talent: '🌿', upgrade: '⬆️', board: '📜', quest: '✔️', event: '❗', shrine: '⛩️', boss: '💀', phase: '⚜️', merchant: '🪙', act: '🚩', stand: '❤️‍🔥', bored: '😴' };
+const MARK_NAMES: Record<MarkKind, string> = { level: 'Level', relic: 'Relic', talent: 'Talent', upgrade: 'Upgrade', board: 'Quest board', quest: 'Quest done', event: 'Event', shrine: 'Shrine', boss: 'Boss slain', phase: 'Boss', merchant: 'Merchant', stand: 'Last Stand', act: 'New Act', bored: 'Bored here' };
 
 /** v0.6: one run's timeline: a band per wave (width = how long it took), level-ups as ticks, everything else as icons above it. */
 function timeline(r: RunLog): string {

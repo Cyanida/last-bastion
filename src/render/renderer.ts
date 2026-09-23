@@ -11,7 +11,10 @@ import { FEATURES, REGIONS } from '../config/regions';
 import { QUESTS } from '../config/quests';
 import { eventMarks, questMarks, type Mark } from '../logic/quests';
 import { wallPattern } from './arena';
-import { digitGlyphs, fogSprite, getSprite, glyphIndex, isNumeric, ringSprite, shadowSprite, textSprite, type Sprite } from './sprites';
+import { digitGlyphs, fogSprite, getSprite, glyphIndex, isNumeric, outlineSprite, ringSprite, shadowSprite, textSprite, type Sprite } from './sprites';
+import { SKILL } from '../config/game';
+import { lineAngle } from '../logic/telegraph';
+import { typeMultiplier } from '../logic/status';
 
 export interface View {
   w: number; // canvas pixels
@@ -390,18 +393,21 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
 
   end('zones', _t);
   _t = begin();
-  // charge telegraphs (black knight, cavalry)
+  // charge telegraphs (black knight, cavalry) and v0.6 aim lines (volleys: one thin line per shot)
   for (const e of g.enemies) {
     const t = e.telegraph;
     if (!t) continue;
-    ctx.save();
-    ctx.translate(e.x, e.y);
-    ctx.rotate(t.angle);
-    ctx.fillStyle = 'rgba(194,58,46,0.2)';
-    ctx.fillRect(0, -t.width / 2, t.length, t.width);
-    ctx.fillStyle = 'rgba(194,58,46,0.4)';
-    ctx.fillRect(0, -t.width / 2, t.length * clamp(t.t / t.dur, 0, 1), t.width);
-    ctx.restore();
+    const k = clamp(t.t / t.dur, 0, 1);
+    for (let i = 0; i < (t.count ?? 1); i++) {
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.rotate(lineAngle(t, i));
+      ctx.fillStyle = 'rgba(194,58,46,0.2)';
+      ctx.fillRect(0, -t.width / 2, t.length, t.width);
+      ctx.fillStyle = 'rgba(194,58,46,0.45)';
+      ctx.fillRect(0, -t.width / 2, t.length * k, t.width);
+      ctx.restore();
+    }
   }
 
   end('telegraphs', _t);
@@ -450,6 +456,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
 
   end('shadows', _t);
   _t = begin();
+  const attackType = p.cls.attack.type ?? 'physical'; // the resist marks read against the player's own attack
   for (const e of g.enemies) {
     if (!visible(e.x, e.y, 80)) continue;
     if (e.def.aura) {
@@ -473,7 +480,16 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
     const fuse = e.def.behavior === 'exploder' && e.state === 1 && Math.floor(e.timer * 14) % 2 === 0;
     if (e.hidden) ctx.globalAlpha = 0.12; // a vanished assassin, a dragon overhead: barely a shimmer
-    drawSprite(ctx, (e.spr ??= getSprite(e.def.sprite, e.def.scale + (e.elite ? ELITES.scaleBonus : 0), e.def.palette)), e.x, e.y, e.flip, e.flash > 0 || fuse);
+    const spr = (e.spr ??= getSprite(e.def.sprite, e.def.scale + (e.elite ? ELITES.scaleBonus : 0), e.def.palette));
+    // v0.6 readability: a telegraphed attack winding up glows red; elites and commanders always wear their outline
+    const winding = !e.hidden && (e.windupT > 0 || e.telegraph !== null);
+    const outline = winding ? SKILL.colors.windup : e.hidden ? null : e.elite ? SKILL.colors.elite : e.def.aura || e.def.onDeath ? SKILL.colors.commander : null;
+    if (outline) {
+      if (winding) ctx.globalAlpha = 0.55 + 0.45 * Math.sin(g.time * 18);
+      ctx.drawImage(outlineSprite(spr, outline)[e.flip ? 1 : 0], Math.round(e.x - spr.w / 2) - 2, Math.round(e.y - spr.h + spr.h * 0.25) - 2);
+      ctx.globalAlpha = 1;
+    }
+    drawSprite(ctx, spr, e.x, e.y, e.flip, e.flash > 0 || fuse);
     ctx.globalAlpha = 1;
     if (e.hidden) continue;
     if (e.def.reflect && e.attackTimer <= 0 && e.armorHp > 0) {
@@ -545,6 +561,12 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.fillStyle = '#9a9aa0';
       ctx.fillRect(e.x - w / 2, e.y - e.r - 30, (w * e.armorHp) / e.armorMax, 3);
     }
+    // v0.6: how the player's attack fares against it, without hovering: up = weak to it, down = resists it, a cross = next to immune
+    const mult = typeMultiplier(e.def.id, attackType);
+    if (mult !== 1) {
+      const mark = textSprite(mult > 1 ? '▲' : mult <= 0.25 ? '✕' : '▼', 13, mult > 1 ? '#9fe07b' : mult <= 0.25 ? '#e0402f' : '#b8b4aa', 64);
+      ctx.drawImage(mark, Math.round(e.x + e.r + 2), Math.round(e.y - e.r - 34));
+    }
     if (e.hp < e.maxHp && !e.def.boss) {
       const w = e.r * 2;
       ctx.fillStyle = '#1a1614';
@@ -609,6 +631,14 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   // projectiles
   for (const pr of g.projectiles) {
     if (!visible(pr.x, pr.y, 40)) continue;
+    if (pr.hostile) {
+      // v0.6 colour language: everything that can hurt you wears the same red halo, whatever it is made of
+      ctx.fillStyle = SKILL.colors.hostileShot;
+      ctx.globalAlpha = 0.35;
+      disc(ctx, pr.x, pr.y, pr.r + 5);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     if (pr.shape === 'arrow') {
       const v = Math.hypot(pr.vx, pr.vy) || 1;
       const len = pr.r > 8 ? 46 : 16; // ballista bolts

@@ -2,7 +2,7 @@ import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GOLD } from '../config/economy';
-import { GAME } from '../config/game';
+import { GAME, SKILL } from '../config/game';
 import { MODIFIERS } from '../config/waves';
 import { sfx } from '../core/audio';
 import { emit } from '../core/events';
@@ -15,6 +15,7 @@ import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas'
 import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
+import { lastStand, zoneStruck } from './dodge';
 import { spawnEnemy } from './spawning';
 
 const BLOOD = '#8e1b1b';
@@ -222,7 +223,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
   sfx('hurt');
   if (p.hp <= 0) {
     if (p.deathless) p.hp = 1;
-    else if (!revive(g)) {
+    else if (!revive(g) && !lastStand(g)) {
       p.hp = 0;
       g.over = true;
       g.log.cause = attacker ? `${attacker.elite ? 'elite ' : ''}${attacker.def.name}` : cause;
@@ -372,10 +373,15 @@ export function updateZones(g: Game, dt: number): void {
   compact(g.zones, (z) => {
     if (z.owner?.dead) return false;
     z.t += dt;
-    if (z.t < z.delay) return true;
+    const inside = z.hostile && dist2(z.x, z.y, g.player.x, g.player.y) <= (z.r + g.player.r) ** 2;
+    if (z.t < z.delay) {
+      if (inside && z.delay >= SKILL.perfect.minDelay) z.lastIn = g.time; // v0.6: the perfect dodge watches who stood in it
+      return true;
+    }
     if (z.killsOwner && z.owner) killEnemy(g, z.owner, 'hazard');
     if (z.hostile) {
-      if (dist2(z.x, z.y, g.player.x, g.player.y) <= (z.r + g.player.r) ** 2) hurtTarget(g, g.player, z.damage, true, z.owner);
+      if (z.delay >= SKILL.perfect.minDelay) zoneStruck(g, z.lastIn, inside);
+      if (inside) hurtTarget(g, g.player, z.damage, true, z.owner);
       for (const m of g.minions) if (dist2(z.x, z.y, m.x, m.y) <= (z.r + m.r) ** 2) hurtTarget(g, m, z.damage, true, z.owner);
       ring(g, z.x, z.y, z.r, z.color);
       burst(g, z.x, z.y, z.color, 18, 240);

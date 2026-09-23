@@ -9,13 +9,15 @@ import { addZone } from '../entities/hazards';
 import { nextState, type AiProfile, type AiState } from '../logic/fsm';
 import { slotPosition } from '../logic/squads';
 import { cleanse, isStunned, speedFactor } from '../logic/status';
-import { angleTo, distTo, enraged, keepRange, move, moveTo, POISON, seek, shootAt, specialDamage, summon, touch, type Target } from './aiHelpers';
+import { angleTo, distTo, enraged, hitDamage, keepRange, move, moveTo, POISON, seek, shootAt, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { hurtTarget } from './combat';
 import { burst, ring, shake } from './effects';
 import { SPECIALS } from './specials';
 import { waypoint } from '../logic/regions';
 import { regionsOf } from './regions';
 import { markPhase } from './runlog';
+import { aimFan, updatePattern } from './patterns';
+import { watchTelegraph } from './dodge';
 
 const HOSTILE = '#c23a2e';
 
@@ -282,7 +284,8 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
     if (e.timer <= 0 && d < def.range! * 1.5) {
       e.timer = def.fireCd!;
       for (const spread of [-0.3, 0, 0.3]) shootAt(g, e, angleTo(e, t) + spread);
-      if (e.phase >= 2 && e.combo++ % 2 === 0) for (let i = 0; i < def.p2RingBolts!; i++) shootAt(g, e, (i / def.p2RingBolts!) * TAU);
+      // v0.6: the ring of bolts is heavy: marked lines first
+      if (e.phase >= 2 && e.combo++ % 2 === 0 && !e.telegraph) aimFan(g, e, { angle: 0, count: def.p2RingBolts!, spread: TAU, windup: 0.7, damage: hitDamage(e), speed: def.projSpeed!, range: 700, color: '#7a4fa0' });
     }
     e.special -= dt;
     if (e.special <= 0) {
@@ -405,6 +408,7 @@ export function updateEnemies(g: Game, dt: number): void {
     // ponytail: navigates toward the player, not toward a minion it targets; fine while minions stay near the player
     e.waypoint = g.openFloors.length > 1 ? waypoint(regionsOf(g), e.x, e.y, p.x, p.y) : null;
     const script = BOSSES[e.def.id];
+    e.windupT -= dt;
     if (isStunned(e.statuses)) e.telegraph = null; // stunned or frozen solid: no thinking, no moving
     else if (e.pulled) {
       // v0.6: a straggler: straight at the player, no more keeping its distance (spawning.ts pullStragglers)
@@ -412,5 +416,7 @@ export function updateEnemies(g: Game, dt: number): void {
       touch(g, e, p);
     } else if (script) script(g, e, dt);
     else runStateMachine(g, e, dt);
+    if (!isStunned(e.statuses)) updatePattern(g, e, dt); // v0.6: Act III-IV patterns, and every volley's aim lines
+    watchTelegraph(g, e); // v0.6: the perfect dodge
   }
 }

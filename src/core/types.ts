@@ -129,6 +129,8 @@ export interface Telegraph {
   width: number;
   t: number;
   dur: number;
+  count?: number; // v0.6: aim lines for a volley (systems/patterns.ts aimFan): this many, `spread` radians wide
+  spread?: number;
 }
 
 export interface Enemy extends Body {
@@ -172,6 +174,10 @@ export interface Enemy extends Body {
   auraT: number; // commanders: countdown to the next aura pulse
   hidden: boolean; // cannot be auto-targeted (assassins, a flying dragon)
   warded: boolean; // v0.6: takes no damage at all (the Usurper while his Royal Flames burn)
+  windupT: number; // v0.6: seconds its telegraphed attack still winds up (it glows); set by addZone for zones it owns
+  patternT: number; // v0.6: until its Act III pattern (config/ai.ts PATTERNS); -1 = not started
+  lineIn: number; // v0.6: when the player last stood in its line or aim telegraph (perfect dodge)
+  lastTele: Telegraph | null; // v0.6: the telegraph it had last tick (perfect dodge checks it when it fires)
   pulled: boolean; // v0.6: one of a wave's last stragglers, coming straight at the player (WAVES.stragglers)
   hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
@@ -256,6 +262,7 @@ export interface Projectile extends Body {
 export interface Zone extends Body {
   delay: number;
   t: number;
+  lastIn: number; // v0.6: when the player last stood in it before it struck (perfect dodge), -1 = never
   damage: number;
   crit: boolean;
   hostile: boolean;
@@ -493,5 +500,6 @@ export interface Game {
   log: RunLogDraft; // v0.6 run log, recorded by systems/runlog.ts
   victory: 'none' | 'pending' | 'endless'; // v0.6: the Usurper fell (pending: the choice to bank or go on is up); endless: gone on past him
   victoryKills: number; // v0.6: kills when he fell (the Endless score counts from there)
+  lastStand: 'ready' | 'used' | 'off'; // v0.6: once a run at 0 HP (SKILL.lastStand); an Oath can take it away
   over: boolean;
 }

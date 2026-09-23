@@ -2,7 +2,7 @@ import { FINAL } from '../config/acts';
 import { sfx } from '../core/audio';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
-import { addZone, after, fireProjectile } from '../entities/hazards';
+import { addZone, after } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
 import { angleTo, distTo, hitDamage, keepRange, move, moveTo, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { hurtTarget } from './combat';
@@ -11,6 +11,7 @@ import { burst, floatText, ring, shake } from './effects';
 import { regionsOf } from './regions';
 import { markPhase } from './runlog';
 import { spawnEnemy } from './spawning';
+import { aimFan } from './patterns';
 
 /**
  * The Act bosses: three phases (66% / 33% HP), and each of them changes the arena itself.
@@ -62,10 +63,8 @@ registerBoss('dragon', (g, e, dt) => {
   e.timer -= dt;
   if (e.timer <= 0 && d < def.range! * 1.6) {
     e.timer = def.fireCd! / (e.phase === 3 ? 1.5 : 1);
-    const a = angleTo(e, t);
-    for (const spread of [-0.36, -0.18, 0, 0.18, 0.36]) {
-      fireProjectile(g, e.x, e.y, a + spread, { damage: hitDamage(e) * 0.5 /* five of them: point blank it is a shotgun */, crit: false, hostile: true, pierce: 0, shape: 'orb', color: FIRE, r: 9, speed: def.projSpeed!, range: 640, dtype: 'fire' });
-    }
+    // v0.6: five of them, point blank a shotgun: marked lines first
+    if (!e.telegraph) aimFan(g, e, { angle: angleTo(e, t), count: 5, spread: 0.72, windup: 0.55, damage: hitDamage(e) * 0.5, speed: def.projSpeed!, range: 640, dtype: 'fire', color: FIRE });
     if (e.phase === 3) {
       // meteors: nowhere near you is safe for long
       for (let i = 0; i < 3; i++) {
@@ -223,12 +222,8 @@ function holdDais(g: Game, e: Enemy, dt: number): void {
       addZone(g, { x: p.x + Math.cos(a) * d, y: p.y + Math.sin(a) * d, r: w.pitch.radius, delay: w.pitch.delay + i * 0.12, damage: specialDamage(e) * 0.6, hostile: true, color: FIRE, owner: e, dtype: 'fire' });
     }
   }
-  if (tick('usurper.volley', w.volley.every)) {
-    const a = angleTo(e, p);
-    for (let i = 0; i < w.volley.bolts; i++) {
-      const spread = (i / (w.volley.bolts - 1) - 0.5) * w.volley.spread;
-      fireProjectile(g, e.x, e.y, a + spread, { damage: hitDamage(e) * 0.6, crit: false, hostile: true, pierce: 0, shape: 'arrow', color: '#c23a2e', r: 6, speed: w.volley.speed, range: 1100 });
-    }
+  if (tick('usurper.volley', w.volley.every) && !e.telegraph) {
+    aimFan(g, e, { angle: angleTo(e, p), count: w.volley.bolts, spread: w.volley.spread, windup: w.volley.windup, damage: hitDamage(e) * 0.6, speed: w.volley.speed, range: 1100 });
   }
   if (tick('usurper.pulse', w.pulse.every)) {
     let i = 0;

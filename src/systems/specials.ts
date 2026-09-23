@@ -21,7 +21,8 @@ export const SPECIALS: Record<string, Special> = {
       e.timer = def.windup!;
       e.angle = angleTo(e, t);
       e.flip = t.x < e.x;
-      if (def.telegraphLunge) e.telegraph = { angle: e.angle, length: def.lungeSpeed! * def.lungeTime!, width: e.r * 2, t: 0, dur: def.windup! };
+      // v0.6: an elite's leap is heavy: it always shows its line
+      if (def.telegraphLunge || e.elite) e.telegraph = { angle: e.angle, length: def.lungeSpeed! * def.lungeTime!, width: e.r * 2, t: 0, dur: def.windup! };
       return false;
     }
     e.timer -= dt;
@@ -143,6 +144,7 @@ export const SPECIALS: Record<string, Special> = {
       if (left < 12 || e.timer <= 0) {
         e.state = 3;
         e.timer = e.def.windup!;
+        e.windupT = e.def.windup!; // v0.6: glows while the stab winds up
         e.hidden = false;
         e.flip = t.x < e.x;
         floatText(g, e.x, e.y - 26, '!', '#c23a2e', 20);

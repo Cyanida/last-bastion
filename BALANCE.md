@@ -1,5 +1,36 @@
 # Balance notes
 
+## v0.6: telegraphs, patterns, the perfect dodge and the Last Stand
+
+**The Last Stand is worth a lot at the first wall.** The Act I Dragon gate for fresh bots (8 seeds per class, 40 runs): **16/40 pass with
+the Last Stand, 10/40 without** (v0.5: about 20%). One caught killing blow, 5 seconds untouchable and a faster ability is often the Dragon
+dead. Runs that pass then go deep: fresh Paladins, Vikings and Angels now reach waves 21-32 on average and some of them beat the Usurper.
+That is a real easing of the early game, on top of the playtest note that the Squire tier may already be too easy. It stays as the
+spec asks, and three things answer it: the Oaths (increment 7) can take it away, the meta rework (increment 7) makes maxed runs weaker,
+and the final balance pass re-tunes the Squire tier with all of it in place.
+
+`npm run sim -- pacing 3` after this increment (Squire, courtyard):
+
+| Class | Setup | Minutes | Wave | Act I | Act II | Act III | Act IV | Won | < 5 enemies | Longest stretch |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Paladin | fresh | 19.8 | 21.0 | 7.8* | 10.8* | 11.9* | 12.1* | 1/3 | 17% | 62 s |
+| Paladin | maxed | 33.8 | 40.0 | 5.6 | 8.0 | 8.2 | 9.5* | 2/3 | 25% | 174 s |
+| Viking | fresh | 23.1 | 31.7 | 5.7 | 7.3* | 7.3* | 9.1* | 2/3 | 22% | 65 s |
+| Viking | maxed | 27.1 | 40.0 | 4.9 | 6.5 | 6.7 | 8.9 | 3/3 | 24% | 71 s |
+| Angel | fresh | 20.8 | 28.7 | 6.0* | 7.3* | 7.2* | 9.2* | 2/3 | 25% | 54 s |
+| Angel | maxed | 27.2 | 40.0 | 5.3 | 6.6 | 6.8 | 8.5 | 3/3 | 25% | 53 s |
+| Necromancer | fresh | 5.0 | 10.0 | - | - | - | - | 0/3 | 27% | 28 s |
+| Necromancer | maxed | 19.1 | 31.7 | 4.7 | 6.4* | 6.0* | 7.5* | 2/3 | 25% | 42 s |
+| Archer | fresh | 3.1 | 7.0 | - | - | - | - | 0/3 | 28% | 29 s |
+| Archer | maxed | 19.4 | 30.7 | 4.6 | 6.5* | 6.6* | 8.5* | 2/3 | 26% | 44 s |
+
+One run in 30 breaks the 90-second rule: a maxed Paladin whose Usurper fight had a 406-second phase. The fight is not quiet (he attacks
+every few seconds), but the Paladin's low damage makes a phase drag; that is the class-spread work in increment 7.
+
+**Patterns** only start in Act III, so Acts I-II play as before. **Perf**: the outlines, resist marks and shot halos add no measurable
+frame time (an A/B with them switched off gave the same numbers); the local perf test was noisy while this was measured (the committed
+increment 3 build failed it the same way at that moment), so CI's run is the check.
+
 ## v0.6: stragglers and the 90-second rule
 
 The tail of every wave was the dead time: after the last spawn, the last few enemies (often a crossbowman keeping his distance, or a

@@ -35,6 +35,7 @@ import { initRegions, updateRegions } from './systems/regions';
 import { initQuests, updateQuests } from './systems/quests';
 import { updateEvents } from './systems/events';
 import { finishRunLog, startRunLog, updateRunLog } from './systems/runlog';
+import { dodgePassives } from './systems/dodge';
 import { endlessScore } from './systems/victory';
 import { updateTreasures } from './systems/treasures';
 import { updateUtility } from './systems/utility';
@@ -183,6 +184,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     log: newRunLog(),
     victory: 'none',
     victoryKills: 0,
+    lastStand: 'ready',
     over: false,
   };
   // curses that are plain numbers live in g.vars; the rest are read where they matter (spawning, director)
@@ -276,6 +278,7 @@ export function updateGame(g: Game, dt: number): void {
   talentPassives(g);
   updateTreasures(g);
   abilityPassives(g);
+  dodgePassives(g);
   healPlayer(g, (p.cls.regen + p.mods.regen) * dt, false);
 
   updatePlayerMovement(g, dt);

@@ -38,6 +38,18 @@ export const GAME = {
   maxTexts: 150, // v0.1 value, superseded by RENDER.maxTexts
 };
 
+/**
+ * v0.6 combat that asks for skill (systems/dodge.ts, systems/patterns.ts). Seconds unless noted.
+ * perfect: leave a telegraphed attack in its last `window` seconds (or roll, blink or leap through it) for `damage` x damage over `time`
+ *   and `refund` of the signature ability's full cooldown back; at most once every `every`. Only zones with at least `minDelay` of warning count.
+ * lastStand: once a run, at 0 HP: `time` seconds untouchable at 1 HP while the signature ability cools down `cooldownRate` times as fast.
+ */
+export const SKILL = {
+  perfect: { window: 0.25, minDelay: 0.5, damage: 1.25, time: 3, refund: 0.3, every: 1 },
+  lastStand: { time: 5, cooldownRate: 1.5 },
+  colors: { windup: '#ff4d3d', elite: '#e8913a', commander: '#f2c94c', hostileShot: '#ff4d3d', perfect: '#7ee0ff' },
+};
+
 /** v0.6 run log (logic/runlog.ts): how many runs the save keeps, and what counts as a quiet moment (fewer enemies alive than this). */
 export const RUN_LOG = { keep: 50, quietBelow: 5, maxGap: 90 }; // maxGap: the pacing rule, never longer than this without something new (sim -- pacing)
 

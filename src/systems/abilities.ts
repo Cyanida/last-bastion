@@ -13,6 +13,8 @@ import { applyStatus, damageEnemy, healPlayer, rollPlayerHit } from './combat';
 import { burst, floatText, ring, shake } from './effects';
 import { feat, featAdd } from './feats';
 import { skeletonCount } from './minions';
+import { lastStandActive } from './dodge';
+import { SKILL } from '../config/game';
 
 /**
  * One hook per signature ability. A new class = a ClassDef in config/classes.ts,
@@ -338,7 +340,7 @@ export function updateAbility(g: Game, dt: number): void {
   }
   p.reviveT = Math.max(0, p.reviveT - dt);
   // the cooldown waits for the ability to end, so duration stacking can never reach 100% uptime
-  if (p.abilityTime <= 0) p.abilityCd = Math.max(0, p.abilityCd - dt);
+  if (p.abilityTime <= 0) p.abilityCd = Math.max(0, p.abilityCd - dt * (lastStandActive(g) ? SKILL.lastStand.cooldownRate : 1)); // v0.6: the Last Stand hurries it
   if (g.input.ability && p.abilityCd <= 0 && p.abilityTime <= 0) {
     g.vars.cdRefund = 0;
     if (!hook.activate(g, cfg)) return;

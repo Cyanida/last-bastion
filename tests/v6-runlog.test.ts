@@ -55,12 +55,14 @@ describe('run log (v0.6)', () => {
     markBored(g);
     expect(g.log.marks.at(-1)).toEqual([0, 'bored', expect.stringContaining('wave 0')]);
     const orc = spawnEnemy(g, 'peasant', g.player.x + 40, g.player.y);
+    g.lastStand = 'off';
     damagePlayer(g, 1e6, true, orc);
     expect(g.over).toBe(true);
     const done = summarizeRun(g).log!;
     expect(done.end).toBe('slain');
     expect(done.cause).toContain(orc.def.name);
     const burnt = createGame('archer', 3);
+    burnt.lastStand = 'off';
     damagePlayer(burnt, 1e6, true, null, 'fire on the ground');
     expect(summarizeRun(burnt).log!.cause).toBe('fire on the ground');
   });

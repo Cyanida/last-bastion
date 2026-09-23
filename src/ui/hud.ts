@@ -1,3 +1,4 @@
+import { SKILL } from '../config/game';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
@@ -245,7 +246,12 @@ export function updateHud(g: Game): void {
   $('h-talent').classList.toggle('hidden', g.talentPoints === 0);
   if (g.talentPoints > 0) text('h-talent', `${g.talentPoints} talent point${g.talentPoints > 1 ? 's' : ''} to spend — pause menu`);
 
-  html('h-status', activeStatuses(p.statuses).map((id) => `<span style="background:${STATUSES[id].color}">${STATUSES[id].name}${(p.statuses[id]?.stacks ?? 1) > 1 ? ` ×${p.statuses[id]!.stacks}` : ''}</span>`).join(''));
+  // v0.6: the perfect-dodge buff and the Last Stand, as chips beside the statuses (whole seconds, so the DOM changes once a second)
+  const perfect = Math.ceil((g.vars.perfectUntil ?? 0) - g.time);
+  const stand = Math.ceil((g.vars.lastStandUntil ?? 0) - g.time);
+  const skill = `${perfect > 0 ? `<span style="background:${SKILL.colors.perfect}">Perfect ${perfect}s</span>` : ''}${stand > 0 ? `<span style="background:#f4a595">Last Stand ${stand}s</span>` : ''}`;
+  html('h-status', skill + activeStatuses(p.statuses).map((id) => `<span style="background:${STATUSES[id].color}">${STATUSES[id].name}${(p.statuses[id]?.stacks ?? 1) > 1 ? ` ×${p.statuses[id]!.stacks}` : ''}</span>`).join(''));
+  root().classList.toggle('last-stand', stand > 0);
 
   const banner = $('h-banner');
   text('h-banner', g.banner.text);

@@ -59,6 +59,8 @@ export function updateRunLog(g: Game, dt: number): void {
 
 /** A boss's new phase, or a step of its objective (the Usurper's flames): new threats for the pacing rule. */
 export const markPhase = (g: Game, detail: string) => mark(g, 'phase', detail);
+/** The Last Stand caught a killing blow. */
+export const markStand = (g: Game) => mark(g, 'stand', `wave ${g.wave}`);
 
 /** F8 or the pause menu: "I am bored here", with enough of the moment to find it again. */
 export function markBored(g: Game): void {
