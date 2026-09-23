@@ -13,7 +13,6 @@ export const ELITES = {
   dmgMult: 1.3,
   xpMult: 4,
   goldMult: 5,
-  relicChance: 0.2,
   scaleBonus: 1, // sprite scale
   radiusMult: 1.3,
 };

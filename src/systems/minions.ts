@@ -3,6 +3,8 @@ import { STATUS_TUNING } from '../config/damage';
 import { compact } from '../core/math';
 import type { Game, Minion } from '../core/types';
 import { applyStatus, damageEnemy, nearestEnemy } from './combat';
+import { credit } from './relicContext';
+import { relicSkeletons } from './relicCore';
 import { burst, ring } from './effects';
 import { fireProjectile } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
@@ -71,7 +73,10 @@ export function updateMinions(g: Game, dt: number): void {
     if (target && goal.x === target.x && goal.y === target.y && d <= stop + 6 && m.attackTimer <= 0) {
       m.attackTimer = m.attackCd / p.mods.minionAtkSpd;
       const blessed = m.blessedT > 0 ? STATUS_TUNING.blessedDamage : 1;
-      damageEnemy(g, target, m.damage * p.mods.minionDamage * blessed, false, (dx / d) * 80, (dy / d) * 80, 'minion', 'shadow');
+      const dealt = damageEnemy(g, target, m.damage * p.mods.minionDamage * blessed, false, (dx / d) * 80, (dy / d) * 80, 'minion', 'shadow');
+      const by = relicSkeletons.get(m); // v0.7 A8: raised by a relic or a set: its hits are that one's work
+      if (by) credit(g, p, by, 'damage', dealt);
+      else if (blessed > 1 && p.relics.held.includes('gravePact')) credit(g, p, 'gravePact', 'damage', dealt * (1 - 1 / blessed)); // Grave Pact's blessing
       applyStatus(target, m.status, g);
       if (m.cleave) {
         // v0.6 Bone Colossus: the blow lands on everything around its target too

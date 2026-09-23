@@ -50,3 +50,21 @@ jobs:
           gh release edit "$TAG" --draft=false # a stale draft for this tag must not swallow the release
           gh release view "$TAG" --json assets --jq '.assets[].name' | tee assets.txt
           grep -q 'Setup-.*\.exe$' assets.txt && grep -q '^latest\.yml$' assets.txt
+      - name: The published latest.yml, installer and version match the tag
+        # v0.7: installed copies update from the published latest.yml; if it names another version or file, fail here, not on players' machines
+        run: |
+          V="${TAG#v}"
+          EXE="last-bastion-Setup-$V.exe"
+          gh release download "$TAG" -p latest.yml -O published.yml --clobber
+          cat published.yml
+          fail() { echo "::error::$1"; exit 1; }
+          [ "$(node -p "require('./package.json').version")" = "$V" ] || fail "package.json is not $V"
+          grep -qx "version: $V" published.yml || fail "latest.yml version is not $V"
+          grep -qx "path: $EXE" published.yml || fail "latest.yml path is not $EXE"
+          grep -qx "  - url: $EXE" published.yml || fail "latest.yml url is not $EXE"
+          grep -qx "$EXE" assets.txt || fail "the release has no $EXE"
+          SIZE=$(gh release view "$TAG" --json assets --jq ".assets[] | select(.name==\"$EXE\") | .size")
+          grep -qx "    size: $SIZE" published.yml || fail "latest.yml size is not the published installer's ($SIZE)"
+          SHA=$(node -e "process.stdout.write(require('crypto').createHash('sha512').update(require('fs').readFileSync(process.argv[1])).digest('base64'))" "release/$EXE")
+          grep -qx "sha512: $SHA" published.yml || fail "latest.yml sha512 is not the built installer's"
+          echo "latest.yml, $EXE and $V match $TAG"

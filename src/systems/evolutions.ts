@@ -626,7 +626,7 @@ export function evolve(g: Game, id: EvolutionId): void {
 }
 
 /** What the recipe logic (logic/evolutions.ts) needs from a run. */
-export const buildState = (g: Game): BuildState => ({ classId: g.player.cls.id, upgrades: g.player.upgrades, utilityUpgrades: g.player.utilityUpgrades, talents: g.player.talents, relicTiers: g.relicTiers, evolutions: g.evolutions });
+export const buildState = (g: Game): BuildState => ({ classId: g.player.cls.id, upgrades: g.player.upgrades, utilityUpgrades: g.player.utilityUpgrades, talents: g.player.talents, relicTiers: g.player.relics.tiers, evolutions: g.evolutions });
 
 addListener((g, name, ev) => {
   for (const id of g.evolutions) dispatch(HOOKS[id].on, g, name, ev as GameEvents[typeof name]);

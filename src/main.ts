@@ -10,7 +10,7 @@ import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
 import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as setPerfOverlay, summary } from './core/perf';
 import { quality, sampleFrame, setQuality } from './core/quality';
-import { loadSave, storeSave, wipeSave } from './core/storage';
+import { loadSave, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
 import { createGame, summarizeRun, updateGame } from './game';
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
@@ -31,13 +31,13 @@ import { cameraFor, render, renderBackdrop, type View } from './render/renderer'
 import { botInput, botStep } from './sim/bot';
 import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { banishOption, chooseLevelUp, levelUpOptions } from './systems/leveling';
-import { resolveRelicOffer } from './systems/relics';
+import { relicPreview, relicShares, rerollRelicOffer, resolveRelicOffer, skipRelicOffer, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
-import { TIER_NUMERALS } from './config/relics';
+import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
 import { TRAITS } from './config/traits';
 import { CLASS_ORDER } from './config/classes';
 import { MASTERY } from './config/economy';
@@ -62,7 +62,8 @@ const DEFAULT_CAST_RANGE = 320; // auto-aim reach for abilities without a castRa
 
 let state: State = 'menu';
 let game: Game | null = null;
-let save: Save = loadSave();
+const loaded = loadSave();
+let save: Save = loaded.save;
 let onTitle = false;
 let notice: TitleInfo['notice'] = null; // "new version available", shown on the title screen only
 let updateStatus = 'No check yet.';
@@ -249,6 +250,11 @@ function toSaveDialog(): void {
       save = defaultSave();
       toTitle();
     },
+    backups: readBackups(),
+    restore(b) {
+      restoreBackup(b); // v0.7: the load migrates it, and the save it replaced becomes a backup
+      location.reload();
+    },
   });
 }
 
@@ -314,7 +320,7 @@ function openLevelUp(g: Game): void {
         else return;
         offer();
       },
-    }, g.relicTiers);
+    }, g.player.relics.tiers);
   };
   offer();
 }
@@ -334,13 +340,13 @@ function openChoice(g: Game): void {
       bank: () => endRun(g),
       restart: () => (endRun(g), again(g)),
     });
-  } else if (g.relicOffers.length > 0) {
-    const armorer = g.vars.armorerOffer === 1;
-    g.vars.armorerOffer = 0;
-    showRelicOffer(g.relicOffers[0], g.relics, g.relicTiers, {
-      take: (id) => void (resolveRelicOffer(g, id), resume()),
-      skip: () => void (resolveRelicOffer(g, null), resume()),
-    }, armorer ? "The Armorer's choice" : undefined);
+  } else if (g.player.relics.offers.length > 0) {
+    const p = g.player;
+    showRelicOffer(p.relics.offers[0], p.relics.held, p.relics.tiers, { skip: skipReward(g), preview: (id) => relicPreview(p, id) }, {
+      take: (id) => void (resolveRelicOffer(g, id, p), resume()),
+      skip: () => void (skipRelicOffer(g, p), resume()),
+      reroll: () => void (rerollRelicOffer(g, p), openChoice(g)),
+    });
   } else if (g.pendingAbilityTiers.length > 0) {
     const tier = g.pendingAbilityTiers[0];
     showAbilityUpgrade(tier, upgradeOptions(g.player.cls.id, tier), g.player.cls, (id) => {
@@ -376,10 +382,9 @@ function openChoice(g: Game): void {
 
 /** v0.5: the wandering merchant's wares; it re-opens after every purchase, like the Merchant. */
 function openPeddler(g: Game): void {
-  const wares = g.event?.wares ?? [];
-  showPeddler({ wares, prices: wares.map((id) => peddlerPrice(g, id)), gold: g.gold, held: g.relics, tiers: g.relicTiers }, {
-    buy(id) {
-      if (peddlerBuy(g, id)) openPeddler(g);
+  showPeddler({ stock: g.event?.stock ?? 0, price: peddlerPrice(g), gold: g.gold, hurt: g.player.hp < g.player.stats.hp }, {
+    buy() {
+      if (peddlerBuy(g)) openPeddler(g);
     },
     leave() {
       g.pendingShop = false;
@@ -393,10 +398,10 @@ function openMerchant(g: Game): void {
   const act = g.act;
   const again = (ok: boolean) => ok && openMerchant(g);
   showMerchant(
-    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.relics, tiers: g.relicTiers, salvage: g.salvage, mid: g.midMerchant },
+    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.player.relics.held, tiers: g.player.relics.tiers, salvage: g.salvage, relicsLeft: g.midMerchant ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant },
     {
       heal: () => again(merchantHeal(g)),
-      buy: (r) => again(merchantBuy(g, r)),
+      buy: (r) => void (merchantBuy(g, r) && openChoice(g)), // v0.7: the pick of three opens, then the Merchant again
       reroll: (id) => again(merchantReroll(g, id)),
       sell: (id) => again(merchantSell(g, id)),
       salvage: (id) => again(merchantSalvage(g, id)),
@@ -408,7 +413,7 @@ function openMerchant(g: Game): void {
   );
 }
 
-const buildOf = (g: Game) => ({ relics: g.relics, tiers: g.relicTiers, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait, sacred: sacredLines(g), evolutions: g.evolutions });
+const buildOf = (g: Game) => ({ relics: g.player.relics.held, tiers: g.player.relics.tiers, attune: g.player.relics.attune, duos: g.player.relics.duos, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait, sacred: sacredLines(g), evolutions: g.evolutions });
 
 /** v0.5: the sacred treasure carried, and what this run has done for the class's chain so far (pause and results). */
 function sacredLines(g: Game): { name: string; desc: string }[] {
@@ -424,7 +429,7 @@ function sacredLines(g: Game): { name: string; desc: string }[] {
   return news.length ? [...out, { name: '🧩 Treasure quest this run', desc: news.join(' · ') }] : out;
 }
 
-const hasChoice = (g: Game) => g.victory === 'pending' || g.pendingShrine !== null || g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant || g.pendingRoute !== null;
+const hasChoice = (g: Game) => g.victory === 'pending' || g.pendingShrine !== null || g.player.relics.offers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant || g.pendingRoute !== null;
 
 function togglePause(): void {
   if (state === 'playing' && game) {
@@ -483,6 +488,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily, build: buildOf(g),
     act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
     goals: closestGoals(after, id, weekKey(today())),
+    relicShares: relicShares(g),
     restart: g.daily ? `the Daily Trial ${g.daily}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
   };
@@ -670,6 +676,7 @@ if (platform.desktop) {
   });
   void platform.desktop.checkForUpdates(save.settings.prerelease);
 } else registerServiceWorker((apply) => setNotice({ text: 'New version available', button: 'Tap to reload', action: apply }));
+if (loaded.restored) setNotice({ text: `Your save could not be read; the backup from ${new Date(loaded.restored.at).toLocaleString()} was loaded instead (the unreadable one is kept as a backup)`, button: 'OK', action: () => setNotice(null) });
 
 toTitle();
 requestAnimationFrame(frame);

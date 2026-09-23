@@ -188,10 +188,10 @@ describe('step 3: the vault and its guardian', () => {
     updateTreasures(g); // only one
     expect(g.enemies.filter((x) => x.def.name === e.def.name)).toHaveLength(1);
     const wings = openWings(g);
-    const offers = g.relicOffers.length;
+    const offers = g.player.relics.offers.length;
     killEnemy(g, e);
     expect(openWings(g)).toBe(wings);
-    expect(g.relicOffers.length).toBe(offers + 1);
+    expect(g.player.relics.offers.length).toBe(offers); // v0.7: a side boss is not a relic moment
     expect(g.questRunes).toBe(TREASURE_RULES.guardianRunes);
     expect(g.chain?.slain).toBe(true);
     const { save, runes } = applyRun(defaultSave(), summarizeRun(g));

@@ -15,7 +15,7 @@ import { lockedArenas, lockedRelics, newlyEarned, withAchievements } from '../sr
 import { classXpForRun, goldDrop, masteryBonus, masteryRank, metaCost, metaLoadout, rerollCost, startingStats, totalMetaCost, waveClearGold } from '../src/logic/economy';
 import { applyAffixes, eliteChance, rollAffixes } from '../src/logic/elites';
 import { neutralMods } from '../src/logic/mods';
-import { relicPoolFor, rollRelics, withRelic } from '../src/logic/relics';
+import { relicPoolFor, rollRelics } from '../src/logic/relics';
 import { applyRun, buyMeta, defaultSave, exportSave, importSave, migrate, SAVE_VERSION, type RunSummary } from '../src/logic/save';
 import { applyTradeoff, rollLevelUpOptions, upgradeAmount } from '../src/logic/upgrades';
 import { generateWave, isBossWave } from '../src/logic/waves';
@@ -47,19 +47,22 @@ describe('relic hooks', () => {
     for (const c of CLASS_ORDER) expect(RELIC_IDS.some((id) => relicDef(id).classId === c)).toBe(true);
   });
 
-  it('plain mods apply while held', () => {
+  it('plain mods apply while held (v0.7: Blood Pact carries +40% damage)', () => {
     const { g } = arena('paladin');
-    addRelic(g, 'whetstone');
+    addRelic(g, 'bloodPact');
     tickMods(g);
-    expect(g.player.mods.damage).toBeCloseTo(1.12);
+    expect(g.player.mods.damage).toBeCloseTo(1.4);
   });
 
-  it('onKill: Vampire Fang heals', () => {
+  it('onHit: Vampire Fang heals from hits on bleeding enemies', () => {
     const { g, foes } = arena('viking', [[40, 0]]);
     addRelic(g, 'vampireFang');
     g.player.hp = 50;
-    killEnemy(g, foes[0]);
-    expect(g.player.hp).toBeCloseTo(50 + RELICS.vampireFang.n.heal);
+    damageEnemy(g, foes[0], 10);
+    expect(g.player.hp).toBe(50); // not bleeding: nothing
+    foes[0].statuses.bleed = { stacks: 1, time: 3, power: 1 };
+    damageEnemy(g, foes[0], 10);
+    expect(g.player.hp).toBeGreaterThan(50);
   });
 
   it('onDamageTaken: Thorn Mail hurts the attacker, Reliquary shaves cooldown by Faith', () => {
@@ -67,6 +70,7 @@ describe('relic hooks', () => {
     addRelic(g, 'thornMail');
     addRelic(g, 'reliquary');
     g.player.abilityCd = 10;
+    foes[0].hp = foes[0].maxHp = 1e5; // v0.7: thorns hit harder than a knight has HP
     const before = foes[0].hp;
     damagePlayer(g, 20, true, foes[0]);
     const taken = g.player.stats.hp - g.player.hp;
@@ -85,28 +89,25 @@ describe('relic hooks', () => {
     expect(foes[1].hp).toBe(hp);
   });
 
-  it('onKill: Powder Keg explodes the corpse for a share of its max HP', () => {
+  it('onKill: Cinder Charm throws a burning enemy\'s ember at the nearest enemy', () => {
     const { g, foes } = arena('archer', [[40, 0], [80, 0]]);
-    addRelic(g, 'powderKeg');
-    g.rng = () => 0;
+    addRelic(g, 'cinderCharm');
+    foes[0].statuses.burn = { stacks: 2, time: 3, power: 1 };
     killEnemy(g, foes[0]);
-    expect(foes[1].maxHp - foes[1].hp).toBeCloseTo(foes[0].maxHp * RELICS.powderKeg.n.hpFrac);
+    expect(foes[1].statuses.burn?.stacks).toBe(RELICS.cinderCharm.n.stacks);
   });
 
-  it("tick: Sentinel's Stance charges while standing still and is capped", () => {
-    const { g } = arena('angel');
-    addRelic(g, 'sentinelStance');
-    g.player.still = 1;
+  it('tick: Emberheart grows with the burning enemies near you, up to its cap', () => {
+    const { g, foes } = arena('angel', [[40, 0], [60, 0], [80, 0]]);
+    addRelic(g, 'emberheart');
+    for (const e of foes) e.statuses.burn = { stacks: 1, time: 3, power: 1 };
     tickMods(g);
-    expect(g.player.mods.damage).toBeCloseTo(1 + RELICS.sentinelStance.n.perSec);
-    g.player.still = 999;
-    tickMods(g);
-    expect(g.player.mods.damage).toBeCloseTo(1 + RELICS.sentinelStance.n.max);
+    expect(g.player.mods.damage).toBeCloseTo(1 + 3 * RELICS.emberheart.n.per);
   });
 
   it('class relics scale with the secondary stat', () => {
     const { g } = arena('archer');
-    addRelic(g, 'hawkeyeQuiver');
+    addRelic(g, 'galeforceQuiver');
     g.player.stats.secondary = 8;
     tickMods(g);
     expect(g.player.mods.pierce).toBe(2);
@@ -139,21 +140,21 @@ describe('relic hooks', () => {
     const { g } = arena('paladin');
     const boss = spawnEnemy(g, 'blackKnight', 300, 300);
     killEnemy(g, boss);
-    expect(g.relicOffers).toHaveLength(1);
-    expect(new Set(g.relicOffers[0]).size).toBe(3);
-    for (const id of g.relicOffers[0]) expect([undefined, 'paladin']).toContain(relicDef(id).classId);
+    expect(g.player.relics.offers).toHaveLength(1);
+    expect(g.player.relics.offers[0].from).toBe('boss');
+    expect(new Set(g.player.relics.offers[0].options).size).toBe(3);
+    for (const id of g.player.relics.offers[0].options) expect([undefined, 'paladin']).toContain(relicDef(id).classId);
   });
 
-  it('pool and rolls (v0.4: no slot limit; a held relic at the top tier is never rolled again)', () => {
+  it('pool and rolls (v0.7: a held relic is never rolled again)', () => {
     const pool = relicPoolFor('viking', ['phoenixFeather']);
     expect(pool).toContain('wolfskin');
     expect(pool).not.toContain('reliquary');
     expect(pool).not.toContain('phoenixFeather');
-    const rolled = rollRelics(pool, ['whetstone'], { whetstone: 3 }, mulberry32(3), 3);
-    expect(rolled).not.toContain('whetstone');
-    expect(rollRelics(['whetstone'], ['whetstone'], { whetstone: 3 }, mulberry32(3), 3)).toEqual([]);
-    expect(withRelic({ whetstone: 3 }, 'whetstone')).toEqual({ whetstone: 3 });
-    expect(withRelic({}, 'bloodPact')).toEqual({ bloodPact: 1 });
+    const rolled = rollRelics(pool, ['frostBrand'], mulberry32(3), 3);
+    expect(rolled).toHaveLength(3);
+    expect(rolled).not.toContain('frostBrand');
+    expect(rollRelics(['frostBrand'], ['frostBrand'], mulberry32(3), 3)).toEqual([]);
   });
 });
 
@@ -356,7 +357,7 @@ describe('gold and cost calculations', () => {
     expect(s.dex).toBe(base.dex); // v0.6: the Keep sells no damage
     expect(s.secondary).toBe(base.secondary + 3);
     expect(s.hp / base.hp).toBeLessThan(1.5); // helps, does not trivialize
-    expect(metaLoadout(maxed)).toMatchObject({ gold: 100, rerolls: 2, relicSlots: 1, relicTierCap: 3 });
+    expect(metaLoadout(maxed)).toMatchObject({ gold: 100, rerolls: 2, relicSlots: 1, relicRerolls: 2, bossChoices: 1 }); // v0.7: the Chapel's relic tracks
     expect(startingStats(base, { hp: 99 }, 0).hp).toBe(s.hp); // ranks above the cap are ignored
 
     const g = createGame('archer', 1, { meta: maxed });
@@ -376,13 +377,13 @@ describe('gold and cost calculations', () => {
     expect(masteryBonus(MASTERY[4].xp)).toMatchObject({ secondary: 1, relic: true, reroll: 1, utilityTier: true });
     const run = { wavesCleared: 8, bosses: 1, level: 9 };
     expect(classXpForRun(run, TIERS[1])).toBeGreaterThan(classXpForRun(run, TIERS[0]));
-    expect(createGame('viking', 1, { classXp: 1e9 }).relics).toHaveLength(1); // rank 3: starts with a common relic
+    expect(createGame('viking', 1, { classXp: 1e9 }).player.relics.held).toHaveLength(1); // rank 3: starts with a common relic
   });
 });
 
 const run = (over: Partial<RunSummary> = {}): RunSummary => ({
   classId: 'paladin', tier: 0, wave: 6, wavesCleared: 5, kills: 80, time: 200, level: 6, gold: 120,
-  bosses: ['blackKnight'], elites: 2, flawlessBosses: 0, relics: ['whetstone'], abilityUpgrades: 1, wave10Time: 0, ...over,
+  bosses: ['blackKnight'], elites: 2, flawlessBosses: 0, relics: ['frostBrand'], abilityUpgrades: 1, wave10Time: 0, ...over,
 });
 
 describe('unlock conditions', () => {
@@ -391,7 +392,7 @@ describe('unlock conditions', () => {
     expect(new Set(ACHIEVEMENTS.map((a) => a.id)).size).toBe(ACHIEVEMENTS.length);
     expect(newlyEarned(defaultSave())).toEqual([]);
     expect(lockedArenas(defaultSave())).toEqual(expect.arrayContaining(['graveyard', 'keep']));
-    expect(lockedRelics(defaultSave())).toEqual(expect.arrayContaining(['phoenixFeather', 'soulLantern', 'conquerorCrown']));
+    expect(lockedRelics(defaultSave())).toEqual(expect.arrayContaining(['phoenixFeather', 'soulLantern', 'stormcallersHorn']));
   });
 
   it('a run feeds gold, records, counters and class XP into the save', () => {
@@ -399,7 +400,7 @@ describe('unlock conditions', () => {
     expect(save.gold).toBe(120);
     expect(save.classes.paladin).toMatchObject({ bestWave: 6, runs: 1, kills: 80, xp: classXp });
     expect(classXp).toBeGreaterThan(0);
-    expect(save.relicPicks.whetstone).toBe(1);
+    expect(save.relicPicks.frostBrand).toBe(1);
     expect(save.counters.bossKinds).toEqual(['blackKnight']);
     expect(applyRun(save, run({ wave: 3 })).save.classes.paladin.bestWave).toBe(6); // best never goes down
   });

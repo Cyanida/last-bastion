@@ -1,5 +1,49 @@
 # Balance notes
 
+## v0.7: relics (A8)
+
+`npm run sim -- relics [runs]` (scripts/relic-report.ts, one process per class in parallel): maxed saves, and a bot that drafts sensibly.
+It takes a duo when one is offered, otherwise a relic of the family it holds most (at the start, one its class prefers), and 15% of the
+time another card. It reports winning-run numbers and every relic's share from wave 21 on. Final state, 8 runs per class (40 runs, 26 won):
+
+| Target (the v0.7 brief) | Measured | |
+|---|---|---|
+| About 12-16 relic moments in a full run | 14.1 (7 bosses, 3 Merchant buys, 2.5 lairs, 1.6 quests) | ✔ |
+| 1-2 duos a winning run | 1.31 | ✔ |
+| 3+ duos in under 15% of winning runs | 3.8% | ✔ |
+| Every class at a 4-set in two or more families | 4-6 families per class | ✔ |
+| Relic power index 1.8-2.2 | 1.72 over Acts II-III (Act II 1.49, Act III 2.09) | ✘ (close) |
+| A 6-set in about a third of winning runs | 65% (5 of 22 straight, 17 completed with a duo) | ✘ |
+| No relic under 3% or over 35% where it is held | 12 under, 3 over | ✘ |
+
+**The power index** is 1 / (1 - the relics' share of the damage dealt). Plain bonuses are credited their share, and procs, duos, set
+bonuses and relic skeletons their own damage, so relics adding +100% read as 2.0. It climbs as a build grows, so the target is read over
+Acts II-III, with each Act shown separately. Act II builds are small (5-7 relics at tier I). Raising relic damage per level moved it
+little, and making attunement faster would break the brief's "tier II in Act II, tier III in Act III".
+
+**Jesse's decision (#13): fewer relic moments.** Strongboxes pay gold and a Rune shard instead of a relic moment. A full run went from
+about 17 moments to 14, and relics under 3% from 21 to 12. 6-sets stayed at about 65%, because most of them are five family pieces
+plus that family's duo, which the number of moments hardly changes. Counting a duo as half a piece per family (option 2 on #13) would
+be the fix for that; it is offered for v0.7.1.
+
+**What moved the numbers:**
+- **Attribution.** A relic's burn, bleed, curse, chill and freeze remember that relic: their ticks, the extra damage a curse or chill causes,
+  and a freeze's Shatter are that relic's work. The same goes for relic bolts, fields and skeletons. Set bonuses are credited to their
+  family. Before this, burn relics credited an estimate up front (so shares could pass 100%), and ward counted against damage taken alone.
+- **Offers.** No lean toward held families (was 2×): the one-of-yours, one-new rule is enough. Legendaries are weighted 2 (was 10) and
+  class relics come half as often. Duos come at wave-boss and lair moments.
+- **Power.** Relic damage per level 0.09 -> 0.18. Weak relics and set bonuses raised, and a few strong ones trimmed; the full list is in
+  RELICS.md (A8).
+
+**Still outside the per-relic band.**
+- Under 3%: conditional or control relics whose effect the shares cannot see (Frost Brand, Winter's Grasp, Glacial Heart, Berserker Tooth,
+  Aegis of the Faithful, Glacier Plate), and class relics seen in 1-3 runs (Seraph's Halo, Fire Arrows, Stormborn Pelt).
+- Over 35%: Bone Chime (the Necromancer's minions, 1 run), Thermal Shock (3 runs) and Guardian's Aegis. The Aegis's ward is credited
+  when it is gained, so its share reads high.
+
+**Classes (maxed, this bot):** Paladin 8/8, Viking 8/8, Angel 7/8, Necromancer 2/8, Archer 1/8 (v0.6: 6/6, 5/6, 6/6, 3/6, 5/6). The
+Archer's result swung between 1/8 and 4/8 across passes with the bot's talent path. Both are for B8, the class balance check in v0.7.1.
+
 ## v0.6: the balance pass (the Keep, the bot, the class spread, the Squire tier)
 
 **The Keep sells options, not power.** Before the rework a maxed save reached 4.1x the depth of a fresh one (v0.4 notes below).

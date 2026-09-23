@@ -1,3 +1,6 @@
+import { credit, relicContext } from './relicContext';
+import { ATTUNEMENT, FAMILIES, isFamily, RELIC_COLOR, type RelicKey } from '../config/relics';
+import { addWork } from '../logic/relics';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
@@ -66,7 +69,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   if (e.elite) {
     g.elitesKilled++;
     ring(g, e.x, e.y, 90, AFFIXES[e.affixes[0]].color, 0.5);
-    if (g.rng() < ELITES.relicChance * (g.vars['trait.relicChance'] ?? 1) * (g.vars['keep.relicChance'] ?? 1) * (g.route?.focus === 'elite' ? ROUTES.elite.relicChance : 1)) g.pickups.push({ x: e.x - 8, y: e.y - 6, value: 1, kind: 'relic' }); // Cursed Luck doubles it, the Chapel adds
+    // v0.7: elites no longer drop relics (relics come at fixed moments, RELICS.md); their gold and the attunement they give stay
     if (e.affixes.includes('splitting')) {
       const n = AFFIXES.splitting.n;
       for (let i = 0; i < n.count; i++) {
@@ -93,10 +96,28 @@ export function applyStatus(e: Enemy, s: Status | null, g?: Game): void {
   const list: StatusApply[] = [...(s.apply ?? [])];
   if (s.slowT) list.push({ id: 'slow', stacks: slowStacks(s.slowMul ?? 0.5), time: s.slowT });
   if (s.markT) list.push({ id: 'curse', stacks: curseStacks(s.markMul ?? 1.3), time: s.markT });
+  // v0.7 set bonuses on every status the player puts on an enemy: Flame's Stoked, Frost's Biting Cold, Blood's Open Wounds
+  // ponytail: the player is g.player; with co-op the status has to say whose it is
+  if (g && relicContext.acting) addWork(g.player.relics, relicContext.acting, ATTUNEMENT.proc); // A4: a relic's status is work
+  const sets = g?.player.relics.sets;
+  if (sets) {
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i];
+      if (a.id === 'burn' && (sets.flame?.level ?? 0) >= 2) list[i] = { ...a, max: STATUSES.burn.maxStacks + FAMILIES.flame.n.stacksBonus, power: (a.power ?? 0) * (1 + FAMILIES.flame.n.burnPerS * g!.player.stats.secondary) };
+      else if (a.id === 'slow' && (sets.frost?.level ?? 0) >= 2) list[i] = { ...a, stacks: Math.ceil((a.stacks ?? 1) * FAMILIES.frost.n.chillMult) };
+      else if (a.id === 'bleed' && (sets.blood?.level ?? 0) >= 2) list[i] = { ...a, stacks: (a.stacks ?? 1) + FAMILIES.blood.n.extraStacks };
+    }
+  }
   for (const a of list) {
     if (a.id === 'fear') {
       if (!e.def.boss) e.fearT = Math.max(e.fearT, a.time ?? STATUSES.fear.duration);
-    } else if (applyStatusTo(e.statuses, a, e.def.boss) === 'frozen' && g) floatText(g, e.x, e.y - e.r - 20, 'FROZEN', STATUSES.slow.color, 14);
+    } else if (applyStatusTo(e.statuses, a, e.def.boss) === 'frozen' && g) {
+      floatText(g, e.x, e.y - e.r - 20, 'FROZEN', STATUSES.slow.color, 14);
+      e.frozenT = g.time + (e.statuses.stun?.time ?? 0); // v0.7: Frost reads it
+      emit(g, 'onFreeze', { enemy: e });
+    }
+    const s = e.statuses[a.id] ?? (a.id === 'slow' ? e.statuses.stun : undefined); // a chill that tipped over is a freeze now
+    if (s && (!s.by || (relicContext.acting && !isFamily(relicContext.acting)))) s.by = relicContext.acting ?? undefined; // v0.7: whose it is (a burn's ticks, a curse's extra damage, a freeze's shatter): a relic takes it over, a set bonus spreading it does not (A8)
   }
 }
 
@@ -112,7 +133,8 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
     return 0;
   }
   const typeMult = typeMultiplier(e.def.id, type);
-  amount *= typeMult * damageTakenFactor(e.statuses);
+  const chill = e.statuses.slow?.by ? 1 + e.statuses.slow.stacks * FAMILIES.frost.n.chillVuln : 0; // v0.7 A8: a relic's chill: +4% damage taken per stack
+  amount *= typeMult * damageTakenFactor(e.statuses) * (chill || 1);
   if (e.def.boss && source !== 'hazard') amount *= g.player.mods.bossDamage;
   const armor = ARMOR[e.def.id];
   if (armor && e.armorHp > 0) {
@@ -150,9 +172,12 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
     }
   }
   const dealt = Math.max(0, Math.min(e.hp - e.hpFloor, amount));
+  const curse = e.statuses.curse; // v0.7: what a relic's curse added is that relic's work
+  if (curse?.by && dealt > 0) credit(g, g.player, curse.by as RelicKey, 'damage', dealt * (1 - 1 / damageTakenFactor(e.statuses)));
+  if (chill && dealt > 0) credit(g, g.player, e.statuses.slow!.by as RelicKey, 'damage', dealt * (1 - 1 / chill)); // ...and a relic's chill (Frost, A8)
   e.hp = Math.max(e.hpFloor, e.hp - amount); // v0.6: a boss phase that has not run its course holds at its threshold
   // numbers take the colour of their damage type; "!" marks a weakness, "-" a resistance
-  damageNumber(g, e, amount, crit ? '#f2c94c' : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');
+  damageNumber(g, e, amount, crit ? '#f2c94c' : source === 'relic' && relicContext.acting ? RELIC_COLOR : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');
   burst(g, e.x, e.y, BLOOD, crit ? 6 : 2);
   if (crit) shake(g, 4);
   sfx('hit');
@@ -180,8 +205,9 @@ function revive(g: Game): boolean {
     frac = ABILITY_UPGRADES.guardianAngel.n.hp;
     p.reviveT = 0;
   } else if (p.revives > 0) {
-    frac = GAME.reviveHp;
+    frac = g.vars['phoenix.hp'] ?? GAME.reviveHp; // v0.7: Phoenix Feather's tier
     p.revives--;
+    emit(g, 'onRevive', {});
   } else return false;
   p.hp = p.stats.hp * frac;
   p.invulnT = GAME.reviveGrace;
@@ -216,7 +242,21 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
     floatText(g, p.x, p.y - 34, 'dodge', '#f2e6a0', 13);
     return;
   }
-  const taken = mitigate(amount * damageTakenFactor(p.statuses) * (g.vars.damageTaken ?? 1) * tauntedDamageMult(g, attacker), Math.min(GAME.armorCap, p.cls.armor + p.mods.armor));
+  // v0.7: relics may shrink the hit or block it (Steel, Frost, Grave); a blocked hit does nothing, but blocking is an event of its own
+  const incoming = { amount, attacker, blocked: false };
+  emit(g, 'onIncoming', incoming);
+  if (incoming.blocked) {
+    floatText(g, p.x, p.y - 34, 'BLOCK', '#a8b0bc', 14);
+    emit(g, 'onBlock', { amount, attacker });
+    return;
+  }
+  let taken = mitigate(incoming.amount * damageTakenFactor(p.statuses) * (g.vars.damageTaken ?? 1) * tauntedDamageMult(g, attacker), Math.min(GAME.armorCap, p.cls.armor + p.mods.armor));
+  if (p.ward > 0) {
+    // v0.7 ward (Holy): it takes the hit first
+    const soak = Math.min(p.ward, taken);
+    p.ward -= soak;
+    taken -= soak;
+  }
   p.hp -= taken;
   p.flash = 0.12;
   g.bossHit = true;
@@ -240,9 +280,12 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
 export function healPlayer(g: Game, amount: number, show = true): number {
   const p = g.player;
   if (g.breather > 0 && g.wave > 0 && g.curses.includes('noRespite')) return 0; // No Respite: nothing mends between waves
-  const healed = Math.min(p.stats.hp - p.hp, amount * healFactor(g.wave)); // v0.5: sustain fades past wave 30
+  const heal = amount * healFactor(g.wave) * (g.vars.relicHealMult ?? 1); // v0.5: sustain fades past wave 30; v0.7: Blessed Water
+  const healed = Math.min(p.stats.hp - p.hp, heal);
+  if (heal > 0) emit(g, 'onHeal', { amount: Math.max(0, healed), over: heal - Math.max(0, healed) }); // v0.7: Holy turns overhealing into ward and pulses
   if (healed <= 0) return 0;
   p.hp += healed;
+  g.vars.healed = (g.vars.healed ?? 0) + healed; // v0.7: the denominator of the relics' healing share (RELICS.md)
   if (show) floatText(g, p.x, p.y - 34, `+${Math.round(healed)}`, '#6f8f4e', 15);
   return healed;
 }
@@ -375,7 +418,10 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
       return false;
     }
     const v = Math.hypot(pr.vx, pr.vy) || 1;
+    const outer = relicContext.acting;
+    if (pr.by) relicContext.acting = pr.by; // a relic's bolt lands after its hook: its damage is still the relic's (A4)
     damageEnemy(g, e, pr.damage, pr.crit, (pr.vx / v) * 60, (pr.vy / v) * 60, pr.source, pr.dtype);
+    relicContext.acting = outer;
     applyStatus(e, pr.status, g);
     pr.hit.push(e);
     if (pr.pierce-- <= 0) return false;
@@ -437,8 +483,11 @@ export function updateFields(g: Game, dt: number): void {
         if (inside && f.heal > 0) healPlayer(g, f.heal * GAME.fieldTick, false);
         for (const e of g.hash.query(f.x, f.y, f.r, near)) {
           if (e.dead) continue;
-          damageEnemy(g, e, f.dps * GAME.fieldTick, false, 0, 0, 'ability', f.dtype);
+          const outer = relicContext.acting;
+          relicContext.acting = f.by ?? outer; // a relic's field (Scorched Earth) credits its relic
+          damageEnemy(g, e, f.dps * GAME.fieldTick, false, 0, 0, f.by ? 'relic' : 'ability', f.dtype);
           if (f.apply) applyStatus(e, { apply: [f.apply] }, g);
+          relicContext.acting = outer;
         }
       }
     }

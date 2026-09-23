@@ -6,7 +6,7 @@ import { RUN_LOG } from '../config/game';
  * v0.6 run log: a compact timeline of one run, kept in the save (the last RUN_LOG.keep runs), shown in the Keep's Run History,
  * exported as JSON and read by `npm run sim -- pacing`. Times are run seconds rounded to 0.1.
  */
-export type MarkKind = 'level' | 'relic' | 'talent' | 'upgrade' | 'board' | 'quest' | 'event' | 'shrine' | 'boss' | 'phase' | 'evolution' | 'merchant' | 'route' | 'act' | 'stand' | 'bored'; // phase: a boss's new phase or objective; stand: the Last Stand
+export type MarkKind = 'level' | 'relic' | 'talent' | 'upgrade' | 'board' | 'quest' | 'event' | 'shrine' | 'boss' | 'phase' | 'evolution' | 'merchant' | 'route' | 'act' | 'stand' | 'bored' | 'attune'; // phase: a boss's new phase or objective; stand: the Last Stand
 export type Mark = [t: number, kind: MarkKind, detail: string];
 /** One per wave, index = wave - 1: when it started, when it was cleared (0 = never), damage taken, seconds with fewer than RUN_LOG.quietBelow enemies alive. */
 export type WaveRow = [start: number, end: number, damage: number, quiet: number];
@@ -30,6 +30,7 @@ export interface RunLog {
   won: boolean; // v0.6: the Usurper fell in this run
   cause: string; // what dealt the killing blow ('' when the run was ended from the pause menu)
   relics: Record<string, number>; // id -> tier, in the order they were found
+  relicShares: Record<string, [number, number, number]>; // v0.7: id -> % of the run's damage, healing, mitigation (one decimal)
   talents: string[];
   upgrades: string[]; // ability and utility upgrades
   waves: WaveRow[];
@@ -51,7 +52,7 @@ export const newRunLog = (): RunLogDraft => ({
   seen: { level: 1, relics: 0, talents: 0, upgrades: 0, utility: 0, quests: 0, events: 0, bosses: 0, act: 1, cleared: 0, board: false, shrine: false, merchant: false },
 });
 
-export const MARK_KINDS: MarkKind[] = ['level', 'relic', 'talent', 'upgrade', 'board', 'quest', 'event', 'shrine', 'boss', 'phase', 'evolution', 'merchant', 'route', 'act', 'stand', 'bored'];
+export const MARK_KINDS: MarkKind[] = ['level', 'relic', 'talent', 'upgrade', 'board', 'quest', 'event', 'shrine', 'boss', 'phase', 'evolution', 'merchant', 'route', 'act', 'stand', 'bored', 'attune'];
 /** What counts as something new happening, for the pacing rule (a boredom mark is the opposite). */
 const BEATS = new Set<MarkKind>(MARK_KINDS.filter((k) => k !== 'bored'));
 
@@ -85,6 +86,7 @@ export function readRunLog(raw: unknown): RunLog | null {
     won: raw.won === true || raw.end === 'won',
     cause: typeof raw.cause === 'string' ? raw.cause : '',
     relics,
+    relicShares: isObj(raw.relicShares) ? Object.fromEntries(Object.entries(raw.relicShares).filter(([, v]) => Array.isArray(v) && v.length === 3 && v.every(fin))) as Record<string, [number, number, number]> : {},
     talents: strs(raw.talents),
     upgrades: strs(raw.upgrades),
     waves,
@@ -96,7 +98,7 @@ export const keepRuns = (runs: RunLog[], next?: RunLog): RunLog[] => (next ? [..
 
 /** The export file: the logs plus a legend, so the JSON explains itself. */
 export const exportRunLogs = (runs: RunLog[]) =>
-  JSON.stringify({ format: 'Last Bastion run log v1', waves: '[start s, cleared s (0 = not cleared), damage taken, seconds with fewer than 5 enemies alive] per wave', marks: '[t s, kind, detail]', runs }, null, 1);
+  JSON.stringify({ format: 'Last Bastion run log v1', waves: '[start s, cleared s (0 = not cleared), damage taken, seconds with fewer than 5 enemies alive] per wave', marks: '[t s, kind, detail]', relicShares: '{ relic: [% of damage dealt, % of healing received, % of damage turned away] } (v0.7)', runs }, null, 1);
 
 /** Minutes each Act took: from its first wave's start to the next Act's first wave (or the end of the run). */
 export function actMinutes(log: RunLog, actLength: number): number[] {

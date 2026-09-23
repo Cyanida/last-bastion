@@ -197,7 +197,8 @@ describe('quests', () => {
     expect(e.maxHp).toBeGreaterThanOrEqual(e.def.hp * 5);
     killEnemy(g, e);
     expect(q.state).toBe('done');
-    expect(g.relicOffers.at(-1)).toHaveLength(3);
+    expect(g.player.relics.offers.at(-1)).toMatchObject({ from: 'quest' });
+    expect(g.player.relics.offers.at(-1)!.options).toHaveLength(3);
   });
 
   it('the shrine counts only while a wave is on and you stand in it; the hidden chest is found by walking onto it', () => {
@@ -256,34 +257,40 @@ describe('quests', () => {
 });
 
 describe('events', () => {
-  it('the wandering merchant: walk into him for his wares, at the Merchant prices; he leaves when the wave does', () => {
+  it('the wandering merchant: walk into him and buy his healing draught at the Merchant price; he leaves when the wave does', () => {
     const g = withEvent('peddler');
     const ev = g.event!;
-    expect(ev.wares.length).toBeGreaterThan(0);
+    expect(ev.stock).toBe(1);
     Object.assign(g.player, { x: ev.x, y: ev.y });
     updateGame(g, DT);
     expect(g.pendingShop).toBe(true);
-    const id = ev.wares[0];
     g.gold = 0;
-    expect(peddlerBuy(g, id)).toBe(false);
+    g.player.hp = 1;
+    expect(peddlerBuy(g)).toBe(false);
     g.gold = 1000;
-    expect(peddlerBuy(g, id)).toBe(true);
-    expect(g.gold).toBe(1000 - peddlerPrice(g, id));
-    expect(g.relics).toContain(id);
-    expect(ev.wares).not.toContain(id);
+    expect(peddlerBuy(g)).toBe(true); // v0.7: a healing draught (relics come at fixed moments)
+    expect(g.gold).toBe(1000 - peddlerPrice(g));
+    expect(g.player.hp).toBeGreaterThan(1);
+    expect(g.player.relics.offers).toHaveLength(0);
+    expect(ev.stock).toBe(0);
+    expect(peddlerBuy(g)).toBe(false); // sold out
     g.pendingShop = false;
     g.breather = 3; // the wave is over
     updateGame(g, DT);
     expect(g.event).toBeNull();
   });
 
-  it('the cursed chest: three relics to choose from, and three side elites around you', () => {
+  it('the cursed chest: gold and a Rune shard (v0.7: no relic), and three side elites around you', () => {
     const g = withEvent('cursedChest');
     const ev = g.event!;
     Object.assign(g.player, { x: ev.x, y: ev.y });
-    const offers = g.relicOffers.length;
+    const offers = g.player.relics.offers.length;
+    const gold = g.gold;
+    const shards = g.salvage;
     updateGame(g, DT);
-    expect(g.relicOffers.length).toBe(offers + 1);
+    expect(g.player.relics.offers.length).toBe(offers);
+    expect(g.gold).toBeGreaterThanOrEqual(gold + EVENTS.cursedChest.gold * g.act);
+    expect(g.salvage).toBe(shards + 1);
     const elites = g.enemies.filter((e) => e.side && e.elite);
     expect(elites).toHaveLength(EVENTS.cursedChest.elites);
   });

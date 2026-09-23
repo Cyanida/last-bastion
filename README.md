@@ -1,6 +1,6 @@
-# Last Bastion — V0.6
+# Last Bastion — V0.7
 
-A 2D top-down medieval wave-survival roguelite: four Acts, then the Usurper on his throne, and an Oath ladder to climb after the first win. TypeScript + Vite, HTML5 Canvas 2D, no engine, no asset files:
+A 2D top-down medieval wave-survival roguelite: four Acts, then the Usurper on his throne, relics in seven families that grow as they work and pair up into duos, and an Oath ladder to climb after the first win. TypeScript + Vite, HTML5 Canvas 2D, no engine, no asset files:
 sprites are pixel grids in code, sound effects and the menu music are WebAudio synthesis. One codebase, three ways to play.
 
 | | |
@@ -8,7 +8,7 @@ sprites are pixel grids in code, sound effects and the menu music are WebAudio s
 | **Browser / phone** | https://cyanida.github.io/last-bastion/ |
 | **Windows** | [Latest release](https://github.com/Cyanida/last-bastion/releases/latest): `last-bastion-Setup-<version>.exe` |
 | Roadmap and progress | [ROADMAP.md](ROADMAP.md) · [Project board](https://github.com/users/Cyanida/projects/2) · the pinned **🔨 Now building** issue · release rules: [RELEASES.md](RELEASES.md) |
-| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.6: a run with an ending, evolutions, routes, Oaths, weekly contracts) · balance targets and simulation results: [BALANCE.md](BALANCE.md) |
+| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.7: relics rebuilt, save backups) · the relic design: [RELICS.md](RELICS.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) |
 
 ## Play on iPhone (or any phone)
 
@@ -71,16 +71,20 @@ npm run dev              # web, http://localhost:5173
 1. Bump `"version"` in `package.json`, update `CHANGELOG.md`, commit.
 2. `npm run release` → creates and pushes the tag `v<version>`.
 3. `.github/workflows/release.yml` runs on `windows-latest`: `npm ci`, type check, tests, `vite build`, then `electron-builder --publish always`.
-   The GitHub Release ends up with the installer, its `.blockmap` (for differential updates) and `latest.yml` (what installed copies read to find the update). A last step fails the job if the `.exe` or `latest.yml` is missing.
+   The GitHub Release ends up with the installer, its `.blockmap` (for differential updates) and `latest.yml` (what installed copies read to find the update). The last steps fail the job if the `.exe` or `latest.yml` is missing, or (v0.7) if the published `latest.yml`'s version, path, url, size or sha512 do not match the tag and the built installer.
 4. A version with a suffix (`0.4.0-beta.1`) is published as a **pre-release**; stable installs ignore those.
 5. When the release workflow succeeds, `pages.yml` deploys that tagged commit to GitHub Pages, which the PWA picks up as "new version available".
    Pushes to `main` between releases never reach the web version; a manual run of `pages.yml` redeploys the latest tag.
 
 ### Testing the updater by hand
 
-Install an older release (e.g. `v0.5.0`), start it, wait on the title screen. Within about a minute (the installer is ~110 MB)
-"Update to v0.6.0 ready" appears; **Restart** installs it silently and relaunches; the title screen then shows the new version and build date.
-Settings → Updates shows the live status ("Checking…", "Downloading… 40%", or the error if the check failed).
+The release workflow already fails a release whose `latest.yml` names another version, file, size or checksum than the tag and the built installer. This short test checks what an installed copy does with it (about five minutes):
+
+1. Uninstall Last Bastion, then install the **previous** release's installer from the Releases page (for v0.7.0 that is `last-bastion-Setup-0.6.0.exe`).
+2. Start it, play a wave or change a setting (for example the sound volume), and quit, so the save and settings have something to keep.
+3. Start it again and wait on the title screen. Within about a minute (the installer is ~110 MB), "Update to v0.7.0 ready" appears. Settings → Updates shows the status as it goes ("Checking…", "Downloading… 40%", or the error if the check failed).
+4. Click **Restart**. It installs silently and relaunches; the title screen now shows the new version and build date.
+5. Check that the save survived (the Keep, gold and Runes, the Chronicle) and that your setting did too. Settings › Save data should list the save from before the update as a backup.
 
 ### Native iOS build (later, needs a Mac)
 
@@ -124,14 +128,20 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 - **The map grows** (v0.5): an Act starts in the arena's core; four wings wait behind gates, each with a feature (a shrine with a blessing, a strongbox, a lair, a vent field with a cache), and a hidden vault. The mid-Act boss and every finished quest open the next wing. Enemies come from the edges of the whole open map.
 - **Quests and events**: a board at every Act start offers three seeded quests (take up to two, no penalty for failing); waves 3 and 8 are lighter breathers with a seeded event (merchant, cursed chest, ambush, a knight ally, a plague cart).
 - **Sacred treasures**: one per class, earned over several runs (fragments from Act bosses, a trial, the guardian in the vault), equipped at the class select.
-- **The Merchant** sells a heal and a random relic of the rarity you choose (new, or a tier up for one you carry), rerolls a relic, and buys relics back for gold or salvages them into Rune shards. Run gold spent here would otherwise be banked for the Keep.
+- **The Merchant** sells a heal and one relic moment a visit (a pick of three relics of the rarity you choose), rerolls a relic, and buys relics back for gold or salvages them into Rune shards. Run gold spent here would otherwise be banked for the Keep.
 - **Enemies think**: ranged units keep their distance and reposition, melee units flank, wounded levies flee to healers. **Squads** march in formation behind a **commander** (Bannerman, Drummer, Chaplain, Hound Master): kill him and the squad scatters, routs or goes berserk. Commanders carry a bounty and show on the minimap.
 - **Readable, dodgeable heavy attacks** (v0.6): anything winding up a telegraphed attack glows red until it lands, over its ground marker or aim lines. From Act III enemies and bosses add patterns that make you move (volleys, mortars, rings, crosses, slams). **Perfect dodge**: leave a telegraph in its last quarter second (or roll, blink or leap through it) for a damage buff and part of your ability's cooldown back. **Last Stand**: once a run, a killing blow leaves you at 1 HP, untouchable for 5 seconds. Elites and commanders wear outlines, hostile shots a red halo, and a mark beside an enemy shows whether your attack is strong (▲) or weak (▼) against it.
-- **Evolutions** (v0.6): each champion has five (three for the signature ability, two for the second one), each unlocked in a run by a pair of requirements (an upgrade plus a keystone, a talent branch or a relic at tier II) and offered as a gold level-up card; one of each kind a run. Recipes are in the compendium.
+- **Evolutions** (v0.6): each champion has five (three for the signature ability, two for the second one), each unlocked in a run by a pair of requirements (an upgrade plus a keystone, a talent branch or a relic attuned to tier II) and offered as a gold level-up card; one of each kind a run. Recipes are in the compendium.
 - **Damage types and status effects**: holy, shadow, fire, frost, physical; burn, chill (enough of it freezes), bleed, poison, stun, fear, curse. Knights have armor that breaks; shield bearers only break from behind; a shieldwall only holds while the line stands together.
-- **Relics (31)** have no slot cap since v0.4: a duplicate raises the relic a tier (three tiers, visibly stronger numbers). Every relic has a tooltip everywhere it appears (drop cards, the HUD bar, pause and results, the Merchant, the compendium in the Keep) with its current and next tier and its **synergies** (12 pairs that do something extra together) and **clashes** (4 pairs that warn). Relics of a kind add up and pass a soft cap (damage, attack speed, defense, utility; on-hit and on-kill procs share their chance past three relics; relic healing is capped per wave), shown in the HUD stats panel. Proc chains stop at depth 2. Late drops are mostly upgrades.
+- **Relics** (v0.7, [RELICS.md](RELICS.md)):
+  - **Where they come from.** Relics come at fixed moments: every wave boss, lairs, quests that promise one, the Merchant and Armorer's Choice. Each moment is a pick of one from three, with a reroll and a **Skip** that pays gold and a Rune shard.
+  - **Families.** The **50 relics** belong to seven families: Flame, Frost, Storm, Blood, Holy, Grave and Steel. Holding 2, 4 and 6 of a family unlocks its **set bonuses**. Every class has three preferred families it can max with straight pieces; the class select shows them.
+  - **Attunement.** There are no duplicates. A relic **attunes** by doing its work: tier II strengthens it, and tier III **awakens** it with a named extra behavior.
+  - **Duos.** Hold one specific relic from each of two families and a wave boss or a lair offers their **duo** (12 in all) as a gold fourth card. A duo counts toward both families.
+  - **Screens.** The HUD shows the family counts, each relic's attunement bar and a proc icon. The results screen shows every relic's, duo's and set's share of your damage, healing and protection.
+  - **Stacking.** Bonuses add up at face value. Relic healing is capped per wave, and proc chains stop at depth 2.
 - **Talents**: a point every 3 levels, spent from the pause menu in one of three branches per class (seven nodes each, prerequisites, an exclusive keystone at the bottom). **Second ability** at level 3 with two-way upgrades at levels 8 and 14. **Starting trait** chosen on the class select screen, unlocked by achievements (two with the Keep's Second Banner).
-- **Level-ups** offer stat boons, tradeoffs, talent points and relics, and a gold **evolution** card when a recipe is complete; **ability upgrade tracks, elites and wave modifiers** as in v0.2.
+- **Level-ups** offer stat boons, tradeoffs and talent points (relics only come at relic moments since v0.7), and a gold **evolution** card when a recipe is complete; **ability upgrade tracks, elites and wave modifiers** as in v0.2.
 - **Curses** (class select screen): opt-in handicaps that raise the gold and class-XP multiplier. Unlocked through achievements.
 - **Oaths** (v0.6, class select screen): after a class's first win, Oaths 1-20, each adding one fixed hardship on top of those below it (curses, wave modifiers, bosses that rise again, three-affix elites, no Merchant in Act II, no Last Stand...). The first win at each level pays; each class shows the highest Oath it has kept. Free curses stay for custom runs.
 - **Weekly contracts** (v0.6, title screen): three seeded objectives a week that pay Runes when a banked run completes them.
@@ -140,11 +150,18 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 
 ## Between runs
 
-The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks (since v0.6 more options than power: a second starting trait, a starting relic choice, level-up banishes); a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium, the **Sacred Treasures** log, **Run history** (the last 50 runs, each with a timeline of its waves, level-ups, relics, quests, events, bosses and boredom marks, and its build; export as JSON), the **Chronicle** (68 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, menu music, updates, save data).
+The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks (since v0.6 more options than power: a second starting trait, a starting relic choice, level-up banishes); a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium (every relic by family, the set bonuses, and the duo recipes as hints until you form them), the **Sacred Treasures** log, **Run history** (the last 50 runs, each with a timeline of its waves, level-ups, relics, quests, events, bosses and boredom marks, and its build; export as JSON), the **Chronicle** (71 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, menu music, updates, save data).
 
 ### Save format
 
-One object under the `localStorage` key `lastbastion.save`, `version: 5` (v0.6: the run logs, wins, the Endless leaderboard, discovered evolutions, the Oath record, the weekly contracts). `logic/save.ts` `migrate` reads versions 2 (v0.2), 3 (v0.3), 4 (v0.4-v0.5) and 5 and validates every field, so older saves, partial or hand-edited imports all load. A v4 save gets back what the Keep ranks v0.6 removed or cut had cost (`LEGACY_META`, shown once in the Keep); a v3 save is granted a Rune per achievement; if there is no save it migrates the v0.1 best-wave records.
+One object under the `localStorage` key `lastbastion.save`, `version: 6`. v0.7 added discovered duos, the relics that are new to a v0.6 player, and the counters behind the relic deeds; v0.6 added the run logs, wins, the Endless leaderboard, discovered evolutions, the Oath record and the weekly contracts.
+
+- `logic/save.ts` `migrate` reads versions 2 (v0.2), 3 (v0.3), 4 (v0.4-v0.5), 5 (v0.6) and 6, and validates every field, so older saves and partial or hand-edited imports all load.
+- A v5 save's compendium maps onto the new relics: Echo Bell → Thunder Drum, Hawkeye Quiver → Galeforce Quiver, removed relics dropped, the new ones marked new. A third rank of Reliquary Guard is refunded.
+- A v4 save also gets back what the Keep ranks v0.6 removed or cut had cost (`LEGACY_META`); the Keep shows both refunds once.
+- A v3 save is granted a Rune per achievement. If there is no save, the game migrates the v0.1 best-wave records.
+
+**Backups** (v0.7, `core/storage.ts`): loading never writes the save, and the last three raw saves from before a migration are kept under `lastbastion.save.backups`. If the save cannot be read, the newest readable backup is loaded instead, and the game says so. Settings › Save data lists the backups and restores any of them.
 
 ## Simulation
 
@@ -152,7 +169,7 @@ One object under the `localStorage` key `lastbastion.save`, `version: 5` (v0.6: 
 npm run sim                  # 6 runs per class, Squire, courtyard
 npm run sim -- 10 1 keep     # 10 runs per class, Knight tier, starting in the Great Keep
 npm run sim -- probe 3       # wall probe: the bot revived on death through wave 30, deaths and level per band of waves
-npm run sim -- relics 3      # relic power index: no relics vs a run's haul vs every relic at tier III
+npm run sim -- relics 8      # relics (v0.7): 6-sets, duos, 4-sets per class, the power index, every relic's share (one process per class)
 npm run sim -- economy 80    # one save played run after run, buying the Keep greedily: when is it fully raised?
 npm run sim -- deep 3        # the fresh / maxed table, but wins march on into Endless: depth is not capped at wave 40
 npm run sim -- pacing 4      # from the run logs: run length, minutes per Act, quiet time, the longest stretches with nothing new
@@ -168,7 +185,7 @@ Everything numeric lives in `src/config/`; game logic never hard-codes balance.
 
 | File | Contents |
 |---|---|
-| `classes.ts`, `abilityUpgrades.ts`, `relics.ts`, `upgrades.ts` | classes, the 30 ability upgrades, relics (tiers, synergies, stacking), level-up boons |
+| `classes.ts`, `abilityUpgrades.ts`, `relics.ts`, `upgrades.ts` | classes, the 30 ability upgrades, relics (families and set bonuses, the 50 relics, duos, relic moments and offer weights, attunement rates), level-up boons |
 | `talents.ts`, `utility.ts`, `traits.ts` | talent trees, the utility abilities and their upgrades, starting traits |
 | `enemies.ts` | stats and behaviour parameters per enemy and boss |
 | `ai.ts` | per-type state machine profiles, squad reactions, aura timing |

@@ -12,10 +12,9 @@
  * One save, played run after run by the bot (classes in turn, the bot spends gold and Runes greedily on the Keep between runs, deeds
  * earned as they come). Reports gold and Runes per run and the run on which the Keep is fully raised (target 40-60, BALANCE.md).
  *
- * Relic power index:  npm run sim -- relics [runs=3] [tier=0]
- * Fresh runs with no relics at all, against runs that start with a full run's haul of pickups (RELIC_HAUL rolls by the drop rules,
- * upgrades included) and against runs that start with every relic in the class pool at the top tier (the absurd upper bound).
- * BALANCE.md wants the haul no more than about 1.5x as far as no relics; past that the caps get tightened.
+ * Relics (v0.7):  npm run sim -- relics [runs=3]
+ * Maxed saves and the family-following bot, one process per class (scripts/relic-report.ts): 6-sets and duos in winning runs, families
+ * at a 4-set per class, the relic power index, and every relic's contribution from wave 21 on (targets: RELICS.md, A8).
  *
  * Depth past the win (v0.6):  npm run sim -- deep [runs=3] [tier=0]: the default table, wins going on into Endless.
  * Pacing:  npm run sim -- pacing [runs=4] [tier=0]
@@ -25,7 +24,6 @@
 import type { ArenaId } from '../src/config/arenas';
 import { CLASS_ORDER } from '../src/config/classes';
 import { BUILDING_IDS, BUILDINGS, MASTERY, META, META_IDS, TIERS } from '../src/config/economy';
-import { RELIC_MAX_TIER } from '../src/config/relics';
 import { ACTS } from '../src/config/acts';
 import { RUN_LOG } from '../src/config/game';
 import { actMinutes, quietStretches } from '../src/logic/runlog';
@@ -34,7 +32,6 @@ import { lockedRelics, withAchievements } from '../src/logic/achievements';
 import { accountLevel, buildingLevel, metaCost, totalKeepCost } from '../src/logic/economy';
 import { expectedLevel } from '../src/logic/formulas';
 import { applyRun, buyBuilding, buyMeta, defaultSave } from '../src/logic/save';
-import { relicPoolFor } from '../src/logic/relics';
 import type { RunSummary } from '../src/logic/save';
 import { probeRun, simulateRun } from '../src/sim/bot';
 
@@ -55,7 +52,6 @@ const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const pad = (s: string | number, n: number) => String(s).padStart(n);
 
-const RELIC_HAUL = 12; // about what a wave-30 run picks up: six boss choices, a few elite chests, a couple of Merchant buys
 
 if (mode === 'economy') {
   let save = defaultSave();
@@ -149,23 +145,19 @@ pacing · ${runs} runs per cell · ${TIERS[tier].name} · ${arena} · from the r
 }
 
 if (mode === 'relics') {
-  console.log(`
-relic power index · ${runs} runs per cell · ${TIERS[tier].name} · ${arena} · fresh saves · avg wave reached
-`);
-  console.log(`${'class'.padEnd(12)}${pad('no relics', 11)}${pad('haul', 8)}${pad('index', 7)}${pad('all III', 9)}${pad('index', 7)}   (haul = ${RELIC_HAUL} pickups by the drop rules from wave 1 · all III = every relic in the pool at tier ${RELIC_MAX_TIER})`);
+  // v0.7 A8: one class per process (scripts/relic-report.ts), in parallel, then the tables
+  const { spawn } = await import('node:child_process');
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'lb-relics-'));
+  const outs = CLASS_ORDER.map((c) => join(dir, `${c}.json`));
+  const node = (argv: string[]) => new Promise<void>((done, fail) => spawn('npx', ['vite-node', 'scripts/relic-report.ts', ...argv], { stdio: 'inherit', shell: true }).on('exit', (code) => (code ? fail(new Error(`exit ${code}`)) : done())));
   const started = Date.now();
-  const indexes: number[][] = [[], []];
-  const cell = (classId: (typeof CLASS_ORDER)[number], opts: RunOptions) => avg(Array.from({ length: runs }, (_, i) => simulateRun(classId, 1000 + i, { tier, arena, ...opts }, i % 2).wave));
-  for (const classId of CLASS_ORDER) {
-    const bare = cell(classId, { noRelics: true });
-    const haul = cell(classId, { relicPicks: RELIC_HAUL, noRelics: true });
-    const all = cell(classId, { relics: relicPoolFor(classId, []), relicTier: RELIC_MAX_TIER, noRelics: true });
-    indexes[0].push(haul / bare);
-    indexes[1].push(all / bare);
-    console.log(`${classId.padEnd(12)}${pad(bare.toFixed(1), 11)}${pad(haul.toFixed(1), 8)}${pad((haul / bare).toFixed(2), 7)}${pad(all.toFixed(1), 9)}${pad((all / bare).toFixed(2), 7)}`);
-  }
-  console.log(`${'ALL'.padEnd(12)}${pad('', 19)}${pad(avg(indexes[0]).toFixed(2), 7)}${pad('', 9)}${pad(avg(indexes[1]).toFixed(2), 7)}   target for the haul: about 1.5 or less · ${((Date.now() - started) / 1000).toFixed(0)}s
-`);
+  await Promise.all(CLASS_ORDER.map((c, i) => node(['run', c, String(runs), outs[i]])));
+  await node(['merge', ...outs]);
+  console.log(`
+(${((Date.now() - started) / 1000).toFixed(0)}s)`);
   process.exit(0);
 }
 

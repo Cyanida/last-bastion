@@ -1,9 +1,46 @@
 import type { ClassId } from '../config/classes';
-import { RELIC_DROPS, RELIC_IDS, RELIC_MAX_TIER, RELIC_STACKING, RELIC_WEIGHTS, relicDef, relicMods, SYNERGIES, SYNERGY_IDS, type RelicCategory, type RelicId, type SynergyId } from '../config/relics';
+import { ATTUNEMENT, DUO_IDS, DUO_SIX_STRENGTH, DUOS, FAMILY_IDS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
-import type { Mods, Rng } from '../core/types';
+import type { Mods, RelicState, Rng } from '../core/types';
+import { mulberry32 } from '../core/math';
+import { hashSeed } from './acts';
+
+/** v0.7: a player's own relic stream, split from the run seed (player 0, 1, ...). */
+export const relicStream = (seed: number, player: number): Rng => mulberry32(hashSeed(`relics:${seed}:${player}`));
+
+/** An empty relic state; createGame fills in the pool and the stream. */
+export const emptyRelics = (): RelicState => ({
+  held: [], tiers: {}, attune: {}, work: {}, pool: [], offers: [], found: [], from: {}, stats: {}, rng: mulberry32(0),
+  static: {}, dyn: {}, totals: {}, dirty: true, sets: {}, duos: [],
+});
 
 export type RelicTiers = Partial<Record<RelicId, number>>;
+
+/** A4: attunement a relic earns by doing its work, up to ATTUNEMENT.workCap a wave (the tier-up itself happens in systems/relics updateRelics). */
+export function addWork(r: RelicState, key: RelicKey, amount: number): void {
+  const id = key as RelicId; // a duo is never held: it has no tiers and does not attune
+  if (!r.held.includes(id) || (r.tiers[id] ?? 0) >= RELIC_MAX_TIER) return;
+  const add = Math.min(amount, ATTUNEMENT.workCap - (r.work[id] ?? 0));
+  if (!(add > 0)) return;
+  r.work[id] = (r.work[id] ?? 0) + add;
+  r.attune[id] = (r.attune[id] ?? 0) + add;
+}
+/**
+ * v0.7 A5: duos ready to be offered: both source relics held, neither feeding a formed duo, not formed yet; the first completed first (by when
+ * its second source relic was taken).
+ */
+export function readyDuos(r: Pick<RelicState, 'held' | 'duos'>): DuoId[] {
+  const used = new Set<RelicId>(r.duos.flatMap((d) => DUOS[d].from));
+  const done = (d: DuoId) => Math.max(...DUOS[d].from.map((id) => r.held.indexOf(id)));
+  return DUO_IDS.filter((d) => !r.duos.includes(d) && DUOS[d].from.every((id) => r.held.includes(id) && !used.has(id))).sort((a, b) => done(a) - done(b));
+}
+/** The two families of every formed duo, for familySets. */
+export const duoFamilies = (duos: DuoId[]): [FamilyId, FamilyId][] => duos.map((d) => DUOS[d].families);
+
+/** A4: attunement every held relic below the top tier gains (a wave cleared, an elite killed). */
+export function attuneAll(r: RelicState, amount: number): void {
+  for (const id of r.held) if ((r.tiers[id] ?? 0) < RELIC_MAX_TIER) r.attune[id] = (r.attune[id] ?? 0) + amount;
+}
 
 /** Relics this class may find: everything unlocked, minus other classes' relics. */
 export function relicPoolFor(classId: ClassId, locked: RelicId[]): RelicId[] {
@@ -11,21 +48,10 @@ export function relicPoolFor(classId: ClassId, locked: RelicId[]): RelicId[] {
 }
 
 export const relicTier = (tiers: RelicTiers, id: RelicId): number => tiers[id] ?? 0;
-export const canUpgrade = (tiers: RelicTiers, id: RelicId, cap = RELIC_MAX_TIER): boolean => relicTier(tiers, id) > 0 && relicTier(tiers, id) < Math.min(cap, RELIC_MAX_TIER);
 
-/** Share of new relics in a drop: shrinks with every relic held, so late drops are mostly upgrades. */
-export const newRelicShare = (heldCount: number): number => Math.max(RELIC_DROPS.minNewShare, 1 - heldCount * RELIC_DROPS.newDecayPerHeld);
-
-/**
- * Up to n distinct offers, weighted by rarity: new relics from the pool (weight scaled by newRelicShare) and upgrades of held relics
- * below the top tier. `exclude` keeps the same relic out of two offers queued at once.
- */
-export function rollRelics(pool: RelicId[], held: RelicId[], tiers: RelicTiers, rng: Rng, n: number, exclude: RelicId[] = [], cap = RELIC_MAX_TIER): RelicId[] {
-  const share = newRelicShare(held.length);
-  const left = [
-    ...pool.filter((id) => !held.includes(id) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] * share })),
-    ...held.filter((id) => canUpgrade(tiers, id, cap) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] })),
-  ];
+/** Up to n distinct relics from the pool, weighted by rarity; never one already held (v0.7: no duplicates) or in `exclude`. */
+export function rollRelics(pool: RelicId[], held: RelicId[], rng: Rng, n: number, exclude: RelicId[] = []): RelicId[] {
+  const left = pool.filter((id) => !held.includes(id) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] }));
   const out: RelicId[] = [];
   while (out.length < n && left.length > 0) {
     const pick = pickWeighted(left, rng);
@@ -35,19 +61,55 @@ export function rollRelics(pool: RelicId[], held: RelicId[], tiers: RelicTiers, 
   return out;
 }
 
-/** Tiers after taking `id`: a new relic at tier 1, a held one a tier up (never past the cap). Same object back = nothing changed. */
-export function withRelic(tiers: RelicTiers, id: RelicId, cap = RELIC_MAX_TIER): RelicTiers {
-  const tier = relicTier(tiers, id);
-  if (tier >= Math.min(cap, RELIC_MAX_TIER)) return tiers;
-  return { ...tiers, [id]: tier + 1 };
+/**
+ * v0.7: one relic moment's options, never a held relic. Weighted by rarity and `lean` times more for a family already held;
+ * once any family is held, at least one option comes from a held family and at least one from a family not held, when the pool allows.
+ * `familyOf` returns undefined for relics without a family (the rule ignores them). The order is shuffled, so the rule's picks are not
+ * always the first cards.
+ */
+export function rollOffer(
+  pool: RelicId[], held: RelicId[], rng: Rng, n: number, familyOf: (id: RelicId) => string | undefined, lean = 1, exclude: RelicId[] = [],
+): RelicId[] {
+  const heldFamilies = new Set(held.map(familyOf).filter((f): f is string => !!f));
+  const all = pool.filter((id) => !held.includes(id) && !exclude.includes(id))
+    .map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] * (relicDef(id).classId ? RELIC_MOMENTS.classRelicWeight : 1) * (heldFamilies.has(familyOf(id) ?? '') ? lean : 1) }));
+  const out: RelicId[] = [];
+  const take = (from: typeof all) => {
+    if (!from.length || out.length >= n) return;
+    const pick = pickWeighted(from, rng);
+    out.push(pick);
+    all.splice(all.findIndex((o) => o.value === pick), 1);
+  };
+  if (heldFamilies.size) {
+    take(all.filter((o) => heldFamilies.has(familyOf(o.value) ?? '')));
+    take(all.filter((o) => { const f = familyOf(o.value); return !!f && !heldFamilies.has(f); }));
+  }
+  while (out.length < n && all.length) take(all);
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
-/** Synergies whose relics are all held (clashes included: the caller filters on `anti`). */
-export function activeSynergies(held: RelicId[]): SynergyId[] {
-  return SYNERGY_IDS.filter((id) => SYNERGIES[id].relics.every((r) => held.includes(r as RelicId)));
-}
+/** v0.7 (RELICS.md): a family's count, straight pieces (not duos), set level, and the strength its set works at. */
+export interface SetState { count: number; straight: number; level: 0 | SetLevel; strength: number }
 
-export const synergiesOf = (id: RelicId): SynergyId[] => SYNERGY_IDS.filter((s) => (SYNERGIES[s].relics as RelicId[]).includes(id));
+/**
+ * Family counts and set levels. `duoFamilies`: the two families of every formed duo (a duo counts for both). A 6 reached without 6 straight
+ * pieces (a family the class does not prefer, completed with a duo) works at DUO_SIX_STRENGTH.
+ */
+export function familySets(held: RelicId[], duoFamilies: [FamilyId, FamilyId][]): Partial<Record<FamilyId, SetState>> {
+  const out: Partial<Record<FamilyId, SetState>> = {};
+  for (const f of FAMILY_IDS) {
+    const straight = held.filter((id) => relicDef(id).family === f).length;
+    const count = straight + duoFamilies.filter((d) => d.includes(f)).length;
+    if (!count) continue;
+    const level = count >= 6 ? 6 : count >= 4 ? 4 : count >= 2 ? 2 : 0;
+    out[f] = { count, straight, level, strength: level === 6 && straight < 6 ? DUO_SIX_STRENGTH : 1 };
+  }
+  return out;
+}
 
 /** Soft cap: face value up to the cap, diminishing returns past it (the excess is squeezed into at most half the cap again). */
 export function softCap(sum: number, cap: number): number {
@@ -74,12 +136,12 @@ export function relicModTotals(held: RelicId[], tiers: RelicTiers): Partial<Reco
     for (const key of Object.keys(mods) as (keyof Mods)[]) {
       const v = mods[key]!;
       const bonus = MULTIPLICATIVE.has(key) ? (key === 'cooldown' ? 1 - v : v - 1) : v;
-      const t = (out[key] ??= { raw: 0, eff: 0, cap: RELIC_STACKING.softCaps[key] ?? Infinity, count: 0 });
+      const t = (out[key] ??= { raw: 0, eff: 0, cap: Infinity, count: 0 });
       t.raw += bonus;
       t.count++;
     }
   }
-  for (const t of Object.values(out)) t.eff = softCap(t.raw, t.cap);
+  for (const t of Object.values(out)) t.eff = t.raw; // v0.7: no category soft caps
   return out;
 }
 
@@ -93,8 +155,7 @@ export function foldRelicMods(statics: RelicTotals, dyn: Partial<Record<keyof Mo
     const st = statics[key];
     const raw = (st?.raw ?? 0) + (dyn[key] ?? 0);
     if (raw === 0 && !st) continue;
-    const cap = st?.cap ?? RELIC_STACKING.softCaps[key] ?? Infinity;
-    out[key] = { raw, eff: softCap(raw, cap), cap, count: (st?.count ?? 0) + (dyn[key] ? 1 : 0) };
+    out[key] = { raw, eff: raw, cap: Infinity, count: (st?.count ?? 0) + (dyn[key] ? 1 : 0) };
   }
   return out;
 }
@@ -111,8 +172,3 @@ export function totalsToMods(totals: RelicTotals): Partial<Mods> {
 /** The one Mods object that folds every held relic's plain mods together (additive within a key, soft-capped). */
 export const relicModsCombined = (held: RelicId[], tiers: RelicTiers): Partial<Mods> => totalsToMods(relicModTotals(held, tiers));
 
-/** Past procCap relics of a proc category, every proc's chance is scaled down so the category as a whole stops growing. */
-export function procScale(held: RelicId[], category: RelicCategory): number {
-  const count = held.filter((id) => relicDef(id).category === category).length;
-  return count <= RELIC_STACKING.procCap ? 1 : RELIC_STACKING.procCap / count;
-}

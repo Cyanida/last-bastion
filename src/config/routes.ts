@@ -6,7 +6,7 @@
 export type RouteFocus = 'elite' | 'merchant' | 'pilgrim' | 'siege';
 
 export const ROUTE_FOCUS: Record<RouteFocus, { name: string; icon: string; desc: string }> = {
-  elite: { name: 'Elite path', icon: '⚔️', desc: 'More elites, and more relics from them.' },
+  elite: { name: 'Elite path', icon: '⚔️', desc: 'More elites, and an extra reroll at every relic moment of the Act.' },
   merchant: { name: 'Merchant path', icon: '🪙', desc: 'The Merchant also waits halfway through the Act, and everything drops more gold.' },
   pilgrim: { name: 'Pilgrim path', icon: '⛩️', desc: 'A shrine blesses you as the Act begins, and you may take one more quest from the board.' },
   siege: { name: 'Siege path', icon: '🏰', desc: 'The enemy is tougher all Act, but its boss pays Runes on top of the usual.' },
@@ -14,7 +14,7 @@ export const ROUTE_FOCUS: Record<RouteFocus, { name: string; icon: string; desc:
 
 export const ROUTES = {
   choices: 3,
-  elite: { eliteMult: 1.8, relicChance: 1.5 }, // elite chance, and elites' relic drop chance, times this
+  elite: { eliteMult: 1.8, rerolls: 1 }, // elite chance times this, and extra rerolls at the Act's relic moments (v0.7: was elites' relic drop chance)
   merchant: { gold: 1.25, midWave: 5 }, // gold drops times this; the Merchant visits after the Act's wave `midWave`
   pilgrim: { extraQuests: 1 },
   siege: { hp: 1.15, damage: 1.15, runes: 2 }, // enemy HP and damage times these; Runes when the Act boss falls, outside the cap

@@ -7,7 +7,6 @@ import { tierForLevel } from '../logic/abilityUpgrades';
 import { applyGrowth, catchUpMult, xpToNext } from '../logic/formulas';
 import { applyStatUpgrade, applyTradeoff, rollLevelUpOptions, upgradeAmount, type LevelUpOption } from '../logic/upgrades';
 import { floatText, ring } from './effects';
-import { rollRelics } from '../logic/relics';
 import { addRelic } from './relics';
 import { readyEvolutions } from '../logic/evolutions';
 import { buildState, evolve } from './evolutions';
@@ -38,7 +37,7 @@ export function gainXp(g: Game, amount: number): void {
 const takenTradeoffs = (g: Game) => TRADEOFF_IDS.filter((id) => g.vars[`tradeoff.${id}`]) as TradeoffId[];
 
 export function levelUpOptions(g: Game): LevelUpOption[] {
-  const options = rollLevelUpOptions(g.rng, takenTradeoffs(g), () => rollRelics(g.relicPool, g.relics, g.relicTiers, g.rng, 1, [], g.relicTierCap)[0] ?? null, g.bannedStats, g.vars.banTalent === 1);
+  const options = rollLevelUpOptions(g.rng, takenTradeoffs(g), null /* v0.7: no relic cards; relics come at fixed moments */, g.bannedStats, g.vars.banTalent === 1);
   // v0.6: a complete evolution recipe is always the first card, until it is taken (rerolls keep it)
   const [ready] = readyEvolutions(buildState(g));
   if (ready) options[0] = { kind: 'evolution', id: ready };
@@ -50,7 +49,7 @@ export function banishOption(g: Game, o: LevelUpOption): boolean {
   if (g.banishes <= 0 || o.kind === 'evolution') return false;
   if (o.kind === 'stat') g.bannedStats = [...g.bannedStats, o.key];
   else if (o.kind === 'talent') g.vars.banTalent = 1;
-  else if (o.kind === 'relic') g.relicPool = g.relicPool.filter((id) => id !== o.id);
+  else if (o.kind === 'relic') g.player.relics.pool = g.player.relics.pool.filter((id) => id !== o.id);
   else g.vars[`tradeoff.${o.id}`] = 1; // counts as taken: never offered again, and changes nothing
   g.banishes--;
   return true;
@@ -60,7 +59,7 @@ export function chooseLevelUp(g: Game, o: LevelUpOption): void {
   const p = g.player;
   if (o.kind === 'talent') g.talentPoints++;
   else if (o.kind === 'evolution') evolve(g, o.id);
-  else if (o.kind === 'relic') addRelic(g, o.id);
+  else if (o.kind === 'relic') addRelic(g, o.id); // v0.7: never offered any more (relics come at fixed moments)
   else if (o.kind === 'tradeoff') {
     const next = applyTradeoff(p.stats, g.baseMods, o.id);
     p.stats = next.stats;

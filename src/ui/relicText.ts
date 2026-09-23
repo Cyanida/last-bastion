@@ -1,6 +1,5 @@
 import { CLASSES } from '../config/classes';
-import { RELIC_CATEGORIES, RELIC_MAX_TIER, relicDef, relicDesc, SYNERGIES, TIER_NUMERALS, type RelicId } from '../config/relics';
-import { synergiesOf } from '../logic/relics';
+import { duoOf, DUOS, FAMILIES, isDuo, isFamily, RELIC_MAX_TIER, relicDef, relicDesc, TIER_NUMERALS, type DuoId, type RelicId, type RelicKey } from '../config/relics';
 import { EVOLUTIONS } from '../config/evolutions';
 import { nearlyReady, requirementNames, requirementText, type BuildState } from '../logic/evolutions';
 
@@ -17,22 +16,31 @@ export function recipeLines(what: { relic?: RelicId; talent?: string }): string[
     .map((n) => `✦ One step from ${EVOLUTIONS[n.id].icon} ${EVOLUTIONS[n.id].name}: it needs ${requirementText(n.missing)}`);
 }
 
-/** Everything a relic tooltip says: rarity, category, tier, this tier's effect, the next tier's, and its synergies and clashes. */
+/** Everything a relic tooltip says: family, rarity, tier, this tier's effect, what attunement brings next, and the evolution recipes. */
 export function relicTip(id: RelicId, tier: number, held: RelicId[] = []): string {
   const r = relicDef(id);
-  const lines = [`${r.name} · ${r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''} · ${RELIC_CATEGORIES[r.category].name}${tier > 0 ? ` · tier ${TIER_NUMERALS[tier]} of ${TIER_NUMERALS[RELIC_MAX_TIER]}` : ''}`];
+  const fam = FAMILIES[r.family];
+  const count = held.filter((h) => relicDef(h).family === r.family).length;
+  const lines = [`${r.name} · ${fam.icon} ${fam.name} · ${r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}${tier > 0 ? ` · tier ${TIER_NUMERALS[tier]} of ${TIER_NUMERALS[RELIC_MAX_TIER]}` : ''}`];
   lines.push(relicDesc(id, Math.max(1, tier)));
-  if (tier > 0 && tier < RELIC_MAX_TIER) lines.push(`Next tier: ${relicDesc(id, tier + 1)}`);
-  else if (tier >= RELIC_MAX_TIER) lines.push('Top tier.');
-  for (const sid of synergiesOf(id)) {
-    const s = SYNERGIES[sid];
-    const others = s.relics.filter((o) => o !== id).map((o) => relicDef(o).name).join(' + ');
-    const active = s.relics.every((o) => held.includes(o));
-    lines.push(`${s.anti ? '⚠ Clashes with' : active ? '✦ Synergy on with' : '✧ Synergy with'} ${others}: ${s.desc}`);
-  }
+  if (tier > 0 && tier < RELIC_MAX_TIER) lines.push('Attunes as it does its work (the bar under it): damage, healing or protection through it, and a little every wave and elite.');
+  if (tier < 2) lines.push(`Tier II: ${relicDesc(id, 2)}`);
+  if (tier < RELIC_MAX_TIER) lines.push(`Awakens at tier III, ${r.awaken.name}: ${r.awaken.desc}`);
+  lines.push(`${fam.name} (${fam.mechanic}), ${count} held: ${([2, 4, 6] as const).map((n) => `${n} ${fam.sets[n][0]}`).join(' · ')}`);
+  const duo = duoOf(id);
+  if (duo) lines.push(`Duo: with ${relicDef(DUOS[duo].from.find((s) => s !== id)!).name} it forms ${DUOS[duo].icon} ${DUOS[duo].name}`);
   lines.push(...recipeLines({ relic: id }));
   return lines.join('\n');
 }
+
+/** v0.7 A5: a duo's tooltip: its families, sources and effect. */
+export function duoTip(id: DuoId): string {
+  const d = DUOS[id];
+  return [`${d.name} · duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}`, d.desc, `From ${d.from.map((r) => relicDef(r).name).join(' + ')}; counts toward both families.`].join('\n');
+}
+/** A relic's or a duo's tooltip. */
+export const keyTip = (id: RelicKey, tier: number, held: RelicId[] = []): string =>
+  isDuo(id) ? duoTip(id) : isFamily(id) ? `${FAMILIES[id].name} set bonuses: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[id].sets[n][0]}`).join(' · ')}` : relicTip(id, tier, held);
 
 export const tierBadge = (tier: number): string => (tier > 1 ? `<i class="tier">${TIER_NUMERALS[tier]}</i>` : '');
 

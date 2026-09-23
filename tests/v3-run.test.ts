@@ -1,3 +1,5 @@
+import { relicDef } from '../src/config/relics';
+import { resolveRelicOffer } from '../src/systems/relics';
 import { describe, expect, it } from 'vitest';
 import { ACT_THEMES, ACTS, FINAL, MERCHANT } from '../src/config/acts';
 import { ARENA_IDS } from '../src/config/arenas';
@@ -76,8 +78,11 @@ describe('merchant pricing', () => {
     g.player.hp = 10;
     expect(merchantHeal(g)).toBe(true);
     expect(g.player.hp).toBeCloseTo(10 + g.player.stats.hp * MERCHANT.heal.frac);
-    expect(merchantBuy(g, 'common')).toBe(true);
-    expect(g.relics).toHaveLength(1);
+    expect(merchantBuy(g, 'common')).toBe(true); // v0.7: a relic moment of that rarity, one of three
+    expect(g.player.relics.offers.at(-1)).toMatchObject({ from: 'merchant' });
+    expect(g.player.relics.offers.at(-1)!.options.every((id) => relicDef(id).rarity === 'common')).toBe(true);
+    expect(resolveRelicOffer(g, g.player.relics.offers.at(-1)!.options[0])).toBe(true);
+    expect(g.player.relics.held).toHaveLength(1);
     const spent = MERCHANT.heal.cost + MERCHANT.buy.common;
     expect(g.gold).toBe(500 - spent);
     expect(g.merchantSpent).toBe(spent);
@@ -92,15 +97,19 @@ describe('merchant pricing', () => {
     g.gold = 9999;
     g.player.hp = g.player.stats.hp;
     expect(merchantHeal(g)).toBe(false);
-    expect(merchantBuy(g, 'rare')).toBe(true);
-    expect(merchantBuy(g, 'rare')).toBe(true); // v0.4: no cap (a duplicate would be a tier up)
-    const before = g.relics[0];
+    for (let i = 0; i < 2; i++) {
+      expect(merchantBuy(g, 'rare')).toBe(true); // v0.4: no cap (a duplicate would be a tier up)
+      expect(merchantBuy(g, 'rare')).toBe(false); // v0.7: one relic moment a visit
+      expect(resolveRelicOffer(g, g.player.relics.offers[0].options.find((id) => !g.player.relics.held.includes(id))!)).toBe(true);
+      g.vars.merchantRelics = 0; // the next visit
+    }
+    const before = g.player.relics.held[0];
     expect(merchantReroll(g, before)).toBe(true);
-    expect(g.relics).toHaveLength(2);
-    expect(g.relics).not.toContain(before);
+    expect(g.player.relics.held).toHaveLength(2);
+    expect(g.player.relics.held).not.toContain(before);
     expect(merchantReroll(g, 'reliquary')).toBe(false); // not held
-    expect(merchantSell(g, g.relics[0])).toBe(true);
-    expect(g.relics).toHaveLength(1);
+    expect(merchantSell(g, g.player.relics.held[0])).toBe(true);
+    expect(g.player.relics.held).toHaveLength(1);
   });
 });
 

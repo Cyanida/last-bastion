@@ -1,7 +1,9 @@
-import { DAMAGE_TYPES, STATUS_TUNING, type DamageType } from '../config/damage';
+import { DAMAGE_TYPES, STATUS_TUNING, STATUSES, type DamageType } from '../config/damage';
+import type { RelicKey } from '../config/relics';
 import type { Game } from '../core/types';
-import { tickStatuses } from '../logic/status';
+import { STATUS_IDS, tickStatuses } from '../logic/status';
 import { damageEnemy, damagePlayer } from './combat';
+import { credit, relicContext } from './relicContext';
 
 /** Collects damage-over-time and lands it every STATUS_TUNING.dotTick, so burns read as ticks, not as a number per frame. */
 function flush(dots: Partial<Record<DamageType, number>>, hit: (amount: number, type: DamageType) => void): void {
@@ -25,7 +27,14 @@ export function updateStatuses(g: Game, dt: number): void {
     }
     if ((e.dotT -= dt) <= 0) {
       e.dotT = STATUS_TUNING.dotTick;
-      flush(e.dots, (amount, type) => damageEnemy(g, e, amount, false, 0, 0, 'hazard', type));
+      flush(e.dots, (amount, type) => {
+        // v0.7: a burn, bleed or poison a relic put on is that relic's damage (the relic that applied it last)
+        const by = STATUS_IDS.map((id) => (STATUSES[id].dot === type ? e.statuses[id]?.by : undefined)).find(Boolean) as RelicKey | undefined;
+        relicContext.acting = by ?? null;
+        const dealt = damageEnemy(g, e, amount, false, 0, 0, 'hazard', type);
+        relicContext.acting = null;
+        if (by) credit(g, g.player, by, 'damage', dealt);
+      });
     }
   }
   const p = g.player;

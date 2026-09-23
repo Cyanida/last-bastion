@@ -176,6 +176,7 @@ export function updateSpawning(g: Game, dt: number): void {
       else g.pendingMerchant = true; // the UI (or the bot) visits the Merchant, then picks a route
     } else if (g.route?.focus === 'merchant' && g.wave % ACTS.length === ROUTES.merchant.midWave && !noMerchant) (g.pendingMerchant = true), (g.midMerchant = true); // v0.6 Merchant path
     g.wavesCleared = g.wave;
+    emit(g, 'onWaveCleared', { wave: g.wave });
     g.modifier = null;
     // the director's rubber band: how much HP is left, and was the wave cleared quickly
     g.perf = updatePerformance(g.perf, g.player.hp / g.player.stats.hp, g.waveT, WAVES.spawn.maxDuration + 15);

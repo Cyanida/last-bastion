@@ -45,7 +45,7 @@ export type FeatureKind = 'shrine' | 'chest' | 'lair' | 'hazard';
 
 export const FEATURES: Record<FeatureKind, { name: string; icon: string; desc: string }> = {
   shrine: { name: 'Shrine', icon: '⛩️', desc: 'An old altar. Kneel for a blessing that lasts the whole run.' },
-  chest: { name: 'Strongbox', icon: '🧰', desc: 'A strongbox left behind in the retreat: gold and a relic.' },
+  chest: { name: 'Strongbox', icon: '🧰', desc: 'A strongbox left behind in the retreat: gold and a Rune shard.' },
   lair: { name: 'Lair', icon: '💀', desc: 'Something big sleeps here. Waking it is worth a relic.' },
   hazard: { name: 'Vents', icon: '♨️', desc: 'Scalding vents guard a forgotten cache of gold.' },
 };

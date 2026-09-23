@@ -6,7 +6,7 @@ import type { ClassDef } from '../config/classes';
 import type { TierDef } from '../config/economy';
 import type { AffixId } from '../config/elites';
 import type { EnemyDef, EnemyId } from '../config/enemies';
-import type { RelicId, SynergyId } from '../config/relics';
+import type { FamilyId, RelicId, DuoId, RelicKey } from '../config/relics';
 import type { TraitId } from '../config/traits';
 import type { BlessingId, FeatureKind, Rect, RegionId, WingId } from '../config/regions';
 import type { UtilityUpgradeId } from '../config/utility';
@@ -34,6 +34,44 @@ export type Rng = () => number;
 export type DamageSource = 'attack' | 'ability' | 'minion' | 'relic' | 'hazard';
 
 /** Run-wide modifiers, rebuilt every tick from meta upgrades, tradeoffs, relics and passive ability upgrades. */
+/** v0.7 (RELICS.md): a relic's share of the run, credited as it happens. */
+export interface RelicStat { damage: number; healing: number; prevented: number }
+
+/** v0.7: where a relic moment came from (config/relics.ts RELIC_MOMENTS). */
+export type RelicSource = 'boss' | 'lair' | 'strongbox' | 'quest' | 'merchant' | 'start' | 'other';
+
+/** v0.7: one relic moment: pick one of the options, or skip it; `rerolls` left for this moment. */
+export interface RelicOffer {
+  from: RelicSource;
+  options: RelicId[];
+  rerolls: number;
+  duo?: DuoId; // v0.7 A5: a ready duo, the gold fourth card
+}
+
+/**
+ * v0.7: everything relic about one player. Co-op-ready: one per player, and every relic choice is an action on it (logic stays per state,
+ * never "the player"). `rng` is the player's own relic stream, split from the run seed, so offers stay the same for a seed whatever else
+ * consumes randomness (the Daily Trial is identical for everyone, and a second player would not shift the first one's offers).
+ */
+export interface RelicState {
+  held: RelicId[]; // in pickup order
+  tiers: Partial<Record<RelicId, number>>; // 1..RELIC_MAX_TIER per held relic, raised only by attunement (v0.7)
+  attune: Partial<Record<RelicId, number>>; // v0.7 A4: progress to the next tier, 0..1 (config ATTUNEMENT)
+  work: Partial<Record<RelicId, number>>; // attunement from work this wave (capped at ATTUNEMENT.workCap)
+  pool: RelicId[]; // unlocked and allowed for this class
+  offers: RelicOffer[]; // queued moments, oldest first
+  found: RelicId[]; // every pickup and tier-up this run, for the compendium
+  from: Record<string, RelicSource>; // where each held relic came from
+  stats: Record<string, RelicStat>; // what each held relic did this run (RELICS.md)
+  rng: Rng;
+  static: RelicTotals; // held relics' plain mods summed per key; rebuilt when dirty
+  dyn: Partial<Record<keyof Mods, number>>; // this tick's conditional bonuses from tick hooks (charges, horns, crowns)
+  totals: RelicTotals; // static + dynamic, soft-capped: what went into p.mods this tick (the stats panel reads it)
+  dirty: boolean;
+  sets: Partial<Record<FamilyId, { count: number; straight: number; level: 0 | 2 | 4 | 6; strength: number }>>; // family counts and set levels, rebuilt with the mods
+  duos: DuoId[]; // v0.7 A5: formed duos, in order (a duo counts toward both its families)
+}
+
 export interface Mods {
   // multipliers
   damage: number;
@@ -92,6 +130,10 @@ export interface Body {
 
 export interface Player extends Body {
   cls: ClassDef;
+  relics: RelicState; // v0.7: this player's relics
+  ward: number; // v0.7: absorbs damage before HP (Holy)
+  armorStacks: number; // v0.7: +3% armor each (Steel), they fade a few seconds after the last was gained
+  armorStackT: number; // when the last armor stack was gained
   stats: Stats;
   hp: number;
   level: number;
@@ -182,6 +224,7 @@ export interface Enemy extends Body {
   lineIn: number; // v0.6: when the player last stood in its line or aim telegraph (perfect dodge)
   lastTele: Telegraph | null; // v0.6: the telegraph it had last tick (perfect dodge checks it when it fires)
   pulled: boolean; // v0.6: one of a wave's last stragglers, coming straight at the player (WAVES.stragglers)
+  frozenT: number; // v0.7: frozen until this time (chill tipped over; Frost reads it)
   hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
   secondWind: number; // v0.6 Oath: a boss rises once more from the brink with this fraction of its HP; 0 = none (or spent)
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
@@ -263,6 +306,7 @@ export interface Projectile extends Body {
   hit: Enemy[];
   status: Status | null;
   source: DamageSource;
+  by?: RelicKey; // v0.7: fired by this relic or duo (its damage is credited to it)
   dtype: DamageType;
 }
 
@@ -298,6 +342,7 @@ export interface Field extends Body {
   tickT: number;
   dtype: DamageType;
   apply: StatusApply | null; // put on whoever stands in it, every tick
+  by?: RelicKey; // v0.7: laid by this relic or duo (its damage is credited to it)
 }
 
 export interface Pickup {
@@ -355,7 +400,7 @@ export interface WaveEvent {
   foe: Enemy | null; // the plague cart
   used: boolean; // the chest opened, the ambush sprung, the peddler visited (until you walk away)
   t: number; // the cart's pool timer
-  wares: RelicId[]; // the peddler's
+  stock: number; // v0.7: the peddler's relic moments left to sell (he sells a pick of three, not loose relics)
 }
 
 /** v0.6: a light an evolution shows for one tick (render/renderer.ts draws them): a soft disc, or a ring outline. */
@@ -444,25 +489,13 @@ export interface Game {
   timers: { t: number; fn: () => void }[]; // delayed actions (second volley, twin pulse...)
   vars: Record<string, number>; // scratch for relics and ability upgrades
   baseMods: Mods; // meta upgrades + tradeoffs; relics are layered on top each tick
-  relics: RelicId[]; // held, in pickup order (no cap since v0.4: a duplicate pickup raises the tier)
-  relicTiers: Partial<Record<RelicId, number>>; // 1..RELIC_MAX_TIER per held relic
-  relicStatic: RelicTotals; // held relics' plain mods summed per key; rebuilt when relicModsDirty
-  relicDyn: Partial<Record<keyof Mods, number>>; // this tick's conditional bonuses from tick hooks (charges, horns, crowns)
-  relicTotals: RelicTotals; // static + dynamic, soft-capped: what went into p.mods this tick (the stats panel reads it)
-  relicModsDirty: boolean;
-  synergies: SynergyId[]; // active positive synergies (rebuilt with relicMods)
-  relicsFound: RelicId[]; // every pickup and tier-up this run, for the compendium
   salvage: number; // Rune shards from salvaged relics
   procDepth: number; // relic hooks running inside relic hooks; chains stop at RELIC_STACKING.procDepth
-  reaperMark: Enemy | null; // the Reaper synergy: the enemy the Hood last found below its threshold
   relicSlots: number; // the Keep's old relic-slot ranks; no longer a cap (kept for save compatibility)
-  relicPool: RelicId[]; // unlocked and allowed for this class
-  relicOffers: RelicId[][]; // queued choices (boss kill: 3, elite chest: 1); a held relic in an offer means a tier up
   pendingAbilityTiers: number[];
   pendingUtilityTiers: number[]; // v0.4: utility ability choices due (UTILITY.tiers)
   talentPoints: number; // unspent
   talentRowCap: number; // v0.4: the Library's level caps the talent rows (TALENT_ROW_CAP)
-  relicTierCap: number; // v0.4: the Chapel's vault: 2 until bought, then RELIC_MAX_TIER
   utilityTiers: number; // v0.4: how many utility upgrade tiers this run offers (mastery rank 5 unlocks the second)
   eliteGold: number; // v0.4 Watchtower bounties
   bossGold: number;

@@ -1,8 +1,9 @@
+import { relicShares } from './relics';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ENEMIES } from '../config/enemies';
 import { EVENTS } from '../config/events';
 import { RUN_LOG } from '../config/game';
-import { relicDef, TIER_NUMERALS } from '../config/relics';
+import { DUOS, RELIC_MAX_TIER, relicDef, TIER_NUMERALS } from '../config/relics';
 import { TALENT_BY_ID } from '../config/talents';
 import { UTILITY_UPGRADES } from '../config/utility';
 import { addListener, type GameEvents } from '../core/events';
@@ -19,7 +20,7 @@ import { round1, type MarkKind, type RunLog, type RunLogDraft } from '../logic/r
 export function startRunLog(g: Game): void {
   const s = g.log.seen;
   s.level = g.player.level;
-  s.relics = g.relicsFound.length;
+  s.relics = g.player.relics.found.length;
   s.talents = g.player.talents.length;
   if ((s.board = g.pendingBoard)) mark(g, 'board', actName(g.act)); // Act I's board is up before the first tick (the bot answers it before one)
 }
@@ -40,9 +41,9 @@ export function updateRunLog(g: Game, dt: number): void {
   if (row && g.enemies.length < RUN_LOG.quietBelow) row[3] += dt;
   for (; s.cleared < g.wavesCleared; s.cleared++) if (g.log.waves[s.cleared]) g.log.waves[s.cleared][1] = round1(g.time);
   while (s.level < p.level) mark(g, 'level', String(++s.level));
-  for (; s.relics < g.relicsFound.length; s.relics++) {
-    const id = g.relicsFound[s.relics];
-    mark(g, 'relic', `${relicDef(id).name} ${TIER_NUMERALS[g.relicTiers[id] ?? 1]}`);
+  for (; s.relics < g.player.relics.found.length; s.relics++) {
+    const id = g.player.relics.found[s.relics];
+    mark(g, 'relic', relicDef(id).name);
   }
   for (; s.talents < p.talents.length; s.talents++) mark(g, 'talent', TALENT_BY_ID[p.talents[s.talents]]?.name ?? p.talents[s.talents]);
   for (; s.upgrades < p.upgrades.length; s.upgrades++) mark(g, 'upgrade', ABILITY_UPGRADES[p.upgrades[s.upgrades]].name);
@@ -91,7 +92,8 @@ export function finishRunLog(g: Game): RunLog {
     end: g.over ? 'slain' : g.victory === 'pending' ? 'won' : 'quit',
     won: g.victory !== 'none',
     cause: g.over ? g.log.cause : '',
-    relics: Object.fromEntries(g.relics.map((id) => [id, g.relicTiers[id] ?? 1])),
+    relics: Object.fromEntries(g.player.relics.held.map((id) => [id, g.player.relics.tiers[id] ?? 1])),
+    relicShares: Object.fromEntries(relicShares(g).map((r) => [r.id, [r.damage, r.healing, r.mitigation]])),
     talents: [...p.talents],
     upgrades: [...p.upgrades, ...p.utilityUpgrades],
     waves: g.log.waves.map(([a, b, d, q]) => [a, b, Math.round(d), round1(q)]),
@@ -101,6 +103,11 @@ export function finishRunLog(g: Game): RunLog {
 
 addListener((g, name, ev) => {
   if (name === 'onWaveStart') g.log.waves.push([round1(g.time), 0, 0, 0]);
+  else if (name === 'onDuoFormed') mark(g, 'relic', `Duo: ${DUOS[(ev as GameEvents['onDuoFormed']).id].name}`);
+  else if (name === 'onRelicTier') {
+    const { id, tier } = ev as GameEvents['onRelicTier'];
+    mark(g, 'attune', `${relicDef(id).name} ${TIER_NUMERALS[tier]}${tier >= RELIC_MAX_TIER ? `, awakened: ${relicDef(id).awaken.name}` : ''}`);
+  }
   else if (name === 'onDamageTaken') {
     const row = g.log.waves[g.wave - 1];
     if (row) row[2] += (ev as GameEvents['onDamageTaken']).amount;
