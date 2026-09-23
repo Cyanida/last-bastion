@@ -235,6 +235,17 @@ in `config/relics.ts` (`CURSED`, and the six entries at the end of `RELICS`).
 | 🍷 Crimson Chalice | 3% → 4.5% of all the damage you deal heals you (under the relic healing cap) | Max HP cut to 70% (back when it awakens or is sold) | **Overflowing** |
 | 🏴 Tyrant's Banner | Every elite slain: +4% → 6% damage and attack speed for the rest of the run (up to 60% → 90%) | 60% more elites | **Conqueror** |
 
+**Measured.**
+
+*Held from the start.* Fresh saves, the bot, 5 classes × 2 seeds, run to wave 25. Every cursed relic carries a run further than no relic (12.6 waves cleared) or than a strong family relic, Salamander Scale (11.4):
+
+| | Hungering Blade | Doom Bell | Scepter of Ruin | Abyssal Eye | Crimson Chalice | Tyrant's Banner |
+|---|---|---|---|---|---|---|
+| Waves cleared | 16.4 | 16.0 | 17.0 | 15.1 | 17.6 | 17.4 |
+| Share (damage or healing) | 16.5% | 13.1% | not measured (a cooldown cut) | 15.9% | 46.4% of healing | 26.9% |
+
+*In the relic sim* (`sim -- relics 8`, maxed saves; the bot takes every cursed relic it is offered): 20 cursed relics were held at wave 20 across 33 runs. Tyrant's Banner reached 25% from wave 21 on, Crimson Chalice 23% and Hungering Blade 13%. Every A8 target still holds: 6-sets in 41% of winning runs, 1.10 duos, a power index of 2.04. Cursed relics sit above the family band (3-35%) on purpose. The Chalice's 46% share of healing is its lifesteal doing the healing, paid for with 30% of max HP.
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
