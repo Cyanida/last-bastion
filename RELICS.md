@@ -118,11 +118,11 @@ Measured with the bot (maxed saves, 3 seeds per class, the bot buying at every M
 are free (7 bosses, 3-4 lairs, 2-3 quests, 1-2 strongboxes) and 3 bought. A player who does not buy every time lands in the 12-16 target;
 A8 revisits the numbers once the new relics exist.
 
-## A0b · The new relic list (for approval, revision 2)
+## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
 at character select; a preferred family can be **maxed with straight family pieces**, any other family only reaches a straight 4-set and needs a
-duo for its 6, **which then works at reduced strength**; every family now has 5 relics any class can find (Flame and Frost gained one each); the
+duo for its 6, **which then works at increased strength** (rarity is strength); every family now has 5 relics any class can find (Flame and Frost gained one each); the
 Necromancer's third class relic moved to Holy (Crypt Key became Hallowed Bones). The names stay. Cursed relics (0.7.1) stay standalone, very rare,
 very strong and risky, outside the families. An alternative structure Jesse suggested (core element families and rarer families) is sketched at
 the end for comparison.
@@ -133,7 +133,8 @@ the end for comparison.
   held change how you play. Every family has **5 relics any class can find**, plus the class relics of the classes that prefer it.
 - **Preferred families.** Every class prefers three families, and its three class relics are one in each. So in a preferred family a class
   can find **6 straight pieces** (5 + its class relic) and max the family; in any other family it finds 5, which gives the 2 and 4 bonuses, and
-  the 6 needs a duo piece (a duo counts for both its families). **A 6-set completed with a duo works at 75% strength** (all its numbers).
+  the 6 needs a duo piece (a duo counts for both its families). **A 6-set completed with a duo works at 125% strength** (all its numbers):
+  the rarer route is the stronger one.
   The class select shows each class's preferred families, and the compendium shows which relics your class can find.
 - **50 relics**: 35 that any class can find and 15 class relics (3 per class, one in each preferred family). Rarity sets how often a relic
   is offered (common, rare, legendary), not how many you can hold: there are no duplicates.
@@ -276,7 +277,7 @@ source relic can feed only one formed duo.
 | Every class has 3 class relics, each in a family, tied to its ability or secondary stat | Paladin: Radiant Brand (Flame), Reliquary of Saints (Holy), Aegis of the Faithful (Steel). Viking: Stormborn Pelt (Storm), Wolfskin Cloak (Blood), Ironhide (Steel). Angel: Sunfire Censer (Flame), Frostward Halo (Frost), Seraph's Halo (Holy). Necromancer: Lich Lantern (Frost), Bone Chime (Grave), Hallowed Bones (Holy). Archer: Fire Arrows (Flame), Rimebow (Frost), Galeforce Quiver (Storm) | ✔ |
 | Every class has at least two families that suit it well | Three preferred families each, where it can max the set: Paladin Flame, Holy, Steel. Viking Blood, Storm, Steel. Angel Flame, Frost, Holy. Necromancer Frost, Holy, Grave. Archer Flame, Frost, Storm | ✔ |
 | No family is useless for any class | Every family has 5 relics any class can find and reaches a straight 4-set for everyone; at least three relics per family work for every class ("any" rows); Grave's minion-dependence is covered by Undying Host, Soul Lantern, Exhume and Grave Pact's fallback skeleton | ✔ |
-| A 6-set without 6 straight pieces is adjusted | Outside its preferred families a class needs a duo piece for the 6; such a 6-set works at 75% strength | ✔ |
+| A 6-set without 6 straight pieces is adjusted | Outside its preferred families a class needs a duo piece for the 6; such a 6-set works at 125% strength (rarity is strength) | ✔ |
 | Set bonuses scale with the secondary stat where it fits | Stoked, Pyre, Arc, Shatter, Blessed, Undying Host, Bulwark scale with S; the rest are rules, not numbers | ✔ |
 | At least 12 duos, each from two specific relics of two different families | 12 duos, 24 distinct source relics, all findable by every class | ✔ |
 | No family in more than 4 duo recipes, every family in at least 2 | Flame 4, Frost 4, Storm 4, Blood 3, Holy 3, Grave 3, Steel 3 | ✔ |
@@ -302,19 +303,8 @@ at character select which families suit a class, with all families open to all c
 Holy, Steel); the names are fine; cursed relics standalone, very rare, very strong, with a risk.
 
 **Revision 2** (this one): preferred families (three per class, one class relic in each, shown at character select and in the compendium);
-a straight 6-set only in preferred families, otherwise a duo completes the 6 at 75% strength; 5 findable relics in every family (+Cinder Charm,
-+Glacial Heart); Crypt Key replaced by Hallowed Bones (Necromancer, Holy). Two points to confirm:
+a straight 6-set only in preferred families, otherwise a duo completes the 6 at 125% strength; 5 findable relics in every family (+Cinder Charm,
++Glacial Heart); Crypt Key replaced by Hallowed Bones (Necromancer, Holy).
 
-1. **"Adjust the strength"** read as: a 6-set completed with a duo piece works at **75%** of its numbers. If you meant the opposite (a stronger
-   6 as the reward for the harder route) or a different number, say so.
-2. **Structure.** Revision 2 keeps the seven families of the brief. The alternative you floated, for comparison:
-
-   | | Revision 2 (proposed) | Element alternative |
-   |---|---|---|
-   | Families | 7 equal families, 5 findable relics each | 4 core elements (🔥 Flame, ❄️ Frost, ⚡ Storm as air, 🛡️ Steel as earth) with 6-7 findable relics and 2/4/6 sets; 3 rarer creeds (🩸 Blood, ✨ Holy, 💀 Grave) with 4 relics, offered less often, 2/4 sets only |
-   | Duos | 12, spread over all families | element pairs first (Thermal Shock, Wildfire, Hailstorm, Glacier Plate, Lightning Rod, a Flame + Steel one), creed + element for the rest |
-   | Class identity | 3 preferred families per class | a preferred element and a preferred creed per class |
-   | Learning curve | one rule (preferred families, shown at character select) | two tiers of families to learn |
-
-   I recommend revision 2: it keeps your family table, and the preferred-family display answers the learning-curve concern directly.
-   Pick one (or tell me what to change) and I build A3-A5 on it.
+**Approved** by Jesse on #5 (2026-09-23): revision 2, with one change: "rarity should equal strength", so a 6-set completed with a duo is
+**stronger** than a straight 6-set of the same family, not weaker (125%). The element alternative is not taken.
