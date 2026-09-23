@@ -209,6 +209,32 @@ holds ~22 relics by wave 40 and takes every duo; A8 measures with the family-fol
 - **Answered on #13 (Jesse): fewer relic moments.** Strongboxes no longer give a relic. 6-sets stay at about 65% of winning runs,
   mostly five pieces plus a duo; counting a duo as half a piece per family is offered for v0.7.1.
 
+## B6 · Cursed relics (v0.7.2)
+
+Jesse on #5: cursed relics are standalone, very rare, very strong, and carry a risk. `CURSED_RELICS` in `systems/relicFamilies/cursed.ts`, numbers
+in `config/relics.ts` (`CURSED`, and the six entries at the end of `RELICS`).
+
+- **No family.** `RelicDef.family` is optional and a cursed relic has none, with `cursed: true` instead. It counts toward no set, feeds no
+  duo, and the family rule of an offer ignores it. Everything that reads a family (tooltips, cards, the compendium, the HUD, the bot)
+  handles "none", and shows a cursed relic in purple (`CURSED.color`).
+- **Offered by their own rule.** Cursed relics are never in the pool. At a wave-boss or lair moment, `CURSED.chance` (10%) of the time and at
+  most once an Act per player (`RelicState.cursedAct`), one not held takes the **third card**. The other cards still follow the family rule.
+  A reroll keeps the cursed card. With about 2.6 such moments an Act, that is roughly one Act in four, or one cursed offer in a full run.
+- **The curse lifts on awakening.** They attune like any relic. Tier II strengthens the effect, and tier III lifts the curse.
+- **A separate deed.** *Cursebearer* (Challenges): win carrying one, two and three cursed relics (title *the Accursed*). It is read from a
+  new counter, `counters.cursedWin`, an entry in the existing counters: the save format stays 6, and an older save reads it as 0. The
+  collection deeds (Curator, Devoted, Nothing Left to Find) count family relics only.
+- **Sims.** The drafting bot takes a cursed relic whenever one is offered.
+
+| Relic | Effect (I → II) | Curse | Awakened (III) |
+|---|---|---|---|
+| 🗡️ Hungering Blade | Every kill this wave: +2% → 3% damage (up to 60% → 90%) | 5 s in a fight without a kill: it takes 6% of your max HP (never below 1) | **Sated** |
+| 🔔 Doom Bell | Every kill tolls: the dead burst for 25% → 35% of their max HP around them | The horde moves 15% faster | **Last Toll** |
+| 🔱 Scepter of Ruin | Signature ability cooldown 45% → 55% shorter | Every cast costs 10% of your current HP (never below 1) | **Crowned in Ruin** |
+| 🧿 Abyssal Eye | Enemies within 220 px take 40% → 55% more damage from your attacks and abilities | Enemies within 220 px deal 25% more to you | **Unblinking** |
+| 🍷 Crimson Chalice | 3% → 4.5% of all the damage you deal heals you (under the relic healing cap) | Max HP cut to 70% (back when it awakens or is sold) | **Overflowing** |
+| 🏴 Tyrant's Banner | Every elite slain: +4% → 6% damage and attack speed for the rest of the run (up to 60% → 90%) | 60% more elites | **Conqueror** |
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown

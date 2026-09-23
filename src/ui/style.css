@@ -264,6 +264,10 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .relic.rare, .relic-card.rare, .boon.rare { border-color: #3f6fae; outline-color: #6f9fe0; }
 .relic.legendary, .relic-card.legendary, .boon.epic { border-color: #a0522d; outline-color: #e07b28; }
 .relic.legendary { box-shadow: 0 0 10px #e07b28; }
+.relic.cursed, .relic-card.cursed { border-color: #6b2d8f; outline-color: #9b59d0; } /* v0.7.1 B6: cursed relics are purple */
+.relic.cursed { box-shadow: 0 0 10px #9b59d0; }
+.relic-card.cursed { background: linear-gradient(#eadcf3, #cdb3df); }
+.relic-card.cursed .tag, .relic-line.cursed { color: #5b2380; font-weight: bold; }
 .relic-icon .tier { position: absolute; right: calc(50% - 34px); bottom: 4px; font: bold 14px var(--body); font-style: normal; color: #e9c95a; text-shadow: 0 0 3px #000, 0 0 3px #000; }
 .relic-icon { position: relative; }
 .relic-line { cursor: help; }

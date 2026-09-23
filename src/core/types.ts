@@ -70,6 +70,7 @@ export interface RelicState {
   dirty: boolean;
   sets: Partial<Record<FamilyId, { count: number; straight: number; level: 0 | 2 | 4 | 6; strength: number }>>; // family counts and set levels, rebuilt with the mods
   duos: DuoId[]; // v0.7 A5: formed duos, in order (a duo counts toward both its families)
+  cursedAct: number; // v0.7.1 B6: the last Act a cursed relic was offered to this player (0: none yet)
 }
 
 export interface Mods {

@@ -11,7 +11,7 @@ export const relicStream = (seed: number, player: number): Rng => mulberry32(has
 /** An empty relic state; createGame fills in the pool and the stream. */
 export const emptyRelics = (): RelicState => ({
   held: [], tiers: {}, attune: {}, work: {}, pool: [], offers: [], found: [], from: {}, stats: {}, rng: mulberry32(0),
-  static: {}, dyn: {}, totals: {}, dirty: true, sets: {}, duos: [],
+  static: {}, dyn: {}, totals: {}, dirty: true, sets: {}, duos: [], cursedAct: 0,
 });
 
 export type RelicTiers = Partial<Record<RelicId, number>>;
@@ -44,7 +44,7 @@ export function attuneAll(r: RelicState, amount: number): void {
 
 /** Relics this class may find: everything unlocked, minus other classes' relics. */
 export function relicPoolFor(classId: ClassId, locked: RelicId[]): RelicId[] {
-  return RELIC_IDS.filter((id) => !locked.includes(id) && (relicDef(id).classId ?? classId) === classId);
+  return RELIC_IDS.filter((id) => !locked.includes(id) && !relicDef(id).cursed && (relicDef(id).classId ?? classId) === classId); // v0.7.1: cursed relics come by their own rule
 }
 
 export const relicTier = (tiers: RelicTiers, id: RelicId): number => tiers[id] ?? 0;

@@ -8,7 +8,7 @@ import type { ClassId } from '../config/classes';
 import { GAME } from '../config/game';
 import { UPGRADE_RARITIES } from '../config/upgrades';
 import type { Game, RelicOffer, StatKey } from '../core/types';
-import { FAMILY_IDS, preferredFamilies, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
+import { FAMILY_IDS, isCursedRelic, preferredFamilies, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
 import { duoFamilies, familySets } from '../logic/relics';
 import { createGame, summarizeRun, updateGame, type RunOptions } from '../game';
 import type { RunSummary } from '../logic/save';
@@ -184,6 +184,8 @@ export const BOT_BRANCH = 0.15;
 function draftRelic(g: Game, o: RelicOffer): RelicId | DuoId | null {
   if (o.duo) return o.duo;
   if (!o.options.length) return null;
+  const cursed = o.options.find(isCursedRelic); // v0.7.1 B6: a cursed relic whenever one is offered (the sims measure them)
+  if (cursed) return cursed;
   const r = g.player.relics;
   const sets = familySets(r.held, duoFamilies(r.duos));
   const prefer = preferredFamilies(g.player.cls.id);
@@ -191,7 +193,10 @@ function draftRelic(g: Game, o: RelicOffer): RelicId | DuoId | null {
   const main = FAMILY_IDS.reduce((a, b) => (count(b) > count(a) || (count(b) === count(a) && prefer.includes(b) && !prefer.includes(a)) ? b : a));
   const picks = r.found.length;
   if ((((g.seed * 2654435761) ^ (picks * 40503)) >>> 0) % 1000 < BOT_BRANCH * 1000) return o.options[picks % o.options.length];
-  const score = (id: RelicId) => (relicDef(id).family === main ? 2 : 0) + (prefer.includes(relicDef(id).family) ? 1 : 0);
+  const score = (id: RelicId) => {
+    const f = relicDef(id).family;
+    return (f === main ? 2 : 0) + (f && prefer.includes(f) ? 1 : 0);
+  };
   return o.options.reduce((a, b) => (score(b) > score(a) ? b : a));
 }
 

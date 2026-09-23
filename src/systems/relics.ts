@@ -1,5 +1,5 @@
 import { ROUTES } from '../config/routes';
-import { ATTUNEMENT, BOSS_RELIC_CHOICES, duoOf, DUOS, FAMILIES, isDuo, isFamily, FAMILY_IDS, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, BOSS_RELIC_CHOICES, CURSED, CURSED_IDS, duoOf, DUOS, FAMILIES, isCursedRelic, isDuo, isFamily, FAMILY_IDS, keyColor, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { sfx } from '../core/audio';
 import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
@@ -16,13 +16,14 @@ import { HOLY_RELICS, HOLY_SETS } from './relicFamilies/holy';
 import { STEEL_RELICS, STEEL_SETS } from './relicFamilies/steel';
 import { STORM_RELICS, STORM_SETS } from './relicFamilies/storm';
 import { DUO_HOOKS } from './relicFamilies/duos';
+import { CURSED_RELICS } from './relicFamilies/cursed';
 
 /**
  * v0.7 relic engine (RELICS.md): relic moments and offers, per-relic contribution, and the dispatch of every held relic's hooks and every
  * reached set bonus. The behaviour of each relic and set lives in systems/relicFamilies/<family>.ts; the shared mechanics in relicCore.ts.
  * Hooks run inside one another's damage (a relic reacting to a relic): the chain stops at RELIC_STACKING.procDepth.
  */
-export const HOOKS: Partial<Record<RelicId, RelicHooks>> = { ...FLAME_RELICS, ...FROST_RELICS, ...STORM_RELICS, ...BLOOD_RELICS, ...HOLY_RELICS, ...GRAVE_RELICS, ...STEEL_RELICS };
+export const HOOKS: Partial<Record<RelicId, RelicHooks>> = { ...FLAME_RELICS, ...FROST_RELICS, ...STORM_RELICS, ...BLOOD_RELICS, ...HOLY_RELICS, ...GRAVE_RELICS, ...STEEL_RELICS, ...CURSED_RELICS };
 const SETS: Record<FamilyId, Partial<Record<SetLevel, RelicHooks>>> = { flame: FLAME_SETS, frost: FROST_SETS, storm: STORM_SETS, blood: BLOOD_SETS, holy: HOLY_SETS, grave: GRAVE_SETS, steel: STEEL_SETS };
 const BONUS_KEYS = new Set<keyof Mods>(['damage', 'atkSpd', 'moveSpd', 'cooldown', 'pickup', 'xp', 'gold', 'minionAtkSpd', 'minionDamage']); // multiplicative mods (logic/relics.ts)
 
@@ -135,10 +136,12 @@ export function updateRelics(g: Game, dt: number): void {
     }
   }
   for (const key of Object.keys(r.dyn) as (keyof Mods)[]) r.dyn[key] = 0;
-  // numbers the families set every tick, back to neutral first (Blessed Water, Butcher's Hook, Charnel)
+  // numbers the families set every tick, back to neutral first (Blessed Water, Butcher's Hook, Charnel; the Doom Bell's and Tyrant's Banner's curses)
   g.vars.relicHealMult = 1;
   g.vars['relic.bleedSlow'] = 0;
   g.vars['corpse.mult'] = 1;
+  g.vars['relic.enemySpeed'] = 1;
+  g.vars['relic.eliteMult'] = 1;
   // the per-relic weights for contribution (RELICS.md): static mods, then the tick hooks add their conditional bonuses
   const raw: Partial<Record<RelicKey, Partial<Record<keyof Mods, number>>>> = {};
   for (const id of r.held) {
@@ -195,7 +198,7 @@ function tierUp(g: Game, p: Player, id: RelicId): void {
   r.dirty = true;
   HOOKS[id]?.acquire?.(g, p); // Blood Pact's HP cut follows its tier
   const def = relicDef(id);
-  const color = FAMILIES[def.family].color;
+  const color = keyColor(id);
   floatText(g, p.x, p.y - 60, tier >= RELIC_MAX_TIER ? `${def.icon} ${def.name} awakens: ${def.awaken.name}` : `${def.icon} ${def.name} attuned: tier ${TIER_NUMERALS[tier]}`, color, 17);
   ring(g, p.x, p.y, 70, color, 0.6);
   sfx('levelup');
@@ -209,16 +212,12 @@ export function removeRelic(g: Game, id: RelicId): boolean {
   const { [id]: _gone, ...rest } = g.player.relics.tiers;
   g.player.relics.tiers = rest;
   g.player.relics.dirty = true;
-  if (id === 'bloodPact') {
-    const p = g.player;
-    p.stats.hp = p.stats.hp / (g.vars.bloodPactHp ?? 1);
-    g.vars.bloodPactHp = 1;
-  }
+  HOOKS[id]?.remove?.(g, g.player); // Blood Pact and Crimson Chalice give the max HP back
   return true;
 }
 
-/** v0.7: a relic's family (RELICS.md). */
-export const familyOf = (id: RelicId): FamilyId => relicDef(id).family;
+/** v0.7: a relic's family (RELICS.md); none for a cursed relic. */
+export const familyOf = (id: RelicId): FamilyId | undefined => relicDef(id).family;
 
 const pct = (v: number) => `${v >= 0 ? '+' : ''}${Math.round(v * 100)}%`;
 
@@ -242,11 +241,11 @@ export function relicPreview(p: Player, id: RelicId): string[] {
     if (after[key] && after[key]!.eff < after[key]!.raw - 1e-9) lines[lines.length - 1] += ' (soft-capped)';
   }
   const fam = familyOf(id);
-  {
+  if (fam) {
     const n = r.sets[fam]?.count ?? 0;
     const set = (SET_LEVELS as readonly number[]).includes(n + 1) ? `: ${FAMILIES[fam].sets[(n + 1) as SetLevel][0]}` : '';
     lines.push(`${FAMILIES[fam].icon} ${FAMILIES[fam].name} ${n} → ${n + 1}${set}`);
-  }
+  } else lines.push('☠ Cursed: no family or set; awakening it lifts the curse');
   const duo = duoOf(id);
   const partner = duo && DUOS[duo].from.find((s) => s !== id)!;
   if (duo && partner && r.held.includes(partner) && !r.duos.includes(duo)) {
@@ -283,12 +282,25 @@ function roll(p: Player, pool: RelicId[], n: number): RelicId[] {
  * Every relic choice is an action on a player's own state, so in co-op any player can have their own moment.
  */
 export function offerRelics(g: Game, count = BOSS_RELIC_CHOICES, from: RelicSource = 'other', p: Player = g.player, pool = p.relics.pool): void {
-  const options = roll(p, pool, count);
+  const cursed = cursedCard(g, p, from);
+  const options = roll(p, pool, cursed ? count - 1 : count);
+  if (cursed) options.splice(2, 0, cursed); // the third card (the last, if the pool ran short)
   // v0.7 A5: the first completed duo not already on a queued moment comes along as a gold fourth card (one a moment), at a wave boss (A8)
   const duo = RELIC_MOMENTS.duoAt.includes(from) ? readyDuos(p.relics).find((d) => !p.relics.offers.some((o) => o.duo === d)) : undefined;
   if (!options.length && !duo) return;
   p.relics.offers.push({ from, options, rerolls: momentRerolls(g), ...(duo ? { duo } : {}) });
   g.vars[`moments.${from}`] = (g.vars[`moments.${from}`] ?? 0) + 1; // counted for the sims (RELICS.md: 12-16 a run)
+}
+
+/**
+ * v0.7.1 B6: the cursed relic for a moment's third card, if one comes: at a moment in CURSED.at, not yet this Act for this player, CURSED.chance
+ * of the time. Cursed relics are never in the pool, so this is the only way one is offered.
+ */
+function cursedCard(g: Game, p: Player, from: RelicSource): RelicId | undefined {
+  const left = CURSED_IDS.filter((id) => !p.relics.held.includes(id));
+  if (!CURSED.at.includes(from) || p.relics.cursedAct >= g.act || !left.length || p.relics.rng() >= CURSED.chance) return undefined;
+  p.relics.cursedAct = g.act;
+  return left[Math.floor(p.relics.rng() * left.length)];
 }
 
 /** Take one of the first queued moment's options. */
@@ -333,8 +345,10 @@ export function rerollRelicOffer(g: Game, p: Player = g.player): boolean {
   if (!offer || offer.rerolls <= 0) return false;
   const pool = offer.from === 'merchant' ? p.relics.pool.filter((id) => relicDef(id).rarity === relicDef(offer.options[0]).rarity) : p.relics.pool;
   const others = p.relics.offers.slice(1).flatMap((o) => o.options);
-  const options = rollOffer(pool, p.relics.held, p.relics.rng, offer.options.length, familyOf, RELIC_MOMENTS.heldFamilyWeight, [...others, ...offer.options]);
+  const cursed = offer.options.filter(isCursedRelic); // B6: a cursed third card stays
+  const options = rollOffer(pool, p.relics.held, p.relics.rng, offer.options.length - cursed.length, familyOf, RELIC_MOMENTS.heldFamilyWeight, [...others, ...offer.options]);
   if (!options.length) return false;
+  options.splice(2, 0, ...cursed);
   offer.options = options;
   offer.rerolls--;
   return true;

@@ -125,7 +125,7 @@ Relic moments a winning run met: ${avg(won.map((r) => Object.values(r.moments).r
     const held = late.filter((r) => id in r.late!.shares);
     return { id, n: held.length, share: avg(held.map((r) => r.late!.shares[id])) };
   }).filter((t) => t.n > 0).sort((a, b) => b.share - a.share);
-  for (const t of table) console.log(`| ${keyName(t.id)} | ${isDuo(t.id) ? 'duo' : isFamily(t.id) ? 'set bonuses' : FAMILIES[relicDef(t.id).family].name} | ${t.n} | ${pct(t.share)} | ${isFamily(t.id) ? '' : t.share < 0.03 ? '**under 3%**' : t.share > 0.35 ? '**over 35%**' : ''} |`);
+  for (const t of table) console.log(`| ${keyName(t.id)} | ${isDuo(t.id) ? 'duo' : isFamily(t.id) ? 'set bonuses' : (relicDef(t.id).family ? FAMILIES[relicDef(t.id).family!].name : 'cursed')} | ${t.n} | ${pct(t.share)} | ${isFamily(t.id) ? '' : t.share < 0.03 ? '**under 3%**' : t.share > 0.35 ? '**over 35%**' : ''} |`);
   const unseen = keys.filter((id) => !isFamily(id) && !table.some((t) => t.id === id));
   if (unseen.length) console.log(`\nNot held at wave 20 in any run: ${unseen.map(keyName).join(', ')}.`);
 }

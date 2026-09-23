@@ -29,8 +29,10 @@ const tick = (g: Game) => {
 };
 
 describe('family rules (RELICS.md, revision 2)', () => {
-  it('50 relics: 5 any class can find in every family, and 3 class relics per class, one in each of its preferred families', () => {
-    expect(RELIC_IDS).toHaveLength(50);
+  it('50 family relics: 5 any class can find in every family, and 3 class relics per class, one in each of its preferred families', () => {
+    const family = RELIC_IDS.filter((id) => !relicDef(id).cursed); // v0.7.1 B6: the cursed relics stand outside the families (v7-cursed.test.ts)
+    expect(family).toHaveLength(50);
+    for (const id of family) expect(FAMILY_IDS, id).toContain(relicDef(id).family);
     for (const f of FAMILY_IDS) expect(anyClass(f), f).toHaveLength(5);
     for (const c of CLASS_ORDER) {
       expect(preferredFamilies(c), c).toHaveLength(3);

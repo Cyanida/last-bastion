@@ -7,7 +7,7 @@ import { FAMILIES, FAMILY_IDS, preferredFamilies, type Rarity, RELIC_IDS, RELIC_
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
 import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
-import { DUO_IDS, DUOS, keyIcon, keyName, relicDef, type DuoId, type RelicId, type RelicKey } from '../config/relics';
+import { CURSED, CURSED_IDS, DUO_IDS, DUOS, keyColor, keyIcon, keyName, relicDef, type DuoId, type RelicId, type RelicKey } from '../config/relics';
 import { BLESSINGS, type BlessingId } from '../config/regions';
 import { QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
@@ -19,7 +19,7 @@ import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/ut
 import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
 import { duoFamilies, familySets, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
-import { duoTip, esc, keyTip, recipeLines, relicLine, relicTip, tierBadge } from './relicText';
+import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
 import type { QualitySetting } from '../config/game';
@@ -91,9 +91,9 @@ const fmtTime = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.flo
 /** A relic card: the tier it would be at after taking it (1 = new), its text at that tier, synergies with what is held. */
 const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, extra = '') => {
   const r = relicDef(id);
-  const fam = FAMILIES[r.family];
+  const fam = r.family ? `${FAMILIES[r.family].icon} ${FAMILIES[r.family].name}` : '☠ Cursed'; // v0.7.1 B6: a cursed card is purple and says so
   const upgrade = tier > 1;
-  return `<button class="card panel boon relic-card ${r.rarity}" style="--fam:${fam.color}" ${attrs} data-tip="${esc(relicTip(id, tier, held))}"><div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam.icon} ${fam.name}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${relicDesc(id, tier)}</p>${extra}</button>`;
+  return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip="${esc(relicTip(id, tier, held))}"><div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.cursed ? 'no family' : r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${relicDesc(id, tier)}</p>${extra}</button>`;
 };
 
 /** v0.7 A5: a duo as a gold card: it takes the moment's pick and counts toward both its families. */
@@ -954,7 +954,7 @@ export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r
     `<button class="card panel boon shop" ${attrs} ${enabled && info.gold >= price(item) ? '' : 'disabled'}><h2>${title}</h2><p>${text}</p><div class="best">🪙 ${price(item)}</div></button>`;
   const held = info.relics.map((id) => {
     const tier = info.tiers[id] ?? 1;
-    return `<div class="held ${relicDef(id).rarity}">${relicLine(id, tier, info.relics)}
+    return `<div class="held ${relicClass(id)}">${relicLine(id, tier, info.relics)}
       <button class="chip" data-reroll="${id}" ${info.gold >= price('reroll') ? '' : 'disabled'} data-tip="Swap it for a random ${relicDef(id).rarity} relic you do not carry, at the same tier">Reroll 🪙 ${price('reroll')}</button>
       <button class="chip" data-sell="${id}" data-tip="Sell it for gold${tier > 1 ? ' (every tier counts)' : ''}">Sell +🪙 ${sellPrice(id, tier, info.act)}</button>
       <button class="chip" data-salvage="${id}" data-tip="Break it into Rune shards: progress toward Runes, the Keep's second currency">Salvage +${salvageValue(id, tier)} ◆</button></div>`;
@@ -986,9 +986,9 @@ export function showCompendium(save: Save, onBack: () => void): void {
     const r = relicDef(id);
     const n = found(id);
     const who = r.classId ? ` · ${CLASSES[r.classId].name}` : '';
-    if (n === 0) return `<div class="card panel boon relic-card undiscovered" style="--fam:${FAMILIES[r.family].color}" data-tip="${esc(`Not found yet. A ${r.rarity} ${FAMILIES[r.family].name} relic${r.classId ? ` for the ${CLASSES[r.classId].name}` : ''}.`)}"><div class="relic-icon">?</div><h2>Unknown</h2><div class="tag">${r.rarity}${who}${save.newRelics.includes(id) ? ' · <b class="new">new in v0.7</b>' : ''}</div></div>`;
+    if (n === 0) return `<div class="card panel boon relic-card undiscovered" style="--fam:${keyColor(id)}" data-tip="${esc(`Not found yet. A ${r.family ? `${r.rarity} ${FAMILIES[r.family].name}` : 'cursed'} relic${r.classId ? ` for the ${CLASSES[r.classId].name}` : ''}.`)}"><div class="relic-icon">?</div><h2>Unknown</h2><div class="tag">${r.rarity}${who}${save.newRelics.includes(id) ? ' · <b class="new">new in v0.7</b>' : ''}</div></div>`;
     const tiers = [1, 2].map((t) => `<div class="tierline"><b>${TIER_NUMERALS[t]}</b> ${relicDesc(id, t)}</div>`).join('');
-    return `<div class="card panel boon relic-card ${r.rarity}" style="--fam:${FAMILIES[r.family].color}"><div class="relic-icon">${r.icon}</div><h2>${r.name}</h2><div class="tag">${r.rarity}${who} · found ${n}×</div>${tiers}<div class="tierline"><b>III</b> <em>${r.awaken.name}</em>: ${r.awaken.desc}</div></div>`;
+    return `<div class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}"><div class="relic-icon">${r.icon}</div><h2>${r.name}</h2><div class="tag">${r.cursed ? 'cursed' : r.rarity}${who} · found ${n}×</div>${tiers}<div class="tierline"><b>III</b> <em>${r.awaken.name}</em>: ${r.awaken.desc}</div></div>`;
   };
   const family = (f: (typeof FAMILY_IDS)[number]) => {
     const fam = FAMILIES[f];
@@ -1002,6 +1002,8 @@ export function showCompendium(save: Save, onBack: () => void): void {
       <h1 class="small">Relic compendium</h1>
       <p class="sub">${discovered} / ${RELIC_IDS.length} discovered · seven families; 2, 4 and 6 of a family unlock its set bonuses · a relic attunes as it works: tier II, then it awakens</p>
       ${FAMILY_IDS.map(family).join('')}
+      <h2 style="color:${CURSED.color}">☠ Cursed</h2><p class="hint">No family and no set bonus, far stronger than any other relic, and each carries a curse; awakening it lifts the curse. At most one is offered an Act, as the purple third card of a wave boss or a lair.</p>
+      <div class="cards wrap">${CURSED_IDS.map(card).join('')}</div>
       <h2>Duos · ${save.duos.length} / ${DUO_IDS.length} discovered</h2>
       <p class="hint">Hold both relics of a recipe and a relic moment offers the duo as a gold fourth card; it counts toward both families, and each relic feeds one duo. A discovered duo shows in full.</p>
       <div class="recipes">${DUO_IDS.map((id) => {
@@ -1077,7 +1079,8 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
   const options = (items: [string, string][], chosen: string) => items.map(([v, label]) => `<option value="${v}" ${v === chosen ? 'selected' : ''}>${label}</option>`).join('');
   const arenas = (chosen: string) => options((Object.keys(ARENAS) as ArenaId[]).map((id) => [id, ARENAS[id].name]), chosen);
   const talents = (classId: ClassId) => TALENT_BRANCHES[classId].map((b) => `<div><b>${b.name}</b>${talentsFor(classId).filter((n) => n.branch === b.id).map((n) => `<label><input type="checkbox" value="${n.id}" ${setup.talents.includes(n.id) ? 'checked' : ''}> ${n.name}${n.keystone ? ' (keystone)' : ''}</label>`).join('')}</div>`).join('');
-  const relics = (classId: ClassId) => FAMILY_IDS.map((f) => `<div><b>${FAMILIES[f].icon} ${FAMILIES[f].name}</b>${RELIC_IDS.filter((id) => relicDef(id).family === f && (relicDef(id).classId ?? classId) === classId).map((id) => `<label>${relicDef(id).icon} ${relicDef(id).name} <select data-relic="${id}">${options([['0', '–'], ['1', 'I'], ['2', 'II'], ['3', 'III']], String(setup.relics[id] ?? 0))}</select></label>`).join('')}</div>`).join('');
+  const group = (label: string, ids: RelicId[]) => `<div><b>${label}</b>${ids.map((id) => `<label>${relicDef(id).icon} ${relicDef(id).name} <select data-relic="${id}">${options([['0', '–'], ['1', 'I'], ['2', 'II'], ['3', 'III']], String(setup.relics[id] ?? 0))}</select></label>`).join('')}</div>`;
+  const relics = (classId: ClassId) => [...FAMILY_IDS.map((f) => group(`${FAMILIES[f].icon} ${FAMILIES[f].name}`, RELIC_IDS.filter((id) => relicDef(id).family === f && (relicDef(id).classId ?? classId) === classId))), group('☠ Cursed', CURSED_IDS)].join('');
   const el = show(`
     <div class="panel dialog wide testmode">
       <h1 class="small">Test mode</h1>

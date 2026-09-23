@@ -17,7 +17,7 @@ import { describeUtility, utilityDef, utilityUnlocked } from '../systems/utility
 import { UTILITY } from '../config/utility';
 import { QUESTS, REWARDS } from '../config/quests';
 import { questProgress } from '../logic/quests';
-import { duoTip, esc, relicTip, setRecipeBuild, tierBadge } from './relicText';
+import { duoTip, esc, relicClass, relicTip, setRecipeBuild, tierBadge } from './relicText';
 import { isTestRun } from '../systems/testMode';
 
 /** Tooltip for the enemy under the pointer (hover, or a tap on touch): what it is, what hurts it, what is on it. */
@@ -198,7 +198,7 @@ export function updateHud(g: Game): void {
     const tile = (id: RelicId) => {
       const r = relicDef(id);
       const tier = g.player.relics.tiers[id] ?? 1;
-      return `<div class="relic ${r.rarity}" data-id="${id}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.player.relics.held))}">${r.icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
+      return `<div class="relic ${relicClass(id)}" data-id="${id}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.player.relics.held))}">${r.icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
     };
     // 50px a tile; desktop keeps clear of the ability panel, touch (bar at the top) of the wave plate
     const fit = Math.max(3, Math.min(8, Math.floor((innerWidth / 2 - (document.documentElement.classList.contains('compact') ? 140 : 300)) / 50)));

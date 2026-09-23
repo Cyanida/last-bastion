@@ -412,7 +412,7 @@ export function updateEnemies(g: Game, dt: number): void {
       if (e.phase < phases && e.hp <= e.maxHp * (1 - e.phase / phases)) enterPhase(g, e, e.phase + 1);
     }
 
-    e.speed = e.baseSpeed * moon * (g.vars.enemySpeed ?? 1) * speedFactor(e.statuses) * (enraged(e) ? AFFIXES.enraged.n.speed : 1) * (e.buffT > 0 ? e.buffSpd : 1) * (e.phase >= 2 ? (e.def.p2SpeedMult ?? 1) : 1) * (e.statuses.bleed ? 1 - (g.vars['relic.bleedSlow'] ?? 0) : 1); // v0.7: Butcher's Hook
+    e.speed = e.baseSpeed * moon * (g.vars.enemySpeed ?? 1) * (g.vars['relic.enemySpeed'] ?? 1) * speedFactor(e.statuses) * (enraged(e) ? AFFIXES.enraged.n.speed : 1) * (e.buffT > 0 ? e.buffSpd : 1) * (e.phase >= 2 ? (e.def.p2SpeedMult ?? 1) : 1) * (e.statuses.bleed ? 1 - (g.vars['relic.bleedSlow'] ?? 0) : 1); // v0.7: Butcher's Hook
 
     if (e.shieldMax > 0) {
       e.shieldT -= dt;
