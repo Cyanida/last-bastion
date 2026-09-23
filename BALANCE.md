@@ -1,5 +1,47 @@
 # Balance notes
 
+## v0.7: relics (A8)
+
+`npm run sim -- relics [runs]` (scripts/relic-report.ts, one process per class in parallel): maxed saves, and a bot that drafts sensibly.
+It takes a duo when one is offered, otherwise a relic of the family it holds most (at the start, one its class prefers), and 15% of the
+time another card. It reports winning-run numbers and every relic's share from wave 21 on. Final state, 8 runs per class (40 runs, 28 won):
+
+| Target (the v0.7 brief) | Measured | |
+|---|---|---|
+| A 6-set in about a third of winning runs | 71% (7 of 32 straight, 25 completed with a duo) | ✘, question for Jesse on #13 |
+| 1-2 duos a winning run | 1.75 | ✔ |
+| 3+ duos in under 15% of winning runs | 18% | ✘ (close) |
+| Every class at a 4-set in two or more families | 4-5 families per class | ✔ |
+| Relic power index 1.8-2.2 | 2.04 over Acts II-III (Act II 1.71, Act III 2.59) | ✔ |
+| No relic under 3% or over 35% where it is held | 21 under, 2 over (below) | ✘ |
+
+**The power index** is 1 / (1 - the relics' share of the damage dealt). Plain bonuses are credited their share, and procs, duos, set
+bonuses and relic skeletons their own damage, so relics adding +100% read as 2.0. It climbs as a build grows, so the target is read over
+Acts II-III, with each Act shown separately.
+
+**What moved the numbers:**
+- **Attribution.** A relic's burn, bleed, curse, chill and freeze remember that relic: their ticks, the extra damage a curse or chill causes,
+  and a freeze's Shatter are that relic's work. The same goes for relic bolts, fields and skeletons. Set bonuses are credited to their
+  family. Before this, burn relics credited an estimate up front (so shares could pass 100%), and ward counted against damage taken alone.
+- **Offers.** No lean toward held families (was 2×): the one-of-yours, one-new rule is enough. Legendaries are weighted 2 (was 10) and
+  class relics come half as often, since a straight 6-set needs its family's legendary and, in a preferred family, the class relic. Duos
+  come only at wave-boss moments (at every moment, 3+ duos came in a quarter of winning runs).
+- **Power.** Relic damage per level 0.09 -> 0.12. Weak relics and set bonuses raised, and a few strong ones trimmed; the full list is in
+  RELICS.md (A8).
+
+**Why 6-sets stay common.** With the moment sources the brief lists (every wave boss, lairs, strongboxes, quests, the Merchant, the start),
+a winning run that clears everything meets about 17 moments (7 bosses, 3 strongboxes, 3 Merchant buys, 2-3 lairs, 1-2 quests), above the
+12-16 target. A family-following drafter with about 17 relics often holds all five of a family plus its duo. Taking strongboxes out
+(tried) brought 6-sets to 58% and moments to 13-14, but strongboxes are on the brief's list. Leaning offers away from held families
+(0.6) changed nothing. See #13.
+
+**Per-relic shares** also depend on build size: with about 17 relics and a few set bonuses sharing the credit, the average relic's
+share is only 3-5%, so conditional and control relics fall under 3% (Frost Brand, Winter's Grasp, Glacial Heart, Berserker Tooth,
+Aegis of the Faithful). Fewer moments would help here too.
+
+**Classes (maxed, this bot):** Paladin 8/8, Viking 8/8, Angel 8/8, Archer 4/8, Necromancer 0/8 (v0.6: 6/6, 5/6, 6/6, 5/6, 3/6).
+The Necromancer holds the fewest relics (10) and its Grave set barely registers. B8, the class balance check in v0.7.1, picks this up.
+
 ## v0.6: the balance pass (the Keep, the bot, the class spread, the Squire tier)
 
 **The Keep sells options, not power.** Before the rework a maxed save reached 4.1x the depth of a fresh one (v0.4 notes below).

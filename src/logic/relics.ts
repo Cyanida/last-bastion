@@ -1,5 +1,5 @@
 import type { ClassId } from '../config/classes';
-import { ATTUNEMENT, DUO_IDS, DUO_SIX_STRENGTH, DUOS, FAMILY_IDS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, DUO_IDS, DUO_SIX_STRENGTH, DUOS, FAMILY_IDS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng } from '../core/types';
 import { mulberry32 } from '../core/math';
@@ -72,7 +72,7 @@ export function rollOffer(
 ): RelicId[] {
   const heldFamilies = new Set(held.map(familyOf).filter((f): f is string => !!f));
   const all = pool.filter((id) => !held.includes(id) && !exclude.includes(id))
-    .map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] * (heldFamilies.has(familyOf(id) ?? '') ? lean : 1) }));
+    .map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] * (relicDef(id).classId ? RELIC_MOMENTS.classRelicWeight : 1) * (heldFamilies.has(familyOf(id) ?? '') ? lean : 1) }));
   const out: RelicId[] = [];
   const take = (from: typeof all) => {
     if (!from.length || out.length >= n) return;

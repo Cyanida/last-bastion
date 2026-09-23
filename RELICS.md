@@ -158,6 +158,56 @@ holds ~22 relics by wave 40 and takes every duo; A8 measures with the family-fol
   the removed relics, and marks the 31 relics a v0.6 player could not know as "new in v0.7" until found. Discovered duos are saved (A5). The
   pre-migration save stays in the backups (A1).
 
+## A8 · Balance (tuned; see BALANCE.md for the numbers)
+
+`config/relics.ts` is the source of truth for every number; the tables below are the approved design, and A8 changed these:
+
+- **Rules:**
+  - Offers no longer lean toward held families (the one-of-yours, one-new rule stays).
+  - Legendary weight 10 → 2; class relics come half as often.
+  - Duos are offered at wave-boss moments only.
+  - Relic damage per level 0.09 → 0.12.
+  - A relic's chill makes the enemy take 4% more damage per stack (Frost's measurable job).
+- **Sets:**
+  - Stoked: burn damage +2% per point of secondary stat (was 1%).
+  - Arc: every 4th hit for 90% (every 3rd from 15 secondary; was every 5th for 60%).
+  - Open Wounds: +2 bleed stacks (was +1).
+  - Spiked: 4 × armor % (was 2 ×).
+- **Relics (I / II):**
+
+  | Relic | Now | Was |
+  |---|---|---|
+  | Brimstone Oil | 35% / 50% chance, burn power 0.5 | 25% / 35%, power 0.2 |
+  | Emberheart | 20% / 25% per burning enemy | 6% / 8% |
+  | Cinder Charm | 2 / 3 stacks | 1 / 2 |
+  | Dragon's Tongue | every 6 / 4 s | 8 / 6 s |
+  | Frost Brand | 35% / 50% chance, 2 chill | 25% / 35%, 1 chill |
+  | Winter's Grasp | 3 / 5 chill | 2 / 3 |
+  | Glacial Heart | 20% / 25%, 2 chilled enemies within 260 | 15% / 20%, 3 within 220 |
+  | Everfrost Crown | 5 chill, a freeze | 3 |
+  | Storm Pennant | 30% / 40% for 80% / 90% | 25% / 35% for 60% / 70% |
+  | Quicksilver Spurs | 5% / 7% a stack | 2% / 3% |
+  | Tempest Eye | chains 60% / 75% | 40% / 50% |
+  | Thunder Drum | 150 / 220 | 30 / 45 |
+  | Galeforce Quiver | chains 70% / 85% | 50% |
+  | Serrated Edge | bleed power 0.6 | 0.1 |
+  | Berserker Tooth | +1% attack speed per 1.5% / 1% missing HP, max 45% / 60% | per 3% / 2%, max 30% / 40% |
+  | Gravedigger's Spade | 5% / 7% | 3% / 4% |
+  | Deathmask | also a 20% chance on hit to curse (it had no curse of its own) | no curse |
+  | Thorn Mail | 16× / 22× | 3× / 4× |
+  | Anvil Heart | +1% damage per 1.5% / 1% armor | per 2% / 1.5% |
+  | Shockwave Sigil | 60 / 90 | 30 / 45 |
+  | Aegis of the Faithful | a stack per 3 / 2 Faith | per 5 / 4 |
+  | Fire Arrows | +4% / 6% burn per Focus | 2% / 3% |
+  | Guardian's Aegis | 5% ward every 15 / 12 s | 10% every 12 / 9 s |
+  | Thermal Shock | the rest of the burn ×1.25 | ×2 |
+
+- **Red Lightning**, as built in A5: a crit on a bleeding enemy chains to two more enemies.
+- **Open (#13, question for Jesse):**
+  - 6-sets come in about 70% of winning runs, mostly five pieces plus a duo.
+  - About 17 relic moments per full run.
+  - 21 relics read under 3% in 17-relic builds.
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown

@@ -7,7 +7,9 @@ import { chooseUtilityUpgrade } from '../systems/utility';
 import type { ClassId } from '../config/classes';
 import { GAME } from '../config/game';
 import { UPGRADE_RARITIES } from '../config/upgrades';
-import type { Game, StatKey } from '../core/types';
+import type { Game, RelicOffer, StatKey } from '../core/types';
+import { FAMILY_IDS, preferredFamilies, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
+import { duoFamilies, familySets } from '../logic/relics';
 import { createGame, summarizeRun, updateGame, type RunOptions } from '../game';
 import type { RunSummary } from '../logic/save';
 import type { LevelUpOption } from '../logic/upgrades';
@@ -173,6 +175,26 @@ function scoreOption(g: Game, o: LevelUpOption): number {
   return weights[o.key] * UPGRADE_RARITIES[o.rarity].mult;
 }
 
+/** v0.7 A8: how often the drafting bot takes something outside its plan (a "branch"). */
+export const BOT_BRANCH = 0.15;
+/**
+ * v0.7 A8: a sensible draft: a duo whenever one is offered; otherwise a relic of the family it holds most (at the start, one its class
+ * prefers), now and then (BOT_BRANCH) another card instead. The branch roll hangs on the seed and the pick count, so a seed replays the same.
+ */
+function draftRelic(g: Game, o: RelicOffer): RelicId | DuoId | null {
+  if (o.duo) return o.duo;
+  if (!o.options.length) return null;
+  const r = g.player.relics;
+  const sets = familySets(r.held, duoFamilies(r.duos));
+  const prefer = preferredFamilies(g.player.cls.id);
+  const count = (f: FamilyId) => sets[f]?.count ?? 0;
+  const main = FAMILY_IDS.reduce((a, b) => (count(b) > count(a) || (count(b) === count(a) && prefer.includes(b) && !prefer.includes(a)) ? b : a));
+  const picks = r.found.length;
+  if ((((g.seed * 2654435761) ^ (picks * 40503)) >>> 0) % 1000 < BOT_BRANCH * 1000) return o.options[picks % o.options.length];
+  const score = (id: RelicId) => (relicDef(id).family === main ? 2 : 0) + (prefer.includes(relicDef(id).family) ? 1 : 0);
+  return o.options.reduce((a, b) => (score(b) > score(a) ? b : a));
+}
+
 /** Resolve every pending choice the way the UI would, without the UI. `variant` picks the ability upgrade branch (0 or 1) and the talent branch. */
 export function botChoose(g: Game, variant = 0): void {
   if (g.pendingShrine) chooseBlessing(g, g.pendingShrine[0]);
@@ -183,8 +205,7 @@ export function botChoose(g: Game, variant = 0): void {
     g.pendingShop = false;
   }
   while (g.player.relics.offers.length > 0) {
-    const o = g.player.relics.offers[0]; // a duo when there is one (v0.7 A5), else the first relic, else skip
-    if (!resolveRelicOffer(g, o.duo ?? o.options[0] ?? null)) g.player.relics.offers.shift(); // never stuck on a moment
+    if (!resolveRelicOffer(g, draftRelic(g, g.player.relics.offers[0]))) g.player.relics.offers.shift(); // never stuck on a moment
   }
   while (g.pendingAbilityTiers.length > 0) {
     if (!chooseAbilityUpgrade(g, ABILITY_TRACKS[g.player.cls.id][g.pendingAbilityTiers[0]][variant])) g.pendingAbilityTiers.shift();

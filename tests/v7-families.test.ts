@@ -74,7 +74,7 @@ describe('set thresholds', () => {
 });
 
 describe('family mechanics', () => {
-  it('status rules: Stoked raises the burn cap, Biting Cold chills 50% more, Open Wounds adds a bleed stack', () => {
+  it('status rules: Stoked raises the burn cap, Biting Cold chills 50% more, Open Wounds adds bleed stacks', () => {
     const { g, foes } = arena([...anyClass('flame').slice(0, 2), ...anyClass('frost').slice(0, 2), ...anyClass('blood').slice(0, 2)], [[300, 0]]);
     const e = foes[0];
     applyStatus(e, { apply: [{ id: 'burn', stacks: 99, time: 3, power: 1 }] }, g);
@@ -82,7 +82,7 @@ describe('family mechanics', () => {
     applyStatus(e, { apply: [{ id: 'slow', stacks: 2, time: 3 }] }, g);
     expect(e.statuses.slow!.stacks).toBe(3);
     applyStatus(e, { apply: [{ id: 'bleed', stacks: 1, time: 3, power: 1 }] }, g);
-    expect(e.statuses.bleed!.stacks).toBe(2);
+    expect(e.statuses.bleed!.stacks).toBe(1 + FAMILIES.blood.n.extraStacks);
   });
 
   it('ward takes a hit before HP; Blessed (Holy 2) turns healing into ward, up to its maximum', () => {

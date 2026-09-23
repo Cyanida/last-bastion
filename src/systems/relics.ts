@@ -1,5 +1,5 @@
 import { ROUTES } from '../config/routes';
-import { ATTUNEMENT, BOSS_RELIC_CHOICES, duoOf, DUOS, FAMILIES, isDuo, FAMILY_IDS, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, BOSS_RELIC_CHOICES, duoOf, DUOS, FAMILIES, isDuo, isFamily, FAMILY_IDS, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { sfx } from '../core/audio';
 import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
@@ -31,12 +31,12 @@ function run<K extends EventName>(hooks: RelicHooks | undefined, g: Game, name: 
   (hooks?.[name] as ((g: Game, ev: GameEvents[K], p: Player) => void) | undefined)?.(g, ev, p);
 }
 
-/** The set bonuses a player has reached, lowest first (a 6 also runs the 2 and the 4). */
-function reachedSets(p: Player): RelicHooks[] {
-  const out: RelicHooks[] = [];
+/** The set bonuses a player has reached, lowest first (a 6 also runs the 2 and the 4), with their family (their work is credited to it). */
+function reachedSets(p: Player): [FamilyId, RelicHooks][] {
+  const out: [FamilyId, RelicHooks][] = [];
   for (const f of FAMILY_IDS) {
     const level = p.relics.sets[f]?.level ?? 0;
-    for (const at of [2, 4, 6] as const) if (level >= at && SETS[f][at]) out.push(SETS[f][at]!);
+    for (const at of [2, 4, 6] as const) if (level >= at && SETS[f][at]) out.push([f, SETS[f][at]!]);
   }
   return out;
 }
@@ -103,8 +103,11 @@ addListener((g, name, ev) => {
       relicContext.acting = id;
       run(DUO_HOOKS[id], g, name, ev, p);
     }
+    for (const [f, set] of reachedSets(p)) {
+      relicContext.acting = f;
+      run(set, g, name, ev, p);
+    }
     relicContext.acting = null;
-    for (const set of reachedSets(p)) run(set, g, name, ev, p);
   } finally {
     relicContext.acting = outer;
     g.procDepth--;
@@ -146,8 +149,11 @@ export function updateRelics(g: Game, dt: number): void {
     relicContext.acting = id;
     DUO_HOOKS[id]?.tick?.(g, dt, p);
   }
+  for (const [f, set] of reachedSets(p)) {
+    relicContext.acting = f;
+    set.tick?.(g, dt, p);
+  }
   relicContext.acting = null;
-  for (const set of reachedSets(p)) set.tick?.(g, dt, p);
   for (const id of r.held) if ((r.attune[id] ?? 0) >= 1 && relicTier(r.tiers, id) < RELIC_MAX_TIER) tierUp(g, p, id);
   // armor stacks (Steel): +3% armor each, gone `fade` seconds after the last one was gained
   if (p.armorStacks > 0 && g.time - p.armorStackT > FAMILIES.steel.n.fade) p.armorStacks = 0;
@@ -253,9 +259,9 @@ export function relicShares(g: Game, p: Player = g.player): { id: RelicKey; tier
   const r = p.relics;
   const pct = (v: number, of: number) => (of > 0 ? Math.round((v / of) * 1000) / 10 : 0);
   const taken = (g.vars.taken ?? 0) + (g.vars.prevented ?? 0);
-  return [...r.held, ...r.duos].map((id) => {
+  return [...r.held, ...r.duos, ...FAMILY_IDS.filter((f) => (r.sets[f]?.level ?? 0) > 0)].map((id: RelicKey) => {
     const s = r.stats[id] ?? { damage: 0, healing: 0, prevented: 0 };
-    return { id, tier: isDuo(id) ? 0 : relicTier(r.tiers, id), from: r.from[id] ?? 'other', damage: pct(s.damage, g.vars.dealt ?? 0), healing: pct(s.healing, g.vars.healed ?? 0), mitigation: pct(s.prevented, taken) };
+    return { id, tier: isDuo(id) || isFamily(id) ? 0 : relicTier(r.tiers, id as RelicId), from: r.from[id] ?? 'other', damage: pct(s.damage, g.vars.dealt ?? 0), healing: pct(s.healing, g.vars.healed ?? 0), mitigation: pct(s.prevented, taken) };
   }).sort((a, b) => Math.max(b.damage, b.healing, b.mitigation) - Math.max(a.damage, a.healing, a.mitigation));
 }
 
@@ -273,15 +279,15 @@ function roll(p: Player, pool: RelicId[], n: number): RelicId[] {
  */
 export function offerRelics(g: Game, count = BOSS_RELIC_CHOICES, from: RelicSource = 'other', p: Player = g.player, pool = p.relics.pool): void {
   const options = roll(p, pool, count);
-  // v0.7 A5: the first completed duo not already on a queued moment comes along as a gold fourth card (one a moment)
-  const duo = readyDuos(p.relics).find((d) => !p.relics.offers.some((o) => o.duo === d));
+  // v0.7 A5: the first completed duo not already on a queued moment comes along as a gold fourth card (one a moment), at a wave boss (A8)
+  const duo = RELIC_MOMENTS.duoAt.includes(from) ? readyDuos(p.relics).find((d) => !p.relics.offers.some((o) => o.duo === d)) : undefined;
   if (!options.length && !duo) return;
   p.relics.offers.push({ from, options, rerolls: momentRerolls(g), ...(duo ? { duo } : {}) });
   g.vars[`moments.${from}`] = (g.vars[`moments.${from}`] ?? 0) + 1; // counted for the sims (RELICS.md: 12-16 a run)
 }
 
 /** Take one of the first queued moment's options. */
-export function resolveRelicOffer(g: Game, id: RelicKey | null, p: Player = g.player): boolean {
+export function resolveRelicOffer(g: Game, id: RelicId | DuoId | null, p: Player = g.player): boolean {
   const offer = p.relics.offers[0];
   if (!offer) return false;
   if (id === null) return skipRelicOffer(g, p);

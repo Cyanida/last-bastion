@@ -7,6 +7,7 @@ export interface StatusInst {
   stacks: number;
   time: number;
   power: number; // damage per second per stack, for damage-over-time effects
+  by?: string; // v0.7: the relic or duo that last put it on (its ticks are credited to it)
 }
 export type StatusMap = Partial<Record<StatusId, StatusInst>> & { immune?: Partial<Record<StatusId, number>> };
 

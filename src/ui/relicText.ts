@@ -1,5 +1,5 @@
 import { CLASSES } from '../config/classes';
-import { duoOf, DUOS, FAMILIES, isDuo, RELIC_MAX_TIER, relicDef, relicDesc, TIER_NUMERALS, type DuoId, type RelicId, type RelicKey } from '../config/relics';
+import { duoOf, DUOS, FAMILIES, isDuo, isFamily, RELIC_MAX_TIER, relicDef, relicDesc, TIER_NUMERALS, type DuoId, type RelicId, type RelicKey } from '../config/relics';
 import { EVOLUTIONS } from '../config/evolutions';
 import { nearlyReady, requirementNames, requirementText, type BuildState } from '../logic/evolutions';
 
@@ -39,7 +39,8 @@ export function duoTip(id: DuoId): string {
   return [`${d.name} · duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}`, d.desc, `From ${d.from.map((r) => relicDef(r).name).join(' + ')}; counts toward both families.`].join('\n');
 }
 /** A relic's or a duo's tooltip. */
-export const keyTip = (id: RelicKey, tier: number, held: RelicId[] = []): string => (isDuo(id) ? duoTip(id) : relicTip(id, tier, held));
+export const keyTip = (id: RelicKey, tier: number, held: RelicId[] = []): string =>
+  isDuo(id) ? duoTip(id) : isFamily(id) ? `${FAMILIES[id].name} set bonuses: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[id].sets[n][0]}`).join(' · ')}` : relicTip(id, tier, held);
 
 export const tierBadge = (tier: number): string => (tier > 1 ? `<i class="tier">${TIER_NUMERALS[tier]}</i>` : '');
 

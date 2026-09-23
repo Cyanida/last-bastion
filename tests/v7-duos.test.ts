@@ -59,11 +59,11 @@ describe('duo offers', () => {
     expect(readyDuos(g.player.relics)).toEqual(['thermalShock']);
   });
 
-  it('one duo a moment, as a fourth option; queued moments offer different duos, and a skipped duo comes back', () => {
+  it('one duo a moment, at wave bosses (A8), as a fourth option; queued moments offer different duos, and a skipped duo comes back', () => {
     const g = game(['emberheart', 'stormPennant', 'brimstoneOil', 'frostBrand']);
     offerRelics(g, 3, 'boss');
+    offerRelics(g, 3, 'boss');
     offerRelics(g, 3, 'lair');
-    offerRelics(g, 3, 'strongbox');
     expect(g.player.relics.offers.map((o) => o.duo)).toEqual(['wildfire', 'thermalShock', undefined]);
     expect(g.player.relics.offers[0].options).toHaveLength(3);
     expect(resolveRelicOffer(g, 'thermalShock')).toBe(false); // not this moment's duo
@@ -118,14 +118,14 @@ describe('duo effects', () => {
     return g;
   };
 
-  it('Thermal Shock: a burning enemy that freezes takes the rest of its burn twice, at once', () => {
+  it('Thermal Shock: a burning enemy that freezes takes the rest of its burn, multiplied, at once', () => {
     const g = formed(['brimstoneOil', 'frostBrand'], 'thermalShock');
     const e = foe(g, 300);
     e.hp = e.maxHp = 1e5;
     e.statuses.burn = { stacks: 2, time: 3, power: 10 };
     freeze(g, e, 1);
     expect(e.statuses.burn).toBeUndefined();
-    expect(e.maxHp - e.hp).toBeGreaterThan(100); // 2 x 10 x 3 x 2 = 120 before armor and resistances
+    expect(e.maxHp - e.hp).toBeGreaterThan(2 * 10 * 3 * DUOS.thermalShock.n.mult * 0.8); // stacks x power x time left x mult, before armor
   });
 
   it('Wildfire: a chain copies the burn of the enemy it jumps from', () => {

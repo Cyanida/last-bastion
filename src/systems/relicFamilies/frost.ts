@@ -1,5 +1,5 @@
 import { GAME } from '../../config/game';
-import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
+import { FAMILIES, type RelicId, type RelicKey, type SetLevel } from '../../config/relics';
 import { emit } from '../../core/events';
 import type { Enemy, Game } from '../../core/types';
 import { addField } from '../../entities/hazards';
@@ -7,6 +7,7 @@ import * as scale from '../../logic/abilities';
 import { applyStatus, damageEnemy, nearestEnemy } from '../combat';
 import { ring } from '../effects';
 import { addChill, attackHit, awakened, bonus, credit, gainWard, isChilled, isFrozen, nOf, nova, relicDamage, relicHeal, sOf, strength, type RelicHooks } from '../relicCore';
+import { relicContext } from '../relicContext';
 
 /**
  * ❄️ Frost (RELICS.md): chill → freeze → shatter. Relics chill, reward frozen enemies or protect you while the horde is cold; the sets build
@@ -33,8 +34,9 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (!attackHit(p, ev.source) || g.rng() >= n.chance) return;
       addChill(g, p, ev.enemy, n.chill);
     },
-    onIncoming(_g, ev, p) {
+    onIncoming(g, ev, p) {
       if (!awakened(p, 'frostBrand') || !ev.attacker || !isChilled(ev.attacker)) return;
+      credit(g, p, 'frostBrand', 'prevented', ev.amount * 0.2);
       ev.amount *= 0.8; // Hoarfrost
     },
   },
@@ -143,7 +145,9 @@ export const FROST_SETS: Partial<Record<SetLevel, RelicHooks>> = {
     onKill(g, ev, p) {
       const e = ev.enemy;
       if (!isFrozen(g, e) || e.def.boss) return; // Shatter
+      relicContext.acting = (e.statuses.stun?.by as RelicKey | undefined) ?? 'frost'; // the relic whose chill froze it made the shatter (A8)
       nova(g, e.x, e.y, F.n.shatterRadius, e.maxHp * (F.n.shatterFrac + F.n.shatterPerS * sOf(p)) * strength(p, 'frost'), 140, F.color, 'frost');
+      relicContext.acting = 'frost';
     },
   },
   6: {

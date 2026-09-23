@@ -1,12 +1,13 @@
 import { STATUSES, type DamageType } from '../config/damage';
-import { ATTUNEMENT, FAMILIES, keyColor, keyIcon, RELIC_DAMAGE_PER_LEVEL, RELIC_MAX_TIER, RELIC_STACKING, RELICS, relicN, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, FAMILIES, RELIC_DAMAGE_PER_LEVEL, RELIC_MAX_TIER, RELIC_STACKING, RELICS, relicN, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { TAU } from '../core/math';
 import type { Enemy, Game, Minion, Mods, Player } from '../core/types';
 import { createMinion } from '../entities/actors';
 import { emit, type EventName, type GameEvents } from '../core/events';
 import { addWork, familySets, softCap, type SetState } from '../logic/relics';
 export { familySets, type SetState };
-import { relicContext } from './relicContext';
+import { credit, flash, relicContext } from './relicContext';
+export { credit, flash };
 import { applyStatus, damageEnemy, healPlayer, nearestEnemy } from './combat';
 import { burst, floatText, line, ring } from './effects';
 
@@ -164,24 +165,6 @@ export type RelicHooks = { [K in EventName]?: (g: Game, ev: GameEvents[K], p: Pl
   tick?: (g: Game, dt: number, p: Player) => void;
   acquire?: (g: Game, p: Player) => void;
 };
-
-/** RELICS.md: credit a relic with what it did; `proc` also flashes its icon over the player (at most every 1.2 s per relic). */
-export function credit(g: Game, p: Player, id: RelicKey, kind: 'damage' | 'healing' | 'prevented', amount: number, proc = false): void {
-  if (!(amount > 0)) return;
-  const s = (p.relics.stats[id] ??= { damage: 0, healing: 0, prevented: 0 });
-  s[kind] += amount;
-  if (proc) flash(g, p, id);
-  const a = ATTUNEMENT;
-  addWork(p.relics, id, kind === 'damage' ? (a.damage * amount) / Math.max(1, g.vars.waveDealtRef ?? a.refDamage) : (a.support * amount) / p.stats.hp);
-}
-
-const RELIC_FLASH = 1.2;
-export function flash(g: Game, p: Player, id: RelicKey): void {
-  const key = `flash.${id}`;
-  if (g.time - (g.vars[key] ?? -99) < RELIC_FLASH) return;
-  g.vars[key] = g.time;
-  floatText(g, p.x + (g.rng() - 0.5) * 30, p.y - p.r - 34, keyIcon(id), keyColor(id), 15);
-}
 
 /** Healing from relics passes a soft cap per wave (a share of max HP): sustain relics add up, then each heals less. */
 export function relicHeal(g: Game, p: Player, amount: number, show = false): number {

@@ -58,6 +58,9 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   },
 
   deathmask: {
+    onHit(g, ev, p) {
+      if (ev.source !== 'relic' && ev.source !== 'hazard' && g.rng() < nOf(p, 'deathmask').chance) applyStatus(ev.enemy, { apply: [{ id: 'curse', stacks: 1 }] }, g); // A8: its own curses
+    },
     onIncoming(g, ev, p) {
       if (!ev.attacker || !isCursed(ev.attacker)) return;
       const n = nOf(p, 'deathmask');

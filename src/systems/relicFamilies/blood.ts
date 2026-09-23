@@ -2,7 +2,7 @@ import { GAME } from '../../config/game';
 import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import type { Enemy } from '../../core/types';
 import { applyStatus, damageEnemy, nearestEnemy } from '../combat';
-import { addBleed, attackHit, awakened, bonus, credit, isBleeding, nOf, relicHeal, sOf, strength, type RelicHooks } from '../relicCore';
+import { addBleed, attackHit, awakened, bonus, flash, isBleeding, nOf, relicHeal, type RelicHooks, sOf, strength } from '../relicCore';
 
 /**
  * 🩸 Blood (RELICS.md): bleed, and HP for power. Relics open wounds, reward bleeding enemies or turn missing HP into power; the sets add a
@@ -18,7 +18,7 @@ export const BLOOD_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const n = nOf(p, 'serratedEdge');
       if (awakened(p, 'serratedEdge') && isBleeding(ev.enemy)) damageEnemy(g, ev.enemy, (ev.amount * 0.2) / GAME.critMult, false, 0, 0, 'relic'); // Haemorrhage
       addBleed(g, p, ev.enemy, n.stacks, ev.amount * n.power);
-      credit(g, p, 'serratedEdge', 'damage', ev.amount * n.power * n.stacks * 5, true);
+      flash(g, p, 'serratedEdge'); // its bleed's ticks are credited to it as they land (systems/status.ts)
     },
   },
 

@@ -1,10 +1,9 @@
-import { STATUSES } from '../../config/damage';
 import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import type { Enemy, Game, Player } from '../../core/types';
 import { addField } from '../../entities/hazards';
 import { damageEnemy, nearestEnemy } from '../combat';
 import { burst, line } from '../effects';
-import { addBurn, attackHit, awakened, bonus, burnStacks, cone, credit, maxBurn, nOf, nova, relicDamage, sOf, strength, type RelicHooks } from '../relicCore';
+import { addBurn, attackHit, awakened, bonus, burnStacks, cone, flash, maxBurn, nOf, nova, relicDamage, type RelicHooks, sOf, strength } from '../relicCore';
 
 /**
  * 🔥 Flame (RELICS.md): burn stacks and fire bursts. Every relic adds burn stacks or rewards them; the sets make burns stack higher (Stoked),
@@ -27,7 +26,7 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (ev.source === 'ability' && awakened(p, 'brimstoneOil')) addBurn(g, p, ev.enemy, 2, ev.amount * n.power); // Hellfire
       if (!attackHit(p, ev.source) || g.rng() >= n.chance) return;
       addBurn(g, p, ev.enemy, 1, ev.amount * n.power);
-      credit(g, p, 'brimstoneOil', 'damage', ev.amount * n.power * STATUSES.burn.duration, true);
+      flash(g, p, 'brimstoneOil'); // its burn's ticks are credited to it as they land (systems/status.ts)
     },
   },
 
@@ -54,7 +53,7 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
         if (!to) return;
         line(g, ev.enemy.x, ev.enemy.y, to.x, to.y, F.color);
         addBurn(g, p, to, n.stacks, relicDamage(p, 4));
-        credit(g, p, 'cinderCharm', 'damage', relicDamage(p, 4) * n.stacks * STATUSES.burn.duration, true);
+        flash(g, p, 'cinderCharm'); // its burn's ticks are credited to it as they land (systems/status.ts)
         from = to;
       }
     },
@@ -89,7 +88,7 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
           damageEnemy(g, e, rest, false, 0, 0, 'relic', 'fire');
         }
         addBurn(g, p, e, n.stacks, ev.amount * 0.2);
-        credit(g, p, 'dragonsTongue', 'damage', ev.amount * 0.2 * n.stacks * STATUSES.burn.duration, true);
+        flash(g, p, 'dragonsTongue'); // its burn's ticks are credited to it as they land (systems/status.ts)
       }
       burst(g, p.x + Math.cos(angle) * 60, p.y + Math.sin(angle) * 60, F.color, 24, 320);
     },
@@ -100,7 +99,7 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (ev.source !== 'ability') return;
       const power = ev.amount * 0.2 * (1 + nOf(p, 'fireArrows').perFocus * sOf(p));
       addBurn(g, p, ev.enemy, 1, power);
-      credit(g, p, 'fireArrows', 'damage', power * STATUSES.burn.duration, true);
+      flash(g, p, 'fireArrows'); // its burn's ticks are credited to it as they land (systems/status.ts)
     },
     onAbilityUsed(g, _ev, p) {
       if (!awakened(p, 'fireArrows')) return;
@@ -113,7 +112,7 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (ev.source !== 'ability') return;
       const stacks = 1 + Math.floor(sOf(p) / nOf(p, 'sunfireCenser').per);
       addBurn(g, p, ev.enemy, stacks, ev.amount * 0.15);
-      credit(g, p, 'sunfireCenser', 'damage', ev.amount * 0.15 * stacks * STATUSES.burn.duration, true);
+      flash(g, p, 'sunfireCenser'); // its burn's ticks are credited to it as they land (systems/status.ts)
     },
     onKill(g, ev, p) {
       if (awakened(p, 'sunfireCenser') && ev.source === 'ability') pyre(g, p, ev.enemy); // Solar Flare
@@ -126,7 +125,7 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const n = nOf(p, 'radiantBrand');
       const stacks = n.base + Math.floor(sOf(p) / n.per);
       addBurn(g, p, ev.enemy, stacks, ev.amount * 0.1);
-      credit(g, p, 'radiantBrand', 'damage', ev.amount * 0.1 * stacks * STATUSES.burn.duration, true);
+      flash(g, p, 'radiantBrand'); // its burn's ticks are credited to it as they land (systems/status.ts)
     },
     tick(g, dt, p) {
       if (!awakened(p, 'radiantBrand') || !p.invulnerable) return;

@@ -70,6 +70,7 @@ describe('relic hooks', () => {
     addRelic(g, 'thornMail');
     addRelic(g, 'reliquary');
     g.player.abilityCd = 10;
+    foes[0].hp = foes[0].maxHp = 1e5; // v0.7: thorns hit harder than a knight has HP
     const before = foes[0].hp;
     damagePlayer(g, 20, true, foes[0]);
     const taken = g.player.stats.hp - g.player.hp;

@@ -1,5 +1,5 @@
-import { relicContext } from './relicContext';
-import { ATTUNEMENT, FAMILIES, RELIC_COLOR } from '../config/relics';
+import { credit, relicContext } from './relicContext';
+import { ATTUNEMENT, FAMILIES, isFamily, RELIC_COLOR, type RelicKey } from '../config/relics';
 import { addWork } from '../logic/relics';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
@@ -116,6 +116,8 @@ export function applyStatus(e: Enemy, s: Status | null, g?: Game): void {
       e.frozenT = g.time + (e.statuses.stun?.time ?? 0); // v0.7: Frost reads it
       emit(g, 'onFreeze', { enemy: e });
     }
+    const s = e.statuses[a.id] ?? (a.id === 'slow' ? e.statuses.stun : undefined); // a chill that tipped over is a freeze now
+    if (s && (!s.by || (relicContext.acting && !isFamily(relicContext.acting)))) s.by = relicContext.acting ?? undefined; // v0.7: whose it is (a burn's ticks, a curse's extra damage, a freeze's shatter): a relic takes it over, a set bonus spreading it does not (A8)
   }
 }
 
@@ -131,7 +133,8 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
     return 0;
   }
   const typeMult = typeMultiplier(e.def.id, type);
-  amount *= typeMult * damageTakenFactor(e.statuses);
+  const chill = e.statuses.slow?.by ? 1 + e.statuses.slow.stacks * FAMILIES.frost.n.chillVuln : 0; // v0.7 A8: a relic's chill: +4% damage taken per stack
+  amount *= typeMult * damageTakenFactor(e.statuses) * (chill || 1);
   if (e.def.boss && source !== 'hazard') amount *= g.player.mods.bossDamage;
   const armor = ARMOR[e.def.id];
   if (armor && e.armorHp > 0) {
@@ -169,6 +172,9 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
     }
   }
   const dealt = Math.max(0, Math.min(e.hp - e.hpFloor, amount));
+  const curse = e.statuses.curse; // v0.7: what a relic's curse added is that relic's work
+  if (curse?.by && dealt > 0) credit(g, g.player, curse.by as RelicKey, 'damage', dealt * (1 - 1 / damageTakenFactor(e.statuses)));
+  if (chill && dealt > 0) credit(g, g.player, e.statuses.slow!.by as RelicKey, 'damage', dealt * (1 - 1 / chill)); // ...and a relic's chill (Frost, A8)
   e.hp = Math.max(e.hpFloor, e.hp - amount); // v0.6: a boss phase that has not run its course holds at its threshold
   // numbers take the colour of their damage type; "!" marks a weakness, "-" a resistance
   damageNumber(g, e, amount, crit ? '#f2c94c' : source === 'relic' && relicContext.acting ? RELIC_COLOR : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');
