@@ -17,6 +17,7 @@
  * at a 4-set per class, the relic power index, and every relic's contribution from wave 21 on (targets: RELICS.md, A8).
  *
  * Depth past the win (v0.6):  npm run sim -- deep [runs=3] [tier=0]: the default table, wins going on into Endless.
+ * v0.7.1: SIM_CLASS=viking,archer runs only those classes (so the tables can run one process per class in parallel).
  * Pacing:  npm run sim -- pacing [runs=4] [tier=0]
  * The run logs (v0.6) of fresh and maxed runs: run length, minutes per Act, wins, the share of time with under 5 enemies alive, and the
  * longest stretches with no new wave, pick, event, objective or boss. The rule is that none lasts longer than RUN_LOG.maxGap seconds.
@@ -42,6 +43,7 @@ const argAt = mode ? 3 : 2;
 const [runs = mode === 'economy' ? 80 : mode === 'pacing' ? 4 : mode ? 3 : 6, tier = 0] = process.argv.slice(argAt, argAt + 2).map(Number);
 const arena = (process.argv[argAt + 2] ?? 'courtyard') as ArenaId;
 const maxed = Object.fromEntries(META_IDS.map((id) => [id, META[id].max]));
+const CLASSES = process.env.SIM_CLASS ? CLASS_ORDER.filter((c) => process.env.SIM_CLASS!.split(',').includes(c)) : CLASS_ORDER;
 
 const setups: [string, RunOptions][] = [
   ['fresh', { tier, arena }],
@@ -118,7 +120,7 @@ pacing · ${runs} runs per cell · ${TIERS[tier].name} · ${arena} · from the r
   console.log(`${'class'.padEnd(12)}${'setup'.padEnd(7)}${pad('min', 6)}${pad('wave', 6)}${['I', 'II', 'III', 'IV'].map((a) => pad(`Act ${a}`, 8)).join('')}${pad('won', 5)}${pad('quiet', 7)}${pad('gap', 6)}${pad('>rule', 7)}  longest stretches (s @ wave)`);
   const started = Date.now();
   const all: { setup: string; gaps: number[]; over: number; runs: number }[] = [];
-  for (const classId of CLASS_ORDER) {
+  for (const classId of CLASSES) {
     for (const [name, opts] of setups) {
       const logs = Array.from({ length: runs }, (_, i) => simulateRun(classId, 1000 + i, opts, i % 2).log!);
       const acts = [0, 1, 2, 3].map((a) => {
@@ -169,7 +171,7 @@ if (probe) {
   console.log(`${'class'.padEnd(12)}${pad('', 9)}${head}`);
   console.log(`${'expected'.padEnd(12)}${pad('level', 9)}${bands.map(([, b]) => pad(expectedLevel(b + 1).toFixed(1), 8)).join('')}`);
   const started = Date.now();
-  for (const classId of CLASS_ORDER) {
+  for (const classId of CLASSES) {
     const results = Array.from({ length: runs }, (_, i) => probeRun(classId, 1000 + i, { tier, arena }, i % 2, TO));
     const per = (f: (r: ReturnType<typeof probeRun>, a: number, b: number) => number) => bands.map(([a, b]) => avg(results.map((r) => f(r, a, b))));
     const deaths = per((r, a, b) => sum(r.deathsAtWave.slice(a - 1, b)));
@@ -185,23 +187,23 @@ if (probe) {
 }
 
 console.log(`\n${runs} runs per cell · ${TIERS[tier].name} · ${arena} · alternating ability-upgrade branches${deep ? ' · deep: wins go on into Endless (up to 60 minutes)' : ''}\n`);
-console.log(`${'class'.padEnd(12)}${pad('fresh', 8)}${pad('min-max', 9)}${pad('maxed', 8)}${pad('min-max', 9)}${pad('ratio', 7)}${pad('lvl', 6)}${pad('gold', 7)}${pad('min', 6)}${pad('cmdr', 6)}${pad('elites', 7)}${pad('acts*', 6)}`);
-console.log('  (lvl, gold, minutes, commanders and elites slain: fresh runs · acts*: Acts cleared by maxed runs. Squads, the director, status effects and the Merchant all run as in the game.)');
+console.log(`${'class'.padEnd(12)}${pad('fresh', 8)}${pad('min-max', 9)}${pad('maxed', 8)}${pad('min-max', 9)}${pad('ratio', 7)}${pad('lvl', 6)}${pad('gold', 7)}${pad('min', 6)}${pad('cmdr', 6)}${pad('elites', 7)}${pad('acts*', 6)}${pad('won', 7)}${pad('won10+', 8)}`);
+console.log('  (lvl, gold, minutes, commanders and elites slain: fresh runs · acts*: Acts cleared by maxed runs · won: fresh / maxed runs that beat the Usurper · won10+: of the fresh runs past wave 10, how many won (v0.7.1). Squads, the director, status effects and the Merchant all run as in the game.)');
 
 const started = Date.now();
 const totals: Record<string, number[]> = { fresh: [], maxed: [] };
 const paceRuns: Record<string, RunSummary[]> = {};
-for (const classId of CLASS_ORDER) {
+for (const classId of CLASSES) {
   const cells = setups.map(([name, opts]) => {
     const results = Array.from({ length: runs }, (_, i) => simulateRun(classId, 1000 + i, opts, i % 2, deep ? 60 * 60 : undefined, deep));
     if (name === 'fresh') paceRuns[classId] = results;
     const waves = results.map((r) => r.wave);
     totals[name].push(avg(waves));
-    return { wave: avg(waves), min: Math.min(...waves), max: Math.max(...waves), level: avg(results.map((r) => r.level)), gold: avg(results.map((r) => r.gold)), minutes: avg(results.map((r) => r.time)) / 60, commanders: avg(results.map((r) => r.commanders ?? 0)), elites: avg(results.map((r) => r.elites)), acts: avg(results.map((r) => r.actsCleared ?? 0)) };
+    return { wave: avg(waves), min: Math.min(...waves), max: Math.max(...waves), level: avg(results.map((r) => r.level)), gold: avg(results.map((r) => r.gold)), minutes: avg(results.map((r) => r.time)) / 60, commanders: avg(results.map((r) => r.commanders ?? 0)), elites: avg(results.map((r) => r.elites)), acts: avg(results.map((r) => r.actsCleared ?? 0)), won: results.filter((r) => r.won).length, past10: results.filter((r) => r.wavesCleared >= 10).length, won10: results.filter((r) => r.won && r.wavesCleared >= 10).length, n: results.length };
   });
   const [f, m] = cells;
   console.log(
-    `${classId.padEnd(12)}${pad(f.wave.toFixed(1), 8)}${pad(`${f.min}-${f.max}`, 9)}${pad(m.wave.toFixed(1), 8)}${pad(`${m.min}-${m.max}`, 9)}${pad((m.wave / f.wave).toFixed(2), 7)}${pad(f.level.toFixed(0), 6)}${pad(f.gold.toFixed(0), 7)}${pad(f.minutes.toFixed(1), 6)}${pad(f.commanders.toFixed(1), 6)}${pad(f.elites.toFixed(1), 7)}${pad(m.acts.toFixed(1), 6)}`,
+    `${classId.padEnd(12)}${pad(f.wave.toFixed(1), 8)}${pad(`${f.min}-${f.max}`, 9)}${pad(m.wave.toFixed(1), 8)}${pad(`${m.min}-${m.max}`, 9)}${pad((m.wave / f.wave).toFixed(2), 7)}${pad(f.level.toFixed(0), 6)}${pad(f.gold.toFixed(0), 7)}${pad(f.minutes.toFixed(1), 6)}${pad(f.commanders.toFixed(1), 6)}${pad(f.elites.toFixed(1), 7)}${pad(m.acts.toFixed(1), 6)}${pad(`${f.won}/${m.won}`, 7)}${pad(`${f.won10}/${f.past10}`, 8)}`,
   );
 }
 // pace report: the level at the end of wave w (fresh runs), against the target pace
@@ -209,7 +211,7 @@ const CHECK = [5, 10, 15, 20, 25, 30];
 console.log(`
 level at the end of wave (fresh runs, classes that got there) vs expected${pad('', 4)}${CHECK.map((w) => pad(`w${w}`, 7)).join('')}`);
 console.log(`${'expected'.padEnd(12)}${pad('', 4)}${CHECK.map((w) => pad(expectedLevel(w + 1).toFixed(1), 7)).join('')}`);
-for (const classId of CLASS_ORDER) {
+for (const classId of CLASSES) {
   const runs = paceRuns[classId];
   const cells = CHECK.map((w) => {
     const levels = runs.map((r) => r.levelAtWave?.[w - 1]).filter((l): l is number => l !== undefined);
