@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { MERCHANT } from '../src/config/acts';
-import { RELIC_DROPS, RELIC_IDS, RELIC_MAX_TIER, relicDef, relicDesc, relicMods, relicN, type RelicId } from '../src/config/relics';
-import { mulberry32 } from '../src/core/math';
+import { RELIC_DROPS, RELIC_IDS, relicDef, relicDesc, relicMods, relicN, type RelicId } from '../src/config/relics';
 import { createGame, updateGame } from '../src/game';
-import { newRelicShare, relicModTotals, relicModsCombined, rollRelics, softCap, withRelic } from '../src/logic/relics';
+import { relicModTotals, relicModsCombined, softCap } from '../src/logic/relics';
 import { merchantSalvage, merchantSell, salvageValue, sellPrice } from '../src/systems/acts';
 import { damageEnemy } from '../src/systems/combat';
 import { addRelic, offerRelics, removeRelic, resolveRelicOffer } from '../src/systems/relics';
@@ -22,26 +21,27 @@ describe('relic tiers (v0.7: tier II strengthens, tier III awakens)', () => {
     expect(relicN('shockSigil', 2).cooldown).toBeLessThan(relicN('shockSigil', 1).cooldown); // "stronger" can mean a shorter cooldown
   });
 
-  it('a tier up never passes the top, and the Chapel caps a fresh save at tier II', () => {
-    let tiers = withRelic({}, 'frostBrand');
-    tiers = withRelic(tiers, 'frostBrand');
-    tiers = withRelic(tiers, 'frostBrand');
-    expect(tiers.frostBrand).toBe(RELIC_MAX_TIER);
-    expect(withRelic(tiers, 'frostBrand')).toBe(tiers);
-    expect(withRelic({ frostBrand: 2 }, 'frostBrand', 2)).toEqual({ frostBrand: 2 });
-    const fresh = createGame('paladin', 1);
-    addRelic(fresh, 'frostBrand');
-    addRelic(fresh, 'frostBrand');
-    expect(addRelic(fresh, 'frostBrand')).toBe(false);
-    expect(fresh.player.relics.tiers.frostBrand).toBe(2);
+  it('no duplicates (v0.7): taking a held relic does nothing, and no offer shows one', () => {
+    const g = createGame('paladin', 1);
+    expect(addRelic(g, 'frostBrand')).toBe(true);
+    expect(addRelic(g, 'frostBrand')).toBe(false);
+    expect(g.player.relics.tiers.frostBrand).toBe(1);
+    expect(g.player.relics.held.filter((id) => id === 'frostBrand')).toHaveLength(1);
+    for (let i = 0; i < 30; i++) {
+      offerRelics(g);
+      expect(g.player.relics.offers[0].options).not.toContain('frostBrand');
+      g.player.relics.offers = [];
+    }
   });
 
-  it('a tiered relic is stronger in play: Blood Pact II cuts less HP, and removing it gives the HP back', () => {
-    const g = createGame('paladin', 1, { meta: { relicSlot: 1 } });
+  it('a tiered relic is stronger in play: attuned Blood Pact II cuts less HP, and removing it gives the HP back', () => {
+    const g = createGame('paladin', 1);
     const base = g.player.stats.hp;
     addRelic(g, 'bloodPact');
     expect(g.player.stats.hp).toBeCloseTo(base * relicN('bloodPact', 1).hp);
-    addRelic(g, 'bloodPact');
+    g.player.relics.attune.bloodPact = 1;
+    updateGame(g, 1 / 60);
+    expect(g.player.relics.tiers.bloodPact).toBe(2);
     expect(g.player.stats.hp).toBeCloseTo(base * relicN('bloodPact', 2).hp);
     removeRelic(g, 'bloodPact');
     expect(g.player.stats.hp).toBeCloseTo(base);
@@ -81,17 +81,6 @@ describe('relic stacking (v0.7: face value)', () => {
 });
 
 describe('drops, selling and salvage', () => {
-  it('the share of new relics in an offer shrinks with every relic held', () => {
-    expect(newRelicShare(0)).toBe(1);
-    expect(newRelicShare(5)).toBeLessThan(newRelicShare(2));
-    expect(newRelicShare(50)).toBe(RELIC_DROPS.minNewShare);
-    const pool = RELIC_IDS.filter((id) => !relicDef(id).classId);
-    const held = pool.filter((id) => relicDef(id).rarity === 'common').slice(0, 6);
-    const maxed = Object.fromEntries(held.map((id) => [id, RELIC_MAX_TIER]));
-    const rng = mulberry32(3);
-    for (let i = 0; i < 50; i++) expect(held).not.toContain(rollRelics(pool, held, maxed, rng, 1)[0]); // top tier: never offered again
-  });
-
   it('a boss moment offers three distinct relics; a taken one is held', () => {
     const g = createGame('paladin', 1);
     offerRelics(g);
@@ -104,8 +93,7 @@ describe('drops, selling and salvage', () => {
 
   it('the Merchant buys relics back for gold or salvages them into Rune shards', () => {
     const g = createGame('paladin', 1);
-    addRelic(g, 'frostBrand');
-    addRelic(g, 'frostBrand');
+    addRelic(g, 'frostBrand', 'other', 2);
     expect(sellPrice('frostBrand', 2, 1)).toBe(Math.round(MERCHANT.buy.common * RELIC_DROPS.sellFrac * 2));
     expect(sellPrice('bloodPact', 1, 2)).toBeGreaterThan(sellPrice('bloodPact', 1, 1));
     expect(salvageValue('bloodPact', 3)).toBe(RELIC_DROPS.salvage.legendary * 3);

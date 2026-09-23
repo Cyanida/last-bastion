@@ -23,7 +23,8 @@ export function relicTip(id: RelicId, tier: number, held: RelicId[] = []): strin
   const count = held.filter((h) => relicDef(h).family === r.family).length;
   const lines = [`${r.name} · ${fam.icon} ${fam.name} · ${r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}${tier > 0 ? ` · tier ${TIER_NUMERALS[tier]} of ${TIER_NUMERALS[RELIC_MAX_TIER]}` : ''}`];
   lines.push(relicDesc(id, Math.max(1, tier)));
-  if (tier > 0 && tier < 2) lines.push(`Tier II: ${relicDesc(id, 2)}`);
+  if (tier > 0 && tier < RELIC_MAX_TIER) lines.push('Attunes as it does its work (the bar under it): damage, healing or protection through it, and a little every wave and elite.');
+  if (tier < 2) lines.push(`Tier II: ${relicDesc(id, 2)}`);
   if (tier < RELIC_MAX_TIER) lines.push(`Awakens at tier III, ${r.awaken.name}: ${r.awaken.desc}`);
   lines.push(`${fam.name} (${fam.mechanic}), ${count} held: ${([2, 4, 6] as const).map((n) => `${n} ${fam.sets[n][0]}`).join(' · ')}`);
   lines.push(...recipeLines({ relic: id }));

@@ -1,10 +1,11 @@
-import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
+import { ATTUNEMENT, FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
+import { addWork } from '../../logic/relics';
 import type { Minion } from '../../core/types';
 import { fireProjectile } from '../../entities/hazards';
 import { TAU } from '../../core/math';
 import { rollPlayerHit } from '../combat';
 import { ring } from '../effects';
-import { awakened, bonus, gainWard, nOf, nova, relicHeal, relicSkeletons, sOf, strength, type RelicHooks } from '../relicCore';
+import { awakened, bonus, credit, gainWard, nOf, nova, relicHeal, relicSkeletons, sOf, strength, type RelicHooks } from '../relicCore';
 
 /**
  * ✨ Holy (RELICS.md): healing, ward and blessing. Relics heal, grant ward (combat.damagePlayer lets ward take a hit first) or save you from
@@ -26,7 +27,9 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     tick(g, _dt, p) {
       g.vars.relicHealMult = (g.vars.relicHealMult ?? 1) + nOf(p, 'blessedWater').bonus; // combat.healPlayer reads it
     },
-    onHeal(_g, ev, p) {
+    onHeal(g, ev, p) {
+      const bonus = nOf(p, 'blessedWater').bonus;
+      credit(g, p, 'blessedWater', 'healing', (ev.amount * bonus) / (g.vars.relicHealMult ?? 1 + bonus)); // its share of the heal
       if (!awakened(p, 'blessedWater') || ev.amount <= 0) return;
       for (const id of ['poison', 'bleed', 'curse', 'slow'] as const) if (p.statuses[id]) return void delete p.statuses[id]; // Baptism
     },
@@ -67,7 +70,9 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 
   reliquary: {
     onDamageTaken(_g, _ev, p) {
+      if (p.abilityCd <= 0) return;
       p.abilityCd = Math.max(0, p.abilityCd - nOf(p, 'reliquary').perFaith * sOf(p));
+      addWork(p.relics, 'reliquary', ATTUNEMENT.proc);
     },
     onAbilityEnd(g, _ev, p) {
       if (awakened(p, 'reliquary')) gainWard(g, p, p.stats.hp * 0.01 * sOf(p)); // Martyr's Relic

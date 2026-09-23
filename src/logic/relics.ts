@@ -1,5 +1,5 @@
 import type { ClassId } from '../config/classes';
-import { DUO_SIX_STRENGTH, FAMILY_IDS, RELIC_DROPS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type FamilyId, type RelicId, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, DUO_SIX_STRENGTH, FAMILY_IDS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type FamilyId, type RelicId, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng } from '../core/types';
 import { mulberry32 } from '../core/math';
@@ -8,13 +8,26 @@ import { hashSeed } from './acts';
 /** v0.7: a player's own relic stream, split from the run seed (player 0, 1, ...). */
 export const relicStream = (seed: number, player: number): Rng => mulberry32(hashSeed(`relics:${seed}:${player}`));
 
-/** An empty relic state; createGame fills in the pool, the tier cap and the stream. */
+/** An empty relic state; createGame fills in the pool and the stream. */
 export const emptyRelics = (): RelicState => ({
-  held: [], tiers: {}, pool: [], offers: [], tierCap: 3, found: [], from: {}, stats: {}, rng: mulberry32(0),
+  held: [], tiers: {}, attune: {}, work: {}, pool: [], offers: [], found: [], from: {}, stats: {}, rng: mulberry32(0),
   static: {}, dyn: {}, totals: {}, dirty: true, sets: {}, duos: [],
 });
 
 export type RelicTiers = Partial<Record<RelicId, number>>;
+
+/** A4: attunement a relic earns by doing its work, up to ATTUNEMENT.workCap a wave (the tier-up itself happens in systems/relics updateRelics). */
+export function addWork(r: RelicState, id: RelicId, amount: number): void {
+  if (!r.held.includes(id) || (r.tiers[id] ?? 0) >= RELIC_MAX_TIER) return;
+  const add = Math.min(amount, ATTUNEMENT.workCap - (r.work[id] ?? 0));
+  if (!(add > 0)) return;
+  r.work[id] = (r.work[id] ?? 0) + add;
+  r.attune[id] = (r.attune[id] ?? 0) + add;
+}
+/** A4: attunement every held relic below the top tier gains (a wave cleared, an elite killed). */
+export function attuneAll(r: RelicState, amount: number): void {
+  for (const id of r.held) if ((r.tiers[id] ?? 0) < RELIC_MAX_TIER) r.attune[id] = (r.attune[id] ?? 0) + amount;
+}
 
 /** Relics this class may find: everything unlocked, minus other classes' relics. */
 export function relicPoolFor(classId: ClassId, locked: RelicId[]): RelicId[] {
@@ -22,21 +35,10 @@ export function relicPoolFor(classId: ClassId, locked: RelicId[]): RelicId[] {
 }
 
 export const relicTier = (tiers: RelicTiers, id: RelicId): number => tiers[id] ?? 0;
-export const canUpgrade = (tiers: RelicTiers, id: RelicId, cap = RELIC_MAX_TIER): boolean => relicTier(tiers, id) > 0 && relicTier(tiers, id) < Math.min(cap, RELIC_MAX_TIER);
 
-/** Share of new relics in a drop: shrinks with every relic held, so late drops are mostly upgrades. */
-export const newRelicShare = (heldCount: number): number => Math.max(RELIC_DROPS.minNewShare, 1 - heldCount * RELIC_DROPS.newDecayPerHeld);
-
-/**
- * Up to n distinct offers, weighted by rarity: new relics from the pool (weight scaled by newRelicShare) and upgrades of held relics
- * below the top tier. `exclude` keeps the same relic out of two offers queued at once.
- */
-export function rollRelics(pool: RelicId[], held: RelicId[], tiers: RelicTiers, rng: Rng, n: number, exclude: RelicId[] = [], cap = RELIC_MAX_TIER): RelicId[] {
-  const share = newRelicShare(held.length);
-  const left = [
-    ...pool.filter((id) => !held.includes(id) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] * share })),
-    ...held.filter((id) => canUpgrade(tiers, id, cap) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] })),
-  ];
+/** Up to n distinct relics from the pool, weighted by rarity; never one already held (v0.7: no duplicates) or in `exclude`. */
+export function rollRelics(pool: RelicId[], held: RelicId[], rng: Rng, n: number, exclude: RelicId[] = []): RelicId[] {
+  const left = pool.filter((id) => !held.includes(id) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] }));
   const out: RelicId[] = [];
   while (out.length < n && left.length > 0) {
     const pick = pickWeighted(left, rng);
@@ -47,21 +49,17 @@ export function rollRelics(pool: RelicId[], held: RelicId[], tiers: RelicTiers, 
 }
 
 /**
- * v0.7: one relic moment's options. Weighted by rarity (new relics also by newRelicShare) and `lean` times more for a family already held;
+ * v0.7: one relic moment's options, never a held relic. Weighted by rarity and `lean` times more for a family already held;
  * once any family is held, at least one option comes from a held family and at least one from a family not held, when the pool allows.
  * `familyOf` returns undefined for relics without a family (the rule ignores them). The order is shuffled, so the rule's picks are not
  * always the first cards.
  */
 export function rollOffer(
-  pool: RelicId[], held: RelicId[], tiers: RelicTiers, rng: Rng, n: number, familyOf: (id: RelicId) => string | undefined,
-  lean = 1, exclude: RelicId[] = [], cap = RELIC_MAX_TIER,
+  pool: RelicId[], held: RelicId[], rng: Rng, n: number, familyOf: (id: RelicId) => string | undefined, lean = 1, exclude: RelicId[] = [],
 ): RelicId[] {
   const heldFamilies = new Set(held.map(familyOf).filter((f): f is string => !!f));
-  const share = newRelicShare(held.length);
-  const all = [
-    ...pool.filter((id) => !held.includes(id) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] * share })),
-    ...held.filter((id) => canUpgrade(tiers, id, cap) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] })),
-  ].map((o) => ({ ...o, weight: o.weight * (heldFamilies.has(familyOf(o.value) ?? '') ? lean : 1) }));
+  const all = pool.filter((id) => !held.includes(id) && !exclude.includes(id))
+    .map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] * (heldFamilies.has(familyOf(id) ?? '') ? lean : 1) }));
   const out: RelicId[] = [];
   const take = (from: typeof all) => {
     if (!from.length || out.length >= n) return;
@@ -79,13 +77,6 @@ export function rollOffer(
     [out[i], out[j]] = [out[j], out[i]];
   }
   return out;
-}
-
-/** Tiers after taking `id`: a new relic at tier 1, a held one a tier up (never past the cap). Same object back = nothing changed. */
-export function withRelic(tiers: RelicTiers, id: RelicId, cap = RELIC_MAX_TIER): RelicTiers {
-  const tier = relicTier(tiers, id);
-  if (tier >= Math.min(cap, RELIC_MAX_TIER)) return tiers;
-  return { ...tiers, [id]: tier + 1 };
 }
 
 /** v0.7 (RELICS.md): a family's count, straight pieces (not duos), set level, and the strength its set works at. */

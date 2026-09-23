@@ -79,6 +79,6 @@ export function requirementText(r: Requirement, hint = false): string {
     case 'branch':
       return hint ? 'talents in one branch' : `a ${branchName(r.branch)} talent past the first row`;
     case 'relic':
-      return hint ? `a ${relicDef(r.id).rarity} relic at tier ${TIER_NUMERALS[r.tier]}` : `${relicDef(r.id).name} at tier ${TIER_NUMERALS[r.tier]}`;
+      return hint ? `a ${relicDef(r.id).rarity} relic attuned to tier ${TIER_NUMERALS[r.tier]}` : `${relicDef(r.id).name} attuned to tier ${TIER_NUMERALS[r.tier]}`;
   }
 }

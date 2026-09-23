@@ -1,10 +1,10 @@
 import { STATUSES, type DamageType } from '../config/damage';
-import { FAMILIES, RELIC_DAMAGE_PER_LEVEL, RELIC_MAX_TIER, RELIC_STACKING, relicDef, relicN, type FamilyId, type RelicId, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, FAMILIES, RELIC_DAMAGE_PER_LEVEL, RELIC_MAX_TIER, RELIC_STACKING, RELICS, relicDef, relicN, type FamilyId, type RelicId, type SetLevel } from '../config/relics';
 import { TAU } from '../core/math';
 import type { Enemy, Game, Minion, Mods, Player } from '../core/types';
 import { createMinion } from '../entities/actors';
 import { emit, type EventName, type GameEvents } from '../core/events';
-import { familySets, softCap, type SetState } from '../logic/relics';
+import { addWork, familySets, softCap, type SetState } from '../logic/relics';
 export { familySets, type SetState };
 import { relicContext } from './relicContext';
 import { applyStatus, damageEnemy, healPlayer, nearestEnemy } from './combat';
@@ -111,7 +111,9 @@ export function wardMax(p: Player): number {
 }
 export function gainWard(g: Game, p: Player, amount: number): void {
   if (amount <= 0) return;
+  const before = p.ward;
   p.ward = Math.min(Math.max(p.ward, wardMax(p)), p.ward + amount);
+  if (relicContext.acting) credit(g, p, relicContext.acting, 'prevented', p.ward - before); // ward is damage it will stop
   ring(g, p.x, p.y, p.r + 14, FAMILIES.holy.color, 0.3);
 }
 
@@ -124,6 +126,7 @@ export function gainArmorStacks(g: Game, p: Player, count: number): void {
   if (count <= 0) return;
   p.armorStacks = Math.min(armorStacksMax(p), p.armorStacks + count);
   p.armorStackT = g.time;
+  if (relicContext.acting) addWork(p.relics, relicContext.acting, ATTUNEMENT.proc * count);
 }
 export const fullArmorStacks = (p: Player): boolean => p.armorStacks >= armorStacksMax(p);
 
@@ -135,6 +138,7 @@ export function raiseSkeleton(g: Game, p: Player, x: number, y: number, by: Reli
   const m = createMinion(x, y, { hp: o.hp, damage: relicDamage(p, o.damage), speed: 165, attackCd: 0.7, life: o.life });
   relicSkeletons.set(m, by);
   g.minions.push(m);
+  if (by in RELICS) addWork(p.relics, by as RelicId, ATTUNEMENT.summon);
   ring(g, x, y, 30, FAMILIES.grave.color);
   return m;
 }
@@ -165,7 +169,10 @@ export function credit(g: Game, p: Player, id: RelicId, kind: 'damage' | 'healin
   const s = (p.relics.stats[id] ??= { damage: 0, healing: 0, prevented: 0 });
   s[kind] += amount;
   if (proc) flash(g, p, id);
+  const a = ATTUNEMENT;
+  addWork(p.relics, id, kind === 'damage' ? (a.damage * amount) / Math.max(1, g.vars.waveDealtRef ?? a.refDamage) : (a.support * amount) / p.stats.hp);
 }
+
 const RELIC_FLASH = 1.2;
 export function flash(g: Game, p: Player, id: RelicId): void {
   const key = `flash.${id}`;

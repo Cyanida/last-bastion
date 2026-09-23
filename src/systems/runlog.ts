@@ -3,7 +3,7 @@ import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ENEMIES } from '../config/enemies';
 import { EVENTS } from '../config/events';
 import { RUN_LOG } from '../config/game';
-import { relicDef, TIER_NUMERALS } from '../config/relics';
+import { RELIC_MAX_TIER, relicDef, TIER_NUMERALS } from '../config/relics';
 import { TALENT_BY_ID } from '../config/talents';
 import { UTILITY_UPGRADES } from '../config/utility';
 import { addListener, type GameEvents } from '../core/events';
@@ -43,7 +43,7 @@ export function updateRunLog(g: Game, dt: number): void {
   while (s.level < p.level) mark(g, 'level', String(++s.level));
   for (; s.relics < g.player.relics.found.length; s.relics++) {
     const id = g.player.relics.found[s.relics];
-    mark(g, 'relic', `${relicDef(id).name} ${TIER_NUMERALS[g.player.relics.tiers[id] ?? 1]}`);
+    mark(g, 'relic', relicDef(id).name);
   }
   for (; s.talents < p.talents.length; s.talents++) mark(g, 'talent', TALENT_BY_ID[p.talents[s.talents]]?.name ?? p.talents[s.talents]);
   for (; s.upgrades < p.upgrades.length; s.upgrades++) mark(g, 'upgrade', ABILITY_UPGRADES[p.upgrades[s.upgrades]].name);
@@ -103,6 +103,10 @@ export function finishRunLog(g: Game): RunLog {
 
 addListener((g, name, ev) => {
   if (name === 'onWaveStart') g.log.waves.push([round1(g.time), 0, 0, 0]);
+  else if (name === 'onRelicTier') {
+    const { id, tier } = ev as GameEvents['onRelicTier'];
+    mark(g, 'attune', `${relicDef(id).name} ${TIER_NUMERALS[tier]}${tier >= RELIC_MAX_TIER ? `, awakened: ${relicDef(id).awaken.name}` : ''}`);
+  }
   else if (name === 'onDamageTaken') {
     const row = g.log.waves[g.wave - 1];
     if (row) row[2] += (ev as GameEvents['onDamageTaken']).amount;

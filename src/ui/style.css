@@ -536,3 +536,5 @@ canvas#game { touch-action: none; }
 .fam-chip.flash { animation: fam-flash 1.2s ease-out 2; }
 @keyframes fam-flash { 0% { transform: scale(1.5); background: var(--fam); } 100% { transform: scale(1); } }
 .card .fam-line { font-size: 13px; margin-top: 4px; }
+.relic .att { position: absolute; left: 4px; right: 4px; bottom: 3px; height: 3px; border-radius: 2px; background: rgba(42, 29, 16, 0.35); overflow: hidden; }
+.relic .att::after { content: ''; position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--att, 0)); background: var(--gold); transition: transform 0.4s; }

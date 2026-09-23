@@ -1,5 +1,6 @@
 import { relicContext } from './relicContext';
-import { FAMILIES, RELIC_COLOR } from '../config/relics';
+import { ATTUNEMENT, FAMILIES, RELIC_COLOR } from '../config/relics';
+import { addWork } from '../logic/relics';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
@@ -97,6 +98,7 @@ export function applyStatus(e: Enemy, s: Status | null, g?: Game): void {
   if (s.markT) list.push({ id: 'curse', stacks: curseStacks(s.markMul ?? 1.3), time: s.markT });
   // v0.7 set bonuses on every status the player puts on an enemy: Flame's Stoked, Frost's Biting Cold, Blood's Open Wounds
   // ponytail: the player is g.player; with co-op the status has to say whose it is
+  if (g && relicContext.acting) addWork(g.player.relics, relicContext.acting, ATTUNEMENT.proc); // A4: a relic's status is work
   const sets = g?.player.relics.sets;
   if (sets) {
     for (let i = 0; i < list.length; i++) {
@@ -410,7 +412,10 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
       return false;
     }
     const v = Math.hypot(pr.vx, pr.vy) || 1;
+    const outer = relicContext.acting;
+    if (pr.by) relicContext.acting = pr.by; // a relic's bolt lands after its hook: its damage is still the relic's (A4)
     damageEnemy(g, e, pr.damage, pr.crit, (pr.vx / v) * 60, (pr.vy / v) * 60, pr.source, pr.dtype);
+    relicContext.acting = outer;
     applyStatus(e, pr.status, g);
     pr.hit.push(e);
     if (pr.pierce-- <= 0) return false;
@@ -472,8 +477,11 @@ export function updateFields(g: Game, dt: number): void {
         if (inside && f.heal > 0) healPlayer(g, f.heal * GAME.fieldTick, false);
         for (const e of g.hash.query(f.x, f.y, f.r, near)) {
           if (e.dead) continue;
-          damageEnemy(g, e, f.dps * GAME.fieldTick, false, 0, 0, 'ability', f.dtype);
+          const outer = relicContext.acting;
+          relicContext.acting = f.by ?? outer; // a relic's field (Scorched Earth) credits its relic
+          damageEnemy(g, e, f.dps * GAME.fieldTick, false, 0, 0, f.by ? 'relic' : 'ability', f.dtype);
           if (f.apply) applyStatus(e, { apply: [f.apply] }, g);
+          relicContext.acting = outer;
         }
       }
     }

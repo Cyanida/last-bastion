@@ -54,10 +54,11 @@ export interface RelicOffer {
  */
 export interface RelicState {
   held: RelicId[]; // in pickup order
-  tiers: Partial<Record<RelicId, number>>; // 1..RELIC_MAX_TIER per held relic
+  tiers: Partial<Record<RelicId, number>>; // 1..RELIC_MAX_TIER per held relic, raised only by attunement (v0.7)
+  attune: Partial<Record<RelicId, number>>; // v0.7 A4: progress to the next tier, 0..1 (config ATTUNEMENT)
+  work: Partial<Record<RelicId, number>>; // attunement from work this wave (capped at ATTUNEMENT.workCap)
   pool: RelicId[]; // unlocked and allowed for this class
   offers: RelicOffer[]; // queued moments, oldest first
-  tierCap: number; // v0.4: the Chapel's vault: 2 until bought, then RELIC_MAX_TIER
   found: RelicId[]; // every pickup and tier-up this run, for the compendium
   from: Record<string, RelicSource>; // where each held relic came from
   stats: Record<string, RelicStat>; // what each held relic did this run (RELICS.md)
@@ -304,6 +305,7 @@ export interface Projectile extends Body {
   hit: Enemy[];
   status: Status | null;
   source: DamageSource;
+  by?: RelicId; // v0.7: fired by this relic (its damage is credited to it)
   dtype: DamageType;
 }
 
@@ -339,6 +341,7 @@ export interface Field extends Body {
   tickT: number;
   dtype: DamageType;
   apply: StatusApply | null; // put on whoever stands in it, every tick
+  by?: RelicId; // v0.7: laid by this relic (its damage is credited to it)
 }
 
 export interface Pickup {

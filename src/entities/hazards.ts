@@ -1,5 +1,6 @@
 import { RENDER } from '../config/game';
 import type { Field, Game, Projectile, Zone } from '../core/types';
+import { relicContext } from '../systems/relicContext';
 
 const pool: Projectile[] = [];
 /** Returned by combat when a projectile dies, so the next shot reuses the object (and its hit list). */
@@ -32,6 +33,7 @@ export function fireProjectile(
   pr.source = o.source ?? 'attack';
   pr.dtype = o.dtype ?? 'physical';
   pr.seek = o.seek ?? false;
+  pr.by = relicContext.acting ?? undefined; // v0.7: fired by a relic's hook: its hits are that relic's work
   g.projectiles.push(pr);
 }
 
@@ -42,7 +44,7 @@ export function addZone(g: Game, z: Pick<Zone, 'x' | 'y' | 'r' | 'delay' | 'dama
 
 export function addField(g: Game, f: Pick<Field, 'x' | 'y' | 'r' | 'life' | 'dps' | 'hostile' | 'color'> & Partial<Pick<Field, 'heal' | 'dtype' | 'apply'>>): void {
   if (g.fields.length >= RENDER.maxFields) g.fields.shift(); // the oldest goes: a Plague wave would otherwise carpet the arena
-  g.fields.push({ heal: 0, dtype: 'physical', apply: null, ...f, max: f.life, tickT: 0 });
+  g.fields.push({ heal: 0, dtype: 'physical', apply: null, ...f, max: f.life, tickT: 0, by: relicContext.acting ?? undefined });
 }
 
 /** Run fn after `seconds` of game time (second volley, twin pulse...). */

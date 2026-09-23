@@ -38,7 +38,7 @@ describe('run log (v0.6)', () => {
     expect(times).toEqual([...times].sort((a, b) => a - b));
     expect(log.marks.filter((m) => m[1] === 'level').length).toBe(run.level - 1);
     expect(log.marks.filter((m) => m[1] === 'relic').length).toBe(run.relicsFound!.length);
-    for (const m of log.marks.filter((m) => m[1] === 'relic')) expect(m[2]).toMatch(/ (I|II|III)$/); // the name and the tier it reached
+    for (const m of log.marks.filter((m) => m[1] === 'relic')) expect(m[2]).not.toMatch(/ (I|II|III)$/); // v0.7: the name; tier-ups are 'attune' marks
     expect(log.marks.some((m) => m[1] === 'board')).toBe(true); // Act I's quest board comes up at the start
   });
 

@@ -192,7 +192,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     glows: [],
     over: false,
   };
-  Object.assign(g.player.relics, { pool: relicPoolFor(classId, opts.lockedRelics ?? []), tierCap: loadout.relicTierCap, rng: relicStream(seed, 0) });
+  Object.assign(g.player.relics, { pool: relicPoolFor(classId, opts.lockedRelics ?? []), rng: relicStream(seed, 0) });
   // curses that are plain numbers live in g.vars; the rest are read where they matter (spawning, director)
   g.vars.damageTaken = curseValue(curses, 'glassBones', 'damage');
   g.vars.enemySpeed = curseValue(curses, 'frenzy', 'speed');
@@ -209,21 +209,21 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     g.player.stats = applyGrowth(g.player.stats, cls.growth);
     g.player.hp = g.player.stats.hp;
   }
-  for (const id of opts.relics ?? []) for (let t = 0; t < (opts.relicTier ?? 1); t++) addRelic(g, id);
+  for (const id of opts.relics ?? []) addRelic(g, id, 'other', opts.relicTier ?? 1);
   for (let i = 0; i < (opts.relicPicks ?? 0); i++) {
-    const [pick] = rollRelics(g.player.relics.pool, g.player.relics.held, g.player.relics.tiers, g.rng, 1);
+    const [pick] = rollRelics(g.player.relics.pool, g.player.relics.held, g.rng, 1);
     if (pick) addRelic(g, pick, 'start');
   }
   if (opts.noRelics) g.player.relics.pool = [];
   if (loadout.startRelic) {
     // v0.6 Armorer's Choice: the run opens on a choice of three common relics
     const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
-    const choice = rollRelics(commons, [], {}, g.rng, 3);
+    const choice = rollRelics(commons, [], g.rng, 3);
     if (choice.length) (g.player.relics.offers.push({ from: 'start', options: choice, rerolls: RELIC_MOMENTS.rerolls }), (g.vars.armorerOffer = 1));
   }
   if (mastery.relic) {
     const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
-    const [gift] = rollRelics(commons, [], {}, g.rng, 1);
+    const [gift] = rollRelics(commons, g.player.relics.held, g.rng, 1);
     if (gift) addRelic(g, gift, 'start');
   }
   startRunLog(g);

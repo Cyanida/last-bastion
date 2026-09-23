@@ -118,6 +118,21 @@ Measured with the bot (maxed saves, 3 seeds per class, the bot buying at every M
 are free (7 bosses, 3-4 lairs, 2-3 quests, 1-2 strongboxes) and 3 bought. A player who does not buy every time lands in the 12-16 target;
 A8 revisits the numbers once the new relics exist.
 
+## A4 · Attunement (built)
+
+No duplicates: a held relic is never offered again, and a relic grows only by attunement (`ATTUNEMENT` in `config/relics.ts`). Its bar fills
+from the **work** it does (damage dealt through it as a share of the damage you dealt the wave before, healing, ward or damage prevented in max
+HP, a status or armor stack it gives, a skeleton it raises, Grave relics also from corpses walked over with Charnel), at most 0.1 a wave, plus
+0.03 per wave cleared and 0.002 per elite killed for every held relic. A full bar is a tier: II strengthens, III awakens. A tier-up flashes,
+sounds, lands in the run log and emits `onRelicTier` (the hook for the 0.7.1 stinger). Evolution recipes ask for a relic attuned to tier II.
+
+Credit now reaches every relic: a bolt or field a relic leaves behind stays that relic's damage (Seraph Halo, Scorched Earth), and utility counts
+(chills, curses, ward, Blessed Water's share of a heal, Reliquary's cooldown cuts). Before that, 79% of relic-waves did no credited work; now 42%,
+mostly relics whose condition was not met (Glacial Heart, Rally Banner at full HP).
+
+Measured with the bot (maxed saves, one seed per class, 40 waves): a relic picked in Act I reaches tier II at wave 15/20/22 (p25/median/p75) and
+tier III at wave 25/28/33; one picked in Act II needs 7/10/13 waves to tier II. A8 tunes the rates with the full sim.
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown

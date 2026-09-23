@@ -32,11 +32,11 @@ export function merchantHeal(g: Game): boolean {
   return true;
 }
 
-/** v0.7: a relic moment of that rarity: pay, then pick one of three (new relics, or tier-ups for ones you hold). */
+/** v0.7: a relic moment of that rarity: pay, then pick one of three relics you do not hold. */
 export function merchantBuy(g: Game, rarity: Rarity): boolean {
   if (g.midMerchant || (g.vars.merchantRelics ?? 0) >= RELIC_MOMENTS.merchantPerVisit) return false; // v0.7: one relic moment a visit, none at the caravan
   const pool = g.player.relics.pool.filter((id) => relicDef(id).rarity === rarity);
-  if (!pool.some((id) => !g.player.relics.held.includes(id) || relicTier(g.player.relics.tiers, id) < g.player.relics.tierCap) || !pay(g, `buy:${rarity}`)) return false;
+  if (!pool.some((id) => !g.player.relics.held.includes(id)) || !pay(g, `buy:${rarity}`)) return false;
   offerRelics(g, RELIC_MOMENTS.choices, 'merchant', g.player, pool);
   g.vars.merchantRelics = (g.vars.merchantRelics ?? 0) + 1;
   return true;
@@ -47,10 +47,10 @@ export function merchantReroll(g: Game, id: RelicId): boolean {
   const tier = relicTier(g.player.relics.tiers, id);
   if (tier === 0) return false;
   const pool = g.player.relics.pool.filter((r) => relicDef(r).rarity === relicDef(id).rarity && !g.player.relics.held.includes(r));
-  const [next] = rollRelics(pool, [], {}, g.rng, 1);
+  const [next] = rollRelics(pool, [], g.rng, 1);
   if (next === undefined || !pay(g, 'reroll')) return false;
   removeRelic(g, id);
-  for (let t = 0; t < tier; t++) addRelic(g, next);
+  addRelic(g, next, 'merchant', tier);
   return true;
 }
 

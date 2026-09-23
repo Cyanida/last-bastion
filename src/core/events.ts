@@ -1,3 +1,4 @@
+import type { RelicId } from '../config/relics';
 import type { DamageSource, Enemy, Game } from './types';
 
 /**
@@ -20,6 +21,8 @@ export interface GameEvents {
   onFreeze: { enemy: Enemy }; // chill tipped over into a freeze
   onChain: { enemy: Enemy }; // a chain jumped to this enemy (Storm)
   onRevive: Record<string, never>; // a revive charge was spent (Phoenix Feather's Rebirth)
+  onRelicTier: { id: RelicId; tier: number }; // A4: attunement raised a relic a tier (the hook for the 0.7.1 stinger)
+  onWaveCleared: { wave: number };
 }
 export type EventName = keyof GameEvents;
 export type Handlers = { [K in EventName]?: (g: Game, ev: GameEvents[K]) => void };

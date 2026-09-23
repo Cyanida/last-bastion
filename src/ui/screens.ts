@@ -3,7 +3,7 @@ import { ACHIEVEMENTS, CATEGORIES, tierReward, type AchievementCategory, type Ac
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
 import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
-import { FAMILIES, FAMILY_IDS, preferredFamilies, RELIC_IDS, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS, type Rarity } from '../config/relics';
+import { FAMILIES, FAMILY_IDS, preferredFamilies, type Rarity, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS } from '../config/relics';
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
 import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
@@ -327,8 +327,8 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
-const MARK_ICONS: Record<MarkKind, string> = { level: '', relic: '💠', talent: '🌿', upgrade: '⬆️', board: '📜', quest: '✔️', event: '❗', shrine: '⛩️', boss: '💀', phase: '⚜️', evolution: '🌟', merchant: '🪙', route: '🧭', act: '🚩', stand: '❤️‍🔥', bored: '😴' };
-const MARK_NAMES: Record<MarkKind, string> = { level: 'Level', relic: 'Relic', talent: 'Talent', upgrade: 'Upgrade', board: 'Quest board', quest: 'Quest done', event: 'Event', shrine: 'Shrine', boss: 'Boss slain', phase: 'Boss', evolution: 'Evolution', merchant: 'Merchant', route: 'Route', stand: 'Last Stand', act: 'New Act', bored: 'Bored here' };
+const MARK_ICONS: Record<MarkKind, string> = { level: '', relic: '💠', talent: '🌿', upgrade: '⬆️', board: '📜', quest: '✔️', event: '❗', shrine: '⛩️', boss: '💀', phase: '⚜️', evolution: '🌟', merchant: '🪙', route: '🧭', act: '🚩', stand: '❤️‍🔥', bored: '😴', attune: '✴️' };
+const MARK_NAMES: Record<MarkKind, string> = { level: 'Level', relic: 'Relic', talent: 'Talent', upgrade: 'Upgrade', board: 'Quest board', quest: 'Quest done', event: 'Event', shrine: 'Shrine', boss: 'Boss slain', phase: 'Boss', evolution: 'Evolution', merchant: 'Merchant', route: 'Route', stand: 'Last Stand', act: 'New Act', bored: 'Bored here', attune: 'Relic attuned' };
 
 /** v0.6: one run's timeline: a band per wave (width = how long it took), level-ups as ticks, everything else as icons above it. */
 function timeline(r: RunLog): string {
@@ -588,7 +588,7 @@ export function showRelicOffer(
   const el = show(`
     <div class="levelup">
       <h1 class="small">${MOMENT_TITLES[offer.from]}</h1>
-      <p class="sub">${options.some((id) => held.includes(id)) ? 'A relic you already carry can grow a tier stronger' : 'Choose a relic'} · ${held.length} carried</p>
+      <p class="sub">Choose a relic · ${held.length} carried</p>
       <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div>${[...info.preview(id), ...recipeLines({ relic: id })].map((l) => `<div class="preview">${esc(l)}</div>`).join('')}`)).join('')}</div>
       <div class="row">
         <button class="btn" data-reroll ${offer.rerolls > 0 ? '' : 'disabled'}>Reroll (R) · ${offer.rerolls} left</button>
@@ -724,6 +724,7 @@ export function showTalents(info: { classId: ClassId; taken: string[]; points: n
 export interface BuildInfo {
   relics: RelicId[];
   tiers: RelicTiers;
+  attune?: RelicTiers; // v0.7 A4: progress to the next tier, 0..1
   upgrades: AbilityUpgradeId[];
   classId: ClassId;
   talents: string[];
@@ -738,7 +739,8 @@ export interface BuildInfo {
 export function buildHtml(info: BuildInfo): string {
   const relics = info.relics.map((id) => {
     const tier = info.tiers[id] ?? 1;
-    return `<div><span tabindex="0" data-tip="${esc(relicTip(id, tier, info.relics))}">${relicDef(id).icon} ${relicDef(id).name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}</span><em>${relicDesc(id, tier)}</em></div>`;
+    const att = info.attune && tier < RELIC_MAX_TIER ? ` · ${Math.floor((info.attune[id] ?? 0) * 100)}% to ${TIER_NUMERALS[tier + 1]}` : '';
+    return `<div><span tabindex="0" data-tip="${esc(relicTip(id, tier, info.relics))}">${relicDef(id).icon} ${relicDef(id).name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}${att}</span><em>${relicDesc(id, tier)}</em></div>`;
   }).join('');
   const trait = info.trait !== 'none' ? `<div><span>${TRAITS[info.trait].icon} ${TRAITS[info.trait].name}</span><em>${TRAITS[info.trait].desc}</em></div>` : '';
   const ups = info.upgrades.map((id) => `<div><span>✦ ${ABILITY_UPGRADES[id].name}</span><em>${ABILITY_UPGRADES[id].desc}</em></div>`).join('');
@@ -928,7 +930,7 @@ export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r
       <p class="sub">${info.mid ? 'The Merchant path: his caravan has caught up with you.' : 'The Merchant waits by the gate.'} Purse: <b class="goldtext">🪙 ${info.gold}</b>${info.salvage > 0 ? ` · shards: <b>${info.salvage} ◆</b>` : ''} — what you spend here never reaches the Keep.</p>
       <div class="cards">
         ${offer('heal', 'data-heal', 'Field Surgeon', `Heal half your HP (${Math.ceil(info.hp)} / ${Math.round(info.maxHp)}).`, info.hp < info.maxHp)}
-        ${(Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, info.relicsLeft > 0 ? `Choose one of three ${r} relics: new, or a tier up for one you carry. One relic a visit.` : 'He sells one relic a visit.', info.relicsLeft > 0)).join('')}
+        ${(Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, info.relicsLeft > 0 ? `Choose one of three ${r} relics you do not carry. One relic a visit.` : 'He sells one relic a visit.', info.relicsLeft > 0)).join('')}
       </div>
       ${held ? `<div class="panel heldlist">${held}</div>` : ''}
       <button class="btn big" data-leave>March on</button>

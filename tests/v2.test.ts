@@ -15,7 +15,7 @@ import { lockedArenas, lockedRelics, newlyEarned, withAchievements } from '../sr
 import { classXpForRun, goldDrop, masteryBonus, masteryRank, metaCost, metaLoadout, rerollCost, startingStats, totalMetaCost, waveClearGold } from '../src/logic/economy';
 import { applyAffixes, eliteChance, rollAffixes } from '../src/logic/elites';
 import { neutralMods } from '../src/logic/mods';
-import { relicPoolFor, rollRelics, withRelic } from '../src/logic/relics';
+import { relicPoolFor, rollRelics } from '../src/logic/relics';
 import { applyRun, buyMeta, defaultSave, exportSave, importSave, migrate, SAVE_VERSION, type RunSummary } from '../src/logic/save';
 import { applyTradeoff, rollLevelUpOptions, upgradeAmount } from '../src/logic/upgrades';
 import { generateWave, isBossWave } from '../src/logic/waves';
@@ -145,16 +145,15 @@ describe('relic hooks', () => {
     for (const id of g.player.relics.offers[0].options) expect([undefined, 'paladin']).toContain(relicDef(id).classId);
   });
 
-  it('pool and rolls (v0.4: no slot limit; a held relic at the top tier is never rolled again)', () => {
+  it('pool and rolls (v0.7: a held relic is never rolled again)', () => {
     const pool = relicPoolFor('viking', ['phoenixFeather']);
     expect(pool).toContain('wolfskin');
     expect(pool).not.toContain('reliquary');
     expect(pool).not.toContain('phoenixFeather');
-    const rolled = rollRelics(pool, ['frostBrand'], { frostBrand: 3 }, mulberry32(3), 3);
+    const rolled = rollRelics(pool, ['frostBrand'], mulberry32(3), 3);
+    expect(rolled).toHaveLength(3);
     expect(rolled).not.toContain('frostBrand');
-    expect(rollRelics(['frostBrand'], ['frostBrand'], { frostBrand: 3 }, mulberry32(3), 3)).toEqual([]);
-    expect(withRelic({ frostBrand: 3 }, 'frostBrand')).toEqual({ frostBrand: 3 });
-    expect(withRelic({}, 'bloodPact')).toEqual({ bloodPact: 1 });
+    expect(rollRelics(['frostBrand'], ['frostBrand'], mulberry32(3), 3)).toEqual([]);
   });
 });
 

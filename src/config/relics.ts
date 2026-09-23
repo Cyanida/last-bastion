@@ -57,10 +57,28 @@ export const RELIC_MOMENTS = {
 /** Relic damage has no attack stat behind it, so it grows with character level instead. */
 export const RELIC_DAMAGE_PER_LEVEL = 0.09;
 
-/** Drops: the share of new relics in an offer shrinks with every relic held. Selling and salvage at the Merchant. */
+/**
+ * v0.7 attunement (A4): a held relic grows by doing its work. Progress runs 0 to 1 toward the next tier (II strengthens, III awakens).
+ * Work: damage dealt through it (as a share of the damage you dealt last wave), healing, ward or damage prevented through it (in max HP), a
+ * skeleton it raised, a status or armor stack it gave, and for Grave relics a corpse walked over while Charnel holds; together at most
+ * `workCap` a wave. Every held relic
+ * also gains a little per wave cleared and per elite killed. Normalized so a relic picked in Act I that does its work reaches tier II in
+ * Act II and tier III in Act III (four Acts of 10 waves; A8 checks it with `npm run sim -- relics`).
+ */
+export const ATTUNEMENT = {
+  damage: 1.5, // × its share of a wave's damage
+  support: 0.75, // × healing, ward or prevention, in max HP
+  summon: 0.03, // a skeleton raised
+  proc: 0.005, // a status it puts on an enemy (chill, burn, bleed, curse), an armor stack, a cooldown cut
+  corpse: 0.005, // Charnel (Grave 2): a corpse walked over, for every Grave relic
+  workCap: 0.1, // work counts up to this much a wave
+  wave: 0.03, // every held relic, per wave cleared
+  elite: 0.002, // every held relic, per elite killed (a maxed save meets 10+ a wave)
+  refDamage: 400, // the damage a wave is measured against before the first wave has been measured
+};
+
+/** Selling and salvage at the Merchant. */
 export const RELIC_DROPS = {
-  newDecayPerHeld: 0.09,
-  minNewShare: 0.25,
   sellFrac: 0.35, // of the Merchant's buy price for that rarity, per tier
   salvage: { common: 1, rare: 2, legendary: 4 } as Record<Rarity, number>, // Rune shards per tier
 };

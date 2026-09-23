@@ -4,7 +4,7 @@ import { SKILL } from '../config/game';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
-import { FAMILIES, FAMILY_IDS, RELIC_STACKING, relicDef, type FamilyId, type RelicId } from '../config/relics';
+import { FAMILIES, FAMILY_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, type FamilyId, type RelicId } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
 import { STAT_KEYS, type Enemy, type Game, type Mods, type Quest, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
@@ -141,6 +141,7 @@ const toastedQuests = new WeakSet<Quest>(); // v0.5: each finished quest is toas
 
 const fmt = (key: StatKey, v: number) => (key === 'atkSpd' ? v.toFixed(2) : String(Math.round(v * 10) / 10));
 const lastLevels: Partial<Record<FamilyId, number>> = {}; // v0.7: family set levels last shown (a new threshold flashes)
+let lastAttKey = '';
 let lastRelicKey = '';
 const MOD_NAMES: Partial<Record<keyof Mods, string>> = { damage: 'damage', atkSpd: 'attack speed', moveSpd: 'speed', cooldown: 'cooldown cut', pickup: 'pickup', xp: 'XP', gold: 'gold', armor: 'armor', crit: 'crit', pierce: 'pierce', minionAtkSpd: 'minion speed', minionDamage: 'minion damage' };
 
@@ -189,11 +190,12 @@ export function updateHud(g: Game): void {
   const relicKey = `${g.player.relics.held.map((id) => `${id}${g.player.relics.tiers[id]}`).join(',')}|${g.player.talents.length}|${g.evolutions.length}|${g.player.upgrades.length}|${g.player.utilityUpgrades.length}`; // v0.6: recipes change the tooltips too
   if (relicKey !== lastRelicKey) {
     lastRelicKey = relicKey;
+    lastAttKey = ''; // new tiles: draw their attunement bars again
     setRecipeBuild(buildState(g));
     const tile = (id: RelicId) => {
       const r = relicDef(id);
       const tier = g.player.relics.tiers[id] ?? 1;
-      return `<div class="relic ${r.rarity}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.player.relics.held))}">${r.icon}${tierBadge(tier)}</div>`;
+      return `<div class="relic ${r.rarity}" data-id="${id}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.player.relics.held))}">${r.icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
     };
     // 50px a tile; desktop keeps clear of the ability panel, touch (bar at the top) of the wave plate
     const fit = Math.max(3, Math.min(8, Math.floor((innerWidth / 2 - (document.documentElement.classList.contains('compact') ? 140 : 300)) / 50)));
@@ -211,6 +213,12 @@ export function updateHud(g: Game): void {
       const tip = `${fam.name} · ${st.count} held${st.level ? ` · ${([2, 4, 6] as const).filter((l) => st.level >= l).map((l) => fam.sets[l][0]).join(', ')}` : ''}${next ? `\nNext at ${next}: ${fam.sets[next][0]}, ${fam.sets[next][1]}` : ''}${st.strength > 1 ? '\nCompleted with a duo: its 6 works at 125%.' : ''}`;
       return `<div class="fam-chip ${st.level ? 'on' : ''} ${fresh ? 'flash' : ''}" style="--fam:${fam.color}" tabindex="0" data-tip="${esc(tip)}">${fam.icon}<b>${st.count}</b></div>`;
     }).join(''));
+  }
+  // v0.7 A4: attunement bars under the relic tiles
+  const attKey = g.player.relics.held.map((id) => Math.floor((g.player.relics.attune[id] ?? 0) * 40)).join(',');
+  if (attKey !== lastAttKey) {
+    lastAttKey = attKey;
+    for (const el of document.querySelectorAll<HTMLElement>('#h-relics .relic[data-id]')) el.style.setProperty('--att', String(g.player.relics.attune[el.dataset.id as RelicId] ?? 0));
   }
 
   const sig = evolutionIn(g, 'signature'); // v0.6: an evolved ability wears its new name

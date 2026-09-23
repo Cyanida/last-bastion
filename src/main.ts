@@ -342,7 +342,7 @@ function openChoice(g: Game): void {
     });
   } else if (g.player.relics.offers.length > 0) {
     const p = g.player;
-    showRelicOffer(p.relics.offers[0], p.relics.held, p.relics.tiers, { skip: skipReward(g), preview: (id) => relicPreview(g, p, id) }, {
+    showRelicOffer(p.relics.offers[0], p.relics.held, p.relics.tiers, { skip: skipReward(g), preview: (id) => relicPreview(p, id) }, {
       take: (id) => void (resolveRelicOffer(g, id, p), resume()),
       skip: () => void (skipRelicOffer(g, p), resume()),
       reroll: () => void (rerollRelicOffer(g, p), openChoice(g)),
@@ -413,7 +413,7 @@ function openMerchant(g: Game): void {
   );
 }
 
-const buildOf = (g: Game) => ({ relics: g.player.relics.held, tiers: g.player.relics.tiers, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait, sacred: sacredLines(g), evolutions: g.evolutions });
+const buildOf = (g: Game) => ({ relics: g.player.relics.held, tiers: g.player.relics.tiers, attune: g.player.relics.attune, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait, sacred: sacredLines(g), evolutions: g.evolutions });
 
 /** v0.5: the sacred treasure carried, and what this run has done for the class's chain so far (pause and results). */
 function sacredLines(g: Game): { name: string; desc: string }[] {

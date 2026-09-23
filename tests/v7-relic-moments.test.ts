@@ -16,11 +16,11 @@ describe('relic offers (v0.7)', () => {
     const held: RelicId[] = [pool.find((id) => FAM[id] === 'flame')!];
     const rng = mulberry32(3);
     for (let i = 0; i < 200; i++) {
-      const offer = rollOffer(pool, held, { [held[0]]: 3 }, rng, 3, familyOf, 2);
+      const offer = rollOffer(pool, held, rng, 3, familyOf, 2);
       expect(new Set(offer).size).toBe(3);
       expect(offer.some((id) => FAM[id] === 'flame')).toBe(true);
       expect(offer.some((id) => FAM[id] !== 'flame')).toBe(true);
-      expect(offer).not.toContain(held[0]); // at the top tier: never offered again
+      expect(offer).not.toContain(held[0]); // held: never offered again (A4)
     }
   });
 
@@ -30,11 +30,11 @@ describe('relic offers (v0.7)', () => {
     const count = (lean: number) => {
       const rng = mulberry32(9);
       let frost = 0;
-      for (let i = 0; i < 400; i++) frost += rollOffer(pool, held, { [held[0]]: 3 }, rng, 3, familyOf, lean).filter((id) => FAM[id] === 'frost').length;
+      for (let i = 0; i < 400; i++) frost += rollOffer(pool, held, rng, 3, familyOf, lean).filter((id) => FAM[id] === 'frost').length;
       return frost;
     };
     expect(count(4)).toBeGreaterThan(count(1));
-    expect(rollOffer(pool, [], {}, mulberry32(1), 3, familyOf, 2)).toHaveLength(3);
+    expect(rollOffer(pool, [], mulberry32(1), 3, familyOf, 2)).toHaveLength(3);
   });
 
   it('the same seed gives the same offers, whatever else draws on the run\'s randomness', () => {

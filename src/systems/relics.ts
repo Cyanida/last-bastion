@@ -1,11 +1,11 @@
 import { ROUTES } from '../config/routes';
-import { BOSS_RELIC_CHOICES, FAMILIES, FAMILY_IDS, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, SET_LEVELS, TIER_NUMERALS, type FamilyId, type RelicId, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, BOSS_RELIC_CHOICES, FAMILIES, FAMILY_IDS, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type FamilyId, type RelicId, type SetLevel } from '../config/relics';
 import { sfx } from '../core/audio';
-import { addListener, type EventName, type GameEvents } from '../core/events';
+import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
 import { combineMods } from '../logic/mods';
-import { foldRelicMods, relicModTotals, relicTier, rollOffer, totalsToMods, withRelic } from '../logic/relics';
-import { floatText } from './effects';
+import { attuneAll, foldRelicMods, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
+import { floatText, ring } from './effects';
 import { relicContext } from './relicContext';
 import { credit, familySets, rawBy, type RelicHooks } from './relicCore';
 import { BLOOD_RELICS, BLOOD_SETS } from './relicFamilies/blood';
@@ -76,7 +76,17 @@ function attribute(g: Game, p: Player, ev: GameEvents['onHit']): void {
 
 addListener((g, name, ev) => {
   const p = g.player; // ponytail: one player; with co-op this runs for every player whose relics care about the event
-  if (name === 'onWaveStart') g.vars.relicHeal = 0;
+  if (name === 'onWaveStart') {
+    g.vars.relicHeal = 0;
+    g.vars.dealtAtWave = g.vars.dealt ?? 0;
+    p.relics.work = {};
+  }
+  if (name === 'onWaveCleared') {
+    // A4: the wave just fought is what the next wave's damage attunement is measured against; every held relic attunes a little
+    g.vars.waveDealtRef = Math.max(ATTUNEMENT.refDamage, (g.vars.dealt ?? 0) - (g.vars.dealtAtWave ?? 0));
+    attuneAll(p.relics, ATTUNEMENT.wave);
+  }
+  if (name === 'onKill' && (ev as GameEvents['onKill']).enemy.elite) attuneAll(p.relics, ATTUNEMENT.elite);
   if (name === 'onHit') attribute(g, p, ev as GameEvents['onHit']);
   if (name === 'onDamageTaken') g.vars.taken = (g.vars.taken ?? 0) + (ev as GameEvents['onDamageTaken']).amount;
   if (name === 'onIncoming') g.vars.incoming = (g.vars.incoming ?? 0) + (ev as GameEvents['onIncoming']).amount;
@@ -129,6 +139,7 @@ export function updateRelics(g: Game, dt: number): void {
   }
   relicContext.acting = null;
   for (const set of reachedSets(p)) set.tick?.(g, dt, p);
+  for (const id of r.held) if ((r.attune[id] ?? 0) >= 1 && relicTier(r.tiers, id) < RELIC_MAX_TIER) tierUp(g, p, id);
   // armor stacks (Steel): +3% armor each, gone `fade` seconds after the last one was gained
   if (p.armorStacks > 0 && g.time - p.armorStackT > FAMILIES.steel.n.fade) p.armorStacks = 0;
   if (p.armorStacks > 0) r.dyn.armor = (r.dyn.armor ?? 0) + p.armorStacks * FAMILIES.steel.n.stackArmor;
@@ -136,21 +147,39 @@ export function updateRelics(g: Game, dt: number): void {
   combineMods(p.mods, totalsToMods(r.totals));
 }
 
-/** Take a relic: new at tier 1, held one a tier up. False only when it is already at the top tier. `from`: where it came from (RELICS.md). */
-export function addRelic(g: Game, id: RelicId, from: RelicSource = 'other'): boolean {
-  const next = withRelic(g.player.relics.tiers, id, g.player.relics.tierCap);
-  if (next === g.player.relics.tiers) return false;
-  const upgrade = relicTier(g.player.relics.tiers, id) > 0;
-  g.player.relics.tiers = next;
-  if (!upgrade) g.player.relics.held = [...g.player.relics.held, id];
-  g.player.relics.dirty = true;
-  g.player.relics.found.push(id);
-  g.player.relics.from[id] ??= from;
+/**
+ * Take a relic, at tier 1 (or `tier`: the Merchant's swap keeps the tier). False when it is already held: v0.7 has no duplicates, a relic
+ * grows by attunement. `from`: where it came from (RELICS.md).
+ */
+export function addRelic(g: Game, id: RelicId, from: RelicSource = 'other', tier = 1): boolean {
+  const r = g.player.relics;
+  if (r.held.includes(id)) return false;
+  r.tiers = { ...r.tiers, [id]: Math.min(RELIC_MAX_TIER, tier) };
+  r.held = [...r.held, id];
+  r.attune[id] = 0;
+  r.dirty = true;
+  r.found.push(id);
+  r.from[id] ??= from;
   HOOKS[id]?.acquire?.(g, g.player);
-  const tier = relicTier(next, id);
-  floatText(g, g.player.x, g.player.y - 50, `${relicDef(id).name}${upgrade ? ` ${TIER_NUMERALS[tier]}` : ''}`, '#c9a227', 16);
+  floatText(g, g.player.x, g.player.y - 50, relicDef(id).name, '#c9a227', 16);
   sfx('levelup');
   return true;
+}
+
+/** A4: a full attunement bar. Tier II strengthens the relic, tier III awakens it; a flash, a sound, and the onRelicTier event (run log, stinger). */
+function tierUp(g: Game, p: Player, id: RelicId): void {
+  const r = p.relics;
+  const tier = relicTier(r.tiers, id) + 1;
+  r.tiers = { ...r.tiers, [id]: tier };
+  r.attune[id] = 0; // ponytail: progress past a full bar is dropped; carry it over if tiers ever come too slowly
+  r.dirty = true;
+  HOOKS[id]?.acquire?.(g, p); // Blood Pact's HP cut follows its tier
+  const def = relicDef(id);
+  const color = FAMILIES[def.family].color;
+  floatText(g, p.x, p.y - 60, tier >= RELIC_MAX_TIER ? `${def.icon} ${def.name} awakens: ${def.awaken.name}` : `${def.icon} ${def.name} attuned: tier ${TIER_NUMERALS[tier]}`, color, 17);
+  ring(g, p.x, p.y, 70, color, 0.6);
+  sfx('levelup');
+  emit(g, 'onRelicTier', { id, tier });
 }
 
 /** Drop a held relic entirely (the Merchant's sell and salvage). */
@@ -177,16 +206,14 @@ const pct = (v: number) => `${v >= 0 ? '+' : ''}${Math.round(v * 100)}%`;
  * v0.7: what taking `id` would do for this player's build right now, in numbers: a plain bonus as its real gain after everything already held
  * (+12% damage on top of +80% is +7% of your damage), a held relic's tier-up and what it has done so far, its family count (A3).
  */
-export function relicPreview(g: Game, p: Player, id: RelicId): string[] {
+export function relicPreview(p: Player, id: RelicId): string[] {
   const r = p.relics;
-  const tier = relicTier(r.tiers, id);
-  const heldAfter = tier ? r.held : [...r.held, id];
   const before = relicModTotals(r.held, r.tiers);
-  const after = relicModTotals(heldAfter, withRelic(r.tiers, id, r.tierCap));
+  const after = relicModTotals([...r.held, id], { ...r.tiers, [id]: 1 });
   const lines: string[] = [];
   const gain = (key: keyof Mods) => (after[key]?.eff ?? 0) - (before[key]?.eff ?? 0);
   const mult = (key: keyof Mods) => (1 + (after[key]?.eff ?? 0)) / (1 + (before[key]?.eff ?? 0)) - 1;
-  for (const key of Object.keys(relicMods(id, tier + 1) ?? {}) as (keyof Mods)[]) {
+  for (const key of Object.keys(relicMods(id, 1) ?? {}) as (keyof Mods)[]) {
     if (key === 'damage') lines.push(`${pct(mult('damage'))} of your damage`);
     else if (key === 'atkSpd') lines.push(`${pct(mult('atkSpd'))} of your attack speed`);
     else if (key === 'cooldown') lines.push(`${pct(gain('cooldown'))} off your ability's cooldown`);
@@ -194,12 +221,8 @@ export function relicPreview(g: Game, p: Player, id: RelicId): string[] {
     else if (key === 'moveSpd' || key === 'gold' || key === 'xp' || key === 'pickup') lines.push(`${pct(mult(key))} ${{ moveSpd: 'movement speed', gold: 'gold', xp: 'experience', pickup: 'pickup radius' }[key]}`);
     if (after[key] && after[key]!.eff < after[key]!.raw - 1e-9) lines[lines.length - 1] += ' (soft-capped)';
   }
-  const s = r.stats[id];
-  const dealt = g.vars.dealt ?? 0;
-  if (tier && s && dealt > 0 && s.damage > 0) lines.push(`So far: ${Math.round((s.damage / dealt) * 100)}% of your damage`);
-  if (tier && s && (g.vars.healed ?? 0) > 0 && s.healing > 0) lines.push(`So far: ${Math.round((s.healing / g.vars.healed!) * 100)}% of your healing`);
   const fam = familyOf(id);
-  if (!tier) {
+  {
     const n = r.sets[fam]?.count ?? 0;
     const set = (SET_LEVELS as readonly number[]).includes(n + 1) ? `: ${FAMILIES[fam].sets[(n + 1) as SetLevel][0]}` : '';
     lines.push(`${FAMILIES[fam].icon} ${FAMILIES[fam].name} ${n} → ${n + 1}${set}`);
@@ -226,7 +249,7 @@ export const momentRerolls = (g: Game): number => RELIC_MOMENTS.rerolls + (g.var
 
 function roll(p: Player, pool: RelicId[], n: number): RelicId[] {
   const r = p.relics;
-  return rollOffer(pool, r.held, r.tiers, r.rng, n, familyOf, RELIC_MOMENTS.heldFamilyWeight, r.offers.flatMap((o) => o.options), r.tierCap);
+  return rollOffer(pool, r.held, r.rng, n, familyOf, RELIC_MOMENTS.heldFamilyWeight, r.offers.flatMap((o) => o.options));
 }
 
 /**
@@ -269,7 +292,7 @@ export function rerollRelicOffer(g: Game, p: Player = g.player): boolean {
   if (!offer || offer.rerolls <= 0) return false;
   const pool = offer.from === 'merchant' ? p.relics.pool.filter((id) => relicDef(id).rarity === relicDef(offer.options[0]).rarity) : p.relics.pool;
   const others = p.relics.offers.slice(1).flatMap((o) => o.options);
-  const options = rollOffer(pool, p.relics.held, p.relics.tiers, p.relics.rng, offer.options.length, familyOf, RELIC_MOMENTS.heldFamilyWeight, [...others, ...offer.options], p.relics.tierCap);
+  const options = rollOffer(pool, p.relics.held, p.relics.rng, offer.options.length, familyOf, RELIC_MOMENTS.heldFamilyWeight, [...others, ...offer.options]);
   if (!options.length) return false;
   offer.options = options;
   offer.rerolls--;
