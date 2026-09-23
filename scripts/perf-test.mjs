@@ -9,6 +9,8 @@
  *
  * The horde is topped up to 250 every half second so it does not thin out while measuring. v0.6 adds the Usurper in his last phase in the
  * Last Bastion (royal decrees and quake rings: the most telegraph zones at once), with 150 of his host around him.
+ * v0.7.1: the run music plays through every scenario (Chromium may start audio without a gesture here), and before them a quick check
+ * that it plays in every arena: each arena's theme gets notes queued on a running AudioContext. Any console error fails the test.
  * Fails when the 95th-percentile frame time exceeds PERF_BUDGET_MS (default 20 ms, the desktop target: one frame at
  * 60 Hz is 16.7 ms, so a p95 under 20 means at most a few dropped frames in 5 s). CI runners raster in software
  * and are slower than a desktop, so the workflow passes a looser budget.
@@ -19,6 +21,7 @@ import { chromium } from 'playwright';
 const BUDGET = Number(process.env.PERF_BUDGET_MS ?? 20);
 const PORT = Number(process.env.PERF_PORT ?? 4179);
 const SCENARIOS = ['fog', 'bloodMoon', 'usurper'];
+const ARENAS = ['courtyard', 'graveyard', 'keep', 'bastion'];
 const FRAMES = 300;
 
 // a server already on the port would be measured instead of this build (and pass for it): refuse
@@ -39,11 +42,38 @@ for (let i = 0; i < 60; i++) {
   }
 }
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage({ viewport: { width: 1400, height: 800 }, deviceScaleFactor: 1 });
-page.on('pageerror', (e) => console.error('page error:', e.message));
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 await page.goto(`http://localhost:${PORT}/?debug`);
 await page.waitForFunction(() => typeof window.__lb !== 'undefined');
+
+// v0.7.1: the run music plays in every arena (the Last Bastion is Act IV's)
+const music = [];
+for (const arena of ARENAS) {
+  const before = await page.evaluate((arena) => {
+    const lb = window.__lb;
+    localStorage.clear();
+    lb.save.settings.arena = arena === 'bastion' ? 'courtyard' : arena;
+    lb.start('viking');
+    if (arena === 'bastion') lb.skipTo(4, 31);
+    lb.game.player.invulnerable = true;
+    return lb.music().queued;
+  }, arena);
+  await page.waitForTimeout(2500);
+  const m = await page.evaluate(() => {
+    const lb = window.__lb;
+    const out = lb.music();
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
+    document.querySelector('[data-quit]')?.click();
+    document.querySelector('[data-menu]')?.click();
+    document.querySelector('[data-back]')?.click();
+    return out;
+  });
+  music.push({ want: arena, ...m, queued: m.queued - before });
+}
 
 const results = [];
 for (const modifier of SCENARIOS) {
@@ -97,9 +127,10 @@ for (const modifier of SCENARIOS) {
     const lb = window.__lb;
     clearInterval(window.__topUp);
     const s = lb.perfSummary();
+    const music = lb.music();
     const g = lb.game;
     const sections = Object.entries(lb.perf.sections).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', ');
-    const out = { ...s, state: lb.state, lastUpdate: lb.perf.updateMs, lastRender: lb.perf.renderMs, enemies: g.enemies.length, draws: lb.perf.counts.draws, particles: g.particles.length, texts: g.texts.length, detail: lb.quality.detail, sections };
+    const out = { ...s, state: lb.state, lastUpdate: lb.perf.updateMs, lastRender: lb.perf.renderMs, enemies: g.enemies.length, draws: lb.perf.counts.draws, particles: g.particles.length, texts: g.texts.length, detail: lb.quality.detail, sections, music };
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
     document.querySelector('[data-quit]')?.click();
     document.querySelector('[data-menu]')?.click();
@@ -111,14 +142,21 @@ for (const modifier of SCENARIOS) {
 await browser.close();
 stop();
 
-let failed = false;
+let failed = errors.length > 0;
+console.log('\nmusic · every arena · 2.5 s of a run each\n');
+for (const m of music) {
+  const ok = m.playing === 'run' && m.context === 'running' && m.arena === m.want && m.queued > 0;
+  failed ||= !ok;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${m.want.padEnd(10)} ${m.playing ?? 'silent'} · theme ${m.arena} · context ${m.context} · layer ${m.layer} · ${m.queued} notes queued · ${m.voices} voices`);
+}
 console.log(`\nperf test · wave 20 · 250 enemies (the Usurper: wave 40, 150) · ${FRAMES} live frames · budget p95 <= ${BUDGET} ms\n`);
 for (const r of results) {
   const ok = r.p95 <= BUDGET;
   failed ||= !ok;
   const f = (n) => n.toFixed(1).padStart(6);
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${r.modifier.padEnd(10)} frame avg ${f(r.avg)}  p95 ${f(r.p95)}  max ${f(r.max)}  | update ${r.update.toFixed(2)} (last ${r.lastUpdate.toFixed(2)})  render ${r.render.toFixed(2)} (last ${r.lastRender.toFixed(2)})  | enemies ${r.enemies}  draws ${r.draws}  particles ${r.particles}  texts ${r.texts}  detail ${r.detail.toFixed(2)}`);
-  console.log(`      heaviest sections (last frame): ${r.sections}  · state ${r.state}`);
+  console.log(`      heaviest sections (last frame): ${r.sections}  · state ${r.state}  · music ${r.music.playing ?? 'silent'} layer ${r.music.layer}, ${r.music.voices} voices`);
 }
+for (const e of errors) console.log(`FAIL  console error: ${e}`);
 console.log('');
 process.exit(failed ? 1 : 0);

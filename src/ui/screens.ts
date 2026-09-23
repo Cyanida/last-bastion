@@ -142,18 +142,22 @@ export interface SettingsInfo {
   effective: string;
   muted: boolean;
   music: MusicLevel;
+  effects: MusicLevel; // v0.7.1
+  runMusic: boolean; // v0.7.1
   perf: boolean;
   desktop: { version: string; status: string; prerelease: boolean } | null;
 }
 
-export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
+export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
   const chip = (q: QualitySetting) => `<button class="chip ${info.quality === q ? 'on' : ''}" data-quality="${q}">${q[0].toUpperCase()}${q.slice(1)}</button>`;
   const el = show(`
     <div class="panel dialog wide settings">
       <h1 class="small">Settings</h1>
       <div class="setting"><div><b>Graphics quality</b><span>Low cuts particles, screen shake and shadows. Auto measures the first waves and drops to low if needed. Now: ${info.effective}.</span></div><div>${(['auto', 'low', 'high'] as const).map(chip).join('')}</div></div>
       <div class="setting"><div><b>Sound</b><span>Synthesised effects and music (M).</span></div><button class="chip on" data-act="mute">${info.muted ? 'Off' : 'On'}</button></div>
-      <div class="setting"><div><b>Music</b><span>Composed live on the menus, never in a run.${info.muted ? ' Silent while Sound is off.' : ''}</span></div><div>${MUSIC_LEVELS.map((l) => `<button class="chip ${info.music === l ? 'on' : ''}" data-music="${l}">${l[0].toUpperCase()}${l.slice(1)}</button>`).join('')}</div></div>
+      <div class="setting"><div><b>Music</b><span>Composed live. In a run it plays quieter, under the effects.${info.muted ? ' Silent while Sound is off.' : ''}</span></div><div>${MUSIC_LEVELS.map((l) => `<button class="chip ${info.music === l ? 'on' : ''}" data-music="${l}">${l[0].toUpperCase()}${l.slice(1)}</button>`).join('')}</div></div>
+      <div class="setting"><div><b>Music during runs</b><span>A quiet theme for every arena that builds a little in a fight.</span></div><button class="chip ${info.runMusic ? 'on' : ''}" data-act="runMusic">${info.runMusic ? 'On' : 'Off'}</button></div>
+      <div class="setting"><div><b>Effects</b><span>How loud the sound effects are.</span></div><div>${MUSIC_LEVELS.map((l) => `<button class="chip ${info.effects === l ? 'on' : ''}" data-effects="${l}">${l[0].toUpperCase()}${l.slice(1)}</button>`).join('')}</div></div>
       <div class="setting"><div><b>Performance overlay</b><span>Frame, update and render times, entity counts, draw calls (F3 in a run).</span></div><button class="chip ${info.perf ? 'on' : ''}" data-act="perf">${info.perf ? 'On' : 'Off'}</button></div>
       ${info.desktop ? `
       <div class="setting"><div><b>Updates</b><span>Version ${info.desktop.version}. ${info.desktop.status}</span></div><button class="chip" data-act="check">Check for updates</button></div>
@@ -163,10 +167,12 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
     </div>`);
   click(el, '[data-quality]', (b) => on.quality(b.dataset.quality as QualitySetting));
   click(el, '[data-music]', (b) => on.music(b.dataset.music as MusicLevel));
+  click(el, '[data-effects]', (b) => on.effects(b.dataset.effects as MusicLevel));
   click(el, '[data-act]', (b) => {
     const act = b.dataset.act;
     if (act === 'mute') on.mute();
     else if (act === 'perf') on.perf();
+    else if (act === 'runMusic') on.runMusic();
     else if (act === 'check') on.checkUpdates();
     else if (act === 'pre') on.prerelease(!info.desktop?.prerelease);
     else if (act === 'save') on.saveData();

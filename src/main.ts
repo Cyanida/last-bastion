@@ -3,8 +3,9 @@ import { ARENAS, type ArenaId } from './config/arenas';
 import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
 import { GAME, VIEW } from './config/game';
-import { initAudio, isMuted, toggleMute } from './core/audio';
-import { musicLevel, refreshMusic, setMusicLevel, startMenuMusic, stopMenuMusic } from './core/music';
+import { effectsLevel, initAudio, isMuted, setEffectsLevel, toggleMute } from './core/audio';
+import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLevel, setRunMusic, startMenuMusic, stopMenuMusic } from './core/music';
+import { moodOf } from './logic/runMusic';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
@@ -204,7 +205,7 @@ function toSettings(): void {
   menu();
   const d = platform.desktop;
   showSettings(
-    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
+    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
     {
       back: toTitle,
       saveData: toSaveDialog,
@@ -220,6 +221,14 @@ function toSettings(): void {
       },
       music(level) {
         setMusicLevel(level);
+        toSettings();
+      },
+      effects(level) {
+        setEffectsLevel(level);
+        toSettings();
+      },
+      runMusic() {
+        setRunMusic(!runMusicOn());
         toSettings();
       },
       perf() {
@@ -615,6 +624,7 @@ function frame(now: number): void {
   draw(now);
   const t2 = performance.now();
   const g = game;
+  if (g) runMusic(state === 'playing' || state === 'choice' ? moodOf(g) : null); // v0.7.1: paused or over, it fades out
   if (state === 'playing' && g) {
     const before = quality.level;
     sampleFrame(t2 - t0, g.wave); // the work this frame took, not the vsync interval: that is what the detail level reacts to
@@ -696,6 +706,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       },
       quality,
       perf,
+      music: musicStats, // v0.7.1
       resetPerf: resetHistory,
       perfSummary: summary,
       setPerf: (on: boolean) => setPerfOverlay(on, ctx),

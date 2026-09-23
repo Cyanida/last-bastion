@@ -4,7 +4,7 @@ import { mulberry32 } from '../core/math';
  * The menu music as a score: which note, on which voice, when. Pure and seeded; core/music.ts plays it.
  * D Dorian in a slow 3/4, a 16-bar form of two-bar chords, re-rolled every pass so it never loops note for note.
  */
-export type Voice = 'drone' | 'harp' | 'flute' | 'bell';
+export type Voice = 'drone' | 'harp' | 'flute' | 'bell' | 'drum' | 'choir' | 'organ' | 'horn' | 'bass'; // v0.7.1: the last five for the run themes
 export interface NoteEvent {
   time: number; // beats from the downbeat of the bar
   voice: Voice;
@@ -21,7 +21,7 @@ export const SCALE = [2, 4, 5, 7, 9, 11, 0];
 export const CHORDS = { Dm: [2, 5, 9], C: [0, 4, 7], G: [7, 11, 2], F: [5, 9, 0] } satisfies Record<string, number[]>;
 /** Two bars each: i VII IV i | III VII IV i. */
 export const PROGRESSION: (keyof typeof CHORDS)[] = ['Dm', 'C', 'G', 'Dm', 'F', 'C', 'G', 'Dm'];
-export const RANGES: Record<Voice, [number, number]> = { drone: [36, 55], harp: [50, 76], flute: [62, 84], bell: [74, 96] };
+export const RANGES: Record<Voice, [number, number]> = { drone: [36, 55], harp: [50, 76], flute: [62, 84], bell: [74, 96], drum: [30, 62], choir: [57, 76], organ: [38, 72], horn: [50, 74], bass: [31, 50] };
 
 /** Harp arpeggios in eighths, as steps up the chord from its lowest voicing; null is a rest. */
 const HARP: (number | null)[][] = [
@@ -41,15 +41,15 @@ const FLUTE = inRange(SCALE, ...RANGES.flute);
 
 export const chordOf = (bar: number): number[] => CHORDS[PROGRESSION[Math.floor((bar % FORM_BARS) / 2)]];
 
-function inRange(pcs: number[], lo: number, hi: number): number[] {
+export function inRange(pcs: number[], lo: number, hi: number): number[] {
   const out: number[] = [];
   for (let m = lo; m <= hi; m++) if (pcs.includes(m % 12)) out.push(m);
   return out;
 }
 
-const rngFor = (seed: number, n: number, salt: number) => mulberry32((seed ^ Math.imul(n * 8 + salt + 1, 0x9e3779b1)) >>> 0);
-const pick = <T>(items: T[], r: () => number): T => items[Math.floor(r() * items.length)];
-const clampIndex = (i: number, arr: unknown[]) => Math.max(0, Math.min(arr.length - 1, i));
+export const rngFor = (seed: number, n: number, salt: number) => mulberry32((seed ^ Math.imul(n * 8 + salt + 1, 0x9e3779b1)) >>> 0);
+export const pick = <T>(items: T[], r: () => number): T => items[Math.floor(r() * items.length)];
+export const clampIndex = (i: number, arr: unknown[]) => Math.max(0, Math.min(arr.length - 1, i));
 
 /** Where the flute aims at the start of a bar: an index into FLUTE. Pure per bar, so the next bar's aim is known. */
 function fluteTarget(seed: number, bar: number): number {
