@@ -1,3 +1,5 @@
+import { EVOLUTIONS } from '../config/evolutions';
+import { buildState, evolutionIn } from '../systems/evolutions';
 import { SKILL } from '../config/game';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
@@ -15,7 +17,7 @@ import { describeUtility, utilityDef, utilityUnlocked } from '../systems/utility
 import { UTILITY } from '../config/utility';
 import { QUESTS, REWARDS } from '../config/quests';
 import { questProgress } from '../logic/quests';
-import { esc, relicTip, tierBadge } from './relicText';
+import { esc, relicTip, setRecipeBuild, tierBadge } from './relicText';
 
 /** Tooltip for the enemy under the pointer (hover, or a tap on touch): what it is, what hurts it, what is on it. */
 export function updateInspect(e: Enemy | null, x: number, y: number): void {
@@ -182,9 +184,10 @@ export function updateHud(g: Game): void {
 
   // relic bar: one row of the newest relics that fit, older ones behind a "+N" chip (hover or tap); tap or hover a relic for its tooltip.
   // Rebuilt only when the set changes (or the window is resized).
-  const relicKey = g.relics.map((id) => `${id}${g.relicTiers[id]}`).join(',');
+  const relicKey = `${g.relics.map((id) => `${id}${g.relicTiers[id]}`).join(',')}|${g.player.talents.length}|${g.evolutions.length}|${g.player.upgrades.length}|${g.player.utilityUpgrades.length}`; // v0.6: recipes change the tooltips too
   if (relicKey !== lastRelicKey) {
     lastRelicKey = relicKey;
+    setRecipeBuild(buildState(g));
     const tile = (id: RelicId) => {
       const r = relicDef(id);
       const tier = g.relicTiers[id] ?? 1;
@@ -197,7 +200,8 @@ export function updateHud(g: Game): void {
     html('h-relics', more + g.relics.slice(older.length).map(tile).join(''));
   }
 
-  text('h-ab-name', p.cls.ability.name);
+  const sig = evolutionIn(g, 'signature'); // v0.6: an evolved ability wears its new name
+  text('h-ab-name', sig ? `${EVOLUTIONS[sig].icon} ${EVOLUTIONS[sig].name}` : p.cls.ability.name);
   const desc = describeAbility(p);
   text('h-ab-desc', desc);
   html('h-ab-ups', p.upgrades.map((id) => `<b class="hud-badge">${ABILITY_UPGRADES[id].name}</b>`).join(''));
@@ -220,8 +224,9 @@ export function updateHud(g: Game): void {
   const utilReady = unlocked && p.utilityCd <= 0;
   $('h-ut-icon').classList.toggle('ready', utilReady);
   $('h-ut-slot').classList.toggle('locked', !unlocked);
-  tip('h-ut-slot', `${util.name} (E / Shift · X / RB)${unlocked ? '' : ` · unlocks at level ${UTILITY.unlockLevel}`}\n${describeUtility(p)}`);
-  text('h-ut-name', util.name);
+  const utilEvo = evolutionIn(g, 'utility');
+  tip('h-ut-slot', `${utilEvo ? `${EVOLUTIONS[utilEvo].name}: ${EVOLUTIONS[utilEvo].desc}\n` : ''}${util.name} (E / Shift · X / RB)${unlocked ? '' : ` · unlocks at level ${UTILITY.unlockLevel}`}\n${describeUtility(p)}`);
+  text('h-ut-name', utilEvo ? `${EVOLUTIONS[utilEvo].icon} ${EVOLUTIONS[utilEvo].name}` : util.name);
   $('h-ut-cd').style.height = unlocked ? `${(p.utilityCd / p.utilityCdMax) * 100}%` : '100%';
   text('h-ut-time', !unlocked ? `Lv ${UTILITY.unlockLevel}` : utilReady ? util.icon : p.utilityCd.toFixed(1));
   const utilBtn = document.getElementById('btn-utility');

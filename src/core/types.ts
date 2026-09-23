@@ -11,6 +11,7 @@ import type { BlessingId, FeatureKind, Rect, RegionId, WingId } from '../config/
 import type { UtilityUpgradeId } from '../config/utility';
 import type { QuestKind, RewardKind } from '../config/quests';
 import type { RunLogDraft } from '../logic/runlog';
+import type { EvolutionId } from '../config/evolutions';
 import type { EventKind } from '../config/events';
 import type { TreasureId } from '../config/treasures';
 import type { RelicTotals } from '../logic/relics';
@@ -236,7 +237,10 @@ export interface Minion extends Body {
   blessedT: number; // v0.3: blessed minions hit harder and regenerate
   status: Status | null; // applied by its hits
   // v0.5 friendly units from quests and events; a skeleton has none of these
-  kind?: 'caravan' | 'monk' | 'knight' | 'hound'; // hound: the Bow of the Wild Hunt's (v0.5 treasures)
+  kind?: 'caravan' | 'monk' | 'knight' | 'hound' | 'standard' | 'decoy' | 'shade'; // hound: the Bow of the Wild Hunt's (v0.5 treasures); standard, decoy, shade: v0.6 evolutions
+  cleave?: number; // v0.6: its hits land on everything within this of its target (the Bone Colossus)
+  onEnd?: { radius: number; damage: number; color: string; dtype: DamageType }; // v0.6: bursts when it falls or fades
+  shoot?: { every: number; damage: number; t: number }; // v0.6: a passive unit that shoots the nearest enemy (the Archer's shadow)
   passive?: boolean; // does not attack or chase: walks its path (if any) at `speed`
   path?: { x: number; y: number }[]; // waypoints, walked in a loop
   pathI?: number;
@@ -251,6 +255,7 @@ export interface Projectile extends Body {
   pierce: number;
   life: number;
   shape: 'arrow' | 'orb';
+  seek?: boolean; // v0.6: turns toward the nearest enemy (Soul Harvest)
   color: string;
   hit: Enemy[];
   status: Status | null;
@@ -278,6 +283,9 @@ export interface Zone extends Body {
 
 /** Lasting area: fire, poison, consecrated ground. Ticks every GAME.fieldTick seconds. */
 export interface Field extends Body {
+  follow?: boolean; // v0.6: stays centred on the player (the Aegis of Dawn)
+  vx?: number; // v0.6: drifts (the Sunburst)
+  vy?: number;
   life: number;
   max: number;
   dps: number;
@@ -345,6 +353,15 @@ export interface WaveEvent {
   used: boolean; // the chest opened, the ambush sprung, the peddler visited (until you walk away)
   t: number; // the cart's pool timer
   wares: RelicId[]; // the peddler's
+}
+
+/** v0.6: a light an evolution shows for one tick (render/renderer.ts draws them): a soft disc, or a ring outline. */
+export interface Glow {
+  x: number;
+  y: number;
+  r: number;
+  color: string;
+  ring?: boolean;
 }
 
 export interface Corpse {
@@ -501,5 +518,8 @@ export interface Game {
   victory: 'none' | 'pending' | 'endless'; // v0.6: the Usurper fell (pending: the choice to bank or go on is up); endless: gone on past him
   victoryKills: number; // v0.6: kills when he fell (the Endless score counts from there)
   lastStand: 'ready' | 'used' | 'off'; // v0.6: once a run at 0 HP (SKILL.lastStand); an Oath can take it away
+  evolutions: EvolutionId[]; // v0.6: taken this run (one signature, one utility; config/evolutions.ts)
+  prey: Enemy | null; // v0.6: the Hunter's Mark
+  glows: Glow[]; // v0.6: lights the evolutions set every tick (wisps, souls, rings); cleared at the start of each tick
   over: boolean;
 }

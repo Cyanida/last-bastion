@@ -39,6 +39,8 @@ function moveDash(g: Game, range: number): { x: number; y: number } {
   return { x: p.x + (dx / d) * range, y: p.y + (dy / d) * range };
 }
 
+import { evolutionHook } from './evolutions';
+
 const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
   taunt(g) {
     const p = g.player;
@@ -167,11 +169,14 @@ export function updateUtility(g: Game, dt: number): void {
   if (g.time < (g.vars.ghostStep ?? 0)) p.mods.moveSpd *= 1 + U.ghostStep.n.moveSpd;
   if (!g.input.utility || p.utilityCd > 0 || !utilityUnlocked(p)) return;
   const def = utilityDef(p);
-  if (!HOOKS[def.id](g)) return;
+  const from = { x: p.x, y: p.y };
+  const evo = evolutionHook(g, 'utility'); // v0.6: an evolution adds to the utility, or takes it over
+  if (!(evo?.replaceUtility ? evo.replaceUtility(g, from) : HOOKS[def.id](g))) return;
   const upgradeCd = (has(p, 'longJump') ? U.longJump.n.cooldown : 1) * (has(p, 'quickBlink') ? U.quickBlink.n.cooldown : 1) * (has(p, 'quickRoll') ? U.quickRoll.n.cooldown : 1);
   p.utilityCd = p.utilityCdMax = abilityCooldown(def.cooldown, p.stats.int) * p.mods.utilityCd * upgradeCd;
   sfx('ability');
   emit(g, 'onUtilityUsed', { id: def.id });
+  evo?.utility?.(g, from); // after the cooldown is set: Valkyrie's Descent hands it straight back
 }
 
 /** Taunted enemies deal less with Iron Will; called by combat for hits on the player. */

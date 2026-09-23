@@ -1,6 +1,21 @@
 import { CLASSES } from '../config/classes';
 import { RELIC_CATEGORIES, RELIC_MAX_TIER, relicDef, relicDesc, SYNERGIES, TIER_NUMERALS, type RelicId } from '../config/relics';
 import { synergiesOf } from '../logic/relics';
+import { EVOLUTIONS } from '../config/evolutions';
+import { nearlyReady, requirementNames, requirementText, type BuildState } from '../logic/evolutions';
+
+let recipeBuild: BuildState | null = null;
+/** v0.6: the build the tooltips read evolution recipes against. main.ts sets it while a run is on and clears it in the menus. */
+export function setRecipeBuild(b: BuildState | null): void {
+  recipeBuild = b;
+}
+/** v0.6: "one step from an evolution" lines for a relic or talent that is the missing half of a recipe. */
+export function recipeLines(what: { relic?: RelicId; talent?: string }): string[] {
+  if (!recipeBuild) return [];
+  return nearlyReady(recipeBuild)
+    .filter((n) => requirementNames(n.missing, what))
+    .map((n) => `✦ One step from ${EVOLUTIONS[n.id].icon} ${EVOLUTIONS[n.id].name}: it needs ${requirementText(n.missing)}`);
+}
 
 /** Everything a relic tooltip says: rarity, category, tier, this tier's effect, the next tier's, and its synergies and clashes. */
 export function relicTip(id: RelicId, tier: number, held: RelicId[] = []): string {
@@ -15,6 +30,7 @@ export function relicTip(id: RelicId, tier: number, held: RelicId[] = []): strin
     const active = s.relics.every((o) => held.includes(o));
     lines.push(`${s.anti ? '⚠ Clashes with' : active ? '✦ Synergy on with' : '✧ Synergy with'} ${others}: ${s.desc}`);
   }
+  lines.push(...recipeLines({ relic: id }));
   return lines.join('\n');
 }
 

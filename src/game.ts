@@ -185,6 +185,9 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     victory: 'none',
     victoryKills: 0,
     lastStand: 'ready',
+    evolutions: [],
+    prey: null,
+    glows: [],
     over: false,
   };
   // curses that are plain numbers live in g.vars; the rest are read where they matter (spawning, director)
@@ -252,6 +255,7 @@ export function summarizeRun(g: Game): RunSummary {
     questRunes: g.questRunes,
     log: finishRunLog(g),
     won: g.victory !== 'none',
+    evolutions: g.evolutions,
     endlessScore: endlessScore(g),
     treasure: g.chain || g.treasure ? { found: g.chain?.found ?? 0, passed: g.chain?.passed ?? false, slain: g.chain?.slain ?? false, carried: g.treasure?.tier ?? 0 } : undefined,
   };
@@ -260,6 +264,7 @@ export function summarizeRun(g: Game): RunSummary {
 /** One fixed simulation step. Order matters: hash and mods first, AI before physics, cleanup last. */
 export function updateGame(g: Game, dt: number): void {
   g.time += dt;
+  g.glows.length = 0;
   let _t = begin();
   g.hash.clear();
   for (const e of g.enemies) g.hash.insert(e);
@@ -277,7 +282,7 @@ export function updateGame(g: Game, dt: number): void {
   updateRelics(g, dt);
   talentPassives(g);
   updateTreasures(g);
-  abilityPassives(g);
+  abilityPassives(g, dt);
   dodgePassives(g);
   healPlayer(g, (p.cls.regen + p.mods.regen) * dt, false);
 

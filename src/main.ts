@@ -40,6 +40,8 @@ import { MASTERY } from './config/economy';
 import { spendTalent } from './systems/talents';
 import { chooseBlessing } from './systems/regions';
 import { markBored } from './systems/runlog';
+import { buildState } from './systems/evolutions';
+import { setRecipeBuild } from './ui/relicText';
 import { endlessScore, goEndless } from './systems/victory';
 import { takeQuests } from './systems/quests';
 import { peddlerBuy, peddlerPrice } from './systems/events';
@@ -81,6 +83,7 @@ function commit(next: Save): ReturnType<typeof withAchievements>['earned'] {
 function menu(): void {
   state = 'menu';
   game = null;
+  setRecipeBuild(null); // v0.6: no run, no recipes in the tooltips
   onTitle = false;
   showHud(false);
   setTouchControls(false);
@@ -296,6 +299,7 @@ function openLevelUp(g: Game): void {
 function openChoice(g: Game): void {
   state = 'choice';
   setTouchControls(false);
+  setRecipeBuild(buildState(g)); // v0.6: relic and talent tooltips point out the missing half of an evolution recipe
   if (g.victory === 'pending') {
     // v0.6: the Usurper fell. The screen shows the run as it would bank now; going on keeps it running into Endless.
     showResults(runResult(g, false), {
@@ -371,7 +375,7 @@ function openMerchant(g: Game): void {
   );
 }
 
-const buildOf = (g: Game) => ({ relics: g.relics, tiers: g.relicTiers, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait, sacred: sacredLines(g) });
+const buildOf = (g: Game) => ({ relics: g.relics, tiers: g.relicTiers, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait, sacred: sacredLines(g), evolutions: g.evolutions });
 
 /** v0.5: the sacred treasure carried, and what this run has done for the class's chain so far (pause and results). */
 function sacredLines(g: Game): { name: string; desc: string }[] {
@@ -399,6 +403,7 @@ function togglePause(): void {
 }
 
 function pauseMenu(g: Game): void {
+  setRecipeBuild(buildState(g));
   showPause(buildOf(g), {
     resume: togglePause,
     quit: () => endRun(g),

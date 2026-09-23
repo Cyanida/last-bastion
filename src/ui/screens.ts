@@ -19,7 +19,7 @@ import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/ut
 import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
 import { activeSynergies, synergiesOf, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
-import { esc, relicLine, relicTip, tierBadge } from './relicText';
+import { esc, recipeLines, relicLine, relicTip, tierBadge } from './relicText';
 import { dropStaleTooltip } from './tooltip';
 import type { QualitySetting } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
@@ -31,6 +31,8 @@ import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, met
 import { exportSave, type EndlessEntry, type Save } from '../logic/save';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
 import { ACTS } from '../config/acts';
+import { EVOLUTION_IDS, EVOLUTIONS, type EvolutionId } from '../config/evolutions';
+import { requirementText } from '../logic/evolutions';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
 import { getSprite, SPRITE_PALETTES } from '../render/sprites';
 
@@ -306,8 +308,8 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
-const MARK_ICONS: Record<MarkKind, string> = { level: '', relic: '💠', talent: '🌿', upgrade: '⬆️', board: '📜', quest: '✔️', event: '❗', shrine: '⛩️', boss: '💀', phase: '⚜️', merchant: '🪙', act: '🚩', stand: '❤️‍🔥', bored: '😴' };
-const MARK_NAMES: Record<MarkKind, string> = { level: 'Level', relic: 'Relic', talent: 'Talent', upgrade: 'Upgrade', board: 'Quest board', quest: 'Quest done', event: 'Event', shrine: 'Shrine', boss: 'Boss slain', phase: 'Boss', merchant: 'Merchant', stand: 'Last Stand', act: 'New Act', bored: 'Bored here' };
+const MARK_ICONS: Record<MarkKind, string> = { level: '', relic: '💠', talent: '🌿', upgrade: '⬆️', board: '📜', quest: '✔️', event: '❗', shrine: '⛩️', boss: '💀', phase: '⚜️', evolution: '🌟', merchant: '🪙', act: '🚩', stand: '❤️‍🔥', bored: '😴' };
+const MARK_NAMES: Record<MarkKind, string> = { level: 'Level', relic: 'Relic', talent: 'Talent', upgrade: 'Upgrade', board: 'Quest board', quest: 'Quest done', event: 'Event', shrine: 'Shrine', boss: 'Boss slain', phase: 'Boss', evolution: 'Evolution', merchant: 'Merchant', stand: 'Last Stand', act: 'New Act', bored: 'Bored here' };
 
 /** v0.6: one run's timeline: a band per wave (width = how long it took), level-ups as ticks, everything else as icons above it. */
 function timeline(r: RunLog): string {
@@ -527,8 +529,8 @@ export function showLevelUp(
       <div class="cards">
         ${options.map((o, i) => {
           const t = optionText(o, cls, o.kind === 'relic' ? (tiers[o.id] ?? 0) : 0);
-          const kind = o.kind === 'tradeoff' ? 'tradeoff' : o.kind === 'talent' ? 'talent' : o.kind === 'relic' ? `relic-card ${relicDef(o.id).rarity}` : o.rarity;
-          const special = (o.kind === 'stat' && o.key === 'secondary') || o.kind === 'talent' ? 'special' : '';
+          const kind = o.kind === 'tradeoff' ? 'tradeoff' : o.kind === 'talent' ? 'talent' : o.kind === 'evolution' ? 'evolution' : o.kind === 'relic' ? `relic-card ${relicDef(o.id).rarity}` : o.rarity;
+          const special = (o.kind === 'stat' && o.key === 'secondary') || o.kind === 'talent' || o.kind === 'evolution' ? 'special' : '';
           const now = o.kind === 'stat' ? `<div class="best">now ${fmtStat(o.key, stats[o.key])}</div>` : '';
           return `<button class="card panel boon ${kind} ${special}" data-pick="${i}"><div class="num">${i + 1}</div><h2>${t.title}</h2><div class="tag">${t.tag}</div><p>${t.desc}</p>${now}</button>`;
         }).join('')}
@@ -653,8 +655,9 @@ export function showTalents(info: { classId: ClassId; taken: string[]; points: n
         const why = taken ? null : talentBlocker(info.taken, n.id, info.points, info.rowCap, info.treasure);
         const state = taken ? 'taken' : why === null ? 'open' : 'locked';
         const library = !taken && n.row > info.rowCap; // locked by the Keep, not by this run: say so on the node itself
-        const tip = `${n.name}${n.keystone ? ' · keystone' : ''}${n.treasure ? ' · sacred treasure' : ''}\n${n.desc}${why && !taken ? `\n(${why})` : ''}`;
-        return `<button class="talent ${state} ${n.keystone ? 'keystone' : ''} ${n.treasure ? 'sacred' : ''}" data-talent="${n.id}" ${state === 'open' ? '' : 'disabled'} data-tip="${esc(tip)}"><b>${taken ? '✔ ' : library ? '🔒 ' : ''}${n.name}</b><span>${library ? 'Raise the Library in the Keep to open the keystones.' : n.desc}</span></button>`;
+        const recipe = taken ? [] : recipeLines({ talent: n.id }); // v0.6: the missing half of an evolution recipe
+        const tip = `${n.name}${n.keystone ? ' · keystone' : ''}${n.treasure ? ' · sacred treasure' : ''}\n${n.desc}${why && !taken ? `\n(${why})` : ''}${recipe.length ? `\n${recipe.join('\n')}` : ''}`;
+        return `<button class="talent ${state} ${n.keystone ? 'keystone' : ''} ${n.treasure ? 'sacred' : ''} ${recipe.length ? 'recipe' : ''}" data-talent="${n.id}" ${state === 'open' ? '' : 'disabled'} data-tip="${esc(tip)}"><b>${taken ? '✔ ' : library ? '🔒 ' : ''}${n.name}</b><span>${library ? 'Raise the Library in the Keep to open the keystones.' : n.desc}</span></button>`;
       }).join('')}</div>`).join('')}
     </div>`;
   };
@@ -682,6 +685,7 @@ export interface BuildInfo {
   utilityUpgrades: UtilityUpgradeId[];
   trait: TraitId;
   sacred?: { name: string; desc: string }[]; // v0.5: the treasure equipped, and this run's progress on its chain
+  evolutions?: EvolutionId[]; // v0.6
 }
 
 /** The current build: ability upgrades, relics with tiers (tooltips), active synergies and clashes. Pause and results screens. */
@@ -692,11 +696,12 @@ export function buildHtml(info: BuildInfo): string {
   }).join('');
   const trait = info.trait !== 'none' ? `<div><span>${TRAITS[info.trait].icon} ${TRAITS[info.trait].name}</span><em>${TRAITS[info.trait].desc}</em></div>` : '';
   const ups = info.upgrades.map((id) => `<div><span>✦ ${ABILITY_UPGRADES[id].name}</span><em>${ABILITY_UPGRADES[id].desc}</em></div>`).join('');
+  const evos = (info.evolutions ?? []).map((id) => `<div class="evolved"><span>${EVOLUTIONS[id].icon} ${EVOLUTIONS[id].name}</span><em>${EVOLUTIONS[id].desc}</em></div>`).join('');
   const util = info.utilityUpgrades.map((id) => `<div><span>${UTILITIES[info.classId].icon} ${UTILITY_UPGRADES[id].name}</span><em>${UTILITY_UPGRADES[id].desc}</em></div>`).join('');
   const talents = info.talents.length || info.talentPoints ? `<div><span>🌿 Talents${info.talentPoints ? ` · ${info.talentPoints} unspent` : ''}</span><em>${info.talents.map((id) => TALENT_BY_ID[id]?.name).join(' · ') || 'none yet'}</em></div>` : '';
   const sacred = (info.sacred ?? []).map((s) => `<div><span>${s.name}</span><em>${s.desc}</em></div>`).join('');
   const syns = activeSynergies(info.relics).map((sid) => `<div class="syn ${SYNERGIES[sid].anti ? 'anti' : 'on'}"><span>${SYNERGIES[sid].anti ? '⚠' : '✦'} ${SYNERGIES[sid].name}</span><em>${SYNERGIES[sid].desc}</em></div>`).join('');
-  return relics || ups || trait || util || talents || sacred ? `<div class="build">${sacred}${trait}${talents}${ups}${util}${relics}${syns}</div>` : '';
+  return relics || ups || trait || util || talents || sacred || evos ? `<div class="build">${evos}${sacred}${trait}${talents}${ups}${util}${relics}${syns}</div>` : '';
 }
 
 export function showPause(info: BuildInfo, on: { resume: () => void; quit: () => void; talents: () => void; treasures: () => void; bored: () => void }): void {
@@ -866,6 +871,13 @@ export function showCompendium(save: Save, onBack: () => void): void {
       <h1 class="small">Relic compendium</h1>
       <p class="sub">${discovered} / ${RELIC_IDS.length} discovered · a duplicate raises a relic's tier (three tiers) · ${Object.values(RELIC_CATEGORIES).map((c) => c.name).join(', ')}: relics of a kind add up and pass a soft cap</p>
       <div class="cards wrap">${(['common', 'rare', 'legendary'] as Rarity[]).map((rar) => RELIC_IDS.filter((id) => relicDef(id).rarity === rar).map(card).join('')).join('')}</div>
+      <h2>Evolutions · ${save.evolutions.length} / ${EVOLUTION_IDS.length} discovered</h2>
+      <p class="hint">Three for each champion's signature ability, two for the second one. Meet both halves of a recipe in a run and the next level-up offers it as a gold card; one of each kind a run. A discovered recipe shows in full.</p>
+      <div class="recipes">${CLASS_ORDER.map((c) => `<div class="recipe-class"><b>${CLASSES[c].name}</b>${EVOLUTION_IDS.filter((id) => EVOLUTIONS[id].classId === c).map((id) => {
+        const e = EVOLUTIONS[id];
+        const known = save.evolutions.includes(id);
+        return `<div class="recipe ${known ? 'known' : ''}"><span>${known ? `${e.icon} ${e.name}` : '? Unknown evolution'} <em>${e.slot === 'signature' ? CLASSES[c].ability.name : UTILITIES[c].name}</em></span>${known ? `<p>${e.desc}</p>` : ''}<i>${e.requires.map((r) => requirementText(r, !known)).join(' + ')}</i></div>`;
+      }).join('')}</div>`).join('')}</div>
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-back]', onBack);

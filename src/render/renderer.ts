@@ -271,7 +271,8 @@ function drawEdgeArrows(ctx: Ctx, marks: Mark[], view: View, cx: number, cy: num
   }
 }
 
-const FRIEND_SPRITES = { caravan: 'siegeTower', monk: 'priest', knight: 'knight', hound: 'wolf' } as const;
+const FRIEND_SPRITES = { caravan: 'siegeTower', monk: 'priest', knight: 'knight', hound: 'wolf', standard: 'bannerman', decoy: 'angel', shade: 'archer' } as const;
+const SHADE_PALETTE = 3; // v0.6: the Archer's shadow is drawn in the midnight palette
 const FRIEND_PALETTE = 2; // the gilded palette: allies read apart from the enemies that share their sprites
 
 /** Slow pan over an empty arena behind the menus. */
@@ -580,7 +581,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   _t = begin();
   for (const m of g.minions) {
     ctx.globalAlpha = clamp(m.life, 0.2, 1);
-    drawSprite(ctx, m.kind ? getSprite(FRIEND_SPRITES[m.kind], m.scale, FRIEND_PALETTE) : getSprite('skeleton', m.scale), m.x, m.y, m.flip, m.flash > 0);
+    if (m.kind === 'decoy') ctx.globalAlpha = 0.55; // v0.6: the Angel's mirror image is half there
+    drawSprite(ctx, m.kind ? getSprite(FRIEND_SPRITES[m.kind], m.scale, m.kind === 'shade' ? SHADE_PALETTE : FRIEND_PALETTE) : getSprite('skeleton', m.scale), m.x, m.y, m.flip, m.flash > 0);
     if (!m.kind) continue;
     // v0.5 allies from quests and events: a green health bar
     const w = m.r * 2 + 8;
@@ -618,13 +620,29 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.globalAlpha = 1;
   }
   if (p.invulnT <= 0 || Math.floor(g.time * 16) % 2 === 0) {
-    drawSprite(ctx, getSprite(p.cls.sprite, GAME.spriteScale, g.palette), p.x, p.y, p.flip, p.flash > 0);
+    drawSprite(ctx, getSprite(p.cls.sprite, GAME.spriteScale + (g.vars.avatar ? 2 : 0), g.palette), p.x, p.y, p.flip, p.flash > 0); // v0.6: the Avatar of Wrath is a giant
   }
   if (p.chillT > 0) {
     ctx.fillStyle = 'rgba(169,216,239,0.3)';
     disc(ctx, p.x, p.y - 6, 22);
     ctx.fill();
   }
+
+  // v0.6: what the evolutions light up this tick (wisps, souls, rings of light, the prey's mark)
+  for (const l of g.glows) {
+    if (!visible(l.x, l.y, l.r + 10)) continue;
+    ctx.globalAlpha = l.ring ? 0.8 : 0.9;
+    disc(ctx, l.x, l.y, l.r);
+    if (l.ring) {
+      ctx.strokeStyle = l.color;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = l.color;
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
 
   end('player', _t);
   _t = begin();

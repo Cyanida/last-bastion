@@ -13,7 +13,7 @@ export function fireProjectile(
   x: number,
   y: number,
   angle: number,
-  o: Pick<Projectile, 'damage' | 'crit' | 'hostile' | 'pierce' | 'shape' | 'color' | 'r'> & { speed: number; range: number } & Partial<Pick<Projectile, 'status' | 'source' | 'dtype'>>,
+  o: Pick<Projectile, 'damage' | 'crit' | 'hostile' | 'pierce' | 'shape' | 'color' | 'r'> & { speed: number; range: number } & Partial<Pick<Projectile, 'status' | 'source' | 'dtype' | 'seek'>>,
 ): void {
   const pr = pool.pop() ?? ({ hit: [] } as unknown as Projectile);
   pr.x = x;
@@ -31,6 +31,7 @@ export function fireProjectile(
   pr.status = o.status ?? null;
   pr.source = o.source ?? 'attack';
   pr.dtype = o.dtype ?? 'physical';
+  pr.seek = o.seek ?? false;
   g.projectiles.push(pr);
 }
 

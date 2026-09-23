@@ -1,5 +1,16 @@
 # Balance notes
 
+## v0.6: evolutions
+
+**Within reach?** The spec's bar is that every run has a build-defining evolution within reach. The bot takes the gold card whenever it
+comes (4 seeds per class, 40-minute cap): **every maxed run got at least one** (the first between minutes 2 and 16, often a second one
+later), and **9 of 20 fresh runs** did (minutes 4 to 10). The fresh runs that missed mostly died before wave 7, before three talent points
+or a second copy of a relic could come together; a run that gets going reaches one. Requirements lean on the ability upgrades (levels 5,
+10 and 15) and a tier II relic or a branch's second row, so the keystone recipes are the late ones.
+
+Their power is not tuned yet: the final balance pass measures runs with and without them. The per-evolution tests only prove each one
+does its own thing and nothing else does (tests/v6-evolutions.test.ts).
+
 ## v0.6: telegraphs, patterns, the perfect dodge and the Last Stand
 
 **The Last Stand is worth a lot at the first wall.** The Act I Dragon gate for fresh bots (8 seeds per class, 40 runs): **16/40 pass with

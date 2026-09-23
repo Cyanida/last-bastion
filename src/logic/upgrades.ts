@@ -1,3 +1,5 @@
+import { EVOLUTIONS, type EvolutionId } from '../config/evolutions';
+import { UTILITIES } from '../config/utility';
 import type { ClassDef } from '../config/classes';
 import { GAME } from '../config/game';
 import { relicDef, relicDesc, TIER_NUMERALS, type RelicId } from '../config/relics';
@@ -43,7 +45,8 @@ export type LevelUpOption =
   | { kind: 'stat'; key: StatKey; rarity: UpgradeRarity }
   | { kind: 'tradeoff'; id: TradeoffId }
   | { kind: 'talent' } // v0.4: +1 talent point
-  | { kind: 'relic'; id: RelicId }; // v0.4: a relic (or a tier up), on the spot
+  | { kind: 'relic'; id: RelicId } // v0.4: a relic (or a tier up), on the spot
+  | { kind: 'evolution'; id: EvolutionId }; // v0.6: a recipe is complete: the gold card
 
 function rollRarity(rng: Rng): UpgradeRarity {
   const rarities = Object.keys(UPGRADE_RARITIES) as UpgradeRarity[];
@@ -80,6 +83,10 @@ export function applyTradeoff(stats: Stats, mods: Mods, id: TradeoffId): { stats
 }
 
 export function optionText(o: LevelUpOption, cls: ClassDef, relicTier = 0): { title: string; desc: string; tag: string } {
+  if (o.kind === 'evolution') {
+    const e = EVOLUTIONS[o.id];
+    return { title: `${e.icon} ${e.name}`, desc: e.desc, tag: `Evolution · ${e.slot === 'signature' ? cls.ability.name : UTILITIES[cls.id].name}` };
+  }
   if (o.kind === 'tradeoff') return { title: TRADEOFFS[o.id].name, desc: TRADEOFFS[o.id].desc, tag: 'Tradeoff' };
   if (o.kind === 'talent') return { title: 'Talent point', desc: 'One more point to spend in your talent tree (pause menu).', tag: 'Talent' };
   if (o.kind === 'relic') return { title: `${relicDef(o.id).icon} ${relicDef(o.id).name}`, desc: relicDesc(o.id, relicTier + 1), tag: relicTier > 0 ? `Relic · tier ${TIER_NUMERALS[relicTier + 1]}` : `Relic · ${relicDef(o.id).rarity}` };

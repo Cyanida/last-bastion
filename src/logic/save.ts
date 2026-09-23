@@ -1,3 +1,4 @@
+import { EVOLUTION_IDS, type EvolutionId } from '../config/evolutions';
 import { FEAT_KEYS, type FeatKey } from '../config/achievements';
 import { ARENA_IDS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
@@ -76,6 +77,7 @@ export interface Save {
   daily: Record<string, number>; // v0.3: 'YYYY-MM-DD' -> best wave in that day's trial
   runs: RunLog[]; // v0.6: the last RUN_LOG.keep runs' timelines, oldest first (Run History)
   wins: Record<ClassId, number>; // v0.6: times each class beat the Usurper
+  evolutions: EvolutionId[]; // v0.6: evolutions ever taken (the compendium shows their recipes in full)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
   settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; palettes: Partial<Record<ClassId, number>> };
 }
@@ -115,6 +117,7 @@ export interface RunSummary {
   treasure?: ChainRun; // v0.5: what the run did for its class's treasure chain
   log?: RunLog; // v0.6: the run's timeline, for Run History
   won?: boolean; // v0.6: the Usurper fell
+  evolutions?: EvolutionId[]; // v0.6: taken this run
   endlessScore?: number; // v0.6: 0 unless the run went on into Endless
 }
 
@@ -142,6 +145,7 @@ export function defaultSave(): Save {
     counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
     daily: {},
     runs: [],
+    evolutions: [],
     wins: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     endless: Object.fromEntries(CLASS_ORDER.map((id) => [id, []])) as unknown as Record<ClassId, EndlessEntry[]>,
     settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', palettes: {} },
@@ -216,6 +220,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
           .slice(0, VICTORY.leaderboard);
       }
     }
+    if (Array.isArray(raw.evolutions)) save.evolutions = EVOLUTION_IDS.filter((id) => (raw.evolutions as unknown[]).includes(id));
     if (Array.isArray(raw.runs)) save.runs = keepRuns(raw.runs.map(readRunLog).filter((r): r is RunLog => r !== null));
     if (isObj(raw.daily)) for (const [day, wave] of Object.entries(raw.daily)) if (/^\d{4}-\d{2}-\d{2}$/.test(day) && num(wave) > 0) save.daily[day] = num(wave);
     if (isObj(raw.settings)) {
@@ -334,6 +339,7 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
       daily: run.daily ? { ...save.daily, [run.daily]: Math.max(save.daily[run.daily] ?? 0, run.wave) } : save.daily,
       runs: keepRuns(save.runs, run.log && { ...run.log, at }),
       wins: run.won ? { ...save.wins, [run.classId]: save.wins[run.classId] + 1 } : save.wins,
+      evolutions: EVOLUTION_IDS.filter((id) => save.evolutions.includes(id) || run.evolutions?.includes(id)),
       endless: { ...save.endless, [run.classId]: board },
       counters: {
         ...feats,

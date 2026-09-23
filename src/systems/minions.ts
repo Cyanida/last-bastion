@@ -4,6 +4,7 @@ import { compact } from '../core/math';
 import type { Game, Minion } from '../core/types';
 import { applyStatus, damageEnemy, nearestEnemy } from './combat';
 import { burst, ring } from './effects';
+import { fireProjectile } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
 import { clampToArena } from './movement';
 import { regionsOf } from './regions';
@@ -45,6 +46,15 @@ export function updateMinions(g: Game, dt: number): void {
     if (m.passive) {
       walkPath(g, m, dt);
       clampToArena(g, m);
+      // v0.6: the Archer's shadow stands and shoots
+      if (m.shoot && (m.shoot.t -= dt) <= 0) {
+        const e = nearestEnemy(g, m.x, m.y, 520);
+        if (e) {
+          m.shoot.t = m.shoot.every;
+          m.flip = e.x < m.x;
+          fireProjectile(g, m.x, m.y - 6, Math.atan2(e.y - m.y, e.x - m.x), { damage: m.shoot.damage, crit: false, hostile: false, pierce: 1, shape: 'arrow', color: '#a77fd0', r: 5, speed: 620, range: 560, source: 'minion' });
+        }
+      }
       continue;
     }
     const target = nearestEnemy(g, m.x, m.y, AGGRO);
@@ -63,12 +73,22 @@ export function updateMinions(g: Game, dt: number): void {
       const blessed = m.blessedT > 0 ? STATUS_TUNING.blessedDamage : 1;
       damageEnemy(g, target, m.damage * p.mods.minionDamage * blessed, false, (dx / d) * 80, (dy / d) * 80, 'minion', 'shadow');
       applyStatus(target, m.status, g);
+      if (m.cleave) {
+        // v0.6 Bone Colossus: the blow lands on everything around its target too
+        for (const o of g.hash.query(target.x, target.y, m.cleave, [])) if (o !== target && !o.dead) damageEnemy(g, o, m.damage * p.mods.minionDamage * blessed, false, 0, 0, 'minion', 'shadow');
+        ring(g, target.x, target.y, m.cleave, '#d8d2bd', 0.25);
+      }
     }
     clampToArena(g, m);
   }
   compact(g.minions, (m) => {
     if (m.life > 0 && m.hp > 0) return true;
     burst(g, m.x, m.y, '#d8d2bd', 10);
+    if (m.onEnd) {
+      for (const e of g.hash.query(m.x, m.y, m.onEnd.radius, [])) damageEnemy(g, e, m.onEnd.damage, false, 0, 0, 'minion', m.onEnd.dtype);
+      ring(g, m.x, m.y, m.onEnd.radius, m.onEnd.color, 0.5);
+      burst(g, m.x, m.y, m.onEnd.color, 18, 220);
+    }
     if (m.volatile > 0) {
       const radius = ABILITY_UPGRADES.volatileBones.n.radius;
       for (const e of g.hash.query(m.x, m.y, radius, [])) damageEnemy(g, e, m.damage * m.volatile * p.mods.minionDamage, false, 0, 0, 'minion');

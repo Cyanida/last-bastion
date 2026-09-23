@@ -14,6 +14,7 @@ import { burst, floatText, ring, shake } from './effects';
 import { feat, featAdd } from './feats';
 import { skeletonCount } from './minions';
 import { lastStandActive } from './dodge';
+import { evolutionHook, evolutionPassives } from './evolutions';
 import { SKILL } from '../config/game';
 
 /**
@@ -60,6 +61,11 @@ function volleyZones(g: Game, c: Cfg<'arrowVolley'>, tx: number, ty: number, sta
     });
   }
   ring(g, tx, ty, c.radius, c.aura, c.duration);
+}
+
+/** v0.6: a volley where something fell (the Hunter's Mark), with the player's current volley numbers and no upgrades' extras. */
+export function freeVolley(g: Game, x: number, y: number): void {
+  volleyZones(g, g.player.cls.ability as Cfg<'arrowVolley'>, x, y, null);
 }
 
 function ballistaShot(g: Game, c: Cfg<'arrowVolley'>, angle: number, status: Status | null): void {
@@ -329,12 +335,15 @@ addListener((g, name, ev) => dispatch(hookFor(g.player).hook.on, g, name, ev));
 export function updateAbility(g: Game, dt: number): void {
   const p = g.player;
   const { hook, cfg } = hookFor(p);
+  const evo = evolutionHook(g, 'signature'); // v0.6: an evolution adds to the ability, or takes its cast over
   if (p.abilityTime > 0) {
     p.abilityTime -= dt;
     hook.tick?.(g, cfg, dt);
+    evo?.tick?.(g, dt);
     if (p.abilityTime <= 0) {
       p.abilityTime = 0;
       hook.expire?.(g, cfg);
+      evo?.expire?.(g);
       emit(g, 'onAbilityEnd', {});
     }
   }
@@ -343,7 +352,8 @@ export function updateAbility(g: Game, dt: number): void {
   if (p.abilityTime <= 0) p.abilityCd = Math.max(0, p.abilityCd - dt * (lastStandActive(g) ? SKILL.lastStand.cooldownRate : 1)); // v0.6: the Last Stand hurries it
   if (g.input.ability && p.abilityCd <= 0 && p.abilityTime <= 0) {
     g.vars.cdRefund = 0;
-    if (!hook.activate(g, cfg)) return;
+    if (!(evo?.replaceCast ? evo.replaceCast(g) : hook.activate(g, cfg))) return;
+    evo?.cast?.(g);
     const upgradeMult = has(p, 'secondWind') ? U.secondWind.n.cooldown : 1;
     const cooldown = abilityCooldown(cfg.cooldown, p.stats.int) * p.mods.cooldown * p.mods.abilityCd * upgradeMult * (1 - (g.vars.cdRefund ?? 0));
     p.abilityCd = p.abilityCdMax = cooldown;
@@ -353,9 +363,10 @@ export function updateAbility(g: Game, dt: number): void {
 }
 
 /** Passive ability upgrades adjust p.mods; runs every tick after relics. */
-export function abilityPassives(g: Game): void {
+export function abilityPassives(g: Game, dt = 0): void {
   const { hook, cfg } = hookFor(g.player);
   hook.passive?.(g, cfg);
+  evolutionPassives(g, dt); // v0.6
 }
 
 /** Resolve the first queued tier choice. Invalid picks (wrong class/tier, tier already taken) are ignored. */

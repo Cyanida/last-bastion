@@ -154,6 +154,7 @@ function nearestGoal(g: Game): { x: number; y: number } | null {
 }
 
 function scoreOption(g: Game, o: LevelUpOption): number {
+  if (o.kind === 'evolution') return 10; // always
   if (o.kind === 'tradeoff') return 0.9;
   if (o.kind === 'talent') return 1.2;
   if (o.kind === 'relic') return 1.0;

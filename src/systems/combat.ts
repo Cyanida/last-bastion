@@ -20,6 +20,7 @@ import { spawnEnemy } from './spawning';
 
 const BLOOD = '#8e1b1b';
 const near: Enemy[] = []; // scratch for the loops in this file
+const SEEK_TURN = 6; // v0.6: radians a second a seeking bolt can turn
 const nearest: Enemy[] = []; // nearestEnemy's own scratch: it may be called from inside those loops
 
 export function nearestEnemy(g: Game, x: number, y: number, range: number, exclude?: Enemy): Enemy | null {
@@ -330,6 +331,18 @@ export function updateProjectiles(g: Game, dt: number): void {
 }
 
 function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly Body[], p: Player): boolean {
+  if (pr.seek && !pr.hostile) {
+    // v0.6: a seeking bolt (Soul Harvest) turns toward the nearest enemy, at most SEEK_TURN radians a second
+    const e = nearestEnemy(g, pr.x, pr.y, 420);
+    if (e) {
+      const want = Math.atan2(e.y - pr.y, e.x - pr.x);
+      const have = Math.atan2(pr.vy, pr.vx);
+      const turn = Math.max(-SEEK_TURN * dt, Math.min(SEEK_TURN * dt, Math.atan2(Math.sin(want - have), Math.cos(want - have))));
+      const v = Math.hypot(pr.vx, pr.vy);
+      pr.vx = Math.cos(have + turn) * v;
+      pr.vy = Math.sin(have + turn) * v;
+    }
+  }
   pr.x += pr.vx * dt;
   pr.y += pr.vy * dt;
   pr.life -= dt;
@@ -407,6 +420,8 @@ export function updateFields(g: Game, dt: number): void {
   const p = g.player;
   compact(g.fields, (f) => {
     f.life -= dt;
+    if (f.follow) (f.x = p.x), (f.y = p.y); // v0.6 evolutions: a dome that moves with you, a sun that drifts
+    else if (f.vx || f.vy) (f.x += (f.vx ?? 0) * dt), (f.y += (f.vy ?? 0) * dt);
     f.tickT -= dt;
     if (f.tickT <= 0) {
       f.tickT += GAME.fieldTick;
