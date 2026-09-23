@@ -46,19 +46,25 @@ function project() {
   return { ...p, fields };
 }
 
-/** Every item on the board with its issue and single-select values. */
+/**
+ * Every issue on the board with its single-select values. Read from the repo's issues (each knows its project items) rather than the
+ * project's item list: the same data, and it kept working through a GitHub incident where the project item list came back empty.
+ */
 function items(p) {
+  const [owner, name] = REPO.split('/');
   const out = [];
   let after = null;
   do {
-    const d = gql(`query($id:ID!,$after:String){ node(id:$id){ ... on ProjectV2 { items(first:100, after:$after){ pageInfo{ hasNextPage endCursor }
-      nodes{ id content{ ... on Issue { number title state closedAt url labels(first:20){ nodes{ name } } } }
-        fieldValues(first:20){ nodes{ ... on ProjectV2ItemFieldSingleSelectValue { name field{ ... on ProjectV2SingleSelectField { name } } } } } } } } } }`, { id: p.id, after });
-    const page = d.node.items;
+    const d = gql(`query($owner:String!,$name:String!,$after:String){ repository(owner:$owner,name:$name){ issues(first:100, after:$after){ pageInfo{ hasNextPage endCursor }
+      nodes{ number title state closedAt url labels(first:20){ nodes{ name } }
+        projectItems(first:10){ nodes{ id project{ id }
+          fieldValues(first:20){ nodes{ ... on ProjectV2ItemFieldSingleSelectValue { name field{ ... on ProjectV2SingleSelectField { name } } } } } } } } } } }`, { owner, name, after });
+    const page = d.repository.issues;
     for (const n of page.nodes) {
-      if (!n.content?.number) continue;
-      const values = Object.fromEntries(n.fieldValues.nodes.filter((v) => v.field).map((v) => [v.field.name, v.name]));
-      out.push({ itemId: n.id, ...n.content, labels: n.content.labels.nodes.map((l) => l.name), ...values });
+      const item = n.projectItems.nodes.find((i) => i.project.id === p.id);
+      if (!item) continue;
+      const values = Object.fromEntries(item.fieldValues.nodes.filter((v) => v.field).map((v) => [v.field.name, v.name]));
+      out.push({ itemId: item.id, number: n.number, title: n.title, state: n.state, closedAt: n.closedAt, url: n.url, labels: n.labels.nodes.map((l) => l.name), ...values });
     }
     after = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
   } while (after);
