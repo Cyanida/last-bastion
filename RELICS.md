@@ -118,13 +118,24 @@ Measured with the bot (maxed saves, 3 seeds per class, the bot buying at every M
 are free (7 bosses, 3-4 lairs, 2-3 quests, 1-2 strongboxes) and 3 bought. A player who does not buy every time lands in the 12-16 target;
 A8 revisits the numbers once the new relics exist.
 
-## A0b · The new relic list (for approval)
+## A0b · The new relic list (for approval, revision 2)
+
+**Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
+at character select; a preferred family can be **maxed with straight family pieces**, any other family only reaches a straight 4-set and needs a
+duo for its 6, **which then works at reduced strength**; every family now has 5 relics any class can find (Flame and Frost gained one each); the
+Necromancer's third class relic moved to Holy (Crypt Key became Hallowed Bones). The names stay. Cursed relics (0.7.1) stay standalone, very rare,
+very strong and risky, outside the families. An alternative structure Jesse suggested (core element families and rarer families) is sketched at
+the end for comparison.
 
 ### How it fits together
 
 - **Seven families**, each with one core mechanic. Every relic uses or feeds its family's mechanic; set bonuses at **2, 4 and 6** relics
-  held change how you play. A family holds 6-7 relics: 4-5 that any class can find, plus class relics.
-- **48 relics**: 33 that any class can find and 15 class relics (3 per class, each counting toward a family). Rarity sets how often a relic
+  held change how you play. Every family has **5 relics any class can find**, plus the class relics of the classes that prefer it.
+- **Preferred families.** Every class prefers three families, and its three class relics are one in each. So in a preferred family a class
+  can find **6 straight pieces** (5 + its class relic) and max the family; in any other family it finds 5, which gives the 2 and 4 bonuses, and
+  the 6 needs a duo piece (a duo counts for both its families). **A 6-set completed with a duo works at 75% strength** (all its numbers).
+  The class select shows each class's preferred families, and the compendium shows which relics your class can find.
+- **50 relics**: 35 that any class can find and 15 class relics (3 per class, one in each preferred family). Rarity sets how often a relic
   is offered (common, rare, legendary), not how many you can hold: there are no duplicates.
 - **Attunement** (A4): a relic grows by doing its work. **Tier II** strengthens the numbers; **tier III awakens** it: an extra behavior with its own
   name. Numbers below are tier I → tier II.
@@ -136,45 +147,47 @@ A8 revisits the numbers once the new relics exist.
 
 ### Families and set bonuses
 
-| Family | Core mechanic | Damage | Natural classes | 2 | 4 | 6 |
+| Family | Core mechanic | Damage | Preferred by | 2 | 4 | 6 |
 |---|---|---|---|---|---|---|
-| 🔥 Flame | Burn stacks and fire bursts | Fire | Angel, Archer, Paladin | **Stoked**: burns stack one higher (6), and burn damage +1% per S | **Pyre**: burning enemies explode on death for 20% of their max HP (+1% per S) | **Inferno**: all your damage adds a burn stack, and every 2 s each burning enemy spreads a stack to its nearest neighbour |
-| ❄️ Frost | Chill → freeze → shatter | Frost | Archer, Angel, Necromancer | **Biting Cold**: chill builds 50% faster | **Shatter**: frozen enemies shatter when killed, 30% of their max HP (+1% per S) to enemies around them | **Rimewalker**: you leave a frost trail that chills, and an enemy that touches you freezes for 0.6 s (each enemy at most every 3 s) |
+| 🔥 Flame | Burn stacks and fire bursts | Fire | Paladin, Angel, Archer | **Stoked**: burns stack one higher (6), and burn damage +1% per S | **Pyre**: burning enemies explode on death for 20% of their max HP (+1% per S) | **Inferno**: all your damage adds a burn stack, and every 2 s each burning enemy spreads a stack to its nearest neighbour |
+| ❄️ Frost | Chill → freeze → shatter | Frost | Angel, Necromancer, Archer | **Biting Cold**: chill builds 50% faster | **Shatter**: frozen enemies shatter when killed, 30% of their max HP (+1% per S) to enemies around them | **Rimewalker**: you leave a frost trail that chills, and an enemy that touches you freezes for 0.6 s (each enemy at most every 3 s) |
 | ⚡ Storm | Chains and speed | Physical (lightning visuals) | Archer, Viking | **Arc**: every 5th hit chains to a second enemy for 60% (every 4th from 15 S) | **Thunderstrike**: crits call a lightning strike (50% of the hit, small area) | **Tempest**: chains jump 50% further, and 10 kills within 5 s reset your utility cooldown |
-| 🩸 Blood | Bleed, and HP for power | Physical | Viking, Paladin | **Open Wounds**: every bleed you apply adds one stack more | **Bloodlust**: +1% damage per 2% HP missing (max 40%), and killing a bleeding enemy heals 1% max HP | **Blood Magic**: while your signature ability cools down you can cast it anyway by paying 20% of your current HP (once per cooldown) |
-| ✨ Holy | Healing, ward and blessing | Holy | Paladin, Angel | **Blessed**: healing also grants ward equal to 25% of the heal (ward up to 15% max HP, +1% per S) | **Radiance**: overhealing becomes a holy pulse around you, twice the overheal as damage | **Communion**: your ward's maximum doubles, and your heals and ward also reach your minions and nearby allies at full strength |
-| 💀 Grave | Corpses, summons and curse | Shadow | Necromancer, any class | **Charnel**: corpses last twice as long, and walking over one adds attunement to your Grave relics | **Undying Host**: every 10th kill raises a skeleton for you, whatever your class (max 3, +1 per 10 S) | **Legion**: your minions' hits trigger your on-hit relic effects |
+| 🩸 Blood | Bleed, and HP for power | Physical | Viking | **Open Wounds**: every bleed you apply adds one stack more | **Bloodlust**: +1% damage per 2% HP missing (max 40%), and killing a bleeding enemy heals 1% max HP | **Blood Magic**: while your signature ability cools down you can cast it anyway by paying 20% of your current HP (once per cooldown) |
+| ✨ Holy | Healing, ward and blessing | Holy | Paladin, Angel, Necromancer | **Blessed**: healing also grants ward equal to 25% of the heal (ward up to 15% max HP, +1% per S) | **Radiance**: overhealing becomes a holy pulse around you, twice the overheal as damage | **Communion**: your ward's maximum doubles, and your heals and ward also reach your minions and nearby allies at full strength |
+| 💀 Grave | Corpses, summons and curse | Shadow | Necromancer | **Charnel**: corpses last twice as long, and walking over one adds attunement to your Grave relics | **Undying Host**: every 10th kill raises a skeleton for you, whatever your class (max 3, +1 per 10 S) | **Legion**: your minions' hits trigger your on-hit relic effects |
 | 🛡️ Steel | Armor stacks, block, thorns | Physical | Paladin, Viking | **Bulwark**: blocking or taking a hit gives an armor stack (max 5, +1 per 10 S) | **Spiked**: thorns: an enemy that hits you takes 2× your armor % × the hit back (on top of Thorn Mail) | **Juggernaut**: at full armor stacks your next attack releases them all as a shockwave (damage per stack, knockback) |
 
 ### The relics
 
 Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shines; every relic works for every class unless it names one.
 
-#### 🔥 Flame (4 + 3 class = 7)
+#### 🔥 Flame (5 + 3 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
 | Brimstone Oil | common | Attacks have a 25% → 35% chance to add a burn stack (20% of the hit per second) | **Hellfire**: ability hits add 2 burn stacks | Archer, Angel |
 | Emberheart | common | +6% → 8% damage for each burning enemy within 250 px (max 5) | **Kindled**: while 5 or more burning enemies are near, every hit adds a burn stack | any |
 | Salamander Scale | rare | Enemies at 3+ burn stacks take 25% → 35% more damage from you | **Scorched Earth**: an enemy that dies at full burn stacks leaves a fire patch for 3 s that adds burn stacks | Paladin, Viking |
+| Cinder Charm | common | A burning enemy you kill throws an ember at the nearest enemy: 1 → 2 burn stacks | **Ember Storm**: the ember splits in three | any |
 | Dragon's Tongue | legendary | Every 8 → 6 s your next attack also breathes a cone of fire: 3 → 4 burn stacks | **Wyrmfire**: the cone detonates every burn it touches for its remaining damage at once | Archer, Paladin |
 | Fire Arrows *(Archer)* | rare | Arrow Volley arrows each add a burn stack; burn damage +2% → 3% per Focus | **Rain of Cinders**: the Volley's area keeps burning for 3 s | Archer |
 | Sunfire Censer *(Angel)* | rare | Heavenly Radiance adds 1 + Grace/6 → Grace/4 burn stacks to everything it hits | **Solar Flare**: enemies killed by Radiance burst into fire (a Pyre explosion) | Angel |
 | Radiant Brand *(Paladin)* | rare | Divine Shield's burst adds 2 + Faith/5 → Faith/4 burn stacks | **Pillar of Dawn**: while the shield holds, burning enemies touching you take their burn damage again every second | Paladin |
 
-#### ❄️ Frost (4 + 3 class = 7)
+#### ❄️ Frost (5 + 3 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
 | Frost Brand | common | Attacks have a 25% → 35% chance to chill | **Hoarfrost**: chilled enemies deal 20% less damage | Archer, Angel |
 | Winter's Grasp | common | Your signature ability chills everything it hits (2 → 3 chill) | **Deep Freeze**: enemies your ability freezes stay frozen 1 s longer | any |
 | Shatterglass | rare | Your hits on frozen enemies always crit, with +25% → 40% crit damage | **Splinter**: a crit on a frozen enemy sprays 3 ice shards that chill | Archer, Viking |
+| Glacial Heart | rare | While 3 or more chilled enemies are near you, you take 15% → 20% less damage | **Cold Blood**: every freeze near you gives +20% attack speed for 2 s | any |
 | Everfrost Crown | legendary | Every 10 → 7 s a frost nova around you chills everything within 200 px (3 chill) | **Blizzard**: the nova leaves a freezing field for 3 s | any |
 | Rimebow *(Archer)* | rare | Crits chill (2 chill); chill +3% → 4% per Focus | **Frozen Volley**: Arrow Volley freezes what it hits for 0.5 s | Archer |
 | Frostward Halo *(Angel)* | rare | Heavenly Radiance chills (2 chill) and heals 15% → 20% more per frozen enemy near you (max 3) | **Winter Grace**: freezing an enemy near you grants ward (2% max HP) | Angel |
 | Lich Lantern *(Necromancer)* | rare | Skeletons' hits chill (1 chill, +1 per 15 → 10 Soul Power) | **Frost Legion**: skeletons burst in a frost nova when they expire | Necromancer |
 
-#### ⚡ Storm (5 + 2 class = 7)
+#### ⚡ Storm (5 + 2 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -186,7 +199,7 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Galeforce Quiver *(Archer)* | rare | Arrows pierce one more enemy per 4 → 3 Focus, and a pierced enemy is chained to | **Gale Shot**: every 10th arrow is a lightning bolt that chains 5 times | Archer |
 | Stormborn Pelt *(Viking)* | rare | During Berserker Rage every 4th → 3rd hit chains; Rage × 1% chain damage | **Thunder God**: kills during Rage extend it by 0.03 s × Rage (up to double) | Viking |
 
-#### 🩸 Blood (5 + 1 class = 6)
+#### 🩸 Blood (5 + 1 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -197,7 +210,7 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Blood Pact | legendary | +40% → 55% damage, but max HP is cut by 25% → 20% | **Covenant**: under half HP, kills restore 1% max HP | any |
 | Wolfskin Cloak *(Viking)* | rare | During Berserker Rage your hits add a bleed stack; +1 per 15 → 10 Rage | **Blood Frenzy**: bleeding enemies you kill during Rage give 5% attack speed for the rest of it (max 25%) | Viking |
 
-#### ✨ Holy (5 + 2 class = 7)
+#### ✨ Holy (5 + 3 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -208,8 +221,9 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Phoenix Feather | legendary | Once per run, rise from death with 50% → 100% HP | **Rebirth**: rising sets everything near you ablaze with holy fire | any |
 | Reliquary of Saints *(Paladin)* | rare | Every hit you take shaves 0.02 → 0.03 s × Faith off Divine Shield's cooldown | **Martyr's Relic**: Divine Shield also grants ward equal to 1% max HP per Faith when it ends | Paladin |
 | Seraph's Halo *(Angel)* | rare | Heavenly Radiance also fires 4 + Grace × 0.8 → 6 + Grace light bolts | **Choir of Light**: the bolts heal you for 1% max HP each when they hit | Angel |
+| Hallowed Bones *(Necromancer)* | rare | Skeletons you raise carry a ward of 20% → 30% of their HP, and a skeleton that expires heals you 1% max HP (+0.1% per Soul Power) | **Sanctified Legion**: skeletons' hits heal you for 0.5% of the damage | Necromancer |
 
-#### 💀 Grave (5 + 2 class = 7)
+#### 💀 Grave (5 + 1 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -219,9 +233,8 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Gravedigger's Spade | common | +3% → 4% damage for every corpse within 150 px (max 5) | **Exhume**: every 20 s the oldest corpse near you rises as a skeleton | any |
 | Deathmask | common | Cursed enemies deal 15% → 20% less damage | **Mark of the Grave**: a cursed enemy you kill leaves a corpse that bursts in shadow after 1 s | any |
 | Bone Chime *(Necromancer)* | rare | Minions inherit 50% → 70% of your attack speed, plus 2% → 3% per Soul Power | **Death Knell**: every 20th minion hit tolls the chime: a shadow burst around that minion | Necromancer |
-| Crypt Key *(Necromancer)* | rare | Raise Dead raises one more skeleton per 10 → 8 Soul Power, and Corpse Explosion leaves the corpse | **Open Crypt**: Corpse Explosion raises a skeleton from each corpse it detonates (max 2) | Necromancer |
 
-#### 🛡️ Steel (5 + 2 class = 7)
+#### 🛡️ Steel (5 + 2 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -255,14 +268,15 @@ source relic can feed only one formed duo.
 
 ### Rules check
 
-| Rule (A3, A5) | Check | Result |
+| Rule (A3, A5, Jesse's review) | Check | Result |
 |---|---|---|
-| Every relic has exactly one family | 48 relics, each listed once under one family | ✔ |
-| Each family has 5-7 relics | Flame 7, Frost 7, Storm 7, Blood 6, Holy 7, Grave 7, Steel 7 | ✔ |
-| Every relic uses or feeds its family's core mechanic | Flame: every relic adds or rewards burn stacks or a fire burst. Frost: chill, freeze or shatter. Storm: chains, crits that chain, speed from chains. Blood: bleed or HP for power. Holy: healing or ward. Grave: corpses, skeletons or curse. Steel: armor stacks, block or thorns. The old plain stat relics (Whetstone, Swift Boots, Lucky Coin, Scholar's Tome, Lodestone, Iron Band, War Horn, Sands of Chronos, Conqueror's Crown, Sentinel's Stance, Executioner's Hood, Echo Bell) are removed or folded in (Echo Bell → Thunder Drum) | ✔ |
-| Every class has 3 class relics, each in a family, tied to its ability or secondary stat | Paladin: Radiant Brand (Flame), Reliquary of Saints (Holy), Aegis of the Faithful (Steel). Viking: Stormborn Pelt (Storm), Wolfskin Cloak (Blood), Ironhide (Steel). Angel: Sunfire Censer (Flame), Frostward Halo (Frost), Seraph's Halo (Holy). Necromancer: Lich Lantern (Frost), Bone Chime (Grave), Crypt Key (Grave). Archer: Fire Arrows (Flame), Rimebow (Frost), Galeforce Quiver (Storm) | ✔ |
-| Every class has at least two families that suit it well | Paladin: Holy, Steel, Flame, Blood. Viking: Blood, Steel, Storm. Angel: Holy, Flame, Frost. Necromancer: Grave, Frost. Archer: Storm, Frost, Flame | ✔ |
-| No family is useless for any class | Each family has at least three relics that work for every class (the "any" rows); Grave's minion-dependence is covered by Undying Host (skeletons for everyone), Soul Lantern, Exhume and Grave Pact's fallback skeleton; Holy's ally reach (Communion) also doubles your own ward | ✔ |
+| Every relic has exactly one family | 50 relics, each listed once under one family | ✔ |
+| Each family has 5-7 relics | Counted per class, which is what a player meets: a preferred family has 6, any other 5. Counting every class's class relics too: Flame 8, Frost 8, Storm 7, Blood 6, Holy 8, Grave 6, Steel 7 | ✔ per class (the three 8s only count relics no single class can all find) |
+| Every relic uses or feeds its family's core mechanic | Flame: burn stacks or a fire burst. Frost: chill, freeze or shatter. Storm: chains, chaining crits, speed from chains. Blood: bleed or HP for power. Holy: healing or ward. Grave: corpses, skeletons or curse. Steel: armor stacks, block or thorns. The old plain stat relics are gone (below) | ✔ |
+| Every class has 3 class relics, each in a family, tied to its ability or secondary stat | Paladin: Radiant Brand (Flame), Reliquary of Saints (Holy), Aegis of the Faithful (Steel). Viking: Stormborn Pelt (Storm), Wolfskin Cloak (Blood), Ironhide (Steel). Angel: Sunfire Censer (Flame), Frostward Halo (Frost), Seraph's Halo (Holy). Necromancer: Lich Lantern (Frost), Bone Chime (Grave), Hallowed Bones (Holy). Archer: Fire Arrows (Flame), Rimebow (Frost), Galeforce Quiver (Storm) | ✔ |
+| Every class has at least two families that suit it well | Three preferred families each, where it can max the set: Paladin Flame, Holy, Steel. Viking Blood, Storm, Steel. Angel Flame, Frost, Holy. Necromancer Frost, Holy, Grave. Archer Flame, Frost, Storm | ✔ |
+| No family is useless for any class | Every family has 5 relics any class can find and reaches a straight 4-set for everyone; at least three relics per family work for every class ("any" rows); Grave's minion-dependence is covered by Undying Host, Soul Lantern, Exhume and Grave Pact's fallback skeleton | ✔ |
+| A 6-set without 6 straight pieces is adjusted | Outside its preferred families a class needs a duo piece for the 6; such a 6-set works at 75% strength | ✔ |
 | Set bonuses scale with the secondary stat where it fits | Stoked, Pyre, Arc, Shatter, Blessed, Undying Host, Bulwark scale with S; the rest are rules, not numbers | ✔ |
 | At least 12 duos, each from two specific relics of two different families | 12 duos, 24 distinct source relics, all findable by every class | ✔ |
 | No family in more than 4 duo recipes, every family in at least 2 | Flame 4, Frost 4, Storm 4, Blood 3, Holy 3, Grave 3, Steel 3 | ✔ |
@@ -280,9 +294,27 @@ source relic can feed only one formed duo.
   Pyre is a set bonus, so no successor; Hawkeye Quiver → Galeforce Quiver; Echo Bell → Thunder Drum); everything new is marked new.
 - **Achievements** (A7): the relic achievements move to the new system (a 6-set, 3 duos in one run, awaken 4 relics in one run).
 
-### Open questions for Jesse
+### Review log
 
-1. **Family sizes.** The brief says 5-7 relics per family including class relics; a class therefore sees 4-7 of a family. Reaching a 6-set
-   leans on class relics and duos (which count for both families). Fine, or should every family have 6 relics any class can find (that makes 57)?
-2. **Cursed relics (0.7.1)** belong to no family, as the brief says; nothing here depends on them.
-3. **Names.** Any you would rather change, say so; they are cheap to rename now and expensive after the migration.
+**Revision 1** (2026-09-23): the first list. **Jesse's review** (on #5): 6-sets that need a duo are harder to get, so adjust the 6's strength
+when there are not 6 straight family pieces; consider core element families with more relics plus rarer families with fewer set bonuses; show
+at character select which families suit a class, with all families open to all classes but the preferred ones able to max (Paladin: Flame,
+Holy, Steel); the names are fine; cursed relics standalone, very rare, very strong, with a risk.
+
+**Revision 2** (this one): preferred families (three per class, one class relic in each, shown at character select and in the compendium);
+a straight 6-set only in preferred families, otherwise a duo completes the 6 at 75% strength; 5 findable relics in every family (+Cinder Charm,
++Glacial Heart); Crypt Key replaced by Hallowed Bones (Necromancer, Holy). Two points to confirm:
+
+1. **"Adjust the strength"** read as: a 6-set completed with a duo piece works at **75%** of its numbers. If you meant the opposite (a stronger
+   6 as the reward for the harder route) or a different number, say so.
+2. **Structure.** Revision 2 keeps the seven families of the brief. The alternative you floated, for comparison:
+
+   | | Revision 2 (proposed) | Element alternative |
+   |---|---|---|
+   | Families | 7 equal families, 5 findable relics each | 4 core elements (🔥 Flame, ❄️ Frost, ⚡ Storm as air, 🛡️ Steel as earth) with 6-7 findable relics and 2/4/6 sets; 3 rarer creeds (🩸 Blood, ✨ Holy, 💀 Grave) with 4 relics, offered less often, 2/4 sets only |
+   | Duos | 12, spread over all families | element pairs first (Thermal Shock, Wildfire, Hailstorm, Glacier Plate, Lightning Rod, a Flame + Steel one), creed + element for the rest |
+   | Class identity | 3 preferred families per class | a preferred element and a preferred creed per class |
+   | Learning curve | one rule (preferred families, shown at character select) | two tiers of families to learn |
+
+   I recommend revision 2: it keeps your family table, and the preferred-family display answers the learning-curve concern directly.
+   Pick one (or tell me what to change) and I build A3-A5 on it.
