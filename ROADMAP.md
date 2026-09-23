@@ -7,8 +7,7 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 |---|---|---|
 | v0.6.0 | A run with an ending | released 2026-09-23 |
 | v0.7.0 | Relic rework | released 2026-09-23 |
-| v0.7.1 | Hotfix: the end of a run | in progress |
-| v0.7.2 | Music & convenience | in progress |
+| v0.7.1 | Music & convenience (the results-screen hotfix shipped first as v0.7.1; the rest ships as v0.7.2) | in progress |
 | v0.8.0 | Co-op foundation | backlog |
 | v0.9.0 | Online co-op | backlog |
 | v0.10.0 | Co-op polish | backlog |
@@ -33,7 +32,7 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 - A8 ([#13](https://github.com/Cyanida/last-bastion/issues/13)) Balance with `sim -- relics` against the targets below.
 - A9 ([#14](https://github.com/Cyanida/last-bastion/issues/14)) Release, with an automated check that latest.yml, the installer name and the version match the tag, and a manual updater test in the README.
 
-**Out of scope.** Cursed relics and the Merchant's Reforge (0.7.2). Music. Any networking or a second player.
+**Out of scope.** Cursed relics and the Merchant's Reforge (0.7.1). Music. Any networking or a second player.
 
 **Exit criteria.**
 - No relic below 3% or above 35% contribution in the builds where it is picked.
@@ -42,13 +41,11 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 - A v0.6.0 save migrates without loss (backup kept); the Daily Trial stays deterministic; tests and the perf test pass.
 - Released through the pipeline; the updater from 0.6 works; Pages deployed.
 
-## v0.7.1 – Hotfix
-
-[Milestone](https://github.com/Cyanida/last-bastion/milestone/7) · [#55](https://github.com/Cyanida/last-bastion/issues/55): the results and victory screens did not open after a run with a set bonus or a duo. A patch release, so the Music & convenience release (planned as 0.7.1) ships as 0.7.2.
-
-## v0.7.2 – Music & convenience
+## v0.7.1 – Music & convenience
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/2) · Track B
+
+Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issues/55), a hotfix for v0.7.0 (the results and victory screens did not open after a run with a set bonus or a duo), tagged v0.7.1. A tag is used only once, so the Music & convenience release is tagged v0.7.2.
 
 **Goal.** Quiet, per-arena gameplay music that builds a little in fights and never gets in the way, plus conveniences: a What's new screen, a glossary, a hidden test mode, and the relic additions that build on 0.7.0.
 
