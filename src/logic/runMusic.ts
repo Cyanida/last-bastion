@@ -8,7 +8,8 @@ import { pacingOf } from './waves';
  * v0.7.1 run music as a score, like logic/music.ts for the menus: pure and seeded; core/music.ts plays it.
  * Layers: 0 sparse (breathers, the Merchant, the calm before the first wave), 1 base (a wave), 2 the second layer (a dense or
  * dangerous fight), 3 the boss layer (percussion and a bass line on top). Every part draws from its own seeded stream, so a
- * layer coming in adds its part and never re-rolls the others. The conductor below reads the mood once a bar.
+ * layer coming in adds its part and never re-rolls the others. Parts are listed from the most to the least needed: when the voice
+ * budget is full, core/music.ts drops the last ones. The conductor below reads the mood once a bar.
  */
 export type Layer = 0 | 1 | 2 | 3;
 export type Cue = 'fork' | 'victory';
@@ -72,18 +73,15 @@ export function composeRunBar(t: Theme, seed: number, bar: number, layer: Layer,
     for (let i = 0; i < 3; i++) add(t.pad, 0, ladder[clampIndex(low + i, ladder)], held, 0.5);
   }
 
-  // pulse: the ostinato, one voicing per chord (sometimes a step up the ladder)
-  if (t.pulse) {
-    const r = rngFor(seed, Math.floor(bar / 2), 21);
-    const [ladder, low] = ladderOf(chord, t.pulse.voice, 0.2);
-    const base = low + (r() < 0.3 ? 1 : 0);
-    t.pulse.steps.forEach((step, i) => {
-      if (step !== null && i * 0.5 < t.meter) add(t.pulse!.voice, i * 0.5, ladder[clampIndex(base + step, ladder)], 1.5, (i === 0 ? 0.7 : i % 2 ? 0.4 : 0.55) + r() * 0.1);
-    });
+  // boss: a heavier drum and a bass line (root, fifth, root; the last beat reaches for the next chord)
+  if (layer === 3) {
+    for (const [beat, v] of t.boss.hits) add('drum', beat, t.boss.midi, 0.6, v);
+    const root = lowest(chord[0], 'bass');
+    const next = lowest(triad(t, t.chords[Math.floor(((pos + 1) % formBars(t)) / 2)])[0], 'bass');
+    const top = root + 12 <= RANGES.bass[1] ? root + 12 : root;
+    const line = t.meter === 3 ? [[0, root, 1], [1, root + 7, 1], [2, pos % 2 ? next : root, 1]] : [[0, root, 1.5], [1.5, root, 0.5], [2, root + 7, 1], [3, pos % 2 ? next : top, 1]];
+    for (const [beat, midi, d] of line) add('bass', beat, midi, d, beat === 0 ? 0.8 : 0.6);
   }
-
-  // perc: the soft drum
-  for (const [beat, v] of t.perc?.hits ?? []) add('drum', beat, t.perc!.midi, 0.5, v * 0.8);
 
   // lead: the theme's motif (rhythm and moves drawn once per piece), varied every pass (turned upside down, moved up or down)
   if (layer >= 2) {
@@ -113,14 +111,17 @@ export function composeRunBar(t: Theme, seed: number, bar: number, layer: Layer,
     }
   }
 
-  // boss: a heavier drum and a bass line (root, fifth, root; the last beat reaches for the next chord)
-  if (layer === 3) {
-    for (const [beat, v] of t.boss.hits) add('drum', beat, t.boss.midi, 0.6, v);
-    const root = lowest(chord[0], 'bass');
-    const next = lowest(triad(t, t.chords[Math.floor(((pos + 1) % formBars(t)) / 2)])[0], 'bass');
-    const top = root + 12 <= RANGES.bass[1] ? root + 12 : root;
-    const line = t.meter === 3 ? [[0, root, 1], [1, root + 7, 1], [2, pos % 2 ? next : root, 1]] : [[0, root, 1.5], [1.5, root, 0.5], [2, root + 7, 1], [3, pos % 2 ? next : top, 1]];
-    for (const [beat, midi, d] of line) add('bass', beat, midi, d, beat === 0 ? 0.8 : 0.6);
+  // perc: the soft drum
+  for (const [beat, v] of t.perc?.hits ?? []) add('drum', beat, t.perc!.midi, 0.5, v * 0.8);
+
+  // pulse: the ostinato, one voicing per chord (sometimes a step up the ladder)
+  if (t.pulse) {
+    const r = rngFor(seed, Math.floor(bar / 2), 21);
+    const [ladder, low] = ladderOf(chord, t.pulse.voice, 0.2);
+    const base = low + (r() < 0.3 ? 1 : 0);
+    t.pulse.steps.forEach((step, i) => {
+      if (step !== null && i * 0.5 < t.meter) add(t.pulse!.voice, i * 0.5, ladder[clampIndex(base + step, ladder)], 1.5, (i === 0 ? 0.7 : i % 2 ? 0.4 : 0.55) + r() * 0.1);
+    });
   }
   return notes;
 }

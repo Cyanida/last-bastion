@@ -167,6 +167,8 @@ function buildBus(ctx: AudioContext, dest: AudioNode): { master: GainNode; input
 }
 
 const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
+/** How long each voice rings past its note (a drum rings its own short time; a bell dies away within its note). */
+const TAIL: Record<NoteEvent['voice'], number> = { drone: 1.5, harp: 0.8, flute: 0.2, bell: 0, drum: 0.4, choir: 1, organ: 0.6, horn: 0.3, bass: 0.2 };
 
 function osc(ctx: AudioContext, type: OscillatorType, freq: number, from: number, to: number): OscillatorNode {
   const o = ctx.createOscillator();
@@ -195,13 +197,13 @@ function play(ctx: AudioContext, noise: AudioBuffer, out: AudioNode, e: NoteEven
   const len = e.duration * beat;
   const v = e.velocity;
   const now = ctx.currentTime;
-  voices = voices.filter((end) => end > now);
+  voices = voices.filter((until) => until > now);
   if (voices.length >= (quality.level === 'low' ? MUSIC.voices.low : MUSIC.voices.high)) return;
-  voices.push(t + len + 1.5);
+  const end = t + len + TAIL[e.voice];
+  voices.push(end);
   queued++;
   if (e.voice === 'drone') {
     // triangle body plus a detuned saw under a lowpass that slowly opens and closes; long ends blur the chord changes
-    const end = t + len + 1.5;
     const lp = ctx.createBiquadFilter();
     lp.frequency.setValueAtTime(220, t);
     lp.frequency.linearRampToValueAtTime(800, t + len / 2);
@@ -213,7 +215,6 @@ function play(ctx: AudioContext, noise: AudioBuffer, out: AudioNode, e: NoteEven
     saw.connect(lp);
   } else if (e.voice === 'harp') {
     // a plucked string: bright saw through a lowpass that closes as the note decays
-    const end = t + len + 0.8;
     const lp = ctx.createBiquadFilter();
     lp.frequency.setValueAtTime(Math.min(12000, f * 8), t);
     lp.frequency.exponentialRampToValueAtTime(f * 1.2, t + 0.4);
@@ -225,7 +226,6 @@ function play(ctx: AudioContext, noise: AudioBuffer, out: AudioNode, e: NoteEven
     osc(ctx, 'sawtooth', f, t, end).connect(lp).connect(g);
   } else if (e.voice === 'flute') {
     // sine with a little triangle, a vibrato that eases in, and a breath of noise on the attack
-    const end = t + len + 0.2;
     const g = envelope(ctx, out, [[t, 0], [t + 0.09, 0.06 * v], [t + len, 0.045 * v], [end, 0]]);
     const body = osc(ctx, 'sine', f, t, end);
     const edge = osc(ctx, 'triangle', f, t, end);
@@ -248,13 +248,13 @@ function play(ctx: AudioContext, noise: AudioBuffer, out: AudioNode, e: NoteEven
     breath.start(t, Math.random() * 0.3, 0.15);
   } else if (e.voice === 'drum') {
     // a skin (frame drum, march drum, timpani by pitch): a sine thump that drops into its pitch, and a tap of filtered noise
-    const end = t + (f < 90 ? 0.9 : 0.35);
+    const ring = t + (f < 90 ? 0.9 : 0.35);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(0.16 * v, t + 0.005);
-    g.gain.exponentialRampToValueAtTime(0.0005, end);
+    g.gain.exponentialRampToValueAtTime(0.0005, ring);
     g.connect(out);
-    const skin = osc(ctx, 'sine', f, t, end);
+    const skin = osc(ctx, 'sine', f, t, ring);
     skin.frequency.setValueAtTime(f * 1.5, t);
     skin.frequency.exponentialRampToValueAtTime(f, t + 0.08);
     skin.connect(g);
@@ -267,7 +267,6 @@ function play(ctx: AudioContext, noise: AudioBuffer, out: AudioNode, e: NoteEven
     tap.start(t, Math.random() * 0.3, 0.08);
   } else if (e.voice === 'choir') {
     // a thin choir: two detuned saws through one vowel-like band, slow in and slow out
-    const end = t + len + 1;
     const bp = ctx.createBiquadFilter();
     bp.type = 'bandpass';
     bp.frequency.value = 900;
@@ -280,7 +279,6 @@ function play(ctx: AudioContext, noise: AudioBuffer, out: AudioNode, e: NoteEven
     }
   } else if (e.voice === 'organ') {
     // three stops (the fundamental, the octave and the twelfth), a short swell and a long hold
-    const end = t + len + 0.6;
     const g = envelope(ctx, out, [[t, 0], [t + 0.12, 0.045 * v], [t + len, 0.04 * v], [end, 0]]);
     for (const [ratio, amp] of [[1, 1], [2, 0.5], [3, 0.25]]) {
       const stop = ctx.createGain();
@@ -289,7 +287,6 @@ function play(ctx: AudioContext, noise: AudioBuffer, out: AudioNode, e: NoteEven
     }
   } else if (e.voice === 'horn') {
     // soft brass: a saw under a lowpass that opens as the note swells
-    const end = t + len + 0.3;
     const lp = ctx.createBiquadFilter();
     lp.frequency.setValueAtTime(f, t);
     lp.frequency.linearRampToValueAtTime(f * 3.5, t + 0.15);
@@ -298,7 +295,6 @@ function play(ctx: AudioContext, noise: AudioBuffer, out: AudioNode, e: NoteEven
     osc(ctx, 'sawtooth', f, t, end).connect(lp);
   } else if (e.voice === 'bass') {
     // a round plucked bass
-    const end = t + len + 0.2;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(0.12 * v, t + 0.01);
@@ -309,13 +305,13 @@ function play(ctx: AudioContext, noise: AudioBuffer, out: AudioNode, e: NoteEven
   } else {
     // bell: two detuned fundamentals and two inharmonic partials, each ringing out at its own rate
     for (const [ratio, amp, decay] of [[1, 1, 1], [1.0035, 0.8, 1], [2.76, 0.3, 0.45], [5.4, 0.12, 0.22]]) {
-      const end = t + len * decay;
+      const partial = t + len * decay;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(0.03 * v * amp, t + 0.003);
-      g.gain.exponentialRampToValueAtTime(0.0001, end);
+      g.gain.exponentialRampToValueAtTime(0.0001, partial);
       g.connect(out);
-      osc(ctx, 'sine', f * ratio, t, end).connect(g);
+      osc(ctx, 'sine', f * ratio, t, partial).connect(g);
     }
   }
 }

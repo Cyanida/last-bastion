@@ -1,7 +1,7 @@
 # Last Bastion — V0.7
 
 A 2D top-down medieval wave-survival roguelite: four Acts, then the Usurper on his throne, relics in seven families that grow as they work and pair up into duos, and an Oath ladder to climb after the first win. TypeScript + Vite, HTML5 Canvas 2D, no engine, no asset files:
-sprites are pixel grids in code, sound effects and the menu music are WebAudio synthesis. One codebase, three ways to play.
+sprites are pixel grids in code, sound effects and the music (menus, and a quiet theme per arena in runs) are WebAudio synthesis. One codebase, three ways to play.
 
 | | |
 |---|---|
@@ -59,7 +59,7 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
 | `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (312 tests) |
-| `npm run test:perf` | headless Chromium frame-time test of Fog, Blood Moon and the Usurper's last phase against the built game (PERF.md) |
+| `npm run test:perf` | headless Chromium frame-time test of Fog, Blood Moon and the Usurper's last phase against the built game, with the run music playing, plus a check that the music plays in every arena (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
 | `npm run icons` | redraw all icons and the README QR code from code |
 | `npm run dist` | build the Windows installer into `release/` without publishing |
@@ -150,7 +150,7 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 
 ## Between runs
 
-The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks (since v0.6 more options than power: a second starting trait, a starting relic choice, level-up banishes); a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium (every relic by family, the set bonuses, and the duo recipes as hints until you form them), the **Sacred Treasures** log, **Run history** (the last 50 runs, each with a timeline of its waves, level-ups, relics, quests, events, bosses and boredom marks, and its build; export as JSON), the **Chronicle** (71 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, menu music, updates, save data).
+The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks (since v0.6 more options than power: a second starting trait, a starting relic choice, level-up banishes); a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium (every relic by family, the set bonuses, and the duo recipes as hints until you form them), the **Sacred Treasures** log, **Run history** (the last 50 runs, each with a timeline of its waves, level-ups, relics, quests, events, bosses and boredom marks, and its build; export as JSON), the **Chronicle** (71 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, music and effects volume, music during runs, updates, save data).
 
 ### Save format
 
@@ -232,4 +232,4 @@ public/        manifest + generated icons     build/  installer icon     docs/  
 - Selling or salvaging a relic undoes Blood Pact's HP cut but not Phoenix Feather's charges (they stay until used).
 - Achievements are evaluated when the save changes (end of run, Keep purchase, import), not mid-run.
 - The Google Fonts are fetched from the network (and then cached by the service worker); fully offline from the very first start, or in the desktop app without a connection, headings fall back to a system serif.
-- In dev mode (or a production build with `?debug`) `window.__lb` exposes `start`, `run(ticks, holdAbility, mode)`, `bot(ticks)`, `skipTo(act, wave)`, `profile(frames)`, `draw()`, `game`, `save`, `quality` for automated smoke and perf tests.
+- In dev mode (or a production build with `?debug`) `window.__lb` exposes `start`, `run(ticks, holdAbility, mode)`, `bot(ticks)`, `skipTo(act, wave)`, `profile(frames)`, `draw()`, `game`, `save`, `quality`, `music()` for automated smoke and perf tests.

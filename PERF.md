@@ -8,7 +8,7 @@ Playtest complaint: frame drops during wave modifiers, Fog and Blood Moon in par
   entity counts (enemies, projectiles, particles, ground effects, zones, damage numbers), the number of canvas draw calls,
   and the eight heaviest sections of the frame (`core/perf.ts`; sections are timed with `begin()`/`end()` in `game.ts` and `render/renderer.ts`).
 - `window.__lb.profile(n)` (dev, or a build with `?debug`) runs n scripted frames synchronously and returns the same breakdown per frame.
-- `npm run test:perf` (after `npm run build`): the automated test, see below.
+- `npm run test:perf` (after `npm run build`): the automated test, see below. Since v0.7.1 the run music plays through it, and it first checks that the music plays in every arena.
 
 ## Profiling: what it looked like before
 

@@ -50,28 +50,23 @@ page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 await page.goto(`http://localhost:${PORT}/?debug`);
 await page.waitForFunction(() => typeof window.__lb !== 'undefined');
 
-// v0.7.1: the run music plays in every arena (the Last Bastion is Act IV's)
+// v0.7.1: the run music plays in every arena (the Last Bastion is Act IV's). One run after another, so this also crosses from
+// one theme into the next; each arena gets up to 10 s to take over, then 4 s (more than a bar of any theme) to queue notes.
 const music = [];
 for (const arena of ARENAS) {
-  const before = await page.evaluate((arena) => {
+  await page.evaluate((arena) => {
     const lb = window.__lb;
     localStorage.clear();
     lb.save.settings.arena = arena === 'bastion' ? 'courtyard' : arena;
     lb.start('viking');
     if (arena === 'bastion') lb.skipTo(4, 31);
+    else lb.game.wave = 1; // a wave on: the base layer
     lb.game.player.invulnerable = true;
-    return lb.music().queued;
   }, arena);
-  await page.waitForTimeout(2500);
-  const m = await page.evaluate(() => {
-    const lb = window.__lb;
-    const out = lb.music();
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
-    document.querySelector('[data-quit]')?.click();
-    document.querySelector('[data-menu]')?.click();
-    document.querySelector('[data-back]')?.click();
-    return out;
-  });
+  await page.waitForFunction((arena) => window.__lb.music().arena === arena, arena, { timeout: 10000 }).catch(() => {});
+  const before = await page.evaluate(() => window.__lb.music().queued);
+  await page.waitForTimeout(4000);
+  const m = await page.evaluate(() => window.__lb.music());
   music.push({ want: arena, ...m, queued: m.queued - before });
 }
 
@@ -143,7 +138,7 @@ await browser.close();
 stop();
 
 let failed = errors.length > 0;
-console.log('\nmusic · every arena · 2.5 s of a run each\n');
+console.log('\nmusic · every arena · 4 s of a run each\n');
 for (const m of music) {
   const ok = m.playing === 'run' && m.context === 'running' && m.arena === m.want && m.queued > 0;
   failed ||= !ok;
