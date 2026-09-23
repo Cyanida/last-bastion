@@ -20,7 +20,7 @@ import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from 
 import { keepRuns, readRunLog, type RunLog } from './runlog';
 
 export const SAVE_VERSION = 5; // v0.6: the Keep's rework (refunds below)
-const READABLE_VERSIONS = [2, 3, 4, 5]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
+export const READABLE_VERSIONS = [2, 3, 4, 5]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
 
 /**
  * v0.6: Keep ranks that v0.5 sold and v0.6 took away or cut short: the Armory's four damage tracks, the top two ranks of HP and speed,
@@ -50,6 +50,8 @@ export function legacyRefund(meta: Record<string, unknown>): { gold: number; run
   return { gold, runes };
 }
 export const SAVE_KEY = 'lastbastion.save';
+/** v0.7: which game versions wrote a save format, for the backup list (Settings › Save data). */
+export const saveFormatLabel = (version: number): string => ({ 2: 'v0.2', 3: 'v0.3', 4: 'v0.4-v0.5', 5: 'v0.6' } as Record<number, string>)[version] ?? (version ? `save format ${version}` : 'unreadable');
 export const LEGACY_BEST_KEY = 'lastbastion.best'; // v0.1: { [classId]: bestWave }
 
 export interface ClassRecord {

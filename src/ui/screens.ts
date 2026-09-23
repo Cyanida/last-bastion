@@ -28,7 +28,8 @@ import { onAction } from '../input';
 import type { Action } from '../input/mapping';
 import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
-import { exportSave, type EndlessEntry, type Save } from '../logic/save';
+import { exportSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
+import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
 import { ACT_THEMES, ACTS, FINAL } from '../config/acts';
 import { ROUTE_FOCUS } from '../config/routes';
@@ -505,7 +506,7 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
 
-export function showSaveDialog(save: Save, on: { import: (text: string) => boolean; reset: () => void; back: () => void }): void {
+export function showSaveDialog(save: Save, on: { import: (text: string) => boolean; reset: () => void; back: () => void; backups: SaveBackup[]; restore: (b: SaveBackup) => void }): void {
   const el = show(`
     <div class="panel dialog wide">
       <h1 class="small">Save data</h1>
@@ -518,7 +519,14 @@ export function showSaveDialog(save: Save, on: { import: (text: string) => boole
         <button class="btn danger" data-act="reset">Reset all progress</button>
         <button class="btn" data-act="back">Back</button>
       </div>
+      ${on.backups.length ? `<h2>Restore previous version</h2>
+      <p class="hint">Before a new version changes your save, the old one is kept here (the last ${on.backups.length === 1 ? 'one' : on.backups.length}). Restoring replaces your current progress; the current save is kept as a backup in turn.</p>
+      <div class="row">${on.backups.map((b, i) => `<button class="btn small" data-restore="${i}">${new Date(b.at).toLocaleString()} · ${saveFormatLabel(b.version)}</button>`).join('')}</div>` : ''}
     </div>`);
+  click(el, '[data-restore]', (b) => {
+    const backup = on.backups[Number(b.dataset.restore)];
+    if (confirm(`Restore the save from ${new Date(backup.at).toLocaleString()} (${saveFormatLabel(backup.version)})? Your current progress is replaced; it is kept as a backup.`)) on.restore(backup);
+  });
   const area = el.querySelector<HTMLTextAreaElement>('#save-text')!;
   const msg = el.querySelector<HTMLElement>('#save-msg')!;
   area.value = exportSave(save);

@@ -10,7 +10,7 @@ import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
 import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as setPerfOverlay, summary } from './core/perf';
 import { quality, sampleFrame, setQuality } from './core/quality';
-import { loadSave, storeSave, wipeSave } from './core/storage';
+import { loadSave, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
 import { createGame, summarizeRun, updateGame } from './game';
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
@@ -62,7 +62,8 @@ const DEFAULT_CAST_RANGE = 320; // auto-aim reach for abilities without a castRa
 
 let state: State = 'menu';
 let game: Game | null = null;
-let save: Save = loadSave();
+const loaded = loadSave();
+let save: Save = loaded.save;
 let onTitle = false;
 let notice: TitleInfo['notice'] = null; // "new version available", shown on the title screen only
 let updateStatus = 'No check yet.';
@@ -248,6 +249,11 @@ function toSaveDialog(): void {
       wipeSave();
       save = defaultSave();
       toTitle();
+    },
+    backups: readBackups(),
+    restore(b) {
+      restoreBackup(b); // v0.7: the load migrates it, and the save it replaced becomes a backup
+      location.reload();
     },
   });
 }
@@ -670,6 +676,7 @@ if (platform.desktop) {
   });
   void platform.desktop.checkForUpdates(save.settings.prerelease);
 } else registerServiceWorker((apply) => setNotice({ text: 'New version available', button: 'Tap to reload', action: apply }));
+if (loaded.restored) setNotice({ text: `Your save could not be read; the backup from ${new Date(loaded.restored.at).toLocaleString()} was loaded instead (the unreadable one is kept as a backup)`, button: 'OK', action: () => setNotice(null) });
 
 toTitle();
 requestAnimationFrame(frame);
