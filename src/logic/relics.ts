@@ -1,7 +1,18 @@
 import type { ClassId } from '../config/classes';
 import { RELIC_DROPS, RELIC_IDS, RELIC_MAX_TIER, RELIC_STACKING, RELIC_WEIGHTS, relicDef, relicMods, SYNERGIES, SYNERGY_IDS, type RelicCategory, type RelicId, type SynergyId } from '../config/relics';
 import { pickWeighted } from '../core/math';
-import type { Mods, Rng } from '../core/types';
+import type { Mods, RelicState, Rng } from '../core/types';
+import { mulberry32 } from '../core/math';
+import { hashSeed } from './acts';
+
+/** v0.7: a player's own relic stream, split from the run seed (player 0, 1, ...). */
+export const relicStream = (seed: number, player: number): Rng => mulberry32(hashSeed(`relics:${seed}:${player}`));
+
+/** An empty relic state; createGame fills in the pool, the tier cap and the stream. */
+export const emptyRelics = (): RelicState => ({
+  held: [], tiers: {}, pool: [], offers: [], tierCap: 3, found: [], from: {}, stats: {}, rng: mulberry32(0),
+  static: {}, dyn: {}, totals: {}, dirty: true, synergies: [], reaperMark: null,
+});
 
 export type RelicTiers = Partial<Record<RelicId, number>>;
 
@@ -31,6 +42,41 @@ export function rollRelics(pool: RelicId[], held: RelicId[], tiers: RelicTiers, 
     const pick = pickWeighted(left, rng);
     left.splice(left.findIndex((o) => o.value === pick), 1);
     out.push(pick);
+  }
+  return out;
+}
+
+/**
+ * v0.7: one relic moment's options. Weighted by rarity (new relics also by newRelicShare) and `lean` times more for a family already held;
+ * once any family is held, at least one option comes from a held family and at least one from a family not held, when the pool allows.
+ * `familyOf` returns undefined for relics without a family (the rule ignores them). The order is shuffled, so the rule's picks are not
+ * always the first cards.
+ */
+export function rollOffer(
+  pool: RelicId[], held: RelicId[], tiers: RelicTiers, rng: Rng, n: number, familyOf: (id: RelicId) => string | undefined,
+  lean = 1, exclude: RelicId[] = [], cap = RELIC_MAX_TIER,
+): RelicId[] {
+  const heldFamilies = new Set(held.map(familyOf).filter((f): f is string => !!f));
+  const share = newRelicShare(held.length);
+  const all = [
+    ...pool.filter((id) => !held.includes(id) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] * share })),
+    ...held.filter((id) => canUpgrade(tiers, id, cap) && !exclude.includes(id)).map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] })),
+  ].map((o) => ({ ...o, weight: o.weight * (heldFamilies.has(familyOf(o.value) ?? '') ? lean : 1) }));
+  const out: RelicId[] = [];
+  const take = (from: typeof all) => {
+    if (!from.length || out.length >= n) return;
+    const pick = pickWeighted(from, rng);
+    out.push(pick);
+    all.splice(all.findIndex((o) => o.value === pick), 1);
+  };
+  if (heldFamilies.size) {
+    take(all.filter((o) => heldFamilies.has(familyOf(o.value) ?? '')));
+    take(all.filter((o) => { const f = familyOf(o.value); return !!f && !heldFamilies.has(f); }));
+  }
+  while (out.length < n && all.length) take(all);
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
   }
   return out;
 }

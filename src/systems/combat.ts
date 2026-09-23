@@ -66,7 +66,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   if (e.elite) {
     g.elitesKilled++;
     ring(g, e.x, e.y, 90, AFFIXES[e.affixes[0]].color, 0.5);
-    if (g.rng() < ELITES.relicChance * (g.vars['trait.relicChance'] ?? 1) * (g.vars['keep.relicChance'] ?? 1) * (g.route?.focus === 'elite' ? ROUTES.elite.relicChance : 1)) g.pickups.push({ x: e.x - 8, y: e.y - 6, value: 1, kind: 'relic' }); // Cursed Luck doubles it, the Chapel adds
+    // v0.7: elites no longer drop relics (relics come at fixed moments, RELICS.md); their gold and the attunement they give stay
     if (e.affixes.includes('splitting')) {
       const n = AFFIXES.splitting.n;
       for (let i = 0; i < n.count; i++) {

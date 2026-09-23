@@ -171,9 +171,9 @@ export function updateHud(g: Game): void {
   const stats = STAT_KEYS.map((k) => `<div><span>${statLabel(k, p.cls)}</span><b>${fmt(k, p.stats[k])}</b></div>`).join('');
   const crit = Math.round(Math.min(0.6, critChance(p.stats.dex) + p.mods.crit) * 100);
   const armor = Math.round(Math.min(0.8, p.cls.armor + p.mods.armor) * 100);
-  const relicStats = (Object.entries(g.relicTotals) as [keyof Mods, RelicModTotal][]).filter(([, t]) => t.count > 1 || t.raw > t.eff + 0.005);
+  const relicStats = (Object.entries(g.player.relics.totals) as [keyof Mods, RelicModTotal][]).filter(([, t]) => t.count > 1 || t.raw > t.eff + 0.005);
   const relicRows = relicStats.map(([key, t]) => `<div class="dim" data-tip="${esc(`${t.count} relics add up to +${Math.round(t.raw * 100)}% ${MOD_NAMES[key] ?? key}. Past the soft cap (+${Math.round(t.cap * 100)}%) each further relic counts for less: +${Math.round(t.eff * 100)}% in effect.`)}"><span>Relics: ${MOD_NAMES[key] ?? key}</span><b>+${Math.round(t.eff * 100)}%${t.raw > t.eff + 0.005 ? ` <s>${Math.round(t.raw * 100)}</s>` : ''}</b></div>`).join('');
-  const procs = (['onHit', 'onKill'] as const).map((c) => [c, procScale(g.relics, c)] as const).filter(([, s]) => s < 1).map(([c, s]) => `<div class="dim" data-tip="${esc(RELIC_CATEGORIES[c].desc)}"><span>${RELIC_CATEGORIES[c].name} procs</span><b>×${s.toFixed(2)}</b></div>`).join('');
+  const procs = (['onHit', 'onKill'] as const).map((c) => [c, procScale(g.player.relics.held, c)] as const).filter(([, s]) => s < 1).map(([c, s]) => `<div class="dim" data-tip="${esc(RELIC_CATEGORIES[c].desc)}"><span>${RELIC_CATEGORIES[c].name} procs</span><b>×${s.toFixed(2)}</b></div>`).join('');
   const heal = g.vars.relicHeal ?? 0;
   const healRow = heal > 0 ? `<div class="dim" data-tip="${esc(`Relics healed ${Math.round(heal * 100)}% of your max HP this wave. Past the soft cap (${Math.round(RELIC_STACKING.healCap * 100)}%) each further heal counts for less.`)}"><span>Relic healing (wave)</span><b>${Math.round(softCap(heal, RELIC_STACKING.healCap) * 100)}%${heal > RELIC_STACKING.healCap ? ` <s>${Math.round(heal * 100)}</s>` : ''}</b></div>` : '';
   const damage = `×${(p.mods.damage * p.buff.damage).toFixed(2)}`;
@@ -184,20 +184,20 @@ export function updateHud(g: Game): void {
 
   // relic bar: one row of the newest relics that fit, older ones behind a "+N" chip (hover or tap); tap or hover a relic for its tooltip.
   // Rebuilt only when the set changes (or the window is resized).
-  const relicKey = `${g.relics.map((id) => `${id}${g.relicTiers[id]}`).join(',')}|${g.player.talents.length}|${g.evolutions.length}|${g.player.upgrades.length}|${g.player.utilityUpgrades.length}`; // v0.6: recipes change the tooltips too
+  const relicKey = `${g.player.relics.held.map((id) => `${id}${g.player.relics.tiers[id]}`).join(',')}|${g.player.talents.length}|${g.evolutions.length}|${g.player.upgrades.length}|${g.player.utilityUpgrades.length}`; // v0.6: recipes change the tooltips too
   if (relicKey !== lastRelicKey) {
     lastRelicKey = relicKey;
     setRecipeBuild(buildState(g));
     const tile = (id: RelicId) => {
       const r = relicDef(id);
-      const tier = g.relicTiers[id] ?? 1;
-      return `<div class="relic ${r.rarity}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.relics))}">${r.icon}${tierBadge(tier)}</div>`;
+      const tier = g.player.relics.tiers[id] ?? 1;
+      return `<div class="relic ${r.rarity}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.player.relics.held))}">${r.icon}${tierBadge(tier)}</div>`;
     };
     // 50px a tile; desktop keeps clear of the ability panel, touch (bar at the top) of the wave plate
     const fit = Math.max(3, Math.min(8, Math.floor((innerWidth / 2 - (document.documentElement.classList.contains('compact') ? 140 : 300)) / 50)));
-    const older = g.relics.length > fit ? g.relics.slice(0, g.relics.length - fit) : [];
+    const older = g.player.relics.held.length > fit ? g.player.relics.held.slice(0, g.player.relics.held.length - fit) : [];
     const more = older.length ? `<div class="relic more" tabindex="0">+${older.length}<div class="hud-pop hud-plate">${older.map(tile).join('')}</div></div>` : '';
-    html('h-relics', more + g.relics.slice(older.length).map(tile).join(''));
+    html('h-relics', more + g.player.relics.held.slice(older.length).map(tile).join(''));
   }
 
   const sig = evolutionIn(g, 'signature'); // v0.6: an evolved ability wears its new name

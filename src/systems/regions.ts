@@ -1,3 +1,4 @@
+import { RELIC_MOMENTS } from '../config/relics';
 import { ENEMIES, type EnemyId } from '../config/enemies';
 import { BLESSING_IDS, BLESSINGS, FEATURES, featureSpot, REGIONS, WING_IDS, type BlessingId, type RegionDef, type RegionId, type WingId } from '../config/regions';
 import { sfx } from '../core/audio';
@@ -102,7 +103,7 @@ export function updateRegions(g: Game, dt: number): void {
       f.used = true;
       g.gold += REGIONS.chestGold * g.act;
       floatText(g, f.x, f.y - 30, `+${REGIONS.chestGold * g.act}g`, '#c9a227', 15);
-      offerRelics(g, 1, 'strongbox');
+      offerRelics(g, RELIC_MOMENTS.choices, 'strongbox');
       ring(g, f.x, f.y, 70, '#c9a227', 0.5);
       sfx('xp');
     } else if (f.kind === 'lair' && !f.used && inWing) {

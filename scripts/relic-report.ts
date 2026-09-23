@@ -22,7 +22,7 @@ interface RunRow {
 }
 
 const snap = (g: Game) => ({
-  stats: JSON.parse(JSON.stringify(g.relicStats)) as Record<string, RelicStat>,
+  stats: JSON.parse(JSON.stringify(g.player.relics.stats)) as Record<string, RelicStat>,
   totals: { dealt: g.vars.dealt ?? 0, healed: g.vars.healed ?? 0, taken: g.vars.taken ?? 0, prevented: g.vars.prevented ?? 0, ticks: g.vars.relicTicks ?? 0, softCap: g.vars.softCapTicks ?? 0, procShare: g.vars.procShareTicks ?? 0 },
 });
 
@@ -42,7 +42,7 @@ function play(classId: ClassId, seed: number, opts: RunOptions, variant: number,
     if (!at30 && g.wavesCleared >= 30) at30 = snap(g);
   }
   const from: Record<string, number> = {};
-  for (const id of g.relics) from[g.relicFrom[id] ?? 'other'] = (from[g.relicFrom[id] ?? 'other'] ?? 0) + 1;
+  for (const id of g.player.relics.held) from[g.player.relics.from[id] ?? 'other'] = (from[g.player.relics.from[id] ?? 'other'] ?? 0) + 1;
   let act3: RunRow['act3'] = null;
   if (at20 && at30) {
     const stats: Record<string, RelicStat> = {};
@@ -51,11 +51,11 @@ function play(classId: ClassId, seed: number, opts: RunOptions, variant: number,
       stats[id] = { damage: s.damage - b.damage, healing: s.healing - b.healing, prevented: s.prevented - b.prevented };
     }
     // relics held through Act III with no credit at all still count (as zero)
-    for (const id of g.relics) stats[id] ??= { damage: 0, healing: 0, prevented: 0 };
+    for (const id of g.player.relics.held) stats[id] ??= { damage: 0, healing: 0, prevented: 0 };
     const t = Object.fromEntries(Object.keys(at30.totals).map((k) => [k, at30!.totals[k as keyof Totals] - at20!.totals[k as keyof Totals]])) as unknown as Totals;
     act3 = { stats, totals: t };
   }
-  return { classId, setup, won: g.victory !== 'none', wave: g.wave, held: g.relics.length, tierUps: g.relicsFound.length - g.relics.length, from, act3, healCapWaves, waves: g.wavesCleared };
+  return { classId, setup, won: g.victory !== 'none', wave: g.wave, held: g.player.relics.held.length, tierUps: g.player.relics.found.length - g.player.relics.held.length, from, act3, healCapWaves, waves: g.wavesCleared };
 }
 
 const [cmd, ...args] = process.argv.slice(2);

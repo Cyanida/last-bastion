@@ -6,7 +6,7 @@ import { TIERS, type TierDef } from './config/economy';
 import { ACTS } from './config/acts';
 import { curseMultiplier, curseValue } from './logic/curses';
 import { GAME } from './config/game';
-import { relicDef, type RelicId } from './config/relics';
+import { RELIC_MOMENTS, relicDef, type RelicId } from './config/relics';
 import { TREASURES } from './config/treasures';
 import { FREE_REROLLS } from './config/upgrades';
 import { WAVES } from './config/waves';
@@ -19,7 +19,7 @@ import { accountPerks, masteryBonus, metaLoadout, startingStats, type MetaRanks 
 import { TALENT_ROW_CAP } from './config/economy';
 import { applyGrowth } from './logic/formulas';
 import { combineMods, neutralMods } from './logic/mods';
-import { relicPoolFor, rollRelics } from './logic/relics';
+import { relicPoolFor, relicStream, rollRelics } from './logic/relics';
 import { newRunLog } from './logic/runlog';
 import type { RunSummary } from './logic/save';
 import type { TreasureRecord } from './logic/treasures';
@@ -118,34 +118,19 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     timers: [],
     vars: {},
     baseMods: combineMods(combineMods(combineMods(neutralMods(), loadout.mods), account.mods), { utilityCd: 1 - mastery.utilityCd }),
-    relics: [],
-    relicTiers: {},
-    relicStatic: {},
-    relicDyn: {},
-    relicTotals: {},
-    relicModsDirty: true,
-    synergies: [],
-    relicsFound: [],
     salvage: 0,
     procDepth: 0,
-    reaperMark: null,
     relicSlots: loadout.relicSlots,
-    relicPool: relicPoolFor(classId, opts.lockedRelics ?? []),
-    relicOffers: [],
     pendingAbilityTiers: [],
     pendingUtilityTiers: [],
     talentPoints: loadout.talentPoints + mastery.talentPoint + account.talentPoint + (opts.bonusTalentPoints ?? 0),
     talentRowCap: TALENT_ROW_CAP[Math.min(TALENT_ROW_CAP.length - 1, opts.libraryLevel ?? TALENT_ROW_CAP.length - 1)],
-    relicTierCap: loadout.relicTierCap,
     utilityTiers: mastery.utilityTier ? 2 : 1,
     eliteGold: loadout.eliteGold,
     bossGold: loadout.bossGold,
     talentModsCache: null,
     trait: 'none',
     trait2: 'none',
-    relicStats: {},
-    relicFrom: {},
-    relicOfferFrom: [],
     oath,
     banishes: loadout.banishes,
     bannedStats: [],
@@ -207,6 +192,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     glows: [],
     over: false,
   };
+  Object.assign(g.player.relics, { pool: relicPoolFor(classId, opts.lockedRelics ?? []), tierCap: loadout.relicTierCap, rng: relicStream(seed, 0) });
   // curses that are plain numbers live in g.vars; the rest are read where they matter (spawning, director)
   g.vars.damageTaken = curseValue(curses, 'glassBones', 'damage');
   g.vars.enemySpeed = curseValue(curses, 'frenzy', 'speed');
@@ -225,18 +211,18 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
   }
   for (const id of opts.relics ?? []) for (let t = 0; t < (opts.relicTier ?? 1); t++) addRelic(g, id);
   for (let i = 0; i < (opts.relicPicks ?? 0); i++) {
-    const [pick] = rollRelics(g.relicPool, g.relics, g.relicTiers, g.rng, 1);
+    const [pick] = rollRelics(g.player.relics.pool, g.player.relics.held, g.player.relics.tiers, g.rng, 1);
     if (pick) addRelic(g, pick, 'start');
   }
-  if (opts.noRelics) g.relicPool = [];
+  if (opts.noRelics) g.player.relics.pool = [];
   if (loadout.startRelic) {
     // v0.6 Armorer's Choice: the run opens on a choice of three common relics
-    const commons = g.relicPool.filter((id) => relicDef(id).rarity === 'common');
+    const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
     const choice = rollRelics(commons, [], {}, g.rng, 3);
-    if (choice.length) (g.relicOffers.push(choice), g.relicOfferFrom.push('start'), (g.vars.armorerOffer = 1));
+    if (choice.length) (g.player.relics.offers.push({ from: 'start', options: choice, rerolls: RELIC_MOMENTS.rerolls }), (g.vars.armorerOffer = 1));
   }
   if (mastery.relic) {
-    const commons = g.relicPool.filter((id) => relicDef(id).rarity === 'common');
+    const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
     const [gift] = rollRelics(commons, [], {}, g.rng, 1);
     if (gift) addRelic(g, gift, 'start');
   }
@@ -258,12 +244,12 @@ export function summarizeRun(g: Game): RunSummary {
     bosses: g.bossesKilled,
     elites: g.elitesKilled,
     flawlessBosses: g.flawlessBosses,
-    relics: g.relics,
+    relics: g.player.relics.held,
     talents: g.player.talents,
     utilityUpgrades: g.player.utilityUpgrades,
     trait: g.trait,
-    relicsFound: g.relicsFound,
-    relicTiers: g.relicTiers,
+    relicsFound: g.player.relics.found,
+    relicTiers: g.player.relics.tiers,
     salvage: g.salvage,
     feats: g.feats,
     abilityUpgrades: g.player.upgrades.length,

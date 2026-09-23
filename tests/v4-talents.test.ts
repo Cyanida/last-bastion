@@ -164,7 +164,7 @@ describe('starting traits', () => {
     expect(glass.trait).toBe('glassCannon');
     const lucky = createGame('viking', 1);
     applyTrait(lucky, 'cursedLuck');
-    expect(lucky.vars['trait.relicChance']).toBe(2);
+    expect(lucky.vars['trait.rerolls']).toBe(1); // v0.7: an extra reroll at every relic moment
     expect(TRAITS.scavenger.unlock.achievement).toBe('treasurer');
   });
 });
@@ -187,7 +187,7 @@ describe('the mixed level-up pool', () => {
     chooseLevelUp(g, { kind: 'talent' });
     expect(g.talentPoints).toBe(1);
     chooseLevelUp(g, { kind: 'relic', id: 'whetstone' });
-    expect(g.relics).toContain('whetstone');
+    expect(g.player.relics.held).toContain('whetstone');
     expect(g.pendingLevelUps).toBe(0);
     expect(levelUpOptions(g)).toHaveLength(3);
   });

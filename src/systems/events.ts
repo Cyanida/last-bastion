@@ -1,6 +1,5 @@
 import { SQUADS } from '../config/director';
 import { EVENTS, type EventKind } from '../config/events';
-import { relicDef, type RelicId } from '../config/relics';
 import { sfx } from '../core/audio';
 import { addListener, type GameEvents } from '../core/events';
 import { compact, pickWeighted, TAU } from '../core/math';
@@ -13,13 +12,11 @@ import { rollAffixes } from '../logic/elites';
 import { enemyDmgMult, enemyHpMult } from '../logic/formulas';
 import { placeRng, rollEvent } from '../logic/quests';
 import { clampToRects, floorPoint, regionAt } from '../logic/regions';
-import { rollRelics } from '../logic/relics';
 import { pacingOf, unlockedPool } from '../logic/waves';
 import { moveTo, POISON } from './aiHelpers';
 import { floatText, ring, shake } from './effects';
 import { clearPoint } from './movement';
 import { regionsOf } from './regions';
-import { addRelic, offerRelics } from './relics';
 import { spawnEnemy, spawnSquad } from './spawning';
 
 /**
@@ -27,8 +24,8 @@ import { spawnEnemy, spawnSquad } from './spawning';
  * the peddler packs up, the knight rides on, the cart rolls off. The ambush pays its bonus only if the wave was cleared.
  */
 const START: Partial<Record<EventKind, (g: Game, ev: WaveEvent, rng: Rng) => void>> = {
-  peddler(g, ev, rng) {
-    ev.wares = rollRelics(g.relicPool, g.relics, g.relicTiers, rng, EVENTS.peddler.wares, [], g.relicTierCap);
+  peddler(_g, ev) {
+    ev.stock = EVENTS.peddler.stock;
   },
 
   knight(g, ev) {
@@ -61,7 +58,7 @@ function startEvent(g: Game): void {
   if (!kind) return;
   const rng = placeRng(g.seed, g.wave);
   const at = clearPoint(g, floorPoint(g.openFloors, rng, 120));
-  const ev: WaveEvent = { kind, x: at.x, y: at.y, unit: null, foe: null, used: false, t: 0, wares: [] };
+  const ev: WaveEvent = { kind, x: at.x, y: at.y, unit: null, foe: null, used: false, t: 0, stock: 0 };
   g.event = ev;
   g.eventsSeen++;
   START[kind]?.(g, ev, rng);
@@ -88,7 +85,10 @@ function springAmbush(g: Game): void {
 
 function openCursedChest(g: Game, ev: WaveEvent): void {
   const p = g.player;
-  offerRelics(g, 3, 'event');
+  // v0.7: the chest pays in gold and a Rune shard; relics come at fixed moments
+  g.gold += EVENTS.cursedChest.gold * g.act;
+  g.salvage += 1;
+  floatText(g, p.x, p.y - 44, `+${EVENTS.cursedChest.gold * g.act}g · ◆ shard`, '#c9a227', 16);
   const pool = unlockedPool(g.wave, null);
   for (let i = 0; i < EVENTS.cursedChest.elites; i++) {
     const a = (i / EVENTS.cursedChest.elites) * TAU + g.rng();
@@ -121,7 +121,7 @@ export function updateEvents(g: Game, dt: number): void {
   const d = Math.hypot(p.x - ev.x, p.y - ev.y);
   if (ev.kind === 'peddler') {
     if (d > EVENTS.peddler.reach * 2) ev.used = false; // walked away: he will trade again
-    else if (d < EVENTS.peddler.reach && !ev.used && ev.wares.length) {
+    else if (d < EVENTS.peddler.reach && !ev.used && ev.stock > 0) {
       ev.used = true;
       g.pendingShop = true;
     }
@@ -141,16 +141,19 @@ export function updateEvents(g: Game, dt: number): void {
   }
 }
 
-export const peddlerPrice = (g: Game, id: RelicId): number => merchantPrice(`buy:${relicDef(id).rarity}`, g.act);
+export const peddlerPrice = (g: Game): number => merchantPrice('heal', g.act);
 
-/** Buy one of the peddler's wares. Gold spent here never reaches the Keep, as with the Merchant. */
-export function peddlerBuy(g: Game, id: RelicId): boolean {
-  const wares = g.event?.wares ?? [];
-  const price = peddlerPrice(g, id);
-  if (!wares.includes(id) || g.gold < price || !addRelic(g, id, 'event')) return false;
+/** v0.7: buy the peddler's healing draught. Gold spent here never reaches the Keep, as with the Merchant. */
+export function peddlerBuy(g: Game): boolean {
+  const ev = g.event;
+  const price = peddlerPrice(g);
+  const p = g.player;
+  if (!ev || ev.stock <= 0 || g.gold < price || p.hp >= p.stats.hp) return false;
   g.gold -= price;
   g.merchantSpent += price;
-  wares.splice(wares.indexOf(id), 1);
+  ev.stock--;
+  p.hp = Math.min(p.stats.hp, p.hp + p.stats.hp * EVENTS.peddler.heal); // like the Merchant's surgeon, not healPlayer: No Respite does not bind him
+  floatText(g, p.x, p.y - 34, `+${Math.round(p.stats.hp * EVENTS.peddler.heal)}`, '#6f8f4e', 15);
   sfx('xp');
   return true;
 }

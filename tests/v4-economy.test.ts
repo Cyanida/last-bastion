@@ -90,8 +90,8 @@ describe('the Keep: buildings, caps and costs', () => {
     const open = createGame('paladin', 1, { libraryLevel: 1 });
     open.talentPoints = 9;
     for (const id of plan) expect(spendTalent(open, id)).toBe(true); // keystone included
-    expect(createGame('paladin', 1).relicTierCap).toBe(2);
-    expect(createGame('paladin', 1, { meta: { relicSlot: 1 } }).relicTierCap).toBe(3);
+    expect(createGame('paladin', 1).player.relics.tierCap).toBe(2);
+    expect(createGame('paladin', 1, { meta: { relicSlot: 1 } }).player.relics.tierCap).toBe(3);
     expect(buildingLevel({ watchtower: 2 }, 'watchtower')).toBe(2);
   });
 });

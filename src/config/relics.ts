@@ -34,6 +34,21 @@ export const RELIC_MAX_TIER = 3;
 export const TIER_NUMERALS = ['', 'I', 'II', 'III'];
 export const RELIC_WEIGHTS: Record<Rarity, number> = { common: 60, rare: 30, legendary: 10 };
 export const BOSS_RELIC_CHOICES = 3;
+
+/**
+ * v0.7: relics come only at fixed moments: every mid-Act and Act boss, lairs, strongboxes, a quest whose reward is a relic, a Merchant
+ * purchase (the Merchant between Acts, or a wandering peddler) and the run start (Armorer's Choice). Every moment is a pick of one from
+ * `choices`, with a visible Skip (paying run gold and a Rune shard) and `rerolls` rerolls. Offers lean `heldFamilyWeight` times toward the
+ * families you hold, and always show at least one relic from a family you hold (once you hold one) and one from a family you don't.
+ * Target: 12-16 moments in a full four-Act run (RELICS.md).
+ */
+export const RELIC_MOMENTS = {
+  choices: 3,
+  rerolls: 1,
+  skip: { gold: 30, goldPerAct: 30, shards: 1 },
+  heldFamilyWeight: 2,
+  merchantPerVisit: 1, // the Merchant sells one relic moment a visit between Acts (not at the Merchant path's caravan): at most 3 a run
+};
 /** Relic damage has no attack stat behind it, so it grows with character level instead. */
 export const RELIC_DAMAGE_PER_LEVEL = 0.09; // v0.3: 0.12, when a wave-30 character was level 18; now it is level 25
 

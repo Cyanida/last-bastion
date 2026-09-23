@@ -1,3 +1,4 @@
+import { emptyRelics } from '../logic/relics';
 import type { ArenaDef } from '../config/arenas';
 import type { ClassDef } from '../config/classes';
 import type { AffixId } from '../config/elites';
@@ -13,6 +14,7 @@ export const neutralBuff = (): Buff => ({ damage: 1, atkSpd: 1, lifesteal: 0, mu
 export function createPlayer(cls: ClassDef, arena: ArenaDef, stats: Stats = cls.base): Player {
   return {
     cls,
+    relics: emptyRelics(), // createGame fills in the pool, the tier cap and the relic stream
     stats: { ...stats },
     x: arena.w / 2,
     y: arena.h / 2,

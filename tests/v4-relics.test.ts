@@ -36,15 +36,15 @@ describe('relic tiers (v0.4)', () => {
     addRelic(fresh, 'whetstone');
     addRelic(fresh, 'whetstone');
     expect(addRelic(fresh, 'whetstone')).toBe(false);
-    expect(fresh.relicTiers.whetstone).toBe(2);
+    expect(fresh.player.relics.tiers.whetstone).toBe(2);
     const g = createGame('paladin', 1, { meta: { relicSlot: 1 } }); // Reliquary Vault: tier III
     for (const id of RELIC_IDS) addRelic(g, id);
-    expect(g.relics.length).toBe(RELIC_IDS.length); // v0.3 stopped at 6
+    expect(g.player.relics.held.length).toBe(RELIC_IDS.length); // v0.3 stopped at 6
     expect(addRelic(g, 'whetstone')).toBe(true);
     expect(addRelic(g, 'whetstone')).toBe(true);
     expect(addRelic(g, 'whetstone')).toBe(false); // top tier
-    expect(g.relics.filter((r) => r === 'whetstone').length).toBe(1);
-    expect(g.relicTiers.whetstone).toBe(RELIC_MAX_TIER);
+    expect(g.player.relics.held.filter((r) => r === 'whetstone').length).toBe(1);
+    expect(g.player.relics.tiers.whetstone).toBe(RELIC_MAX_TIER);
   });
 
   it('a tiered relic really is stronger in play: Blood Pact III cuts less HP than Blood Pact I, and a tier up gives the difference back', () => {
@@ -128,7 +128,7 @@ describe('synergies', () => {
     const before = g.player.mods.gold;
     addRelic(g, 'scholarTome');
     updateGame(g, 1 / 60);
-    expect(g.synergies).toContain('pilgrimsPurse');
+    expect(g.player.relics.synergies).toContain('pilgrimsPurse');
     expect(g.player.mods.gold).toBeCloseTo(before + SYNERGIES.pilgrimsPurse.n.bonus); // joins the additive gold sum
   });
 });
@@ -153,12 +153,12 @@ describe('drops, selling and salvage', () => {
   it('a boss drop offers three distinct relics; a taken offer upgrades or adds', () => {
     const g = createGame('paladin', 1);
     offerRelics(g);
-    expect(g.relicOffers[0].length).toBe(3);
-    expect(new Set(g.relicOffers[0]).size).toBe(3);
-    const pick = g.relicOffers[0][0];
+    expect(g.player.relics.offers[0].options.length).toBe(3);
+    expect(new Set(g.player.relics.offers[0].options).size).toBe(3);
+    const pick = g.player.relics.offers[0].options[0];
     expect(resolveRelicOffer(g, pick)).toBe(true);
-    expect(g.relics).toContain(pick);
-    expect(g.relicOffers.length).toBe(0);
+    expect(g.player.relics.held).toContain(pick);
+    expect(g.player.relics.offers.length).toBe(0);
   });
 
   it('the Merchant buys relics back for gold or salvages them into Rune shards', () => {
@@ -171,11 +171,11 @@ describe('drops, selling and salvage', () => {
     const gold = g.gold;
     expect(merchantSell(g, 'whetstone')).toBe(true);
     expect(g.gold).toBe(gold + sellPrice('whetstone', 2, g.act));
-    expect(g.relics).not.toContain('whetstone');
+    expect(g.player.relics.held).not.toContain('whetstone');
     expect(merchantSell(g, 'whetstone')).toBe(false);
     addRelic(g, 'powderKeg');
     expect(merchantSalvage(g, 'powderKeg')).toBe(true);
     expect(g.salvage).toBe(RELIC_DROPS.salvage.rare);
-    expect(g.relics).not.toContain('powderKeg');
+    expect(g.player.relics.held).not.toContain('powderKeg');
   });
 });

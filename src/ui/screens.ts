@@ -20,6 +20,7 @@ import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
 import { activeSynergies, synergiesOf, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
 import { esc, recipeLines, relicLine, relicTip, tierBadge } from './relicText';
+import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
 import type { QualitySetting } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
@@ -576,17 +577,31 @@ export function showLevelUp(
   numberKeys(el, (a) => a === 'reroll' && canReroll && on.reroll());
 }
 
-export function showRelicOffer(options: RelicId[], held: RelicId[], tiers: RelicTiers, on: { take: (id: RelicId) => void; skip: () => void }, title?: string): void {
+const MOMENT_TITLES: Record<RelicSource, string> = { boss: 'Spoils of the fallen', lair: "The lair's hoard", strongbox: 'A strongbox', quest: 'A reward for your quest', merchant: "The merchant's pick", start: "The Armorer's choice", other: 'A relic' };
+
+/**
+ * v0.7: a relic moment: pick one of three, reroll the three (a moment's rerolls are few), or skip it for gold and a Rune shard. Each card says
+ * what the relic would do for this build right now (`preview`) and which evolution recipes it belongs to.
+ */
+export function showRelicOffer(
+  offer: RelicOffer, held: RelicId[], tiers: RelicTiers, info: { skip: { gold: number; shards: number }; preview: (id: RelicId) => string[] },
+  on: { take: (id: RelicId) => void; skip: () => void; reroll: () => void },
+): void {
+  const { options } = offer;
   const el = show(`
     <div class="levelup">
-      <h1 class="small">${title ?? (options.length > 1 ? 'Spoils of the fallen' : 'A relic!')}</h1>
-      <p class="sub">${options.some((id) => held.includes(id)) ? 'A relic you already carry grows a tier stronger' : 'Choose a relic'} · ${held.length} carried</p>
-      <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div>`)).join('')}</div>
-      <button class="btn" data-skip>Leave it</button>
+      <h1 class="small">${MOMENT_TITLES[offer.from]}</h1>
+      <p class="sub">${options.some((id) => held.includes(id)) ? 'A relic you already carry can grow a tier stronger' : 'Choose a relic'} · ${held.length} carried</p>
+      <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div>${[...info.preview(id), ...recipeLines({ relic: id })].map((l) => `<div class="preview">${esc(l)}</div>`).join('')}`)).join('')}</div>
+      <div class="row">
+        <button class="btn" data-reroll ${offer.rerolls > 0 ? '' : 'disabled'}>Reroll (R) · ${offer.rerolls} left</button>
+        <button class="btn" data-skip data-tip="Take nothing from this moment: gold for this run and a Rune shard for the Keep">Skip · 🪙 ${info.skip.gold} · ◆ ${info.skip.shards} shard</button>
+      </div>
     </div>`);
   click(el, '[data-pick]', (b) => on.take(options[Number(b.dataset.pick)]));
   click(el, '[data-skip]', on.skip);
-  numberKeys(el);
+  click(el, '[data-reroll]', () => offer.rerolls > 0 && on.reroll());
+  numberKeys(el, (a) => a === 'reroll' && offer.rerolls > 0 && on.reroll());
 }
 
 export function showAbilityUpgrade(tier: number, options: readonly AbilityUpgradeId[], cls: ClassDef, onPick: (id: AbilityUpgradeId) => void): void {
@@ -638,15 +653,15 @@ export function showBoard(act: number, quests: { kind: QuestKind; reward: Reward
 }
 
 /** v0.5: the wandering merchant (a wave event): a couple of relics rolled by the drop rules, at the Merchant's prices. */
-export function showPeddler(info: { wares: RelicId[]; prices: number[]; gold: number; held: RelicId[]; tiers: RelicTiers }, on: { buy: (id: RelicId) => void; leave: () => void }): void {
+export function showPeddler(info: { stock: number; price: number; gold: number; hurt: boolean }, on: { buy: () => void; leave: () => void }): void {
   const el = show(`
     <div class="levelup">
       <h1 class="small">🧺 A wandering merchant</h1>
       <p class="sub">"Good things, fair prices, no questions." Purse: <b class="goldtext">🪙 ${info.gold}</b> — what you spend here never reaches the Keep.</p>
-      <div class="cards">${info.wares.map((id, i) => relicCard(id, (info.tiers[id] ?? 0) + 1, info.held, `data-buy="${i}" ${info.gold >= info.prices[i] ? '' : 'disabled'}`, `<div class="num">${i + 1}</div><div class="best">🪙 ${info.prices[i]}</div>`)).join('') || '<p class="sub">Sold out.</p>'}</div>
+      <div class="cards">${info.stock > 0 ? `<button class="card panel boon shop" data-buy="0" ${info.gold >= info.price && info.hurt ? '' : 'disabled'}><div class="num">1</div><h2>🧪 Healing draught</h2><p>${info.hurt ? 'Drink, and mend a good part of your wounds.' : 'You are not hurt.'}</p><div class="best">🪙 ${info.price}</div></button>` : '<p class="sub">Sold out.</p>'}</div>
       <button class="btn big" data-leave>Leave</button>
     </div>`);
-  click(el, '[data-buy]', (b) => on.buy(info.wares[Number(b.dataset.buy)]));
+  click(el, '[data-buy]', () => on.buy());
   click(el, '[data-leave]', on.leave);
   onActions((a) => {
     const m = /^pick(\d)$/.exec(a);
@@ -886,6 +901,7 @@ export interface MerchantInfo {
   relics: RelicId[];
   tiers: RelicTiers;
   salvage: number; // Rune shards so far
+  relicsLeft: number; // v0.7: relic moments he still sells this visit
   mid?: boolean; // v0.6: the Merchant path's visit halfway through an Act
 }
 
@@ -907,7 +923,7 @@ export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r
       <p class="sub">${info.mid ? 'The Merchant path: his caravan has caught up with you.' : 'The Merchant waits by the gate.'} Purse: <b class="goldtext">🪙 ${info.gold}</b>${info.salvage > 0 ? ` · shards: <b>${info.salvage} ◆</b>` : ''} — what you spend here never reaches the Keep.</p>
       <div class="cards">
         ${offer('heal', 'data-heal', 'Field Surgeon', `Heal half your HP (${Math.ceil(info.hp)} / ${Math.round(info.maxHp)}).`, info.hp < info.maxHp)}
-        ${(Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, `A random ${r} relic: new, or a tier up for one you carry.`, true)).join('')}
+        ${(Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, info.relicsLeft > 0 ? `Choose one of three ${r} relics: new, or a tier up for one you carry. One relic a visit.` : 'He sells one relic a visit.', info.relicsLeft > 0)).join('')}
       </div>
       ${held ? `<div class="panel heldlist">${held}</div>` : ''}
       <button class="btn big" data-leave>March on</button>

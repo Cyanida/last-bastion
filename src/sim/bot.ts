@@ -179,11 +179,10 @@ export function botChoose(g: Game, variant = 0): void {
   if (g.pendingBoard) takeQuests(g, [...Array(QUEST_BOARD.offered + 1).keys()]); // as many as it may, and the treasure trial (the free card after the board's)
   if (g.pendingShop) {
     // the first ware, and only with plenty of gold to spare
-    const first = g.event?.wares[0];
-    if (first && g.gold > 3 * peddlerPrice(g, first)) peddlerBuy(g, first);
+    if (g.gold > 3 * peddlerPrice(g) && g.player.hp < g.player.stats.hp * 0.6) peddlerBuy(g); // v0.7: his healing draught, when hurt and rich
     g.pendingShop = false;
   }
-  while (g.relicOffers.length > 0) resolveRelicOffer(g, g.relicOffers[0][0]); // no cap since v0.4: always take the first (a held one = a tier up)
+  while (g.player.relics.offers.length > 0) resolveRelicOffer(g, g.player.relics.offers[0].options[0]); // no cap since v0.4: always take the first (a held one = a tier up)
   while (g.pendingAbilityTiers.length > 0) {
     if (!chooseAbilityUpgrade(g, ABILITY_TRACKS[g.player.cls.id][g.pendingAbilityTiers[0]][variant])) g.pendingAbilityTiers.shift();
   }

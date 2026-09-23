@@ -139,9 +139,10 @@ describe('relic hooks', () => {
     const { g } = arena('paladin');
     const boss = spawnEnemy(g, 'blackKnight', 300, 300);
     killEnemy(g, boss);
-    expect(g.relicOffers).toHaveLength(1);
-    expect(new Set(g.relicOffers[0]).size).toBe(3);
-    for (const id of g.relicOffers[0]) expect([undefined, 'paladin']).toContain(relicDef(id).classId);
+    expect(g.player.relics.offers).toHaveLength(1);
+    expect(g.player.relics.offers[0].from).toBe('boss');
+    expect(new Set(g.player.relics.offers[0].options).size).toBe(3);
+    for (const id of g.player.relics.offers[0].options) expect([undefined, 'paladin']).toContain(relicDef(id).classId);
   });
 
   it('pool and rolls (v0.4: no slot limit; a held relic at the top tier is never rolled again)', () => {
@@ -376,7 +377,7 @@ describe('gold and cost calculations', () => {
     expect(masteryBonus(MASTERY[4].xp)).toMatchObject({ secondary: 1, relic: true, reroll: 1, utilityTier: true });
     const run = { wavesCleared: 8, bosses: 1, level: 9 };
     expect(classXpForRun(run, TIERS[1])).toBeGreaterThan(classXpForRun(run, TIERS[0]));
-    expect(createGame('viking', 1, { classXp: 1e9 }).relics).toHaveLength(1); // rank 3: starts with a common relic
+    expect(createGame('viking', 1, { classXp: 1e9 }).player.relics.held).toHaveLength(1); // rank 3: starts with a common relic
   });
 });
 

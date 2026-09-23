@@ -4,14 +4,14 @@ import { addListener, type GameEvents } from '../core/events';
 import { routeChoices, type Route } from '../logic/routes';
 import { markRoute } from './runlog';
 import { ARENAS } from '../config/arenas';
-import { RELIC_DROPS, relicDef, type Rarity, type RelicId } from '../config/relics';
+import { RELIC_DROPS, relicDef, type Rarity, type RelicId, RELIC_MOMENTS } from '../config/relics';
 import { sfx } from '../core/audio';
 import type { Game } from '../core/types';
 import { actName, arenaFor, isActEnd, merchantPrice, themeFor, type MerchantItem } from '../logic/acts';
 import { relicTier, rollRelics } from '../logic/relics';
 import { floatText } from './effects';
 import { gainXp } from './leveling';
-import { addRelic, removeRelic } from './relics';
+import { addRelic, offerRelics, removeRelic } from './relics';
 import { initRegions, shrineChoices } from './regions';
 import { initQuests } from './quests';
 import { takeFragment } from './treasures';
@@ -32,18 +32,21 @@ export function merchantHeal(g: Game): boolean {
   return true;
 }
 
-/** A random relic of that rarity: new, or a tier up for one you hold (the drop rules apply, so a full reliquary buys mostly upgrades). */
+/** v0.7: a relic moment of that rarity: pay, then pick one of three (new relics, or tier-ups for ones you hold). */
 export function merchantBuy(g: Game, rarity: Rarity): boolean {
-  const ofRarity = (id: RelicId) => relicDef(id).rarity === rarity;
-  const [id] = rollRelics(g.relicPool.filter(ofRarity), g.relics.filter(ofRarity), g.relicTiers, g.rng, 1, [], g.relicTierCap);
-  return id !== undefined && pay(g, `buy:${rarity}`) && addRelic(g, id, 'merchant');
+  if (g.midMerchant || (g.vars.merchantRelics ?? 0) >= RELIC_MOMENTS.merchantPerVisit) return false; // v0.7: one relic moment a visit, none at the caravan
+  const pool = g.player.relics.pool.filter((id) => relicDef(id).rarity === rarity);
+  if (!pool.some((id) => !g.player.relics.held.includes(id) || relicTier(g.player.relics.tiers, id) < g.player.relics.tierCap) || !pay(g, `buy:${rarity}`)) return false;
+  offerRelics(g, RELIC_MOMENTS.choices, 'merchant', g.player, pool);
+  g.vars.merchantRelics = (g.vars.merchantRelics ?? 0) + 1;
+  return true;
 }
 
 /** Swap a held relic for a random new one of the same rarity, at the same tier. */
 export function merchantReroll(g: Game, id: RelicId): boolean {
-  const tier = relicTier(g.relicTiers, id);
+  const tier = relicTier(g.player.relics.tiers, id);
   if (tier === 0) return false;
-  const pool = g.relicPool.filter((r) => relicDef(r).rarity === relicDef(id).rarity && !g.relics.includes(r));
+  const pool = g.player.relics.pool.filter((r) => relicDef(r).rarity === relicDef(id).rarity && !g.player.relics.held.includes(r));
   const [next] = rollRelics(pool, [], {}, g.rng, 1);
   if (next === undefined || !pay(g, 'reroll')) return false;
   removeRelic(g, id);
@@ -56,7 +59,7 @@ export const salvageValue = (id: RelicId, tier: number): number => RELIC_DROPS.s
 
 /** Sell a relic back for gold (all its tiers go). */
 export function merchantSell(g: Game, id: RelicId): boolean {
-  const tier = relicTier(g.relicTiers, id);
+  const tier = relicTier(g.player.relics.tiers, id);
   if (tier === 0) return false;
   g.gold += sellPrice(id, tier, g.act);
   sfx('xp');
@@ -65,7 +68,7 @@ export function merchantSell(g: Game, id: RelicId): boolean {
 
 /** Break a relic down into Rune shards (the Keep's second currency, v0.4) instead of gold. */
 export function merchantSalvage(g: Game, id: RelicId): boolean {
-  const tier = relicTier(g.relicTiers, id);
+  const tier = relicTier(g.player.relics.tiers, id);
   if (tier === 0) return false;
   g.salvage += salvageValue(id, tier);
   sfx('xp');
@@ -81,6 +84,7 @@ export function actTheme(g: Game): (typeof ACT_THEMES)[number] {
 /** Leave the Merchant: on with the Act (the Merchant path's visit halfway), or to the fork in the road (v0.6). */
 export function leaveMerchant(g: Game): void {
   g.pendingMerchant = false;
+  g.vars.merchantRelics = 0; // v0.7: one relic moment a visit
   if (g.midMerchant) g.midMerchant = false;
   else g.pendingRoute = routeChoices(g.seed, g.act, g.arena.id);
 }

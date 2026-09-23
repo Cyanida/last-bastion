@@ -521,3 +521,6 @@ canvas#game { touch-action: none; }
 .contracts .dim { color: #6b5a44; font-size: 13px; }
 .contracts .contract { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-top: 1px dotted rgba(90, 61, 37, 0.5); }
 .contracts .contract.done { color: #3f6b2a; }
+
+/* v0.7 relic moments: what a relic would do for this build */
+.relic-card .preview { font-size: 13px; color: #3f5a2a; margin-top: 3px; }

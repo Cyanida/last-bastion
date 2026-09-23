@@ -106,6 +106,18 @@ category soft caps or proc sharing (A6), and families that give a run an identit
 powerful and belongs in a set bonus (Grave's Legion) or a class relic with a watchful number, not a flat multiplier.
 
 
+## A2 · Relic moments (built)
+
+Relics now come only at fixed moments (`RELIC_MOMENTS` in `config/relics.ts`): every wave boss (waves 5, 10, ... 35), lairs, strongboxes, a quest
+whose reward is a relic, the Merchant between Acts (one relic moment a visit; none at the Merchant path's caravan) and Armorer's Choice at the
+start. Elites drop gold instead, level-ups offer no relics, the cursed chest pays gold and a Rune shard, and the wandering peddler sells a
+healing draught. Every moment is a pick of one from three with one reroll (two with Cursed Luck or on the Elite path) and a visible Skip that
+pays run gold and a Rune shard. Offers roll from the player's own relic stream (split from the run seed), so a seed always offers the same.
+
+Measured with the bot (maxed saves, 3 seeds per class, the bot buying at every Merchant): a winning run meets **16-19 moments**, of which 13-16
+are free (7 bosses, 3-4 lairs, 2-3 quests, 1-2 strongboxes) and 3 bought. A player who does not buy every time lands in the 12-16 target;
+A8 revisits the numbers once the new relics exist.
+
 ## A0b · The new relic list (for approval)
 
 ### How it fits together

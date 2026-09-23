@@ -76,8 +76,8 @@ describe('the gold card (v0.6)', () => {
   it('a complete recipe is the first card of the next level-up, rerolls keep it, and taking it evolves the ability', () => {
     const g = createGame('archer', 4);
     g.player.upgrades = ['doubleVolley'];
-    g.relicTiers.stormPennant = 2;
-    g.relics.push('stormPennant');
+    g.player.relics.tiers.stormPennant = 2;
+    g.player.relics.held.push('stormPennant');
     g.pendingLevelUps = 1;
     const first = levelUpOptions(g);
     expect(first[0]).toEqual({ kind: 'evolution', id: 'stormVolley' });

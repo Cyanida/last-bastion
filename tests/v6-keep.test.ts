@@ -47,10 +47,11 @@ describe('the Armory sidegrades (v0.6)', () => {
 
   it("Armorer's Choice: the run opens on three common relics", () => {
     const g = createGame('archer', 3, { meta: { startRelic: 1 } });
-    expect(g.relicOffers).toHaveLength(1);
-    expect(g.relicOffers[0]).toHaveLength(3);
-    expect(g.relicOffers[0].every((id) => relicDef(id).rarity === 'common')).toBe(true);
-    expect(createGame('archer', 3).relicOffers).toHaveLength(0);
+    expect(g.player.relics.offers).toHaveLength(1);
+    expect(g.player.relics.offers[0]).toMatchObject({ from: 'start' });
+    expect(g.player.relics.offers[0].options).toHaveLength(3);
+    expect(g.player.relics.offers[0].options.every((id) => relicDef(id).rarity === 'common')).toBe(true);
+    expect(createGame('archer', 3).player.relics.offers).toHaveLength(0);
   });
 
   it("Quartermaster's Ledger: a banished card never comes back, and banishes run out", () => {
@@ -66,8 +67,8 @@ describe('the Armory sidegrades (v0.6)', () => {
       }
     }
     const r = createGame('paladin', 5, { meta: { banish: 1 } });
-    const id = r.relicPool[0];
+    const id = r.player.relics.pool[0];
     banishOption(r, { kind: 'relic', id });
-    expect(r.relicPool).not.toContain(id);
+    expect(r.player.relics.pool).not.toContain(id);
   });
 });
