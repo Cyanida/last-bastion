@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { MERCHANT } from '../src/config/acts';
-import { RELIC_DROPS, RELIC_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, relicDesc, relicMods, relicN, SYNERGIES, SYNERGY_IDS, type RelicId } from '../src/config/relics';
+import { RELIC_DROPS, RELIC_IDS, RELIC_MAX_TIER, relicDef, relicDesc, relicMods, relicN, SYNERGIES, SYNERGY_IDS, type RelicId } from '../src/config/relics';
 import { mulberry32 } from '../src/core/math';
 import { createGame, updateGame } from '../src/game';
-import { activeSynergies, newRelicShare, procScale, relicModTotals, relicModsCombined, rollRelics, softCap, synergiesOf, withRelic } from '../src/logic/relics';
+import { activeSynergies, newRelicShare, relicModTotals, relicModsCombined, rollRelics, softCap, synergiesOf, withRelic } from '../src/logic/relics';
 import { merchantSalvage, merchantSell, salvageValue, sellPrice } from '../src/systems/acts';
 import { damageEnemy } from '../src/systems/combat';
 import { addRelic, offerRelics, removeRelic, resolveRelicOffer } from '../src/systems/relics';
@@ -63,31 +63,18 @@ describe('relic tiers (v0.4)', () => {
 });
 
 describe('relic stacking and soft caps', () => {
-  it('the same mod from several relics adds up and passes a soft cap with diminishing returns', () => {
-    expect(softCap(0.2, 1)).toBe(0.2); // up to the cap: face value
-    expect(softCap(1, 1)).toBe(1);
+  it('the same mod from several relics adds up at face value (v0.7: no category soft caps), and relic healing keeps its soft cap', () => {
+    expect(softCap(0.2, 1)).toBe(0.2); // the healing cap: face value up to it
     expect(softCap(1.5, 1)).toBeLessThan(1.5); // past it: diminishing
-    expect(softCap(1.5, 1)).toBeGreaterThan(1);
     expect(softCap(50, 1)).toBeLessThanOrEqual(1.5); // and never more than half again
-    expect(softCap(0.3, Infinity)).toBe(0.3);
     const totals = relicModTotals(['whetstone', 'bloodPact'], { whetstone: 1, bloodPact: 1 });
     expect(totals.damage!.raw).toBeCloseTo(0.62);
-    expect(totals.damage!.eff).toBeCloseTo(softCap(0.62, RELIC_STACKING.softCaps.damage!));
+    expect(totals.damage!.eff).toBeCloseTo(0.62);
     expect(totals.damage!.count).toBe(2);
     const mods = relicModsCombined(['whetstone', 'bloodPact'], { whetstone: 1, bloodPact: 1 });
-    expect(mods.damage).toBeCloseTo(1 + totals.damage!.eff);
-    expect(mods.damage!).toBeLessThan(1.12 * 1.5); // v0.3 multiplied them
-    expect(relicModTotals(['whetstone', 'bloodPact'], { whetstone: 3, bloodPact: 3 }).damage!.eff).toBeLessThan(0.25 + 0.8); // past the cap
-    const cd = relicModsCombined(['hourglass'], { hourglass: 3 });
-    expect(cd.cooldown!).toBeLessThan(1);
-    expect(cd.cooldown!).toBeGreaterThan(1 - relicN('hourglass', 3).cut); // its 55% cut is past the 50% soft cap
-  });
-
-  it('proc categories share their chance past the cap', () => {
-    const three: RelicId[] = ['stormPennant', 'frostBrand', 'brimstoneOil'];
-    expect(procScale(three, 'onHit')).toBe(1);
-    expect(procScale([...three, 'serratedEdge', 'hexDoll'], 'onHit')).toBeCloseTo(3 / 5);
-    expect(procScale([...three, 'serratedEdge', 'hexDoll'], 'onKill')).toBe(1);
+    expect(mods.damage).toBeCloseTo(1.62);
+    expect(relicModTotals(['whetstone', 'bloodPact'], { whetstone: 3, bloodPact: 3 }).damage!.eff).toBeCloseTo(0.25 + 0.8);
+    expect(relicModsCombined(['hourglass'], { hourglass: 3 }).cooldown!).toBeCloseTo(1 - relicN('hourglass', 3).cut);
   });
 
   it('proc chains stop at depth 2: a keg blast that kills does not blast again', () => {

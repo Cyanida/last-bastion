@@ -153,11 +153,11 @@ if (cmd === 'add') {
   const p = project();
   setField(p, itemFor(p, n), 'Status', 'In progress');
   gh('issue', 'edit', String(n), '--repo', REPO, '--add-assignee', '@me');
-  gh('issue', 'comment', String(n), '--repo', REPO, '--body-file', tmp(`Started\n\n${args[1] ?? ''}`));
+  gh('issue', 'comment', String(n), '--repo', REPO, '--body-file', tmp(`🤖 Started\n\n${args[1] ?? ''}`)); // 🤖: posted through Jesse's account, so his own comments stay recognisable
   writeStatus(args.slice(2));
 } else if (cmd === 'finish') {
   const p = project();
-  gh('issue', 'comment', String(n), '--repo', REPO, '--body-file', args[1]);
+  gh('issue', 'comment', String(n), '--repo', REPO, '--body-file', tmp(`🤖 ${readFileSync(args[1], 'utf8')}`));
   setField(p, itemFor(p, n), 'Status', 'Done');
   gh('issue', 'close', String(n), '--repo', REPO);
   writeStatus(args.slice(2));

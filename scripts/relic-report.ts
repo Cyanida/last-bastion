@@ -98,7 +98,6 @@ if (cmd === 'run') {
   }
   const ticks = act3.reduce((a, r) => a + r.act3!.totals.ticks, 0);
   console.log(`\n## How often the stacking rules bite (Act III)\n`);
-  console.log(`- A soft cap cuts a relic total in **${pct(act3.reduce((a, r) => a + r.act3!.totals.softCap, 0) / Math.max(1, ticks))}** of Act III ticks.`);
-  console.log(`- Proc sharing (more than ${RELIC_STACKING.procCap} on-hit or on-kill relics) is active in **${pct(act3.reduce((a, r) => a + r.act3!.totals.procShare, 0) / Math.max(1, ticks))}** of Act III ticks.`);
+  console.log(`- (v0.7: the category soft caps and proc sharing were removed in A6; ${ticks} Act III ticks measured.)`);
   console.log(`- The per-wave relic healing cap is passed in **${pct(rows.reduce((a, r) => a + r.healCapWaves, 0) / Math.max(1, rows.reduce((a, r) => a + r.waves, 0)))}** of all waves.`);
 }

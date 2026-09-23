@@ -4,12 +4,12 @@ import { SKILL } from '../config/game';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
-import { RELIC_CATEGORIES, RELIC_STACKING, relicDef, type RelicId } from '../config/relics';
+import { RELIC_STACKING, relicDef, type RelicId } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
 import { STAT_KEYS, type Enemy, type Game, type Mods, type Quest, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
 import { actName } from '../logic/acts';
-import { procScale, softCap, type RelicModTotal } from '../logic/relics';
+import { softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
@@ -171,9 +171,9 @@ export function updateHud(g: Game): void {
   const stats = STAT_KEYS.map((k) => `<div><span>${statLabel(k, p.cls)}</span><b>${fmt(k, p.stats[k])}</b></div>`).join('');
   const crit = Math.round(Math.min(0.6, critChance(p.stats.dex) + p.mods.crit) * 100);
   const armor = Math.round(Math.min(0.8, p.cls.armor + p.mods.armor) * 100);
-  const relicStats = (Object.entries(g.player.relics.totals) as [keyof Mods, RelicModTotal][]).filter(([, t]) => t.count > 1 || t.raw > t.eff + 0.005);
-  const relicRows = relicStats.map(([key, t]) => `<div class="dim" data-tip="${esc(`${t.count} relics add up to +${Math.round(t.raw * 100)}% ${MOD_NAMES[key] ?? key}. Past the soft cap (+${Math.round(t.cap * 100)}%) each further relic counts for less: +${Math.round(t.eff * 100)}% in effect.`)}"><span>Relics: ${MOD_NAMES[key] ?? key}</span><b>+${Math.round(t.eff * 100)}%${t.raw > t.eff + 0.005 ? ` <s>${Math.round(t.raw * 100)}</s>` : ''}</b></div>`).join('');
-  const procs = (['onHit', 'onKill'] as const).map((c) => [c, procScale(g.player.relics.held, c)] as const).filter(([, s]) => s < 1).map(([c, s]) => `<div class="dim" data-tip="${esc(RELIC_CATEGORIES[c].desc)}"><span>${RELIC_CATEGORIES[c].name} procs</span><b>×${s.toFixed(2)}</b></div>`).join('');
+  const relicStats = (Object.entries(g.player.relics.totals) as [keyof Mods, RelicModTotal][]).filter(([, t]) => t.count > 1);
+  const relicRows = relicStats.map(([key, t]) => `<div class="dim" data-tip="${esc(`${t.count} relics add up to +${Math.round(t.raw * 100)}% ${MOD_NAMES[key] ?? key}.`)}"><span>Relics: ${MOD_NAMES[key] ?? key}</span><b>+${Math.round(t.eff * 100)}%</b></div>`).join('');
+  const procs = ''; // v0.7: no proc sharing
   const heal = g.vars.relicHeal ?? 0;
   const healRow = heal > 0 ? `<div class="dim" data-tip="${esc(`Relics healed ${Math.round(heal * 100)}% of your max HP this wave. Past the soft cap (${Math.round(RELIC_STACKING.healCap * 100)}%) each further heal counts for less.`)}"><span>Relic healing (wave)</span><b>${Math.round(softCap(heal, RELIC_STACKING.healCap) * 100)}%${heal > RELIC_STACKING.healCap ? ` <s>${Math.round(heal * 100)}</s>` : ''}</b></div>` : '';
   const damage = `×${(p.mods.damage * p.buff.damage).toFixed(2)}`;

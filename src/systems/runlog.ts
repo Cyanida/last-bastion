@@ -1,3 +1,4 @@
+import { relicShares } from './relics';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ENEMIES } from '../config/enemies';
 import { EVENTS } from '../config/events';
@@ -92,6 +93,7 @@ export function finishRunLog(g: Game): RunLog {
     won: g.victory !== 'none',
     cause: g.over ? g.log.cause : '',
     relics: Object.fromEntries(g.player.relics.held.map((id) => [id, g.player.relics.tiers[id] ?? 1])),
+    relicShares: Object.fromEntries(relicShares(g).map((r) => [r.id, [r.damage, r.healing, r.mitigation]])),
     talents: [...p.talents],
     upgrades: [...p.upgrades, ...p.utilityUpgrades],
     waves: g.log.waves.map(([a, b, d, q]) => [a, b, Math.round(d), round1(q)]),

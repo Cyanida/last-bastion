@@ -30,6 +30,7 @@ export interface RunLog {
   won: boolean; // v0.6: the Usurper fell in this run
   cause: string; // what dealt the killing blow ('' when the run was ended from the pause menu)
   relics: Record<string, number>; // id -> tier, in the order they were found
+  relicShares: Record<string, [number, number, number]>; // v0.7: id -> % of the run's damage, healing, mitigation (one decimal)
   talents: string[];
   upgrades: string[]; // ability and utility upgrades
   waves: WaveRow[];
@@ -85,6 +86,7 @@ export function readRunLog(raw: unknown): RunLog | null {
     won: raw.won === true || raw.end === 'won',
     cause: typeof raw.cause === 'string' ? raw.cause : '',
     relics,
+    relicShares: isObj(raw.relicShares) ? Object.fromEntries(Object.entries(raw.relicShares).filter(([, v]) => Array.isArray(v) && v.length === 3 && v.every(fin))) as Record<string, [number, number, number]> : {},
     talents: strs(raw.talents),
     upgrades: strs(raw.upgrades),
     waves,
@@ -96,7 +98,7 @@ export const keepRuns = (runs: RunLog[], next?: RunLog): RunLog[] => (next ? [..
 
 /** The export file: the logs plus a legend, so the JSON explains itself. */
 export const exportRunLogs = (runs: RunLog[]) =>
-  JSON.stringify({ format: 'Last Bastion run log v1', waves: '[start s, cleared s (0 = not cleared), damage taken, seconds with fewer than 5 enemies alive] per wave', marks: '[t s, kind, detail]', runs }, null, 1);
+  JSON.stringify({ format: 'Last Bastion run log v1', waves: '[start s, cleared s (0 = not cleared), damage taken, seconds with fewer than 5 enemies alive] per wave', marks: '[t s, kind, detail]', relicShares: '{ relic: [% of damage dealt, % of healing received, % of damage turned away] } (v0.7)', runs }, null, 1);
 
 /** Minutes each Act took: from its first wave's start to the next Act's first wave (or the end of the run). */
 export function actMinutes(log: RunLog, actLength: number): number[] {

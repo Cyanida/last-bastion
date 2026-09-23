@@ -61,26 +61,24 @@ export const RELIC_DROPS = {
 };
 
 /**
- * Stacking (BALANCE.md): the same mod from several relics adds up (whetstone +12%, blood pact +50% = +62%) at face value up to the soft cap;
- * past it the excess has diminishing returns and never adds more than half the cap again (damage: +100% at face value, +150% at most).
- * Procs: past `procCap` relics of a category, every proc's chance is scaled by procCap/count. Healing from relics (the Fang, the Banner)
- * passes the same kind of soft cap per wave (`healCap`, a share of max HP): the sustain stack was what made a relic build immortal.
- * Proc chains stop at `procDepth`: a relic reacting to a relic's damage is fine, a third link is not.
+ * Stacking: the same mod from several relics adds up at face value (v0.7: the category soft caps and proc sharing are gone; with a dozen
+ * deliberate relics a run no longer holds everything, RELICS.md). Healing from relics still passes a soft cap per wave (`healCap`, a share of
+ * max HP). Proc chains stop at `procDepth`: a relic reacting to a relic's damage is fine, a third link is not.
  */
 export const RELIC_STACKING = {
-  softCaps: { damage: 1, atkSpd: 0.6, moveSpd: 0.5, cooldown: 0.5, pickup: 3, xp: 1, gold: 1.5, armor: 0.3, crit: 0.4, pierce: 4, minionAtkSpd: 0.8, minionDamage: 1 } as Partial<Record<keyof Mods, number>>,
-  procCap: 3,
   procDepth: 2,
   healCap: 1, // relic healing per wave, as a share of max HP: face value up to this, diminishing past it (never more than 1.5x)
 };
+/** v0.7: relic damage numbers and proc icons, until families bring their own colours (A3). */
+export const RELIC_COLOR = '#d9a8ff';
 
 export const RELIC_CATEGORIES: Record<RelicCategory, { name: string; desc: string }> = {
-  damage: { name: 'Damage', desc: 'Damage bonuses add up, then pass a soft cap of +100%.' },
-  attackSpeed: { name: 'Attack speed', desc: 'Attack speed bonuses add up, then pass a soft cap of +60%.' },
-  defense: { name: 'Defense', desc: 'Armor bonuses add up, then pass a soft cap of +30%.' },
-  utility: { name: 'Utility', desc: 'Speed, gold, XP and pickup bonuses add up per kind, each with its own soft cap.' },
-  onHit: { name: 'On hit', desc: 'Past three on-hit relics, every proc chance is shared out (three relics: full chance, six: half).' },
-  onKill: { name: 'On kill', desc: 'Past three on-kill relics, every proc chance is shared out.' },
+  damage: { name: 'Damage', desc: 'Damage bonuses add up.' },
+  attackSpeed: { name: 'Attack speed', desc: 'Attack speed bonuses add up.' },
+  defense: { name: 'Defense', desc: 'Armor bonuses add up.' },
+  utility: { name: 'Utility', desc: 'Speed, gold, XP and pickup bonuses add up per kind.' },
+  onHit: { name: 'On hit', desc: 'Every on-hit relic procs on its own chance.' },
+  onKill: { name: 'On kill', desc: 'Every on-kill relic procs on its own chance.' },
 };
 
 export const RELICS = {

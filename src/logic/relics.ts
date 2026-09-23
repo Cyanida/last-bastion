@@ -1,5 +1,5 @@
 import type { ClassId } from '../config/classes';
-import { RELIC_DROPS, RELIC_IDS, RELIC_MAX_TIER, RELIC_STACKING, RELIC_WEIGHTS, relicDef, relicMods, SYNERGIES, SYNERGY_IDS, type RelicCategory, type RelicId, type SynergyId } from '../config/relics';
+import { RELIC_DROPS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, SYNERGIES, SYNERGY_IDS, type RelicId, type SynergyId } from '../config/relics';
 import { pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng } from '../core/types';
 import { mulberry32 } from '../core/math';
@@ -120,12 +120,12 @@ export function relicModTotals(held: RelicId[], tiers: RelicTiers): Partial<Reco
     for (const key of Object.keys(mods) as (keyof Mods)[]) {
       const v = mods[key]!;
       const bonus = MULTIPLICATIVE.has(key) ? (key === 'cooldown' ? 1 - v : v - 1) : v;
-      const t = (out[key] ??= { raw: 0, eff: 0, cap: RELIC_STACKING.softCaps[key] ?? Infinity, count: 0 });
+      const t = (out[key] ??= { raw: 0, eff: 0, cap: Infinity, count: 0 });
       t.raw += bonus;
       t.count++;
     }
   }
-  for (const t of Object.values(out)) t.eff = softCap(t.raw, t.cap);
+  for (const t of Object.values(out)) t.eff = t.raw; // v0.7: no category soft caps
   return out;
 }
 
@@ -139,8 +139,7 @@ export function foldRelicMods(statics: RelicTotals, dyn: Partial<Record<keyof Mo
     const st = statics[key];
     const raw = (st?.raw ?? 0) + (dyn[key] ?? 0);
     if (raw === 0 && !st) continue;
-    const cap = st?.cap ?? RELIC_STACKING.softCaps[key] ?? Infinity;
-    out[key] = { raw, eff: softCap(raw, cap), cap, count: (st?.count ?? 0) + (dyn[key] ? 1 : 0) };
+    out[key] = { raw, eff: raw, cap: Infinity, count: (st?.count ?? 0) + (dyn[key] ? 1 : 0) };
   }
   return out;
 }
@@ -157,8 +156,3 @@ export function totalsToMods(totals: RelicTotals): Partial<Mods> {
 /** The one Mods object that folds every held relic's plain mods together (additive within a key, soft-capped). */
 export const relicModsCombined = (held: RelicId[], tiers: RelicTiers): Partial<Mods> => totalsToMods(relicModTotals(held, tiers));
 
-/** Past procCap relics of a proc category, every proc's chance is scaled down so the category as a whole stops growing. */
-export function procScale(held: RelicId[], category: RelicCategory): number {
-  const count = held.filter((id) => relicDef(id).category === category).length;
-  return count <= RELIC_STACKING.procCap ? 1 : RELIC_STACKING.procCap / count;
-}

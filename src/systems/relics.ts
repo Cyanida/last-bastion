@@ -1,5 +1,5 @@
 import { STATUSES } from '../config/damage';
-import { BOSS_RELIC_CHOICES, RELIC_DAMAGE_PER_LEVEL, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, relicN, SYNERGIES, TIER_NUMERALS, type RelicId, type SynergyId } from '../config/relics';
+import { BOSS_RELIC_CHOICES, RELIC_COLOR, RELIC_DAMAGE_PER_LEVEL, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, relicN, SYNERGIES, TIER_NUMERALS, type RelicId, type SynergyId } from '../config/relics';
 import { sfx } from '../core/audio';
 import { addListener, dispatch, type GameEvents, type Handlers } from '../core/events';
 import { TAU } from '../core/math';
@@ -8,11 +8,12 @@ import { createMinion } from '../entities/actors';
 import { fireProjectile } from '../entities/hazards';
 import * as scale from '../logic/abilities';
 import { combineMods } from '../logic/mods';
-import { activeSynergies, foldRelicMods, procScale, relicModTotals, relicTier, rollOffer, softCap, totalsToMods, withRelic } from '../logic/relics';
+import { activeSynergies, foldRelicMods, relicModTotals, relicTier, rollOffer, softCap, totalsToMods, withRelic } from '../logic/relics';
 import { ROUTES } from '../config/routes';
 import { applyStatus, damageEnemy, healPlayer, nearestEnemy, rollPlayerHit } from './combat';
 import { burst, floatText, line, ring, shake } from './effects';
 import { skeletonCount } from './minions';
+import { relicContext } from './relicContext';
 
 /**
  * Relic behaviour. Data (names, rarity, numbers per tier, plain stat mods) is in config/relics.ts;
@@ -30,16 +31,26 @@ const n = (g: Game, id: RelicId) => relicN(id, relicTier(g.player.relics.tiers, 
 const BONUS_KEYS = new Set<keyof Mods>(['damage', 'atkSpd', 'moveSpd', 'cooldown', 'pickup', 'xp', 'gold', 'minionAtkSpd', 'minionDamage']); // multiplicative mods (logic/relics.ts)
 
 /**
- * v0.7 (RELICS.md): per-relic contribution. `acting` is the relic whose hook is running, so relic damage and relic healing are credited
+ * v0.7 (RELICS.md): per-relic contribution. `relicContext.acting` is the relic whose hook is running, so relic damage and relic healing are credited
  * to it exactly. Plain mods (+damage, +attack speed, armor...) are credited as their share of the bonus on every hit; burns and bleeds
  * a relic applies are credited as their full expected damage when applied (an estimate: a status can be cut short by a kill).
  */
-let acting: RelicId | null = null;
 const lanternMinions = new WeakSet<object>();
-function credit(g: Game, id: RelicId, kind: 'damage' | 'healing' | 'prevented', amount: number): void {
+function credit(g: Game, id: RelicId, kind: 'damage' | 'healing' | 'prevented', amount: number, proc = false): void {
   if (!(amount > 0)) return;
   const s = (g.player.relics.stats[id] ??= { damage: 0, healing: 0, prevented: 0 });
   s[kind] += amount;
+  if (proc) flash(g, id);
+}
+
+/** v0.7: a relic that just did something flashes its icon over the player, at most once every RELIC_FLASH seconds per relic. */
+const RELIC_FLASH = 1.2;
+function flash(g: Game, id: RelicId): void {
+  const key = `flash.${id}`;
+  if (g.time - (g.vars[key] ?? -99) < RELIC_FLASH) return;
+  g.vars[key] = g.time;
+  const p = g.player;
+  floatText(g, p.x + (g.rng() - 0.5) * 30, p.y - p.r - 34, relicDef(id).icon, RELIC_COLOR, 15);
 }
 /** Each held relic's raw bonus per mod key (static mods plus this tick's conditional bonuses): the weights for sharing out a total. */
 const rawBy = new WeakMap<Game, Partial<Record<RelicId, Partial<Record<keyof Mods, number>>>>>();
@@ -51,11 +62,11 @@ function shareOut(g: Game, key: keyof Mods, amount: number, frac: number): void 
     if (r && r > 0) credit(g, id, 'damage', (amount * frac * r) / t.raw);
   }
 }
-/** A hit by the player, an ability or a minion: relic damage is credited to the acting relic, the rest shared out by bonus. */
+/** A hit by the player, an ability or a minion: relic damage is credited to the relicContext.acting relic, the rest shared out by bonus. */
 function attribute(g: Game, ev: GameEvents['onHit']): void {
   g.vars.dealt = (g.vars.dealt ?? 0) + ev.amount;
   if (ev.source === 'relic') {
-    if (acting) credit(g, acting, 'damage', ev.amount);
+    if (relicContext.acting) credit(g, relicContext.acting, 'damage', ev.amount, true);
     return;
   }
   const eff = (key: keyof Mods) => g.player.relics.totals[key]?.eff ?? 0;
@@ -88,11 +99,11 @@ function relicHeal(g: Game, amount: number, show = false): void {
   const next = prev + amount / max;
   g.vars.relicHeal = next;
   const healed = healPlayer(g, (softCap(next, RELIC_STACKING.healCap) - softCap(prev, RELIC_STACKING.healCap)) * max, show);
-  if (acting) credit(g, acting, 'healing', healed);
+  if (relicContext.acting) credit(g, relicContext.acting, 'healing', healed, true);
 }
 
 /** A proc's chance, shared out past the category's cap (BALANCE.md). */
-const proc = (g: Game, id: RelicId, chance: number) => g.rng() < chance * procScale(g.player.relics.held, relicDef(id).category);
+const proc = (g: Game, _id: RelicId, chance: number) => g.rng() < chance; // v0.7: no proc sharing
 
 function nova(g: Game, x: number, y: number, radius: number, damage: number, knockback: number, color: string, each?: (e: Game['enemies'][number]) => void): void {
   for (const e of g.hash.query(x, y, radius, [])) {
@@ -210,7 +221,7 @@ const HOOKS: Partial<Record<RelicId, RelicHooks>> = {
       const c = n(g, 'brimstoneOil');
       if (ev.source !== 'attack' || !proc(g, 'brimstoneOil', c.chance)) return;
       applyStatus(ev.enemy, { apply: [{ id: 'burn', power: ev.amount * c.power }] }, g);
-      credit(g, 'brimstoneOil', 'damage', ev.amount * c.power * STATUSES.burn.duration);
+      credit(g, 'brimstoneOil', 'damage', ev.amount * c.power * STATUSES.burn.duration, true);
     },
   },
 
@@ -219,7 +230,7 @@ const HOOKS: Partial<Record<RelicId, RelicHooks>> = {
       const c = n(g, 'serratedEdge');
       if (ev.source !== 'attack' || !ev.crit) return;
       applyStatus(ev.enemy, { apply: [{ id: 'bleed', stacks: c.stacks, power: ev.amount * c.power }] }, g);
-      credit(g, 'serratedEdge', 'damage', ev.amount * c.power * c.stacks * STATUSES.bleed.duration);
+      credit(g, 'serratedEdge', 'damage', ev.amount * c.power * c.stacks * STATUSES.bleed.duration, true);
     },
   },
 
@@ -327,14 +338,14 @@ addListener((g, name, ev) => {
   }
   if (g.procDepth >= RELIC_STACKING.procDepth) return; // a relic reacting to a relic's damage is the last link of the chain
   g.procDepth++;
-  const outer = acting;
+  const outer = relicContext.acting;
   try {
     for (const id of g.player.relics.held) {
-      acting = id;
+      relicContext.acting = id;
       dispatch(HOOKS[id], g, name, ev);
     }
   } finally {
-    acting = outer;
+    relicContext.acting = outer;
     g.procDepth--;
   }
   // v0.7: every wave boss is a relic moment (a lair's boss is the lair's moment; the Usurper ends the run)
@@ -345,8 +356,8 @@ addListener((g, name, ev) => {
 /** A tick hook's conditional bonus (a charge, a horn, a crown): it joins the held relics' plain mods in the same soft-capped sum. */
 const bonus = (g: Game, key: keyof Mods, amount: number): void => {
   g.player.relics.dyn[key] = (g.player.relics.dyn[key] ?? 0) + amount;
-  if (acting) {
-    const keys = ((rawBy.get(g) ?? {})[acting] ??= {});
+  if (relicContext.acting) {
+    const keys = ((rawBy.get(g) ?? {})[relicContext.acting] ??= {});
     keys[key] = (keys[key] ?? 0) + amount;
   }
 };
@@ -370,14 +381,10 @@ export function updateRelics(g: Game, dt: number): void {
   }
   rawBy.set(g, raw);
   for (const id of g.player.relics.held) {
-    acting = id;
+    relicContext.acting = id;
     HOOKS[id]?.tick?.(g, dt);
   }
-  acting = null;
-  // how often the stacking rules bite (RELICS.md): a soft cap cutting a total, a proc category past its cap
-  g.vars.relicTicks = (g.vars.relicTicks ?? 0) + 1;
-  g.vars.softCapTicks = (g.vars.softCapTicks ?? 0) + (Object.values(g.player.relics.totals).some((t) => t.eff < t.raw - 1e-9) ? 1 : 0);
-  g.vars.procShareTicks = (g.vars.procShareTicks ?? 0) + (procScale(g.player.relics.held, 'onHit') < 1 || procScale(g.player.relics.held, 'onKill') < 1 ? 1 : 0);
+  relicContext.acting = null;
   if (syn(g, 'pilgrimsPurse')) {
     bonus(g, 'gold', SYNERGIES.pilgrimsPurse.n.bonus);
     bonus(g, 'xp', SYNERGIES.pilgrimsPurse.n.bonus);
@@ -455,6 +462,20 @@ export function relicPreview(g: Game, p: Player, id: RelicId): string[] {
     lines.push(`${fam} ${n} → ${n + 1}`);
   }
   return lines;
+}
+
+/**
+ * v0.7: each held relic's share of this run, in % with one decimal, best first: of all damage dealt, all healing received, and all damage its
+ * armor turned away (of damage taken plus turned away). What the results screen's Relics section and the run log show.
+ */
+export function relicShares(g: Game, p: Player = g.player): { id: RelicId; tier: number; from: RelicSource; damage: number; healing: number; mitigation: number }[] {
+  const r = p.relics;
+  const pct = (v: number, of: number) => (of > 0 ? Math.round((v / of) * 1000) / 10 : 0);
+  const taken = (g.vars.taken ?? 0) + (g.vars.prevented ?? 0);
+  return r.held.map((id) => {
+    const s = r.stats[id] ?? { damage: 0, healing: 0, prevented: 0 };
+    return { id, tier: relicTier(r.tiers, id), from: r.from[id] ?? 'other', damage: pct(s.damage, g.vars.dealt ?? 0), healing: pct(s.healing, g.vars.healed ?? 0), mitigation: pct(s.prevented, taken) };
+  }).sort((a, b) => Math.max(b.damage, b.healing, b.mitigation) - Math.max(a.damage, a.healing, a.mitigation));
 }
 
 /** Rerolls a moment starts with: the base, the Cursed Luck trait, the Elite path's Act. */

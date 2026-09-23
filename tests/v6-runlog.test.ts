@@ -12,7 +12,7 @@ import { spawnEnemy } from '../src/systems/spawning';
 /** A hand-made log: three waves of 60 s with 10 s breaks, one level-up and one relic. */
 const LOG: RunLog = {
   at: '2026-09-22T20:00:00.000Z', classId: 'viking', tier: 0, arena: 'courtyard', seed: 7, daily: null, curses: [], oath: 0, trait: 'none',
-  time: 220, wave: 3, level: 4, kills: 50, end: 'slain', won: false, cause: 'an Orc', relics: { whetstone: 2 }, talents: [], upgrades: [],
+  time: 220, wave: 3, level: 4, kills: 50, end: 'slain', won: false, cause: 'an Orc', relics: { whetstone: 2 }, relicShares: { whetstone: [12.5, 0, 0] }, talents: [], upgrades: [],
   waves: [[10, 70, 12, 5], [80, 140, 30, 0], [150, 0, 99, 2]],
   marks: [[40, 'level', '2'], [100, 'relic', 'Whetstone II'], [200, 'bored', 'wave 3']],
 };

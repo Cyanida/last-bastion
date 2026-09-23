@@ -1,3 +1,5 @@
+import { relicContext } from './relicContext';
+import { RELIC_COLOR } from '../config/relics';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
@@ -152,7 +154,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   const dealt = Math.max(0, Math.min(e.hp - e.hpFloor, amount));
   e.hp = Math.max(e.hpFloor, e.hp - amount); // v0.6: a boss phase that has not run its course holds at its threshold
   // numbers take the colour of their damage type; "!" marks a weakness, "-" a resistance
-  damageNumber(g, e, amount, crit ? '#f2c94c' : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');
+  damageNumber(g, e, amount, crit ? '#f2c94c' : source === 'relic' && relicContext.acting ? RELIC_COLOR : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');
   burst(g, e.x, e.y, BLOOD, crit ? 6 : 2);
   if (crit) shake(g, 4);
   sfx('hit');
