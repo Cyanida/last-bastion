@@ -1,6 +1,9 @@
 # Changelog
 
-## v0.6.0 (in progress)
+## v0.6.0 — A run with an ending
+
+The Phase 6 plan: a run now climbs through four Acts to the Usurper and ends, with evolutions to build toward, a fork in the road between Acts, heavy attacks you can read and dodge, a Keep that adds options instead of power, an Oath ladder after the first win, and a results screen that always says what to do next. Plus two playtest requests: easier-to-read menu fonts, and a web version that only updates with a release.
+
 
 - **Readable menus**: the menus now use Cinzel for headings and Alegreya Sans for text, like the HUD. The blackletter font is kept only for the title, and IM Fell English is gone.
 - **Run log**: every run keeps a compact timeline in the save (the last 50): when each wave started and was cleared, the damage taken in it, the time with fewer than 5 enemies alive, and a mark for every level-up, relic, talent, ability upgrade, quest board, finished quest, event, shrine, boss kill, Merchant and new Act, plus what dealt the killing blow.
@@ -37,8 +40,10 @@
 - **What to do next**: the results and victory screens always end with the three closest goals, each with a progress bar: the nearest deed tier, the next mastery rank, the class's sacred treasure step (which boss drops the next fragment), its first win or next Oath, a weekly contract, or the gold still missing for a Keep rank.
 - **Quick restart**: the results screen's big button (or Enter) starts again at once with the same champion, traits and Oath, and says so on the button; the victory screen has **Bank and restart**.
 - **Weekly contracts**: three seeded objectives every week (Monday to Sunday), the same for everyone, on the title screen with their progress: slay so many enemies, elites, bosses or squad commanders, complete quests, evolve abilities, reach a wave with a given champion, clear Acts or carry relics in one run. Each pays ◆ 2-5 Runes the moment a banked run completes it, outside the run caps; the results screen names the contracts a run completed.
-- **The balance bot kites**: a ranged bot now circles the crowd instead of backing straight into a wall, and looses the Archer's Volley at its full reach. Both are how players play the Archer and the Necromancer (the strongest classes for players, the weakest for the old bot); the fresh Archer's share of runs past the Act I Dragon went from about 1 in 16 to 13 in 20.
+- **The balance bot kites**: a ranged bot now circles the crowd instead of backing straight into a wall, looses the Archer's Volley at its full reach, and walks through the gate when its target is in another part of the map (it used to press against a wing's wall during the Usurper's ward). Both are how players play the Archer and the Necromancer (the strongest classes for players, the weakest for the old bot); the fresh Archer's share of runs past the Act I Dragon went from about 1 in 16 to 13 in 20.
 - **`npm run sim -- deep`**: the fresh / maxed table with wins marching on into Endless, so a maxed save's depth is not capped at wave 40.
+- **Balance: the Squire tier bites past the Dragon.** Enemies gain HP and damage faster from Act II on (HP slopes per Act 0.05 / 0.11 / 0.05 -> 0.05 / 0.16 / 0.14, damage 0.03 / 0.06 / 0.03 -> 0.03 / 0.08 / 0.07): about 45% more HP at wave 30. Before, a run that got past the Act I Dragon on Squire nearly always won; now Acts II-IV can end it too, and a win takes 30-40 minutes. Act I is unchanged. The Usurper's base HP goes from 4,000 to 3,000 and the Royal Flames' from 700 to 520, so under the steeper scaling his fight keeps the length it was tuned for.
+- **The Archer has 95 HP** (was 80), like the Angel: it was the one class that often fell in Act I. Its damage is unchanged.
 - **The web version updates only with a release**: GitHub Pages deploys the tagged commit after the release workflow succeeds, so work in progress on `main` never reaches players.
 
 ## v0.5.0 — Quests, a bigger map, sacred treasures, music, a readable HUD

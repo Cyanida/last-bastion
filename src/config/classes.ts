@@ -228,7 +228,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Archer',
     role: 'Ranged glass cannon',
     sprite: 'archer',
-    base: { hp: 80, str: 4, dex: 14, int: 4, atkSpd: 2.2, moveSpd: 205, secondary: 5 },
+    base: { hp: 95, str: 4, dex: 14, int: 4, atkSpd: 2.2, moveSpd: 205, secondary: 5 }, // v0.6: was 80; the fresh Archer died in Act I (BALANCE.md)
     growth: { hp: 4, str: 0.1, dex: 1.3, int: 0.2, atkSpd: 0.03, moveSpd: 1, secondary: 0 },
     armor: 0,
     regen: 0.3,

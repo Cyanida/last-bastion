@@ -57,7 +57,7 @@ describe('stat scaling', () => {
 
   it('every class defines all seven stats and the classes are actually different', () => {
     for (const id of CLASS_ORDER) for (const k of STAT_KEYS) expect(CLASSES[id].base[k]).toBeGreaterThan(0);
-    expect(CLASSES.paladin.base.hp).toBeGreaterThan(CLASSES.archer.base.hp * 2);
+    expect(CLASSES.paladin.base.hp).toBeGreaterThan(CLASSES.archer.base.hp * 1.5);
     expect(CLASSES.archer.base.moveSpd).toBeGreaterThan(CLASSES.paladin.base.moveSpd);
   });
 

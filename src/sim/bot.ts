@@ -99,14 +99,17 @@ export function botInput(g: Game): void {
   const crowded = nd < 170;
   const pressOn = g.enemies.some((e) => e.warded); // the Usurper's ward: the pitch never stops, so waiting for safe ground never ends
   const brave = melee ? (!danger || !crowded || pressOn) && (p.hp > p.stats.hp * 0.4 || !crowded) : nd > p.cls.attack.range * 0.9 && !crowded && nd < Infinity;
-  const goal = !danger && nd > 250 ? nearestGoal(g) : null; // v0.5: a quiet moment goes to the quests, events and features
+  const goal = !danger && nd > 250 && !pressOn ? nearestGoal(g) : null; // v0.5: a quiet moment goes to the quests, events and features (v0.6: not while the Usurper's ward stands)
   if (goal) {
     mx = goal.x - p.x;
     my = goal.y - p.y;
   } else if (brave && nd < Infinity) {
-    // advance; on marked ground the push out of it outweighs the pull, so it sidesteps on the way in
-    mx = danger ? ((nx - p.x) / nd) * 3 + zx : nx - p.x;
-    my = danger ? ((ny - p.y) / nd) * 3 + zy : ny - p.y;
+    // advance (v0.6: through the gate when the target is in another region); on marked ground the push out of it outweighs the pull,
+    // so it sidesteps on the way in
+    const t = via(g, { x: nx, y: ny });
+    const td = Math.hypot(t.x - p.x, t.y - p.y) || 1;
+    mx = danger ? ((t.x - p.x) / td) * 3 + zx : t.x - p.x;
+    my = danger ? ((t.y - p.y) / td) * 3 + zy : t.y - p.y;
   } else if (cx || cy || zx || zy) {
     // flee, with a pull to the middle so it does not pin itself in a corner; v0.6: ranged circles the crowd (kiting) instead of
     // backing straight off into a wall, the way players kite
@@ -134,10 +137,18 @@ export function botInput(g: Game): void {
   g.input.utility = p.cls.id === 'necromancer' ? g.corpses.length >= 3 && nd < 300 : p.cls.id === 'paladin' ? nd < 200 : crowded || p.hp < p.stats.hp * 0.4;
 }
 
-/**
- * v0.5: the nearest quest objective, event, unused feature in an open wing, or the open vault while its guardian sleeps. In another
- * region it heads for the gate between first (wings hang off the core, the vault off the east wing), so it does not grind along a wall.
- */
+/** Where to walk for `to`: in another region, the gate between first (wings hang off the core, the vault off the east wing), so it does not grind along a wall. */
+function via(g: Game, to: { x: number; y: number }): { x: number; y: number } {
+  const p = g.player;
+  const regions = regionsOf(g);
+  const here = regionAt(regions, p.x, p.y);
+  let there = regionAt(regions, to.x, to.y);
+  if (there?.id === 'vault' && here && here.id !== 'east' && here.id !== 'vault') there = regions.find((r) => r.id === 'east') ?? there; // through the east wing
+  const gate = here && there && here !== there ? (here.id === 'core' || there.id === 'vault' ? there : here).gate : null;
+  return gate && Math.hypot(p.x - (gate.x + gate.w / 2), p.y - (gate.y + gate.h / 2)) > 40 ? { x: gate.x + gate.w / 2, y: gate.y + gate.h / 2 } : to;
+}
+
+/** v0.5: the nearest quest objective, event, unused feature in an open wing, or the open vault while its guardian sleeps (reached via its gate). */
 function nearestGoal(g: Game): { x: number; y: number } | null {
   const p = g.player;
   const regions = regionsOf(g);
@@ -148,12 +159,7 @@ function nearestGoal(g: Game): { x: number; y: number } | null {
     const d = Math.hypot(m.x - p.x, m.y - p.y);
     if (d < bestD) (bestD = d), (best = m);
   }
-  if (!best) return null;
-  const here = regionAt(regions, p.x, p.y);
-  let there = regionAt(regions, best.x, best.y);
-  if (there?.id === 'vault' && here && here.id !== 'east' && here.id !== 'vault') there = regions.find((r) => r.id === 'east') ?? there; // through the east wing
-  const gate = here && there && here !== there ? (here.id === 'core' || there.id === 'vault' ? there : here).gate : null;
-  return gate && Math.hypot(p.x - (gate.x + gate.w / 2), p.y - (gate.y + gate.h / 2)) > 40 ? { x: gate.x + gate.w / 2, y: gate.y + gate.h / 2 } : best;
+  return best && via(g, best);
 }
 
 function scoreOption(g: Game, o: LevelUpOption): number {

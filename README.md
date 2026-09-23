@@ -1,13 +1,13 @@
-# Last Bastion — V0.3
+# Last Bastion — V0.6
 
-A 2D top-down medieval wave-survival game. TypeScript + Vite, HTML5 Canvas 2D, no engine, no asset files:
+A 2D top-down medieval wave-survival roguelite: four Acts, then the Usurper on his throne, and an Oath ladder to climb after the first win. TypeScript + Vite, HTML5 Canvas 2D, no engine, no asset files:
 sprites are pixel grids in code, sound effects and the menu music are WebAudio synthesis. One codebase, three ways to play.
 
 | | |
 |---|---|
 | **Browser / phone** | https://cyanida.github.io/last-bastion/ |
 | **Windows** | [Latest release](https://github.com/Cyanida/last-bastion/releases/latest): `last-bastion-Setup-<version>.exe` |
-| What changed | [CHANGELOG.md](CHANGELOG.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) |
+| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.6: a run with an ending, evolutions, routes, Oaths, weekly contracts) · balance targets and simulation results: [BALANCE.md](BALANCE.md) |
 
 ## Play on iPhone (or any phone)
 
@@ -58,7 +58,7 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
 | `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (312 tests) |
-| `npm run test:perf` | headless Chromium frame-time test of Fog and Blood Moon against the built game (PERF.md) |
+| `npm run test:perf` | headless Chromium frame-time test of Fog, Blood Moon and the Usurper's last phase against the built game (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
 | `npm run icons` | redraw all icons and the README QR code from code |
 | `npm run dist` | build the Windows installer into `release/` without publishing |
@@ -77,8 +77,8 @@ npm run dev              # web, http://localhost:5173
 
 ### Testing the updater by hand
 
-Install an older release (e.g. `v0.3.0`), start it, wait on the title screen. Within about a minute (the installer is ~110 MB)
-"Update to v0.3.1 ready" appears; **Restart** installs it silently and relaunches; the title screen then shows the new version and build date.
+Install an older release (e.g. `v0.5.0`), start it, wait on the title screen. Within about a minute (the installer is ~110 MB)
+"Update to v0.6.0 ready" appears; **Restart** installs it silently and relaunches; the title screen then shows the new version and build date.
 Settings → Updates shows the live status ("Checking…", "Downloading… 40%", or the error if the check failed).
 
 ### Native iOS build (later, needs a Mac)
@@ -102,9 +102,10 @@ The game needs nothing native: the PWA and the Capacitor app run the same `dist/
 | (automatic) | basic attack on the nearest enemy in range |
 | Space / right mouse · A or RT · ability button | signature ability (mouse: at the cursor; touch: tap to auto-aim, hold and drag to aim; right stick aims on a gamepad) |
 | E / Shift · X or RB · small touch button | utility ability (from level 3): Challenge, Leap, Blink, Corpse Explosion or Dodge Roll, aimed like the signature ability or along your movement |
-| 1 / 2 / 3 · X / Y / RB | pick a boon, relic or ability upgrade |
-| R · LB | reroll boons |
+| 1 / 2 / 3 · X / Y / RB | pick a boon, relic, ability upgrade or route |
+| R · LB | reroll boons (✕ on a card: strike it from the run, with the Quartermaster's Ledger) |
 | Esc / P · Start · pause button | pause (shows your build and opens the **talent tree**; "End run" banks your gold) |
+| Enter (results screen) | Quick restart: same champion, traits and Oath |
 | M | mute |
 | hover or tap an enemy | tooltip: state, affixes, weaknesses and resistances, armor, status effects |
 | F11 (desktop) | fullscreen |
@@ -128,8 +129,8 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 - **Evolutions** (v0.6): each champion has five (three for the signature ability, two for the second one), each unlocked in a run by a pair of requirements (an upgrade plus a keystone, a talent branch or a relic at tier II) and offered as a gold level-up card; one of each kind a run. Recipes are in the compendium.
 - **Damage types and status effects**: holy, shadow, fire, frost, physical; burn, chill (enough of it freezes), bleed, poison, stun, fear, curse. Knights have armor that breaks; shield bearers only break from behind; a shieldwall only holds while the line stands together.
 - **Relics (31)** have no slot cap since v0.4: a duplicate raises the relic a tier (three tiers, visibly stronger numbers). Every relic has a tooltip everywhere it appears (drop cards, the HUD bar, pause and results, the Merchant, the compendium in the Keep) with its current and next tier and its **synergies** (12 pairs that do something extra together) and **clashes** (4 pairs that warn). Relics of a kind add up and pass a soft cap (damage, attack speed, defense, utility; on-hit and on-kill procs share their chance past three relics; relic healing is capped per wave), shown in the HUD stats panel. Proc chains stop at depth 2. Late drops are mostly upgrades.
-- **Talents**: a point every 3 levels, spent from the pause menu in one of three branches per class (seven nodes each, prerequisites, an exclusive keystone at the bottom). **Second ability** at level 3 with two-way upgrades at levels 8 and 14. **Starting trait** chosen on the class select screen, unlocked by achievements.
-- **Level-ups** offer stat boons, tradeoffs, talent points and relics; **ability upgrade tracks, elites and wave modifiers** as in v0.2.
+- **Talents**: a point every 3 levels, spent from the pause menu in one of three branches per class (seven nodes each, prerequisites, an exclusive keystone at the bottom). **Second ability** at level 3 with two-way upgrades at levels 8 and 14. **Starting trait** chosen on the class select screen, unlocked by achievements (two with the Keep's Second Banner).
+- **Level-ups** offer stat boons, tradeoffs, talent points and relics, and a gold **evolution** card when a recipe is complete; **ability upgrade tracks, elites and wave modifiers** as in v0.2.
 - **Curses** (class select screen): opt-in handicaps that raise the gold and class-XP multiplier. Unlocked through achievements.
 - **Oaths** (v0.6, class select screen): after a class's first win, Oaths 1-20, each adding one fixed hardship on top of those below it (curses, wave modifiers, bosses that rise again, three-affix elites, no Merchant in Act II, no Last Stand...). The first win at each level pays; each class shows the highest Oath it has kept. Free curses stay for custom runs.
 - **Weekly contracts** (v0.6, title screen): three seeded objectives a week that pay Runes when a banked run completes them.
@@ -142,7 +143,7 @@ The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtow
 
 ### Save format
 
-One object under the `localStorage` key `lastbastion.save`, `version: 4` (v0.6 added `runs`, the run logs, which older saves simply lack). `logic/save.ts` `migrate` reads versions 2 (v0.2), 3 (v0.3) and 4 and validates every field, so older saves, partial or hand-edited imports all load; a v3 save is granted a Rune per achievement; if there is no save it migrates the v0.1 best-wave records.
+One object under the `localStorage` key `lastbastion.save`, `version: 5` (v0.6: the run logs, wins, the Endless leaderboard, discovered evolutions, the Oath record, the weekly contracts). `logic/save.ts` `migrate` reads versions 2 (v0.2), 3 (v0.3), 4 (v0.4-v0.5) and 5 and validates every field, so older saves, partial or hand-edited imports all load. A v4 save gets back what the Keep ranks v0.6 removed or cut had cost (`LEGACY_META`, shown once in the Keep); a v3 save is granted a Rune per achievement; if there is no save it migrates the v0.1 best-wave records.
 
 ## Simulation
 
@@ -156,7 +157,7 @@ npm run sim -- deep 3        # the fresh / maxed table, but wins march on into E
 npm run sim -- pacing 4      # from the run logs: run length, minutes per Act, quiet time, the longest stretches with nothing new
 ```
 
-A basic bot (`src/sim/bot.ts`: kite, dodge telegraphs and shots, ability on cooldown, visits the Merchant) plays full runs headlessly, with a fresh save and with everything maxed.
+A basic bot (`src/sim/bot.ts`: melee wades in, ranged circles the crowd, it dodges telegraphs and shots, casts on cooldown, does quests, visits the Merchant and takes the first route) plays full runs headlessly, with a fresh save and with everything maxed. It is a yardstick, not a good player: human players find the Archer and the Necromancer the strongest classes, the bot finds them the weakest.
 It reports the average wave reached, the maxed / fresh ratio, the spread between classes, commanders and elites slain, Acts cleared, and the level at the end of each wave against the target pace. Runs are seeded, so a result can be reproduced.
 Targets and current results are in [BALANCE.md](BALANCE.md).
 
@@ -181,7 +182,7 @@ Everything numeric lives in `src/config/`; game logic never hard-codes balance.
 
 ```
 src/config/    balance data (see above)
-src/logic/     pure functions: formulas, fsm, squads, director, status, acts, curses, save ...  (what the tests cover)
+src/logic/     pure functions: formulas, fsm, squads, director, status, acts, curses, oaths, routes, evolutions, contracts, goals, runlog, save ...  (what the tests cover)
 src/input/     the input layer: mapping.ts (pure) + devices
 src/core/      types, math/rng, spatial hash, events, storage, audio, quality, platform, pwa
 src/entities/  factories
@@ -201,6 +202,9 @@ public/        manifest + generated icons     build/  installer icon     docs/  
 - **Relic**: a row in `config/relics.ts` with its `category`, numbers `n` and two `tiers` overrides (the text is a function of the numbers, so every tier describes itself), plus a hook in `systems/relics.ts` if it reacts to events (read the tier's numbers through `n(g, id)`). A **synergy** is a row in `SYNERGIES` plus a `syn(g, id)` check inside the hooks it changes.
 - **Ability upgrade / class / arena**: as in v0.2 (data row + hook).
 - **Curse**: a row in `config/curses.ts`, read where it matters through `curseValue`, and an achievement that unlocks it.
+- **Oath level**: a row in `config/oaths.ts` (a curse, or numbers for a knob in `OathKnob`); a new knob is read from `g.oath.n` where it matters.
+- **Evolution**: a row in `config/evolutions.ts` (two requirements) and its hooks in `systems/evolutions.ts` `HOOKS`.
+- **Weekly contract**: a row in `config/contracts.ts` and, for a new measure, a field in `ContractRun` (`logic/contracts.ts`).
 - **Talent node**: a row in a class's branch in `config/talents.ts` (`mods`, `stats`, or a number another system reads). **Trait**: a row in `config/traits.ts`. **Utility upgrade**: a row in `config/utility.ts` plus a `has()` branch in that utility's hook in `systems/utility.ts`.
 
 ## Known simplifications
@@ -210,4 +214,4 @@ public/        manifest + generated icons     build/  installer icon     docs/  
 - Selling or salvaging a relic undoes Blood Pact's HP cut but not Phoenix Feather's charges (they stay until used).
 - Achievements are evaluated when the save changes (end of run, Keep purchase, import), not mid-run.
 - The Google Fonts are fetched from the network (and then cached by the service worker); fully offline from the very first start, or in the desktop app without a connection, headings fall back to a system serif.
-- In dev mode `window.__lb` exposes `start`, `run(ticks, holdAbility, mode)`, `bot(ticks)`, `draw()`, `save`, `quality` for automated smoke tests.
+- In dev mode (or a production build with `?debug`) `window.__lb` exposes `start`, `run(ticks, holdAbility, mode)`, `bot(ticks)`, `skipTo(act, wave)`, `profile(frames)`, `draw()`, `game`, `save`, `quality` for automated smoke and perf tests.

@@ -12,8 +12,8 @@ export const WAVES = {
    * Act I gentle (count does the work), Act II steep (stats and elites), Act III gentle again (composition does the work),
    * and beyond wave `beyondFrom` a quadratic term makes sure every run eventually ends.
    */
-  hp: { slopes: [0.05, 0.11, 0.05] as number[], beyondFrom: 30, beyondQuad: 0.03 }, // v0.5: was 0.012; runs past the Dragon ran on to wave 45+ (BALANCE.md)
-  dmg: { slopes: [0.03, 0.06, 0.03] as number[], beyondFrom: 30, beyondQuad: 0.012 }, // v0.5: was 0.005
+  hp: { slopes: [0.05, 0.16, 0.14] as number[], beyondFrom: 30, beyondQuad: 0.03 }, // v0.6: was [0.05, 0.11, 0.05]: past the Dragon the Squire tier no longer stopped anyone (BALANCE.md)
+  dmg: { slopes: [0.03, 0.08, 0.07] as number[], beyondFrom: 30, beyondQuad: 0.012 }, // v0.6: was [0.03, 0.06, 0.03]
   /**
    * v0.5: past wave `from` every heal (lifesteal, kills, relics, treasures, regen) is `perWave` weaker per wave, down to `floor`.
    * Sustain scales with the kill count, and late waves are huge: without this a sustain build never died (BALANCE.md).
