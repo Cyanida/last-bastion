@@ -45,7 +45,7 @@ import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
 import { GLOSSARY } from '../config/glossary';
-import type { Cue, Layer, Mood } from '../logic/runMusic';
+import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
 import type { TestSetup } from '../systems/testMode';
 
 const overlay = () => document.getElementById('overlay')!;
@@ -1070,12 +1070,14 @@ export function showGlossary(onBack: () => void): void {
 }
 
 const JUKEBOX_LAYERS = ['Sparse: a breather, the Merchant', 'Base: a wave', 'Second layer: a dense or dangerous fight', 'Boss: drums and a bass line'];
+const JUKEBOX_STINGERS: [Stinger, string][] = [['tier', 'Relic tier-up'], ['set', 'Set bonus'], ['duo', 'Duo formed'], ['evolution', 'Evolution'], ['phase', 'Boss phase']];
 
-/** v0.7.1 test mode (hidden): start a run at any Act, wave and arena with any champion, level and talents; and the music jukebox. */
-export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => void; play: (m: Mood) => void; stop: () => void; back: () => void }): void {
+/** v0.7.1 test mode (hidden): start a run at any Act, wave and arena with any champion, level, talents and relics (B5); and the music jukebox. */
+export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => void; play: (m: Mood) => void; stop: () => void; sting: (k: Stinger) => void; back: () => void }): void {
   const options = (items: [string, string][], chosen: string) => items.map(([v, label]) => `<option value="${v}" ${v === chosen ? 'selected' : ''}>${label}</option>`).join('');
   const arenas = (chosen: string) => options((Object.keys(ARENAS) as ArenaId[]).map((id) => [id, ARENAS[id].name]), chosen);
   const talents = (classId: ClassId) => TALENT_BRANCHES[classId].map((b) => `<div><b>${b.name}</b>${talentsFor(classId).filter((n) => n.branch === b.id).map((n) => `<label><input type="checkbox" value="${n.id}" ${setup.talents.includes(n.id) ? 'checked' : ''}> ${n.name}${n.keystone ? ' (keystone)' : ''}</label>`).join('')}</div>`).join('');
+  const relics = (classId: ClassId) => FAMILY_IDS.map((f) => `<div><b>${FAMILIES[f].icon} ${FAMILIES[f].name}</b>${RELIC_IDS.filter((id) => relicDef(id).family === f && (relicDef(id).classId ?? classId) === classId).map((id) => `<label>${relicDef(id).icon} ${relicDef(id).name} <select data-relic="${id}">${options([['0', '–'], ['1', 'I'], ['2', 'II'], ['3', 'III']], String(setup.relics[id] ?? 0))}</select></label>`).join('')}</div>`).join('');
   const el = show(`
     <div class="panel dialog wide testmode">
       <h1 class="small">Test mode</h1>
@@ -1089,6 +1091,9 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
         <label>Level <input id="tm-level" type="number" min="1" max="60" value="${setup.level}"></label>
       </div>
       <div class="tm-talents" id="tm-talents">${talents(setup.classId)}</div>
+      <h2>Relics</h2>
+      <p class="sub">Held from the start, at the attunement tier chosen (III is awakened).</p>
+      <div class="tm-talents" id="tm-relics">${relics(setup.classId)}</div>
       <button class="btn big" data-start>Start test run</button>
       <h2>Music jukebox</h2>
       <div class="tm-grid">
@@ -1096,14 +1101,19 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
         <label>Layer <input id="jb-layer" type="range" min="0" max="3" step="1" value="1"></label><span id="jb-name"></span>
       </div>
       <div class="row"><button class="btn" data-play>Play</button><button class="btn" data-cue="fork">Fork cue</button><button class="btn" data-cue="victory">Victory cue</button><button class="btn" data-stop>Stop</button></div>
+      <div class="row">${JUKEBOX_STINGERS.map(([k, label]) => `<button class="btn small" data-sting="${k}">${label}</button>`).join('')}</div>
       <button class="btn" data-back>Back</button>
     </div>`);
   const field = (id: string) => el.querySelector<HTMLInputElement>(`#${id}`)!;
   const num = (id: string, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number(field(id).value)) || lo));
-  field('tm-class').onchange = () => (field('tm-talents').innerHTML = talents(field('tm-class').value as ClassId));
+  field('tm-class').onchange = () => {
+    field('tm-talents').innerHTML = talents(field('tm-class').value as ClassId);
+    field('tm-relics').innerHTML = relics(field('tm-class').value as ClassId);
+  };
   click(el, '[data-start]', () => on.start({
     classId: field('tm-class').value as ClassId, arena: field('tm-arena').value as ArenaId, act: num('tm-act', 1, FINAL.act), wave: num('tm-wave', 1, ACTS.length), level: num('tm-level', 1, 60),
     talents: [...el.querySelectorAll<HTMLInputElement>('#tm-talents input:checked')].map((i) => i.value),
+    relics: Object.fromEntries([...el.querySelectorAll<HTMLSelectElement>('#tm-relics select')].filter((s) => s.value !== '0').map((s) => [s.dataset.relic, Number(s.value)])),
   }));
   // the jukebox: changes land on the next bar line, as in a run; a cue plays once, then the mood lets go of it
   let playing = false;
@@ -1122,6 +1132,10 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
     setTimeout(() => slider.isConnected && playing && play(), 4000); // longer than any theme's bar
   });
   click(el, '[data-stop]', () => ((playing = false), on.stop()));
+  click(el, '[data-sting]', (b) => {
+    if (!playing) play();
+    on.sting(b.dataset.sting as Stinger);
+  });
   click(el, '[data-back]', on.back);
   onActions((a) => a === 'cancel' && on.back());
 }

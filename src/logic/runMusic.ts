@@ -143,6 +143,37 @@ function cueNotes(t: Theme, cue: Cue): NoteEvent[] {
   return notes;
 }
 
+/**
+ * v0.7.1 stingers: a short soft figure over the music for a moment worth marking, in the key of the bar it lands in. Relic tier-up: a harp
+ * rising up the chord to a bell. Set bonus: an open fifth in the bells. Duo: the harp rising while the bells come down to meet it.
+ * Evolution: a horn call and a bell. Boss phase: two low drum strokes under a horn on the root.
+ */
+export type Stinger = 'tier' | 'set' | 'duo' | 'evolution' | 'phase';
+export function stingerNotes(t: Theme, bar: number, kind: Stinger): NoteEvent[] {
+  const chord = triad(t, t.chords[Math.floor((bar % formBars(t)) / 2)]);
+  const [harp, low] = ladderOf(chord, 'harp', 0.35);
+  const bells = inRange(chord, ...RANGES.bell);
+  const [horn, mid] = ladderOf(chord, 'horn', 0.3);
+  const n = (voice: Voice, time: number, midi: number, duration: number, velocity: number): NoteEvent => ({ voice, time, midi, duration, velocity });
+  const up = (from: number, count: number, v: number) => Array.from({ length: count }, (_, k) => n('harp', k * 0.25, harp[clampIndex(from + k, harp)], 2, v));
+  switch (kind) {
+    case 'tier': return [...up(low, 3, 0.5), n('bell', 0.75, bells[1], 4, 0.5)];
+    case 'set': {
+      const root = lowest(chord[0], 'bell');
+      return [n('bell', 0, root, 4, 0.5), n('bell', 0.5, root + ((chord[2] - chord[0] + 12) % 12), 4, 0.45), n('harp', 0, harp[low], 3, 0.45)];
+    }
+    case 'duo': return [...up(low, 4, 0.45), ...[3, 2, 1].map((k, i) => n('bell', i * 0.25, bells[clampIndex(k, bells)], 3, 0.4))];
+    case 'evolution': return [0, 1, 2].map((k) => n('horn', k * 0.5, horn[clampIndex(mid + k, horn)], k === 2 ? 2 : 0.5, 0.55)).concat(n('bell', 1, bells[2] ?? bells[1], 4, 0.5));
+    case 'phase': return [n('drum', 0, t.boss.midi, 0.6, 0.7), n('drum', 0.5, t.boss.midi, 0.6, 0.5), n('horn', 0, horn[0], 2, 0.5)];
+  }
+}
+
+/** The first beat of the run music at or after `now + lead` (AudioContext seconds), counted back from the next bar line: a stinger lands on it. */
+export function nextBeat(c: Pick<Conductor, 'at' | 'arena'>, now: number, lead = 0.05): number {
+  const beat = 60 / THEMES[c.arena].bpm;
+  return c.at - Math.floor((c.at - now - lead) / beat) * beat;
+}
+
 /** Where the music is: the theme, the layer it plays, how far into the theme, and when the next bar starts (AudioContext seconds). */
 export interface Conductor {
   seed: number;

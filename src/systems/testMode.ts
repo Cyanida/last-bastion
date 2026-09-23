@@ -1,18 +1,20 @@
 import { ACTS } from '../config/acts';
 import { ARENAS, type ArenaId } from '../config/arenas';
 import type { ClassId } from '../config/classes';
+import type { RelicId } from '../config/relics';
 import { TALENT_BY_ID } from '../config/talents';
 import type { Game } from '../core/types';
 import { createGame, summarizeRun } from '../game';
 import { applyGrowth } from '../logic/formulas';
 import { applyRun, type Save } from '../logic/save';
 import { nextAct } from './acts';
+import { addRelic } from './relics';
 import { initRegions } from './regions';
 import { spendTalent } from './talents';
 
 /**
  * v0.7.1 test mode (hidden: tap the version in Settings five times, or ?dev=1): start a run anywhere, with a chosen class, level and
- * talents. A test run starts bare (no Keep, mastery, traits, curses or treasure) and never reaches the save.
+ * talents, and (v0.7.1 B5) relics at a chosen attunement tier. A test run starts bare (no Keep, mastery, traits, curses or treasure) and never reaches the save.
  */
 export interface TestSetup {
   classId: ClassId;
@@ -21,6 +23,7 @@ export interface TestSetup {
   wave: number; // within the Act, 1..ACTS.length
   level: number;
   talents: string[];
+  relics: Partial<Record<RelicId, number>>; // B5: held from the start, at this tier (1-3)
 }
 
 export const isTestRun = (g: Game) => g.vars.test === 1;
@@ -39,6 +42,7 @@ export function createTestRun(s: TestSetup, seed: number): Game {
   p.hp = p.stats.hp;
   g.talentPoints += s.talents.length;
   for (const id of [...s.talents].sort((a, b) => TALENT_BY_ID[a].row - TALENT_BY_ID[b].row)) spendTalent(g, id); // one a tree cannot take stays a point to spend
+  for (const [id, tier] of Object.entries(s.relics ?? {})) addRelic(g, id as RelicId, 'other', tier);
   g.wave = g.wavesCleared = (s.act - 1) * ACTS.length + s.wave - 1;
   g.breather = 0.01; // the chosen wave comes next
   return g;

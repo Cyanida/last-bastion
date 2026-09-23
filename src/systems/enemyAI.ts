@@ -4,6 +4,7 @@ import type { EnemyId } from '../config/enemies';
 import { MODIFIERS, WAVES } from '../config/waves';
 import { sfx } from '../core/audio';
 import { dist2, TAU } from '../core/math';
+import { emit } from '../core/events';
 import type { Enemy, Game } from '../core/types';
 import { addZone } from '../entities/hazards';
 import { nextState, type AiProfile, type AiState } from '../logic/fsm';
@@ -384,6 +385,7 @@ function secondWind(g: Game, e: Enemy): void {
 function enterPhase(g: Game, e: Enemy, phase: number): void {
   e.phase = phase;
   markPhase(g, `${e.def.name}: phase ${phase}`);
+  emit(g, 'onBossPhase', { enemy: e, phase });
   e.special = Math.min(e.special, 1.2);
   g.banner = { text: `${e.def.name} is enraged`, t: 2.2 };
   ring(g, e.x, e.y, 200, HOSTILE, 0.7);

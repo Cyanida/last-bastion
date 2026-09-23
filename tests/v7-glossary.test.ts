@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GLOSSARY } from '../src/config/glossary';
 import { glossed } from '../src/ui/tooltip';
 
-const REQUIRED = ['burn', 'chill', 'freeze', 'bleed', 'poison', 'curse', 'evolution', 'elite', 'commander', 'perfect dodge', 'Last Stand', 'Oath'];
+const REQUIRED = ['burn', 'chill', 'freeze', 'bleed', 'poison', 'curse', 'evolution', 'elite', 'commander', 'perfect dodge', 'Last Stand', 'Oath', 'attunement', 'awakened', 'set bonus', 'duo', 'cursed relic']; // v0.7.1 B5: the relic words
 const underlined = (html: string) => [...html.matchAll(/<u>(.*?)<\/u>/g)].map((m) => m[1]);
 
 describe('glossary (v0.7.1)', () => {
@@ -23,6 +23,7 @@ describe('glossary (v0.7.1)', () => {
     for (const t of GLOSSARY) for (const f of t.forms) expect(underlined(glossed(`It is ${f.toUpperCase()} now.`))).toEqual([f.toUpperCase()]);
     expect(underlined(glossed('Burnished oathkeepers bleedingly elitist'))).toEqual([]);
     expect(underlined(glossed('A perfect dodge; a perfect aim.'))).toEqual(['perfect dodge']);
+    expect(underlined(glossed('A cursed relic, a cursed foe; a 6-set.'))).toEqual(['cursed relic', 'cursed', '6-set']); // the longer term wins
   });
 
   it('adds each definition once, in the order the terms came up, and escapes the tip itself', () => {

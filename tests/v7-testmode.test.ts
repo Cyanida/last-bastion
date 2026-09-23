@@ -8,7 +8,7 @@ import { banked, createTestRun, isTestRun, type TestSetup } from '../src/systems
 
 const row0 = talentsFor('viking').filter((n) => n.row === 0).slice(0, 2).map((n) => n.id);
 const keystone = talentsFor('viking').find((n) => n.keystone)!.id; // needs points in its branch first: cannot be taken
-const SETUP: TestSetup = { classId: 'viking', arena: 'keep', act: 2, wave: 4, level: 12, talents: [keystone, ...row0] };
+const SETUP: TestSetup = { classId: 'viking', arena: 'keep', act: 2, wave: 4, level: 12, talents: [keystone, ...row0], relics: { brimstoneOil: 1, frostBrand: 2, bloodPact: 3 } };
 
 describe('test mode (v0.7.1)', () => {
   it('starts a run at the chosen Act, wave, arena, level and talents', () => {
@@ -23,6 +23,8 @@ describe('test mode (v0.7.1)', () => {
     expect(g.player.hp).toBe(g.player.stats.hp);
     expect(g.player.talents).toEqual(row0);
     expect(g.talentPoints).toBeGreaterThanOrEqual(1); // the keystone it could not take stays a point
+    expect(g.player.relics.held).toEqual(['brimstoneOil', 'frostBrand', 'bloodPact']); // B5: relics at their attunement tier
+    expect(g.player.relics.tiers).toEqual({ brimstoneOil: 1, frostBrand: 2, bloodPact: 3 });
   });
 
   it('never grants rewards: a played test run leaves the save exactly as it was', () => {
@@ -32,7 +34,7 @@ describe('test mode (v0.7.1)', () => {
       for (let i = 0; i < 60 * 90 && !g.over; i++) botStep(g);
       return g;
     };
-    const test = play(createTestRun({ ...SETUP, act: 1, wave: 1, arena: 'courtyard', level: 1, talents: [] }, 5));
+    const test = play(createTestRun({ ...SETUP, act: 1, wave: 1, arena: 'courtyard', level: 1, talents: [], relics: {} }, 5));
     expect(test.kills).toBeGreaterThan(0); // it was played: there was something to pay
     expect(banked(save, test)).toBeNull();
     expect(JSON.stringify(save)).toBe(before);

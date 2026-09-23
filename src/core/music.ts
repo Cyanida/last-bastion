@@ -1,6 +1,6 @@
 import { MUSIC, THEMES } from '../config/music';
 import { BAR_BEATS, BPM, composeBar, type NoteEvent } from '../logic/music';
-import { barSeconds, composeRunBar, conduct, newConductor, type Conductor, type Mood } from '../logic/runMusic';
+import { barSeconds, composeRunBar, conduct, newConductor, nextBeat, stingerNotes, type Conductor, type Mood, type Stinger } from '../logic/runMusic';
 import { isMuted, sharedAudio } from './audio';
 import { quality } from './quality';
 
@@ -30,6 +30,9 @@ let bus: { master: GainNode; input: AudioNode } | null = null;
 let session: { kind: 'menu' | 'run'; out: GainNode; timer: ReturnType<typeof setInterval> } | null = null;
 let voices: number[] = []; // when each queued note ends: the voice budget
 let queued = 0; // notes queued since load (the perf test reads it)
+let lastStinger = -Infinity;
+let stingers = 0; // stingers played (the perf test reads it)
+let peak = 0; // the most voices sounding at once (the perf test checks the budget)
 
 export const musicLevel = () => level;
 export function setMusicLevel(next: MusicLevel): void {
@@ -63,6 +66,22 @@ export function runMusic(next: Mood | null, fromJukebox = false): void {
   if (changed) refreshMusic();
 }
 
+/**
+ * v0.7.1: a stinger (logic/runMusic.ts stingerNotes) over the run music, on its next beat and through the voice budget. Nothing while the
+ * run music is not playing, and at most one every MUSIC.stingerGap seconds.
+ */
+export function stinger(kind: Stinger): void {
+  const audio = sharedAudio();
+  if (!audio || session?.kind !== 'run' || !conductor) return;
+  const { ctx, noise } = audio;
+  if (ctx.currentTime < lastStinger + MUSIC.stingerGap) return;
+  lastStinger = ctx.currentTime;
+  stingers++;
+  const at = nextBeat(conductor, ctx.currentTime);
+  const beat = 60 / THEMES[conductor.arena].bpm;
+  for (const e of stingerNotes(THEMES[conductor.arena], at >= conductor.at ? conductor.bar : conductor.bar - 1, kind)) play(ctx, noise, session.out, e, at + e.time * beat, beat);
+}
+
 /** Plays or fades out to match the screen, mute, the Music settings and page visibility. Call when any of them changes. */
 export function refreshMusic(): void {
   const audio = sharedAudio();
@@ -78,7 +97,7 @@ document.addEventListener('visibilitychange', refreshMusic);
 export function musicStats() {
   const ctx = sharedAudio()?.ctx;
   const now = ctx?.currentTime ?? 0;
-  return { playing: session?.kind ?? null, context: ctx?.state ?? null, arena: conductor?.arena ?? null, layer: conductor?.layer ?? null, bar: conductor?.bar ?? 0, voices: voices.filter((end) => end > now).length, queued };
+  return { playing: session?.kind ?? null, context: ctx?.state ?? null, arena: conductor?.arena ?? null, layer: conductor?.layer ?? null, bar: conductor?.bar ?? 0, voices: voices.filter((end) => end > now).length, queued, stingers, peak, budget: quality.level === 'low' ? MUSIC.voices.low : MUSIC.voices.high };
 }
 
 function begin(audio: { ctx: AudioContext; noise: AudioBuffer; out: AudioNode }, kind: 'menu' | 'run'): void {
@@ -204,6 +223,7 @@ function play(ctx: AudioContext, noise: AudioBuffer, out: AudioNode, e: NoteEven
   if (voices.length >= (quality.level === 'low' ? MUSIC.voices.low : MUSIC.voices.high)) return;
   const end = t + len + TAIL[e.voice];
   voices.push(end);
+  peak = Math.max(peak, voices.length);
   queued++;
   if (e.voice === 'drone') {
     // triangle body plus a detuned saw under a lowpass that slowly opens and closes; long ends blur the chord changes

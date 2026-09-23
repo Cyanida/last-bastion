@@ -4,8 +4,9 @@ import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
 import { GAME, VIEW } from './config/game';
 import { effectsLevel, initAudio, isMuted, setEffectsLevel, toggleMute } from './core/audio';
-import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLevel, setRunMusic, startMenuMusic, stopMenuMusic } from './core/music';
-import { moodOf } from './logic/runMusic';
+import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLevel, setRunMusic, startMenuMusic, stinger, stopMenuMusic } from './core/music';
+import { addListener, type EventName } from './core/events';
+import { moodOf, type Stinger } from './logic/runMusic';
 import { showWhatsNewNow } from './logic/whatsNew';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
@@ -56,6 +57,12 @@ import { chooseUtilityUpgrade, utilityUpgradeOptions } from './systems/utility';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
 
+/** v0.7.1: the moments the run music marks with a stinger. The simulation only emits them; this screen is what plays them. */
+const STINGERS: Partial<Record<EventName, Stinger>> = { onRelicTier: 'tier', onSetBonus: 'set', onDuoFormed: 'duo', onEvolved: 'evolution', onBossPhase: 'phase' };
+addListener((g, name) => {
+  if (g === game && STINGERS[name]) stinger(STINGERS[name]);
+});
+
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 const view: View = { w: 0, h: 0, zoom: 1, dpr: 1 };
@@ -71,7 +78,7 @@ let onTitle = false;
 let notice: TitleInfo['notice'] = null; // "new version available", shown on the title screen only
 let updateStatus = 'No check yet.';
 let devMode = new URLSearchParams(location.search).get('dev') === '1'; // v0.7.1 test mode: ?dev=1, or tap the version in Settings five times
-let testSetup: TestSetup = { classId: 'viking', arena: 'courtyard', act: 1, wave: 1, level: 1, talents: [] };
+let testSetup: TestSetup = { classId: 'viking', arena: 'courtyard', act: 1, wave: 1, level: 1, talents: [], relics: {} };
 
 const arenaCache = new Map<ArenaId, HTMLCanvasElement>();
 function arenaCanvas(id: ArenaId): HTMLCanvasElement {
@@ -285,6 +292,7 @@ function toTestMode(): void {
       runMusic(null);
       startMenuMusic();
     },
+    sting: stinger,
     back: toSettings,
   });
 }
@@ -756,6 +764,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       quality,
       perf,
       music: musicStats, // v0.7.1
+      stinger, // v0.7.1
       resetPerf: resetHistory,
       perfSummary: summary,
       setPerf: (on: boolean) => setPerfOverlay(on, ctx),

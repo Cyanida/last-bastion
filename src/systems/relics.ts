@@ -125,9 +125,14 @@ export function updateRelics(g: Game, dt: number): void {
   const p = g.player;
   const r = p.relics;
   if (r.dirty) {
+    const was = r.sets;
     r.static = relicModTotals(r.held, r.tiers);
     r.sets = familySets(r.held, duoFamilies(r.duos));
     r.dirty = false;
+    for (const f of FAMILY_IDS) {
+      const level = r.sets[f]?.level ?? 0;
+      if (level > (was[f]?.level ?? 0)) emit(g, 'onSetBonus', { family: f, level: level as SetLevel }); // v0.7.1: the stinger
+    }
   }
   for (const key of Object.keys(r.dyn) as (keyof Mods)[]) r.dyn[key] = 0;
   // numbers the families set every tick, back to neutral first (Blessed Water, Butcher's Hook, Charnel)
