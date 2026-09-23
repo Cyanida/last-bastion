@@ -45,6 +45,8 @@ import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
 import { GLOSSARY } from '../config/glossary';
+import type { Cue, Layer, Mood } from '../logic/runMusic';
+import type { TestSetup } from '../systems/testMode';
 
 const overlay = () => document.getElementById('overlay')!;
 let stopActions: (() => void) | null = null;
@@ -148,11 +150,13 @@ export interface SettingsInfo {
   music: MusicLevel;
   effects: MusicLevel; // v0.7.1
   runMusic: boolean; // v0.7.1
+  version: string; // v0.7.1: tap it five times for test mode
+  dev: boolean; // v0.7.1: test mode is open
   perf: boolean;
   desktop: { version: string; status: string; prerelease: boolean } | null;
 }
 
-export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
+export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
   const chip = (q: QualitySetting) => `<button class="chip ${info.quality === q ? 'on' : ''}" data-quality="${q}">${q[0].toUpperCase()}${q.slice(1)}</button>`;
   const el = show(`
     <div class="panel dialog wide settings">
@@ -167,8 +171,12 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
       <div class="setting"><div><b>Updates</b><span>Version ${info.desktop.version}. ${info.desktop.status}</span></div><button class="chip" data-act="check">Check for updates</button></div>
       <div class="setting"><div><b>Beta versions</b><span>Also install pre-releases.</span></div><button class="chip ${info.desktop.prerelease ? 'on' : ''}" data-act="pre">${info.desktop.prerelease ? 'On' : 'Off'}</button></div>` : ''}
       <div class="setting"><div><b>Save data</b><span>Export, import or reset your progress.</span></div><button class="chip" data-act="save">Open</button></div>
+      ${info.dev ? '<div class="setting"><div><b>Test mode</b><span>Start a run anywhere and hear every arena’s music. Test runs pay nothing and leave no trace.</span></div><button class="chip" data-act="test">Open</button></div>' : ''}
       <button class="btn" data-act="back">Back</button>
+      <p class="hint" data-version>Version ${info.version}</p>
     </div>`);
+  let taps = 0;
+  click(el, '[data-version]', () => ++taps === 5 && !info.dev && on.dev());
   click(el, '[data-quality]', (b) => on.quality(b.dataset.quality as QualitySetting));
   click(el, '[data-music]', (b) => on.music(b.dataset.music as MusicLevel));
   click(el, '[data-effects]', (b) => on.effects(b.dataset.effects as MusicLevel));
@@ -177,6 +185,7 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
     if (act === 'mute') on.mute();
     else if (act === 'perf') on.perf();
     else if (act === 'runMusic') on.runMusic();
+    else if (act === 'test') on.testMode();
     else if (act === 'check') on.checkUpdates();
     else if (act === 'pre') on.prerelease(!info.desktop?.prerelease);
     else if (act === 'save') on.saveData();
@@ -1058,4 +1067,61 @@ export function showGlossary(onBack: () => void): void {
     </div>`);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
+}
+
+const JUKEBOX_LAYERS = ['Sparse: a breather, the Merchant', 'Base: a wave', 'Second layer: a dense or dangerous fight', 'Boss: drums and a bass line'];
+
+/** v0.7.1 test mode (hidden): start a run at any Act, wave and arena with any champion, level and talents; and the music jukebox. */
+export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => void; play: (m: Mood) => void; stop: () => void; back: () => void }): void {
+  const options = (items: [string, string][], chosen: string) => items.map(([v, label]) => `<option value="${v}" ${v === chosen ? 'selected' : ''}>${label}</option>`).join('');
+  const arenas = (chosen: string) => options((Object.keys(ARENAS) as ArenaId[]).map((id) => [id, ARENAS[id].name]), chosen);
+  const talents = (classId: ClassId) => TALENT_BRANCHES[classId].map((b) => `<div><b>${b.name}</b>${talentsFor(classId).filter((n) => n.branch === b.id).map((n) => `<label><input type="checkbox" value="${n.id}" ${setup.talents.includes(n.id) ? 'checked' : ''}> ${n.name}${n.keystone ? ' (keystone)' : ''}</label>`).join('')}</div>`).join('');
+  const el = show(`
+    <div class="panel dialog wide testmode">
+      <h1 class="small">Test mode</h1>
+      <p class="sub">Test runs pay nothing and leave no trace: no gold, Runes, class XP, deeds, contracts or run history. The HUD says TEST.</p>
+      <h2>Start a run</h2>
+      <div class="tm-grid">
+        <label>Champion <select id="tm-class">${options(CLASS_ORDER.map((id) => [id, CLASSES[id].name]), setup.classId)}</select></label>
+        <label>Arena <select id="tm-arena">${arenas(setup.arena)}</select></label>
+        <label>Act <input id="tm-act" type="number" min="1" max="${FINAL.act}" value="${setup.act}"></label>
+        <label>Wave <input id="tm-wave" type="number" min="1" max="${ACTS.length}" value="${setup.wave}"></label>
+        <label>Level <input id="tm-level" type="number" min="1" max="60" value="${setup.level}"></label>
+      </div>
+      <div class="tm-talents" id="tm-talents">${talents(setup.classId)}</div>
+      <button class="btn big" data-start>Start test run</button>
+      <h2>Music jukebox</h2>
+      <div class="tm-grid">
+        <label>Theme <select id="jb-arena">${arenas(setup.arena)}</select></label>
+        <label>Layer <input id="jb-layer" type="range" min="0" max="3" step="1" value="1"></label><span id="jb-name"></span>
+      </div>
+      <div class="row"><button class="btn" data-play>Play</button><button class="btn" data-cue="fork">Fork cue</button><button class="btn" data-cue="victory">Victory cue</button><button class="btn" data-stop>Stop</button></div>
+      <button class="btn" data-back>Back</button>
+    </div>`);
+  const field = (id: string) => el.querySelector<HTMLInputElement>(`#${id}`)!;
+  const num = (id: string, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number(field(id).value)) || lo));
+  field('tm-class').onchange = () => (field('tm-talents').innerHTML = talents(field('tm-class').value as ClassId));
+  click(el, '[data-start]', () => on.start({
+    classId: field('tm-class').value as ClassId, arena: field('tm-arena').value as ArenaId, act: num('tm-act', 1, FINAL.act), wave: num('tm-wave', 1, ACTS.length), level: num('tm-level', 1, 60),
+    talents: [...el.querySelectorAll<HTMLInputElement>('#tm-talents input:checked')].map((i) => i.value),
+  }));
+  // the jukebox: changes land on the next bar line, as in a run; a cue plays once, then the mood lets go of it
+  let playing = false;
+  const play = (cue: Cue | null = null) => {
+    playing = true;
+    on.play({ arena: field('jb-arena').value as ArenaId, layer: Number(field('jb-layer').value) as Layer, cue });
+  };
+  const label = () => (field('jb-name').textContent = JUKEBOX_LAYERS[Number(field('jb-layer').value)]);
+  label();
+  field('jb-layer').oninput = () => (label(), playing && play());
+  field('jb-arena').onchange = () => playing && play();
+  click(el, '[data-play]', () => play());
+  click(el, '[data-cue]', (b) => {
+    play(b.dataset.cue as Cue);
+    const slider = field('jb-layer');
+    setTimeout(() => slider.isConnected && playing && play(), 4000); // longer than any theme's bar
+  });
+  click(el, '[data-stop]', () => ((playing = false), on.stop()));
+  click(el, '[data-back]', on.back);
+  onActions((a) => a === 'cancel' && on.back());
 }

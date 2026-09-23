@@ -24,6 +24,7 @@ let level: MusicLevel = MUSIC_LEVELS.includes(stored as MusicLevel) ? (stored as
 let inRuns = !hasStorage || localStorage.getItem(RUN_KEY) !== '0'; // v0.7.1 "Music during runs", on by default
 let menu = false; // a menu screen is up
 let mood: Mood | null = null; // v0.7.1: a run is on screen and not paused
+let jukebox = false; // v0.7.1: test mode's jukebox plays the run music on a menu, whatever "Music during runs" says
 let conductor: Conductor | null = null; // the run's place in its music, kept through a pause
 let bus: { master: GainNode; input: AudioNode } | null = null;
 let session: { kind: 'menu' | 'run'; out: GainNode; timer: ReturnType<typeof setInterval> } | null = null;
@@ -46,6 +47,7 @@ export function setRunMusic(on: boolean): void {
 export function startMenuMusic(): void {
   menu = true;
   mood = null;
+  jukebox = false;
   conductor = null; // the next run starts a fresh piece
   refreshMusic();
 }
@@ -54,9 +56,10 @@ export function stopMenuMusic(): void {
   refreshMusic();
 }
 /** v0.7.1: the run's mood (logic/runMusic.ts moodOf), or null while it is paused or over. Cheap to call every frame. */
-export function runMusic(next: Mood | null): void {
-  const changed = (mood === null) !== (next === null);
+export function runMusic(next: Mood | null, fromJukebox = false): void {
+  const changed = (mood === null) !== (next === null) || jukebox !== fromJukebox;
   mood = next;
+  jukebox = fromJukebox;
   if (changed) refreshMusic();
 }
 
@@ -65,7 +68,7 @@ export function refreshMusic(): void {
   const audio = sharedAudio();
   if (!audio) return; // no gesture yet: the first one calls this again
   const audible = level !== 'off' && !isMuted() && !document.hidden;
-  const kind = !audible ? null : mood ? (inRuns ? 'run' : null) : menu ? 'menu' : null;
+  const kind = !audible ? null : mood ? (inRuns || jukebox ? 'run' : null) : menu ? 'menu' : null;
   if (session && session.kind !== kind) fadeOut(audio.ctx);
   if (kind && !session) begin(audio, kind);
 }
