@@ -38,9 +38,9 @@ export function duoTip(id: DuoId): string {
   const d = DUOS[id];
   return [`${d.name} · duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}`, d.desc, `From ${d.from.map((r) => relicDef(r).name).join(' + ')}; counts toward both families.`].join('\n');
 }
-/** A relic's or a duo's tooltip. */
-export const keyTip = (id: RelicKey, tier: number, held: RelicId[] = []): string =>
-  isDuo(id) ? duoTip(id) : isFamily(id) ? `${FAMILIES[id].name} set bonuses: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[id].sets[n][0]}`).join(' · ')}` : relicTip(id, tier, held);
+/** A relic's, a duo's or a set's tooltip. `held` may hold duos and sets too (the results table's rows): only the relics count for the family line. */
+export const keyTip = (id: RelicKey, tier: number, held: RelicKey[] = []): string =>
+  isDuo(id) ? duoTip(id) : isFamily(id) ? `${FAMILIES[id].name} set bonuses: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[id].sets[n][0]}`).join(' · ')}` : relicTip(id, tier, held.filter((k): k is RelicId => !isDuo(k) && !isFamily(k)));
 
 export const tierBadge = (tier: number): string => (tier > 1 ? `<i class="tier">${TIER_NUMERALS[tier]}</i>` : '');
 

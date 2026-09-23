@@ -9,6 +9,7 @@ import { chainFrom } from '../src/systems/relicCore';
 import { addRelic, offerRelics, relicPreview, resolveRelicOffer, skipRelicOffer, updateRelics } from '../src/systems/relics';
 import { freeze } from '../src/systems/relicFamilies/frost';
 import { spawnEnemy } from '../src/systems/spawning';
+import { keyTip } from '../src/ui/relicText';
 
 function game(relics: RelicId[]): Game {
   const g = createGame('paladin', 1);
@@ -162,3 +163,14 @@ describe('duo effects', () => {
     expect(g.player.hp).toBeGreaterThan(g.player.stats.hp / 2);
   });
 });
+
+describe('the results table (v0.7.1 fix)', () => {
+  it('its tooltips take rows of relics, duos and sets together (a set or duo row used to break the results and victory screens)', () => {
+    const rows = ['brimstoneOil', 'emberheart', 'thermalShock', 'flame'] as const;
+    for (const id of rows) expect(() => keyTip(id, 1, [...rows])).not.toThrow();
+    expect(keyTip('brimstoneOil', 1, [...rows])).toContain('2 held');
+    expect(keyTip('thermalShock', 0, [...rows])).toContain('Thermal Shock');
+    expect(keyTip('flame', 0, [...rows])).toContain('Flame set bonuses');
+  });
+});
+

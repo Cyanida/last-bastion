@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.1 — Fix: the end of a run
+
+A patch for v0.7.0.
+
+- **Fixed:** the results screen, and the victory screen after beating the Usurper, did not open after a run that had reached a set bonus or formed a duo (nearly every run). The run was banked, but the screen stayed stuck, and a win could not be banked from the victory screen. The Relics table's tooltips now take relic, duo and set rows together. A test covers it.
+
 ## v0.7.0 — Relics, rebuilt
 
 The relic rework (RELICS.md has the diagnosis, the approved design and the numbers): relics come at fixed moments you choose from, belong to seven families with set bonuses, grow by doing their work, and pair up into duos. Plus save safety: the game keeps backups of your save and can restore them.
