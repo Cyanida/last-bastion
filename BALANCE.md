@@ -1,5 +1,29 @@
 # Balance notes
 
+## v0.6: routes, and where the Squire tier stands now
+
+The bot takes the first route offered (the fork is seeded, so the sims stay reproducible). `npm run sim -- pacing 3` after increment 6:
+
+| Class | Setup | Minutes | Wave | Act I | Act II | Act III | Act IV | Won | Longest stretch |
+|---|---|---|---|---|---|---|---|---|---|
+| Paladin | fresh | 27.2 | 30.0 | 7.3* | 9.5* | 9.9* | 11.2* | 2/3 | 63 s |
+| Paladin | maxed | 30.8 | 40.0 | 5.8 | 7.0 | 8.2 | 9.7 | 3/3 | 74 s |
+| Viking | fresh | 28.9 | 40.0 | 5.7 | 6.8 | 7.3 | 9.1 | 3/3 | 78 s |
+| Viking | maxed | 25.2 | 40.0 | 4.8 | 5.6 | 6.7 | 8.0 | 3/3 | 68 s |
+| Angel | fresh | 6.6 | 11.3 | 6.0* | - | - | - | 0/3 | 31 s |
+| Angel | maxed | 27.1 | 40.0 | 5.3 | 6.5 | 6.7 | 8.6 | 3/3 | 68 s |
+| Necromancer | fresh | 5.0 | 10.0 | - | - | - | - | 0/3 | 28 s |
+| Necromancer | maxed | 18.6 | 30.7 | 4.7 | 5.9* | 6.7* | 7.7* | 2/3 | 45 s |
+| Archer | fresh | 3.1 | 7.0 | - | - | - | - | 0/3 | 29 s |
+| Archer | maxed | 24.5 | 40.0 | 4.5 | 5.5 | 6.2 | 8.2 | 3/3 | 59 s |
+
+No run breaks the 90-second rule. The trend since the baseline is plain: **once a melee character gets past the Act I Dragon, the
+Squire tier no longer stops it**. A fresh Viking won 3 runs in 3, a fresh Paladin 2 in 3; maxed runs won 14 in 15 in 18-31 minutes. The
+Last Stand, the evolutions and the routes each add power on top of v0.5's. That matches the playtest question "is the Squire too
+easy?": yes, now. It is increment 7's job (the Keep's stat ranks become sidegrades, which takes power out of maxed runs, and the Oath
+ladder gives a win somewhere to go) and the final balance pass's (the Squire tier's numbers, and the class spread: the fresh ranged
+bots still die early, though human players find the Necromancer and the Archer the strongest).
+
 ## v0.6: evolutions
 
 **Within reach?** The spec's bar is that every run has a build-defining evolution within reach. The bot takes the gold card whenever it

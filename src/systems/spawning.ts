@@ -15,6 +15,9 @@ import { pacingBudget } from '../logic/waves';
 import { spawnPoint } from '../logic/regions';
 import { slotPosition } from '../logic/squads';
 import { floatText } from './effects';
+import { ROUTES } from '../config/routes';
+import { ACTS } from '../config/acts';
+import { actTheme } from './acts';
 import { killEnemy } from './combat';
 import { createSquad } from './squads';
 
@@ -27,8 +30,9 @@ function edgePoint(g: Game): { x: number; y: number } {
 
 export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = []): Enemy {
   const at = x === undefined || y === undefined ? edgePoint(g) : { x, y };
-  const hp = g.waveHpMult * g.tier.enemyHp * curseValue(g.curses, 'ironHorde', 'hp');
-  const e = createEnemy(ENEMIES[id], at.x, at.y, hp, g.waveDmgMult * g.tier.enemyDmg, affixes, enemyXpMult(Math.max(1, g.wave)));
+  const siege = g.route?.focus === 'siege'; // v0.6 Siege path: a tougher Act
+  const hp = g.waveHpMult * g.tier.enemyHp * curseValue(g.curses, 'ironHorde', 'hp') * (siege ? ROUTES.siege.hp : 1);
+  const e = createEnemy(ENEMIES[id], at.x, at.y, hp, g.waveDmgMult * g.tier.enemyDmg * (siege ? ROUTES.siege.damage : 1), affixes, enemyXpMult(Math.max(1, g.wave)));
   e.born = g.time;
   e.flankRoll = g.rng();
   e.flankDir = g.rng() < 0.5 ? 1 : -1;
@@ -68,8 +72,8 @@ function startWave(g: Game): void {
     classId: g.player.cls.id,
     performance: g.perf,
     bosses: boss ? [boss] : g.arena.bosses, // Act boss at x0, the arena's own rotation at x5
-    eliteMult: g.tier.eliteMult,
-    themeBias: themeFor(g.act, g.seed).bias,
+    eliteMult: g.tier.eliteMult * (g.route?.focus === 'elite' ? ROUTES.elite.eliteMult : 1), // v0.6 Elite path
+    themeBias: actTheme(g).bias, // v0.6: the route's theme
     budgetMult: curseValue(g.curses, 'swarm', 'budget') * pacingBudget(g.wave), // v0.5: breathers and heavy waves (WAVES.pacing)
     squadMult: curseValue(g.curses, 'eliteCommanders', 'squadWeight'),
     eliteCommanders: g.curses.includes('eliteCommanders'),
@@ -152,7 +156,8 @@ export function updateSpawning(g: Game, dt: number): void {
     g.vars.overtime = 0;
     g.vars.stragglers = 0;
     g.breather = !cleared ? 0.01 : curseValue(g.curses, 'noRespite', 'breather', WAVES.breather);
-    if (isActEnd(g.wave)) g.pendingMerchant = true; // the UI (or the bot) visits the Merchant, then calls nextAct
+    if (isActEnd(g.wave)) g.pendingMerchant = true; // the UI (or the bot) visits the Merchant, then picks a route
+    else if (g.route?.focus === 'merchant' && g.wave % ACTS.length === ROUTES.merchant.midWave) (g.pendingMerchant = true), (g.midMerchant = true); // v0.6 Merchant path
     g.wavesCleared = g.wave;
     g.modifier = null;
     // the director's rubber band: how much HP is left, and was the wave cleared quickly

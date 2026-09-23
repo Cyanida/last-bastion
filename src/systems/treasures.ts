@@ -129,7 +129,7 @@ export function passTrial(g: Game): void {
 function openVault(g: Game): void {
   if (!g.regionOpen.east) openRegion(g, 'east'); // the vault's corridor runs from the east wing
   openRegion(g, 'vault');
-  g.banner = { text: `The hidden vault opens: ${treasureOf(g).guardian.name} waits`, t: 3.5 };
+  g.banner = { text: `The hidden vault opens: ${treasureOf(g).guardian.name} waits`, t: 3.5, top: true }; // whichever kill listener runs first
 }
 
 /** The guardian: its base boss's def and script, renamed and tinted, x TREASURE_RULES.guardianHp, side content (it does not hold waves or open wings). */

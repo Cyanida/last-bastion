@@ -18,7 +18,8 @@ import { upgradeOptions } from './logic/abilityUpgrades';
 import { lockedArenas, lockedRelics, rewardText, tierKey, unlockedCurses, withAchievements } from './logic/achievements';
 import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from './logic/acts';
 import { curseMultiplier } from './logic/curses';
-import { merchantBuy, merchantHeal, merchantReroll, merchantSalvage, merchantSell, nextAct } from './systems/acts';
+import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReroll, merchantSalvage, merchantSell, nextAct } from './systems/acts';
+import { questTake } from './systems/quests';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, rerollCost, accountLevel, buildingLevel } from './logic/economy';
 import { applyRun, buyMeta, defaultSave, importSave, type Save, buyBuilding } from './logic/save';
@@ -30,7 +31,7 @@ import { chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { resolveRelicOffer } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { TIER_NUMERALS } from './config/relics';
@@ -45,7 +46,6 @@ import { setRecipeBuild } from './ui/relicText';
 import { endlessScore, goEndless } from './systems/victory';
 import { takeQuests } from './systems/quests';
 import { peddlerBuy, peddlerPrice } from './systems/events';
-import { QUEST_BOARD } from './config/quests';
 import { chooseUtilityUpgrade, utilityUpgradeOptions } from './systems/utility';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
@@ -332,8 +332,14 @@ function openChoice(g: Game): void {
     });
   } else if (g.pendingBoard) {
     const trial = TREASURES[g.player.cls.id].trial;
-    showBoard(g.act, g.quests.filter((q) => q.state === 'offered').map((q) => (q.kind === 'trial' ? { ...q, desc: trial.desc } : q)), QUEST_BOARD.take, (picks) => {
+    showBoard(g.act, g.quests.filter((q) => q.state === 'offered').map((q) => (q.kind === 'trial' ? { ...q, desc: trial.desc } : q)), questTake(g), (picks) => {
       takeQuests(g, picks);
+      resume();
+    });
+  } else if (g.pendingRoute) {
+    const routes = g.pendingRoute;
+    showRoutes(g.act, routes, (i) => {
+      chooseRoute(g, i);
       resume();
     });
   } else if (g.pendingShop) openPeddler(g);
@@ -360,7 +366,7 @@ function openMerchant(g: Game): void {
   const act = g.act;
   const again = (ok: boolean) => ok && openMerchant(g);
   showMerchant(
-    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.relics, tiers: g.relicTiers, salvage: g.salvage },
+    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.relics, tiers: g.relicTiers, salvage: g.salvage, mid: g.midMerchant },
     {
       heal: () => again(merchantHeal(g)),
       buy: (r) => again(merchantBuy(g, r)),
@@ -368,7 +374,7 @@ function openMerchant(g: Game): void {
       sell: (id) => again(merchantSell(g, id)),
       salvage: (id) => again(merchantSalvage(g, id)),
       leave() {
-        nextAct(g);
+        leaveMerchant(g); // on with the Act, or (v0.6) to the fork in the road
         resume();
       },
     },
@@ -391,7 +397,7 @@ function sacredLines(g: Game): { name: string; desc: string }[] {
   return news.length ? [...out, { name: '🧩 Treasure quest this run', desc: news.join(' · ') }] : out;
 }
 
-const hasChoice = (g: Game) => g.victory === 'pending' || g.pendingShrine !== null || g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant;
+const hasChoice = (g: Game) => g.victory === 'pending' || g.pendingShrine !== null || g.relicOffers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant || g.pendingRoute !== null;
 
 function togglePause(): void {
   if (state === 'playing' && game) {

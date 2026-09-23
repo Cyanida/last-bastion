@@ -492,3 +492,13 @@ canvas#game { touch-action: none; }
 .recipe p { margin: 2px 0; font-size: 13px; }
 .recipe i { display: block; font-size: 13px; color: #6b4a08; }
 .talent.recipe { box-shadow: 0 0 0 2px #f2c94c inset, 0 0 12px rgba(242, 201, 76, 0.6); } /* v0.6: completes an evolution recipe */
+
+/* v0.6 the fork in the road between Acts */
+.routes .fork { display: block; width: min(420px, 80vw); height: 60px; margin: 0 auto -6px; }
+.routes .fork circle { fill: #e9c95a; }
+.routes .fork path { stroke: #e9c95a; stroke-width: 3; stroke-dasharray: 6 5; fill: none; }
+.route p { margin: 4px 0; font-size: 14px; }
+.route.elite { outline: 2px solid #c23a2e; outline-offset: -6px; }
+.route.merchant { outline: 2px solid #c9a227; outline-offset: -6px; }
+.route.pilgrim { outline: 2px solid #6fae4f; outline-offset: -6px; }
+.route.siege { outline: 2px solid #5a5d64; outline-offset: -6px; }

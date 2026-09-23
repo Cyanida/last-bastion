@@ -1,14 +1,18 @@
-import { MERCHANT } from '../config/acts';
+import { ACT_THEMES, ACTS, FINAL, MERCHANT } from '../config/acts';
+import { ROUTES } from '../config/routes';
+import { addListener, type GameEvents } from '../core/events';
+import { routeChoices, type Route } from '../logic/routes';
+import { markRoute } from './runlog';
 import { ARENAS } from '../config/arenas';
 import { RELIC_DROPS, relicDef, type Rarity, type RelicId } from '../config/relics';
 import { sfx } from '../core/audio';
 import type { Game } from '../core/types';
-import { actName, arenaFor, merchantPrice, themeFor, type MerchantItem } from '../logic/acts';
+import { actName, arenaFor, isActEnd, merchantPrice, themeFor, type MerchantItem } from '../logic/acts';
 import { relicTier, rollRelics } from '../logic/relics';
 import { floatText } from './effects';
 import { gainXp } from './leveling';
 import { addRelic, removeRelic } from './relics';
-import { initRegions } from './regions';
+import { initRegions, shrineChoices } from './regions';
 import { initQuests } from './quests';
 import { takeFragment } from './treasures';
 
@@ -68,11 +72,35 @@ export function merchantSalvage(g: Game, id: RelicId): boolean {
   return removeRelic(g, id);
 }
 
-/** Leave the Merchant: on to the next Act, in the next arena. */
-export function nextAct(g: Game): void {
+/** v0.6: this Act's theme: the one its route chose, else the rotation (Act I is always The Levy, Act IV the Usurper's host). */
+export function actTheme(g: Game): (typeof ACT_THEMES)[number] {
+  const t = g.route?.theme;
+  return t === undefined ? themeFor(g.act, g.seed) : t < 0 ? FINAL.theme : ACT_THEMES[t];
+}
+
+/** Leave the Merchant: on with the Act (the Merchant path's visit halfway), or to the fork in the road (v0.6). */
+export function leaveMerchant(g: Game): void {
   g.pendingMerchant = false;
+  if (g.midMerchant) g.midMerchant = false;
+  else g.pendingRoute = routeChoices(g.seed, g.act, g.arena.id);
+}
+
+/** Take one of the routes on offer into the next Act. */
+export function chooseRoute(g: Game, i: number): void {
+  const route = g.pendingRoute?.[i];
+  if (!route) return;
+  g.pendingRoute = null;
+  nextAct(g, route);
+}
+
+/** On to the next Act, in the route's arena (or the rotation's, without one). */
+export function nextAct(g: Game, route: Route | null = null): void {
+  g.pendingMerchant = false;
+  g.midMerchant = false;
+  g.pendingRoute = null;
   g.act++;
-  g.arena = ARENAS[arenaFor(g.act, g.startArena)];
+  g.route = route;
+  g.arena = ARENAS[route?.arena ?? arenaFor(g.act, g.startArena)];
   initRegions(g);
   const p = g.player;
   p.x = g.arena.w / 2;
@@ -86,9 +114,20 @@ export function nextAct(g: Game): void {
   for (const e of g.enemies) e.dead = true;
   g.enemies.length = g.pickups.length = g.corpses.length = g.fields.length = g.zones.length = g.projectiles.length = g.barriers.length = g.squads.length = 0;
   g.minions.forEach((m, i) => Object.assign(m, { x: p.x + 40 * Math.cos(i * 2), y: p.y + 40 * Math.sin(i * 2) }));
-  const theme = themeFor(g.act, g.seed);
+  const theme = actTheme(g);
   g.banner = { text: `${actName(g.act)} — ${theme.name}`, t: 3.5 };
+  if (route) markRoute(g, `${ROUTE_NAMES[route.focus]} · ${g.arena.name} · ${theme.name}`);
+  if (route?.focus === 'pilgrim') g.pendingShrine = shrineChoices(g); // a blessing to start the Act with
   floatText(g, p.x, p.y - 50, g.arena.name, '#e9c95a', 16);
   sfx('wave');
   initQuests(g); // what is left of the old Act's quests fails; a new board is up
 }
+
+const ROUTE_NAMES = { elite: 'Elite path', merchant: 'Merchant path', pilgrim: 'Pilgrim path', siege: 'Siege path' } as const;
+
+/** v0.6 Siege path: the Act's boss pays Runes on top of the capped ones. */
+addListener((g, name, ev) => {
+  if (name !== 'onKill' || g.route?.focus !== 'siege' || !isActEnd(g.wave)) return;
+  const e = (ev as GameEvents['onKill']).enemy;
+  if (e.def.boss && !e.side && (ACTS.bosses.includes(e.def.id) || e.def.id === FINAL.boss)) g.questRunes += ROUTES.siege.runes;
+});

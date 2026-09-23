@@ -59,6 +59,8 @@ export function updateRunLog(g: Game, dt: number): void {
 
 /** A boss's new phase, or a step of its objective (the Usurper's flames): new threats for the pacing rule. */
 export const markPhase = (g: Game, detail: string) => mark(g, 'phase', detail);
+/** v0.6: the route taken into an Act. */
+export const markRoute = (g: Game, detail: string) => mark(g, 'route', detail);
 /** An ability evolved. */
 export const markEvolution = (g: Game, name: string) => mark(g, 'evolution', name);
 /** The Last Stand caught a killing blow. */

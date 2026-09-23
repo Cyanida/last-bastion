@@ -3,6 +3,7 @@ import { ARMOR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '..
 import { AFFIXES, ELITES } from '../config/elites';
 import { GOLD } from '../config/economy';
 import { GAME, SKILL } from '../config/game';
+import { ROUTES } from '../config/routes';
 import { MODIFIERS } from '../config/waves';
 import { sfx } from '../core/audio';
 import { emit } from '../core/events';
@@ -38,7 +39,7 @@ export function nearestEnemy(g: Game, x: number, y: number, range: number, exclu
 }
 
 export function goldMult(g: Game): number {
-  return g.player.mods.gold * g.tier.gold * (g.vars.curseMult ?? 1) * (g.modifier === 'bloodMoon' ? MODIFIERS.bloodMoon.n.gold : 1);
+  return g.player.mods.gold * g.tier.gold * (g.vars.curseMult ?? 1) * (g.modifier === 'bloodMoon' ? MODIFIERS.bloodMoon.n.gold : 1) * (g.route?.focus === 'merchant' ? ROUTES.merchant.gold : 1);
 }
 
 export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): void {
@@ -65,7 +66,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   if (e.elite) {
     g.elitesKilled++;
     ring(g, e.x, e.y, 90, AFFIXES[e.affixes[0]].color, 0.5);
-    if (g.rng() < ELITES.relicChance * (g.vars['trait.relicChance'] ?? 1) * (g.vars['keep.relicChance'] ?? 1)) g.pickups.push({ x: e.x - 8, y: e.y - 6, value: 1, kind: 'relic' }); // Cursed Luck doubles it, the Chapel adds
+    if (g.rng() < ELITES.relicChance * (g.vars['trait.relicChance'] ?? 1) * (g.vars['keep.relicChance'] ?? 1) * (g.route?.focus === 'elite' ? ROUTES.elite.relicChance : 1)) g.pickups.push({ x: e.x - 8, y: e.y - 6, value: 1, kind: 'relic' }); // Cursed Luck doubles it, the Chapel adds
     if (e.affixes.includes('splitting')) {
       const n = AFFIXES.splitting.n;
       for (let i = 0; i < n.count; i++) {

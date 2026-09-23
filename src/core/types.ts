@@ -12,6 +12,7 @@ import type { UtilityUpgradeId } from '../config/utility';
 import type { QuestKind, RewardKind } from '../config/quests';
 import type { RunLogDraft } from '../logic/runlog';
 import type { EvolutionId } from '../config/evolutions';
+import type { Route } from '../logic/routes';
 import type { EventKind } from '../config/events';
 import type { TreasureId } from '../config/treasures';
 import type { RelicTotals } from '../logic/relics';
@@ -506,6 +507,9 @@ export interface Game {
   act: number; // Acts of 10 waves: boss, Merchant, next arena
   startArena: ArenaId;
   pendingMerchant: boolean; // the Act is over: the Merchant screen is due
+  midMerchant: boolean; // v0.6: this Merchant visit is the Merchant path's, halfway through the Act (leaving it goes on with the Act)
+  route: Route | null; // v0.6: the path chosen into this Act (null in Act I)
+  pendingRoute: Route[] | null; // v0.6: the fork after an Act: the route screen is due
   merchantSpent: number;
   curses: CurseId[];
   daily: string | null; // date, when this run is a Daily Trial
@@ -513,7 +517,7 @@ export interface Game {
   actFeats: Record<string, number>; // v0.5: the same, this Act only (the treasure trials)
   treasure: { id: TreasureId; tier: number } | null; // v0.5: the sacred treasure equipped at run start
   chain: Chain | null; // v0.5: the treasure chain, while mastery has opened it (never in a Daily Trial)
-  banner: { text: string; t: number };
+  banner: { text: string; t: number; top?: boolean }; // top: a wing opening in the same moment does not cover it (the vault)
   log: RunLogDraft; // v0.6 run log, recorded by systems/runlog.ts
   victory: 'none' | 'pending' | 'endless'; // v0.6: the Usurper fell (pending: the choice to bank or go on is up); endless: gone on past him
   victoryKills: number; // v0.6: kills when he fell (the Endless score counts from there)

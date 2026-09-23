@@ -30,7 +30,9 @@ import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardTex
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { exportSave, type EndlessEntry, type Save } from '../logic/save';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
-import { ACTS } from '../config/acts';
+import { ACT_THEMES, ACTS, FINAL } from '../config/acts';
+import { ROUTE_FOCUS } from '../config/routes';
+import type { Route } from '../logic/routes';
 import { EVOLUTION_IDS, EVOLUTIONS, type EvolutionId } from '../config/evolutions';
 import { requirementText } from '../logic/evolutions';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
@@ -308,8 +310,8 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
-const MARK_ICONS: Record<MarkKind, string> = { level: '', relic: '💠', talent: '🌿', upgrade: '⬆️', board: '📜', quest: '✔️', event: '❗', shrine: '⛩️', boss: '💀', phase: '⚜️', evolution: '🌟', merchant: '🪙', act: '🚩', stand: '❤️‍🔥', bored: '😴' };
-const MARK_NAMES: Record<MarkKind, string> = { level: 'Level', relic: 'Relic', talent: 'Talent', upgrade: 'Upgrade', board: 'Quest board', quest: 'Quest done', event: 'Event', shrine: 'Shrine', boss: 'Boss slain', phase: 'Boss', evolution: 'Evolution', merchant: 'Merchant', stand: 'Last Stand', act: 'New Act', bored: 'Bored here' };
+const MARK_ICONS: Record<MarkKind, string> = { level: '', relic: '💠', talent: '🌿', upgrade: '⬆️', board: '📜', quest: '✔️', event: '❗', shrine: '⛩️', boss: '💀', phase: '⚜️', evolution: '🌟', merchant: '🪙', route: '🧭', act: '🚩', stand: '❤️‍🔥', bored: '😴' };
+const MARK_NAMES: Record<MarkKind, string> = { level: 'Level', relic: 'Relic', talent: 'Talent', upgrade: 'Upgrade', board: 'Quest board', quest: 'Quest done', event: 'Event', shrine: 'Shrine', boss: 'Boss slain', phase: 'Boss', evolution: 'Evolution', merchant: 'Merchant', route: 'Route', stand: 'Last Stand', act: 'New Act', bored: 'Bored here' };
 
 /** v0.6: one run's timeline: a band per wave (width = how long it took), level-ups as ticks, everything else as icons above it. */
 function timeline(r: RunLog): string {
@@ -812,6 +814,28 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
   }
 }
 
+/**
+ * v0.6: the fork after an Act. Three routes into the next one: an arena, a theme (what the horde will be) and a focus (what the Act pays).
+ * Seeded (logic/routes.ts), so a Daily Trial forks the same way for everyone.
+ */
+export function showRoutes(act: number, routes: Route[], onPick: (i: number) => void): void {
+  const card = (r: Route, i: number) => {
+    const f = ROUTE_FOCUS[r.focus];
+    const theme = r.theme < 0 ? FINAL.theme : ACT_THEMES[r.theme];
+    return `<button class="card panel boon route ${r.focus}" data-pick="${i}"><div class="num">${i + 1}</div><h2>${f.icon} ${f.name}</h2><div class="tag">${ARENAS[r.arena].name}</div>
+      <p><b>${theme.name}</b> — ${theme.desc}</p><p>${f.desc}</p></button>`;
+  };
+  const el = show(`
+    <div class="levelup routes">
+      <h1 class="small">The road forks</h1>
+      <p class="sub">Choose your way into ${actName(act + 1)}</p>
+      <svg class="fork" viewBox="0 0 300 60" aria-hidden="true"><circle cx="150" cy="8" r="6"/><path d="M150 14 L50 58 M150 14 L150 58 M150 14 L250 58"/></svg>
+      <div class="cards">${routes.map(card).join('')}</div>
+    </div>`);
+  click(el, '[data-pick]', (b) => onPick(Number(b.dataset.pick)));
+  numberKeys(el);
+}
+
 export interface MerchantInfo {
   act: number; // the Act that was just cleared
   gold: number;
@@ -820,6 +844,7 @@ export interface MerchantInfo {
   relics: RelicId[];
   tiers: RelicTiers;
   salvage: number; // Rune shards so far
+  mid?: boolean; // v0.6: the Merchant path's visit halfway through an Act
 }
 
 /** Between Acts. Everything here costs run gold, and run gold is what you would otherwise bank for the Keep. */
@@ -836,8 +861,8 @@ export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r
   }).join('');
   const el = show(`
     <div class="levelup merchant">
-      <h1 class="small">${actName(info.act)} is won</h1>
-      <p class="sub">The Merchant waits by the gate. Purse: <b class="goldtext">🪙 ${info.gold}</b>${info.salvage > 0 ? ` · shards: <b>${info.salvage} ◆</b>` : ''} — what you spend here never reaches the Keep.</p>
+      <h1 class="small">${info.mid ? 'The Merchant’s caravan' : `${actName(info.act)} is won`}</h1>
+      <p class="sub">${info.mid ? 'The Merchant path: his caravan has caught up with you.' : 'The Merchant waits by the gate.'} Purse: <b class="goldtext">🪙 ${info.gold}</b>${info.salvage > 0 ? ` · shards: <b>${info.salvage} ◆</b>` : ''} — what you spend here never reaches the Keep.</p>
       <div class="cards">
         ${offer('heal', 'data-heal', 'Field Surgeon', `Heal half your HP (${Math.ceil(info.hp)} / ${Math.round(info.maxHp)}).`, info.hp < info.maxHp)}
         ${(Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, `A random ${r} relic: new, or a tier up for one you carry.`, true)).join('')}

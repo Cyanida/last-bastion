@@ -1,6 +1,7 @@
 import { RUNES } from '../config/economy';
 import { AFFIX_IDS, ELITES } from '../config/elites';
 import { QUEST_BOARD, QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
+import { ROUTES } from '../config/routes';
 import { TREASURES } from '../config/treasures';
 import { sfx } from '../core/audio';
 import { addListener, type GameEvents } from '../core/events';
@@ -192,6 +193,9 @@ export function initQuests(g: Game): void {
   g.pendingBoard = true;
 }
 
+/** v0.6: how many quests the board lets you take (the Pilgrim path, one more). */
+export const questTake = (g: Game): number => QUEST_BOARD.take + (g.route?.focus === 'pilgrim' ? ROUTES.pilgrim.extraQuests : 0);
+
 /** The board's answer: up to QUEST_BOARD.take of the offered quests, by their index on the board (the trial comes free on top). Taking none is fine. */
 export function takeQuests(g: Game, picks: number[]): void {
   const offered = g.quests.filter((q) => q.state === 'offered');
@@ -199,7 +203,7 @@ export function takeQuests(g: Game, picks: number[]): void {
   let taken = 0;
   for (const i of new Set(picks)) {
     const q = offered[i];
-    if (!q || (q.kind !== 'trial' && taken++ >= QUEST_BOARD.take)) continue;
+    if (!q || (q.kind !== 'trial' && taken++ >= questTake(g))) continue;
     q.state = 'active';
     g.quests.push(q);
     HOOKS[q.kind].start(g, q);

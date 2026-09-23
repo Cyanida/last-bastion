@@ -12,7 +12,7 @@ import { createGame, summarizeRun, updateGame, type RunOptions } from '../game';
 import type { RunSummary } from '../logic/save';
 import type { LevelUpOption } from '../logic/upgrades';
 import { chooseAbilityUpgrade } from '../systems/abilities';
-import { merchantBuy, merchantHeal, nextAct } from '../systems/acts';
+import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal } from '../systems/acts';
 import { chooseLevelUp, levelUpOptions } from '../systems/leveling';
 import { resolveRelicOffer } from '../systems/relics';
 import { takeQuests } from '../systems/quests';
@@ -167,7 +167,7 @@ function scoreOption(g: Game, o: LevelUpOption): number {
 /** Resolve every pending choice the way the UI would, without the UI. `variant` picks the ability upgrade branch (0 or 1) and the talent branch. */
 export function botChoose(g: Game, variant = 0): void {
   if (g.pendingShrine) chooseBlessing(g, g.pendingShrine[0]);
-  if (g.pendingBoard) takeQuests(g, [0, 1, QUEST_BOARD.offered]); // the treasure trial, when offered, is the free card after the board's
+  if (g.pendingBoard) takeQuests(g, [...Array(QUEST_BOARD.offered + 1).keys()]); // as many as it may, and the treasure trial (the free card after the board's)
   if (g.pendingShop) {
     // the first ware, and only with plenty of gold to spare
     const first = g.event?.wares[0];
@@ -195,8 +195,9 @@ export function botChoose(g: Game, variant = 0): void {
     // patch up first, then a relic if there is room and money; never hoards for the Keep (it is a yardstick, not a saver)
     if (g.player.hp < g.player.stats.hp * 0.6) merchantHeal(g);
     if (!merchantBuy(g, 'rare')) merchantBuy(g, 'common');
-    nextAct(g);
+    leaveMerchant(g);
   }
+  if (g.pendingRoute) chooseRoute(g, 0); // the first fork: the rolls are seeded, so the sims stay reproducible
   while (g.pendingLevelUps > 0) {
     const options = levelUpOptions(g);
     chooseLevelUp(g, options.reduce((a, b) => (scoreOption(g, b) > scoreOption(g, a) ? b : a)));

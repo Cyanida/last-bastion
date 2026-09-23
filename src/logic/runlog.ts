@@ -6,7 +6,7 @@ import { RUN_LOG } from '../config/game';
  * v0.6 run log: a compact timeline of one run, kept in the save (the last RUN_LOG.keep runs), shown in the Keep's Run History,
  * exported as JSON and read by `npm run sim -- pacing`. Times are run seconds rounded to 0.1.
  */
-export type MarkKind = 'level' | 'relic' | 'talent' | 'upgrade' | 'board' | 'quest' | 'event' | 'shrine' | 'boss' | 'phase' | 'evolution' | 'merchant' | 'act' | 'stand' | 'bored'; // phase: a boss's new phase or objective; stand: the Last Stand
+export type MarkKind = 'level' | 'relic' | 'talent' | 'upgrade' | 'board' | 'quest' | 'event' | 'shrine' | 'boss' | 'phase' | 'evolution' | 'merchant' | 'route' | 'act' | 'stand' | 'bored'; // phase: a boss's new phase or objective; stand: the Last Stand
 export type Mark = [t: number, kind: MarkKind, detail: string];
 /** One per wave, index = wave - 1: when it started, when it was cleared (0 = never), damage taken, seconds with fewer than RUN_LOG.quietBelow enemies alive. */
 export type WaveRow = [start: number, end: number, damage: number, quiet: number];
@@ -50,7 +50,7 @@ export const newRunLog = (): RunLogDraft => ({
   seen: { level: 1, relics: 0, talents: 0, upgrades: 0, utility: 0, quests: 0, events: 0, bosses: 0, act: 1, cleared: 0, board: false, shrine: false, merchant: false },
 });
 
-export const MARK_KINDS: MarkKind[] = ['level', 'relic', 'talent', 'upgrade', 'board', 'quest', 'event', 'shrine', 'boss', 'phase', 'evolution', 'merchant', 'act', 'stand', 'bored'];
+export const MARK_KINDS: MarkKind[] = ['level', 'relic', 'talent', 'upgrade', 'board', 'quest', 'event', 'shrine', 'boss', 'phase', 'evolution', 'merchant', 'route', 'act', 'stand', 'bored'];
 /** What counts as something new happening, for the pacing rule (a boredom mark is the opposite). */
 const BEATS = new Set<MarkKind>(MARK_KINDS.filter((k) => k !== 'bored'));
 

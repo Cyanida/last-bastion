@@ -46,7 +46,7 @@ export function openRegion(g: Game, id: RegionId): void {
   refresh(g);
   const region = regionsOf(g).find((r) => r.id === id);
   const feature = g.features.find((f) => f.wing === id);
-  g.banner = { text: `The gate to ${region?.name ?? id} opens${feature ? ` — ${FEATURES[feature.kind].name}` : ''}`, t: 3 };
+  if (!(g.banner.top && g.banner.t > 0)) g.banner = { text: `The gate to ${region?.name ?? id} opens${feature ? ` — ${FEATURES[feature.kind].name}` : ''}`, t: 3 };
   sfx('wave');
   shake(g, 6);
 }
