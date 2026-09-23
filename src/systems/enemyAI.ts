@@ -366,6 +366,21 @@ export function registerBoss(id: EnemyId, script: (g: Game, e: Enemy, dt: number
 }
 export { pickTarget };
 
+/** v0.6 Oath (Unbowed Crowns): a boss holds at 1 HP, then rises once more with part of its HP back. */
+function secondWind(g: Game, e: Enemy): void {
+  e.hpFloor = Math.max(e.hpFloor, 1);
+  if (e.hp > 1) return;
+  e.hp = Math.round(e.maxHp * e.secondWind);
+  e.secondWind = 0;
+  e.hpFloor = 0;
+  markPhase(g, `${e.def.name} rises again`);
+  g.banner = { text: `${e.def.name} rises again`, t: 2.2 };
+  ring(g, e.x, e.y, 240, HOSTILE, 0.8);
+  burst(g, e.x, e.y, HOSTILE, 50, 320);
+  shake(g, 16);
+  sfx('warn');
+}
+
 function enterPhase(g: Game, e: Enemy, phase: number): void {
   e.phase = phase;
   markPhase(g, `${e.def.name}: phase ${phase}`);
@@ -416,6 +431,7 @@ export function updateEnemies(g: Game, dt: number): void {
       touch(g, e, p);
     } else if (script) script(g, e, dt);
     else runStateMachine(g, e, dt);
+    if (e.secondWind) secondWind(g, e);
     if (!isStunned(e.statuses)) updatePattern(g, e, dt); // v0.6: Act III-IV patterns, and every volley's aim lines
     watchTelegraph(g, e); // v0.6: the perfect dodge
   }

@@ -49,8 +49,8 @@ export function enemyCount(wave: number): number {
 // ---- rules shared by this simple generator and the spawn director (logic/director.ts) ----
 
 /** Non-boss waves from modifierFromWave on sometimes roll a modifier. Consumes rng only when eligible. */
-export function rollModifier(wave: number, rng: Rng): ModifierId | null {
-  if (isBossWave(wave) || wave < WAVES.modifierFromWave || rng() >= WAVES.modifierChance) return null;
+export function rollModifier(wave: number, rng: Rng, chanceMult = 1, from = WAVES.modifierFromWave): ModifierId | null {
+  if (isBossWave(wave) || wave < from || rng() >= WAVES.modifierChance * chanceMult) return null;
   return MODIFIER_IDS[Math.floor(rng() * MODIFIER_IDS.length)];
 }
 

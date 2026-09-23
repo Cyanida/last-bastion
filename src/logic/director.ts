@@ -20,6 +20,8 @@ export interface DirectorInput {
   budgetMult?: number; // curses
   squadMult?: number;
   eliteCommanders?: boolean;
+  modifierChance?: number; // v0.6 Oath: a multiplier
+  modifierFrom?: number; // v0.6 Oath: the first wave that can roll one
 }
 
 export interface SpawnUnit {
@@ -87,7 +89,7 @@ export function directWave(input: DirectorInput): DirectedWave {
   const { wave } = input;
   const rng = waveRng(input.seed, wave);
   const performance = clamp(input.performance ?? 0, -1, 1);
-  const modifier = rollModifier(wave, rng);
+  const modifier = rollModifier(wave, rng, input.modifierChance, input.modifierFrom);
   const boss = bossFor(wave, input.bosses);
   const budget = waveBudget(wave, performance, input.budgetMult ?? 1); // boss waves: enemyCount already shrinks the escort
   let left = budget;

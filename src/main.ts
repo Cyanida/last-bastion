@@ -18,6 +18,7 @@ import { upgradeOptions } from './logic/abilityUpgrades';
 import { lockedArenas, lockedRelics, rewardText, tierKey, unlockedCurses, withAchievements } from './logic/achievements';
 import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from './logic/acts';
 import { curseMultiplier } from './logic/curses';
+import { oathCap } from './logic/oaths';
 import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReroll, merchantSalvage, merchantSell, nextAct } from './systems/acts';
 import { questTake } from './systems/quests';
 import { densestCluster, resolveAim } from './logic/aim';
@@ -139,6 +140,11 @@ function toSelect(): void {
       commit({ ...save, settings: { ...save.settings, arena, tier } });
       toSelect();
     },
+    oath(level) {
+      const max = Math.max(...CLASS_ORDER.map((id) => oathCap(save.wins[id], save.oaths[id])));
+      commit({ ...save, settings: { ...save.settings, oath: Math.max(0, Math.min(max, level)) } });
+      toSelect();
+    },
     palette(id, n) {
       if (n !== 0 && !masteryBonus(save.classes[id].xp).palettes.includes(n) && !save.palettes.includes(n)) return;
       commit({ ...save, settings: { ...save.settings, palettes: { ...save.settings.palettes, [id]: n } } });
@@ -257,6 +263,7 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {})
     daily: d?.date,
     trait: d ? 'none' : save.settings.trait, // the Daily Trial is the same for everyone
     trait2: d ? 'none' : save.settings.trait2,
+    oath: d ? 0 : Math.min(save.settings.oath, oathCap(save.wins[id], save.oaths[id])), // v0.6: a class swears at most one above its highest kept
     accountLevel: accountLevel(CLASS_ORDER.map((c) => save.classes[c].xp)),
     libraryLevel: buildingLevel(save.buildings, 'library'),
     palette: save.settings.palettes[id] ?? 0,
@@ -464,7 +471,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     masteryNext: MASTERY[newRank] ? { name: MASTERY[newRank].name, need: Math.max(0, Math.round(MASTERY[newRank].xp - after.classes[id].xp)) } : null,
     tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[after.tierUnlocked].name : null, earned: checked.earned, title: after.title, slain: g.over,
     seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily, build: buildOf(g),
-    act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id],
+    act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept,
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
   };
 }

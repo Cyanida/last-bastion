@@ -20,6 +20,7 @@ export interface RunLog {
   seed: number;
   daily: string | null;
   curses: string[];
+  oath: number; // v0.6: the Oath level sworn, 0 = a custom run
   trait: string;
   time: number;
   wave: number;
@@ -74,6 +75,7 @@ export function readRunLog(raw: unknown): RunLog | null {
     seed: fin(raw.seed) ? raw.seed : 0,
     daily: typeof raw.daily === 'string' ? raw.daily : null,
     curses: strs(raw.curses),
+    oath: fin(raw.oath) ? raw.oath : 0,
     trait: typeof raw.trait === 'string' ? raw.trait : 'none',
     time: raw.time,
     wave: raw.wave,

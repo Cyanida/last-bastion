@@ -1,3 +1,5 @@
+import { OATHS } from '../config/oaths';
+import { oathReward } from './oaths';
 import { EVOLUTION_IDS, type EvolutionId } from '../config/evolutions';
 import { FEAT_KEYS, type FeatKey } from '../config/achievements';
 import { ARENA_IDS, type ArenaId } from '../config/arenas';
@@ -105,10 +107,11 @@ export interface Save {
   daily: Record<string, number>; // v0.3: 'YYYY-MM-DD' -> best wave in that day's trial
   runs: RunLog[]; // v0.6: the last RUN_LOG.keep runs' timelines, oldest first (Run History)
   wins: Record<ClassId, number>; // v0.6: times each class beat the Usurper
+  oaths: Record<ClassId, number>; // v0.6: the highest Oath each class has kept (won under), 0 = none
   refund: { gold: number; runes: number } | null; // v0.6: what the Keep's rework handed back, shown once in the Keep
   evolutions: EvolutionId[]; // v0.6: evolutions ever taken (the compendium shows their recipes in full)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
-  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; palettes: Partial<Record<ClassId, number>> };
+  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
 }
 
 /** What a finished (or abandoned) run reports. The v0.3 fields are optional so older callers keep working. */
@@ -130,6 +133,7 @@ export interface RunSummary {
   commanders?: number;
   actsCleared?: number;
   curses?: CurseId[];
+  oath?: number; // v0.6: the Oath level sworn, 0 = a custom run
   daily?: string | null; // date of the Daily Trial this run was, if any
   seed?: number;
   levelAtWave?: number[];
@@ -177,8 +181,9 @@ export function defaultSave(): Save {
     refund: null,
     evolutions: [],
     wins: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
+    oaths: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     endless: Object.fromEntries(CLASS_ORDER.map((id) => [id, []])) as unknown as Record<ClassId, EndlessEntry[]>,
-    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', trait2: 'none', palettes: {} },
+    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
   };
 }
 
@@ -248,6 +253,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
     }
     for (const id of CLASS_ORDER) {
       if (isObj(raw.wins)) save.wins[id] = Math.floor(num(raw.wins[id]));
+      if (isObj(raw.oaths)) save.oaths[id] = Math.min(OATHS.length, Math.floor(num(raw.oaths[id])));
       const board = isObj(raw.endless) ? raw.endless[id] : undefined;
       if (Array.isArray(board)) {
         save.endless[id] = board
@@ -268,6 +274,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
         quality: s.quality === 'low' || s.quality === 'high' ? s.quality : 'auto',
         trait: TRAIT_IDS.includes(s.trait as TraitId) ? (s.trait as TraitId) : 'none',
         trait2: TRAIT_IDS.includes(s.trait2 as TraitId) ? (s.trait2 as TraitId) : 'none',
+        oath: Math.max(0, Math.min(OATHS.length, Math.floor(num(s.oath)))),
         palettes: isObj(s.palettes) ? Object.fromEntries(CLASS_ORDER.filter((c) => num((s.palettes as Record<string, unknown>)[c]) > 0).map((c) => [c, Math.floor(num((s.palettes as Record<string, unknown>)[c]))])) : {},
         prerelease: s.prerelease === true,
         curses: Array.isArray(s.curses) ? CURSE_IDS.filter((id) => (s.curses as unknown[]).includes(id)) : [],
@@ -312,7 +319,7 @@ export function buyBuilding(save: Save, id: BuildingId): Save {
 export const today = (): string => new Date().toISOString().slice(0, 10);
 
 /** Fold a run into the save: gold, class XP, records, counters, difficulty unlock. Achievements are evaluated separately. */
-export function applyRun(save: Save, run: RunSummary, date = today(), at = new Date().toISOString()): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number } {
+export function applyRun(save: Save, run: RunSummary, date = today(), at = new Date().toISOString()): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number } {
   const curses = run.curses ?? [];
   const loadout = metaLoadout(save.meta);
   const curseMult = curseMultiplier(curses) + curses.length * loadout.curseBonus;
@@ -320,7 +327,10 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
   const prev = save.classes[run.classId];
   // v0.6: a win pays on top, outside every cap; the first with a class pays the most
   const firstWin = run.won === true && save.wins[run.classId] === 0;
-  const win = { runes: run.won ? VICTORY.win.runes + (firstWin ? VICTORY.firstWin.runes : 0) : 0, gold: firstWin ? VICTORY.firstWin.gold : 0, classXp: run.won ? VICTORY.win.classXp + (firstWin ? VICTORY.firstWin.classXp : 0) : 0 };
+  // ...and so does the first win at a new Oath level (oathKept: that level, 0 = none)
+  const oathKept = run.won && (run.oath ?? 0) > save.oaths[run.classId] ? run.oath! : 0;
+  const oath = oathKept ? oathReward(oathKept) : { runes: 0, gold: 0 };
+  const win = { runes: run.won ? VICTORY.win.runes + (firstWin ? VICTORY.firstWin.runes : 0) + oath.runes : 0, gold: (firstWin ? VICTORY.firstWin.gold : 0) + oath.gold, classXp: run.won ? VICTORY.win.classXp + (firstWin ? VICTORY.firstWin.classXp : 0) : 0 };
   const classXp = Math.round(classXpForRun({ wavesCleared: run.wavesCleared, bosses: run.bosses.length, level: run.level }, TIERS[run.tier]) * curseMult * (1 + (save.meta.classXp ?? 0) * META.classXp.perRank)) + win.classXp;
   const c = save.counters;
   const acts = run.actsCleared ?? 0;
@@ -359,6 +369,7 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
     gold,
     firstWin,
     endlessRank,
+    oathKept,
     save: {
       ...save,
       gold: save.gold + gold,
@@ -377,6 +388,7 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
       daily: run.daily ? { ...save.daily, [run.daily]: Math.max(save.daily[run.daily] ?? 0, run.wave) } : save.daily,
       runs: keepRuns(save.runs, run.log && { ...run.log, at }),
       wins: run.won ? { ...save.wins, [run.classId]: save.wins[run.classId] + 1 } : save.wins,
+      oaths: oathKept ? { ...save.oaths, [run.classId]: oathKept } : save.oaths,
       evolutions: EVOLUTION_IDS.filter((id) => save.evolutions.includes(id) || run.evolutions?.includes(id)),
       endless: { ...save.endless, [run.classId]: board },
       counters: {

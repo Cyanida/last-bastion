@@ -1,3 +1,5 @@
+import { AFFIX_IDS } from '../config/elites';
+import { routeChoices } from '../logic/routes';
 import type { AffixId } from '../config/elites';
 import { ENEMIES, type EnemyId } from '../config/enemies';
 import { MODIFIERS, WAVES } from '../config/waves';
@@ -30,6 +32,12 @@ function edgePoint(g: Game): { x: number; y: number } {
 
 export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = []): Enemy {
   const at = x === undefined || y === undefined ? edgePoint(g) : { x, y };
+  if (affixes.length && affixes.length < g.oath.n.affixes) {
+    // v0.6 Oath (Thrice-Marked): every elite is topped up to three affixes, never the same one twice
+    const pool = AFFIX_IDS.filter((a) => !affixes.includes(a));
+    affixes = [...affixes];
+    while (affixes.length < g.oath.n.affixes && pool.length) affixes.push(pool.splice(Math.floor(g.rng() * pool.length), 1)[0]);
+  }
   const siege = g.route?.focus === 'siege'; // v0.6 Siege path: a tougher Act
   const hp = g.waveHpMult * g.tier.enemyHp * curseValue(g.curses, 'ironHorde', 'hp') * (siege ? ROUTES.siege.hp : 1);
   const e = createEnemy(ENEMIES[id], at.x, at.y, hp, g.waveDmgMult * g.tier.enemyDmg * (siege ? ROUTES.siege.damage : 1), affixes, enemyXpMult(Math.max(1, g.wave)));
@@ -38,6 +46,10 @@ export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes
   e.flankDir = g.rng() < 0.5 ? 1 : -1;
   g.enemies.push(e);
   if (e.def.boss) {
+    // v0.6 Oath: tougher bosses, and bosses that rise once more
+    e.maxHp = e.hp = Math.round(e.hp * g.oath.n.bossHp);
+    e.secondWind = g.oath.n.secondWind;
+    if (e.secondWind) e.hpFloor = 1; // it holds at 1 HP until it rises (enemyAI secondWind)
     g.bossHit = false; // "flawless" is judged per boss
     g.banner = { text: e.def.name, t: 3 };
     sfx('warn');
@@ -77,6 +89,8 @@ function startWave(g: Game): void {
     budgetMult: curseValue(g.curses, 'swarm', 'budget') * pacingBudget(g.wave), // v0.5: breathers and heavy waves (WAVES.pacing)
     squadMult: curseValue(g.curses, 'eliteCommanders', 'squadWeight'),
     eliteCommanders: g.curses.includes('eliteCommanders'),
+    modifierChance: g.oath.n.modifierChance,
+    modifierFrom: g.oath.n.modifierFrom || undefined,
   });
   g.waveHpMult = plan.hpMult;
   g.waveDmgMult = plan.dmgMult;
@@ -156,8 +170,11 @@ export function updateSpawning(g: Game, dt: number): void {
     g.vars.overtime = 0;
     g.vars.stragglers = 0;
     g.breather = !cleared ? 0.01 : curseValue(g.curses, 'noRespite', 'breather', WAVES.breather);
-    if (isActEnd(g.wave)) g.pendingMerchant = true; // the UI (or the bot) visits the Merchant, then picks a route
-    else if (g.route?.focus === 'merchant' && g.wave % ACTS.length === ROUTES.merchant.midWave) (g.pendingMerchant = true), (g.midMerchant = true); // v0.6 Merchant path
+    const noMerchant = g.oath.n.noMerchant === g.act; // v0.6 Oath (Empty Road): no Merchant in this Act, straight on to the fork
+    if (isActEnd(g.wave)) {
+      if (noMerchant) g.pendingRoute = routeChoices(g.seed, g.act, g.arena.id);
+      else g.pendingMerchant = true; // the UI (or the bot) visits the Merchant, then picks a route
+    } else if (g.route?.focus === 'merchant' && g.wave % ACTS.length === ROUTES.merchant.midWave && !noMerchant) (g.pendingMerchant = true), (g.midMerchant = true); // v0.6 Merchant path
     g.wavesCleared = g.wave;
     g.modifier = null;
     // the director's rubber band: how much HP is left, and was the wave cleared quickly

@@ -37,6 +37,8 @@ import { EVOLUTION_IDS, EVOLUTIONS, type EvolutionId } from '../config/evolution
 import { requirementText } from '../logic/evolutions';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
 import { getSprite, SPRITE_PALETTES } from '../render/sprites';
+import { OATHS } from '../config/oaths';
+import { oathCap, oathReward } from '../logic/oaths';
 
 const overlay = () => document.getElementById('overlay')!;
 let stopActions: (() => void) | null = null;
@@ -165,8 +167,12 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
-export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void; trait: (id: TraitId) => void; palette: (id: ClassId, n: number) => void; treasure: (id: ClassId) => void }): void {
+export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void; trait: (id: TraitId) => void; palette: (id: ClassId, n: number) => void; treasure: (id: ClassId) => void; oath: (level: number) => void }): void {
   const locked = lockedArenas(save);
+  // v0.6 Oath ladder: open once any class has won; each class swears at most one above the highest it has kept
+  const oathMax = Math.max(...CLASS_ORDER.map((id) => oathCap(save.wins[id], save.oaths[id])));
+  const oathOf = (id: ClassId) => Math.min(save.settings.oath, oathCap(save.wins[id], save.oaths[id]));
+  const sworn = save.settings.oath > 0 && oathMax > 0;
   const card = (c: ClassDef) => {
     const rec = save.classes[c.id];
     const rank = masteryRank(rec.xp);
@@ -189,6 +195,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       <div class="ability"><b class="gold">${c.ability.name}</b><p>${c.ability.desc}</p></div>
       <div class="ability"><b class="gold">${c.secondary.name}</b><p>${c.secondary.desc}</p></div>
       ${treasure}
+      ${save.wins[c.id] ? `<div class="oath-line">⚜ ${save.oaths[c.id] ? `Oath ${save.oaths[c.id]} kept` : 'No Oath kept yet'}${sworn ? ` · this run: <b>${oathOf(c.id) ? `Oath ${oathOf(c.id)}` : 'custom'}</b>` : ''}</div>` : ''}
       <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
     </button>`;
   };
@@ -208,7 +215,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     const c = CURSES[id];
     const gate = lockedC.includes(id) ? gateOf({ curse: id }) : undefined;
     const tip = gate ? `Locked — ${gate.desc}` : `${c.desc} +${Math.round(c.bonus * 100)}% gold and class XP.`;
-    return `<button class="chip curse ${save.settings.curses.includes(id) ? 'on' : ''}" data-curse="${id}" ${gate ? 'disabled' : ''} data-tip="${tip}">${gate ? '🔒 ' : ''}${c.name}</button>`;
+    return `<button class="chip curse ${save.settings.curses.includes(id) && !sworn ? 'on' : ''}" data-curse="${id}" ${gate || sworn ? 'disabled' : ''} data-tip="${sworn ? 'An Oath brings its own curses. Free curses are for custom runs.' : tip}">${gate ? '🔒 ' : ''}${c.name}</button>`;
   };
   const traitBtn = (id: TraitId) => {
     const t = TRAITS[id];
@@ -230,6 +237,11 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
         <div><span class="label">Seed</span><input id="seed" maxlength="24" placeholder="random" autocomplete="off" spellcheck="false" data-tip="Type a seed from a results screen to replay that run." /></div>
       </div>
       <div class="pickers traits"><div><span class="label">Trait</span>${TRAIT_IDS.map(traitBtn).join('')}</div></div>
+      ${oathMax ? `<div class="pickers oath"><div><span class="label">Oath</span>
+        <button class="chip" data-oath="${save.settings.oath - 1}" ${save.settings.oath <= 0 ? 'disabled' : ''}>−</button>
+        <b class="gold" data-tip="${esc(save.settings.oath ? OATHS.slice(0, save.settings.oath).map((o, i) => `${i + 1}. ${o.name}: ${o.desc}`).join('\n') : 'A custom run: choose your own curses.')}">${save.settings.oath ? `Oath ${save.settings.oath}: ${OATHS[save.settings.oath - 1].name}` : 'No Oath (custom run)'}</b>
+        <button class="chip" data-oath="${save.settings.oath + 1}" ${save.settings.oath >= oathMax ? 'disabled' : ''}>+</button>
+        <span class="hint">${save.settings.oath ? `${OATHS[save.settings.oath - 1].desc} Every Oath below it holds too. A class that has not kept Oath ${save.settings.oath - 1} swears its highest.` : 'Win with a class to swear its first Oath. Every level adds one hardship; keeping one pays.'}</span></div></div>` : ''}
       <div class="cards">${CLASS_ORDER.map((id) => card(CLASSES[id])).join('')}</div>
       <button class="btn" data-back>Back</button>
     </div>`);
@@ -246,6 +258,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   click(el, '[data-class]', (b) => on.pick(b.dataset.class as ClassId, el.querySelector<HTMLInputElement>('#seed')!.value));
   click(el, '[data-curse]', (b) => on.curse(b.dataset.curse as CurseId));
   click(el, '[data-trait]', (b) => on.trait(b.dataset.trait as TraitId));
+  click(el, '[data-oath]', (b) => on.oath(Number(b.dataset.oath)));
   click(el, '[data-arena]', (b) => on.settings(b.dataset.arena as ArenaId, save.settings.tier));
   click(el, '[data-tier]', (b) => on.settings(save.settings.arena, Number(b.dataset.tier)));
   click(el, '[data-back]', on.back);
@@ -763,6 +776,8 @@ export interface RunResult {
   act: number;
   won: boolean; // the Usurper fell in this run
   firstWin: boolean; // ...and it is the class's first win (it pays VICTORY.firstWin)
+  oath: number; // v0.6: the Oath sworn, 0 = a custom run
+  oathKept: number; // the Oath level kept for the first time by this win (it pays oathReward), 0 = none
   wins: number; // the class's wins, this one included
   masteryNext: { name: string; need: number } | null; // the next mastery rank and the class XP still missing
   endless: { score: number; rank: number; board: EndlessEntry[] } | null; // the run went on into Endless
@@ -778,6 +793,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
   const winLine = r.won
     ? `<div class="earned"><span>${r.firstWin ? `First win with the ${r.cls.name}` : `Win ${r.wins} with the ${r.cls.name}`}</span><b>◆ +${VICTORY.win.runes + (r.firstWin ? VICTORY.firstWin.runes : 0)}${r.firstWin ? ` · 🪙 +${VICTORY.firstWin.gold}` : ''} · +${VICTORY.win.classXp + (r.firstWin ? VICTORY.firstWin.classXp : 0)} XP <em>(counted in the totals)</em></b></div>`
     : '';
+  const oathLine = r.oathKept ? `<div class="earned"><span>Oath ${r.oathKept} kept for the first time</span><b>◆ +${oathReward(r.oathKept).runes} · 🪙 +${oathReward(r.oathKept).gold} <em>(counted in the totals)</em></b></div>` : '';
   const board = r.endless
     ? `<h2>Endless · ${r.cls.name}</h2><table class="stats-table endless"><tr><th>#</th><th>Score</th><th>Wave</th><th>Kills</th><th>Time</th></tr>${r.endless.board.map((e, i) => `<tr class="${i + 1 === r.endless!.rank ? 'on' : ''}"><td>${i + 1}</td><td>${e.score}</td><td>${e.wave}</td><td>${e.kills}</td><td>${fmtTime(e.time)}</td></tr>`).join('')}</table>`
     : '';
@@ -788,12 +804,13 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
   const el = show(`
     <div class="panel dialog ${r.won ? 'victory' : ''}">
       <h1 class="small ${r.won && !r.endless ? 'gold' : 'blood'}">${title}</h1>
-      <p class="sub">${r.cls.name}${r.title ? `, <em>${r.title}</em>` : ''} · ${r.tier}${r.newBest ? ' — <span class="gold">new record!</span>' : ''}${deciding ? '<br>Bank the win now, or march on into Endless: waves without end, for a score. Either way the win counts when the run is banked.' : ''}</p>
+      <p class="sub">${r.cls.name}${r.title ? `, <em>${r.title}</em>` : ''} · ${r.tier}${r.oath ? ` · Oath ${r.oath}` : ''}${r.newBest ? ' — <span class="gold">new record!</span>' : ''}${deciding ? '<br>Bank the win now, or march on into Endless: waves without end, for a score. Either way the win counts when the run is banked.' : ''}</p>
       ${deciding ? '<div class="row"><button class="btn big" data-endless>March on into Endless</button><button class="btn big" data-bank>Bank the win</button></div>' : ''}
       <div class="stats wide">
         <div><span>Reached</span><b>${r.endless ? 'Endless · ' : ''}${actName(r.act)} · wave ${r.wave}</b></div>
         ${r.endless ? `<div class="earned"><span>Endless score</span><b>${r.endless.score}${r.endless.rank ? ` · #${r.endless.rank} for the ${r.cls.name}` : ''}</b></div>` : ''}
         ${winLine}
+        ${oathLine}
         <div><span>Enemies slain</span><b>${r.kills}</b></div>
         <div><span>Time survived</span><b>${fmtTime(r.time)}</b></div>
         <div><span>Level</span><b>${r.level}</b></div>

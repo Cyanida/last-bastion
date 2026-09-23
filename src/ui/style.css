@@ -507,3 +507,8 @@ canvas#game { touch-action: none; }
 .boon .banish { position: absolute; top: 6px; right: 8px; width: 24px; height: 24px; line-height: 22px; border-radius: 50%; border: 1px solid #8e1b1b; color: #8e1b1b; font-size: 13px; background: rgba(228, 211, 166, 0.9); cursor: pointer; }
 .boon .banish:hover { background: #8e1b1b; color: #f3ead0; }
 .boon { position: relative; }
+
+/* v0.6 Oath ladder */
+.pickers.oath b { margin: 0 8px; color: #e9c95a; font-family: var(--heading); }
+.pickers.oath .hint { margin-left: 10px; }
+.card .oath-line { font-size: 13px; color: #6b4a12; margin-top: 4px; }

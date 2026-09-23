@@ -1,3 +1,4 @@
+import type { OathStack } from '../logic/oaths';
 import type { AbilityUpgradeId } from '../config/abilityUpgrades';
 import type { ArenaDef, ArenaId } from '../config/arenas';
 import type { CurseId } from '../config/curses';
@@ -182,6 +183,7 @@ export interface Enemy extends Body {
   lastTele: Telegraph | null; // v0.6: the telegraph it had last tick (perfect dodge checks it when it fires)
   pulled: boolean; // v0.6: one of a wave's last stragglers, coming straight at the player (WAVES.stragglers)
   hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
+  secondWind: number; // v0.6 Oath: a boss rises once more from the brink with this fraction of its HP; 0 = none (or spent)
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
   waypoint: { x: number; y: number } | null; // v0.5: the gate to walk to when the player is on another floor (logic/regions waypoint)
   statuses: StatusMap;
@@ -467,6 +469,7 @@ export interface Game {
   talentModsCache: Mods | null; // talent mods folded together; rebuilt when a talent is taken
   trait: TraitId;
   trait2: TraitId; // v0.6: the Second Banner's second trait ('none' without it)
+  oath: OathStack; // v0.6: the Oath sworn for this run (level 0: a custom run, nothing asked)
   banishes: number; // v0.6: Quartermaster's Ledger: level-up cards left to strike from the run
   bannedStats: StatKey[]; // v0.6: stat boons struck from this run's level-ups
   palette: number; // v0.4: the class sprite's colours (mastery unlocks; SPRITE_PALETTES)

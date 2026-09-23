@@ -1,7 +1,8 @@
+import { oathStack, type OathStack } from './logic/oaths';
 import { ARENAS, type ArenaId } from './config/arenas';
 import { CLASSES, type ClassId } from './config/classes';
 import type { CurseId } from './config/curses';
-import { TIERS } from './config/economy';
+import { TIERS, type TierDef } from './config/economy';
 import { ACTS } from './config/acts';
 import { curseMultiplier, curseValue } from './logic/curses';
 import { GAME } from './config/game';
@@ -55,6 +56,7 @@ export interface RunOptions {
   curses?: CurseId[];
   trait?: TraitId; // v0.4 starting trait
   trait2?: TraitId; // v0.6: a second one, with the Second Banner
+  oath?: number; // v0.6: the Oath level sworn (it replaces the free curses)
   palette?: number; // v0.4 sprite palette (must be unlocked by mastery or an achievement)
   palettes?: number[]; // v0.4: palettes unlocked account-wide by achievements, on top of the class's mastery ones
   bonusTalentPoints?: number; // v0.4: permanent talent points from achievements (save.talentPoints)
@@ -71,13 +73,17 @@ export interface RunOptions {
   noRelics?: boolean;
 }
 
+/** The difficulty tier with an Oath's numbers folded in, so every place that reads the tier sees them. */
+const withOath = (t: TierDef, o: OathStack): TierDef => (o.level ? { ...t, enemyHp: t.enemyHp * o.n.hp, enemyDmg: t.enemyDmg * o.n.damage, eliteMult: t.eliteMult * o.n.eliteMult } : t);
+
 export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions = {}): Game {
   const cls = CLASSES[classId];
   const arena = ARENAS[opts.arena ?? 'courtyard'];
   const mastery = masteryBonus(opts.classXp ?? 0);
   const loadout = metaLoadout(opts.meta ?? {});
   const account = accountPerks(opts.accountLevel ?? 0);
-  const curses = [...new Set(opts.curses ?? [])];
+  const oath = oathStack(opts.oath ?? 0);
+  const curses = oath.level > 0 ? oath.curses : [...new Set(opts.curses ?? [])]; // v0.6: an Oath brings its own curses
   const chain = opts.chain && mastery.treasureStep >= 1 ? opts.chain : null;
   const g: Game = {
     player: createPlayer(cls, arena, startingStats(cls.base, opts.meta ?? {}, mastery.secondary)),
@@ -105,7 +111,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     shake: 0,
     pendingLevelUps: 0,
     arena,
-    tier: TIERS[opts.tier ?? 0],
+    tier: withOath(TIERS[opts.tier ?? 0], oath),
     tierIndex: opts.tier ?? 0,
     modifier: null,
     fields: [],
@@ -137,10 +143,11 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     talentModsCache: null,
     trait: 'none',
     trait2: 'none',
+    oath,
     banishes: loadout.banishes,
     bannedStats: [],
     palette: [...mastery.palettes, ...(opts.palettes ?? [])].includes(opts.palette ?? 0) ? opts.palette! : 0,
-    rerolls: FREE_REROLLS + loadout.rerolls + mastery.reroll + account.reroll,
+    rerolls: Math.max(0, FREE_REROLLS + loadout.rerolls + mastery.reroll + account.reroll - oath.n.rerollsLess),
     gold: loadout.gold,
     goldStart: loadout.gold,
     wavesCleared: 0,
@@ -191,7 +198,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     log: newRunLog(),
     victory: 'none',
     victoryKills: 0,
-    lastStand: 'ready',
+    lastStand: oath.n.noLastStand ? 'off' : 'ready',
     evolutions: [],
     prey: null,
     glows: [],
@@ -262,6 +269,7 @@ export function summarizeRun(g: Game): RunSummary {
     seed: g.seed,
     actsCleared: Math.floor(g.wavesCleared / ACTS.length),
     curses: g.curses,
+    oath: g.oath.level,
     daily: g.daily,
     levelAtWave: g.levelAtWave,
     quests: g.questsDone,
