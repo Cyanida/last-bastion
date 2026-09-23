@@ -7,6 +7,7 @@ sprites are pixel grids in code, sound effects and the menu music are WebAudio s
 |---|---|
 | **Browser / phone** | https://cyanida.github.io/last-bastion/ |
 | **Windows** | [Latest release](https://github.com/Cyanida/last-bastion/releases/latest): `last-bastion-Setup-<version>.exe` |
+| Roadmap and progress | [ROADMAP.md](ROADMAP.md) · [Project board](https://github.com/users/Cyanida/projects/2) · the pinned **🔨 Now building** issue · release rules: [RELEASES.md](RELEASES.md) |
 | What changed | [CHANGELOG.md](CHANGELOG.md) (v0.6: a run with an ending, evolutions, routes, Oaths, weekly contracts) · balance targets and simulation results: [BALANCE.md](BALANCE.md) |
 
 ## Play on iPhone (or any phone)
