@@ -13,16 +13,22 @@
  * 60 Hz is 16.7 ms, so a p95 under 20 means at most a few dropped frames in 5 s). CI runners raster in software
  * and are slower than a desktop, so the workflow passes a looser budget.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from 'playwright';
 
 const BUDGET = Number(process.env.PERF_BUDGET_MS ?? 20);
-const PORT = 4179;
+const PORT = Number(process.env.PERF_PORT ?? 4179);
 const SCENARIOS = ['fog', 'bloodMoon', 'usurper'];
 const FRAMES = 300;
 
+// a server already on the port would be measured instead of this build (and pass for it): refuse
+if (await fetch(`http://localhost:${PORT}/`).then(() => true, () => false)) {
+  console.error(`port ${PORT} is already in use: stop that server or set PERF_PORT`);
+  process.exit(1);
+}
 const preview = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', shell: process.platform === 'win32' });
-const stop = () => preview.kill();
+// on Windows the server runs under a shell: killing the shell alone left every run's Vite server behind, so end the whole tree
+const stop = () => (process.platform === 'win32' ? spawnSync('taskkill', ['/pid', String(preview.pid), '/T', '/F'], { stdio: 'ignore' }) : preview.kill()); // sync: it runs in the exit handler
 process.on('exit', stop);
 for (let i = 0; i < 60; i++) {
   try {
@@ -51,10 +57,12 @@ for (const modifier of SCENARIOS) {
     g.player.hp = 1e6;
     g.player.stats.atkSpd = 2;
     g.player.stats.str = 30;
-    for (const id of ['stormPennant', 'powderKeg', 'brimstoneOil', 'frostBrand', 'whetstone', 'echoBell']) g.relics.push(id);
+    // v0.7: a Flame 4-set (Pyre), Storm's Arc, a Frost relic and the Thermal Shock duo: relic hooks, set bonuses and a duo all run
+    Object.assign(g.player.relics, { held: ['brimstoneOil', 'emberheart', 'cinderCharm', 'salamanderScale', 'stormPennant', 'thunderDrum', 'frostBrand'], duos: ['thermalShock'], dirty: true });
+    for (const id of g.player.relics.held) g.player.relics.tiers[id] = 1;
     g.player.upgrades.push('dreadHowl', 'whirlwind', 'frenzy');
     g.baseMods.xp = 0; // no level-ups: a choice screen would pause the sim mid-measurement
-    g.relicPool = []; // no relic offers either
+    g.player.relics.pool = []; // no relic offers either
     const final = modifier === 'usurper';
     if (final) lb.skipTo(4, 40);
     else {
