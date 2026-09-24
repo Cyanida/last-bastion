@@ -8,7 +8,7 @@ sprites are pixel grids in code, sound effects and the music (menus, and a quiet
 | **Browser / phone** | https://cyanida.github.io/last-bastion/ |
 | **Windows** | [Latest release](https://github.com/Cyanida/last-bastion/releases/latest): `last-bastion-Setup-<version>.exe` |
 | Roadmap and progress | [ROADMAP.md](ROADMAP.md) · [Project board](https://github.com/users/Cyanida/projects/2) · the pinned **🔨 Now building** issue · release rules: [RELEASES.md](RELEASES.md) |
-| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.7: relics rebuilt, save backups) · the relic design: [RELICS.md](RELICS.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) |
+| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.7.2: music in every arena, What's new, glossary, test mode, cursed relics, Reforge · v0.7: relics rebuilt, save backups) · the relic design: [RELICS.md](RELICS.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) |
 
 ## Play on iPhone (or any phone)
 
@@ -152,7 +152,7 @@ All of it goes through `src/input/`: devices are mapped to *intents* (move vecto
 
 ## Between runs
 
-The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks (since v0.6 more options than power: a second starting trait, a starting relic choice, level-up banishes); a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium (every relic by family, the set bonuses, and the duo recipes as hints until you form them), the **Sacred Treasures** log, **Run history** (the last 50 runs, each with a timeline of its waves, level-ups, relics, quests, events, bosses and boredom marks, and its build; export as JSON), the **Chronicle** (71 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, music and effects volume, music during runs, updates, save data).
+The Keep is six buildings (Armory, Barracks, Chapel, Library, Treasury, Watchtower) holding the permanent upgrade tracks (since v0.6 more options than power: a second starting trait, a starting relic choice, level-up banishes); a building's level caps its tracks and is raised with gold, **Runes** (from Act bosses, quests, achievements and salvaged relics) and a deed. Class mastery is a 25-rank track with a named unlock at every rank, and the account level (all ranks added up) has milestones at 10 / 25 / 50 / 75 / 100. Also the relic compendium (every relic by family, the set bonuses, and the duo recipes as hints until you form them), the **Sacred Treasures** log, **Run history** (the last 50 runs, each with a timeline of its waves, level-ups, relics, quests, events, bosses and boredom marks, and its build; export as JSON), the **Chronicle** (72 tiered achievements in six categories with rewards and equippable titles, plus statistics), difficulty tiers, and Settings (graphics quality, sound, music and effects volume, music during runs, updates, save data).
 
 ### Save format
 

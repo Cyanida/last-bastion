@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.7.2 — Music & convenience
+
+Quiet music for every arena that builds a little when a fight heats up and never drowns out the effects, plus conveniences: a What's new screen, a glossary in every tooltip, and a hidden test mode. Also cursed relics and the Merchant's Reforge, both building on v0.7's relics.
+
+- **Music during runs**: every arena has its own theme (the Courtyard's harp and flute, the Graveyard's drone and choir, the Great Keep's horns and march drum, the Last Bastion's organ and timpani). The music has four layers: sparse between waves, a base, the tune when the horde swells or you're hurt, and a heavier layer for bosses. Changes land on the bar line. It sits below the effects and ducks briefly under big sounds. Settings: *Music during runs* (on by default) and a separate *Effects* volume.
+- **Stingers**: a short, soft figure in the tune's key when a relic attunes, a set bonus is reached, a duo forms, an ability evolves, or a boss changes phase.
+- **What's new**: the first start of a new version shows what changed, once. The title screen's What's new button shows it again.
+- **Glossary**: game terms in every tooltip (burn, chill, freeze, bleed, poison, curse, evolution, elite, commander, perfect dodge, Last Stand, Oath, attunement, awakened, set bonus, duo, cursed relic) are underlined and explained under the tip. The full list is in the pause menu and the Keep.
+- **Test mode**: tap the version in Settings five times. It starts a run anywhere (champion, arena, Act, wave, level, talents, relics and their tier) that leaves no trace in your save. It also has a music jukebox for every theme, layer and stinger.
+- **Cursed relics**: six very strong relics, each with a curse, and awakening one (tier III) lifts its curse: Hungering Blade, Doom Bell, Scepter of Ruin, Abyssal Eye, Crimson Chalice, Tyrant's Banner. Now and then (at most once an Act) one takes the third card at a wave boss or lair, marked in purple. They belong to no family. New deed: *Cursebearer*, win carrying 1, 2 and 3 of them.
+- **Reforge** at the Merchant: swap a relic for a random other relic of its family, keeping half its attunement (an awakened relic comes back at tier II). Unlike Reroll it keeps your family count.
+- **For developers**: `npm run test:perf` also checks that music plays in every arena and fails on console errors. `SIM_CLASS` runs the sims for one class. The class balance check (#22) continues after this release.
+
 ## v0.7.1 — Fix: the end of a run
 
 A patch for v0.7.0.
