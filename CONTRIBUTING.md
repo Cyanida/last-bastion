@@ -45,6 +45,7 @@ flowchart LR
   I[Issue<br/>anyone files it] --> T[Triage by an agent<br/>labels · milestone · board]
   T --> H{Jesse or main AI<br/>labels it help wanted}
   H -- not yet --> W[Stays an idea<br/>on the roadmap]
+  H -- Jesse skips it --> X[Skipped<br/>off the backlog]
   H -- help wanted --> C[Claim it<br/>🤖 comment · board: In progress]
   C --> B[Branch<br/>name/issue-slug]
   B --> P[Pull request<br/>Fixes #N · ai-proposed<br/>board: In review]

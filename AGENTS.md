@@ -62,6 +62,8 @@ structure:
 - Asking is the label `question-for-jesse`. Use it only when an issue would change a release's scope or the roadmap itself (a new class, a
   new system, dropping something planned), and put the question in your comment.
 - Never set `help wanted`: a milestone is a place on the roadmap, not permission to build. `help wanted` stays with Jesse and the main AI.
+- **Skipped** is Jesse's call: an issue he decides to skip or not do moves to Status **Skipped** on the board, which takes it out of the
+  backlog. It stays on the board, so nobody triages it again. Never set Skipped yourself.
 - The main AI checks every triage and corrects it; Jesse has the final word.
 
 **Comments** start with 🤖 and add facts: steps to reproduce, a run log, a screenshot, a measurement.
@@ -131,7 +133,8 @@ These are the extra duties of the agent that works for the maintainer. A contrib
   - open the next patch milestone for bugs when there are some;
   - fix wrong labels and milestones, and say so in a 🤖 comment.
 
-  Anything that changes a release's scope or the roadmap waits for Jesse's answer on `question-for-jesse`. Set `help wanted` only on issues
+  Anything that changes a release's scope or the roadmap waits for Jesse's answer on `question-for-jesse`. When Jesse says to skip an
+  issue or not do it, set it to **Skipped** (`node scripts/board.mjs set <N> Skipped`), and close it as not planned only if he says so. Set `help wanted` only on issues
   in a milestone that are self-contained, and in the release Jesse wants built next.
 - **Unplanned pull requests** (the issue has no `help wanted`): convert the pull request to a draft, and comment that it waits for the issue
   to be planned. Don't review it yet.
