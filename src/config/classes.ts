@@ -37,6 +37,7 @@ export type AbilityCfg =
       burstPerFaith: number; // +x burst damage multiplier per Faith
       burstKnockback: number;
       minDowntime: number; // v0.7.3 (#53): after the shield, the cooldown lasts at least this × the time it was up
+      earlyBurst: number; // v0.7.4 (#63): detonated at the cast the burst deals this share, rising to 1 when the shield runs out
     })
   | (AbilityBase & {
       id: 'berserkerRage';
@@ -113,7 +114,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     ability: {
       id: 'divineShield',
       name: 'Divine Shield',
-      desc: 'Become invulnerable for a few seconds. When the shield ends it erupts in a holy burst.',
+      desc: 'Become invulnerable for a few seconds. When the shield ends it erupts in a holy burst. Press again to end it early, for a weaker burst.',
       cooldown: 18,
       aura: '#f2d675',
       duration: 3,
@@ -123,6 +124,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       burstPerFaith: 0.1,
       burstKnockback: 420,
       minDowntime: 1, // v0.7.3 (#53): with Sanctuary, Faith, Second Wind and refunds the shield was up most of Act III
+      earlyBurst: 0.5,
     },
   },
   viking: {

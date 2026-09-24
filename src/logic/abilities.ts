@@ -9,6 +9,11 @@ export function divineShield(c: Cfg<'divineShield'>, faith: number) {
   };
 }
 
+/** v0.7.4 (#63): the burst's share when Divine Shield ends after `up` seconds with `left` to go: `early` at the cast, 1 when it runs out. */
+export function shieldBurst(early: number, up: number, left: number): number {
+  return early + (1 - early) * (up + left > 0 ? up / (up + left) : 1);
+}
+
 export function berserkerRage(c: Cfg<'berserkerRage'>, rage: number, hpFrac: number) {
   const k = (1 + rage * c.bonusPerRage) * (1 + (1 - hpFrac) * c.lowHpBonus);
   return {
