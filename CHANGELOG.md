@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.7.4 — Fixes & polish
+
+A small patch before co-op: the Paladin decides when his shield bursts, and the Dragon looks like a dragon.
+
+- **Divine Shield, detonated early**: press the ability again while the shield holds to end it on the spot. The burst is weaker the sooner you set it off: half strength right after the cast, rising to full when the shield would have run out. While the shield is up, the ability slot shows the burst a press would set off. Holding the key down doesn't count, only a new press.
+- **The Dragon**: redrawn from the side, with a horned head on a long neck, a bat wing, a spade tail and clawed legs, so it reads as a dragon and no longer as a crab.
+
 ## v0.7.3 — Fixes & class balance
 
 A patch from the playtests: the Archer can deal with shields and mirrors, the Paladin can't stay shielded forever, and every champion's name fits its card.
