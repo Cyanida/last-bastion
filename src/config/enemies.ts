@@ -243,7 +243,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   },
   // ---- Act bosses: three phases, and they change the arena itself (systems/bosses.ts) ----
   dragon: {
-    ...boss, id: 'dragon', name: 'The Dragon', sprite: 'dragon', behavior: 'support', scale: 5, phases: 3,
+    ...boss, id: 'dragon', name: 'The Dragon', sprite: 'dragon', behavior: 'support', scale: 4, phases: 3, // #68: a bigger sprite (29×18) at 4×, about the old size on screen
     hp: 850, damage: 17, speed: 78, radius: 40, xp: 120,
     range: 250, fireCd: 2.8, projSpeed: 300,
     specialCd: 7.5, windup: 1.3, specialMult: 1.5, zoneRadius: 62, lineZones: 12, lineSpacing: 92, poolLife: 7, poolDps: 6,
