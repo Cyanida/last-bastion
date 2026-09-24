@@ -9,11 +9,16 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 | v0.7.0 | Relic rework | released 2026-09-23 |
 | v0.7.1 | Music & convenience (the results-screen hotfix shipped first as v0.7.1; the rest as v0.7.2) | released 2026-09-24 |
 | v0.7.3 | Fixes & class balance | released 2026-09-24 |
+| v0.7.4 | Fixes & polish | released 2026-09-24 |
 | v0.8.0 | Co-op foundation | backlog |
 | v0.9.0 | Online co-op | backlog |
 | v0.10.0 | Co-op polish | backlog |
 | v1.0.0 | Stable co-op | backlog |
-| 1.x | After 1.0 | ideas |
+| v1.1.0 | Class select & roster | ideas |
+| v1.2.0 | The Keep as a castle | ideas |
+| v1.3.0 | Potions | ideas |
+| v1.4.0 | Hidden subclasses | ideas |
+| 1.x | After 1.0 (inbox, sorted into numbered releases) | ideas |
 
 ## v0.7.0 – Relic rework
 
@@ -77,6 +82,18 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 3. ([#54](https://github.com/Cyanida/last-bastion/issues/54)) "Necromancer" runs off its class card on the class select.
 4. ([#59](https://github.com/Cyanida/last-bastion/issues/59)) The redirect enemy and the shield-block enemy hard-counter the Archer (auto-target keeps shooting the blocker).
 5. ([#22](https://github.com/Cyanida/last-bastion/issues/22)) The class balance check: sim -- deep per class, candidate Necromancer and Archer values (branch `wip/b8-class-values`).
+
+**Out of scope.** New systems (those are feature releases).
+
+## v0.7.4 – Fixes & polish
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/10) · a patch release
+
+**Goal.** Small self-contained fixes and polish before v0.8.0.
+
+**Scope.**
+1. ([#63](https://github.com/Cyanida/last-bastion/issues/63)) The Paladin can detonate Divine Shield early, for a weaker burst.
+2. ([#68](https://github.com/Cyanida/last-bastion/issues/68)) The Dragon redrawn from the side.
 
 **Out of scope.** New systems (those are feature releases).
 
