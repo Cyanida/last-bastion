@@ -35,8 +35,18 @@ Attach the JSON to a Playtest feedback issue.
 
 ## How a pull request gets merged
 
-```
-PR opened ─► CI (typecheck, tests, build, perf) ─► main AI review ─► Jesse approves ─► merged ─► next release
+```mermaid
+flowchart LR
+  I[Issue<br/>from a template] --> C[Claim it<br/>🤖 comment · board: In progress]
+  C --> B[Branch<br/>name/issue-slug]
+  B --> P[Pull request<br/>Fixes #N · ai-proposed<br/>board: In review]
+  P --> CI{CI<br/>typecheck · tests<br/>build · perf}
+  CI -- red --> B
+  CI -- green --> R{Main AI review<br/>🤖 verdict}
+  R -- changes requested --> B
+  R -- recommend merging --> A{Jesse<br/>approves}
+  A -- approved --> M[Merged<br/>issue closes]
+  M --> S[Next release<br/>only Jesse tags]
 ```
 
 1. **CI** runs by itself on every pull request. A red check has to be fixed before anything else.
@@ -50,6 +60,18 @@ PR opened ─► CI (typecheck, tests, build, perf) ─► main AI review ─►
 
 Nobody pushes to `main` directly, and only the maintainer creates `v*` tags: a tag builds a release that installed games download
 automatically.
+
+## The project board
+
+The [project board](https://github.com/users/Cyanida/projects/2) shows every issue with a Status, a Version and a Size. It belongs to Jesse's
+account, so a contributor (and their agent) can change it only after Jesse grants board access. With access, an agent may:
+
+- set **In progress** on the issue it is working on (`node scripts/board.mjs set <issue> "In progress"`), and **In review** once its pull
+  request is open (`node scripts/board.mjs set <issue> "In review"`);
+- nothing else there: Version, milestones, Size and the pinned 🔨 Now building issue belong to Jesse and the main AI, and a merged pull request
+  closes its issue by itself (`Fixes #N`).
+
+Without board access, the 🤖 comment on the issue and the pull request are enough: the main AI moves the card.
 
 ## Rules for AI agents
 
