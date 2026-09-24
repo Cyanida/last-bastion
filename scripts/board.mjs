@@ -5,7 +5,7 @@
 //   node scripts/board.mjs start <issue> "<2-4 line plan>"   In progress, assigned, "Started" comment, status issue rewritten
 //   node scripts/board.mjs finish <issue> <comment-file>     comment, Done, closed, status issue rewritten
 //   node scripts/board.mjs status [--a "..."] [--b "..."] [--tests "..."] [--release "..."]
-//   node scripts/board.mjs version "v1.1.0 – <theme>" [--description "..."]   a release in the Version field, in version order
+//   node scripts/board.mjs sync [--dry-run]                   the Version field follows the milestones (every run of the routine)
 //
 // The status issue is rebuilt from the board (what is In progress, the next Ready item per track, what closed today, what is Blocked);
 // the free-text lines (--a, --b, --tests, --release) are kept from the current body unless given, so the two tracks never overwrite
@@ -57,7 +57,7 @@ function items(p) {
   let after = null;
   do {
     const d = gql(`query($owner:String!,$name:String!,$after:String){ repository(owner:$owner,name:$name){ issues(first:100, after:$after){ pageInfo{ hasNextPage endCursor }
-      nodes{ number title state closedAt url labels(first:20){ nodes{ name } }
+      nodes{ number title state closedAt url milestone{ title } labels(first:20){ nodes{ name } }
         projectItems(first:10){ nodes{ id project{ id }
           fieldValues(first:20){ nodes{ ... on ProjectV2ItemFieldSingleSelectValue { name field{ ... on ProjectV2SingleSelectField { name } } } } } } } } } } }`, { owner, name, after });
     const page = d.repository.issues;
@@ -65,7 +65,7 @@ function items(p) {
       const item = n.projectItems.nodes.find((i) => i.project.id === p.id);
       if (!item) continue;
       const values = Object.fromEntries(item.fieldValues.nodes.filter((v) => v.field).map((v) => [v.field.name, v.name]));
-      out.push({ itemId: item.id, number: n.number, title: n.title, state: n.state, closedAt: n.closedAt, url: n.url, labels: n.labels.nodes.map((l) => l.name), ...values });
+      out.push({ itemId: item.id, number: n.number, title: n.title, state: n.state, closedAt: n.closedAt, url: n.url, milestone: n.milestone?.title ?? null, labels: n.labels.nodes.map((l) => l.name), ...values });
     }
     after = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
   } while (after);
@@ -164,17 +164,39 @@ if (cmd === 'add') {
   writeStatus(args.slice(2));
 } else if (cmd === 'status') {
   writeStatus(args);
-} else if (cmd === 'version') {
-  // Existing options go back with their ids, or every card would lose its Version. Sorted by number; "1.x – After 1.0" has none, so it stays last.
-  const f = project().fields.Version;
-  if (f.options.some((o) => o.name === args[0])) console.log(`"${args[0]}" is already on the board`);
-  else {
-    const num = (o) => o.name.match(/^v(\d+)\.(\d+)\.(\d+)/)?.slice(1).map(Number) ?? [Infinity];
-    const byNumber = (a, b) => num(a).map((x, i) => x - (num(b)[i] ?? 0)).find((d) => d) ?? 0;
-    const options = [...f.options, { name: args[0], color: 'BLUE', description: flag(args, 'description') ?? '' }].sort(byNumber);
-    gql('mutation($f:ID!,$o:[ProjectV2SingleSelectFieldOptionInput!]!){ updateProjectV2Field(input:{fieldId:$f, singleSelectOptions:$o}){ projectV2Field{ ... on ProjectV2SingleSelectField { id } } } }', { f: f.id, o: options });
-    console.log(options.map((o) => o.name).join(' | '));
+} else if (cmd === 'sync') {
+  // The board follows the milestones, whoever created, renamed or moved them: every open milestone (and every closed one that still has
+  // cards) is a Version option, every card's Version is its issue's milestone (none without one), and any other option goes once no card
+  // uses it. Options stay in version order ("1.x – After 1.0" has no number, so it stays last). Existing options go back with their ids,
+  // or every card would lose its Version.
+  const dry = args.includes('--dry-run');
+  let p = project();
+  const cards = items(p);
+  const used = new Set(cards.map((i) => i.milestone));
+  const titles = JSON.parse(gh('api', `repos/${REPO}/milestones?state=all&per_page=100`)).filter((m) => m.state === 'open' || used.has(m.title)).map((m) => m.title);
+  const num = (o) => o.name.match(/^v(\d+)\.(\d+)\.(\d+)/)?.slice(1).map(Number) ?? [Infinity];
+  const byNumber = (a, b) => num(a).map((x, i) => x - (num(b)[i] ?? 0)).find((d) => d) ?? 0;
+  const setOptions = (f, options) =>
+    gql('mutation($f:ID!,$o:[ProjectV2SingleSelectFieldOptionInput!]!){ updateProjectV2Field(input:{fieldId:$f, singleSelectOptions:$o}){ projectV2Field{ ... on ProjectV2SingleSelectField { id } } } }', { f: f.id, o: [...options].sort(byNumber) });
+  const missing = titles.filter((t) => !p.fields.Version.options.some((o) => o.name === t));
+  if (missing.length) {
+    console.log(`Version options added: ${missing.join(', ')}`);
+    if (!dry) setOptions(p.fields.Version, [...p.fields.Version.options, ...missing.map((name) => ({ name, color: 'GRAY', description: '' }))]);
+    if (!dry) p = project();
   }
+  for (const i of cards) {
+    if ((i.Version ?? null) === i.milestone) continue;
+    console.log(`#${i.number}: ${i.Version ?? '-'} -> ${i.milestone ?? '-'}`);
+    if (dry) continue;
+    if (i.milestone) setField(p, i.itemId, 'Version', i.milestone);
+    else gql('mutation($p:ID!,$i:ID!,$f:ID!){ clearProjectV2ItemFieldValue(input:{projectId:$p, itemId:$i, fieldId:$f}){ projectV2Item{ id } } }', { p: p.id, i: i.itemId, f: p.fields.Version.id });
+  }
+  const orphans = p.fields.Version.options.filter((o) => !titles.includes(o.name));
+  if (orphans.length) {
+    console.log(`Version options removed: ${orphans.map((o) => o.name).join(', ')}`);
+    if (!dry) setOptions(p.fields.Version, p.fields.Version.options.filter((o) => titles.includes(o.name)));
+  }
+  if (!missing.length && !orphans.length) console.log('Version options match the milestones');
 } else {
   console.log(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(0, 9).join('\n'));
 }
