@@ -1,0 +1,30 @@
+name: Playtest feedback
+description: How a session went, with the run logs.
+labels: ['playtest']
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: v0.7.3
+    validations:
+      required: true
+  - type: textarea
+    id: runs
+    attributes:
+      label: The runs
+      description: Class, difficulty, how far you got, and how it ended.
+    validations:
+      required: true
+  - type: textarea
+    id: felt
+    attributes:
+      label: What felt good, what felt bad
+      description: Too hard or too easy, boring stretches (press F8 in the moment), classes, relics, anything that surprised you.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Run logs
+      description: Keep → Run history → Export as JSON, then attach the file here.
