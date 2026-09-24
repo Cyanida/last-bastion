@@ -34,10 +34,13 @@ sees it; don't write a design document or an implementation plan unless asked. S
 - **The when is the milestone.** A milestone is a release, named `v<major>.<minor>.<patch> – <theme>`:
   - a feature release has one theme, like `v0.8.0 – Co-op foundation`;
   - a patch holds fixes and balance, like `v0.7.3 – Fixes & class balance`;
-  - `1.x – After 1.0` holds the ideas for after 1.0.
+  - after 1.0 the numbering continues, like `v1.1.0 – <theme>` and `v1.2.0 – <theme>`, in the order the releases will be built;
+  - `1.x – After 1.0` is the inbox for ideas after 1.0 that no numbered release covers yet.
 
-  The board's Version field uses the same names. Only Jesse creates milestones ([RELEASES.md](RELEASES.md) has the numbering rules). When
-  a 1.x idea's time comes, he moves it into a real version.
+  The board's Version field uses the same names, in version order, so the board's "By version" view shows what comes next.
+  - Jesse creates the milestones up to 1.0 ([RELEASES.md](RELEASES.md) has the numbering rules).
+  - The main AI sorts the 1.x inbox into numbered releases after 1.0 (section 7).
+  - Jesse reorders or renames any of them as he likes.
 
 **Triage.** An issue with no milestone and no board card hasn't been triaged. Whichever agent files it or comes across it puts it in the
 structure:
@@ -48,7 +51,8 @@ structure:
    - a bug or a balance problem in the released game: the open patch milestone if there is one. Otherwise no milestone; the main AI groups
      bugs into the next patch.
    - a feature that fits the theme and scope of a planned release (the co-op releases v0.8 to v1.0): that milestone.
-   - any other feature or idea: `1.x – After 1.0`.
+   - any other feature or idea: the numbered release after 1.0 whose theme fits (`v1.N.0 – …`), if there is one. Otherwise
+     `1.x – After 1.0`.
 3. **Board card**, if you have board access: `node scripts/board.mjs add <N> --version "<the milestone's title>" --status Backlog`.
    Without access, the main AI adds it.
 4. **A 🤖 comment**: where you put it and why, in one or two lines.
@@ -56,7 +60,7 @@ structure:
 **Triage limits:**
 
 - Use only milestones and labels that exist. Never create a milestone, a version or a label, and never name a version that isn't on the
-  roadmap.
+  roadmap. The one exception is the main AI's releases after 1.0 (section 7).
 - Never add an issue to the release that is being built right now (the 🔨 Now building issue says which), and never move an issue that
   someone else already placed. Ask instead.
 - Asking is the label `question-for-jesse`. Use it only when an issue would change a release's scope or the roadmap itself (a new class, a
@@ -136,6 +140,17 @@ These are the extra duties of the agent that works for the maintainer. A contrib
   Anything that changes a release's scope or the roadmap waits for Jesse's answer on `question-for-jesse`. When Jesse says to skip an
   issue or not do it, set it to **Skipped** (`node scripts/board.mjs set <N> Skipped`), and close it as not planned only if he says so. Set `help wanted` only on issues
   in a milestone that are self-contained, and in the release Jesse wants built next.
+- **Sort the 1.x inbox** into numbered releases after 1.0, so Jesse can see in what order to set things Ready.
+  - Each release has one theme and is about the size of a v0.7 release (4 to 10 issues). An idea joins the release whose theme fits.
+  - If no release fits, create a new milestone `v1.N.0 – <theme>` with a one-line description: the theme, and why it sits in that place.
+    Put it on the board with `node scripts/board.mjs version "v1.N.0 – <theme>"`, which keeps version order. Its row goes into ROADMAP.md's
+    table in the next release PR.
+  - When you create several releases at once, order them like this:
+    1. what other ideas build on;
+    2. improvements to what exists, before new systems;
+    3. what playtesters asked for most.
+  - After that, a new release goes at the end. Renumbering or reordering existing releases is Jesse's call: suggest it with
+    `question-for-jesse`.
 - **Unplanned pull requests** (the issue has no `help wanted`): convert the pull request to a draft, and comment that it waits for the issue
   to be planned. Don't review it yet.
 - **Reviews**:

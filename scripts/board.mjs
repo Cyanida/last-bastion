@@ -5,6 +5,7 @@
 //   node scripts/board.mjs start <issue> "<2-4 line plan>"   In progress, assigned, "Started" comment, status issue rewritten
 //   node scripts/board.mjs finish <issue> <comment-file>     comment, Done, closed, status issue rewritten
 //   node scripts/board.mjs status [--a "..."] [--b "..."] [--tests "..."] [--release "..."]
+//   node scripts/board.mjs version "v1.1.0 – <theme>" [--description "..."]   a release in the Version field, in version order
 //
 // The status issue is rebuilt from the board (what is In progress, the next Ready item per track, what closed today, what is Blocked);
 // the free-text lines (--a, --b, --tests, --release) are kept from the current body unless given, so the two tracks never overwrite
@@ -39,7 +40,7 @@ const flag = (args, name) => {
 
 function project() {
   const d = gql(`query($login:String!){ user(login:$login){ projectsV2(first:50){ nodes{ id title url
-    fields(first:50){ nodes{ ... on ProjectV2SingleSelectField { id name options{ id name } } } } } } } }`, { login: OWNER });
+    fields(first:50){ nodes{ ... on ProjectV2SingleSelectField { id name options{ id name color description } } } } } } } }`, { login: OWNER });
   const p = d.user.projectsV2.nodes.find((n) => n.title === PROJECT);
   if (!p) throw new Error(`no project "${PROJECT}"`);
   const fields = Object.fromEntries(p.fields.nodes.filter((f) => f.name).map((f) => [f.name, f]));
@@ -163,6 +164,17 @@ if (cmd === 'add') {
   writeStatus(args.slice(2));
 } else if (cmd === 'status') {
   writeStatus(args);
+} else if (cmd === 'version') {
+  // Existing options go back with their ids, or every card would lose its Version. Sorted by number; "1.x – After 1.0" has none, so it stays last.
+  const f = project().fields.Version;
+  if (f.options.some((o) => o.name === args[0])) console.log(`"${args[0]}" is already on the board`);
+  else {
+    const num = (o) => o.name.match(/^v(\d+)\.(\d+)\.(\d+)/)?.slice(1).map(Number) ?? [Infinity];
+    const byNumber = (a, b) => num(a).map((x, i) => x - (num(b)[i] ?? 0)).find((d) => d) ?? 0;
+    const options = [...f.options, { name: args[0], color: 'BLUE', description: flag(args, 'description') ?? '' }].sort(byNumber);
+    gql('mutation($f:ID!,$o:[ProjectV2SingleSelectFieldOptionInput!]!){ updateProjectV2Field(input:{fieldId:$f, singleSelectOptions:$o}){ projectV2Field{ ... on ProjectV2SingleSelectField { id } } } }', { f: f.id, o: options });
+    console.log(options.map((o) => o.name).join(' | '));
+  }
 } else {
   console.log(readFileSync(new URL(import.meta.url), 'utf8').split('\n').slice(0, 9).join('\n'));
 }
