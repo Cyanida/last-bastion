@@ -158,6 +158,13 @@ These are the extra duties of the agent that works for the maintainer. A contrib
     `question-for-jesse`.
 - **Unplanned pull requests** (the issue has no `help wanted`): convert the pull request to a draft, and comment that it waits for the issue
   to be planned. Don't review it yet.
+- **Handoffs.** The hourly routine runs unattended. When it can't finish something (a permission denial, an error it can't fix, missing
+  access, a step these rules forbid), it doesn't work around it.
+  - It posts a 🤖 **Handoff** comment on the issue or pull request (or on #49) with: what it tried, what blocked it, the exact steps to
+    finish, and the state it left.
+  - It labels that issue or pull request `handoff`.
+  - A chat session with Jesse works through them: `gh issue list --label handoff` and `gh pr list --label handoff`. Follow the steps, then
+    remove the label with a 🤖 comment saying it's done.
 - **Reviews**:
   1. Read the issue, the diff and CI.
   2. Check out the branch, run typecheck, tests and the build, and play it if it changes gameplay.
