@@ -9,6 +9,7 @@ import { MODIFIERS } from '../config/waves';
 import { STAT_KEYS, type Enemy, type Game, type Mods, type Quest, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
 import { actName } from '../logic/acts';
+import { shieldBurst } from '../logic/abilities';
 import { duoFamilies, familySets, softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
 import { statLabel } from '../logic/upgrades';
@@ -235,12 +236,15 @@ export function updateHud(g: Game): void {
   $('h-ab-icon').classList.toggle('ready', ready);
   $('h-ab-icon').classList.toggle('active', p.abilityTime > 0);
   $('h-ab-cd').style.height = `${(p.abilityCd / p.abilityCdMax) * 100}%`;
-  text('h-ab-time', ready ? '✦' : p.abilityCd.toFixed(1));
+  // v0.7.4 (#63): while Divine Shield holds, the slot shows the burst a second press would set off
+  const ab = p.cls.ability;
+  const detonate = p.abilityTime > 0 && ab.id === 'divineShield' ? `${Math.round(shieldBurst(ab.earlyBurst, g.vars['shield.up'] ?? 0, p.abilityTime) * 100)}%` : '';
+  text('h-ab-time', detonate || (ready ? '✦' : p.abilityCd.toFixed(1)));
   // the touch ability button mirrors the cooldown, because a thumb covers the HUD panel
   const touchBtn = document.getElementById('btn-ability');
   if (touchBtn) {
     touchBtn.classList.toggle('ready', ready);
-    text('btn-ability-text', ready ? '✦' : p.abilityCd.toFixed(0));
+    text('btn-ability-text', detonate || (ready ? '✦' : p.abilityCd.toFixed(0)));
     $('btn-ability-cd').style.height = `${(p.abilityCd / p.abilityCdMax) * 100}%`;
   }
   // v0.4: the utility ability slot (and its touch button), locked until UTILITY.unlockLevel

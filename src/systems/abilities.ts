@@ -83,6 +83,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const p = g.player;
       activeFor(p, scale.divineShield(c, p.stats.secondary).duration);
       g.vars['shield.up'] = 0;
+      g.vars['shield.burst'] = 1;
       p.invulnerable = true;
       p.absorbed = 0;
       if (has(p, 'secondWind')) healPlayer(g, p.stats.hp * U.secondWind.n.heal);
@@ -115,7 +116,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       g.vars.sanctuary = 0;
       const radius = c.burstRadius * (has(p, 'judgement') ? U.judgement.n.radius : 1);
       const base = scale.divineShield(c, p.stats.secondary).burstDamage;
-      const dmg = attackDamage(base, p.stats.str, p.mods.damage) + (has(p, 'martyr') ? p.absorbed * U.martyr.n.mult : 0);
+      const dmg = (attackDamage(base, p.stats.str, p.mods.damage) + (has(p, 'martyr') ? p.absorbed * U.martyr.n.mult : 0)) * (g.vars['shield.burst'] ?? 1); // v0.7.4 (#63): weaker when detonated early
       for (const e of g.hash.query(p.x, p.y, radius, near)) {
         const a = Math.atan2(e.y - p.y, e.x - p.x);
         damageEnemy(g, e, dmg, false, Math.cos(a) * c.burstKnockback, Math.sin(a) * c.burstKnockback, 'ability', 'holy');
@@ -342,10 +343,18 @@ export function updateAbility(g: Game, dt: number): void {
   const p = g.player;
   const { hook, cfg } = hookFor(p);
   const evo = evolutionHook(g, 'signature'); // v0.6: an evolution adds to the ability, or takes its cast over
+  const pressed = g.input.ability && !g.vars['ability.held']; // a new press, not a held key
+  g.vars['ability.held'] = g.input.ability ? 1 : 0;
   if (p.abilityTime > 0) {
-    p.abilityTime -= dt;
-    hook.tick?.(g, cfg, dt);
-    evo?.tick?.(g, dt);
+    if (pressed && cfg.id === 'divineShield') {
+      // v0.7.4 (#63): pressing again ends Divine Shield now, for a weaker burst
+      g.vars['shield.burst'] = scale.shieldBurst(cfg.earlyBurst, g.vars['shield.up'] ?? 0, p.abilityTime);
+      p.abilityTime = 0;
+    } else {
+      p.abilityTime -= dt;
+      hook.tick?.(g, cfg, dt);
+      evo?.tick?.(g, dt);
+    }
     if (p.abilityTime <= 0) {
       p.abilityTime = 0;
       hook.expire?.(g, cfg);
