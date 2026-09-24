@@ -15,7 +15,7 @@ import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as s
 import { particleBudget, quality, sampleFrame, setQuality } from './core/quality';
 import { loadSave, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
-import { createGame, updateGame } from './game';
+import { createGame } from './game';
 import { banked, createTestRun, isTestRun, type TestSetup } from './systems/testMode';
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
 import { upgradeOptions } from './logic/abilityUpgrades';
@@ -25,7 +25,7 @@ import { curseMultiplier } from './logic/curses';
 import { oathCap } from './logic/oaths';
 import { closestGoals } from './logic/goals';
 import { currentProgress, weekKey, weeklyContracts } from './logic/contracts';
-import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReforge, merchantReroll, merchantSalvage, merchantSell, nextAct, reforgeChoices } from './systems/acts';
+import { nextAct, reforgeChoices } from './systems/acts';
 import { questTake } from './systems/quests';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
@@ -34,9 +34,9 @@ import { buildArena } from './render/arena';
 import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
 import { view as simView } from './sim/view';
-import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
-import { banishOption, chooseLevelUp, levelUpOptions } from './systems/leveling';
-import { relicPreview, relicShares, rerollRelicOffer, resolveRelicOffer, skipRelicOffer, skipReward } from './systems/relics';
+import { applyChoice, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
+import { abilityAimRadius } from './systems/abilities';
+import { relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showTestMode, type TitleInfo } from './ui/screens';
@@ -46,15 +46,12 @@ import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
 import { TRAITS } from './config/traits';
 import { CLASS_ORDER } from './config/classes';
 import { MASTERY } from './config/economy';
-import { spendTalent } from './systems/talents';
-import { chooseBlessing } from './systems/regions';
 import { markBored } from './systems/runlog';
 import { buildState } from './systems/evolutions';
 import { setRecipeBuild } from './ui/relicText';
-import { endlessScore, goEndless } from './systems/victory';
-import { takeQuests } from './systems/quests';
-import { peddlerBuy, peddlerPrice } from './systems/events';
-import { chooseUtilityUpgrade, utilityUpgradeOptions } from './systems/utility';
+import { endlessScore } from './systems/victory';
+import { peddlerPrice } from './systems/events';
+import { utilityUpgradeOptions } from './systems/utility';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
 
@@ -366,27 +363,21 @@ function resume(): void {
   play(); // the loop opens the next queued choice, if any
 }
 
+/** v0.8: a choice screen's answer, as a command for player 0. Applied now: the simulation is paused while a screen is open. */
+const choose = (g: Game, choice: Choice): boolean => applyChoice(g, choice);
+
 function openLevelUp(g: Game): void {
-  let free = g.rerolls;
-  let paid = 0;
-  const offer = (): void => {
-    const p = g.player;
-    const options = levelUpOptions(g);
-    showLevelUp(p.level - g.pendingLevelUps + 1, options, p.cls, p.stats, { free, cost: rerollCost(paid), gold: g.gold }, {
-      pick(o) {
-        chooseLevelUp(g, o);
-        resume();
-      },
-      banish: g.banishes > 0 ? (o) => banishOption(g, o) && offer() : undefined, // v0.6: struck for good, and a fresh hand
-      reroll() {
-        if (free > 0) free--;
-        else if (g.gold >= rerollCost(paid)) g.gold -= rerollCost(paid++);
-        else return;
-        offer();
-      },
-    }, g.player.relics.tiers);
-  };
-  offer();
+  const p = g.player;
+  const hand = levelHand(g);
+  const r = levelRerolls(g);
+  showLevelUp(p.level - g.pendingLevelUps + 1, hand, p.cls, p.stats, { free: r.free, cost: rerollCost(r.paid), gold: g.gold }, {
+    pick(o) {
+      choose(g, { c: 'levelUp', index: hand.indexOf(o) });
+      resume();
+    },
+    banish: g.banishes > 0 ? (o) => choose(g, { c: 'levelBanish', index: hand.indexOf(o) }) && openLevelUp(g) : undefined, // v0.6: struck for good, and a fresh hand
+    reroll: () => void (choose(g, { c: 'levelReroll' }) && openLevelUp(g)),
+  }, p.relics.tiers);
 }
 
 /** Relics first (they are lying on the ground), then ability tiers, a shrine, the quest board, the peddler, then boons. */
@@ -399,7 +390,7 @@ function openChoice(g: Game): void {
     // v0.6: the Usurper fell. The screen shows the run as it would bank now; going on keeps it running into Endless.
     showResults(runResult(g, false), {
       endless() {
-        goEndless(g);
+        choose(g, { c: 'endless' });
         resume();
       },
       bank: () => endRun(g),
@@ -408,36 +399,36 @@ function openChoice(g: Game): void {
   } else if (g.player.relics.offers.length > 0) {
     const p = g.player;
     showRelicOffer(p.relics.offers[0], p.relics.held, p.relics.tiers, { skip: skipReward(g), preview: (id) => relicPreview(p, id) }, {
-      take: (id) => void (resolveRelicOffer(g, id, p), resume()),
-      skip: () => void (skipRelicOffer(g, p), resume()),
-      reroll: () => void (rerollRelicOffer(g, p), openChoice(g)),
+      take: (id) => void (choose(g, { c: 'relicTake', id }), resume()),
+      skip: () => void (choose(g, { c: 'relicSkip' }), resume()),
+      reroll: () => void (choose(g, { c: 'relicReroll' }), openChoice(g)),
     });
   } else if (g.pendingAbilityTiers.length > 0) {
     const tier = g.pendingAbilityTiers[0];
     showAbilityUpgrade(tier, upgradeOptions(g.player.cls.id, tier), g.player.cls, (id) => {
-      if (!chooseAbilityUpgrade(g, id)) g.pendingAbilityTiers.shift(); // never leave the player stuck on a choice that cannot be made
+      choose(g, { c: 'abilityUpgrade', id });
       resume();
     });
   } else if (g.pendingUtilityTiers.length > 0) {
     showUtilityUpgrade(g.pendingUtilityTiers[0], utilityUpgradeOptions(g), g.player.cls, (id) => {
-      if (!chooseUtilityUpgrade(g, id)) g.pendingUtilityTiers.shift();
+      choose(g, { c: 'utilityUpgrade', id });
       resume();
     });
   } else if (g.pendingShrine) {
     showShrine(g.pendingShrine, (id) => {
-      chooseBlessing(g, id);
+      choose(g, { c: 'blessing', id });
       resume();
     });
   } else if (g.pendingBoard) {
     const trial = TREASURES[g.player.cls.id].trial;
     showBoard(g.act, g.quests.filter((q) => q.state === 'offered').map((q) => (q.kind === 'trial' ? { ...q, desc: trial.desc } : q)), questTake(g), (picks) => {
-      takeQuests(g, picks);
+      choose(g, { c: 'quests', picks });
       resume();
     });
   } else if (g.pendingRoute) {
     const routes = g.pendingRoute;
     showRoutes(g.act, routes, (i) => {
-      chooseRoute(g, i);
+      choose(g, { c: 'route', index: i });
       resume();
     });
   } else if (g.pendingShop) openPeddler(g);
@@ -449,10 +440,10 @@ function openChoice(g: Game): void {
 function openPeddler(g: Game): void {
   showPeddler({ stock: g.event?.stock ?? 0, price: peddlerPrice(g), gold: g.gold, hurt: g.player.hp < g.player.stats.hp }, {
     buy() {
-      if (peddlerBuy(g)) openPeddler(g);
+      if (choose(g, { c: 'peddlerBuy' })) openPeddler(g);
     },
     leave() {
-      g.pendingShop = false;
+      choose(g, { c: 'peddlerLeave' });
       resume();
     },
   });
@@ -465,14 +456,14 @@ function openMerchant(g: Game): void {
   showMerchant(
     { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.player.relics.held, tiers: g.player.relics.tiers, attune: g.player.relics.attune, reforgeable: g.player.relics.held.filter((id) => reforgeChoices(g, id).length > 0), salvage: g.salvage, relicsLeft: g.midMerchant ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant },
     {
-      heal: () => again(merchantHeal(g)),
-      buy: (r) => void (merchantBuy(g, r) && openChoice(g)), // v0.7: the pick of three opens, then the Merchant again
-      reroll: (id) => again(merchantReroll(g, id)),
-      reforge: (id) => again(merchantReforge(g, id)), // v0.7.1 B7
-      sell: (id) => again(merchantSell(g, id)),
-      salvage: (id) => again(merchantSalvage(g, id)),
+      heal: () => again(choose(g, { c: 'merchantHeal' })),
+      buy: (rarity) => void (choose(g, { c: 'merchantBuy', rarity }) && openChoice(g)), // v0.7: the pick of three opens, then the Merchant again
+      reroll: (id) => again(choose(g, { c: 'merchantReroll', id })),
+      reforge: (id) => again(choose(g, { c: 'merchantReforge', id })), // v0.7.1 B7
+      sell: (id) => again(choose(g, { c: 'merchantSell', id })),
+      salvage: (id) => again(choose(g, { c: 'merchantSalvage', id })),
       leave() {
-        leaveMerchant(g); // on with the Act, or (v0.6) to the fork in the road
+        choose(g, { c: 'merchantLeave' }); // on with the Act, or (v0.6) to the fork in the road
         resume();
       },
     },
@@ -528,7 +519,7 @@ function bored(): void {
 /** The talent tree, from the pause menu (the game stays paused). */
 function openTalents(g: Game): void {
   showTalents({ classId: g.player.cls.id, taken: g.player.talents, points: g.talentPoints, rowCap: g.talentRowCap, treasure: g.treasure?.id }, {
-    spend: (id) => spendTalent(g, id),
+    spend: (id) => choose(g, { c: 'talent', id }),
     back: () => pauseMenu(g),
   });
 }
@@ -579,8 +570,8 @@ function mute(): void {
 }
 
 // ---------- simulation step ----------
-/** The input layer speaks in intents and screen pixels; this turns them into the game's world-space input. */
-function sampleInput(g: Game): void {
+/** The input layer speaks in intents and screen pixels; this turns them into the game's world-space intent (v0.8: a command, #25). */
+function sampleInput(g: Game): Intent {
   const intent = pollInput();
   const cam = cameraFor(g, view);
   const pxToWorld = view.dpr / view.zoom;
@@ -590,7 +581,7 @@ function sampleInput(g: Game): void {
   const needsAuto = intent.aim.kind !== 'screen' && (intent.ability || intent.showAim);
   const auto = needsAuto ? densestCluster(g.enemies, p, castRange, abilityAimRadius(p) || 120) : null;
   const aim = resolveAim(intent.aim, p, auto, castRange, (x, y) => ({ x: cam.x + x * pxToWorld, y: cam.y + y * pxToWorld }), pxToWorld);
-  g.input = { moveX: intent.moveX, moveY: intent.moveY, aimX: aim.x, aimY: aim.y, ability: intent.ability, utility: intent.utility, showAim: intent.showAim };
+  return { moveX: intent.moveX, moveY: intent.moveY, aimX: aim.x, aimY: aim.y, ability: intent.ability, utility: intent.utility, showAim: intent.showAim };
 }
 
 /**
@@ -633,10 +624,9 @@ function afterStep(g: Game): void {
   }
 }
 
-function step(): void {
+function tick(): void {
   if (state !== 'playing' || !game) return;
-  sampleInput(game);
-  updateGame(game, DT);
+  step(game, [intentCommand(game, sampleInput(game))]);
   afterStep(game);
 }
 
@@ -676,7 +666,7 @@ function frame(now: number): void {
   let steps = 0;
   const t0 = performance.now(); // always measured (not begin()): the dynamic quality needs it with the overlay off
   while (acc >= DT) {
-    if (steps++ < MAX_STEPS) step();
+    if (steps++ < MAX_STEPS) tick();
     acc -= DT;
   }
   const t1 = performance.now();
@@ -785,8 +775,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
         let rendering = 0;
         for (let i = 0; i < frames; i++) {
           const t0 = performance.now();
-          sampleInput(g);
-          updateGame(g, DT);
+          step(g, [intentCommand(g, sampleInput(g))]);
           const t1 = performance.now();
           draw(t1);
           const t2 = performance.now();
@@ -826,8 +815,8 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       /** What the balance bot would do right now. Tests turn this into real touch or key events and step with mode 'input'. */
       botIntent() {
         if (!game) return null;
-        botInput(game);
-        return { moveX: game.input.moveX, moveY: game.input.moveY, ability: game.input.ability };
+        const i = botInput(game);
+        return { moveX: i.moveX, moveY: i.moveY, ability: i.ability };
       },
       draw: () => draw(performance.now()),
       /** Advance n ticks with real UI flow; choice screens are answered by clicking their first option. mode: 'input' reads the real input layer. */
@@ -835,10 +824,8 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
         for (let i = 0; i < n && game && state !== 'results'; i++) {
           if (state === 'choice') (document.querySelector('[data-pick], [data-leave], [data-bank]') as HTMLElement).click(); // v0.6: a win is banked
           if (state !== 'playing') continue;
-          if (mode === 'input') sampleInput(game);
-          else if (mode) botInput(game); // the bot moves and casts, but the real choice screens still open
-          else game.input.ability = ability;
-          updateGame(game, DT);
+          const intent = mode === 'input' ? sampleInput(game) : mode ? botInput(game) : { ...game.input, ability }; // the bot moves and casts, but the real choice screens still open
+          step(game, [intentCommand(game, intent)]);
           afterStep(game);
         }
       },
