@@ -7,11 +7,13 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 |---|---|---|
 | v0.6.0 | A run with an ending | released 2026-09-23 |
 | v0.7.0 | Relic rework | released 2026-09-23 |
-| v0.7.1 | Music & convenience (the results-screen hotfix shipped first as v0.7.1; the rest ships as v0.7.2) | in progress |
+| v0.7.1 | Music & convenience (the results-screen hotfix shipped first as v0.7.1; the rest as v0.7.2) | released 2026-09-24 |
+| v0.7.3 | Fixes & class balance | next |
 | v0.8.0 | Co-op foundation | backlog |
 | v0.9.0 | Online co-op | backlog |
 | v0.10.0 | Co-op polish | backlog |
 | v1.0.0 | Stable co-op | backlog |
+| 1.x | After 1.0 | ideas |
 
 ## v0.7.0 – Relic rework
 
@@ -63,6 +65,21 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 - What's new, the glossary and test mode work; test runs never grant rewards (unit tested).
 - The class spread report is in BALANCE.md; tests and the perf test pass; released with the updater check.
 
+## v0.7.3 – Fixes & class balance
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/8) · a patch release
+
+**Goal.** Fix what playtests found and finish the class balance check.
+
+**Scope.**
+1. ([#52](https://github.com/Cyanida/last-bastion/issues/52)) A crash at wave 22 walking to a merchant (reported on v0.6.0; the Merchant and the peddler changed in v0.7).
+2. ([#53](https://github.com/Cyanida/last-bastion/issues/53)) The Paladin can keep Divine Shield up all the time.
+3. ([#54](https://github.com/Cyanida/last-bastion/issues/54)) "Necromancer" runs off its class card on the class select.
+4. ([#59](https://github.com/Cyanida/last-bastion/issues/59)) The redirect enemy and the shield-block enemy hard-counter the Archer (auto-target keeps shooting the blocker).
+5. ([#22](https://github.com/Cyanida/last-bastion/issues/22)) The class balance check: sim -- deep per class, candidate Necromancer and Archer values (branch `wip/b8-class-values`).
+
+**Out of scope.** New systems (those are feature releases).
+
 ## v0.8.0 – Co-op foundation
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/3) · no networking yet
@@ -77,6 +94,8 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 5. ([#28](https://github.com/Cyanida/last-bastion/issues/28)) Multi-player state: 1-4 players with per-player systems, and a view per local viewpoint.
 6. ([#29](https://github.com/Cyanida/last-bastion/issues/29)) Co-op rules: enemy scaling per player; shared XP with slow-motion level-up picks and a timer; instanced relic drops; downed and revive; per-player rewards and profiles.
 7. ([#30](https://github.com/Cyanida/last-bastion/issues/30)) Bot ally as a real player type.
+
+The goal these build toward: [#1](https://github.com/Cyanida/last-bastion/issues/1) local co-op (two players on one machine).
 8. ([#31](https://github.com/Cyanida/last-bastion/issues/31)) Loopback transport: two windows on one machine with simulated latency and loss.
 
 **Out of scope.** Real networking, lobbies, signaling (0.9).
@@ -96,6 +115,8 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 4. ([#35](https://github.com/Cyanida/last-bastion/issues/35)) Host-authoritative snapshots with delta compression, client-side prediction of your own movement, interpolation of others.
 5. ([#36](https://github.com/Cyanida/last-bastion/issues/36)) A network overlay (ping, loss, snapshot size) in the perf overlay.
 6. ([#37](https://github.com/Cyanida/last-bastion/issues/37)) A network test with players from different homes and networks.
+
+The goal these build toward: [#2](https://github.com/Cyanida/last-bastion/issues/2) online co-op.
 
 **Out of scope.** Host migration and reconnect (0.10 and 1.0), co-op achievements.
 
@@ -131,5 +152,12 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 3. ([#46](https://github.com/Cyanida/last-bastion/issues/46)) The perf budget holds with 4 players and 250 enemies, on desktop and on a recent phone.
 4. ([#47](https://github.com/Cyanida/last-bastion/issues/47)) A crash and desync sweep: a full 4-player run to victory with no desync.
 5. ([#48](https://github.com/Cyanida/last-bastion/issues/48)) Write down the 1.0 scope, and move everything beyond it to 1.x.
+6. ([#60](https://github.com/Cyanida/last-bastion/issues/60)) A tutorial: a mode that introduces mechanics, status effects, relic families and duos one at a time, with a card for each new mechanic (like Kingdom Rush).
 
 **Exit criteria.** Everything in [RELEASES.md](RELEASES.md) under "1.0.0 is released only when".
+
+## 1.x – After 1.0
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/9) · features for 1.X.0 releases, scheduled when their time comes
+
+- ([#58](https://github.com/Cyanida/last-bastion/issues/58)) Subclasses during a run: each class specs into a subclass mid-run, so the same champion plays differently each time.
