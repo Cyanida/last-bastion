@@ -45,6 +45,8 @@ export const ARMOR: Partial<Record<EnemyId, { frac: number; reduction: number; b
   shieldBearer: { frac: 0.3, reduction: 0.5, backBreak: true },
   mirrorKnight: { frac: 0.4, reduction: 0.5 },
 };
+/** v0.7.3 (#59): how much of a blocked (shield bearer) or thrown-back (mirror knight) shot's damage wears the shield or mirror down. */
+export const ARMOR_WEAR = { block: 1, reflect: 0.5 };
 export const BACK_ARC = 1.2; // radians: a hit travelling within this angle of the enemy's facing came from behind
 
 export type StatusId = 'burn' | 'slow' | 'bleed' | 'poison' | 'stun' | 'fear' | 'curse' | 'blessed';
