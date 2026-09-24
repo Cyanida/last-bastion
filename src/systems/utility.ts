@@ -1,5 +1,5 @@
 import { UTILITIES, UTILITY, UTILITY_TRACKS, UTILITY_UPGRADES, type UtilityId, type UtilityUpgradeId } from '../config/utility';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { emit } from '../core/events';
 import type { Enemy, Game, Player } from '../core/types';
 import { addField } from '../entities/hazards';

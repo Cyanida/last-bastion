@@ -352,11 +352,12 @@ export function buyBuilding(save: Save, id: BuildingId): Save {
   return { ...save, gold: save.gold - next.gold, runes: save.runes - next.runes, buildings: { ...save.buildings, [id]: level + 1 } };
 }
 
-/** The date a run is banked on, for the daily caps (local calendar day). */
-export const today = (): string => new Date().toISOString().slice(0, 10);
+/** The date a run is banked on, for the daily caps (local calendar day). The caller reads the clock (#26). */
+export const today = (now: Date): string => now.toISOString().slice(0, 10);
 
-/** Fold a run into the save: gold, class XP, records, counters, difficulty unlock. Achievements are evaluated separately. */
-export function applyRun(save: Save, run: RunSummary, date = today(), at = new Date().toISOString()): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number; contracts: Contract[] } {
+/** Fold a run into the save: gold, class XP, records, counters, difficulty unlock. Achievements are evaluated separately.
+ * The game passes the day and time (testMode's banked); without them (tests) the run is banked on no day. */
+export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number; contracts: Contract[] } {
   const curses = run.curses ?? [];
   const loadout = metaLoadout(save.meta);
   const curseMult = curseMultiplier(curses) + curses.length * loadout.curseBonus;

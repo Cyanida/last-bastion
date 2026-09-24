@@ -3,7 +3,7 @@ import { ARENAS, type ArenaId } from './config/arenas';
 import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
 import { GAME, VIEW } from './config/game';
-import { effectsLevel, initAudio, isMuted, setEffectsLevel, toggleMute } from './core/audio';
+import { effectsLevel, initAudio, isMuted, setEffectsLevel, sfx, toggleMute } from './core/audio';
 import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLevel, setRunMusic, startMenuMusic, stinger, stopMenuMusic } from './core/music';
 import { addListener, type EventName } from './core/events';
 import { moodOf, type Stinger } from './logic/runMusic';
@@ -12,7 +12,7 @@ import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
 import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as setPerfOverlay, summary } from './core/perf';
-import { quality, sampleFrame, setQuality } from './core/quality';
+import { particleBudget, quality, sampleFrame, setQuality } from './core/quality';
 import { loadSave, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
 import { createGame, updateGame } from './game';
@@ -33,6 +33,7 @@ import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from 
 import { buildArena } from './render/arena';
 import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
+import { view as simView } from './sim/view';
 import { abilityAimRadius, chooseAbilityUpgrade } from './systems/abilities';
 import { banishOption, chooseLevelUp, levelUpOptions } from './systems/leveling';
 import { relicPreview, relicShares, rerollRelicOffer, resolveRelicOffer, skipRelicOffer, skipReward } from './systems/relics';
@@ -62,6 +63,8 @@ const STINGERS: Partial<Record<EventName, Stinger>> = { onRelicTier: 'tier', onS
 addListener((g, name) => {
   if (g === game && STINGERS[name]) stinger(STINGERS[name]);
 });
+// v0.8 (#26): the simulation stays pure; this screen gives it sound, the perf timers and the particle budget
+Object.assign(simView, { sfx, begin, end, particleBudget });
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -108,7 +111,7 @@ function menu(): void {
 
 /** v0.6: this week's contracts and how far along they are. */
 function titleContracts() {
-  const week = weekKey(today());
+  const week = weekKey(today(new Date()));
   const progress = currentProgress(save.contracts, week);
   return weeklyContracts(week).map((c, i) => ({ text: c.text, progress: progress[i], target: c.target, runes: c.runes }));
 }
@@ -117,7 +120,7 @@ function toTitle(): void {
   menu();
   onTitle = true;
   showTitle(
-    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 }, title: save.title, contracts: titleContracts(), whatsNew: platform.whatsNew !== null },
+    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(new Date()), best: save.daily[todayString(new Date())] ?? 0 }, title: save.title, contracts: titleContracts(), whatsNew: platform.whatsNew !== null },
     { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings, whatsNew: toWhatsNew },
   );
 }
@@ -148,7 +151,7 @@ function toChronicle(back: () => void): void {
 function toDaily(): void {
   initAudio();
   menu();
-  const setup = dailySetup(todayString());
+  const setup = dailySetup(todayString(new Date()));
   showDaily(setup, save.daily[setup.date] ?? 0, () => startRun(setup.classId, { seed: setup.seed, daily: setup }), toTitle);
 }
 
@@ -509,7 +512,7 @@ function pauseMenu(g: Game): void {
     resume: togglePause,
     quit: () => endRun(g),
     talents: () => openTalents(g),
-    treasures: () => showTreasures(banked(save, g)?.save ?? save, g.player.cls.id, () => pauseMenu(g)), // the log as it would stand if the run ended now
+    treasures: () => showTreasures(banked(save, g, new Date())?.save ?? save, g.player.cls.id, () => pauseMenu(g)), // the log as it would stand if the run ended now
     glossary: () => showGlossary(() => pauseMenu(g)),
     bored: () => markBored(g),
   });
@@ -538,7 +541,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
   const id = g.player.cls.id;
   const prevBest = save.classes[id].bestWave;
   const prevRank = masteryRank(save.classes[id].xp);
-  const result = banked(save, g)!;
+  const result = banked(save, g, new Date())!;
   const checked = commitIt ? { save: result.save, earned: commit(result.save) } : withAchievements(result.save);
   const after = commitIt ? save : checked.save;
   const newRank = masteryRank(after.classes[id].xp);
@@ -551,7 +554,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[after.tierUnlocked].name : null, earned: checked.earned, title: after.title, slain: g.over,
     seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily, build: buildOf(g),
     act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
-    goals: closestGoals(after, id, weekKey(today())),
+    goals: closestGoals(after, id, weekKey(today(new Date()))),
     relicShares: relicShares(g),
     restart: g.daily ? `the Daily Trial ${g.daily}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
@@ -600,7 +603,7 @@ function checkToasts(g: Game): void {
   const key = `${g.wavesCleared}:${g.bossesKilled.length}:${g.questsDone}:${g.eventsSeen}`;
   if (key === lastToastCheck) return;
   lastToastCheck = key;
-  const b = banked(save, g); // v0.7.1: null for a test run, which earns nothing
+  const b = banked(save, g, new Date()); // v0.7.1: null for a test run, which earns nothing
   for (const e of b ? withAchievements(b.save).earned : []) {
     if (toasted.has(tierKey(e.id, e.tier))) continue;
     toasted.add(tierKey(e.id, e.tier));

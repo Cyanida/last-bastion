@@ -1,6 +1,6 @@
 import { ABILITY_UPGRADES, type AbilityUpgradeId } from '../config/abilityUpgrades';
 import type { AbilityId, Cfg } from '../config/classes';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { addListener, dispatch, emit, type Handlers } from '../core/events';
 import { clamp, dist2, TAU } from '../core/math';
 import type { Enemy, Game, Player, Status } from '../core/types';
