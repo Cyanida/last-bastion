@@ -8,7 +8,7 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 | v0.6.0 | A run with an ending | released 2026-09-23 |
 | v0.7.0 | Relic rework | released 2026-09-23 |
 | v0.7.1 | Music & convenience (the results-screen hotfix shipped first as v0.7.1; the rest as v0.7.2) | released 2026-09-24 |
-| v0.7.3 | Fixes & class balance | next |
+| v0.7.3 | Fixes & class balance | released 2026-09-24 |
 | v0.8.0 | Co-op foundation | backlog |
 | v0.9.0 | Online co-op | backlog |
 | v0.10.0 | Co-op polish | backlog |
