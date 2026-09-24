@@ -189,8 +189,8 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Necromancer',
     role: 'Summoner',
     sprite: 'necromancer',
-    base: { hp: 85, str: 3, dex: 4, int: 12, atkSpd: 0.8, moveSpd: 160, secondary: 5 },
-    growth: { hp: 5, str: 0.1, dex: 0.2, int: 1.2, atkSpd: 0.01, moveSpd: 0.5, secondary: 0.25 },
+    base: { hp: 100, str: 3, dex: 4, int: 12, atkSpd: 0.8, moveSpd: 160, secondary: 5 }, // v0.7.2 B8: hp 85 -> 100, hp growth 5 -> 6, 3 skeletons (was 2): the relic rework took its early engine (BALANCE.md)
+    growth: { hp: 6, str: 0.1, dex: 0.2, int: 1.2, atkSpd: 0.01, moveSpd: 0.5, secondary: 0.25 },
     armor: 0,
     regen: 0.5,
     secondary: { name: 'Soul Power', desc: 'More skeletons that hit harder and last longer.' },
@@ -212,7 +212,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       desc: 'Raise skeletons from recently slain enemies. They fight for you and draw enemy attention.',
       cooldown: 8,
       aura: '#7ec8d8',
-      minions: 2,
+      minions: 3,
       minionsPerSoul: 0.25,
       minionDamage: 11,
       damagePerSoul: 0.08,
@@ -228,15 +228,15 @@ export const CLASSES: Record<ClassId, ClassDef> = {
     name: 'Archer',
     role: 'Ranged glass cannon',
     sprite: 'archer',
-    base: { hp: 95, str: 4, dex: 14, int: 4, atkSpd: 2.2, moveSpd: 205, secondary: 5 }, // v0.6: was 80; the fresh Archer died in Act I (BALANCE.md)
-    growth: { hp: 4, str: 0.1, dex: 1.3, int: 0.2, atkSpd: 0.03, moveSpd: 1, secondary: 0 },
+    base: { hp: 105, str: 4, dex: 14, int: 4, atkSpd: 2.2, moveSpd: 205, secondary: 5 }, // v0.6: 80 -> 95, the fresh Archer died in Act I; v0.7.2 B8: 105, hp growth 4 -> 6, arrows 12 -> 13 (BALANCE.md)
+    growth: { hp: 6, str: 0.1, dex: 1.3, int: 0.2, atkSpd: 0.03, moveSpd: 1, secondary: 0 },
     armor: 0,
     regen: 0.3,
     secondary: { name: 'Focus', desc: 'Arrow Volley rains more arrows that pierce more enemies.' },
     attack: {
       kind: 'projectile',
       scaling: 'dex',
-      damage: 12,
+      damage: 13,
       range: 460,
       speed: 780,
       pierce: 1,
