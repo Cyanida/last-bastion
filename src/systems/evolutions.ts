@@ -3,7 +3,7 @@ import type { Cfg } from '../config/classes';
 import { EVOLUTIONS, type EvolutionId, type EvolutionSlot } from '../config/evolutions';
 import { UTILITIES } from '../config/utility';
 import { sfx } from '../core/audio';
-import { addListener, dispatch, type GameEvents, type Handlers } from '../core/events';
+import { addListener, dispatch, emit, type GameEvents, type Handlers } from '../core/events';
 import { TAU } from '../core/math';
 import type { Enemy, Game, Minion } from '../core/types';
 import { createMinion } from '../entities/actors';
@@ -623,6 +623,7 @@ export function evolve(g: Game, id: EvolutionId): void {
   shake(g, 10);
   sfx('levelup');
   markEvolution(g, EVOLUTIONS[id].name);
+  emit(g, 'onEvolved', { id });
 }
 
 /** What the recipe logic (logic/evolutions.ts) needs from a run. */

@@ -1,4 +1,5 @@
-import type { DuoId, RelicId } from '../config/relics';
+import type { EvolutionId } from '../config/evolutions';
+import type { DuoId, FamilyId, RelicId, SetLevel } from '../config/relics';
 import type { DamageSource, Enemy, Game } from './types';
 
 /**
@@ -24,6 +25,10 @@ export interface GameEvents {
   onRelicTier: { id: RelicId; tier: number }; // A4: attunement raised a relic a tier (the hook for the 0.7.1 stinger)
   onWaveCleared: { wave: number };
   onDuoFormed: { id: DuoId }; // A5: a duo was taken (the run log; a stinger in 0.7.1)
+  // v0.7.1: moments the run music marks with a stinger (main.ts listens; the simulation itself stays silent)
+  onSetBonus: { family: FamilyId; level: SetLevel }; // a family's set reached a new level (2, 4, 6)
+  onEvolved: { id: EvolutionId };
+  onBossPhase: { enemy: Enemy; phase: number };
 }
 export type EventName = keyof GameEvents;
 export type Handlers = { [K in EventName]?: (g: Game, ev: GameEvents[K]) => void };

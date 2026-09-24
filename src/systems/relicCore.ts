@@ -163,8 +163,19 @@ export const say = (g: Game, p: Player, text: string, color: string): void => fl
 /** A relic's (or a set bonus's) behaviour: event handlers and a tick, each told which player it belongs to. */
 export type RelicHooks = { [K in EventName]?: (g: Game, ev: GameEvents[K], p: Player) => void } & {
   tick?: (g: Game, dt: number, p: Player) => void;
-  acquire?: (g: Game, p: Player) => void;
+  acquire?: (g: Game, p: Player) => void; // taken, and again at every tier-up
+  remove?: (g: Game, p: Player) => void; // v0.7.1: sold or salvaged (what acquire changed goes back)
 };
+
+/**
+ * A relic that cuts max HP to `frac` (Blood Pact; Crimson Chalice's curse), under its own key: unrounded, so tier-ups, a lifted curse and
+ * removal round-trip exactly.
+ */
+export function cutMaxHp(g: Game, p: Player, key: string, frac: number): void {
+  p.stats.hp = (p.stats.hp / (g.vars[key] ?? 1)) * frac;
+  g.vars[key] = frac;
+  p.hp = Math.min(p.hp, p.stats.hp);
+}
 
 /** Healing from relics passes a soft cap per wave (a share of max HP): sustain relics add up, then each heals less. */
 export function relicHeal(g: Game, p: Player, amount: number, show = false): number {

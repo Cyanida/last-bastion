@@ -11,7 +11,7 @@ import { ACTS } from '../config/acts';
 import { BUILDING_IDS, BUILDINGS, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
 import type { EnemyId } from '../config/enemies';
 import type { QualitySetting } from '../config/game';
-import { DUO_IDS, RELIC_IDS, type DuoId, type RelicId } from '../config/relics';
+import { DUO_IDS, isCursedRelic, RELIC_IDS, type DuoId, type RelicId } from '../config/relics';
 import { duoFamilies, familySets } from './relics';
 import { TRAIT_IDS, type TraitId } from '../config/traits';
 import { TREASURE_RULES } from '../config/treasures';
@@ -100,6 +100,7 @@ export interface Save {
     sixSets: number; // v0.7: runs that completed a family's 6-set
     maxDuos: number; // v0.7: most duos formed in one run
     maxAwakened: number; // v0.7: most relics awakened (tier III) in one run
+    cursedWin: number; // v0.7.1 B6: most cursed relics carried in a won run (an entry, not a format change: older saves read it as 0)
     maxAbilityUpgrades: number;
     fastestWave10: number; // seconds, 0 = never
     bossKinds: EnemyId[];
@@ -187,7 +188,7 @@ export function defaultSave(): Save {
     talentPoints: 0,
     treasures: Object.fromEntries(CLASS_ORDER.map((id) => [id, emptyTreasure()])) as Record<ClassId, TreasureRecord>,
     tierUnlocked: 0,
-    counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, sixSets: 0, maxDuos: 0, maxAwakened: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
+    counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, sixSets: 0, maxDuos: 0, maxAwakened: 0, cursedWin: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
     daily: {},
     runs: [],
     refund: null,
@@ -204,7 +205,7 @@ export function defaultSave(): Save {
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const num = (v: unknown, fallback = 0) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback);
-const NUMERIC_COUNTERS = ['kills', 'bosses', 'elites', 'goldEarned', 'flawlessBosses', 'maxRelics', 'sixSets', 'maxDuos', 'maxAwakened', 'maxAbilityUpgrades', 'fastestWave10', 'commanders', 'actsCleared', 'cursedActs', 'dailies', 'quests', 'events', ...FEAT_KEYS] as const;
+const NUMERIC_COUNTERS = ['kills', 'bosses', 'elites', 'goldEarned', 'flawlessBosses', 'maxRelics', 'sixSets', 'maxDuos', 'maxAwakened', 'cursedWin', 'maxAbilityUpgrades', 'fastestWave10', 'commanders', 'actsCleared', 'cursedActs', 'dailies', 'quests', 'events', ...FEAT_KEYS] as const;
 
 /** v0.7: relics renamed in the rework (their compendium count moves over); every other v0.6 relic that is gone has no successor. */
 const RENAMED_RELICS: Record<string, RelicId> = { echoBell: 'thunderDrum', hawkeyeQuiver: 'galeforceQuiver' };
@@ -447,6 +448,7 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
         sixSets: c.sixSets + (Object.values(familySets(run.relics, duoFamilies(run.duos ?? []))).some((st) => st!.level === 6) ? 1 : 0),
         maxDuos: Math.max(c.maxDuos, run.duos?.length ?? 0),
         maxAwakened: Math.max(c.maxAwakened, Object.values(run.relicTiers ?? {}).filter((t) => t === 3).length),
+        cursedWin: run.won ? Math.max(c.cursedWin, run.relics.filter(isCursedRelic).length) : c.cursedWin,
         maxAbilityUpgrades: Math.max(c.maxAbilityUpgrades, run.abilityUpgrades),
         fastestWave10: run.wave10Time > 0 && (c.fastestWave10 === 0 || run.wave10Time < c.fastestWave10) ? run.wave10Time : c.fastestWave10,
         bossKinds: [...new Set([...c.bossKinds, ...run.bosses])],

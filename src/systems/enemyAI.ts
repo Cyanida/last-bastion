@@ -4,6 +4,7 @@ import type { EnemyId } from '../config/enemies';
 import { MODIFIERS, WAVES } from '../config/waves';
 import { sfx } from '../core/audio';
 import { dist2, TAU } from '../core/math';
+import { emit } from '../core/events';
 import type { Enemy, Game } from '../core/types';
 import { addZone } from '../entities/hazards';
 import { nextState, type AiProfile, type AiState } from '../logic/fsm';
@@ -384,6 +385,7 @@ function secondWind(g: Game, e: Enemy): void {
 function enterPhase(g: Game, e: Enemy, phase: number): void {
   e.phase = phase;
   markPhase(g, `${e.def.name}: phase ${phase}`);
+  emit(g, 'onBossPhase', { enemy: e, phase });
   e.special = Math.min(e.special, 1.2);
   g.banner = { text: `${e.def.name} is enraged`, t: 2.2 };
   ring(g, e.x, e.y, 200, HOSTILE, 0.7);
@@ -410,7 +412,7 @@ export function updateEnemies(g: Game, dt: number): void {
       if (e.phase < phases && e.hp <= e.maxHp * (1 - e.phase / phases)) enterPhase(g, e, e.phase + 1);
     }
 
-    e.speed = e.baseSpeed * moon * (g.vars.enemySpeed ?? 1) * speedFactor(e.statuses) * (enraged(e) ? AFFIXES.enraged.n.speed : 1) * (e.buffT > 0 ? e.buffSpd : 1) * (e.phase >= 2 ? (e.def.p2SpeedMult ?? 1) : 1) * (e.statuses.bleed ? 1 - (g.vars['relic.bleedSlow'] ?? 0) : 1); // v0.7: Butcher's Hook
+    e.speed = e.baseSpeed * moon * (g.vars.enemySpeed ?? 1) * (g.vars['relic.enemySpeed'] ?? 1) * speedFactor(e.statuses) * (enraged(e) ? AFFIXES.enraged.n.speed : 1) * (e.buffT > 0 ? e.buffSpd : 1) * (e.phase >= 2 ? (e.def.p2SpeedMult ?? 1) : 1) * (e.statuses.bleed ? 1 - (g.vars['relic.bleedSlow'] ?? 0) : 1); // v0.7: Butcher's Hook
 
     if (e.shieldMax > 0) {
       e.shieldT -= dt;

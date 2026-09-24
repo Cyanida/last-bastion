@@ -2,7 +2,7 @@ import { GAME } from '../../config/game';
 import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import type { Enemy } from '../../core/types';
 import { applyStatus, damageEnemy, nearestEnemy } from '../combat';
-import { addBleed, attackHit, awakened, bonus, flash, isBleeding, nOf, relicHeal, type RelicHooks, sOf, strength } from '../relicCore';
+import { addBleed, attackHit, awakened, bonus, cutMaxHp, flash, isBleeding, nOf, relicHeal, type RelicHooks, sOf, strength } from '../relicCore';
 
 /**
  * 🩸 Blood (RELICS.md): bleed, and HP for power. Relics open wounds, reward bleeding enemies or turn missing HP into power; the sets add a
@@ -61,12 +61,10 @@ export const BLOOD_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 
   bloodPact: {
     acquire(g, p) {
-      // the cut follows the tier: a tier-up gives the difference back
-      const n = nOf(p, 'bloodPact');
-      const prev = g.vars.bloodPactHp ?? 1;
-      p.stats.hp = (p.stats.hp / prev) * n.hp; // unrounded, so tiers and removal round-trip exactly
-      g.vars.bloodPactHp = n.hp;
-      p.hp = Math.min(p.hp, p.stats.hp);
+      cutMaxHp(g, p, 'bloodPactHp', nOf(p, 'bloodPact').hp); // the cut follows the tier: a tier-up gives the difference back
+    },
+    remove(g, p) {
+      cutMaxHp(g, p, 'bloodPactHp', 1);
     },
     onKill(g, _ev, p) {
       if (awakened(p, 'bloodPact') && p.hp < p.stats.hp * 0.5) relicHeal(g, p, p.stats.hp * 0.01); // Covenant

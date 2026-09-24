@@ -4,6 +4,7 @@ import type { ClassId } from './classes';
 /**
  * v0.7 relics (RELICS.md, approved revision 2): seven families, each with one core mechanic and set bonuses at 2, 4 and 6 relics held.
  * Every relic belongs to one family; class relics (three per class, one in each of its preferred families) are only offered to their class.
+ * v0.7.1 B6: the six cursed relics are the exception: no family, far stronger, with a curse that their awakening lifts (CURSED below).
  * A relic grows by attunement (A4): tier II strengthens its numbers, tier III awakens it (an extra behaviour with its own name).
  * Numbers live here; the behaviour is in systems/relicFamilies/<family>.ts.
  */
@@ -14,7 +15,8 @@ export interface RelicDef {
   name: string;
   rarity: Rarity;
   icon: string;
-  family: FamilyId;
+  family?: FamilyId; // none for a cursed relic
+  cursed?: true; // v0.7.1 B6: a cursed relic (no family; offered by CURSED's rules, never from the pool)
   classId?: ClassId; // a class relic: only offered to this class
   mods?: Partial<Mods>; // a few relics also carry a plain bonus (Blood Pact's damage, Tempest Eye's crit)
   n: Record<string, number>; // tier I numbers, read by the family module
@@ -28,7 +30,7 @@ const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 /** Keeps each relic's numbers typed and its text in sync with them. Tier III (awakened) keeps tier II's numbers. */
 function relic<N extends Record<string, number>>(r: {
-  name: string; rarity: Rarity; icon: string; family: FamilyId; classId?: ClassId; mods?: Partial<Mods>; mods2?: Partial<Mods>;
+  name: string; rarity: Rarity; icon: string; family?: FamilyId; cursed?: true; classId?: ClassId; mods?: Partial<Mods>; mods2?: Partial<Mods>;
   n: N; n2: Partial<N>; awaken: [string, string]; desc: (n: N) => string;
 }): RelicDef {
   const { n2, mods2, awaken, desc, ...rest } = r;
@@ -54,6 +56,16 @@ export const RELIC_MOMENTS = {
   classRelicWeight: 0.5, // A8: class relics come half as often (a straight 6-set in a preferred family needs its class relic)
   duoAt: ['boss', 'lair'] as string[], // A8: the moments that can carry a ready duo (at every moment, duos completed most 6-sets)
   merchantPerVisit: 1, // the Merchant sells one relic moment a visit between Acts (not at the Merchant path's caravan): at most 3 a run
+};
+
+/**
+ * v0.7.1 B6: cursed relics (Jesse on #5: standalone, very rare, very strong, with a risk). They are never in the pool: at a moment in `at`
+ * one takes the third card `chance` of the time, at most once an Act per player. Their awakening lifts the curse. `color`: their purple.
+ */
+export const CURSED = {
+  chance: 0.1,
+  at: ['boss', 'lair'] as string[],
+  color: '#9b59d0',
 };
 
 /** Relic damage has no attack stat behind it, so it grows with character level instead. */
@@ -286,11 +298,28 @@ export const RELICS = {
     awaken: ['Consecrated Steel', "At full armor stacks Divine Shield's burst is 50% larger."], desc: (n) => `When Divine Shield ends you gain an armor stack per ${n.per} Faith.` }),
   ironhide: relic({ name: 'Ironhide', rarity: 'rare', icon: '🐗', family: 'steel', classId: 'viking', n: { every: 2 }, n2: { every: 1.5 },
     awaken: ['Unstoppable', 'During Rage, blocked hits heal 2% of your max HP.'], desc: (n) => `Berserker Rage gives an armor stack every ${n.every} s.` }),
+
+  // ---------------------------------------------------------------- ☠ Cursed (v0.7.1 B6): no family; the awakening lifts the curse
+  hungeringBlade: relic({ name: 'Hungering Blade', rarity: 'legendary', icon: '🗡️', cursed: true, n: { per: 0.02, max: 0.6, starve: 5, bite: 0.06 }, n2: { per: 0.03, max: 0.9 },
+    awaken: ['Sated', 'The curse lifts: it no longer feeds on you.'], desc: (n) => `Every kill this wave adds +${pct(n.per)} damage (up to +${pct(n.max)}). Curse: after ${n.starve} s without a kill it feeds on you, ${pct(n.bite)} of your max HP.` }),
+  doomBell: relic({ name: 'Doom Bell', rarity: 'legendary', icon: '🔔', cursed: true, n: { frac: 0.25, radius: 110, speed: 0.15 }, n2: { frac: 0.35 },
+    awaken: ['Last Toll', 'The curse lifts: the horde no longer hurries.'], desc: (n) => `Every kill tolls: the dead burst for ${pct(n.frac)} of their max HP around them. Curse: the horde hears it and moves ${pct(n.speed)} faster.` }),
+  scepterOfRuin: relic({ name: 'Scepter of Ruin', rarity: 'legendary', icon: '🔱', cursed: true, mods: { cooldown: 0.55 }, mods2: { cooldown: 0.45 }, n: { cut: 0.45, cost: 0.1 }, n2: { cut: 0.55 },
+    awaken: ['Crowned in Ruin', 'The curse lifts: casting no longer costs HP.'], desc: (n) => `Your signature ability's cooldown is ${pct(n.cut)} shorter. Curse: every cast costs ${pct(n.cost)} of your current HP.` }),
+  abyssalEye: relic({ name: 'Abyssal Eye', rarity: 'legendary', icon: '🧿', cursed: true, n: { radius: 220, bonus: 0.4, taken: 0.25 }, n2: { bonus: 0.55 },
+    awaken: ['Unblinking', 'The curse lifts: enemies near you no longer hit harder.'], desc: (n) => `Enemies within ${n.radius} px take ${pct(n.bonus)} more damage from you. Curse: they deal ${pct(n.taken)} more to you.` }),
+  crimsonChalice: relic({ name: 'Crimson Chalice', rarity: 'legendary', icon: '🍷', cursed: true, n: { leech: 0.03, hp: 0.7 }, n2: { leech: 0.045 },
+    awaken: ['Overflowing', 'The curse lifts: your max HP comes back.'], desc: (n) => `${pct(n.leech)} of all the damage you deal heals you (under the relic healing cap). Curse: your max HP is cut to ${pct(n.hp)}.` }),
+  tyrantsBanner: relic({ name: "Tyrant's Banner", rarity: 'legendary', icon: '🏴', cursed: true, n: { per: 0.04, max: 0.6, elites: 1.6 }, n2: { per: 0.06, max: 0.9 },
+    awaken: ['Conqueror', 'The curse lifts: elites come as often as before.'], desc: (n) => `Every elite you slay adds +${pct(n.per)} damage and attack speed for the rest of the run (up to +${pct(n.max)}). Curse: ${pct(n.elites - 1)} more elites.` }),
 };
 
 export type RelicId = keyof typeof RELICS;
 export const RELIC_IDS = Object.keys(RELICS) as RelicId[];
 export const relicDef = (id: RelicId): RelicDef => RELICS[id];
+/** v0.7.1 B6: the cursed relics (no family), and whether a relic is one. */
+export const isCursedRelic = (id: RelicId): boolean => RELICS[id].cursed === true;
+export const CURSED_IDS = RELIC_IDS.filter(isCursedRelic);
 
 /** The numbers of a relic at a tier (1..RELIC_MAX_TIER). Tier III (awakened) keeps tier II's numbers. */
 export function relicN(id: RelicId, tier: number): Record<string, number> {
@@ -341,7 +370,7 @@ export const isDuo = (k: RelicKey): k is DuoId => k in DUOS;
 export const isFamily = (k: RelicKey): k is FamilyId => k in FAMILIES;
 export const keyName = (k: RelicKey): string => (isDuo(k) ? DUOS[k].name : isFamily(k) ? `${FAMILIES[k].name} set` : relicDef(k).name);
 export const keyIcon = (k: RelicKey): string => (isDuo(k) ? DUOS[k].icon : isFamily(k) ? FAMILIES[k].icon : relicDef(k).icon);
-export const keyColor = (k: RelicKey): string => (isDuo(k) ? DUO_COLOR : FAMILIES[isFamily(k) ? k : relicDef(k).family].color);
+export const keyColor = (k: RelicKey): string => (isDuo(k) ? DUO_COLOR : isFamily(k) ? FAMILIES[k].color : relicDef(k).family ? FAMILIES[relicDef(k).family!].color : CURSED.color);
 /** The duo a relic is a source of (every source relic is in exactly one recipe). */
 export const duoOf = (id: RelicId): DuoId | undefined => DUO_IDS.find((d) => DUOS[d].from.includes(id));
 

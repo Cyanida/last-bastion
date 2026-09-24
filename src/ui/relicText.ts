@@ -1,5 +1,5 @@
 import { CLASSES } from '../config/classes';
-import { duoOf, DUOS, FAMILIES, isDuo, isFamily, RELIC_MAX_TIER, relicDef, relicDesc, TIER_NUMERALS, type DuoId, type RelicId, type RelicKey } from '../config/relics';
+import { duoOf, DUOS, FAMILIES, isCursedRelic, isDuo, isFamily, RELIC_MAX_TIER, relicDef, relicDesc, TIER_NUMERALS, type DuoId, type RelicId, type RelicKey } from '../config/relics';
 import { EVOLUTIONS } from '../config/evolutions';
 import { nearlyReady, requirementNames, requirementText, type BuildState } from '../logic/evolutions';
 
@@ -19,14 +19,14 @@ export function recipeLines(what: { relic?: RelicId; talent?: string }): string[
 /** Everything a relic tooltip says: family, rarity, tier, this tier's effect, what attunement brings next, and the evolution recipes. */
 export function relicTip(id: RelicId, tier: number, held: RelicId[] = []): string {
   const r = relicDef(id);
-  const fam = FAMILIES[r.family];
+  const fam = r.family && FAMILIES[r.family];
   const count = held.filter((h) => relicDef(h).family === r.family).length;
-  const lines = [`${r.name} · ${fam.icon} ${fam.name} · ${r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}${tier > 0 ? ` · tier ${TIER_NUMERALS[tier]} of ${TIER_NUMERALS[RELIC_MAX_TIER]}` : ''}`];
+  const lines = [`${r.name} · ${fam ? `${fam.icon} ${fam.name} · ${r.rarity}` : '☠ cursed'}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}${tier > 0 ? ` · tier ${TIER_NUMERALS[tier]} of ${TIER_NUMERALS[RELIC_MAX_TIER]}` : ''}`];
   lines.push(relicDesc(id, Math.max(1, tier)));
   if (tier > 0 && tier < RELIC_MAX_TIER) lines.push('Attunes as it does its work (the bar under it): damage, healing or protection through it, and a little every wave and elite.');
   if (tier < 2) lines.push(`Tier II: ${relicDesc(id, 2)}`);
   if (tier < RELIC_MAX_TIER) lines.push(`Awakens at tier III, ${r.awaken.name}: ${r.awaken.desc}`);
-  lines.push(`${fam.name} (${fam.mechanic}), ${count} held: ${([2, 4, 6] as const).map((n) => `${n} ${fam.sets[n][0]}`).join(' · ')}`);
+  lines.push(fam ? `${fam.name} (${fam.mechanic}), ${count} held: ${([2, 4, 6] as const).map((n) => `${n} ${fam.sets[n][0]}`).join(' · ')}` : 'A cursed relic: no family, so it counts toward no set bonus. Awakening it lifts the curse.');
   const duo = duoOf(id);
   if (duo) lines.push(`Duo: with ${relicDef(DUOS[duo].from.find((s) => s !== id)!).name} it forms ${DUOS[duo].icon} ${DUOS[duo].name}`);
   lines.push(...recipeLines({ relic: id }));
@@ -42,12 +42,15 @@ export function duoTip(id: DuoId): string {
 export const keyTip = (id: RelicKey, tier: number, held: RelicKey[] = []): string =>
   isDuo(id) ? duoTip(id) : isFamily(id) ? `${FAMILIES[id].name} set bonuses: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[id].sets[n][0]}`).join(' · ')}` : relicTip(id, tier, held.filter((k): k is RelicId => !isDuo(k) && !isFamily(k)));
 
+/** v0.7.1 B6: a relic's style: its rarity, or cursed (purple). */
+export const relicClass = (id: RelicId): string => (isCursedRelic(id) ? 'cursed' : relicDef(id).rarity);
+
 export const tierBadge = (tier: number): string => (tier > 1 ? `<i class="tier">${TIER_NUMERALS[tier]}</i>` : '');
 
 /** A relic in a list: icon, name, tier, and the tooltip. */
 export function relicLine(id: RelicId, tier: number, held: RelicId[]): string {
   const r = relicDef(id);
-  return `<span class="relic-line ${r.rarity}" tabindex="0" data-tip="${esc(relicTip(id, tier, held))}">${r.icon} ${r.name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}</span>`;
+  return `<span class="relic-line ${relicClass(id)}" tabindex="0" data-tip="${esc(relicTip(id, tier, held))}">${r.icon} ${r.name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}</span>`;
 }
 
 export const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');

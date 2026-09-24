@@ -3,8 +3,11 @@ import { ARENAS, type ArenaId } from './config/arenas';
 import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
 import { GAME, VIEW } from './config/game';
-import { initAudio, isMuted, toggleMute } from './core/audio';
-import { musicLevel, refreshMusic, setMusicLevel, startMenuMusic, stopMenuMusic } from './core/music';
+import { effectsLevel, initAudio, isMuted, setEffectsLevel, toggleMute } from './core/audio';
+import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLevel, setRunMusic, startMenuMusic, stinger, stopMenuMusic } from './core/music';
+import { addListener, type EventName } from './core/events';
+import { moodOf, type Stinger } from './logic/runMusic';
+import { showWhatsNewNow } from './logic/whatsNew';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
@@ -12,7 +15,8 @@ import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as s
 import { quality, sampleFrame, setQuality } from './core/quality';
 import { loadSave, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
-import { createGame, summarizeRun, updateGame } from './game';
+import { createGame, updateGame } from './game';
+import { banked, createTestRun, isTestRun, type TestSetup } from './systems/testMode';
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
 import { upgradeOptions } from './logic/abilityUpgrades';
 import { lockedArenas, lockedRelics, rewardText, tierKey, unlockedCurses, withAchievements } from './logic/achievements';
@@ -21,11 +25,11 @@ import { curseMultiplier } from './logic/curses';
 import { oathCap } from './logic/oaths';
 import { closestGoals } from './logic/goals';
 import { currentProgress, weekKey, weeklyContracts } from './logic/contracts';
-import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReroll, merchantSalvage, merchantSell, nextAct } from './systems/acts';
+import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReforge, merchantReroll, merchantSalvage, merchantSell, nextAct, reforgeChoices } from './systems/acts';
 import { questTake } from './systems/quests';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
-import { applyRun, buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from './logic/save';
+import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from './logic/save';
 import { buildArena } from './render/arena';
 import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
@@ -34,7 +38,7 @@ import { banishOption, chooseLevelUp, levelUpOptions } from './systems/leveling'
 import { relicPreview, relicShares, rerollRelicOffer, resolveRelicOffer, skipRelicOffer, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showTestMode, type TitleInfo } from './ui/screens';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
@@ -53,6 +57,12 @@ import { chooseUtilityUpgrade, utilityUpgradeOptions } from './systems/utility';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
 
+/** v0.7.1: the moments the run music marks with a stinger. The simulation only emits them; this screen is what plays them. */
+const STINGERS: Partial<Record<EventName, Stinger>> = { onRelicTier: 'tier', onSetBonus: 'set', onDuoFormed: 'duo', onEvolved: 'evolution', onBossPhase: 'phase' };
+addListener((g, name) => {
+  if (g === game && STINGERS[name]) stinger(STINGERS[name]);
+});
+
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 const view: View = { w: 0, h: 0, zoom: 1, dpr: 1 };
@@ -67,6 +77,8 @@ let save: Save = loaded.save;
 let onTitle = false;
 let notice: TitleInfo['notice'] = null; // "new version available", shown on the title screen only
 let updateStatus = 'No check yet.';
+let devMode = new URLSearchParams(location.search).get('dev') === '1'; // v0.7.1 test mode: ?dev=1, or tap the version in Settings five times
+let testSetup: TestSetup = { classId: 'viking', arena: 'courtyard', act: 1, wave: 1, level: 1, talents: [], relics: {} };
 
 const arenaCache = new Map<ArenaId, HTMLCanvasElement>();
 function arenaCanvas(id: ArenaId): HTMLCanvasElement {
@@ -105,9 +117,22 @@ function toTitle(): void {
   menu();
   onTitle = true;
   showTitle(
-    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 }, title: save.title, contracts: titleContracts() },
-    { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings },
+    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(), best: save.daily[todayString()] ?? 0 }, title: save.title, contracts: titleContracts(), whatsNew: platform.whatsNew !== null },
+    { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings, whatsNew: toWhatsNew },
   );
+}
+
+/** v0.7.1: What's new, from the title screen; and once by itself on the first start of a new version (its own localStorage key). */
+function toWhatsNew(): void {
+  menu();
+  showWhatsNew(platform.whatsNew!, toTitle);
+}
+function whatsNewOnce(): void {
+  const key = 'lastbastion.whatsNew';
+  const seen = localStorage.getItem(key);
+  const show = showWhatsNewNow(seen, platform.whatsNew?.version, platform.version, CLASS_ORDER.some((id) => save.classes[id].runs > 0));
+  if (seen !== platform.version) localStorage.setItem(key, platform.version);
+  if (show) toWhatsNew();
 }
 
 /** The Chronicle, from the title screen or the Keep. Equipping a title commits and re-opens it. */
@@ -188,6 +213,7 @@ function toKeep(): void {
     mastery: (id) => showMastery(save, id, toKeep),
     treasures: () => showTreasures(save, null, toKeep),
     history: () => showRunHistory(save.runs, toKeep),
+    glossary: () => showGlossary(toKeep),
     buy(id: MetaId) {
       commit(buyMeta(save, id));
       toKeep();
@@ -204,7 +230,7 @@ function toSettings(): void {
   menu();
   const d = platform.desktop;
   showSettings(
-    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
+    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
     {
       back: toTitle,
       saveData: toSaveDialog,
@@ -222,6 +248,19 @@ function toSettings(): void {
         setMusicLevel(level);
         toSettings();
       },
+      effects(level) {
+        setEffectsLevel(level);
+        toSettings();
+      },
+      runMusic() {
+        setRunMusic(!runMusicOn());
+        toSettings();
+      },
+      dev() {
+        devMode = true;
+        toSettings();
+      },
+      testMode: toTestMode,
       perf() {
         togglePerf();
         toSettings();
@@ -234,6 +273,28 @@ function toSettings(): void {
       },
     },
   );
+}
+
+/** v0.7.1 test mode: start a run anywhere (it never reaches the save: systems/testMode.ts), and the music jukebox. */
+function toTestMode(): void {
+  menu();
+  showTestMode(testSetup, {
+    start(setup) {
+      testSetup = setup;
+      startRun(setup.classId, { test: setup });
+    },
+    play(mood) {
+      initAudio();
+      stopMenuMusic();
+      runMusic(mood, true);
+    },
+    stop() {
+      runMusic(null);
+      startMenuMusic();
+    },
+    sting: stinger,
+    back: toSettings,
+  });
 }
 
 function toSaveDialog(): void {
@@ -259,7 +320,7 @@ function toSaveDialog(): void {
 }
 
 // ---------- run ----------
-function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {}): void {
+function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?: TestSetup } = {}): void {
   initAudio();
   stopMenuMusic();
   clearOverlay();
@@ -268,7 +329,7 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup } = {})
   lastChain = '';
   const d = opts.daily;
   const rec = save.treasures[id];
-  game = createGame(id, opts.seed ?? Date.now() >>> 0, {
+  game = opts.test ? createTestRun(opts.test, opts.seed ?? Date.now() >>> 0) : createGame(id, opts.seed ?? Date.now() >>> 0, {
     arena: d ? d.arena : save.settings.arena,
     tier: d ? 0 : save.settings.tier,
     meta: save.meta,
@@ -330,7 +391,8 @@ function openChoice(g: Game): void {
   state = 'choice';
   setTouchControls(false);
   setRecipeBuild(buildState(g)); // v0.6: relic and talent tooltips point out the missing half of an evolution recipe
-  if (g.victory === 'pending') {
+  if (g.victory === 'pending' && isTestRun(g)) endRun(g); // v0.7.1: no victory screen: it would show what banking pays
+  else if (g.victory === 'pending') {
     // v0.6: the Usurper fell. The screen shows the run as it would bank now; going on keeps it running into Endless.
     showResults(runResult(g, false), {
       endless() {
@@ -398,11 +460,12 @@ function openMerchant(g: Game): void {
   const act = g.act;
   const again = (ok: boolean) => ok && openMerchant(g);
   showMerchant(
-    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.player.relics.held, tiers: g.player.relics.tiers, salvage: g.salvage, relicsLeft: g.midMerchant ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant },
+    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.player.relics.held, tiers: g.player.relics.tiers, attune: g.player.relics.attune, reforgeable: g.player.relics.held.filter((id) => reforgeChoices(g, id).length > 0), salvage: g.salvage, relicsLeft: g.midMerchant ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant },
     {
       heal: () => again(merchantHeal(g)),
       buy: (r) => void (merchantBuy(g, r) && openChoice(g)), // v0.7: the pick of three opens, then the Merchant again
       reroll: (id) => again(merchantReroll(g, id)),
+      reforge: (id) => again(merchantReforge(g, id)), // v0.7.1 B7
       sell: (id) => again(merchantSell(g, id)),
       salvage: (id) => again(merchantSalvage(g, id)),
       leave() {
@@ -446,7 +509,8 @@ function pauseMenu(g: Game): void {
     resume: togglePause,
     quit: () => endRun(g),
     talents: () => openTalents(g),
-    treasures: () => showTreasures(applyRun(save, summarizeRun(g)).save, g.player.cls.id, () => pauseMenu(g)), // the log as it would stand if the run ended now
+    treasures: () => showTreasures(banked(save, g)?.save ?? save, g.player.cls.id, () => pauseMenu(g)), // the log as it would stand if the run ended now
+    glossary: () => showGlossary(() => pauseMenu(g)),
     bored: () => markBored(g),
   });
 }
@@ -468,13 +532,13 @@ function openTalents(g: Game): void {
 
 /**
  * What the results screen shows: the run banked (commitIt), or as it would bank right now (the victory screen, before the player
- * chooses between banking and Endless). Both go through the same applyRun, so the preview is what banking pays.
+ * chooses between banking and Endless). Both go through the same applyRun (banked), so the preview is what banking pays. Never a test run.
  */
 function runResult(g: Game, commitIt: boolean): RunResult {
   const id = g.player.cls.id;
   const prevBest = save.classes[id].bestWave;
   const prevRank = masteryRank(save.classes[id].xp);
-  const result = applyRun(save, summarizeRun(g));
+  const result = banked(save, g)!;
   const checked = commitIt ? { save: result.save, earned: commit(result.save) } : withAchievements(result.save);
   const after = commitIt ? save : checked.save;
   const newRank = masteryRank(after.classes[id].xp);
@@ -499,6 +563,7 @@ const again = (g: Game): void => (g.daily ? toDaily() : startRun(g.player.cls.id
 
 /** Death, "end run", or banking a win: the run is banked. */
 function endRun(g: Game): void {
+  if (isTestRun(g)) return toTestMode(); // v0.7.1: a test run leaves no trace and goes back to where it was set up
   state = 'results';
   setTouchControls(false);
   startMenuMusic();
@@ -535,7 +600,8 @@ function checkToasts(g: Game): void {
   const key = `${g.wavesCleared}:${g.bossesKilled.length}:${g.questsDone}:${g.eventsSeen}`;
   if (key === lastToastCheck) return;
   lastToastCheck = key;
-  for (const e of withAchievements(applyRun(save, summarizeRun(g)).save).earned) {
+  const b = banked(save, g); // v0.7.1: null for a test run, which earns nothing
+  for (const e of b ? withAchievements(b.save).earned : []) {
     if (toasted.has(tierKey(e.id, e.tier))) continue;
     toasted.add(tierKey(e.id, e.tier));
     toast(`${e.def.name} · ${['Bronze', 'Silver', 'Gold'][e.tier - 1]}`, `${e.def.desc} — ${rewardText(e.reward)}`);
@@ -615,6 +681,7 @@ function frame(now: number): void {
   draw(now);
   const t2 = performance.now();
   const g = game;
+  if (g) runMusic(state === 'playing' || state === 'choice' ? moodOf(g) : null); // v0.7.1: paused or over, it fades out
   if (state === 'playing' && g) {
     const before = quality.level;
     sampleFrame(t2 - t0, g.wave); // the work this frame took, not the vsync interval: that is what the detail level reacts to
@@ -679,6 +746,7 @@ if (platform.desktop) {
 if (loaded.restored) setNotice({ text: `Your save could not be read; the backup from ${new Date(loaded.restored.at).toLocaleString()} was loaded instead (the unreadable one is kept as a backup)`, button: 'OK', action: () => setNotice(null) });
 
 toTitle();
+whatsNewOnce();
 requestAnimationFrame(frame);
 
 // Handle for automated smoke and perf tests: drive the sim without real time or real input. Dev builds always; a production build with ?debug.
@@ -696,6 +764,8 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       },
       quality,
       perf,
+      music: musicStats, // v0.7.1
+      stinger, // v0.7.1
       resetPerf: resetHistory,
       perfSummary: summary,
       setPerf: (on: boolean) => setPerfOverlay(on, ctx),

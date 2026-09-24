@@ -209,6 +209,60 @@ holds ~22 relics by wave 40 and takes every duo; A8 measures with the family-fol
 - **Answered on #13 (Jesse): fewer relic moments.** Strongboxes no longer give a relic. 6-sets stay at about 65% of winning runs,
   mostly five pieces plus a duo; counting a duo as half a piece per family is offered for v0.7.1.
 
+## B6 · Cursed relics (v0.7.2)
+
+Jesse on #5: cursed relics are standalone, very rare, very strong, and carry a risk. `CURSED_RELICS` in `systems/relicFamilies/cursed.ts`, numbers
+in `config/relics.ts` (`CURSED`, and the six entries at the end of `RELICS`).
+
+- **No family.** `RelicDef.family` is optional and a cursed relic has none, with `cursed: true` instead. It counts toward no set, feeds no
+  duo, and the family rule of an offer ignores it. Everything that reads a family (tooltips, cards, the compendium, the HUD, the bot)
+  handles "none", and shows a cursed relic in purple (`CURSED.color`).
+- **Offered by their own rule.** Cursed relics are never in the pool. At a wave-boss or lair moment, `CURSED.chance` (10%) of the time and at
+  most once an Act per player (`RelicState.cursedAct`), one not held takes the **third card**. The other cards still follow the family rule.
+  A reroll keeps the cursed card. With about 2.6 such moments an Act, that is roughly one Act in four, or one cursed offer in a full run.
+- **The curse lifts on awakening.** They attune like any relic. Tier II strengthens the effect, and tier III lifts the curse.
+- **A separate deed.** *Cursebearer* (Challenges): win carrying one, two and three cursed relics (title *the Accursed*). It is read from a
+  new counter, `counters.cursedWin`, an entry in the existing counters: the save format stays 6, and an older save reads it as 0. The
+  collection deeds (Curator, Devoted, Nothing Left to Find) count family relics only.
+- **Sims.** The drafting bot takes a cursed relic whenever one is offered.
+
+| Relic | Effect (I → II) | Curse | Awakened (III) |
+|---|---|---|---|
+| 🗡️ Hungering Blade | Every kill this wave: +2% → 3% damage (up to 60% → 90%) | 5 s in a fight without a kill: it takes 6% of your max HP (never below 1) | **Sated** |
+| 🔔 Doom Bell | Every kill tolls: the dead burst for 25% → 35% of their max HP around them | The horde moves 15% faster | **Last Toll** |
+| 🔱 Scepter of Ruin | Signature ability cooldown 45% → 55% shorter | Every cast costs 10% of your current HP (never below 1) | **Crowned in Ruin** |
+| 🧿 Abyssal Eye | Enemies within 220 px take 40% → 55% more damage from your attacks and abilities | Enemies within 220 px deal 25% more to you | **Unblinking** |
+| 🍷 Crimson Chalice | 3% → 4.5% of all the damage you deal heals you (under the relic healing cap) | Max HP cut to 70% (back when it awakens or is sold) | **Overflowing** |
+| 🏴 Tyrant's Banner | Every elite slain: +4% → 6% damage and attack speed for the rest of the run (up to 60% → 90%) | 60% more elites | **Conqueror** |
+
+**Measured.**
+
+*Held from the start.* Fresh saves, the bot, 5 classes × 2 seeds, run to wave 25. Every cursed relic carries a run further than no relic (12.6 waves cleared) or than a strong family relic, Salamander Scale (11.4):
+
+| | Hungering Blade | Doom Bell | Scepter of Ruin | Abyssal Eye | Crimson Chalice | Tyrant's Banner |
+|---|---|---|---|---|---|---|
+| Waves cleared | 16.4 | 16.0 | 17.0 | 15.1 | 17.6 | 17.4 |
+| Share (damage or healing) | 16.5% | 13.1% | not measured (a cooldown cut) | 15.9% | 46.4% of healing | 26.9% |
+
+*In the relic sim* (`sim -- relics 8`, maxed saves; the bot takes every cursed relic it is offered): 20 cursed relics were held at wave 20 across 33 runs. Tyrant's Banner reached 25% from wave 21 on, Crimson Chalice 23% and Hungering Blade 13%. Every A8 target still holds: 6-sets in 41% of winning runs, 1.10 duos, a power index of 2.04. Cursed relics sit above the family band (3-35%) on purpose. The Chalice's 46% share of healing is its lifesteal doing the healing, paid for with 30% of max HP.
+
+## B7 · Reforge at the Merchant (v0.7.2)
+
+Next to Reroll (a random relic of the same rarity, at the same tier), **Reforge** swaps a held relic for a random other relic of **its family**:
+one the player can find and does not hold, weighted by rarity and drawn from the player's relic stream. The new relic keeps **half the
+attunement**. A relic's attunement is (tier − 1) + its bar: 0 for a fresh tier I, 2 once awakened (an awakened relic's bar no longer counts).
+Half of that goes over as tier plus bar (`logic/relics.ts` `halfAttunement`):
+
+| Reforged | Attunement | Half | The new relic |
+|---|---|---|---|
+| Tier I, bar 60% | 0.6 | 0.3 | tier I, 30% |
+| Tier II, empty | 1 | 0.5 | tier I, 50% |
+| Tier II, bar 50% | 1.5 | 0.75 | tier I, 75% |
+| Awakened (III) | 2 | 1 | tier II, empty |
+
+It costs 30 gold (+35% an Act; `MERCHANT.reforge`). A cursed relic has no family, so it cannot be reforged. A duo the old relic fed stays formed,
+as when it is sold. Reroll keeps the tier but not the family; Reforge keeps the family count but halves the attunement.
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown

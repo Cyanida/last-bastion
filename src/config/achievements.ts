@@ -4,7 +4,7 @@ import type { ArenaId } from './arenas';
 import { CLASS_ORDER, type ClassId } from './classes';
 import type { CurseId } from './curses';
 import { BUILDING_IDS, MASTERY, META_IDS, RUNES } from './economy';
-import { RELIC_IDS, type RelicId } from './relics';
+import { CURSED_IDS, isCursedRelic, RELIC_IDS, type RelicId } from './relics';
 import type { TraitId } from './traits';
 
 export type AchievementCategory = 'survival' | 'combat' | 'class' | 'collection' | 'challenges' | 'secrets';
@@ -63,7 +63,7 @@ const classes = (s: Save) => CLASS_ORDER.map((id) => s.classes[id]);
 const bestWave = (s: Save) => Math.max(...classes(s).map((c) => c.bestWave));
 const totalTime = (s: Save) => classes(s).reduce((n, c) => n + c.time, 0);
 const minRank = (s: Save) => Math.min(...classes(s).map((c) => masteryRank(c.xp)));
-const relicPicks = (s: Save) => Object.values(s.relicPicks).map((n) => n ?? 0);
+const relicPicks = (s: Save) => Object.entries(s.relicPicks).filter(([id]) => !isCursedRelic(id as RelicId)).map(([, n]) => n ?? 0); // v0.7.1: cursed relics are a deed of their own
 const top = (xs: number[]) => Math.max(0, ...xs);
 
 export const ACHIEVEMENTS: AchievementDef[] = [
@@ -136,12 +136,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'dailyDevotee', name: 'Faithful Attendance', desc: 'Take the Daily Trial on 5, 15 and 30 different days.', category: 'challenges', tiers: tiers([5, 15, 30]), progress: (s) => Object.keys(s.daily).length },
   { id: 'errant', name: 'Errant', desc: 'Complete 5, 25 and 100 side quests.', category: 'challenges', tiers: tiers([5, 25, 100], { 3: { title: 'the Errant' } }), progress: (s) => s.counters.quests },
   { id: 'worldly', name: 'Worldly', desc: 'Come upon 5, 20 and 60 wave events.', category: 'challenges', tiers: tiers([5, 20, 60], { 3: { title: 'the Well-Travelled' } }), progress: (s) => s.counters.events },
+  { id: 'cursebearer', name: 'Cursebearer', desc: 'Win a run carrying one, two and three cursed relics.', category: 'challenges', tiers: tiers([1, 2, 3], { 3: { title: 'the Accursed' } }), progress: (s) => s.counters.cursedWin }, // v0.7.1 B6
   { id: 'deeds', name: 'Chronicler', desc: 'Earn 20, 40 and 70 deeds.', category: 'challenges', tiers: tiers([20, 40, 70], { 3: { title: 'the Chronicler' } }), progress: (s) => s.achievements.length },
 
   // ---------------------------------------------------------------- secrets (hidden until earned)
   { id: 'shardMiser', name: 'Chaff and Dust', desc: 'Hold nine Rune shards at once — one short of a Rune.', category: 'secrets', hidden: true, hint: 'Something glitters in the dust.', tiers: tiers([RUNES.shardsPerRune - 1]), progress: (s) => s.runeShards },
   { id: 'speedDemon', name: 'Ahead of the Horde', desc: 'Reach wave 10 in under three minutes.', category: 'secrets', hidden: true, hint: 'Faster than the horde can march.', tiers: tiers([1], { 1: { title: 'the Fleet' } }), progress: (s) => (s.counters.fastestWave10 > 0 && s.counters.fastestWave10 <= 180 ? 1 : 0) },
-  { id: 'relicLord', name: 'Nothing Left to Find', desc: 'Discover every relic in the compendium.', category: 'secrets', hidden: true, hint: 'Every last one of them.', tiers: tiers([RELIC_IDS.length], { 1: { title: 'the Reliquary' } }), progress: (s) => relicPicks(s).filter((n) => n > 0).length },
+  { id: 'relicLord', name: 'Nothing Left to Find', desc: 'Discover every relic in the compendium.', category: 'secrets', hidden: true, hint: 'Every last one of them.', tiers: tiers([RELIC_IDS.length - CURSED_IDS.length], { 1: { title: 'the Reliquary' } }), progress: (s) => relicPicks(s).filter((n) => n > 0).length },
   { id: 'grandmasters', name: 'Five Grandmasters', desc: 'Reach the final mastery rank with every class.', category: 'secrets', hidden: true, hint: 'Master all five, to the last rank.', tiers: tiers([MASTERY.length], { 1: { title: 'the Grandmaster', talentPoint: 1 } }), progress: minRank },
   { id: 'thirteen', name: 'Thirteen Banners', desc: 'Reach wave 13 with all five classes.', category: 'secrets', hidden: true, hint: 'Thirteen banners on the wall.', tiers: tiers([5]), progress: (s) => classes(s).filter((c) => c.bestWave >= 13).length },
   { id: 'dragonHoard', name: "Dragon's Hoard", desc: 'Bank half a million gold.', category: 'secrets', hidden: true, hint: 'Gold enough to shame a dragon.', tiers: tiers([500000], { 1: { title: 'the Gilded' } }), progress: (s) => s.counters.goldEarned },

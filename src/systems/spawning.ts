@@ -84,7 +84,7 @@ function startWave(g: Game): void {
     classId: g.player.cls.id,
     performance: g.perf,
     bosses: boss ? [boss] : g.arena.bosses, // Act boss at x0, the arena's own rotation at x5
-    eliteMult: g.tier.eliteMult * (g.route?.focus === 'elite' ? ROUTES.elite.eliteMult : 1), // v0.6 Elite path
+    eliteMult: g.tier.eliteMult * (g.route?.focus === 'elite' ? ROUTES.elite.eliteMult : 1) * (g.vars['relic.eliteMult'] ?? 1), // v0.6 Elite path; v0.7.1 Tyrant's Banner
     themeBias: actTheme(g).bias, // v0.6: the route's theme
     budgetMult: curseValue(g.curses, 'swarm', 'budget') * pacingBudget(g.wave), // v0.5: breathers and heavy waves (WAVES.pacing)
     squadMult: curseValue(g.curses, 'eliteCommanders', 'squadWeight'),

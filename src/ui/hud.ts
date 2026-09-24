@@ -17,7 +17,8 @@ import { describeUtility, utilityDef, utilityUnlocked } from '../systems/utility
 import { UTILITY } from '../config/utility';
 import { QUESTS, REWARDS } from '../config/quests';
 import { questProgress } from '../logic/quests';
-import { duoTip, esc, relicTip, setRecipeBuild, tierBadge } from './relicText';
+import { duoTip, esc, relicClass, relicTip, setRecipeBuild, tierBadge } from './relicText';
+import { isTestRun } from '../systems/testMode';
 
 /** Tooltip for the enemy under the pointer (hover, or a tap on touch): what it is, what hurts it, what is on it. */
 export function updateInspect(e: Enemy | null, x: number, y: number): void {
@@ -74,6 +75,7 @@ export function buildHud(onPause: () => void, onMute: () => void): void {
       <div id="h-toasts"></div>
     </div>
     <div class="hud-top">
+      <div id="h-test" class="hud-plate hud-test hidden">TEST</div>
       <div class="hud-wave hud-plate">
         <div id="h-wave"></div>
         <div id="h-left"></div>
@@ -156,6 +158,7 @@ export function updateHud(g: Game): void {
   text('h-gold', `🪙 ${g.gold}`);
   text('h-tier', `${g.tier.name} · ${g.arena.name}`);
 
+  $('h-test').classList.toggle('hidden', !isTestRun(g)); // v0.7.1 test mode
   text('h-wave', g.wave > 0 ? `${g.victory === 'endless' ? 'Endless · ' : ''}${actName(g.act)} · Wave ${g.wave}` : 'Prepare…');
   let left = g.spawnQueue.length;
   for (const e of g.enemies) if (!e.side) left++; // v0.5: lairs, quest targets and events are not the wave
@@ -195,7 +198,7 @@ export function updateHud(g: Game): void {
     const tile = (id: RelicId) => {
       const r = relicDef(id);
       const tier = g.player.relics.tiers[id] ?? 1;
-      return `<div class="relic ${r.rarity}" data-id="${id}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.player.relics.held))}">${r.icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
+      return `<div class="relic ${relicClass(id)}" data-id="${id}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.player.relics.held))}">${r.icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
     };
     // 50px a tile; desktop keeps clear of the ability panel, touch (bar at the top) of the wave plate
     const fit = Math.max(3, Math.min(8, Math.floor((innerWidth / 2 - (document.documentElement.classList.contains('compact') ? 140 : 300)) / 50)));

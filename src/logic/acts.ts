@@ -37,10 +37,10 @@ export function bossForWave(wave: number, arena: ArenaId): EnemyId | null {
 }
 
 // ---------- Merchant ----------
-export type MerchantItem = 'heal' | 'reroll' | `buy:${Rarity}`;
+export type MerchantItem = 'heal' | 'reroll' | 'reforge' | `buy:${Rarity}`;
 
 export function merchantPrice(item: MerchantItem, act: number): number {
-  const base = item.startsWith('buy:') ? MERCHANT.buy[item.slice(4) as Rarity] : item === 'heal' ? MERCHANT.heal.cost : MERCHANT.reroll;
+  const base = item.startsWith('buy:') ? MERCHANT.buy[item.slice(4) as Rarity] : item === 'heal' ? MERCHANT.heal.cost : item === 'reforge' ? MERCHANT.reforge : MERCHANT.reroll;
   return Math.round(base * (1 + MERCHANT.priceGrowth * (act - 1)));
 }
 
