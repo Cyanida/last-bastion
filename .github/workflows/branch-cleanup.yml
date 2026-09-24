@@ -1,0 +1,38 @@
+name: Branch cleanup
+
+# Every hour: a branch goes once its pull request was merged, everything on it is in main (git cherry also counts commits that reached main
+# as copies), and nothing happened to it for 2 hours (no merge, no push). Branches with an open pull request, with changes that aren't in
+# main, or that never had a merged pull request are kept. A deleted branch can be restored from its pull request page.
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          cutoff=$(date -u -d '2 hours ago' +%s)
+          merged=$(gh api --paginate "repos/$REPO/pulls?state=closed&per_page=100" \
+            --jq '.[] | select(.merged_at != null and .head.repo.full_name == env.REPO) | "\(.head.ref)\t\(.merged_at)"' |
+            awk -F'\t' '$2 > m[$1] { m[$1] = $2 } END { for (r in m) print r "\t" m[r] }')
+          open=$(gh pr list -R "$REPO" --state open --limit 200 --json headRefName --jq '.[].headRefName')
+          while IFS=$'\t' read -r ref at; do
+            [ -n "$ref" ] && [ "$ref" != main ] && git rev-parse -q --verify "origin/$ref" > /dev/null || continue
+            if grep -qxF "$ref" <<< "$open"; then echo "kept $ref: an open pull request uses it"; continue; fi
+            if git cherry origin/main "origin/$ref" | grep -q '^+'; then echo "kept $ref: has changes that aren't in main"; continue; fi
+            last=$(git log -1 --format=%ct "origin/$ref"); at=$(date -d "$at" +%s); [ "$at" -gt "$last" ] && last=$at
+            if [ "$last" -gt "$cutoff" ]; then echo "kept $ref: merged or pushed to in the last 2 hours"; continue; fi
+            git push -q origin --delete "$ref" && echo "deleted $ref"
+          done <<< "$merged"
