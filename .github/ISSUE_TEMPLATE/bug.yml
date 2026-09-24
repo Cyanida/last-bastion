@@ -1,0 +1,49 @@
+name: Bug
+description: Something is broken, crashes, or behaves wrongly.
+labels: ['type:bug']
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Shown on the title screen and at the bottom of Settings.
+      placeholder: v0.7.3
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where
+      options:
+        - Windows app
+        - Browser (desktop)
+        - Phone or tablet
+    validations:
+      required: true
+  - type: input
+    id: when
+    attributes:
+      label: Class, wave and arena
+      placeholder: Archer, wave 22, the Great Keep
+  - type: dropdown
+    id: severity
+    attributes:
+      label: How bad
+      options:
+        - The game crashed, froze or I lost progress
+        - It's wrong, but I could keep playing
+        - It looks off
+    validations:
+      required: true
+  - type: textarea
+    id: more
+    attributes:
+      label: Screenshot, run log or anything else
+      description: Paste a screenshot, or attach the run's JSON from Keep → Run history → Export as JSON.
