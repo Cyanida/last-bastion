@@ -1,5 +1,33 @@
 # Balance notes
 
+## v0.7.3: the class spread (B8, #22)
+
+`npm run sim -- deep 6` per class (`SIM_CLASS`, one process each), on v0.7.3 with the Archer's aim fix (#59) and the Paladin's shield floor (#53).
+Wins go on into Endless:
+
+| Class | Fresh, avg wave (range) | Maxed, avg wave (range) | Fresh wins past wave 10 | v0.6: fresh wins / maxed wins |
+|---|---|---|---|---|
+| Angel | 39.5 (6-70) | 67.8 (50-87) | 3/4 | 2/6 / 6/6 |
+| Viking | 36.5 (7-59) | 51.8 (40-59) | 3/5 | 5/6 / 5/6 |
+| Paladin | 22.2 (5-66) | 66.3 (59-74) | 1/3 | 4/6 / 6/6 |
+| Archer | 14.5 (6-25) | 46.3 (40-55) | 0/4 | 0/6 / 5/6 |
+| Necromancer | 9.3 (5-13) | 32.0 (12-64) | 0/2 | 0/6 / 3/6 |
+
+**The brief's checks.** A fresh Viking past wave 10 wins 3 of 5, not "nearly always" (v0.6: 5 of 6 once past the Dragon). The Necromancer
+and the Archer are not 15% above the median: with the bot they are well below it (fresh median 22.2).
+
+**No class values changed.** This bot is a poor yardstick for exactly these two classes: human players find the Archer and the Necromancer
+the strongest, and the bot finds them the weakest (README, Simulation).
+Raising them on the bot's numbers alone would push against what players report, and there are no playtest run logs yet to set against it.
+
+What did change:
+- **The Archer's real counter (#59).** Aim now looks past a front-facing shield and a reflecting mirror, and shields and mirrors wear down.
+  In `deep`: fresh 9.2 -> 14.5, maxed 30.5 -> 46.3.
+- **The Paladin's shield uptime (#53)** is capped near 50% (it was up to 96% in Acts III-IV). The Paladin still wins every maxed run.
+
+Candidate values for the Necromancer (HP 85 -> 100, 3 skeletons) and the Archer (HP 95 -> 105, damage 12 -> 13) are on the branch
+`wip/b8-class-values`, ready if playtests show the bot is right.
+
 ## v0.7: relics (A8)
 
 `npm run sim -- relics [runs]` (scripts/relic-report.ts, one process per class in parallel): maxed saves, and a bot that drafts sensibly.
