@@ -1,4 +1,5 @@
 import { ATTUNEMENT, FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
+import { cooldownFloor } from '../../logic/formulas';
 import { addWork } from '../../logic/relics';
 import type { Minion } from '../../core/types';
 import { fireProjectile } from '../../entities/hazards';
@@ -69,9 +70,9 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   },
 
   reliquary: {
-    onDamageTaken(_g, _ev, p) {
-      if (p.abilityCd <= 0) return;
-      p.abilityCd = Math.max(0, p.abilityCd - nOf(p, 'reliquary').perFaith * sOf(p));
+    onDamageTaken(g, _ev, p) {
+      if (p.abilityCd <= cooldownFloor(g)) return;
+      p.abilityCd = Math.max(cooldownFloor(g), p.abilityCd - nOf(p, 'reliquary').perFaith * sOf(p)); // v0.7.3: not below the shield's downtime
       addWork(p.relics, 'reliquary', ATTUNEMENT.proc);
     },
     onAbilityEnd(g, _ev, p) {
