@@ -1,7 +1,7 @@
 // The tracking protocol (ROADMAP.md): the "Last Bastion Roadmap" Project board and the pinned "🔨 Now building" status issue.
 //
 //   node scripts/board.mjs add <issue> --version "v0.7.0 – Relic rework" --track "A (relics)" --size M --status Ready
-//   node scripts/board.mjs set <issue> <Status>              Backlog | Ready | In progress | In review | Done | Blocked
+//   node scripts/board.mjs set <issue> <Status>              Backlog | Ready | In progress | In review | Done | Blocked | Skipped
 //   node scripts/board.mjs start <issue> "<2-4 line plan>"   In progress, assigned, "Started" comment, status issue rewritten
 //   node scripts/board.mjs finish <issue> <comment-file>     comment, Done, closed, status issue rewritten
 //   node scripts/board.mjs status [--a "..."] [--b "..."] [--tests "..."] [--release "..."]
