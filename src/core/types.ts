@@ -1,4 +1,5 @@
 import type { OathStack } from '../logic/oaths';
+import type { LevelUpOption } from '../logic/upgrades';
 import type { AbilityUpgradeId } from '../config/abilityUpgrades';
 import type { ArenaDef, ArenaId } from '../config/arenas';
 import type { CurseId } from '../config/curses';
@@ -479,6 +480,7 @@ export interface Game {
   breather: number;
   kills: number;
   time: number;
+  tick: number; // v0.8: steps taken (step() in sim/commands.ts); commands carry it
   shake: number;
   pendingLevelUps: number;
   // --- v0.2 ---
@@ -508,6 +510,8 @@ export interface Game {
   bannedStats: StatKey[]; // v0.6: stat boons struck from this run's level-ups
   palette: number; // v0.4: the class sprite's colours (mastery unlocks; SPRITE_PALETTES)
   rerolls: number; // free rerolls per level-up screen
+  levelHand: LevelUpOption[] | null; // v0.8: the level-up cards on offer, dealt on first read (levelHand in sim/commands.ts)
+  levelRerolls: { free: number; paid: number } | null; // v0.8: this level-up screen's rerolls; null until the first
   gold: number;
   goldStart: number;
   wavesCleared: number;

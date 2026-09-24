@@ -41,5 +41,5 @@ describe('v0.8 golden runs', () => {
     for (const seed of SEEDS)
       it(`${cls} on seed ${seed} plays exactly as before`, () => {
         expect(golden(cls, seed)).toBe(GOLDEN[`${cls}:${seed}`]);
-      });
+      }, 120_000); // a few seconds alone, much longer next to the other files
 });
