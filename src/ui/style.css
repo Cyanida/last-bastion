@@ -413,6 +413,8 @@ canvas#game { touch-action: none; }
 .compact .card { width: 196px; padding: 10px 12px 8px; font-size: 12px; }
 .compact .portrait { height: 58px; } .compact .portrait canvas { height: 56px; }
 .compact .card h2 { font-size: 22px; }
+.card h2.long { font-size: 24px; } /* v0.7.3 (#54): a long one-word name (Necromancer) fits the card */
+.compact .card h2.long { font-size: 19px; }
 .compact .boon { width: 210px; font-size: 14px; }
 .compact .dialog { padding: 14px 20px; }
 .compact .stats.wide { font-size: 15px; margin: 4px 0 10px; }

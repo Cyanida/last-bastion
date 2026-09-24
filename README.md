@@ -8,7 +8,7 @@ sprites are pixel grids in code, sound effects and the music (menus, and a quiet
 | **Browser / phone** | https://cyanida.github.io/last-bastion/ |
 | **Windows** | [Latest release](https://github.com/Cyanida/last-bastion/releases/latest): `last-bastion-Setup-<version>.exe` |
 | Roadmap and progress | [ROADMAP.md](ROADMAP.md) · [Project board](https://github.com/users/Cyanida/projects/2) · the pinned **🔨 Now building** issue · release rules: [RELEASES.md](RELEASES.md) |
-| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.7.2: music in every arena, What's new, glossary, test mode, cursed relics, Reforge · v0.7: relics rebuilt, save backups) · the relic design: [RELICS.md](RELICS.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) |
+| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.7.3: the Archer's aim, the Paladin's shield, fixes · v0.7.2: music in every arena, What's new, glossary, test mode, cursed relics, Reforge · v0.7: relics rebuilt, save backups) · the relic design: [RELICS.md](RELICS.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) |
 
 ## Play on iPhone (or any phone)
 

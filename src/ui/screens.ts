@@ -214,7 +214,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     return `
     <button class="card panel" data-class="${c.id}">
       <div class="portrait" data-sprite="${c.sprite}" data-palette-n="${palettes.includes(chosen) ? chosen : 0}"></div>${swatches}
-      <h2>${c.name}</h2>
+      <h2${c.name.length > 9 ? ' class="long"' : ''}>${c.name}</h2>
       <div class="role">${c.role}</div>
       <div class="stats">
         ${STAT_KEYS.map((k) => `<div><span>${statLabel(k, c)}</span><b>${fmtStat(k, c.base[k])}</b></div>`).join('')}

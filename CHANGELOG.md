@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.3 — Fixes & class balance
+
+A patch from the playtests: the Archer can deal with shields and mirrors, the Paladin can't stay shielded forever, and every champion's name fits its card.
+
+- **The Archer's aim**: auto-aim now takes the nearest enemy the shot can actually hurt. A Shield Bearer facing you is only shot at when nothing else is in reach, and a Mirror Knight that would throw your shot back is left alone until he swings. This helps every ranged champion. Surrounded, you no longer empty the quiver into the one blocker in front.
+- **Shields and mirrors wear down**: a blocked shot costs a Shield Bearer's shield its damage, and a thrown-back shot costs a Mirror Knight's mirror half of it. Once broken, they stop nothing.
+- **Divine Shield's downtime**: when the shield ends, its cooldown lasts at least as long as the shield was up, and cooldown refunds (perfect dodges, the Reliquary of Saints, the Last Stand) can't cut below that. With Sanctuary, Faith and Second Wind, the Paladin could stay invulnerable almost all the time late in a run. Now that is at most half the time, and he still wins.
+- **Class cards**: "Necromancer" fits its card on the class select.
+- **Class balance check**: all five classes measured with the sim (BALANCE.md). No class values changed.
+
 ## v0.7.2 — Music & convenience
 
 Quiet music for every arena that builds a little when a fight heats up and never drowns out the effects, plus conveniences: a What's new screen, a glossary in every tooltip, and a hidden test mode. Also cursed relics and the Merchant's Reforge, both building on v0.7's relics.

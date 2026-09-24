@@ -2,6 +2,7 @@ import { SKILL } from '../config/game';
 import { sfx } from '../core/audio';
 import { addListener, type GameEvents } from '../core/events';
 import type { Enemy, Game } from '../core/types';
+import { cooldownFloor } from '../logic/formulas';
 import { inTelegraph, isPerfectDodge } from '../logic/telegraph';
 import { floatText, ring, shake } from './effects';
 import { markStand } from './runlog';
@@ -19,7 +20,7 @@ export function perfectDodge(g: Game): void {
   const p = g.player;
   g.vars.perfectReady = g.time + s.every;
   g.vars.perfectUntil = g.time + s.time;
-  p.abilityCd = Math.max(0, p.abilityCd - p.abilityCdMax * s.refund);
+  p.abilityCd = Math.max(cooldownFloor(g), p.abilityCd - p.abilityCdMax * s.refund);
   g.vars.perfects = (g.vars.perfects ?? 0) + 1;
   floatText(g, p.x, p.y - 48, 'PERFECT DODGE', SKILL.colors.perfect, 18);
   ring(g, p.x, p.y, 90, SKILL.colors.perfect, 0.45);

@@ -2,7 +2,7 @@ import { credit, relicContext } from './relicContext';
 import { ATTUNEMENT, FAMILIES, isFamily, RELIC_COLOR, type RelicKey } from '../config/relics';
 import { addWork } from '../logic/relics';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
-import { ARMOR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
+import { ARMOR, ARMOR_WEAR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GOLD } from '../config/economy';
 import { GAME, SKILL } from '../config/game';
@@ -316,7 +316,7 @@ export function updatePlayerAttack(g: Game, dt: number): void {
   if (p.attackTimer > 0) return;
   const atk = p.cls.attack;
   const range = atk.kind === 'melee' ? atk.range * p.buff.range : atk.range;
-  const target = nearestEnemy(g, p.x, p.y, range);
+  const target = atk.kind === 'melee' ? nearestEnemy(g, p.x, p.y, range) : shotTarget(g, p.x, p.y, range);
   if (!target) return;
   p.attackTimer = 1 / Math.min(GAME.maxAttackRate, p.stats.atkSpd * p.buff.atkSpd * p.mods.atkSpd);
   p.facing = Math.atan2(target.y - p.y, target.x - p.x);
@@ -353,6 +353,39 @@ export function updatePlayerAttack(g: Game, dt: number): void {
     }
     sfx('shoot');
   }
+}
+
+/** A mirror knight throws a projectile coming at his front back, unless he has just swung (attackTimer) or his armor is broken. */
+const reflects = (e: Enemy, vx: number, vy: number): boolean =>
+  !!e.def.reflect && e.attackTimer <= 0 && e.armorHp > 0 && angleDiff(Math.atan2(-vy, -vx), e.angle) < e.def.reflect;
+
+/** v0.7.3 (#59): would this enemy block or throw back a projectile shot at it from (x, y)? */
+export const stopsShot = (e: Enemy, x: number, y: number): boolean => reflects(e, e.x - x, e.y - y) || blockedByShield(e, e.x - x, e.y - y);
+
+/**
+ * v0.7.3 (#59): the ranged auto-attack's target: the nearest enemy the shot can hurt. A front-facing shield bearer is only shot at when nothing
+ * else is in reach (the shot wears his shield down); a mirror knight that would throw it back is never shot at (he is, the moment he swings).
+ */
+function shotTarget(g: Game, x: number, y: number, range: number): Enemy | null {
+  let best: Enemy | null = null;
+  let fallback: Enemy | null = null;
+  let bestD = Infinity;
+  let fallbackD = Infinity;
+  for (const e of g.hash.query(x, y, range, nearest)) {
+    if (e.dead || e.hidden || e.warded) continue;
+    const d = dist2(x, y, e.x, e.y);
+    if (!stopsShot(e, x, y)) {
+      if (d < bestD) (bestD = d), (best = e);
+    } else if (!reflects(e, e.x - x, e.y - y) && d < fallbackD) (fallbackD = d), (fallback = e);
+  }
+  return best ?? fallback;
+}
+
+/** v0.7.3 (#59): a blocked or thrown-back shot costs the shield or mirror its damage (times ARMOR_WEAR); at 0 it breaks. */
+function wearArmor(g: Game, e: Enemy, amount: number): void {
+  if (e.armorHp <= 0) return;
+  e.armorHp = Math.max(0, e.armorHp - amount);
+  if (e.armorHp === 0) floatText(g, e.x, e.y - e.r - 20, e.def.reflect ? 'mirror broken' : 'shield broken', '#e9c95a', 13);
 }
 
 /** Shield bearers stop projectiles that come at their front. */
@@ -401,7 +434,8 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
   for (const e of g.hash.query(pr.x, pr.y, pr.r, near)) {
     if (e.dead || pr.hit.includes(e)) continue;
     // mirror knight: sends it straight back, unless he has just swung (attackTimer running) or it is a ballista-sized bolt
-    if (e.def.reflect && e.attackTimer <= 0 && e.armorHp > 0 && pr.pierce < 50 && angleDiff(Math.atan2(-pr.vy, -pr.vx), e.angle) < e.def.reflect) {
+    if (pr.pierce < 50 && reflects(e, pr.vx, pr.vy)) {
+      wearArmor(g, e, pr.damage * ARMOR_WEAR.reflect); // v0.7.3 (#59): every throw-back costs the mirror
       pr.vx = -pr.vx;
       pr.vy = -pr.vy;
       pr.hostile = true;
@@ -413,6 +447,7 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
       return true;
     }
     if (pr.pierce < 50 && blockedByShield(e, pr.vx, pr.vy)) {
+      wearArmor(g, e, pr.damage * ARMOR_WEAR.block); // v0.7.3 (#59): a blocked shot wears the shield down
       floatText(g, e.x, e.y - e.r - 8, 'blocked', '#9a9aa0', 11);
       burst(g, pr.x, pr.y, '#c9a227', 4, 90);
       return false;

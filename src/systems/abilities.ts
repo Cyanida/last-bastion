@@ -8,7 +8,7 @@ import { createMinion, neutralBuff } from '../entities/actors';
 import { addField, addZone, after, fireProjectile } from '../entities/hazards';
 import * as scale from '../logic/abilities';
 import { pickAbilityUpgrade } from '../logic/abilityUpgrades';
-import { abilityCooldown, attackDamage } from '../logic/formulas';
+import { abilityCooldown, attackDamage, cooldownFloor } from '../logic/formulas';
 import { applyStatus, damageEnemy, healPlayer, rollPlayerHit } from './combat';
 import { burst, floatText, ring, shake } from './effects';
 import { feat, featAdd } from './feats';
@@ -82,6 +82,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
     activate(g, c) {
       const p = g.player;
       activeFor(p, scale.divineShield(c, p.stats.secondary).duration);
+      g.vars['shield.up'] = 0;
       p.invulnerable = true;
       p.absorbed = 0;
       if (has(p, 'secondWind')) healPlayer(g, p.stats.hp * U.secondWind.n.heal);
@@ -91,6 +92,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
     tick(g, _c, dt) {
       const p = g.player;
       const faith = p.stats.secondary;
+      g.vars['shield.up'] = (g.vars['shield.up'] ?? 0) + dt;
       if (has(p, 'zeal')) p.buff.atkSpd = 1 + U.zeal.n.atkSpd + faith * U.zeal.n.perFaith;
       if (has(p, 'sanctuary')) {
         const n = U.sanctuary.n;
@@ -105,6 +107,10 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
     expire(g, c) {
       const p = g.player;
       p.invulnerable = false;
+      // v0.7.3 (#53): the shield never comes back sooner than it was up (at most half the time invulnerable, whatever stacks)
+      const downtime = (g.vars['shield.up'] ?? 0) * c.minDowntime;
+      g.vars['ability.readyAt'] = g.time + downtime;
+      p.abilityCd = Math.max(p.abilityCd, downtime);
       p.buff = neutralBuff();
       g.vars.sanctuary = 0;
       const radius = c.burstRadius * (has(p, 'judgement') ? U.judgement.n.radius : 1);
@@ -349,7 +355,7 @@ export function updateAbility(g: Game, dt: number): void {
   }
   p.reviveT = Math.max(0, p.reviveT - dt);
   // the cooldown waits for the ability to end, so duration stacking can never reach 100% uptime
-  if (p.abilityTime <= 0) p.abilityCd = Math.max(0, p.abilityCd - dt * (lastStandActive(g) ? SKILL.lastStand.cooldownRate : 1)); // v0.6: the Last Stand hurries it
+  if (p.abilityTime <= 0) p.abilityCd = Math.max(cooldownFloor(g), p.abilityCd - dt * (lastStandActive(g) ? SKILL.lastStand.cooldownRate : 1)); // v0.6: the Last Stand hurries it (v0.7.3: not below the floor)
   if (g.input.ability && p.abilityCd <= 0 && p.abilityTime <= 0) {
     g.vars.cdRefund = 0;
     if (!(evo?.replaceCast ? evo.replaceCast(g) : hook.activate(g, cfg))) return;

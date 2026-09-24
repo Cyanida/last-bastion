@@ -17,6 +17,9 @@ export function rollCrit(amount: number, dex: number, rng: Rng, bonusChance = 0)
   return { amount: crit ? amount * GAME.critMult : amount, crit };
 }
 
+/** v0.7.3 (#53): what is left of the signature ability's minimum downtime (g.vars['ability.readyAt']): refunds cannot cut the cooldown below it. */
+export const cooldownFloor = (g: { vars: Record<string, number>; time: number }): number => Math.max(0, (g.vars['ability.readyAt'] ?? 0) - g.time);
+
 export function abilityCooldown(base: number, int: number): number {
   return Math.max(base * GAME.cdrFloor, base / (1 + int * GAME.cdrPerInt));
 }

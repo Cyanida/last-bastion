@@ -36,6 +36,7 @@ export type AbilityCfg =
       burstDamage: number;
       burstPerFaith: number; // +x burst damage multiplier per Faith
       burstKnockback: number;
+      minDowntime: number; // v0.7.3 (#53): after the shield, the cooldown lasts at least this × the time it was up
     })
   | (AbilityBase & {
       id: 'berserkerRage';
@@ -121,6 +122,7 @@ export const CLASSES: Record<ClassId, ClassDef> = {
       burstDamage: 45,
       burstPerFaith: 0.1,
       burstKnockback: 420,
+      minDowntime: 1, // v0.7.3 (#53): with Sanctuary, Faith, Second Wind and refunds the shield was up most of Act III
     },
   },
   viking: {
