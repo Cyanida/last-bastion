@@ -28,6 +28,17 @@ job.
 owner asked you to file, one topic per issue, with a template (Bug, Idea or Playtest feedback). Describe the problem or the idea as a player
 sees it; don't write a design document or an implementation plan unless asked. Start the body with `🤖 Filed by <agent> for @<owner>`.
 
+**Names.**
+- **An issue's title says what, never when.** Use `<the thing>: <what changes, as a player sees it>`, for example
+  `Paladin: detonate Divine Shield early for a weaker burst`. Never put a version number in a title.
+- **The when is the milestone.** A milestone is a release, named `v<major>.<minor>.<patch> – <theme>`:
+  - a feature release has one theme, like `v0.8.0 – Co-op foundation`;
+  - a patch holds fixes and balance, like `v0.7.3 – Fixes & class balance`;
+  - `1.x – After 1.0` holds the ideas for after 1.0.
+
+  The board's Version field uses the same names. Only Jesse creates milestones ([RELEASES.md](RELEASES.md) has the numbering rules). When
+  a 1.x idea's time comes, he moves it into a real version.
+
 **Triage.** An issue with no milestone and no board card hasn't been triaged. Whichever agent files it or comes across it puts it in the
 structure:
 
