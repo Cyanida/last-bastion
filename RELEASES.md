@@ -18,3 +18,5 @@ Pre-release (0.X.Y-beta.N): test builds for the playtest group, published as Git
 After 1.0: 1.X.0 features, 1.X.Y patches, 2.0.0 only for breaking changes (a save that cannot be migrated).
 
 Every release: CHANGELOG entry, version bump, tests and perf test green, and the updater check from the README.
+
+Only the maintainer releases: `main` only takes reviewed pull requests, and `v*` tags (which build a release that installed games download) can only be created by the maintainer. How changes get to `main`: [CONTRIBUTING.md](CONTRIBUTING.md).
