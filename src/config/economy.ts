@@ -150,7 +150,7 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
     capFrac: [0.4, 0.6, 0.8, 1],
   },
   watchtower: {
-    name: 'Watchtower', icon: '🗼', desc: 'Curses, bounties and the higher difficulties.',
+    name: 'Watchtower', icon: '🗼', desc: 'Curses and bounties: more gold for curses, elites and bosses.',
     upgrades: ['curseBonus', 'eliteGold', 'bossGold'],
     levels: [{ gold: 400, runes: 1, achievement: 'bossSlayer' }, { gold: 1280, runes: 3, achievement: 'bossHunter' }, { gold: 3200, runes: 6, achievement: 'knight' }],
     capFrac: [0.34, 0.67, 1, 1],
@@ -231,8 +231,16 @@ export interface TierDef {
   gold: number;
   classXp: number;
 }
-/** Clearing wave TIER_UNLOCK_WAVE on your highest tier unlocks the next one (and the Watchtower must be one level higher). */
+/** Clearing wave TIER_UNLOCK_WAVE on Squire unlocks Knight (#79; also the pacing mark in BALANCE.md). */
 export const TIER_UNLOCK_WAVE = 15;
+/** v0.8 (#79): what opens each difficulty, by index into TIERS. Every key present must be met, in any order:
+ * `wave` = clear that wave on that tier, `win` = beat the Usurper on that tier. Squire has none: it is open from the start. */
+export const TIER_UNLOCK: { wave?: { tier: number; wave: number }; win?: number }[] = [
+  {},
+  { wave: { tier: 0, wave: TIER_UNLOCK_WAVE } },
+  { wave: { tier: 1, wave: 30 }, win: 0 },
+  { win: 2 },
+];
 export const TIERS: TierDef[] = [
   { name: 'Squire', enemyHp: 1, enemyDmg: 1, eliteMult: 1, gold: 1, classXp: 1 },
   { name: 'Knight', enemyHp: 1.45, enemyDmg: 1.25, eliteMult: 1.5, gold: 1.6, classXp: 1.5 },

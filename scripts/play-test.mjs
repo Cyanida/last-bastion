@@ -1004,6 +1004,34 @@ await check('Gallows: a cursed run earns its bonus, the results show it', () =>
   }),
 );
 
+// #79: the difficulty select says what opens each locked tier, and the Watchtower no longer locks one
+await check('difficulty: a locked tier names what opens it, and Knight opens with no Watchtower', () =>
+  inPage(async () => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  }).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async () => {
+      const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+      const btn = (i) => document.querySelector(`[data-tier="${i}"]`);
+      document.querySelector('[data-go="start"]').click();
+      await wait();
+      const fresh = [1, 2, 3].map((i) => (btn(i).disabled ? btn(i).dataset.tip : 'open'));
+      lb.save.tierUnlocked = 1; // wave 15 cleared on Squire; the Watchtower stays a ruin
+      lb.save.buildings.watchtower = 0;
+      btn(0).click(); // redraws the select
+      await wait();
+      btn(1).click();
+      await wait();
+      const picked = btn(1).classList.contains('on') && lb.save.settings.tier === 1;
+      const champ = btn(2).dataset.tip;
+      const ok = fresh[0] === 'Locked — clear wave 15 on Squire' && fresh[1] === 'Locked — clear wave 30 on Knight and win a run on Squire'
+        && fresh[2] === 'Locked — win a run on Champion' && picked && btn(2).disabled && champ.includes('win a run on Squire');
+      return { ok, detail: `fresh ${JSON.stringify(fresh)} · Knight picked ${picked} · Champion "${champ}"` };
+    });
+  }),
+);
+
 // #101: each difficulty adds enemy types; the tier's tip names them, and a Knight run fields no Champion or Legend type
 await check('difficulty: Knight names its new foes, and its waves bring none from the tiers above', () =>
   inPage(async () => {
@@ -1013,8 +1041,7 @@ await check('difficulty: Knight names its new foes, and its waves bring none fro
     await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
     return inPage(async () => {
       const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
-      lb.save.tierUnlocked = 1; // as if wave 15 was cleared on Squire, with the Watchtower raised
-      lb.save.buildings.watchtower = 1;
+      lb.save.tierUnlocked = 1; // as if wave 15 was cleared on Squire
       document.querySelector('[data-go="start"]').click();
       await wait();
       const tipOf = (i) => document.querySelector(`[data-tier="${i}"]`)?.dataset.tip ?? '';
