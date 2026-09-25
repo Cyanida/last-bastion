@@ -7,6 +7,8 @@ export const neutralMods = (): Mods => ({
 });
 
 export const ADDITIVE = new Set<keyof Mods>(['armor', 'crit', 'lifesteal', 'regen', 'pierce', 'critDamage', 'dodge', 'thorns', 'onKillHeal', 'lowHpDamage', 'minionMax']);
+/** Every other key multiplies (1.12 = +12%): the one list of which is which, for relic totals too (logic/relics.ts). */
+export const isMultiplicative = (key: keyof Mods): boolean => !ADDITIVE.has(key);
 
 /** Folds `part` into `into` (mutating it): additive keys add, everything else multiplies. */
 export function combineMods(into: Mods, part: Partial<Mods>): Mods {

@@ -8,7 +8,7 @@ import { addZone } from '../entities/hazards';
 import { isActEnd } from '../logic/acts';
 import { rollAffixes } from '../logic/elites';
 import { combineMods } from '../logic/mods';
-import { boundsOf, inRect, openRects, regionAt, rollWings } from '../logic/regions';
+import { boundsOf, openRects, regionAt, rollWings } from '../logic/regions';
 import { waveRng } from '../logic/director';
 import { unlockedPool } from '../logic/waves';
 import { floatText, ring, shake } from './effects';
@@ -145,9 +145,6 @@ export function chooseBlessing(g: Game, id: BlessingId): void {
   ring(g, g.player.x, g.player.y, 110, '#e9c95a', 0.6);
   sfx(g, 'levelup');
 }
-
-/** Is a point inside an open region (for spawning things that must be reachable)? */
-export const isOpenAt = (g: Game, x: number, y: number): boolean => g.openRects.some((q) => inRect(q, x, y));
 
 addListener((g, name, ev) => {
   if (name !== 'onKill') return;

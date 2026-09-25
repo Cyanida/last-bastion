@@ -2,7 +2,7 @@ import { DUOS, FAMILIES, type RelicId, type SetLevel } from '../../config/relics
 import type { Enemy } from '../../core/types';
 import { relicContext } from '../relicContext';
 import { applyStatus, damageEnemy } from '../combat';
-import { awakened, bonus, credit, fullArmorStacks, gainArmorStacks, hasDuo, nOf, nova, relicDamage, relicHeal, sOf, strike, type RelicHooks } from '../relicCore';
+import { aOf, awakened, bonus, credit, fullArmorStacks, gainArmorStacks, hasDuo, nOf, nova, relicDamage, relicHeal, sOf, strike, type RelicHooks } from '../relicCore';
 
 /**
  * 🛡️ Steel (RELICS.md): armor stacks, block and thorns. Relics block hits (combat.damagePlayer's onIncoming), throw damage back or build armor
@@ -23,10 +23,11 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onBlock(g, ev, p) {
       const e = ev.attacker;
       if (!awakened(p, 'towerShield') || !e || e.dead) return;
-      const a = Math.atan2(e.y - p.y, e.x - p.x); // Shield Wall
-      e.kx += Math.cos(a) * 400 * (1 - e.def.knockbackResist);
-      e.ky += Math.sin(a) * 400 * (1 - e.def.knockbackResist);
-      applyStatus(e, { apply: [{ id: 'stun', time: 0.5 }] }, g);
+      const a = aOf('towerShield');
+      const angle = Math.atan2(e.y - p.y, e.x - p.x); // Shield Wall
+      e.kx += Math.cos(angle) * a.knockback * (1 - e.def.knockbackResist);
+      e.ky += Math.sin(angle) * a.knockback * (1 - e.def.knockbackResist);
+      applyStatus(e, { apply: [{ id: 'stun', time: a.stun }] }, g);
     },
   },
 
@@ -44,7 +45,7 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       bonus(p, 'damage', (armorOf(p) * 100) / nOf(p, 'anvilHeart').per / 100);
     },
     onHit(g, ev, p) {
-      if (awakened(p, 'anvilHeart') && ev.source === 'attack' && fullArmorStacks(p)) applyStatus(ev.enemy, { apply: [{ id: 'slow', stacks: 2, time: 1 }] }, g); // Forgefire
+      if (awakened(p, 'anvilHeart') && ev.source === 'attack' && fullArmorStacks(p)) applyStatus(ev.enemy, { apply: [{ id: 'slow', stacks: aOf('anvilHeart').stacks, time: aOf('anvilHeart').time }] }, g); // Forgefire
     },
   },
 
@@ -71,10 +72,10 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       ev.blocked = true;
       g.vars['unbreakable.ready'] = g.time + n.every;
       credit(g, p, 'unbreakable', 'prevented', ev.amount, true);
-      if (awakened(p, 'unbreakable')) g.vars['adamant.until'] = g.time + 4; // Adamant
+      if (awakened(p, 'unbreakable')) g.vars['adamant.until'] = g.time + aOf('unbreakable').time; // Adamant
     },
     tick(g, _dt, p) {
-      if (g.time < (g.vars['adamant.until'] ?? 0)) bonus(p, 'armor', (p.cls.armor + p.mods.armor) * 0.5);
+      if (g.time < (g.vars['adamant.until'] ?? 0)) bonus(p, 'armor', (p.cls.armor + p.mods.armor) * aOf('unbreakable').armor);
     },
   },
 
@@ -83,7 +84,7 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       gainArmorStacks(g, p, Math.floor(sOf(p) / nOf(p, 'aegisFaithful').per));
     },
     onHit(g, ev, p) {
-      if (awakened(p, 'aegisFaithful') && ev.source === 'ability' && fullArmorStacks(p)) damageEnemy(g, ev.enemy, ev.amount * 0.5, false, 0, 0, 'relic', 'holy'); // Consecrated Steel
+      if (awakened(p, 'aegisFaithful') && ev.source === 'ability' && fullArmorStacks(p)) damageEnemy(g, ev.enemy, ev.amount * aOf('aegisFaithful').bonus, false, 0, 0, 'relic', 'holy'); // Consecrated Steel
     },
   },
 
@@ -95,7 +96,7 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       gainArmorStacks(g, p, 1);
     },
     onBlock(g, _ev, p) {
-      if (awakened(p, 'ironhide') && p.abilityTime > 0) relicHeal(g, p, p.stats.hp * 0.02); // Unstoppable
+      if (awakened(p, 'ironhide') && p.abilityTime > 0) relicHeal(g, p, p.stats.hp * aOf('ironhide').heal); // Unstoppable
     },
   },
 };

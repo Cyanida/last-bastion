@@ -3,7 +3,7 @@ import type { Enemy, Game, Player } from '../../core/types';
 import { addField } from '../../entities/hazards';
 import { damageEnemy, nearestEnemy } from '../combat';
 import { burst, line } from '../effects';
-import { addBurn, attackHit, awakened, bonus, burnStacks, cone, flash, maxBurn, nOf, nova, relicDamage, type RelicHooks, sOf } from '../relicCore';
+import { addBurn, aOf, attackHit, awakened, bonus, burnStacks, cone, flash, maxBurn, nOf, nova, relicDamage, type RelicHooks, sOf } from '../relicCore';
 
 /**
  * 🔥 Flame (RELICS.md): burn stacks and fire bursts. Every relic adds burn stacks or rewards them; the sets make burns stack higher (Stoked),
@@ -23,7 +23,7 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   brimstoneOil: {
     onHit(g, ev, p) {
       const n = nOf(p, 'brimstoneOil');
-      if (ev.source === 'ability' && awakened(p, 'brimstoneOil')) addBurn(g, p, ev.enemy, 2, ev.amount * n.power); // Hellfire
+      if (ev.source === 'ability' && awakened(p, 'brimstoneOil')) addBurn(g, p, ev.enemy, aOf('brimstoneOil').stacks, ev.amount * n.power); // Hellfire
       if (!attackHit(p, ev.source) || g.rng() >= n.chance) return;
       addBurn(g, p, ev.enemy, 1, ev.amount * n.power);
       flash(g, p, 'brimstoneOil'); // its burn's ticks are credited to it as they land (systems/status.ts)
@@ -35,10 +35,10 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const n = nOf(p, 'emberheart');
       const burning = g.hash.query(p.x, p.y, n.radius, []).filter((e) => burnStacks(e) > 0).length;
       bonus(p, 'damage', Math.min(n.max, burning) * n.per);
-      g.vars['emberheart.kindled'] = awakened(p, 'emberheart') && burning >= 5 ? 1 : 0;
+      g.vars['emberheart.kindled'] = awakened(p, 'emberheart') && burning >= aOf('emberheart').count ? 1 : 0;
     },
     onHit(g, ev, p) {
-      if (g.vars['emberheart.kindled'] && attackHit(p, ev.source)) addBurn(g, p, ev.enemy, 1, ev.amount * 0.2); // Kindled
+      if (g.vars['emberheart.kindled'] && attackHit(p, ev.source)) addBurn(g, p, ev.enemy, 1, ev.amount * aOf('emberheart').power); // Kindled
     },
   },
 
@@ -46,7 +46,7 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onKill(g, ev, p) {
       if (burnStacks(ev.enemy) === 0) return;
       const n = nOf(p, 'cinderCharm');
-      const throws = awakened(p, 'cinderCharm') ? 3 : 1; // Ember Storm
+      const throws = awakened(p, 'cinderCharm') ? aOf('cinderCharm').throws : 1; // Ember Storm
       const hit: Enemy[] = [ev.enemy];
       for (let i = 0; i < throws; i++) {
         const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, n.range, hit);
@@ -67,7 +67,8 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     },
     onKill(g, ev, p) {
       if (!awakened(p, 'salamanderScale') || burnStacks(ev.enemy) < maxBurn(p)) return;
-      addField(g, { x: ev.enemy.x, y: ev.enemy.y, r: 60, life: 3, dps: relicDamage(p, 8), hostile: false, color: F.color, dtype: 'fire', apply: { id: 'burn', stacks: 1, power: relicDamage(p, 3) } }); // Scorched Earth
+      const a = aOf('salamanderScale');
+      addField(g, { x: ev.enemy.x, y: ev.enemy.y, r: a.radius, life: a.life, dps: relicDamage(p, a.dps), hostile: false, color: F.color, dtype: 'fire', apply: { id: 'burn', stacks: 1, power: relicDamage(p, a.power) } }); // Scorched Earth
     },
   },
 
@@ -103,7 +104,8 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     },
     onAbilityUsed(g, _ev, p) {
       if (!awakened(p, 'fireArrows')) return;
-      addField(g, { x: g.input.aimX, y: g.input.aimY, r: 110, life: 3, dps: relicDamage(p, 10), hostile: false, color: F.color, dtype: 'fire' }); // Rain of Cinders
+      const a = aOf('fireArrows');
+      addField(g, { x: g.input.aimX, y: g.input.aimY, r: a.radius, life: a.life, dps: relicDamage(p, a.dps), hostile: false, color: F.color, dtype: 'fire' }); // Rain of Cinders
     },
   },
 
@@ -130,9 +132,10 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     tick(g, dt, p) {
       if (!awakened(p, 'radiantBrand') || !p.invulnerable) return;
       // Pillar of Dawn: while the shield holds, burning enemies touching you take their burn again every second
-      if ((g.vars['dawn.t'] = (g.vars['dawn.t'] ?? 0) + dt) < 1) return;
+      const a = aOf('radiantBrand');
+      if ((g.vars['dawn.t'] = (g.vars['dawn.t'] ?? 0) + dt) < a.every) return;
       g.vars['dawn.t'] = 0;
-      for (const e of g.hash.query(p.x, p.y, p.r + 40, [])) {
+      for (const e of g.hash.query(p.x, p.y, p.r + a.reach, [])) {
         const b = e.statuses.burn;
         if (b) damageEnemy(g, e, b.power * b.stacks, false, 0, 0, 'relic', 'fire');
       }

@@ -41,8 +41,8 @@ export function pacingBudget(wave: number): number {
 /** Enemy count: Act I ramps it up, later Acts add only `lateGrowth` a wave (their difficulty comes from stats, then composition). */
 export function enemyCount(wave: number): number {
   const c = WAVES.count;
-  const w = Math.min(wave, 10);
-  const n = Math.round(c.base + c.perWave * w + Math.pow(w, c.exp) + Math.max(0, wave - 10) * c.lateGrowth);
+  const w = Math.min(wave, ACTS.length);
+  const n = Math.round(c.base + c.perWave * w + Math.pow(w, c.exp) + Math.max(0, wave - ACTS.length) * c.lateGrowth);
   return isBossWave(wave) ? Math.max(1, Math.round(n * WAVES.bossEscortFrac)) : n;
 }
 

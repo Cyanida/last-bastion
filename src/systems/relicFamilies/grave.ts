@@ -2,7 +2,7 @@ import { ATTUNEMENT, FAMILIES, relicDef, type RelicId, type SetLevel } from '../
 import type { Player } from '../../core/types';
 import { timer } from '../../entities/hazards';
 import { applyStatus, nearestEnemy } from '../combat';
-import { awakened, bonus, credit, isCursed, nOf, nova, raiseSkeleton, relicDamage, sOf, skeletonsBy, type RelicHooks } from '../relicCore';
+import { aOf, awakened, bonus, credit, isCursed, nOf, nova, raiseSkeleton, relicDamage, sOf, skeletonsBy, type RelicHooks } from '../relicCore';
 import { addWork } from '../../logic/relics';
 
 /**
@@ -11,7 +11,7 @@ import { addWork } from '../../logic/relics';
  */
 const F = FAMILIES.grave;
 const shadow = { radius: 70, color: F.color, dtype: 'shadow' as const };
-const corpseBursts = timer('deathmask.burst', (g, a: { p: Player; x: number; y: number }) => nova(g, a.x, a.y, shadow.radius, relicDamage(a.p, 18), 140, F.color, 'shadow'));
+const corpseBursts = timer('deathmask.burst', (g, a: { p: Player; x: number; y: number }) => nova(g, a.x, a.y, shadow.radius, relicDamage(a.p, aOf('deathmask').damage), 140, F.color, 'shadow'));
 
 export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   soulLantern: {
@@ -19,7 +19,7 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const n = nOf(p, 'soulLantern');
       if (ev.enemy.def.boss || skeletonsBy(g, 'soulLantern') >= n.max || g.rng() >= n.chance) return;
       const m = raiseSkeleton(g, p, ev.enemy.x, ev.enemy.y, 'soulLantern', { hp: n.hp, damage: n.damage, life: n.life });
-      if (awakened(p, 'soulLantern')) m.onEnd = { ...shadow, damage: relicDamage(p, 14) }; // Lantern of the Lost
+      if (awakened(p, 'soulLantern')) m.onEnd = { ...shadow, damage: relicDamage(p, aOf('soulLantern').damage) }; // Lantern of the Lost
     },
   },
 
@@ -30,7 +30,7 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onKill(g, ev, p) {
       const c = ev.enemy.statuses.curse;
       if (!awakened(p, 'hexDoll') || !c) return;
-      const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, 220, ev.enemy); // Voodoo
+      const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, aOf('hexDoll').range, ev.enemy); // Voodoo
       if (to) applyStatus(to, { apply: [{ id: 'curse', stacks: c.stacks }] }, g);
     },
   },
@@ -51,11 +51,12 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const n = nOf(p, 'gravediggersSpade');
       const near = g.corpses.filter((c) => Math.hypot(c.x - p.x, c.y - p.y) < n.radius);
       bonus(p, 'damage', Math.min(n.max, near.length) * n.per);
-      if (!awakened(p, 'gravediggersSpade') || !near.length || (g.vars['exhume.t'] = (g.vars['exhume.t'] ?? 0) + dt) < 20) return;
+      const a = aOf('gravediggersSpade');
+      if (!awakened(p, 'gravediggersSpade') || !near.length || (g.vars['exhume.t'] = (g.vars['exhume.t'] ?? 0) + dt) < a.every) return;
       g.vars['exhume.t'] = 0; // Exhume: the oldest corpse near you rises
       const oldest = near.reduce((a, b) => (a.t > b.t ? a : b));
       g.corpses.splice(g.corpses.indexOf(oldest), 1);
-      raiseSkeleton(g, p, oldest.x, oldest.y, 'gravediggersSpade', { hp: 50, damage: 10, life: 20 });
+      raiseSkeleton(g, p, oldest.x, oldest.y, 'gravediggersSpade', { hp: a.hp, damage: a.damage, life: a.life });
     },
   },
 
@@ -72,7 +73,7 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onKill(g, ev, p) {
       if (!awakened(p, 'deathmask') || !isCursed(ev.enemy)) return;
       const { x, y } = ev.enemy; // Mark of the Grave: its corpse bursts a second later
-      corpseBursts(g, 1, { p, x, y });
+      corpseBursts(g, aOf('deathmask').delay, { p, x, y });
     },
   },
 
@@ -83,7 +84,8 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     },
     onHit(g, ev, p) {
       if (!awakened(p, 'boneChime') || ev.source !== 'minion') return;
-      if ((g.vars['knell.hits'] = (g.vars['knell.hits'] ?? 0) + 1) % 20 === 0) nova(g, ev.enemy.x, ev.enemy.y, 90, relicDamage(p, 20), 120, F.color, 'shadow'); // Death Knell
+      const a = aOf('boneChime');
+      if ((g.vars['knell.hits'] = (g.vars['knell.hits'] ?? 0) + 1) % a.every === 0) nova(g, ev.enemy.x, ev.enemy.y, a.radius, relicDamage(p, a.damage), 120, F.color, 'shadow'); // Death Knell
     },
   },
 };

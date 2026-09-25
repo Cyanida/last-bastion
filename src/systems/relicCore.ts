@@ -23,6 +23,8 @@ export const tierOf = (p: Player, id: RelicId): number => p.relics.tiers[id] ?? 
 export const has = (p: Player, id: RelicId): boolean => tierOf(p, id) > 0;
 export const nOf = (p: Player, id: RelicId) => relicN(id, tierOf(p, id));
 export const awakened = (p: Player, id: RelicId): boolean => tierOf(p, id) >= RELIC_MAX_TIER;
+/** The awakening's own numbers (config/relics.ts `a`). */
+export const aOf = (id: RelicId): Record<string, number> => RELICS[id].awaken.n;
 export const hasDuo = (p: Player, id: DuoId): boolean => p.relics.duos.includes(id);
 /** The class's secondary stat: Faith, Rage, Grace, Soul Power, Focus. */
 export const sOf = (p: Player): number => p.stats.secondary;
@@ -97,7 +99,8 @@ export const isFrozen = (g: Game, e: Enemy): boolean => e.frozenT > g.time;
 
 /** A bleed from the player: Berserker Tooth's Last Blood doubles it below 25% HP (Blood's Open Wounds is in combat.applyStatus). */
 export function addBleed(g: Game, p: Player, e: Enemy, stacks: number, power: number): void {
-  const s = awakened(p, 'berserkerTooth') && p.hp < p.stats.hp * 0.25 ? stacks * 2 : stacks;
+  const a = aOf('berserkerTooth');
+  const s = awakened(p, 'berserkerTooth') && p.hp < p.stats.hp * a.below ? stacks * a.mult : stacks;
   applyStatus(e, { apply: [{ id: 'bleed', stacks: s, power }] }, g);
 }
 export const isBleeding = (e: Enemy): boolean => (e.statuses.bleed?.stacks ?? 0) > 0;

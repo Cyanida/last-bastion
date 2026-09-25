@@ -2,6 +2,7 @@ import type { ClassId } from '../config/classes';
 import { ATTUNEMENT, DUO_IDS, DUOS, FAMILIES, FAMILY_IDS, SET_LEVELS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng, SeededRng } from '../core/types';
+import { isMultiplicative } from './mods';
 import { mulberry32 } from '../core/math';
 import { hashSeed } from './acts';
 
@@ -151,8 +152,6 @@ export function softCap(sum: number, cap: number): number {
   return cap + tail * (1 - Math.exp(-(sum - cap) / tail));
 }
 
-const MULTIPLICATIVE = new Set<keyof Mods>(['damage', 'atkSpd', 'moveSpd', 'cooldown', 'pickup', 'xp', 'gold', 'minionAtkSpd', 'minionDamage']);
-
 export interface RelicModTotal {
   raw: number; // the additive sum of bonuses (a cooldown cut is positive here)
   eff: number; // after the soft cap
@@ -168,7 +167,7 @@ export function relicModTotals(held: RelicId[], tiers: RelicTiers): Partial<Reco
     if (!mods) continue;
     for (const key of Object.keys(mods) as (keyof Mods)[]) {
       const v = mods[key]!;
-      const bonus = MULTIPLICATIVE.has(key) ? (key === 'cooldown' ? 1 - v : v - 1) : v;
+      const bonus = isMultiplicative(key) ? (key === 'cooldown' ? 1 - v : v - 1) : v;
       const t = (out[key] ??= { raw: 0, eff: 0, cap: Infinity, count: 0 });
       t.raw += bonus;
       t.count++;
@@ -197,7 +196,7 @@ export function foldRelicMods(statics: RelicTotals, dyn: Partial<Record<keyof Mo
 export function totalsToMods(totals: RelicTotals): Partial<Mods> {
   const mods: Partial<Mods> = {};
   for (const [key, t] of Object.entries(totals) as [keyof Mods, RelicModTotal][]) {
-    mods[key] = MULTIPLICATIVE.has(key) ? (key === 'cooldown' ? 1 - t.eff : 1 + t.eff) : t.eff;
+    mods[key] = isMultiplicative(key) ? (key === 'cooldown' ? 1 - t.eff : 1 + t.eff) : t.eff;
   }
   return mods;
 }

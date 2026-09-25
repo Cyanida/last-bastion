@@ -1201,6 +1201,52 @@ await check('text size: Larger grows the HUD, no overlap at 1400x800 and 844x390
   return { ok, detail: `player panel ${Math.round(dn.tl)} -> ${Math.round(dl.tl)}px (1400x800), ${Math.round(pn.tl)} -> ${Math.round(pl.tl)}px (844x390), +N ${seen.map((s) => s.more).join('/')}${hits.length ? `; overlaps: ${hits.slice(0, 4).join(', ')}` : ''}` };
 });
 
+// #117: with Ballista Shot the reticle is the bolt's own size (it was drawn at 14 for a 16 bolt)
+await check('ballista: the aim reticle is the size of the bolt it fires', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  await inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    document.querySelector('[data-go="start"]').click();
+    await wait();
+    document.querySelector('[data-class="archer"]').click();
+    await wait(200);
+    const g = window.__lb.game;
+    g.player.invulnerable = true;
+    g.player.upgrades.push('ballista'); // as if picked at a level-up
+    g.player.abilityCd = 0;
+    // the reticle is the only dashed circle the renderer strokes
+    const C = CanvasRenderingContext2D.prototype, dash = C.setLineDash, arc = C.arc;
+    window.__reticle = [];
+    C.setLineDash = function (d) { this.__dashed = d.length > 0; return dash.call(this, d); };
+    C.arc = function (x, y, r, ...rest) { if (this.__dashed) window.__reticle.push(r); return arc.call(this, x, y, r, ...rest); };
+  });
+  await page.mouse.move(700, 300);
+  await page.mouse.move(760, 330);
+  const drawn = await inPage(() => {
+    const lb = window.__lb;
+    lb.run(1, false, 'input'); // the cursor's aim reaches the game
+    lb.draw();
+    return [...new Set(window.__reticle)];
+  });
+  await page.mouse.down({ button: 'right' });
+  const shot = await inPage(() => {
+    const lb = window.__lb, g = lb.game;
+    for (let i = 0; i < 20; i++) {
+      lb.run(1, false, 'input');
+      const bolt = g.projectiles.find((q) => !q.hostile && q.pierce >= 999);
+      if (bolt) return bolt.r;
+    }
+    return 0;
+  });
+  await page.mouse.up({ button: 'right' });
+  const cls = await inPage(() => window.__lb.game?.player.cls.id);
+  return { ok: cls === 'archer' && drawn.length === 1 && shot > 0 && drawn[0] === shot, detail: `${cls}: reticle ${drawn.join('/') || 'none'}, bolt ${shot}` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };

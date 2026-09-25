@@ -3,7 +3,7 @@ import { ARENA_FAMILIES, ATTUNEMENT, BOSS_RELIC_CHOICES, CURSED, CURSED_IDS, duo
 import { sfx } from '../sim/view';
 import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
-import { combineMods } from '../logic/mods';
+import { combineMods, isMultiplicative } from '../logic/mods';
 import { attuneAll, duoPartner, duoTier, familyPool, foldRelicMods, joinTiers, looseRelics, readyDuos, relicCardLine, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
 import { floatText, ring } from './effects';
 import { relicContext } from './relicContext';
@@ -25,7 +25,6 @@ import { CURSED_RELICS } from './relicFamilies/cursed';
  */
 export const HOOKS: Partial<Record<RelicId, RelicHooks>> = { ...FLAME_RELICS, ...FROST_RELICS, ...STORM_RELICS, ...BLOOD_RELICS, ...HOLY_RELICS, ...GRAVE_RELICS, ...STEEL_RELICS, ...CURSED_RELICS };
 const SETS: Record<FamilyId, Partial<Record<SetLevel, RelicHooks>>> = { flame: FLAME_SETS, frost: FROST_SETS, storm: STORM_SETS, blood: BLOOD_SETS, holy: HOLY_SETS, grave: GRAVE_SETS, steel: STEEL_SETS };
-const BONUS_KEYS = new Set<keyof Mods>(['damage', 'atkSpd', 'moveSpd', 'cooldown', 'pickup', 'xp', 'gold', 'minionAtkSpd', 'minionDamage']); // multiplicative mods (logic/relics.ts)
 
 /** Calls one hook of a relic or a set, telling it whose it is. */
 function run<K extends EventName>(hooks: RelicHooks | undefined, g: Game, name: K, ev: GameEvents[K], p: Player): void {
@@ -147,7 +146,7 @@ export function updateRelics(g: Game, dt: number): void {
   const raw: Partial<Record<RelicKey, Partial<Record<keyof Mods, number>>>> = {};
   for (const id of r.held) {
     const mods = relicMods(id, relicTier(r.tiers, id));
-    if (mods) raw[id] = Object.fromEntries(Object.entries(mods).map(([k, v]) => [k, BONUS_KEYS.has(k as keyof Mods) ? (k === 'cooldown' ? 1 - v! : v! - 1) : v!]));
+    if (mods) raw[id] = Object.fromEntries(Object.entries(mods).map(([k, v]) => [k, isMultiplicative(k as keyof Mods) ? (k === 'cooldown' ? 1 - v! : v! - 1) : v!]));
   }
   r.raw = raw;
   for (const id of r.held) {

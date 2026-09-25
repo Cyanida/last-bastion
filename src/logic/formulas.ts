@@ -1,3 +1,4 @@
+import { ACTS } from '../config/acts';
 import { GAME } from '../config/game';
 import { WAVES } from '../config/waves';
 import type { Rng, Stats } from '../core/types';
@@ -33,8 +34,7 @@ export function xpToNext(level: number): number {
   return Math.round(GAME.xpBase + GAME.xpPerLevel * level);
 }
 
-const ACT_LENGTH = 10;
-const actIndex = (wave: number) => Math.max(0, Math.ceil(wave / ACT_LENGTH) - 1);
+const actIndex = (wave: number) => Math.max(0, Math.ceil(wave / ACTS.length) - 1);
 
 /** The level a player is expected to have at the start of `wave`, from the target pace per Act. */
 export function expectedLevel(wave: number): number {

@@ -5,7 +5,7 @@ import { fireProjectile } from '../../entities/hazards';
 import { TAU } from '../../core/math';
 import { rollPlayerHit } from '../combat';
 import { ring } from '../effects';
-import { awakened, bonus, credit, gainWard, nOf, nova, relicDamage, relicHeal, sOf, type RelicHooks } from '../relicCore';
+import { aOf, awakened, bonus, credit, gainWard, nOf, nova, relicDamage, relicHeal, sOf, type RelicHooks } from '../relicCore';
 
 /**
  * ✨ Holy (RELICS.md): healing, ward and blessing. Relics heal, grant ward (combat.damagePlayer lets ward take a hit first) or save you from
@@ -41,7 +41,7 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
         g.vars['aegis.t'] = 0;
         gainWard(g, p, p.stats.hp * n.ward);
       }
-      if (awakened(p, 'guardiansAegis') && p.ward > 0) bonus(p, 'damage', 0.15); // Faithful
+      if (awakened(p, 'guardiansAegis') && p.ward > 0) bonus(p, 'damage', aOf('guardiansAegis').damage); // Faithful
     },
   },
 
@@ -74,7 +74,7 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       addWork(p.relics, 'reliquary', ATTUNEMENT.proc);
     },
     onAbilityEnd(g, _ev, p) {
-      if (awakened(p, 'reliquary')) gainWard(g, p, p.stats.hp * 0.01 * sOf(p)); // Martyr's Relic
+      if (awakened(p, 'reliquary')) gainWard(g, p, p.stats.hp * aOf('reliquary').perFaith * sOf(p)); // Martyr's Relic
     },
   },
 
@@ -87,7 +87,7 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
         fireProjectile(g, p.x, p.y, (i / count) * TAU, { damage: hit.amount, crit: hit.crit, hostile: false, pierce: 2, shape: 'orb', color: '#f2e6a0', r: 6, speed: 420, range: 420, source: 'relic' });
       }
       // Choir of Light: the bolts heal as they land (one per enemy in their reach, at most one per bolt)
-      if (awakened(p, 'seraphHalo')) relicHeal(g, p, p.stats.hp * 0.01 * Math.min(count, g.hash.query(p.x, p.y, 420, []).length));
+      if (awakened(p, 'seraphHalo')) relicHeal(g, p, p.stats.hp * aOf('seraphHalo').heal * Math.min(count, g.hash.query(p.x, p.y, 420, []).length));
     },
   },
 
@@ -108,7 +108,7 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       }
     },
     onHit(g, ev, p) {
-      if (awakened(p, 'hallowedBones') && ev.source === 'minion') relicHeal(g, p, ev.amount * 0.005); // Sanctified Legion
+      if (awakened(p, 'hallowedBones') && ev.source === 'minion') relicHeal(g, p, ev.amount * aOf('hallowedBones').leech); // Sanctified Legion
     },
   },
 };

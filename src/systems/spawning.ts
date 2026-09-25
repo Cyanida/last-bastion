@@ -114,7 +114,7 @@ function startWave(g: Game): void {
   g.spawnInterval = plan.spawnInterval;
   g.spawnTimer = 0;
   g.waveT = 0;
-  if (g.wave === 10) g.wave10Time = g.time;
+  if (g.wave === ACTS.length) g.wave10Time = g.time;
   const title = g.wave === 1 ? `${actName(1)} — ${themeFor(1, g.seed).name}` : plan.boss ? `Wave ${g.wave} — Boss` : `Wave ${g.wave}`;
   g.banner = { text: plan.modifier ? `${title} · ${MODIFIERS[plan.modifier].name}` : title, t: plan.modifier ? 3 : 2 };
   sfx(g, 'wave');
