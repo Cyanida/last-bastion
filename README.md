@@ -208,7 +208,7 @@ src/core/      types, math/rng, spatial hash, events, storage, audio, quality, p
 src/entities/  factories
 src/systems/   movement, combat, status, enemyAI, specials, bosses, squads, spawning, acts, abilities, relics, ...
 src/render/    sprites, arenas, renderer (world, minimap, overlays)
-src/sim/       the balance bot
+src/sim/       commands and step() (commands.ts), the view hooks (view.ts), snapshot/restore/hashState (snapshot.ts), the balance bot (bot.ts)
 src/ui/        DOM HUD, screens, CSS
 electron/      main.cjs (window, updater) + preload.cjs (the four-function desktop API)
 scripts/       simulate, make-icons, sw-plugin (service worker at build time), dev-electron, release
@@ -219,7 +219,7 @@ public/        manifest + generated icons     build/  installer icon     docs/  
 
 - **Enemy**: a row in `config/enemies.ts`, a profile in `config/ai.ts`, an entry in `WAVES.pool` or a squad template. Only a new *kind* of action needs a function in `systems/specials.ts`. Resistances, armor and inflicted statuses are rows in `config/damage.ts`.
 - **Boss**: a def with `phases`, and a script registered with `registerBoss` in `systems/bosses.ts`.
-- **Relic**: a row in `config/relics.ts` with its `category`, numbers `n` and two `tiers` overrides (the text is a function of the numbers, so every tier describes itself), plus a hook in `systems/relics.ts` if it reacts to events (read the tier's numbers through `n(g, id)`). A **synergy** is a row in `SYNERGIES` plus a `syn(g, id)` check inside the hooks it changes.
+- **Relic**: a row in `RELICS` in `config/relics.ts` (through `relic()`) with its `family` (none for a cursed relic, `classId` for a class relic), tier I numbers `n`, tier II numbers `n2` and an `awaken` name and text for tier III (the text is a function of the numbers, so every tier describes itself). Its behaviour is a `RelicHooks` entry (event handlers, `tick`, `acquire`, `remove`) in `systems/relicFamilies/<family>.ts` (`cursed.ts` for a cursed relic; its tier III behaviour checks `awakened(p, id)`), reading the tier's numbers through `nOf(p, id)` and the shared mechanics in `systems/relicCore.ts`. A **set bonus** is a family's `sets` text and `n` in `FAMILIES` plus its hooks in that module's `<FAMILY>_SETS`. A **duo** is a row in `DUOS` (its two families and the two relics it combines) plus its hooks in `systems/relicFamilies/duos.ts` `DUO_HOOKS`.
 - **Ability upgrade / class / arena**: as in v0.2 (data row + hook).
 - **Curse**: a row in `config/curses.ts`, read where it matters through `curseValue`, and an achievement that unlocks it.
 - **Oath level**: a row in `config/oaths.ts` (a curse, or numbers for a knob in `OathKnob`); a new knob is read from `g.oath.n` where it matters.
