@@ -11,6 +11,7 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 | v0.7.3 | Fixes & class balance | released 2026-09-24 |
 | v0.7.4 | Fixes & polish | released 2026-09-24 |
 | v0.7.5 | Aiming & fixes | released 2026-09-25 |
+| v0.7.6 | Quest fixes | released 2026-09-25 |
 | v0.8.0 | Co-op foundation | backlog |
 | v0.9.0 | Online co-op | backlog |
 | v0.10.0 | Co-op polish | backlog |
@@ -118,6 +119,17 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 11. ([#110](https://github.com/Cyanida/last-bastion/issues/110)) Esc goes back to the pause menu from Talents, the Glossary and Treasures.
 12. ([#111](https://github.com/Cyanida/last-bastion/issues/111)) Chains, charges, fields, Blood Tide, assassins, arena zones and the gamepad as designed.
 13. ([#112](https://github.com/Cyanida/last-bastion/issues/112)) Late-Act slams fire as designed; enemy damage over time follows the difficulty.
+
+**Out of scope.** New systems (those are feature releases).
+
+## v0.7.6 – Quest fixes
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/21) · a patch release, from playtest feedback
+
+**Goal.** The monk escort quest can be won.
+
+**Scope.**
+1. ([#119](https://github.com/Cyanida/last-bastion/issues/119)) The monk has more health, slows instead of stopping near enemies, and enemies prefer the player over him.
 
 **Out of scope.** New systems (those are feature releases).
 

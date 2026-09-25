@@ -7,7 +7,9 @@
 export const QUESTS = {
   caravan: { name: 'Protect the caravan', short: 'Caravan', icon: '🐂', desc: 'A supply wagon crosses the field while the waves come. Keep it alive through two cleared waves.', hp: 700, speed: 34, waves: 2 },
   camps: { name: 'Destroy the siege camps', short: 'Camps', icon: '⛺', desc: 'Three siege camps muster the levy against you. Burn them all.', count: 3 },
-  monk: { name: 'Escort the monk', short: 'Monk', icon: '🙏', desc: 'A monk must reach the chapel on the far side. He waits while enemies are near him, and he is frail.', hp: 170, speed: 52, wait: 150, chapelDist: 700 },
+  monk: { name: 'Escort the monk', short: 'Monk', icon: '🙏', desc: 'A monk must reach the chapel on the far side. He slows while enemies are near him, and he is frail.', hp: 340, speed: 52, wait: 150, waitSpeed: 0.5, lure: 2, chapelDist: 700 },
+  // #119 monk: waitSpeed = his pace while an enemy is within `wait` (he used to stop dead); lure: enemies judge him this many times
+  // farther away than he is, so they go for the player at his side and only for the monk when they reach him alone
   elite: {
     name: 'Hunt the named elite', short: 'Hunt', icon: '☠️', desc: 'A champion of the horde arrives with the next wave, far from you. Bring back its head.', hpMult: 5, dist: 700,
     names: ['Grimwald the Flayer', 'Osric Bonebreaker', 'Maud of the Red Hand', 'Aldous the Hollow', 'Berengar Oathless', 'Ysolde the Gaunt'],
