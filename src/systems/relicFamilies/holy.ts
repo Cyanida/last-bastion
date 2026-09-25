@@ -83,7 +83,7 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const n = nOf(p, 'seraphHalo');
       const count = Math.floor(n.base + sOf(p) * n.perGrace);
       for (let i = 0; i < count; i++) {
-        const hit = rollPlayerHit(g, p.cls.attack.damage * n.mult, 'int');
+        const hit = rollPlayerHit(p, p.cls.attack.damage * n.mult, 'int');
         fireProjectile(g, p.x, p.y, (i / count) * TAU, { damage: hit.amount, crit: hit.crit, hostile: false, pierce: 2, shape: 'orb', color: '#f2e6a0', r: 6, speed: 420, range: 420, source: 'relic' });
       }
       // Choir of Light: the bolts heal as they land (one per enemy in their reach, at most one per bolt)

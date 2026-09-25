@@ -20,7 +20,7 @@ import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, 
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
 import { lastStand, zoneStruck } from './dodge';
-import { isPlayer, withPlayer } from '../logic/players';
+import { isPlayer } from '../logic/players';
 import { spawnEnemy } from './spawning';
 
 const BLOOD = '#8e1b1b';
@@ -192,7 +192,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   sfx(g, 'hit');
   if (source === 'attack') {
     const leech = g.player.buff.lifesteal + g.player.mods.lifesteal;
-    if (leech > 0) healPlayer(g, Math.min(dealt * leech, g.player.stats.hp * GAME.leechCapPerHit), false);
+    if (leech > 0) healPlayer(g, g.player, Math.min(dealt * leech, g.player.stats.hp * GAME.leechCapPerHit), false);
   }
   emit(g, 'onHit', { enemy: e, amount, crit, source });
   if (e.hp <= 0) killEnemy(g, e, source);
@@ -200,15 +200,13 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
 }
 
 /** Damage of a player attack or ability with the given base and scaling stat, crit rolled from Dexterity. */
-export function rollPlayerHit(g: Game, base: number, scaling: 'str' | 'dex' | 'int'): { amount: number; crit: boolean } {
-  const p = g.player;
+export function rollPlayerHit(p: Player, base: number, scaling: 'str' | 'dex' | 'int'): { amount: number; crit: boolean } {
   const hit = rollCrit(attackDamage(base, p.stats[scaling], p.buff.damage * p.mods.damage), p.stats.dex, p.rng, p.mods.crit);
   if (hit.crit && p.mods.critDamage > 0) hit.amount *= (GAME.critMult + p.mods.critDamage) / GAME.critMult;
   return hit;
 }
 
-function revive(g: Game): boolean {
-  const p = g.player;
+function revive(g: Game, p: Player): boolean {
   let frac = 0;
   if (p.reviveT > 0) {
     frac = ABILITY_UPGRADES.guardianAngel.n.hp;
@@ -216,7 +214,7 @@ function revive(g: Game): boolean {
   } else if (p.revives > 0) {
     frac = p.vars['phoenix.hp'] ?? GAME.reviveHp; // v0.7: Phoenix Feather's tier
     p.revives--;
-    emit(g, 'onRevive', {});
+    emit(g, 'onRevive', {}, p);
   } else return false;
   p.hp = p.stats.hp * frac;
   p.invulnT = GAME.reviveGrace;
@@ -236,11 +234,10 @@ function revive(g: Game): boolean {
 }
 
 /** `cause` names what hurt when it was not an enemy (the run log's cause of death). */
-export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, attacker: Enemy | null = null, cause = 'something unseen'): void {
-  const p = g.player;
+export function damagePlayer(g: Game, p: Player, amount: number, ignoreIFrames = false, attacker: Enemy | null = null, cause = 'something unseen'): void {
   if (g.over || p.invulnT > 0) return;
   if (p.invulnerable) {
-    emit(g, 'onBlocked', { amount, attacker });
+    emit(g, 'onBlocked', { amount, attacker }, p);
     return;
   }
   if (!ignoreIFrames) {
@@ -253,13 +250,13 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
   }
   // v0.7: relics may shrink the hit or block it (Steel, Frost, Grave); a blocked hit does nothing, but blocking is an event of its own
   const incoming = { amount, attacker, blocked: false };
-  emit(g, 'onIncoming', incoming);
+  emit(g, 'onIncoming', incoming, p);
   if (incoming.blocked) {
     floatText(g, p.x, p.y - 34, 'BLOCK', '#a8b0bc', 14);
-    emit(g, 'onBlock', { amount, attacker });
+    emit(g, 'onBlock', { amount, attacker }, p);
     return;
   }
-  let taken = mitigate(incoming.amount * damageTakenFactor(p.statuses) * (g.vars.damageTaken ?? 1) * tauntedDamageMult(g, attacker), Math.min(GAME.armorCap, p.cls.armor + p.mods.armor));
+  let taken = mitigate(incoming.amount * damageTakenFactor(p.statuses) * (g.vars.damageTaken ?? 1) * tauntedDamageMult(p, attacker), Math.min(GAME.armorCap, p.cls.armor + p.mods.armor));
   if (p.ward > 0) {
     // v0.7 ward (Holy): it takes the hit first
     const soak = Math.min(p.ward, taken);
@@ -274,7 +271,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
   sfx(g, 'hurt');
   if (p.hp <= 0) {
     if (p.deathless) p.hp = 1;
-    else if (!revive(g) && !lastStand(g)) {
+    else if (!revive(g, p) && !lastStand(g, p)) {
       p.hp = 0;
       g.over = true;
       g.log.cause = attacker ? `${attacker.elite ? 'elite ' : ''}${attacker.def.name}` : cause;
@@ -282,16 +279,15 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
       return;
     }
   }
-  emit(g, 'onDamageTaken', { amount: taken, attacker });
+  emit(g, 'onDamageTaken', { amount: taken, attacker }, p);
 }
 
 /** Returns the HP actually restored (0 when already full or healing is blocked), which the class feats count. */
-export function healPlayer(g: Game, amount: number, show = true): number {
-  const p = g.player;
+export function healPlayer(g: Game, p: Player, amount: number, show = true): number {
   if (g.breather > 0 && g.wave > 0 && g.curses.includes('noRespite')) return 0; // No Respite: nothing mends between waves
   const heal = amount * healFactor(g.wave) * (p.vars.relicHealMult ?? 1); // v0.5: sustain fades past wave 30; v0.7: Blessed Water
   const healed = Math.min(p.stats.hp - p.hp, heal);
-  if (heal > 0) emit(g, 'onHeal', { amount: Math.max(0, healed), over: heal - Math.max(0, healed) }); // v0.7: Holy turns overhealing into ward and pulses
+  if (heal > 0) emit(g, 'onHeal', { amount: Math.max(0, healed), over: heal - Math.max(0, healed) }, p); // v0.7: Holy turns overhealing into ward and pulses
   if (healed <= 0) return 0;
   p.hp += healed;
   g.vars.healed = (g.vars.healed ?? 0) + healed; // v0.7: the denominator of the relics' healing share (RELICS.md)
@@ -308,8 +304,8 @@ export function damageMinion(g: Game, m: Minion, amount: number): void {
 /** Enemies hit whatever they are fighting through this. */
 export function hurtTarget(g: Game, t: Player | Minion, amount: number, ignoreIFrames = false, attacker: Enemy | null = null, cause?: string): void {
   const before = t.hp;
-  const player = isPlayer(g, t); // v0.8 (#28): any player, hurt with the focus on them
-  if (player) withPlayer(g, t, () => damagePlayer(g, amount, ignoreIFrames, attacker, cause));
+  const player = isPlayer(g, t); // v0.8 (#28): any player
+  if (player) damagePlayer(g, t, amount, ignoreIFrames, attacker, cause);
   else damageMinion(g, t as Minion, amount);
   // some enemies leave something behind: wolves make you bleed, cultists set you alight, the Lich curses
   const inflicts = attacker && t.hp < before ? ENEMY_STATUS[attacker.def.id] : undefined;
@@ -343,7 +339,7 @@ export function updatePlayerAttack(g: Game, dt: number): void {
     for (const e of g.hash.query(p.x, p.y, range, near)) {
       const a = Math.atan2(e.y - p.y, e.x - p.x);
       if (e.dead || angleDiff(a, p.facing) > arc / 2) continue;
-      const hit = rollPlayerHit(g, atk.damage, atk.scaling);
+      const hit = rollPlayerHit(p, atk.damage, atk.scaling);
       damageEnemy(g, e, hit.amount, hit.crit, Math.cos(a) * atk.knockback, Math.sin(a) * atk.knockback, 'attack', atk.type);
     }
   } else {
@@ -351,7 +347,7 @@ export function updatePlayerAttack(g: Game, dt: number): void {
     const every = p.vars.splitEvery ?? 0;
     const shots = p.buff.multishot + (every > 0 && (p.vars.shots = (p.vars.shots ?? 0) + 1) % every === 0 ? 2 : 0);
     for (let i = -shots / 2; i <= shots / 2; i++) {
-      const hit = rollPlayerHit(g, atk.damage, atk.scaling);
+      const hit = rollPlayerHit(p, atk.damage, atk.scaling);
       fireProjectile(g, p.x, p.y - 6, p.facing + i * 0.18, {
         damage: hit.amount,
         crit: hit.crit,
@@ -524,12 +520,12 @@ export function updateFields(g: Game, dt: number): void {
         // v0.8 (#28): every player standing in it
         for (const q of g.players) {
           if (dist2(f.x, f.y, q.x, q.y) > f.r * f.r) continue;
-          withPlayer(g, q, () => damagePlayer(g, f.dps * GAME.fieldTick, true, null, `${DAMAGE_TYPES[f.dtype].name.toLowerCase()} on the ground`));
+          damagePlayer(g, q, f.dps * GAME.fieldTick, true, null, `${DAMAGE_TYPES[f.dtype].name.toLowerCase()} on the ground`);
           if (f.apply) applyStatusTo(q.statuses, f.apply);
         }
         for (const m of g.minions) if (dist2(f.x, f.y, m.x, m.y) <= f.r * f.r) damageMinion(g, m, f.dps * GAME.fieldTick);
       } else {
-        if (f.heal > 0) for (const q of g.players) if (dist2(f.x, f.y, q.x, q.y) <= f.r * f.r) withPlayer(g, q, () => healPlayer(g, f.heal * GAME.fieldTick, false));
+        if (f.heal > 0) for (const q of g.players) if (dist2(f.x, f.y, q.x, q.y) <= f.r * f.r) healPlayer(g, q, f.heal * GAME.fieldTick, false);
         for (const e of g.hash.query(f.x, f.y, f.r, near)) {
           if (e.dead) continue;
           const outer = relicContext.acting;

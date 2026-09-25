@@ -86,11 +86,11 @@ describe('the Keep: buildings, caps and costs', () => {
     const g = createGame('paladin', 1, { libraryLevel: 0 });
     g.player.talentPoints = 9;
     const plan = branchPlan('paladin', 0);
-    for (const id of plan.slice(0, 6)) expect(spendTalent(g, id)).toBe(true);
-    expect(spendTalent(g, plan[6])).toBe(false); // the keystone needs Library level 1
+    for (const id of plan.slice(0, 6)) expect(spendTalent(g, g.player, id)).toBe(true);
+    expect(spendTalent(g, g.player, plan[6])).toBe(false); // the keystone needs Library level 1
     const open = createGame('paladin', 1, { libraryLevel: 1 });
     open.player.talentPoints = 9;
-    for (const id of plan) expect(spendTalent(open, id)).toBe(true); // keystone included
+    for (const id of plan) expect(spendTalent(open, open.player, id)).toBe(true); // keystone included
     expect(buildingLevel({ watchtower: 2 }, 'watchtower')).toBe(2);
   });
 });

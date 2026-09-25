@@ -389,7 +389,7 @@ function openLevelUp(g: Game): void {
 function openChoice(g: Game): void {
   state = 'choice';
   setTouchControls(false);
-  setRecipeBuild(buildState(g)); // v0.6: relic and talent tooltips point out the missing half of an evolution recipe
+  setRecipeBuild(buildState(g.player)); // v0.6: relic and talent tooltips point out the missing half of an evolution recipe
   if (g.victory === 'pending' && isTestRun(g)) endRun(g); // v0.7.1: no victory screen: it would show what banking pays
   else if (g.victory === 'pending') {
     // v0.6: the Usurper fell. The screen shows the run as it would bank now; going on keeps it running into Endless.
@@ -415,7 +415,7 @@ function openChoice(g: Game): void {
       resume();
     });
   } else if (g.player.pendingUtilityTiers.length > 0) {
-    showUtilityUpgrade(g.player.pendingUtilityTiers[0], utilityUpgradeOptions(g), g.player.cls, (id) => {
+    showUtilityUpgrade(g.player.pendingUtilityTiers[0], utilityUpgradeOptions(g.player), g.player.cls, (id) => {
       choose(g, { c: 'utilityUpgrade', id });
       resume();
     });
@@ -508,7 +508,7 @@ function togglePause(): void {
 
 function pauseMenu(g: Game): void {
   pauseSub = false;
-  setRecipeBuild(buildState(g));
+  setRecipeBuild(buildState(g.player));
   showPause(buildOf(g), {
     resume: togglePause,
     quit: () => endRun(g),

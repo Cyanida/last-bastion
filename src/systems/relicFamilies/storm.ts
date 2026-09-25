@@ -12,7 +12,7 @@ import { attackHit, awakened, bonus, chainFrom, nOf, nova, relicDamage, sOf, str
  */
 const F = FAMILIES.storm;
 /** The player's own hit, for "3× your hit" strikes. */
-const yourHit = (g: Game, p: Player) => rollPlayerHit(g, p.cls.attack.damage, p.cls.attack.scaling).amount;
+const yourHit = (p: Player) => rollPlayerHit(p, p.cls.attack.damage, p.cls.attack.scaling).amount;
 /** Eye of the Storm: a chain hit crits on the player's own crit chance. */
 const chainCrit = (p: Player) => awakened(p, 'tempestEye') && p.rng() < critChance(p.stats.dex) + p.mods.crit;
 const hitCount = (p: Player, key: string) => (p.vars[key] = (p.vars[key] ?? 0) + 1);
@@ -68,7 +68,7 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       let target: Enemy | null = null;
       for (const e of g.hash.query(p.x, p.y, n.range, [])) if (!target || e.hp > target.hp) target = e;
       if (!target) return;
-      const dmg = yourHit(g, p) * n.mult;
+      const dmg = yourHit(p) * n.mult;
       strike(g, target.x, target.y, dmg, n.radius);
       if (awakened(p, 'stormcallersHorn')) chainFrom(g, p, target, dmg * 0.5, 3, 200); // Skyfury
     },

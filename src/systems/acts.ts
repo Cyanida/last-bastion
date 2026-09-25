@@ -136,7 +136,7 @@ export function nextAct(g: Game, route: Route | null = null): void {
   for (const k of g.pickups) {
     if (k.kind === 'xp') gainXp(g, k.value);
     else if (k.kind === 'gold') p.gold += k.value;
-    else if (k.kind === 'fragment') takeFragment(g);
+    else if (k.kind === 'fragment') takeFragment(g, p);
   }
   for (const e of g.enemies) e.dead = true;
   g.enemies.length = g.pickups.length = g.corpses.length = g.fields.length = g.zones.length = g.projectiles.length = g.barriers.length = g.squads.length = 0;

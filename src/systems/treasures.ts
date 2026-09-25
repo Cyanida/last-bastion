@@ -5,7 +5,7 @@ import { TREASURE_RULES, TREASURES, treasureN, type TreasureId } from '../config
 import { sfx } from '../sim/view';
 import { addListener, dispatch, type GameEvents, type Handlers } from '../core/events';
 import { dist2, TAU } from '../core/math';
-import type { Enemy, Game } from '../core/types';
+import type { Enemy, Game, Player } from '../core/types';
 import { createMinion } from '../entities/actors';
 import { addField } from '../entities/hazards';
 import { isActEnd } from '../logic/acts';
@@ -23,19 +23,20 @@ import { spawnEnemy } from './spawning';
  */
 interface TreasureHooks extends Handlers {
   /** Every tick, after p.mods has been reset. */
-  tick?(g: Game, n: Record<string, number>): void;
+  tick?(g: Game, n: Record<string, number>, p: Player): void;
 }
 
-const n = (g: Game) => treasureN(g.player.cls.id, g.treasure!.tier);
-const treasureOf = (g: Game) => TREASURES[g.player.cls.id];
+const n = (g: Game, p: Player) => treasureN(p.cls.id, g.treasure!.tier);
+/** v0.8 (#28): the chain is the host's (their save, their class); the equipped treasure acts for whoever plays its class. */
+const treasureOf = (g: Game) => TREASURES[g.players[0].cls.id];
+const holds = (g: Game, p: Player) => g.treasure !== null && TREASURES[p.cls.id].id === g.treasure.id;
 
 const HOOKS: Record<TreasureId, TreasureHooks> = {
   // Divine Shield ends: heal part of what it soaked (and more with Faith); the burst leaves holy ground behind
   holyGrail: {
-    onAbilityEnd(g) {
-      const p = g.player;
-      const c = n(g);
-      healPlayer(g, p.absorbed * c.heal + p.stats.hp * c.perFaith * p.stats.secondary);
+    onAbilityEnd(g, _ev, p) {
+      const c = n(g, p);
+      healPlayer(g, p, p.absorbed * c.heal + p.stats.hp * c.perFaith * p.stats.secondary);
       addField(g, { x: p.x, y: p.y, r: (p.cls.ability as Cfg<'divineShield'>).burstRadius, life: c.ground, dps: attackDamage(c.dps, p.stats.str, p.mods.damage), hostile: false, color: '#f2d675', dtype: 'holy' });
     },
   },
@@ -43,7 +44,7 @@ const HOOKS: Record<TreasureId, TreasureHooks> = {
   // Berserker Rage: a Rage-scaled chance per hit to call lightning down, jumping to the nearest enemy not struck yet
   mjolnirShard: {
     onHit(g, ev, p) {
-      const c = n(g);
+      const c = n(g, p);
       if (ev.source !== 'attack' || p.abilityTime <= 0 || p.rng() >= Math.min(c.cap, c.chance * p.stats.secondary)) return;
       const struck: Enemy[] = [ev.enemy];
       let from = ev.enemy;
@@ -64,9 +65,8 @@ const HOOKS: Record<TreasureId, TreasureHooks> = {
 
   // Heavenly Radiance leaves a sun where it was cast: it heals you and burns what stands in it; Grace widens it
   haloOfDawn: {
-    onAbilityUsed(g) {
-      const p = g.player;
-      const c = n(g);
+    onAbilityUsed(g, _ev, p) {
+      const c = n(g, p);
       const dps = attackDamage(c.dps, p.stats.int, p.mods.damage);
       addField(g, { x: p.x, y: p.y, r: c.radius + c.perGrace * p.stats.secondary, life: c.time, dps, heal: c.heal, hostile: false, color: '#ffd76a', dtype: 'fire', apply: { id: 'burn', power: dps * 0.25 } });
     },
@@ -74,21 +74,20 @@ const HOOKS: Record<TreasureId, TreasureHooks> = {
 
   // more minions, and every one that falls (or crumbles) explodes, harder with Soul Power
   bookOfTheDead: {
-    tick(g, c) {
-      g.player.mods.minionMax += c.minions;
-      const blast = c.blast + c.perSoul * g.player.stats.secondary;
+    tick(g, c, p) {
+      p.mods.minionMax += c.minions;
+      const blast = c.blast + c.perSoul * p.stats.secondary;
       for (const m of g.minions) if (!m.kind && m.volatile < blast) m.volatile = blast;
     },
   },
 
-  // combat.ts splits every g.player.vars.splitEvery-th arrow; Arrow Volley calls spectral hounds (they have a kind: no skeleton slots)
+  // combat.ts splits every p.vars.splitEvery-th arrow; Arrow Volley calls spectral hounds (they have a kind: no skeleton slots)
   wildHuntBow: {
-    tick(g, c) {
-      g.player.vars.splitEvery = Math.max(c.min, c.every - Math.floor(g.player.stats.secondary / c.perFocus));
+    tick(_g, c, p) {
+      p.vars.splitEvery = Math.max(c.min, c.every - Math.floor(p.stats.secondary / c.perFocus));
     },
-    onAbilityUsed(g) {
-      const p = g.player;
-      const c = n(g);
+    onAbilityUsed(g, _ev, p) {
+      const c = n(g, p);
       for (let i = 0; i < c.hounds; i++) {
         const a = (i / c.hounds) * TAU;
         const m = createMinion(p.x + Math.cos(a) * 30, p.y + Math.sin(a) * 30, { hp: c.hp, damage: attackDamage(c.damage, p.stats.dex), speed: 230, attackCd: 0.6, life: c.time });
@@ -103,9 +102,8 @@ const HOOKS: Record<TreasureId, TreasureHooks> = {
 // ---------------------------------------------------------------- the chain
 
 /** A fragment picked up (or a quest's). Past the last one it is a Rune instead. */
-export function takeFragment(g: Game): void {
+export function takeFragment(g: Game, p: Player): void {
   const c = g.chain;
-  const p = g.player;
   if (!c || c.fragments >= TREASURE_RULES.fragments) {
     g.questRunes += RUNES.quest;
     floatText(g, p.x, p.y - 50, '◆ A Rune', '#9fe07b', 15);
@@ -146,20 +144,20 @@ function wakeGuardian(g: Game): void {
   sfx(g, 'warn');
 }
 
-/** Every tick after the talents: the vault's guardian wakes when you walk in; the equipped treasure's tick hook. */
-export function updateTreasures(g: Game): void {
+/** Every tick after the talents, for each player: the vault's guardian wakes when one walks in; the equipped treasure's tick hook. */
+export function updateTreasures(g: Game, p: Player): void {
   const c = g.chain;
   if (c?.guardian?.dead && !c.slain) c.guardian = null; // swept off the field with the Act: it waits for the next opening
-  if (c && g.regionOpen.vault && !c.guardian && !c.slain && regionAt(regionsOf(g), g.player.x, g.player.y)?.id === 'vault') wakeGuardian(g);
-  if (g.treasure) HOOKS[g.treasure.id].tick?.(g, n(g));
+  if (c && g.regionOpen.vault && !c.guardian && !c.slain && regionAt(regionsOf(g), p.x, p.y)?.id === 'vault') wakeGuardian(g);
+  if (holds(g, p)) HOOKS[g.treasure!.id].tick?.(g, n(g, p), p);
 }
 
 addListener((g, name, ev, p) => {
-  if (g.treasure) dispatch(HOOKS[g.treasure.id], g, name, ev, p);
+  if (holds(g, p)) dispatch(HOOKS[g.treasure!.id], g, name, ev, p);
   const c = g.chain;
   if (name !== 'onKill' || !c) return;
   const e = (ev as GameEvents['onKill']).enemy;
-  const cls = g.player.cls.id;
+  const cls = g.players[0].cls.id;
   if (e === c.guardian) {
     c.slain = true;
     g.questRunes += TREASURE_RULES.guardianRunes;

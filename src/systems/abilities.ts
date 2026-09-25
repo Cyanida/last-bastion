@@ -14,6 +14,7 @@ import { burst, cosmetic, floatText, ring, shake } from './effects';
 import { feat, featAdd } from './feats';
 import { skeletonCount } from './minions';
 import { lastStandActive } from './dodge';
+import { inputOf } from '../logic/players';
 import { evolutionHook, evolutionPassives } from './evolutions';
 import { SKILL } from '../config/game';
 
@@ -48,12 +49,12 @@ function activeFor(p: Player, seconds: number): void {
 }
 
 /** Arrow Volley's falling arrows, shared by the first and the (Double Volley) second salvo. */
-function volleyZones(g: Game, c: Cfg<'arrowVolley'>, tx: number, ty: number, status: Status | null): void {
-  const s = scale.arrowVolley(c, g.player.stats.secondary);
+function volleyZones(g: Game, p: Player, c: Cfg<'arrowVolley'>, tx: number, ty: number, status: Status | null): void {
+  const s = scale.arrowVolley(c, p.stats.secondary);
   for (let i = 0; i < s.arrows; i++) {
-    const a = g.player.rng() * TAU;
+    const a = p.rng() * TAU;
     const r = Math.sqrt(g.rng()) * c.radius;
-    const hit = rollPlayerHit(g, c.damage, 'dex');
+    const hit = rollPlayerHit(p, c.damage, 'dex');
     addZone(g, {
       x: tx + Math.cos(a) * r, y: ty + Math.sin(a) * r, r: c.arrowRadius,
       delay: 0.25 + (i / s.arrows) * c.duration,
@@ -64,21 +65,25 @@ function volleyZones(g: Game, c: Cfg<'arrowVolley'>, tx: number, ty: number, sta
 }
 
 /** v0.6: a volley where something fell (the Hunter's Mark), with the player's current volley numbers and no upgrades' extras. */
-export function freeVolley(g: Game, x: number, y: number): void {
-  volleyZones(g, g.player.cls.ability as Cfg<'arrowVolley'>, x, y, null);
+export function freeVolley(g: Game, p: Player, x: number, y: number): void {
+  volleyZones(g, p, p.cls.ability as Cfg<'arrowVolley'>, x, y, null);
 }
 
-function ballistaShot(g: Game, c: Cfg<'arrowVolley'>, angle: number, status: Status | null): void {
-  const p = g.player;
+function ballistaShot(g: Game, p: Player, c: Cfg<'arrowVolley'>, angle: number, status: Status | null): void {
   const n = U.ballista.n;
-  const hit = rollPlayerHit(g, c.damage * scale.arrowVolley(c, p.stats.secondary).arrows * n.mult, 'dex');
+  const hit = rollPlayerHit(p, c.damage * scale.arrowVolley(c, p.stats.secondary).arrows * n.mult, 'dex');
   fireProjectile(g, p.x, p.y - 6, angle, { damage: hit.amount, crit: hit.crit, hostile: false, pierce: 999, shape: 'arrow', color: '#f2c94c', r: n.radius, speed: n.speed, range: n.range, status, source: 'ability' });
   shake(g, 10);
   sfx(g, 'boom');
 }
 
-type Volley = { ballista: boolean; c: Cfg<'arrowVolley'>; angle: number; tx: number; ty: number; status: Status };
-const fireVolley = (g: Game, v: Volley): void => (v.ballista ? ballistaShot(g, v.c, v.angle, v.status) : volleyZones(g, v.c, v.tx, v.ty, v.status));
+/** `pi`: the caster's seat (timers hold plain data); an old snapshot without it means player 1. */
+type Volley = { ballista: boolean; c: Cfg<'arrowVolley'>; angle: number; tx: number; ty: number; status: Status; pi?: number };
+const fireVolley = (g: Game, v: Volley): void => {
+  const p = g.players[v.pi ?? 0];
+  if (v.ballista) ballistaShot(g, p, v.c, v.angle, v.status);
+  else volleyZones(g, p, v.c, v.tx, v.ty, v.status);
+};
 const volleyAgain = timer('arrowVolley.again', fireVolley); // Double Volley
 
 const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
@@ -89,7 +94,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       p.vars['shield.burst'] = 1;
       p.invulnerable = true;
       p.absorbed = 0;
-      if (has(p, 'secondWind')) healPlayer(g, p.stats.hp * U.secondWind.n.heal);
+      if (has(p, 'secondWind')) healPlayer(g, p, p.stats.hp * U.secondWind.n.heal);
       ring(g, p.x, p.y, 60, c.aura);
       return true;
     },
@@ -99,7 +104,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       if (has(p, 'zeal')) p.buff.atkSpd = 1 + U.zeal.n.atkSpd + faith * U.zeal.n.perFaith;
       if (has(p, 'sanctuary')) {
         const n = U.sanctuary.n;
-        healPlayer(g, n.heal * (1 + faith * n.perFaith) * dt, false);
+        healPlayer(g, p, n.heal * (1 + faith * n.perFaith) * dt, false);
         const crowded = g.hash.query(p.x, p.y, n.radius, near).length >= n.enemies;
         if (crowded && (p.vars.sanctuary ?? 0) < p.abilityDur * n.maxExtend) {
           p.abilityTime += dt * n.slowdown; // drains at half speed while surrounded
@@ -129,8 +134,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       sfx(g, 'boom');
     },
     on: {
-      onBlocked(g, ev) {
-        const p = g.player;
+      onBlocked(g, ev, p) {
         p.absorbed += ev.amount;
         feat(g, 'absorb', p.absorbed);
         if (has(p, 'mirrorShield') && ev.attacker) {
@@ -190,8 +194,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       }
     },
     on: {
-      onKill(g) {
-        const p = g.player;
+      onKill(g, _ev, p) {
         if (p.abilityTime <= 0) return;
         feat(g, 'rageKills', (p.vars.rageKills = (p.vars.rageKills ?? 0) + 1));
         if (!has(p, 'frenzy')) return;
@@ -211,7 +214,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const grace = p.stats.secondary;
       const s = scale.heavenlyRadiance(c, grace);
       const status: Status | null = has(p, 'blindingLight') ? { slowMul: U.blindingLight.n.slow, slowT: U.blindingLight.n.time } : null;
-      featAdd(g, 'radiance', healPlayer(g, attackDamage(s.heal, p.stats.int)));
+      featAdd(g, 'radiance', healPlayer(g, p, attackDamage(s.heal, p.stats.int)));
       const dmg = attackDamage(c.damage, p.stats.int, p.mods.damage);
       let slain = 0;
       for (const e of g.hash.query(p.x, p.y, s.radius, near)) {
@@ -291,8 +294,9 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
   arrowVolley: {
     activate(g, c, p) {
       // clamp the target point to cast range
-      const dx = g.input.aimX - p.x;
-      const dy = g.input.aimY - p.y;
+      const { aimX, aimY } = inputOf(g, p);
+      const dx = aimX - p.x;
+      const dy = aimY - p.y;
       const d = Math.hypot(dx, dy) || 1;
       const k = clamp(d, 0, c.castRange) / d;
       const tx = p.x + dx * k;
@@ -303,7 +307,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       if (has(p, 'markedForDeath')) Object.assign(status, { markMul: U.markedForDeath.n.mult, markT: U.markedForDeath.n.time });
 
       feat(g, 'volleyHits', g.hash.query(tx, ty, c.radius, near).length); // what the volley comes down on; the arrows land over the next second
-      const shot = { ballista: has(p, 'ballista'), c, angle, tx, ty, status };
+      const shot = { ballista: has(p, 'ballista'), c, angle, tx, ty, status, pi: g.players.indexOf(p) };
       fireVolley(g, shot);
       if (has(p, 'doubleVolley')) volleyAgain(g, U.doubleVolley.n.delay, shot);
       if (has(p, 'burningRain')) {
@@ -333,12 +337,12 @@ function hookFor(p: Player): { hook: AbilityHook<AbilityId>; cfg: Cfg<AbilityId>
 
 addListener((g, name, ev, p) => dispatch(hookFor(p).hook.on, g, name, ev, p), true);
 
-export function updateAbility(g: Game, dt: number): void {
-  const p = g.player;
+export function updateAbility(g: Game, p: Player, dt: number): void {
+  const input = inputOf(g, p);
   const { hook, cfg } = hookFor(p);
-  const evo = evolutionHook(g, 'signature'); // v0.6: an evolution adds to the ability, or takes its cast over
-  const pressed = g.input.ability && !p.vars['ability.held']; // a new press, not a held key
-  p.vars['ability.held'] = g.input.ability ? 1 : 0;
+  const evo = evolutionHook(p, 'signature'); // v0.6: an evolution adds to the ability, or takes its cast over
+  const pressed = input.ability && !p.vars['ability.held']; // a new press, not a held key
+  p.vars['ability.held'] = input.ability ? 1 : 0;
   if (p.abilityTime > 0) {
     if (pressed && cfg.id === 'divineShield') {
       // v0.7.4 (#63): pressing again ends Divine Shield now, for a weaker burst
@@ -358,8 +362,8 @@ export function updateAbility(g: Game, dt: number): void {
   }
   p.reviveT = Math.max(0, p.reviveT - dt);
   // the cooldown waits for the ability to end, so duration stacking can never reach 100% uptime
-  if (p.abilityTime <= 0) p.abilityCd = Math.max(cooldownFloor(g), p.abilityCd - dt * (lastStandActive(g) ? SKILL.lastStand.cooldownRate : 1)); // v0.6: the Last Stand hurries it (v0.7.3: not below the floor)
-  if (g.input.ability && p.abilityCd <= 0 && p.abilityTime <= 0) {
+  if (p.abilityTime <= 0) p.abilityCd = Math.max(cooldownFloor(g), p.abilityCd - dt * (lastStandActive(g, p) ? SKILL.lastStand.cooldownRate : 1)); // v0.6: the Last Stand hurries it (v0.7.3: not below the floor)
+  if (input.ability && p.abilityCd <= 0 && p.abilityTime <= 0) {
     p.vars.cdRefund = 0;
     if (!(evo?.replaceCast ? evo.replaceCast(g, p) : hook.activate(g, cfg, p))) return;
     evo?.cast?.(g, p);
@@ -372,15 +376,14 @@ export function updateAbility(g: Game, dt: number): void {
 }
 
 /** Passive ability upgrades adjust p.mods; runs every tick after relics. */
-export function abilityPassives(g: Game, dt = 0): void {
-  const { hook, cfg } = hookFor(g.player);
-  hook.passive?.(g, cfg, g.player);
-  evolutionPassives(g, dt); // v0.6
+export function abilityPassives(g: Game, p: Player, dt = 0): void {
+  const { hook, cfg } = hookFor(p);
+  hook.passive?.(g, cfg, p);
+  evolutionPassives(g, p, dt); // v0.6
 }
 
 /** Resolve the first queued tier choice. Invalid picks (wrong class/tier, tier already taken) are ignored. */
-export function chooseAbilityUpgrade(g: Game, id: AbilityUpgradeId): boolean {
-  const p = g.player;
+export function chooseAbilityUpgrade(g: Game, p: Player, id: AbilityUpgradeId): boolean {
   const next = pickAbilityUpgrade(p.upgrades, p.cls.id, p.pendingAbilityTiers[0], id);
   if (next === p.upgrades) return false;
   p.upgrades = next;

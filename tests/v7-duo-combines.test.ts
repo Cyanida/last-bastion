@@ -15,7 +15,7 @@ function game(relics: RelicId[]): Game {
 }
 const tick = (g: Game) => {
   g.player.mods = { ...g.baseMods };
-  updateRelics(g, 1 / 60);
+  updateRelics(g, g.player, 1 / 60);
 };
 const form = (g: Game) => {
   offerRelics(g, 3, 'boss');

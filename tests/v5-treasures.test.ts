@@ -48,7 +48,7 @@ function slay(g: Game, id: keyof typeof ENEMIES, wave: number): void {
 function enterVault(g: Game): void {
   const vault = regionsOf(g).find((r) => r.id === 'vault')!;
   Object.assign(g.player, { x: vault.floor.x + vault.floor.w / 2, y: vault.floor.y + vault.floor.h - 40 });
-  updateTreasures(g);
+  updateTreasures(g, g.player);
 }
 
 describe('the sacred treasures are data', () => {
@@ -186,7 +186,7 @@ describe('step 3: the vault and its guardian', () => {
     expect(e.maxHp).toBe(Math.round(plain.maxHp * TREASURE_RULES.guardianHp));
     expect(e.side).toBe(true);
     expect(regionAt(regionsOf(g), e.x, e.y)?.id).toBe('vault');
-    updateTreasures(g); // only one
+    updateTreasures(g, g.player); // only one
     expect(g.enemies.filter((x) => x.def.name === e.def.name)).toHaveLength(1);
     const wings = openWings(g);
     const offers = g.player.relics.offers.length;
@@ -209,7 +209,7 @@ describe('step 3: the vault and its guardian', () => {
     enterVault(g);
     expect(g.chain?.guardian).not.toBeNull();
     nextAct(g);
-    updateTreasures(g);
+    updateTreasures(g, g.player);
     expect(g.chain?.guardian).toBeNull();
     expect(g.regionOpen.vault).toBeFalsy();
     slay(g, 'warlord', 15);
@@ -251,7 +251,7 @@ describe('the effects: build-defining, per tier', () => {
       const g = createGame('paladin', 1, { treasure: tier });
       const p = g.player;
       Object.assign(p, { hp: 1, absorbed: 400, abilityTime: DT / 2 });
-      updateAbility(g, DT);
+      updateAbility(g, g.player, DT);
       expect(g.fields.find((f) => !f.hostile)?.life).toBe(treasureN('paladin', tier).ground);
       return p.hp - 1;
     });
@@ -260,7 +260,7 @@ describe('the effects: build-defining, per tier', () => {
     expect(heal[2]).toBeGreaterThan(heal[1]);
     const bare = createGame('paladin', 1);
     Object.assign(bare.player, { hp: 1, absorbed: 400, abilityTime: DT / 2 });
-    updateAbility(bare, DT);
+    updateAbility(bare, bare.player, DT);
     expect(bare.player.hp).toBe(1);
   });
 
@@ -303,8 +303,8 @@ describe('the effects: build-defining, per tier', () => {
       const g = createGame('necromancer', 1, { treasure: tier });
       const base = g.player.mods.minionMax;
       g.input.ability = true;
-      updateAbility(g, DT);
-      updateTreasures(g);
+      updateAbility(g, g.player, DT);
+      updateTreasures(g, g.player);
       expect(g.player.mods.minionMax).toBe(base + tier);
       const n = treasureN('necromancer', tier);
       for (const m of g.minions) expect(m.volatile).toBeCloseTo(n.blast + n.perSoul * g.player.stats.secondary);
@@ -314,7 +314,7 @@ describe('the effects: build-defining, per tier', () => {
   it('the Bow of the Wild Hunt: every 7th / 6th / 5th arrow splits in three (sooner with Focus); the Volley calls 1 / 2 / 3 hounds', () => {
     for (const tier of [1, 2, 3]) {
       const g = createGame('archer', 1, { treasure: tier });
-      updateTreasures(g);
+      updateTreasures(g, g.player);
       const every = treasureN('archer', tier).every;
       expect(g.player.vars.splitEvery).toBe(every);
       const e = spawnEnemy(g, 'knight', g.player.x + 150, g.player.y);
@@ -329,7 +329,7 @@ describe('the effects: build-defining, per tier', () => {
       expect(g.minions.filter((m) => m.kind === 'hound')).toHaveLength(tier);
       expect(skeletonCount(g)).toBe(0); // hounds take no skeleton slots
       g.player.stats.secondary = 40;
-      updateTreasures(g);
+      updateTreasures(g, g.player);
       expect(g.player.vars.splitEvery).toBe(3);
     }
   });
@@ -347,7 +347,7 @@ describe('the hidden talent node', () => {
     expect(talentBlocker([], id, 3, undefined, 'holyGrail')).toBeNull();
     const bare = createGame('paladin', 1);
     bare.player.talentPoints = 1;
-    expect(spendTalent(bare, id)).toBe(false);
+    expect(spendTalent(bare, bare.player, id)).toBe(false);
     const g = createGame('paladin', 1, { treasure: 1 });
     g.player.talentPoints = 1;
     const faith = g.player.stats.secondary;

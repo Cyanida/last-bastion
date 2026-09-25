@@ -124,7 +124,7 @@ describe('the Last Stand (v0.6)', () => {
   it('once a run: a killing blow leaves you at 1 HP, untouchable, with the ability cooling down faster', () => {
     const g = field();
     const p = g.player;
-    damagePlayer(g, 1e6, true);
+    damagePlayer(g, g.player, 1e6, true);
     expect(g.over).toBe(false);
     expect(p.hp).toBe(1);
     expect(p.invulnT).toBeCloseTo(SKILL.lastStand.time);
@@ -134,14 +134,14 @@ describe('the Last Stand (v0.6)', () => {
     updateGame(g, DT);
     expect(p.abilityCd).toBeCloseTo(5 - DT * SKILL.lastStand.cooldownRate);
     p.invulnT = 0;
-    damagePlayer(g, 1e6, true);
+    damagePlayer(g, g.player, 1e6, true);
     expect(g.over).toBe(true); // the second time is the last
   });
 
   it('an Oath can take it away', () => {
     const g = field();
     g.player.lastStand = 'off';
-    damagePlayer(g, 1e6, true);
+    damagePlayer(g, g.player, 1e6, true);
     expect(g.over).toBe(true);
   });
 });

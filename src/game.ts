@@ -214,8 +214,8 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
   g.vars['keep.bossChoices'] = loadout.bossChoices;
   initRegions(g);
   initQuests(g);
-  applyTrait(g, opts.trait ?? 'none');
-  if (loadout.traitSlots > 1 && opts.trait2 && opts.trait2 !== opts.trait) applyTrait(g, opts.trait2, true);
+  applyTrait(g, g.players[0], opts.trait ?? 'none');
+  if (loadout.traitSlots > 1 && opts.trait2 && opts.trait2 !== opts.trait) applyTrait(g, g.players[0], opts.trait2, true);
   for (const p of g.players) {
     p.mods = { ...g.baseMods };
     // the Barracks' Veteran Levies and mastery's Seasoned: start a level or two up (growth, no boons)
@@ -359,16 +359,16 @@ function updatePlayer(g: Game, p: Player, dt: number): void {
   p.invulnT -= dt;
   p.chillT -= dt;
   p.mods = { ...g.baseMods }; // rebuilt every tick: meta + tradeoffs, then relics, then passive ability upgrades
-  updateRelics(g, dt);
-  talentPassives(g);
-  updateTreasures(g);
-  abilityPassives(g, dt);
-  dodgePassives(g);
-  healPlayer(g, (p.cls.regen + p.mods.regen) * dt, false);
+  updateRelics(g, p, dt);
+  talentPassives(p);
+  updateTreasures(g, p);
+  abilityPassives(g, p, dt);
+  dodgePassives(g, p);
+  healPlayer(g, p, (p.cls.regen + p.mods.regen) * dt, false);
 
   updatePlayerMovement(g, dt);
-  updateAbility(g, dt);
-  updateUtility(g, dt);
+  updateAbility(g, p, dt);
+  updateUtility(g, p, dt);
   const t = begin();
   updatePlayerAttack(g, dt);
   end('attack', t);

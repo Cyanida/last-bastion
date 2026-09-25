@@ -14,7 +14,7 @@ import { markStand } from './runlog';
 const MOBILITY = new Set(['dodgeRoll', 'blink', 'leap']);
 
 /** A telegraphed attack landed and missed by a hair: a damage buff, part of the signature ability's cooldown back, and a flash. */
-export function perfectDodge(g: Game, p: Player = g.player): void {
+export function perfectDodge(g: Game, p: Player): void {
   const s = SKILL.perfect;
   if (g.time < (p.vars.perfectReady ?? 0)) return;
   p.vars.perfectReady = g.time + s.every;
@@ -58,14 +58,13 @@ export function watchTelegraph(g: Game, e: Enemy): void {
 }
 
 /** Every tick, after the mods are rebuilt: the perfect-dodge buff. */
-export function dodgePassives(g: Game): void {
-  if (g.time < (g.player.vars.perfectUntil ?? 0)) g.player.mods.damage *= SKILL.perfect.damage;
+export function dodgePassives(g: Game, p: Player): void {
+  if (g.time < (p.vars.perfectUntil ?? 0)) p.mods.damage *= SKILL.perfect.damage;
 }
 
 /** The Last Stand: combat.ts calls this when a hit would kill. True when it caught the blow. */
-export function lastStand(g: Game): boolean {
-  if (g.player.lastStand !== 'ready') return false;
-  const p = g.player;
+export function lastStand(g: Game, p: Player): boolean {
+  if (p.lastStand !== 'ready') return false;
   p.lastStand = 'used';
   p.hp = 1;
   p.invulnT = Math.max(p.invulnT, SKILL.lastStand.time);
@@ -80,7 +79,7 @@ export function lastStand(g: Game): boolean {
 }
 
 /** While the Last Stand lasts the signature ability cools down faster (abilities.ts). */
-export const lastStandActive = (g: Game): boolean => g.time < (g.player.vars.lastStandUntil ?? 0);
+export const lastStandActive = (g: Game, p: Player): boolean => g.time < (p.vars.lastStandUntil ?? 0);
 
 addListener((g, name, ev, p) => {
   if (name === 'onUtilityUsed' && MOBILITY.has((ev as GameEvents['onUtilityUsed']).id)) p.vars.mobilityAt = g.time;

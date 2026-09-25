@@ -2,7 +2,7 @@ import { TALENT_BY_ID } from '../config/talents';
 import { TRAITS, type TraitId } from '../config/traits';
 import { sfx } from '../sim/view';
 import { addListener, type GameEvents } from '../core/events';
-import type { Game, StatKey } from '../core/types';
+import type { Game, Player, StatKey } from '../core/types';
 import { combineMods } from '../logic/mods';
 import { canTakeTalent, talentMods } from '../logic/talents';
 import { damageEnemy, healPlayer } from './combat';
@@ -15,8 +15,7 @@ import { floatText, ring } from './effects';
  */
 
 /** Spend a talent point. False when the node cannot be taken (prerequisites, keystone rules, no points). */
-export function spendTalent(g: Game, id: string): boolean {
-  const p = g.player;
+export function spendTalent(g: Game, p: Player, id: string): boolean {
   if (!canTakeTalent(p.talents, id, p.talentPoints, p.talentRowCap, g.treasure?.id)) return false;
   const node = TALENT_BY_ID[id];
   p.talents = [...p.talents, id];
@@ -33,9 +32,8 @@ export function spendTalent(g: Game, id: string): boolean {
 }
 
 /** Apply the starting trait once, at run start: multipliers on the base stats, mods into the run's base mods. */
-export function applyTrait(g: Game, id: TraitId, second = false): void {
+export function applyTrait(g: Game, p: Player, id: TraitId, second = false): void {
   const t = TRAITS[id];
-  const p = g.player;
   for (const [key, mult] of Object.entries(t.stats ?? {}) as [StatKey, number][]) p.stats[key] = Math.round(p.stats[key] * mult);
   p.hp = Math.min(p.hp, p.stats.hp);
   if (t.mods) combineMods(g.baseMods, t.mods);
@@ -45,8 +43,7 @@ export function applyTrait(g: Game, id: TraitId, second = false): void {
 }
 
 /** Every tick after relics: talent mods, and the conditional ones (below half HP). */
-export function talentPassives(g: Game): void {
-  const p = g.player;
+export function talentPassives(p: Player): void {
   if (p.talents.length === 0) return;
   p.talentModsCache ??= talentMods(p.talents);
   combineMods(p.mods, p.talentModsCache);
@@ -54,7 +51,7 @@ export function talentPassives(g: Game): void {
 }
 
 addListener((g, name, ev, p) => {
-  if (name === 'onKill' && p.mods.onKillHeal > 0) healPlayer(g, p.mods.onKillHeal, false);
+  if (name === 'onKill' && p.mods.onKillHeal > 0) healPlayer(g, p, p.mods.onKillHeal, false);
   if (name === 'onDamageTaken') {
     const { attacker, amount } = ev as GameEvents['onDamageTaken'];
     if (p.mods.thorns > 0 && attacker) damageEnemy(g, attacker, amount * p.mods.thorns, false, 0, 0, 'relic');

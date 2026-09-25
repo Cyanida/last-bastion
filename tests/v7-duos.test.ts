@@ -19,7 +19,7 @@ function game(relics: RelicId[]): Game {
 }
 const tick = (g: Game, dt = 1 / 60) => {
   g.player.mods = { ...g.baseMods };
-  updateRelics(g, dt);
+  updateRelics(g, g.player, dt);
 };
 const foe = (g: Game, dx: number) => {
   const e = spawnEnemy(g, 'knight', g.player.x + dx, g.player.y);
@@ -141,14 +141,14 @@ describe('duo effects', () => {
     const g = formed(['shatterglass', 'towerShield'], 'glacierPlate');
     const e = foe(g, 40);
     g.rng = g.player.rng = Object.assign(() => 0, { s: 0 }); // Tower Shield blocks
-    damagePlayer(g, 20, true, e);
+    damagePlayer(g, g.player, 20, true, e);
     expect(e.frozenT).toBeGreaterThan(g.time);
   });
 
   it("Martyr's Covenant: damage taken comes back as ward over a few seconds", () => {
     const g = formed(['bloodPact', 'guardiansAegis'], 'martyrsCovenant');
     g.player.vars['aegis.t'] = -999; // keep the Aegis's own ward out of it
-    damagePlayer(g, 40, true);
+    damagePlayer(g, g.player, 40, true);
     expect(g.player.ward).toBe(0);
     for (let i = 0; i < 300; i++) tick(g);
     expect(g.player.ward).toBeGreaterThan(0);

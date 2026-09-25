@@ -206,6 +206,6 @@ describe('every evolution does its thing (v0.6)', () => {
 
   it('buildState reads a run', () => {
     const { g } = fieldWith('maelstrom');
-    expect(buildState(g)).toMatchObject({ classId: 'viking', evolutions: ['maelstrom'] });
+    expect(buildState(g.player)).toMatchObject({ classId: 'viking', evolutions: ['maelstrom'] });
   });
 });

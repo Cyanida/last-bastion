@@ -37,7 +37,7 @@ function arena(classId: Parameters<typeof createGame>[0], enemies: [number, numb
 }
 const tickMods = (g: Game) => {
   g.player.mods = { ...g.baseMods };
-  updateRelics(g, 1 / 60);
+  updateRelics(g, g.player, 1 / 60);
 };
 
 describe('relic hooks', () => {
@@ -72,7 +72,7 @@ describe('relic hooks', () => {
     g.player.abilityCd = 10;
     foes[0].hp = foes[0].maxHp = 1e5; // v0.7: thorns hit harder than a knight has HP
     const before = foes[0].hp;
-    damagePlayer(g, 20, true, foes[0]);
+    damagePlayer(g, g.player, 20, true, foes[0]);
     const taken = g.player.stats.hp - g.player.hp;
     expect(before - foes[0].hp).toBeCloseTo(taken * RELICS.thornMail.n.mult);
     expect(g.player.abilityCd).toBeCloseTo(10 - RELICS.reliquary.n.perFaith * g.player.stats.secondary);
@@ -127,12 +127,12 @@ describe('relic hooks', () => {
   it('Phoenix Feather revives once', () => {
     const { g } = arena('archer');
     addRelic(g, 'phoenixFeather');
-    damagePlayer(g, 9999, true);
+    damagePlayer(g, g.player, 9999, true);
     expect(g.over).toBe(false);
     expect(g.player.hp).toBeCloseTo(g.player.stats.hp * 0.5);
     g.player.invulnT = 0;
     g.player.lastStand = 'off'; // v0.6: otherwise the Last Stand catches the second blow
-    damagePlayer(g, 9999, true);
+    damagePlayer(g, g.player, 9999, true);
     expect(g.over).toBe(true);
   });
 
@@ -185,10 +185,10 @@ describe('ability upgrade selection', () => {
 
   it('the game only accepts a pick for the pending tier', () => {
     const { g } = arena('archer');
-    expect(chooseAbilityUpgrade(g, 'ballista')).toBe(false);
+    expect(chooseAbilityUpgrade(g, g.player, 'ballista')).toBe(false);
     g.player.pendingAbilityTiers.push(0);
-    expect(chooseAbilityUpgrade(g, 'pinning')).toBe(false);
-    expect(chooseAbilityUpgrade(g, 'ballista')).toBe(true);
+    expect(chooseAbilityUpgrade(g, g.player, 'pinning')).toBe(false);
+    expect(chooseAbilityUpgrade(g, g.player, 'ballista')).toBe(true);
     expect(g.player.pendingAbilityTiers).toEqual([]);
   });
 
@@ -198,7 +198,7 @@ describe('ability upgrade selection', () => {
       g.player.upgrades = ['ballista'];
       g.player.stats.secondary = focus;
       g.input = { ...g.input, aimX: g.player.x + 100, aimY: g.player.y, ability: true };
-      updateAbility(g, 1 / 60);
+      updateAbility(g, g.player, 1 / 60);
       expect(g.zones).toHaveLength(0); // the volley really became one bolt
       return g.projectiles[0].damage;
     };
@@ -209,8 +209,8 @@ describe('ability upgrade selection', () => {
       g.player.upgrades = ['mirrorShield'];
       g.player.stats.secondary = faith;
       g.input.ability = true;
-      updateAbility(g, 1 / 60);
-      damagePlayer(g, 10, true, foes[0]);
+      updateAbility(g, g.player, 1 / 60);
+      damagePlayer(g, g.player, 10, true, foes[0]);
       expect(g.player.hp).toBe(g.player.stats.hp); // blocked
       return foes[0].maxHp - foes[0].hp;
     };

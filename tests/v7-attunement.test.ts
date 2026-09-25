@@ -22,7 +22,7 @@ function game(relics: RelicId[]): Game {
 }
 const tick = (g: Game) => {
   g.player.mods = { ...g.baseMods };
-  updateRelics(g, 1 / 60);
+  updateRelics(g, g.player, 1 / 60);
 };
 const att = (g: Game, id: RelicId) => g.player.relics.attune[id] ?? 0;
 
@@ -53,7 +53,7 @@ describe('attunement (v0.7 A4)', () => {
     expect(p.ward).toBeGreaterThan(0);
     expect(att(g, 'guardiansAegis')).toBeCloseTo((ATTUNEMENT.support * p.ward) / p.stats.hp);
     p.hp = p.stats.hp / 2;
-    healPlayer(g, 30, false);
+    healPlayer(g, g.player, 30, false);
     expect(g.player.relics.stats.blessedWater!.healing).toBeGreaterThan(0);
     expect(att(g, 'blessedWater')).toBeGreaterThan(0);
   });
@@ -139,9 +139,9 @@ describe('attunement (v0.7 A4)', () => {
     const g = game(['thunderDrum']);
     const req = EVOLUTIONS.dayOfJudgement.requires.find((r) => r.kind === 'relic')!;
     expect(requirementText(req)).toBe('Thunder Drum attuned to tier II');
-    expect(requirementMet(buildState(g), req)).toBe(false);
+    expect(requirementMet(buildState(g.player), req)).toBe(false);
     g.player.relics.attune.thunderDrum = 1;
     tick(g);
-    expect(requirementMet(buildState(g), req)).toBe(true);
+    expect(requirementMet(buildState(g.player), req)).toBe(true);
   });
 });

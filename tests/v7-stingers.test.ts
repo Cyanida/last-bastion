@@ -70,7 +70,7 @@ describe('stingers (v0.7.1 B5)', () => {
     g.player.relics.attune.brimstoneOil = 1;
     updateGame(g, 1 / 60);
     expect(events.at(-1)).toEqual(['onRelicTier', { id: 'brimstoneOil', tier: 2 }]);
-    evolve(g, 'maelstrom');
+    evolve(g, g.player, 'maelstrom');
     expect(events.at(-1)).toEqual(['onEvolved', { id: 'maelstrom' }]);
     const boss = spawnEnemy(g, 'warlord', g.player.x + 600, g.player.y);
     boss.hp = boss.maxHp * 0.45;

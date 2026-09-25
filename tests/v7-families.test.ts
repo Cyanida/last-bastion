@@ -25,7 +25,7 @@ function arena(relics: RelicId[], enemies: [number, number][] = [], classId: Par
 }
 const tick = (g: Game) => {
   g.player.mods = { ...g.baseMods };
-  updateRelics(g, 1 / 60);
+  updateRelics(g, g.player, 1 / 60);
 };
 
 describe('family rules (RELICS.md, revision 2)', () => {
@@ -87,11 +87,11 @@ describe('family mechanics', () => {
     const { g } = arena(anyClass('holy').slice(0, 2));
     const p = g.player;
     p.hp = p.stats.hp / 2;
-    healPlayer(g, 20, false);
+    healPlayer(g, g.player, 20, false);
     expect(p.ward).toBeGreaterThan(0);
     const hp = p.hp;
     p.ward = 1000;
-    damagePlayer(g, 30, true);
+    damagePlayer(g, g.player, 30, true);
     expect(p.hp).toBe(hp);
     expect(p.ward).toBeLessThan(1000);
   });
@@ -101,7 +101,7 @@ describe('family mechanics', () => {
     const p = g.player;
     g.rng = g.player.rng = Object.assign(() => 0, { s: 0 }); // Tower Shield blocks
     const hp = p.hp;
-    damagePlayer(g, 30, true);
+    damagePlayer(g, g.player, 30, true);
     expect(p.hp).toBe(hp);
     expect(p.armorStacks).toBe(1);
     gainArmorStacks(g, p, 99);

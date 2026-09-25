@@ -39,7 +39,7 @@ const takenTradeoffs = (g: Game) => TRADEOFF_IDS.filter((id) => g.player.vars[`t
 export function levelUpOptions(g: Game): LevelUpOption[] {
   const options = rollLevelUpOptions(g.player.rng, takenTradeoffs(g), null /* v0.7: no relic cards; relics come at fixed moments */, g.bannedStats, g.player.vars.banTalent === 1);
   // v0.6: a complete evolution recipe is always the first card, until it is taken (rerolls keep it)
-  const [ready] = readyEvolutions(buildState(g));
+  const [ready] = readyEvolutions(buildState(g.player));
   if (ready) options[0] = { kind: 'evolution', id: ready };
   return options;
 }
@@ -58,7 +58,7 @@ export function banishOption(g: Game, o: LevelUpOption): boolean {
 export function chooseLevelUp(g: Game, o: LevelUpOption): void {
   const p = g.player;
   if (o.kind === 'talent') p.talentPoints++;
-  else if (o.kind === 'evolution') evolve(g, o.id);
+  else if (o.kind === 'evolution') evolve(g, p, o.id);
   else if (o.kind === 'relic') addRelic(g, o.id); // v0.7: never offered any more (relics come at fixed moments)
   else if (o.kind === 'tradeoff') {
     const next = applyTradeoff(p.stats, g.baseMods, o.id);

@@ -143,7 +143,7 @@ const HOOKS: Record<QuestKind, QuestHooks> = {
   trial: {
     start() {},
     update(g, q) {
-      q.progress = g.actFeats[TREASURES[g.player.cls.id].trial.feat] ?? 0;
+      q.progress = g.actFeats[TREASURES[g.players[0].cls.id].trial.feat] ?? 0;
       if (q.progress >= q.since) end(g, q, true);
     },
   },
@@ -154,7 +154,7 @@ export function payReward(g: Game, reward: RewardKind): void {
   else if (reward === 'gold') g.player.gold += REWARDS.gold.amount * g.act;
   else if (reward === 'rune') g.questRunes += RUNES.quest;
   else if (reward === 'talent') g.player.talentPoints++;
-  else if (reward === 'fragment') takeFragment(g);
+  else if (reward === 'fragment') takeFragment(g, g.player);
   else if (reward === 'trial') passTrial(g);
 }
 

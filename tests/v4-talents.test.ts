@@ -69,11 +69,11 @@ describe('talent trees (v0.4)', () => {
     levelTo(g, 6);
     const hp = g.player.stats.hp;
     const [a0, a1, b0] = branchPlan('viking', 2); // jarl: Hardy (+30 HP), Shield Arm (+6% armor), Thick Hide
-    expect(spendTalent(g, b0)).toBe(false); // needs a parent
-    expect(spendTalent(g, a0)).toBe(true);
+    expect(spendTalent(g, g.player, b0)).toBe(false); // needs a parent
+    expect(spendTalent(g, g.player, a0)).toBe(true);
     expect(g.player.stats.hp).toBe(hp + 30);
-    expect(spendTalent(g, a1)).toBe(true);
-    expect(spendTalent(g, b0)).toBe(false); // out of points
+    expect(spendTalent(g, g.player, a1)).toBe(true);
+    expect(spendTalent(g, g.player, b0)).toBe(false); // out of points
     expect(g.player.talentPoints).toBe(0);
     updateGame(g, DT);
     expect(g.player.mods.armor).toBeCloseTo(0.06);
@@ -99,7 +99,7 @@ describe('utility abilities', () => {
     expect(plain.player.pendingUtilityTiers).toEqual([0]); // the second tier is mastery rank 5's unlock
     const g = createGame('paladin', 1, { classXp: MASTERY[4].xp });
     g.input.utility = true;
-    updateUtility(g, DT);
+    updateUtility(g, g.player, DT);
     expect(utilityUnlocked(g.player)).toBe(false);
     expect(g.player.utilityCd).toBe(0);
     levelTo(g, UTILITY.unlockLevel);
@@ -108,17 +108,17 @@ describe('utility abilities', () => {
     const e = spawnEnemy(g, 'peasant', g.player.x + 150, g.player.y);
     g.hash.clear();
     for (const en of g.enemies) g.hash.insert(en);
-    updateUtility(g, DT);
+    updateUtility(g, g.player, DT);
     expect(g.player.utilityCd).toBeGreaterThan(0); // cast
     expect(e.tauntT).toBeGreaterThan(0); // Challenged
     expect(g.player.pendingUtilityTiers).toEqual([]);
     levelTo(g, 8);
     expect(g.player.pendingUtilityTiers).toEqual([0]);
     const [a, b] = UTILITY_TRACKS.paladin[0];
-    expect(chooseUtilityUpgrade(g, UTILITY_TRACKS.paladin[1][0])).toBe(false); // wrong tier
-    expect(chooseUtilityUpgrade(g, a)).toBe(true);
+    expect(chooseUtilityUpgrade(g, g.player, UTILITY_TRACKS.paladin[1][0])).toBe(false); // wrong tier
+    expect(chooseUtilityUpgrade(g, g.player, a)).toBe(true);
     expect(g.player.utilityUpgrades).toEqual([a]);
-    expect(chooseUtilityUpgrade(g, b)).toBe(false); // nothing pending, and the other path is lost
+    expect(chooseUtilityUpgrade(g, g.player, b)).toBe(false); // nothing pending, and the other path is lost
     levelTo(g, 14);
     expect(g.player.pendingUtilityTiers).toEqual([1]);
     for (const classId of CLASS_ORDER) for (const tier of UTILITY_TRACKS[classId]) for (const id of tier) expect(UTILITY_UPGRADES[id]).toBeDefined();
@@ -132,19 +132,19 @@ describe('utility abilities', () => {
     g.input.aimX = x + 500;
     g.input.aimY = g.player.y;
     g.input.utility = true;
-    updateUtility(g, DT);
+    updateUtility(g, g.player, DT);
     expect(g.player.x - x).toBeCloseTo(UTILITIES.angel.n.range);
     expect(g.player.invulnT).toBeGreaterThan(0);
     const cd = g.player.utilityCdMax;
     const g2 = createGame('angel', 1);
     levelTo(g2, 6);
     const [farBlink] = branchPlan('angel', 2); // herald: Swift Wings first... the second node is Foresight; Far Blink is row 1
-    expect(spendTalent(g2, farBlink)).toBe(true);
-    expect(spendTalent(g2, branchPlan('angel', 2)[2])).toBe(true); // Far Blink: -25% cooldown
+    expect(spendTalent(g2, g2.player, farBlink)).toBe(true);
+    expect(spendTalent(g2, g2.player, branchPlan('angel', 2)[2])).toBe(true); // Far Blink: -25% cooldown
     updateGame(g2, DT);
     g2.input.aimX = g2.player.x + 500;
     g2.input.utility = true;
-    updateUtility(g2, DT);
+    updateUtility(g2, g2.player, DT);
     expect(g2.player.utilityCdMax).toBeLessThan(cd);
   });
 });
@@ -163,7 +163,7 @@ describe('starting traits', () => {
     expect(glass.player.mods.damage).toBeCloseTo(1.3);
     expect(glass.player.trait).toBe('glassCannon');
     const lucky = createGame('viking', 1);
-    applyTrait(lucky, 'cursedLuck');
+    applyTrait(lucky, lucky.player, 'cursedLuck');
     expect(lucky.player.vars['trait.rerolls']).toBe(1); // v0.7: an extra reroll at every relic moment
     expect(TRAITS.scavenger.unlock.achievement).toBe('treasurer');
   });

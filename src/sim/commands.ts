@@ -142,15 +142,15 @@ export function applyChoice(g: Game, ch: Choice): boolean {
     case 'relicReroll':
       return rerollRelicOffer(g);
     case 'abilityUpgrade':
-      if (chooseAbilityUpgrade(g, ch.id)) return true;
+      if (chooseAbilityUpgrade(g, g.player, ch.id)) return true;
       g.player.pendingAbilityTiers.shift(); // never leave the player stuck on a choice that cannot be made
       return false;
     case 'utilityUpgrade':
-      if (chooseUtilityUpgrade(g, ch.id)) return true;
+      if (chooseUtilityUpgrade(g, g.player, ch.id)) return true;
       g.player.pendingUtilityTiers.shift();
       return false;
     case 'talent':
-      return spendTalent(g, ch.id);
+      return spendTalent(g, g.player, ch.id);
     case 'blessing':
       chooseBlessing(g, ch.id);
       return true;

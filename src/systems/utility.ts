@@ -8,10 +8,11 @@ import { applyStatus, damageEnemy, healPlayer, rollPlayerHit } from './combat';
 import { burst, floatText, ring, shake } from './effects';
 import { feat, featAdd } from './feats';
 import { clampToArena } from './movement';
+import { inputOf } from '../logic/players';
 
 /**
  * The utility ability (config/utility.ts): one hook per class. Unlocked at UTILITY.unlockLevel, cast with g.input.utility,
- * tiers chosen at UTILITY.tiers levels (g.player.pendingUtilityTiers), upgrades read through has(). Talents scale it through
+ * tiers chosen at UTILITY.tiers levels (p.pendingUtilityTiers), upgrades read through has(). Talents scale it through
  * p.mods.utilityCd and p.mods.utilityPower.
  */
 const U = UTILITY_UPGRADES;
@@ -20,20 +21,18 @@ export const utilityDef = (p: Player) => UTILITIES[p.cls.id];
 export const utilityUnlocked = (p: Player) => p.level >= UTILITY.unlockLevel;
 
 /** Where a dash goes: toward the aim point (up to `range`) when it is away from the player, else along the movement or facing direction. */
-function dashTarget(g: Game, range: number): { x: number; y: number } {
-  const p = g.player;
-  const dx = g.input.aimX - p.x;
-  const dy = g.input.aimY - p.y;
+function dashTarget(g: Game, p: Player, range: number): { x: number; y: number } {
+  const { aimX, aimY } = inputOf(g, p);
+  const dx = aimX - p.x;
+  const dy = aimY - p.y;
   const d = Math.hypot(dx, dy);
-  if (d < 30) return moveDash(g, range);
+  if (d < 30) return moveDash(g, p, range);
   const r = Math.min(range, d);
   return { x: p.x + (dx / d) * r, y: p.y + (dy / d) * r };
 }
 
-function moveDash(g: Game, range: number): { x: number; y: number } {
-  const p = g.player;
-  let dx = g.input.moveX;
-  let dy = g.input.moveY;
+function moveDash(g: Game, p: Player, range: number): { x: number; y: number } {
+  let { moveX: dx, moveY: dy } = inputOf(g, p);
   if (Math.hypot(dx, dy) < 0.01) (dx = Math.cos(p.facing)), (dy = Math.sin(p.facing));
   const d = Math.hypot(dx, dy) || 1;
   return { x: p.x + (dx / d) * range, y: p.y + (dy / d) * range };
@@ -41,9 +40,8 @@ function moveDash(g: Game, range: number): { x: number; y: number } {
 
 import { evolutionHook } from './evolutions';
 
-const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
-  taunt(g) {
-    const p = g.player;
+const HOOKS: Record<UtilityId, (g: Game, p: Player) => boolean> = {
+  taunt(g, p) {
     const n = UTILITIES.paladin.n;
     const power = p.mods.utilityPower;
     let pulled = 0;
@@ -59,23 +57,22 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
       pulled++;
     }
     feat(g, 'taunted', pulled);
-    if (has(p, 'rallyingCry')) healPlayer(g, p.stats.hp * Math.min(U.rallyingCry.n.max, pulled * U.rallyingCry.n.heal));
+    if (has(p, 'rallyingCry')) healPlayer(g, p, p.stats.hp * Math.min(U.rallyingCry.n.max, pulled * U.rallyingCry.n.heal));
     if (has(p, 'consecration')) addField(g, { x: p.x, y: p.y, r: U.consecration.n.radius, life: U.consecration.n.time, dps: U.consecration.n.dps * power, hostile: false, color: '#f2d675', dtype: 'holy' });
     ring(g, p.x, p.y, n.radius, '#f2d675', 0.5);
     shake(g, 6);
     return true;
   },
 
-  leap(g) {
-    const p = g.player;
+  leap(g, p) {
     const n = UTILITIES.viking.n;
     const range = n.range * (has(p, 'longJump') ? U.longJump.n.range : 1);
-    const to = dashTarget(g, range);
+    const to = dashTarget(g, p, range);
     p.x = to.x;
     p.y = to.y;
     clampToArena(g, p);
     const radius = n.radius * (has(p, 'earthshatter') ? U.earthshatter.n.radius : 1);
-    const hit = rollPlayerHit(g, n.damage * (has(p, 'earthshatter') ? U.earthshatter.n.damage : 1) * p.mods.utilityPower, 'str');
+    const hit = rollPlayerHit(p, n.damage * (has(p, 'earthshatter') ? U.earthshatter.n.damage : 1) * p.mods.utilityPower, 'str');
     let hits = 0;
     for (const e of g.hash.query(p.x, p.y, radius, [])) {
       const a = Math.atan2(e.y - p.y, e.x - p.x);
@@ -83,7 +80,7 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
       hits++;
     }
     feat(g, 'leapHits', hits);
-    if (has(p, 'bloodLanding')) healPlayer(g, hits * U.bloodLanding.n.heal, false);
+    if (has(p, 'bloodLanding')) healPlayer(g, p, hits * U.bloodLanding.n.heal, false);
     if (has(p, 'warCry')) p.vars.warCry = g.time + U.warCry.n.time;
     ring(g, p.x, p.y, radius, '#c23a2e', 0.4);
     burst(g, p.x, p.y, '#8a6a4a', 14, 220);
@@ -91,18 +88,17 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
     return true;
   },
 
-  blink(g) {
-    const p = g.player;
+  blink(g, p) {
     const n = UTILITIES.angel.n;
     const from = { x: p.x, y: p.y };
-    const to = dashTarget(g, n.range * (has(p, 'farBlink') ? U.farBlink.n.range : 1));
+    const to = dashTarget(g, p, n.range * (has(p, 'farBlink') ? U.farBlink.n.range : 1));
     p.x = to.x;
     p.y = to.y;
     clampToArena(g, p);
     p.invulnT = Math.max(p.invulnT, n.invuln * (has(p, 'quickBlink') ? U.quickBlink.n.invuln : 1));
-    if (has(p, 'blessedBlink')) healPlayer(g, p.stats.hp * U.blessedBlink.n.heal);
+    if (has(p, 'blessedBlink')) healPlayer(g, p, p.stats.hp * U.blessedBlink.n.heal);
     if (has(p, 'afterimage')) {
-      const hit = rollPlayerHit(g, U.afterimage.n.damage * p.mods.utilityPower, 'int');
+      const hit = rollPlayerHit(p, U.afterimage.n.damage * p.mods.utilityPower, 'int');
       for (const e of g.hash.query(from.x, from.y, U.afterimage.n.radius, [])) damageEnemy(g, e, hit.amount, hit.crit, 0, 0, 'ability', 'holy');
       ring(g, from.x, from.y, U.afterimage.n.radius, '#f2e6a0', 0.4);
     }
@@ -112,14 +108,13 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
     return true;
   },
 
-  corpseExplosion(g) {
-    const p = g.player;
+  corpseExplosion(g, p) {
     const n = UTILITIES.necromancer.n;
     const radius = n.radius * (has(p, 'deathWave') ? U.deathWave.n.radius : 1);
     const blast = n.blast * (has(p, 'boneShards') ? U.boneShards.n.blast : 1);
     const corpses = g.corpses.filter((c) => Math.hypot(c.x - p.x, c.y - p.y) <= radius);
     if (corpses.length === 0) return false;
-    const hit = rollPlayerHit(g, n.damage * (has(p, 'boneShards') ? U.boneShards.n.damage : 1) * p.mods.utilityPower, 'int');
+    const hit = rollPlayerHit(p, n.damage * (has(p, 'boneShards') ? U.boneShards.n.damage : 1) * p.mods.utilityPower, 'int');
     let caught = 0;
     for (const c of corpses) {
       for (const e of g.hash.query(c.x, c.y, blast, [])) {
@@ -132,18 +127,17 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
       burst(g, c.x, c.y, '#8a5cc6', 10, 200);
     }
     feat(g, 'corpseHits', caught);
-    if (has(p, 'harvest')) healPlayer(g, corpses.length * U.harvest.n.heal, false);
+    if (has(p, 'harvest')) healPlayer(g, p, corpses.length * U.harvest.n.heal, false);
     g.corpses = g.corpses.filter((c) => !corpses.includes(c));
     shake(g, Math.min(12, 3 + corpses.length));
     sfx(g, 'boom');
     return true;
   },
 
-  dodgeRoll(g) {
-    const p = g.player;
+  dodgeRoll(g, p) {
     const n = UTILITIES.archer.n;
     const from = { x: p.x, y: p.y };
-    const to = moveDash(g, n.range);
+    const to = moveDash(g, p, n.range);
     p.x = to.x;
     p.y = to.y;
     clampToArena(g, p);
@@ -161,17 +155,16 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
   },
 };
 
-export function updateUtility(g: Game, dt: number): void {
-  const p = g.player;
+export function updateUtility(g: Game, p: Player, dt: number): void {
   p.utilityCd = Math.max(0, p.utilityCd - dt);
   // upgrade after-effects
   if (g.time < (p.vars.warCry ?? 0)) p.mods.atkSpd *= 1 + U.warCry.n.atkSpd;
   if (g.time < (p.vars.ghostStep ?? 0)) p.mods.moveSpd *= 1 + U.ghostStep.n.moveSpd;
-  if (!g.input.utility || p.utilityCd > 0 || !utilityUnlocked(p)) return;
+  if (!inputOf(g, p).utility || p.utilityCd > 0 || !utilityUnlocked(p)) return;
   const def = utilityDef(p);
   const from = { x: p.x, y: p.y };
-  const evo = evolutionHook(g, 'utility'); // v0.6: an evolution adds to the utility, or takes it over
-  if (!(evo?.replaceUtility ? evo.replaceUtility(g, from, p) : HOOKS[def.id](g))) return;
+  const evo = evolutionHook(p, 'utility'); // v0.6: an evolution adds to the utility, or takes it over
+  if (!(evo?.replaceUtility ? evo.replaceUtility(g, from, p) : HOOKS[def.id](g, p))) return;
   const upgradeCd = (has(p, 'longJump') ? U.longJump.n.cooldown : 1) * (has(p, 'quickBlink') ? U.quickBlink.n.cooldown : 1) * (has(p, 'quickRoll') ? U.quickRoll.n.cooldown : 1);
   p.utilityCd = p.utilityCdMax = abilityCooldown(def.cooldown, p.stats.int) * p.mods.utilityCd * upgradeCd;
   sfx(g, 'ability');
@@ -180,13 +173,12 @@ export function updateUtility(g: Game, dt: number): void {
 }
 
 /** Taunted enemies deal less with Iron Will; called by combat for hits on the player. */
-export function tauntedDamageMult(g: Game, attacker: Enemy | null): number {
-  return attacker && attacker.tauntT > 0 && has(g.player, 'ironWill') ? U.ironWill.n.damage : 1;
+export function tauntedDamageMult(p: Player, attacker: Enemy | null): number {
+  return attacker && attacker.tauntT > 0 && has(p, 'ironWill') ? U.ironWill.n.damage : 1;
 }
 
 /** Resolve the first queued utility tier. Invalid picks (wrong tier, already taken) are ignored. */
-export function chooseUtilityUpgrade(g: Game, id: UtilityUpgradeId): boolean {
-  const p = g.player;
+export function chooseUtilityUpgrade(g: Game, p: Player, id: UtilityUpgradeId): boolean {
   const tier = p.pendingUtilityTiers[0];
   if (tier === undefined) return false;
   const options = UTILITY_TRACKS[p.cls.id][tier];
@@ -198,7 +190,7 @@ export function chooseUtilityUpgrade(g: Game, id: UtilityUpgradeId): boolean {
   return true;
 }
 
-export const utilityUpgradeOptions = (g: Game): readonly UtilityUpgradeId[] => UTILITY_TRACKS[g.player.cls.id][g.player.pendingUtilityTiers[0]] ?? [];
+export const utilityUpgradeOptions = (p: Player): readonly UtilityUpgradeId[] => UTILITY_TRACKS[p.cls.id][p.pendingUtilityTiers[0]] ?? [];
 
 export const describeUtility = (p: Player): string => {
   const def = utilityDef(p);

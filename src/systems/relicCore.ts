@@ -180,10 +180,10 @@ export function cutMaxHp(_g: Game, p: Player, key: string, frac: number): void {
 /** Healing from relics passes a soft cap per wave (a share of max HP): sustain relics add up, then each heals less. */
 export function relicHeal(g: Game, p: Player, amount: number, show = false): number {
   const max = p.stats.hp;
-  const prev = g.player.vars.relicHeal ?? 0;
+  const prev = p.vars.relicHeal ?? 0;
   const next = prev + amount / max;
-  g.player.vars.relicHeal = next;
-  const healed = healPlayer(g, (softCap(next, RELIC_STACKING.healCap) - softCap(prev, RELIC_STACKING.healCap)) * max, show);
+  p.vars.relicHeal = next;
+  const healed = healPlayer(g, p, (softCap(next, RELIC_STACKING.healCap) - softCap(prev, RELIC_STACKING.healCap)) * max, show);
   if (relicContext.acting) credit(g, p, relicContext.acting, 'healing', healed, true);
   return healed;
 }

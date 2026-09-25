@@ -132,10 +132,10 @@ describe('curse multipliers', () => {
     cursed.wave = 3;
     cursed.breather = 2;
     cursed.player.hp = 50;
-    healPlayer(cursed, 30);
+    healPlayer(cursed, cursed.player, 30);
     expect(cursed.player.hp).toBe(50);
     cursed.breather = 0;
-    healPlayer(cursed, 30);
+    healPlayer(cursed, cursed.player, 30);
     expect(cursed.player.hp).toBe(80);
   });
 

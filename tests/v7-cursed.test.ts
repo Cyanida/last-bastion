@@ -22,7 +22,7 @@ function game(relics: RelicId[] = [], tier = 1, roll = 0.99): Game {
 }
 const tick = (g: Game) => {
   g.player.mods = { ...g.baseMods };
-  updateRelics(g, 1 / 60);
+  updateRelics(g, g.player, 1 / 60);
 };
 const knight = (g: Game, dx: number): Enemy => {
   const e = spawnEnemy(g, 'knight', g.player.x + dx, g.player.y);
@@ -140,7 +140,7 @@ describe('cursed relics: their power, their curse, and the awakening that lifts 
     const lost = (g: Game, dx: number) => {
       const e = knight(g, dx);
       g.player.hp = g.player.stats.hp;
-      damagePlayer(g, 20, true, e);
+      damagePlayer(g, g.player, 20, true, e);
       return g.player.stats.hp - g.player.hp;
     };
     const plain = lost(game(), 100);

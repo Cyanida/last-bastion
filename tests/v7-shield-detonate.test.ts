@@ -19,7 +19,7 @@ function paladin(): Game {
 }
 function step(g: Game, ability: boolean): void {
   g.input.ability = ability;
-  updateAbility(g, 1 / 60);
+  updateAbility(g, g.player, 1 / 60);
   g.time += 1 / 60;
 }
 /** Casts, holds `hold` ticks, then (optionally) presses again; returns the burst's damage. */

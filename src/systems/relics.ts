@@ -122,8 +122,7 @@ addListener((g, name, ev, p) => {
  * Layers a player's relics onto p.mods (already reset to g.baseMods this tick): plain mods and the tick hooks' conditional bonuses add up
  * per key at face value; p.relics.totals keeps the sums for the stats panel. Rebuilds the family counts and set levels when relics change.
  */
-export function updateRelics(g: Game, dt: number): void {
-  const p = g.player;
+export function updateRelics(g: Game, p: Player, dt: number): void {
   const r = p.relics;
   if (r.dirty) {
     const was = r.sets;

@@ -92,7 +92,7 @@ export function updatePickups(g: Game, dt: number): void {
       else if (k.kind === 'gold') {
         p.gold += k.value;
         floatText(g, p.x, p.y - 26, `+${k.value}g`, '#c9a227', 12);
-      } else if (k.kind === 'fragment') takeFragment(g);
+      } else if (k.kind === 'fragment') takeFragment(g, p);
       sfx(g, 'xp');
       return false;
     }

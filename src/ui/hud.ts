@@ -213,7 +213,7 @@ export function updateHud(g: Game): void {
   if (relicKey !== lastRelicKey) {
     lastRelicKey = relicKey;
     lastAttKey = ''; // new tiles: draw their attunement bars again
-    setRecipeBuild(buildState(g));
+    setRecipeBuild(buildState(p));
     const tile = (id: RelicId) => {
       const r = relicDef(id);
       const tier = p.relics.tiers[id] ?? 1;
@@ -249,7 +249,7 @@ export function updateHud(g: Game): void {
     for (const el of document.querySelectorAll<HTMLElement>('#h-relics .relic[data-duo]')) el.style.setProperty('--att', String(Math.max(...DUOS[el.dataset.duo as DuoId].from.map((id) => p.relics.attune[id] ?? 0))));
   }
 
-  const sig = evolutionIn(g, 'signature'); // v0.6: an evolved ability wears its new name
+  const sig = evolutionIn(p, 'signature'); // v0.6: an evolved ability wears its new name
   text('h-ab-name', sig ? `${EVOLUTIONS[sig].icon} ${EVOLUTIONS[sig].name}` : p.cls.ability.name);
   const desc = describeAbility(p);
   text('h-ab-desc', desc);
@@ -276,7 +276,7 @@ export function updateHud(g: Game): void {
   const utilReady = unlocked && p.utilityCd <= 0;
   $('h-ut-icon').classList.toggle('ready', utilReady);
   $('h-ut-slot').classList.toggle('locked', !unlocked);
-  const utilEvo = evolutionIn(g, 'utility');
+  const utilEvo = evolutionIn(p, 'utility');
   tip('h-ut-slot', `${utilEvo ? `${EVOLUTIONS[utilEvo].name}: ${EVOLUTIONS[utilEvo].desc}\n` : ''}${util.name} (E / Shift · X / RB)${unlocked ? '' : ` · unlocks at level ${UTILITY.unlockLevel}`}\n${describeUtility(p)}`);
   text('h-ut-name', utilEvo ? `${EVOLUTIONS[utilEvo].icon} ${EVOLUTIONS[utilEvo].name}` : util.name);
   $('h-ut-cd').style.height = unlocked ? `${(p.utilityCd / p.utilityCdMax) * 100}%` : '100%';

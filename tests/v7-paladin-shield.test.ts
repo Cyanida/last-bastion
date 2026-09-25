@@ -26,7 +26,7 @@ function run(g: Game, seconds: number, cast = true): { up: number } {
   let up = 0;
   for (let t = 0; t < seconds; t += 1 / 60) {
     g.input.ability = cast;
-    updateAbility(g, 1 / 60);
+    updateAbility(g, g.player, 1 / 60);
     g.time += 1 / 60;
     if (g.player.abilityTime > 0) up += 1 / 60;
   }
@@ -52,9 +52,9 @@ describe('Divine Shield uptime (v0.7.3, #53)', () => {
     const p = g.player;
     const floor = cooldownFloor(g);
     expect(floor).toBeGreaterThan(0);
-    perfectDodge(g);
+    perfectDodge(g, g.player);
     expect(p.abilityCd).toBeGreaterThanOrEqual(floor - 1e-9);
-    for (let i = 0; i < 20; i++) damagePlayer(g, 1, true);
+    for (let i = 0; i < 20; i++) damagePlayer(g, g.player, 1, true);
     expect(p.abilityCd).toBeGreaterThanOrEqual(cooldownFloor(g) - 1e-9);
   });
 
