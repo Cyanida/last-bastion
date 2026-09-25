@@ -2,7 +2,7 @@ import { GAME } from '../../config/game';
 import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import type { Enemy } from '../../core/types';
 import { applyStatus, damageEnemy, nearestEnemy } from '../combat';
-import { addBleed, attackHit, awakened, bonus, cutMaxHp, flash, isBleeding, nOf, relicHeal, type RelicHooks, sOf } from '../relicCore';
+import { addBleed, aOf, attackHit, awakened, bonus, cutMaxHp, flash, isBleeding, nOf, relicHeal, type RelicHooks, sOf } from '../relicCore';
 
 /**
  * 🩸 Blood (RELICS.md): bleed, and HP for power. Relics open wounds, reward bleeding enemies or turn missing HP into power; the sets add a
@@ -16,7 +16,7 @@ export const BLOOD_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onHit(g, ev, p) {
       if (!attackHit(p, ev.source) || !ev.crit) return;
       const n = nOf(p, 'serratedEdge');
-      if (awakened(p, 'serratedEdge') && isBleeding(ev.enemy)) damageEnemy(g, ev.enemy, (ev.amount * 0.2) / GAME.critMult, false, 0, 0, 'relic'); // Haemorrhage
+      if (awakened(p, 'serratedEdge') && isBleeding(ev.enemy)) damageEnemy(g, ev.enemy, (ev.amount * aOf('serratedEdge').critDamage) / GAME.critMult, false, 0, 0, 'relic'); // Haemorrhage
       addBleed(g, p, ev.enemy, n.stacks, ev.amount * n.power);
       flash(g, p, 'serratedEdge'); // its bleed's ticks are credited to it as they land (systems/status.ts)
     },
@@ -34,9 +34,10 @@ export const BLOOD_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const b = ev.enemy.statuses.bleed;
       if (!awakened(p, 'butchersHook') || !b) return;
       // Gutting: its bleed passes to the two enemies nearest it
+      const a = aOf('butchersHook');
       const hit: Enemy[] = [ev.enemy];
-      for (let i = 0; i < 2; i++) {
-        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, 180, hit);
+      for (let i = 0; i < a.count; i++) {
+        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, a.range, hit);
         if (!to) break;
         applyStatus(to, { apply: [{ id: 'bleed', stacks: b.stacks, power: b.power }] }, g);
         hit.push(to);
@@ -54,7 +55,8 @@ export const BLOOD_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   vampireFang: {
     onHit(g, ev, p) {
       if (ev.source === 'relic' || ev.source === 'hazard' || !isBleeding(ev.enemy)) return;
-      const thirst = awakened(p, 'vampireFang') && p.hp < p.stats.hp * 0.5 ? 2 : 1; // Thirst
+      const a = aOf('vampireFang');
+      const thirst = awakened(p, 'vampireFang') && p.hp < p.stats.hp * a.below ? a.mult : 1; // Thirst
       relicHeal(g, p, ev.amount * nOf(p, 'vampireFang').leech * thirst);
     },
   },
@@ -67,7 +69,8 @@ export const BLOOD_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       cutMaxHp(g, p, 'bloodPactHp', 1);
     },
     onKill(g, _ev, p) {
-      if (awakened(p, 'bloodPact') && p.hp < p.stats.hp * 0.5) relicHeal(g, p, p.stats.hp * 0.01); // Covenant
+      const a = aOf('bloodPact');
+      if (awakened(p, 'bloodPact') && p.hp < p.stats.hp * a.below) relicHeal(g, p, p.stats.hp * a.heal); // Covenant
     },
   },
 
@@ -80,10 +83,10 @@ export const BLOOD_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       addBleed(g, p, ev.enemy, 1 + Math.floor(sOf(p) / nOf(p, 'wolfskin').per), ev.amount * 0.1);
     },
     onKill(g, ev, p) {
-      if (awakened(p, 'wolfskin') && p.abilityTime > 0 && isBleeding(ev.enemy)) g.vars.frenzy = Math.min(5, (g.vars.frenzy ?? 0) + 1); // Blood Frenzy
+      if (awakened(p, 'wolfskin') && p.abilityTime > 0 && isBleeding(ev.enemy)) g.vars.frenzy = Math.min(aOf('wolfskin').max, (g.vars.frenzy ?? 0) + 1); // Blood Frenzy
     },
     tick(g, _dt, p) {
-      if (p.abilityTime > 0) bonus(p, 'atkSpd', (g.vars.frenzy ?? 0) * 0.05);
+      if (p.abilityTime > 0) bonus(p, 'atkSpd', (g.vars.frenzy ?? 0) * aOf('wolfskin').per);
     },
   },
 };

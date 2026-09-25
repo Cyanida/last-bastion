@@ -14,7 +14,7 @@ import { relicContext } from '../relicContext';
  * chill faster (Biting Cold, in combat.applyStatus), shatter the frozen on death (Shatter) and freeze whatever touches you (Rimewalker).
  */
 const F = FAMILIES.frost;
-const NEAR = 300;
+const NEAR = F.n.near;
 
 /** Freeze an enemy for `time` seconds outright (Frozen Volley, Rimewalker). */
 export function freeze(g: Game, e: Enemy, time: number): void {
@@ -104,7 +104,7 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onHit(g, ev, p) {
       const n = nOf(p, 'rimebow');
       if (ev.source === 'ability' && awakened(p, 'rimebow')) freeze(g, ev.enemy, aOf('rimebow').freeze); // Frozen Volley
-      if (attackHit(p, ev.source) && ev.crit) addChill(g, p, ev.enemy, n.chill, 3 * (1 + n.perFocus * sOf(p)));
+      if (attackHit(p, ev.source) && ev.crit) addChill(g, p, ev.enemy, n.chill, n.time * (1 + n.perFocus * sOf(p)));
     },
   },
 

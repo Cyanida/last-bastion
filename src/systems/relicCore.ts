@@ -99,7 +99,8 @@ export const isFrozen = (g: Game, e: Enemy): boolean => e.frozenT > g.time;
 
 /** A bleed from the player: Berserker Tooth's Last Blood doubles it below 25% HP (Blood's Open Wounds is in combat.applyStatus). */
 export function addBleed(g: Game, p: Player, e: Enemy, stacks: number, power: number): void {
-  const s = awakened(p, 'berserkerTooth') && p.hp < p.stats.hp * 0.25 ? stacks * 2 : stacks;
+  const a = aOf('berserkerTooth');
+  const s = awakened(p, 'berserkerTooth') && p.hp < p.stats.hp * a.below ? stacks * a.mult : stacks;
   applyStatus(e, { apply: [{ id: 'bleed', stacks: s, power }] }, g);
 }
 export const isBleeding = (e: Enemy): boolean => (e.statuses.bleed?.stacks ?? 0) > 0;
