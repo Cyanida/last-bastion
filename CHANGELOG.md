@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.7.6 — Quest fixes
+
+A small patch from playtest feedback: the monk you escort can actually reach the chapel now.
+
+- **Monk escort**: the monk has twice the health, keeps walking (slowly) when enemies are near instead of standing still, and enemies go for you while you guard him. His tracker says "wary" while he slows.
+
 ## v0.7.5 — Aiming & fixes
 
 A patch from the 25-09 playtest and code review: aim your own attacks, bosses last a real fight, duos stop inflating your sets, and a long list of things now work the way their cards say.
