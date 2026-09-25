@@ -79,7 +79,7 @@ function springAmbush(g: Game): void {
     spawnSquad(g, index, squadUnits(t, index), at);
   }
   g.banner = { text: 'Ambush!', t: 2 };
-  sfx('warn');
+  sfx(g, 'warn');
   shake(g, 8);
 }
 
@@ -97,7 +97,7 @@ function openCursedChest(g: Game, ev: WaveEvent): void {
   }
   ring(g, ev.x, ev.y, 90, '#a77fd0', 0.6);
   g.banner = { text: 'The chest was cursed!', t: 2 };
-  sfx('warn');
+  sfx(g, 'warn');
   shake(g, 8);
 }
 
@@ -154,7 +154,7 @@ export function peddlerBuy(g: Game): boolean {
   ev.stock--;
   p.hp = Math.min(p.stats.hp, p.hp + p.stats.hp * EVENTS.peddler.heal); // like the Merchant's surgeon, not healPlayer: No Respite does not bind him
   floatText(g, p.x, p.y - 34, `+${Math.round(p.stats.hp * EVENTS.peddler.heal)}`, '#6f8f4e', 15);
-  sfx('xp');
+  sfx(g, 'xp');
   return true;
 }
 

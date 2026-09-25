@@ -77,7 +77,7 @@ registerBoss('dragon', (g, e, dt) => {
   e.special -= dt;
   if (e.special > 0) return;
   e.special = def.specialCd!;
-  sfx('warn');
+  sfx(g, 'warn');
   if (e.phase >= 2 && e.combo++ % 2 === 0) {
     e.state = 2; // take off
     e.timer = 2.2;
@@ -116,7 +116,7 @@ registerBoss('warden', (g, e, dt) => {
   e.special -= dt;
   if (e.special > 0 || distTo(e, g.player) > 700) return;
   e.special = def.specialCd!;
-  sfx('warn');
+  sfx(g, 'warn');
   const { x, y } = g.player;
   g.banner = { text: 'Sealed in', t: 1.4 };
   seal(g, x, y, 300, e.phase === 1 ? 3 : 2, 8);
@@ -159,12 +159,12 @@ function cleave(g: Game, e: Enemy, t: Target): void {
   }
 }
 
-function lungeWindup(e: Enemy, t: Target, scale: number): void {
+function lungeWindup(g: Game, e: Enemy, t: Target, scale: number): void {
   e.state = 2;
   e.timer = U.lunge.windup * scale;
   e.angle = angleTo(e, t);
   e.telegraph = { angle: e.angle, length: U.lunge.dist, width: e.r * 2.4, t: 0, dur: e.timer };
-  sfx('warn');
+  sfx(g, 'warn');
 }
 
 /** Phase 3: two burning bands across the whole open map that cross where you stand. Get off both lines. */
@@ -207,7 +207,7 @@ function raiseWard(g: Game, e: Enemy): void {
   g.vars['usurper.pulse'] = U.ward.pulse.every;
   g.banner = { text: 'The Usurper hides behind his ward: put out the Royal Flames', t: 4 };
   ring(g, e.x, e.y, 220, GOLD, 0.8);
-  sfx('warn');
+  sfx(g, 'warn');
 }
 
 /** While warded on the dais: burning pitch from the walls around you, crossbow fans from the dais, and the flames flare. */
@@ -266,7 +266,7 @@ registerBoss(FINAL.boss, (g, e, dt) => {
     g.banner = { text: 'The ward breaks: strike now', t: 2.5 };
     ring(g, e.x, e.y, 240, GOLD, 0.8);
     shake(g, 12);
-    sfx('levelup');
+    sfx(g, 'levelup');
   }
 
   if (e.state === 10) {
@@ -294,7 +294,7 @@ registerBoss(FINAL.boss, (g, e, dt) => {
       (e.state = 4), (e.timer = U.quake.first);
     } else if (pick === 1) {
       g.vars['usurper.chain'] = 0;
-      lungeWindup(e, t, 1);
+      lungeWindup(g, e, t, 1);
     } else if (e.phase === 1 && pick === 2) {
       for (let i = 0; i < U.guards.count; i++) spawnEnemy(g, U.guards.id, e.x + (i ? 70 : -70), e.y + 40);
       g.banner = { text: 'To me, my guard!', t: 1.5 };
@@ -303,7 +303,7 @@ registerBoss(FINAL.boss, (g, e, dt) => {
       cleave(g, e, t);
       (e.state = 1), (e.timer = U.cleave.windup);
     }
-    sfx('warn');
+    sfx(g, 'warn');
   } else if (e.state === 1) {
     if (e.timer <= 0) (e.state = 4), (e.timer = 0.35); // the blow lands (the zones), then a breath
   } else if (e.state === 2) {
@@ -318,7 +318,7 @@ registerBoss(FINAL.boss, (g, e, dt) => {
     move(e, e.angle, U.lunge.speed, dt);
     chargeThrough(g, e);
     if (e.timer <= 0) {
-      if (e.phase === 3 && g.vars['usurper.chain']++ < U.lunge.chain - 1) lungeWindup(e, t, 0.55); // phase 3: straight into the next one
+      if (e.phase === 3 && g.vars['usurper.chain']++ < U.lunge.chain - 1) lungeWindup(g, e, t, 0.55); // phase 3: straight into the next one
       else (e.state = 4), (e.timer = U.lunge.recover);
     }
   } else if (e.timer <= 0) {

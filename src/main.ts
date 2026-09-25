@@ -32,7 +32,7 @@ import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from 
 import { buildArena } from './render/arena';
 import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
-import { view as simView } from './sim/view';
+import { playCues, view as simView } from './sim/view';
 import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
 import { abilityAimRadius } from './systems/abilities';
 import { relicPreview, relicShares, skipReward } from './systems/relics';
@@ -61,7 +61,7 @@ const STINGERS: Partial<Record<EventName, Stinger>> = { onRelicTier: 'tier', onS
 addListener((g, name) => {
   if (g === game && STINGERS[name]) stinger(STINGERS[name]);
 });
-// v0.8 (#26): the simulation stays pure; this screen gives it sound, the perf timers and the particle budget
+// v0.8 (#26): the simulation stays pure; this screen gives it sound (its g.out cues, #114), the perf timers and the particle budget
 Object.assign(simView, { sfx, begin, end, particleBudget });
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -628,6 +628,7 @@ function chainToasts(g: Game): void {
 }
 
 function afterStep(g: Game): void {
+  playCues(g);
   if (g.over) endRun(g);
   else {
     checkToasts(g);
@@ -638,6 +639,7 @@ function afterStep(g: Game): void {
 
 function tick(): void {
   if (state !== 'playing' || !game) return;
+  playCues(game); // a pick made since the last frame: step clears the queue
   step(game, [intentCommand(game, sampleInput(game))]);
   afterStep(game);
 }
@@ -647,6 +649,7 @@ let last = performance.now();
 let acc = 0;
 function draw(now: number): void {
   if (game) {
+    playCues(game); // a pick on a choice screen sounds while no step runs (paused, or the next screen is up)
     render(ctx, game, view, arenaCanvas(game.arena.id), abilityAimRadius(game.player));
     const t = begin();
     updateHud(game);
@@ -850,6 +853,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       run(n: number, ability = false, mode: boolean | 'input' = false) {
         for (let i = 0; i < n && game && state !== 'results'; i++) {
           if (state === 'choice') (document.querySelector('[data-pick], [data-leave], [data-bank]') as HTMLElement).click(); // v0.6: a win is banked
+          playCues(game); // the pick's sound, before step clears the queue
           if (state !== 'playing') continue;
           const intent = mode === 'input' ? sampleInput(game) : mode ? botInput(game) : { ...game.input, ability }; // the bot moves and casts, but the real choice screens still open
           step(game, [intentCommand(game, intent)]);

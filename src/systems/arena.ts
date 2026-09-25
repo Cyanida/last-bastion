@@ -11,7 +11,7 @@ export function updateArena(g: Game, dt: number): void {
   if (g.hazardT > 0) return;
   g.hazardT = hz.every;
   const damage = hz.damage * g.waveDmgMult * g.tier.enemyDmg;
-  sfx('warn');
+  sfx(g, 'warn');
 
   if (hz.kind === 'graspingHands') {
     const p = g.player;

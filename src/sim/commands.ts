@@ -198,6 +198,7 @@ const due = (g: Game, cmd: Command) => cmd.tick === g.tick && cmd.player === 0;
  * Returns false when a choice was refused or could not be made (the screens re-open or stay as they are).
  */
 export function step(g: Game, commands: readonly Command[], advance = true): boolean {
+  if (advance) g.out.length = 0; // the last tick's cues were played (or nobody listens: tests, the bot); a pick alone keeps them
   let ok = true;
   for (const cmd of commands) {
     if (cmd.kind !== 'choice') continue;

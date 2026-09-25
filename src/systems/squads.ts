@@ -75,5 +75,5 @@ addListener((g, name, ev) => {
   }
   ring(g, e.x, e.y, 160, r.fear > 0 ? '#a9d8ef' : '#e07b28', 0.6);
   g.banner = { text: `${e.def.name} slain`, t: 1.6 };
-  sfx('levelup');
+  sfx(g, 'levelup');
 });

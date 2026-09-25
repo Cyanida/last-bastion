@@ -3,10 +3,12 @@ import { dirname, join, normalize } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // v0.8 (#26): the simulation is pure. Everything the run code reaches, following value imports from these roots,
-// touches no DOM, audio, storage or wall clock. It talks to the device only through src/sim/view.ts.
-const ROOTS = ['src/game.ts', 'src/systems', 'src/sim', 'src/entities'];
+// touches no DOM, audio, storage, wall clock, timer or unseeded randomness. It talks to the device only through src/sim/view.ts.
+const ROOTS = ['src/game.ts', 'src/systems', 'src/sim', 'src/entities', 'src/logic'];
 const DEVICE = /^src\/(core\/(audio|music|storage|platform|pwa|perf|quality)|ui\/|render\/|input\/|main)/;
-const GLOBALS = /(?<![.\w$])(document|window|localStorage|sessionStorage|indexedDB|navigator|location|performance\.now|requestAnimationFrame|AudioContext|Date\.now|new Date)\b(?!\s*:)/;
+const GLOBALS = /(?<![.\w$])(document|window|localStorage|sessionStorage|indexedDB|navigator|location|performance\.now|requestAnimationFrame|AudioContext|Date\.now|new Date|Math\.random|setTimeout|setInterval)\b(?!\s*:)/g;
+/** What a file may use anyway: effects.ts draws cosmetic randomness (#114), which never feeds back into the game. */
+const ALLOW: Record<string, string[]> = { 'src/systems/effects.ts': ['Math.random'] };
 
 const files = (p: string): string[] => (p.endsWith('.ts') ? [p] : readdirSync(p, { withFileTypes: true }).flatMap((e) => files(`${p}/${e.name}`)));
 /** The code without comments and string contents. */
@@ -29,7 +31,7 @@ function violations(start: string[], read: (file: string) => string): string[] {
       continue;
     }
     const src = read(file);
-    const hit = code(src).match(GLOBALS);
+    const hit = [...code(src).matchAll(GLOBALS)].find((m) => !ALLOW[file]?.includes(m[0]));
     if (hit) out.push(`${file} uses ${hit[0]}`);
     for (const rel of imports(src)) queue.push(normalize(join(dirname(file), rel)).replace(/\\/g, '/') + '.ts');
   }
@@ -37,7 +39,7 @@ function violations(start: string[], read: (file: string) => string): string[] {
 }
 
 describe('pure simulation (v0.8 #26)', () => {
-  it('reaches no DOM, audio, storage or wall clock', () => {
+  it('reaches no DOM, audio, storage, wall clock, timer or Math.random', () => {
     expect(violations(ROOTS.flatMap(files), (f) => readFileSync(f, 'utf8'))).toEqual([]);
   });
 
@@ -46,10 +48,14 @@ describe('pure simulation (v0.8 #26)', () => {
       'src/sim/a.ts': "import { sfx } from '../core/audio';\nimport type { SfxName } from '../core/audio';",
       'src/sim/b.ts': "// Date.now() in a comment\nimport { type Aim } from '../input/mapping';\nexport const t = () => Date.now();",
       'src/sim/c.ts': "import { b } from './b';\nexport const s = 'window';",
+      'src/logic/d.ts': 'export const d = () => setTimeout(f, Math.random());',
+      'src/systems/effects.ts': 'export const cosmetic = () => Math.random();\nsetInterval(f, 9);',
     };
     const check = (file: string) => violations([file], (f) => fake[f] ?? '');
     expect(check('src/sim/a.ts')).toEqual(['src/core/audio.ts is device code']);
     expect(check('src/sim/b.ts')).toEqual(['src/sim/b.ts uses Date.now']);
     expect(check('src/sim/c.ts')).toEqual(['src/sim/b.ts uses Date.now']); // reached through an import
+    expect(check('src/logic/d.ts')).toEqual(['src/logic/d.ts uses setTimeout']);
+    expect(check('src/systems/effects.ts')).toEqual(['src/systems/effects.ts uses setInterval']); // Math.random is on its allow-list
   });
 });

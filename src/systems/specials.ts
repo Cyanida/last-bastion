@@ -46,7 +46,7 @@ export const SPECIALS: Record<string, Special> = {
       e.state = 1;
       e.timer = e.def.fuse!;
       addZone(g, { x: e.x, y: e.y, r: e.def.blastRadius!, delay: e.def.fuse!, damage: hitDamage(e), hostile: true, color: '#e07b28', owner: e, killsOwner: true });
-      sfx('warn');
+      sfx(g, 'warn');
     } else e.timer -= dt; // only drives the blink; the zone kills its owner when it detonates
     return false;
   },
@@ -107,7 +107,7 @@ export const SPECIALS: Record<string, Special> = {
       line(g, e.x, e.y - 12, m.x, m.y, '#e8e2d0');
     }
     ring(g, e.x, e.y, 120, '#e8e2d0', 0.5);
-    sfx('warn');
+    sfx(g, 'warn');
     return true;
   },
 

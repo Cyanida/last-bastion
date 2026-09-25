@@ -22,7 +22,7 @@ function pay(g: Game, item: MerchantItem): boolean {
   if (g.gold < price) return false;
   g.gold -= price;
   g.merchantSpent += price;
-  sfx('xp');
+  sfx(g, 'xp');
   return true;
 }
 
@@ -85,7 +85,7 @@ export function merchantSell(g: Game, id: RelicId): boolean {
   const tier = relicTier(g.player.relics.tiers, id);
   if (tier === 0) return false;
   g.gold += sellPrice(id, tier, g.act);
-  sfx('xp');
+  sfx(g, 'xp');
   return removeRelic(g, id);
 }
 
@@ -94,7 +94,7 @@ export function merchantSalvage(g: Game, id: RelicId): boolean {
   const tier = relicTier(g.player.relics.tiers, id);
   if (tier === 0) return false;
   g.salvage += salvageValue(id, tier);
-  sfx('xp');
+  sfx(g, 'xp');
   return removeRelic(g, id);
 }
 
@@ -146,7 +146,7 @@ export function nextAct(g: Game, route: Route | null = null): void {
   if (route) markRoute(g, `${ROUTE_NAMES[route.focus]} · ${g.arena.name} · ${theme.name}`);
   if (route?.focus === 'pilgrim') g.pendingShrine = shrineChoices(g); // a blessing to start the Act with
   floatText(g, p.x, p.y - 50, g.arena.name, '#e9c95a', 16);
-  sfx('wave');
+  sfx(g, 'wave');
   initQuests(g); // what is left of the old Act's quests fails; a new board is up
 }
 
