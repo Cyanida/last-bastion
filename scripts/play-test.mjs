@@ -794,18 +794,24 @@ await check('a real run is banked: gold, the local day, the run log, the week', 
   }),
 );
 
-await check('?net: two windows in a room connect and a level-up pick reaches the other; without it there is no transport', async () => {
+await check('?net: three windows in a room get players 0, 1 and 2, and every level-up pick of player 1 reaches both others once; without it there is no transport', async () => {
   const solo = await inPage(() => window.__lb.net);
   if (solo === undefined) return { skip: true, detail: 'no loopback transport on this branch (before #31)' };
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-  const [a, b] = [await ctx.newPage(), await ctx.newPage()];
-  for (const p of [a, b]) {
+  const pages = [await ctx.newPage(), await ctx.newPage(), await ctx.newPage()];
+  for (const p of pages) {
     p.on('pageerror', (e) => errors.push(e.message));
     await p.goto(`http://localhost:${PORT}/?debug&net=play-test`);
     await p.waitForFunction(() => typeof window.__lb !== 'undefined');
   }
-  await b.waitForFunction(() => window.__lb.net.connected, null, { timeout: 3000 });
-  const sent = await a.evaluate(async () => {
+  for (const p of pages) await p.waitForFunction(() => window.__lb.net.player !== null && window.__lb.net.peers === 2, null, { timeout: 5000 });
+  const players = await Promise.all(pages.map((p) => p.evaluate(() => window.__lb.net.player)));
+  const [a, b, c] = [0, 1, 2].map((id) => pages[players.indexOf(id)]);
+  if (!a || !b || !c) {
+    await ctx.close();
+    return { ok: false, detail: `players ${players.join(',')}, not 0, 1 and 2` };
+  }
+  const sent = await b.evaluate(async () => {
     const lb = window.__lb;
     lb.start('viking');
     lb.game.player.invulnerable = true;
@@ -824,12 +830,13 @@ await check('?net: two windows in a room connect and a level-up pick reaches the
     }
     return ticks;
   });
-  await b.waitForTimeout(400); // the simulated latency (config/net.ts)
-  const got = await b.evaluate(() => window.__lb.net.log.filter((m) => m.t === 'command' && m.cmd.kind === 'choice' && m.cmd.choice.c === 'levelUp').map((m) => `${m.cmd.tick}:${m.cmd.choice.c}`));
+  await b.waitForTimeout(1500); // the simulated latency, and resends of anything lost (config/net.ts)
+  const picks = () => window.__lb.net.log.filter((m) => m.t === 'command' && m.cmd.kind === 'choice' && m.cmd.choice.c === 'levelUp').map((m) => `${m.cmd.player}@${m.cmd.tick}`);
+  const [gotA, gotC] = [await a.evaluate(picks), await c.evaluate(picks)];
   await ctx.close();
-  // 2% loss: three picks, at least one arrives, and whatever arrives is what was clicked
-  const ok = solo === null && sent.length === 3 && got.length > 0 && got.every((s) => sent.some((t) => s === `${t}:levelUp`));
-  return { ok, detail: `solo ${solo === null ? 'no transport' : 'HAS ONE'}, sent at ${sent.join(',')}, received ${got.join(', ') || 'none'}` };
+  const want = sent.map((t) => `1@${t}`).join(',');
+  const ok = solo === null && sent.length === 3 && [...players].sort().join() === '0,1,2' && gotA.join(',') === want && gotC.join(',') === want;
+  return { ok, detail: `solo ${solo === null ? 'no transport' : 'HAS ONE'}, players ${players.join(',')}, player 1 picked at ${sent.join(',')}; player 0 got ${gotA.join(', ') || 'none'}, player 2 got ${gotC.join(', ') || 'none'}` };
 });
 
 await check('no console errors', async () => {

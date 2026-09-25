@@ -80,14 +80,16 @@ let onTitle = false;
 let notice: TitleInfo['notice'] = null; // "new version available", shown on the title screen only
 let updateStatus = 'No check yet.';
 let devMode = new URLSearchParams(location.search).get('dev') === '1'; // v0.7.1 test mode: ?dev=1, or tap the version in Settings five times
-// v0.8 (#31), hidden: ?net=<room> links two windows on this machine over the loopback transport. Every command this window steps
-// goes to the other; what arrives is only kept (netLog) until the run has more than one player (#28). Without it nothing changes.
+// v0.8 (#31), hidden: ?net=<room> links up to four windows on this machine over the loopback transport. Each window gets its own
+// player id when it joins, and every command it steps goes to the others under that id; what arrives is only kept (netLog) until the
+// run has more than one player (#28). Without it nothing changes.
 const netRoom = new URLSearchParams(location.search).get('net');
 const net = netRoom ? broadcastTransport(netRoom) : null;
 const netLog: NetMessage[] = [];
-/** step(), and the same commands to the other window when ?net is on. */
+/** step(), and the same commands to the other windows when ?net is on, as this window's player (none while joining, or in a full room). */
 function stepLocal(g: Game, cmds: Command[], advance = true): boolean {
-  if (net) for (const cmd of cmds) net.send({ t: 'command', cmd });
+  const player = net?.player;
+  if (net && player != null) for (const cmd of cmds) net.send({ t: 'command', cmd: { ...cmd, player } });
   return step(g, cmds, advance);
 }
 let testSetup: TestSetup = { classId: 'viking', arena: 'courtyard', act: 1, wave: 1, level: 1, talents: [], relics: {} };
@@ -805,6 +807,12 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       net: net && {
         get connected() {
           return net.connected;
+        },
+        get player() {
+          return net.player;
+        },
+        get peers() {
+          return net.peers;
         },
         log: netLog,
       },
