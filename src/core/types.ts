@@ -139,6 +139,7 @@ export interface Body {
 export interface Player extends Body {
   cls: ClassDef;
   relics: RelicState; // v0.7: this player's relics
+  input: Game['input']; // v0.8 (#28): this player's last intent; g.input is the focused player's (logic/players.ts)
   ward: number; // v0.7: absorbs damage before HP (Holy)
   armorStacks: number; // v0.7: +3% armor each (Steel), they fade a few seconds after the last was gained
   armorStackT: number; // when the last armor stack was gained
@@ -468,7 +469,8 @@ export interface Effect {
 }
 
 export interface Game {
-  player: Player;
+  player: Player; // v0.8 (#28): the focused player, players[0] outside a player's turn (logic/players.ts)
+  players: Player[]; // 1-4; players[0] is the one a single-player run always had
   enemies: Enemy[];
   minions: Minion[];
   projectiles: Projectile[];

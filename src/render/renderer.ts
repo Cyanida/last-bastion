@@ -6,7 +6,8 @@ import { STATUSES } from '../config/damage';
 import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
-import type { Game } from '../core/types';
+import type { Game, Player } from '../core/types';
+import { inputOf } from '../logic/players';
 import { FEATURES, REGIONS } from '../config/regions';
 import { QUESTS } from '../config/quests';
 import { eventMarks, questMarks, type Mark } from '../logic/quests';
@@ -21,12 +22,13 @@ export interface View {
   h: number;
   zoom: number; // canvas pixels per world pixel (includes dpr)
   dpr: number; // canvas pixels per CSS pixel, capped by the quality level
+  x?: number; // v0.8 (#28): left edge on the canvas, for a split-screen viewpoint (canvas pixels)
 }
 
 type Ctx = CanvasRenderingContext2D;
 
-/** Top-left of the visible world rect. Shared by rendering and mouse-to-world conversion. */
-export function cameraFor(g: Game, view: View): { x: number; y: number } {
+/** Top-left of the visible world rect, following player `p`. Shared by rendering and mouse-to-world conversion. */
+export function cameraFor(g: Game, view: View, p: Player = g.player): { x: number; y: number } {
   const vw = view.w / view.zoom;
   const vh = view.h / view.zoom;
   // v0.5: the open part of the map plus its walls; closed wings are not worth looking at
@@ -37,8 +39,8 @@ export function cameraFor(g: Game, view: View): { x: number; y: number } {
   const w = b.w + 2 * pad;
   const h = b.h + 2 * pad;
   return {
-    x: vw >= w ? x0 + (w - vw) / 2 : clamp(g.player.x - vw / 2, x0, x0 + w - vw),
-    y: vh >= h ? y0 + (h - vh) / 2 : clamp(g.player.y - vh / 2, y0, y0 + h - vh),
+    x: vw >= w ? x0 + (w - vw) / 2 : clamp(p.x - vw / 2, x0, x0 + w - vw),
+    y: vh >= h ? y0 + (h - vh) / 2 : clamp(p.y - vh / 2, y0, y0 + h - vh),
   };
 }
 
@@ -286,24 +288,25 @@ export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, t
   blitArena(ctx, arena, cx, cy, view.w, view.h);
 }
 
-export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, aimRadius: number): void {
+/** One viewpoint: the world around player `p` (v0.8 #28: every player is drawn; the camera, reticle and fog are p's). */
+export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, aimRadius: number, p: Player = g.player): void {
   const z = view.zoom;
   const vw = view.w / z;
   const vh = view.h / z;
-  const cam = cameraFor(g, view);
+  const ox = view.x ?? 0;
+  const cam = cameraFor(g, view, p);
   const cx = cam.x + (Math.random() - 0.5) * g.shake * quality.shake;
   const cy = cam.y + (Math.random() - 0.5) * g.shake * quality.shake;
   const visible = (x: number, y: number, pad: number) => x > cx - pad && x < cx + vw + pad && y > cy - pad && y < cy + vh + pad;
-  const p = g.player;
   const rings = drawRings();
   const marks = [...questMarks(g), ...eventMarks(g)];
   let _t = begin();
 
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, ox, 0);
   ctx.fillStyle = '#14110f';
   ctx.fillRect(0, 0, view.w, view.h);
   ctx.imageSmoothingEnabled = false;
-  ctx.setTransform(z, 0, 0, z, -Math.round(cx * z), -Math.round(cy * z));
+  ctx.setTransform(z, 0, 0, z, ox - Math.round(cx * z), -Math.round(cy * z));
   blitArena(ctx, arena, cx, cy, vw, vh);
   drawClosedRegions(ctx, g, cx, cy, vw, vh);
   end('arena', _t);
@@ -452,7 +455,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   if (drawShadows()) {
     for (const e of g.enemies) if (visible(e.x, e.y, 80) && !e.hidden) shadow(ctx, e.x, e.y, e.r);
     for (const m of g.minions) shadow(ctx, m.x, m.y, m.r);
-    shadow(ctx, p.x, p.y, p.r);
+    for (const q of g.players) shadow(ctx, q.x, q.y, q.r);
   }
 
   end('shadows', _t);
@@ -596,36 +599,38 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
 
   end('minions', _t);
   _t = begin();
-  // player
-  if (p.abilityTime > 0) {
-    const pulse = 30 + Math.sin(g.time * 12) * 3;
-    ctx.fillStyle = p.cls.ability.aura;
-    ctx.globalAlpha = 0.22;
-    disc(ctx, p.x, p.y - 6, pulse);
-    ctx.fill();
-    ctx.globalAlpha = 0.9;
-    ctx.strokeStyle = p.cls.ability.aura;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-  if (p.reviveT > 0 || p.revives > 0) {
-    // a halo while a revive is ready
-    ctx.strokeStyle = '#f2e6a0';
-    ctx.globalAlpha = p.reviveT > 0 ? 0.9 : 0.45;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(p.x, p.y - 38, 9, 3, 0, 0, TAU);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-  if (p.invulnT <= 0 || Math.floor(g.time * 16) % 2 === 0) {
-    drawSprite(ctx, getSprite(p.cls.sprite, GAME.spriteScale + (g.vars.avatar ? 2 : 0), g.palette), p.x, p.y, p.flip, p.flash > 0); // v0.6: the Avatar of Wrath is a giant
-  }
-  if (p.chillT > 0) {
-    ctx.fillStyle = 'rgba(169,216,239,0.3)';
-    disc(ctx, p.x, p.y - 6, 22);
-    ctx.fill();
+  // the players (v0.8 #28: all of them; only the first wears the chosen palette)
+  for (const q of g.players) {
+    if (q.abilityTime > 0) {
+      const pulse = 30 + Math.sin(g.time * 12) * 3;
+      ctx.fillStyle = q.cls.ability.aura;
+      ctx.globalAlpha = 0.22;
+      disc(ctx, q.x, q.y - 6, pulse);
+      ctx.fill();
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = q.cls.ability.aura;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    if (q.reviveT > 0 || q.revives > 0) {
+      // a halo while a revive is ready
+      ctx.strokeStyle = '#f2e6a0';
+      ctx.globalAlpha = q.reviveT > 0 ? 0.9 : 0.45;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(q.x, q.y - 38, 9, 3, 0, 0, TAU);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    if (q.invulnT <= 0 || Math.floor(g.time * 16) % 2 === 0) {
+      drawSprite(ctx, getSprite(q.cls.sprite, GAME.spriteScale + (g.vars.avatar ? 2 : 0), q === g.players[0] ? g.palette : 0), q.x, q.y, q.flip, q.flash > 0); // v0.6: the Avatar of Wrath is a giant
+    }
+    if (q.chillT > 0) {
+      ctx.fillStyle = 'rgba(169,216,239,0.3)';
+      disc(ctx, q.x, q.y - 6, 22);
+      ctx.fill();
+    }
   }
 
   // v0.6: what the evolutions light up this tick (wisps, souls, rings of light, the prey's mark)
@@ -723,12 +728,13 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   end('particles', _t);
   _t = begin();
   // targeted-ability reticle
-  if (aimRadius > 0 && p.abilityCd <= 0 && g.input.showAim) {
+  const aim = inputOf(g, p);
+  if (aimRadius > 0 && p.abilityCd <= 0 && aim.showAim) {
     ctx.globalAlpha = 0.6;
     ctx.strokeStyle = p.cls.ability.aura;
     ctx.lineWidth = 2;
     ctx.setLineDash([8, 6]);
-    disc(ctx, g.input.aimX, g.input.aimY, aimRadius);
+    disc(ctx, aim.aimX, aim.aimY, aimRadius);
     ctx.stroke();
     ctx.setLineDash([]);
   }
@@ -768,8 +774,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   end('texts', _t);
   _t = begin();
   // wave modifier overlays, in screen space
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  if (!g.curses.includes('blind')) drawMinimap(ctx, g, view, cx, cy, vw, vh, marks);
+  ctx.setTransform(1, 0, 0, 1, ox, 0);
+  if (!g.curses.includes('blind') && !ox) drawMinimap(ctx, g, view, cx, cy, vw, vh, marks);
   drawEdgeArrows(ctx, marks, view, cx, cy, g.time);
   if (g.modifier === 'fog') {
     // a cached tile with the hole in it, centred on the player; plain fog around it

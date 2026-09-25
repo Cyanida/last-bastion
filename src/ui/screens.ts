@@ -1099,6 +1099,7 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
         <label>Act <input id="tm-act" type="number" min="1" max="${FINAL.act}" value="${setup.act}"></label>
         <label>Wave <input id="tm-wave" type="number" min="1" max="${ACTS.length}" value="${setup.wave}"></label>
         <label>Level <input id="tm-level" type="number" min="1" max="60" value="${setup.level}"></label>
+        <label>Players <select id="tm-players">${options([['1', '1'], ['2', '2 · split screen']], String(setup.players ?? 1))}</select></label>
       </div>
       <div class="tm-talents" id="tm-talents">${talents(setup.classId)}</div>
       <h2>Relics</h2>
@@ -1121,7 +1122,7 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
     field('tm-relics').innerHTML = relics(field('tm-class').value as ClassId);
   };
   click(el, '[data-start]', () => on.start({
-    classId: field('tm-class').value as ClassId, arena: field('tm-arena').value as ArenaId, act: num('tm-act', 1, FINAL.act), wave: num('tm-wave', 1, ACTS.length), level: num('tm-level', 1, 60),
+    classId: field('tm-class').value as ClassId, arena: field('tm-arena').value as ArenaId, act: num('tm-act', 1, FINAL.act), wave: num('tm-wave', 1, ACTS.length), level: num('tm-level', 1, 60), players: num('tm-players', 1, 2),
     talents: [...el.querySelectorAll<HTMLInputElement>('#tm-talents input:checked')].map((i) => i.value),
     relics: Object.fromEntries([...el.querySelectorAll<HTMLSelectElement>('#tm-relics select')].filter((s) => s.value !== '0').map((s) => [s.dataset.relic, Number(s.value)])),
   }));

@@ -37,8 +37,11 @@ export function actionForKey(code: string): Action | null {
   return digit ? (`pick${digit[1]}` as Action) : (KEY_ACTIONS[code] ?? null);
 }
 
-export function keyboardMove(keys: ReadonlySet<string>): Vec {
-  const down = (...codes: string[]) => codes.some((c) => keys.has(c));
+/** v0.8 (#28): with two players on one keyboard, the first moves on WASD and the second on the arrow keys. */
+export type KeySide = 'both' | 'wasd' | 'arrows';
+
+export function keyboardMove(keys: ReadonlySet<string>, side: KeySide = 'both'): Vec {
+  const down = (wasd: string, arrow: string) => (side !== 'arrows' && keys.has(wasd)) || (side !== 'wasd' && keys.has(arrow));
   const x = (down('KeyD', 'ArrowRight') ? 1 : 0) - (down('KeyA', 'ArrowLeft') ? 1 : 0);
   const y = (down('KeyS', 'ArrowDown') ? 1 : 0) - (down('KeyW', 'ArrowUp') ? 1 : 0);
   const len = Math.hypot(x, y) || 1;
@@ -68,6 +71,8 @@ const PAD_ACTIONS: [number, Action][] = [[0, 'confirm'], [1, 'cancel'], [2, 'pic
 export const PAD_ABILITY_BUTTONS = [0, 7]; // A or right trigger
 export const PAD_UTILITY_BUTTONS = [2, 5]; // X or right bumper
 export const UTILITY_KEYS = ['KeyE', 'ShiftLeft', 'ShiftRight'];
+export const SECOND_ABILITY_KEYS = ['ControlRight', 'Slash']; // v0.8: the second player on the arrow keys
+export const SECOND_UTILITY_KEYS = ['ShiftRight', 'Period'];
 
 export function gamepadActions(prev: readonly boolean[], now: readonly boolean[]): Action[] {
   return PAD_ACTIONS.filter(([i]) => now[i] && !prev[i]).map(([, a]) => a);

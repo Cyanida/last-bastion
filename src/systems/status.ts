@@ -3,6 +3,7 @@ import type { RelicKey } from '../config/relics';
 import type { Game } from '../core/types';
 import { STATUS_IDS, tickStatuses } from '../logic/status';
 import { damageEnemy, damagePlayer } from './combat';
+import { withPlayer } from '../logic/players';
 import { credit, relicContext } from './relicContext';
 
 /** Collects damage-over-time and lands it every STATUS_TUNING.dotTick, so burns read as ticks, not as a number per frame. */
@@ -37,13 +38,15 @@ export function updateStatuses(g: Game, dt: number): void {
       });
     }
   }
-  const p = g.player;
-  const dots = tickStatuses(p.statuses, dt);
-  for (const type of Object.keys(dots) as DamageType[]) p.dots[type] = (p.dots[type] ?? 0) + dots[type]!;
-  if ((p.dotT -= dt) <= 0) {
-    p.dotT = STATUS_TUNING.dotTick;
-    flush(p.dots, (amount, type) => damagePlayer(g, amount, true, null, `${DAMAGE_TYPES[type].name.toLowerCase()} damage over time`));
-  }
+  for (const p of g.players)
+    withPlayer(g, p, () => {
+      const dots = tickStatuses(p.statuses, dt);
+      for (const type of Object.keys(dots) as DamageType[]) p.dots[type] = (p.dots[type] ?? 0) + dots[type]!;
+      if ((p.dotT -= dt) <= 0) {
+        p.dotT = STATUS_TUNING.dotTick;
+        flush(p.dots, (amount, type) => damagePlayer(g, amount, true, null, `${DAMAGE_TYPES[type].name.toLowerCase()} damage over time`));
+      }
+    });
   for (const m of g.minions) {
     if ((m.blessedT -= dt) > 0) m.hp = Math.min(m.maxHp, m.hp + STATUS_TUNING.blessedRegen * dt);
   }

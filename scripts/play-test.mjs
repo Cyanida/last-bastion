@@ -434,6 +434,47 @@ await check('sounds reach the audio', () =>
   }),
 );
 
+// ---------- v0.8 (#28): two local players in one run ----------
+await check('two local players: split screen, each on their own keys', async () => {
+  const setup = await inPage(async () => {
+    const P = window.__play, lb = window.__lb;
+    const solo = lb.game.players.length;
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', key: 'Escape' }));
+    await P.wait(150);
+    await P.click('[data-quit]'); // a test run goes back to the Test mode screen
+    await P.wait(200);
+    const players = document.getElementById('tm-players');
+    if (!players) return { solo, n: 0 };
+    players.value = '2';
+    players.dispatchEvent(new Event('change', { bubbles: true }));
+    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    await P.wait(300);
+    const g = lb.game;
+    for (const p of g.players) p.invulnerable = true;
+    lb.draw();
+    const c = document.getElementById('game');
+    const seam = [...c.getContext('2d').getImageData(Math.floor(c.width / 2), Math.floor(c.height / 2), 1, 1).data].slice(0, 3).join(',');
+    return { solo, n: g.players.length, state: lb.state, seam };
+  });
+  if (setup.n !== 2) return { ok: false, detail: `players ${setup.n}` };
+  const pos = () => inPage(() => window.__lb.game.players.map((p) => ({ x: p.x, y: p.y })));
+  const hold = async (key) => {
+    await page.keyboard.down(key);
+    await inPage(() => window.__lb.run(30, false, 'input'));
+    await page.keyboard.up(key);
+    await inPage(() => window.__lb.run(10, false, 'input'));
+  };
+  await inPage(() => window.__lb.run(1, false, 'input'));
+  const a = await pos();
+  await hold('KeyD');
+  const b = await pos();
+  await hold('ArrowLeft');
+  const c = await pos();
+  const ok = setup.solo === 1 && setup.seam === '20,17,15' && b[0].x - a[0].x > 20 && Math.abs(b[1].x - a[1].x) < 1 && c[1].x - b[1].x < -20 && Math.abs(c[0].x - b[0].x) < 1;
+  return { ok, detail: `solo run had ${setup.solo} player, now ${setup.n} (${setup.state}); seam ${setup.seam}; D: P1 ${Math.round(b[0].x - a[0].x)} px, P2 ${Math.round(b[1].x - a[1].x)} px; ←: P1 ${Math.round(c[0].x - b[0].x)} px, P2 ${Math.round(c[1].x - b[1].x)} px` };
+});
+
 // ---------- a real run (not a test run) is banked ----------
 await check('a real run is banked: gold, the day, the run log, the week', () =>
   inPage(async () => {

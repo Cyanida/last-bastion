@@ -21,6 +21,8 @@ export const GAME = {
 
   // player
   playerRadius: 13,
+  maxPlayers: 4, // v0.8 (#28): players in one run
+  playerSpacing: 40, // v0.8: how far apart the players start, side by side
   contactIFrames: 0.35, // seconds of contact-damage immunity after a contact hit
   pickupRadius: 90,
   pickupSpeed: 460,

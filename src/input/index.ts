@@ -1,4 +1,4 @@
-import { actionForKey, gamepadActions, joystickVector, keyboardMove, mergeIntents, PAD_ABILITY_BUTTONS, stickVector, type Action, type Intent, PAD_UTILITY_BUTTONS, UTILITY_KEYS } from './mapping';
+import { actionForKey, gamepadActions, joystickVector, keyboardMove, mergeIntents, PAD_ABILITY_BUTTONS, stickVector, type Action, type Intent, PAD_UTILITY_BUTTONS, SECOND_ABILITY_KEYS, SECOND_UTILITY_KEYS, UTILITY_KEYS } from './mapping';
 
 /**
  * The only place that listens to raw keyboard, mouse, touch and gamepad events.
@@ -192,10 +192,23 @@ export function pumpGamepad(): void {
   Object.assign(pad, { moveX: move.x, moveY: move.y, aimX: aim.x, aimY: aim.y, ability: PAD_ABILITY_BUTTONS.some((i) => now[i]), utility: PAD_UTILITY_BUTTONS.some((i) => now[i]) });
 }
 
-/** Once per simulation step. A touch "fire on release" is consumed by the step that reads it. */
-export function pollInput(): Intent {
-  const kb = keyboardMove(keys);
-  const keyboard: Intent = { moveX: kb.x, moveY: kb.y, ability: keys.has('Space') || mouse.rmb, utility: UTILITY_KEYS.some((k) => keys.has(k)), aim: mouse.used ? { kind: 'screen', x: mouse.x, y: mouse.y } : { kind: 'auto' }, showAim: mouse.used };
+/**
+ * Once per simulation step. A touch "fire on release" is consumed by the step that reads it.
+ * v0.8 (#28): `seat` of `seats` local players. Alone, every device is yours. With two, the first has WASD, the mouse and touch, the
+ * second the arrow keys and the gamepad. ponytail: seats 3-4 get no device yet; binding devices to seats is local co-op's (#1).
+ */
+export function pollInput(seat = 0, seats = 1): Intent {
+  if (seat > 1) return { moveX: 0, moveY: 0, ability: false, utility: false, aim: { kind: 'auto' }, showAim: false };
+  const aiming = Math.hypot(pad.aimX, pad.aimY) > 0;
+  const gamepad: Intent = { moveX: pad.moveX, moveY: pad.moveY, ability: pad.ability, utility: pad.utility, aim: aiming ? { kind: 'stick', x: pad.aimX, y: pad.aimY } : { kind: 'auto' }, showAim: aiming };
+  if (seat === 1) {
+    const kb = keyboardMove(keys, 'arrows');
+    return mergeIntents([{ moveX: kb.x, moveY: kb.y, ability: SECOND_ABILITY_KEYS.some((k) => keys.has(k)), utility: SECOND_UTILITY_KEYS.some((k) => keys.has(k)), aim: { kind: 'auto' }, showAim: false }, gamepad]);
+  }
+  const split = seats > 1;
+  const kb = keyboardMove(keys, split ? 'wasd' : 'both');
+  const utilityKeys = split ? UTILITY_KEYS.filter((k) => !SECOND_UTILITY_KEYS.includes(k)) : UTILITY_KEYS;
+  const keyboard: Intent = { moveX: kb.x, moveY: kb.y, ability: keys.has('Space') || mouse.rmb, utility: utilityKeys.some((k) => keys.has(k)), aim: mouse.used ? { kind: 'screen', x: mouse.x, y: mouse.y } : { kind: 'auto' }, showAim: mouse.used };
 
   const joy = touch.joyId === -1 ? { x: 0, y: 0 } : joystickVector(touch.ox, touch.oy, touch.px, touch.py, JOY_RADIUS);
   const holding = touch.abilityId !== -1;
@@ -212,9 +225,7 @@ export function pollInput(): Intent {
     showAim: touch.targeted && holding,
   };
 
-  const aiming = Math.hypot(pad.aimX, pad.aimY) > 0;
-  const gamepad: Intent = { moveX: pad.moveX, moveY: pad.moveY, ability: pad.ability, utility: pad.utility, aim: aiming ? { kind: 'stick', x: pad.aimX, y: pad.aimY } : { kind: 'auto' }, showAim: aiming };
-  return mergeIntents([keyboard, finger, gamepad]);
+  return mergeIntents(split ? [keyboard, finger] : [keyboard, finger, gamepad]);
 }
 
 /** Screen point the player is pointing at (mouse hover, or a recent tap), for enemy tooltips. */

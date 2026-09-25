@@ -571,11 +571,12 @@ function mute(): void {
 
 // ---------- simulation step ----------
 /** The input layer speaks in intents and screen pixels; this turns them into the game's world-space intent (v0.8: a command, #25). */
-function sampleInput(g: Game): Intent {
-  const intent = pollInput();
-  const cam = cameraFor(g, view);
+function sampleInput(g: Game, seat = 0): Intent {
+  const intent = pollInput(seat, g.players.length);
+  const v = viewsFor(g)[seat];
+  const p = g.players[seat];
+  const cam = cameraFor(g, v, p);
   const pxToWorld = view.dpr / view.zoom;
-  const p = g.player;
   const ability = p.cls.ability;
   const castRange = 'castRange' in ability ? ability.castRange : DEFAULT_CAST_RANGE;
   const needsAuto = intent.aim.kind !== 'screen' && (intent.ability || intent.showAim);
@@ -624,9 +625,20 @@ function afterStep(g: Game): void {
   }
 }
 
+/** v0.8 (#28): one viewpoint per local player, side by side (ponytail: columns; a 2x2 grid for 3-4 is local co-op's call, #1). */
+let split: View[] = [];
+function viewsFor(g: Game): View[] {
+  const n = g.players.length;
+  if (n === 1) return [view];
+  const w = Math.floor(view.w / n);
+  if (split.length !== n || split[0].w !== w || split[0].h !== view.h || split[0].zoom !== view.zoom) split = g.players.map((_, i) => ({ ...view, w, x: i * w }));
+  return split;
+}
+
 function tick(): void {
   if (state !== 'playing' || !game) return;
-  step(game, [intentCommand(game, sampleInput(game))]);
+  const g = game;
+  step(g, g.players.map((_, i) => intentCommand(g, sampleInput(g, i), i)));
   afterStep(game);
 }
 
@@ -635,7 +647,22 @@ let last = performance.now();
 let acc = 0;
 function draw(now: number): void {
   if (game) {
-    render(ctx, game, view, arenaCanvas(game.arena.id), abilityAimRadius(game.player));
+    const views = viewsFor(game);
+    if (views.length === 1) render(ctx, game, view, arenaCanvas(game.arena.id), abilityAimRadius(game.player));
+    else {
+      for (let i = 0; i < views.length; i++) {
+        const v = views[i];
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(v.x ?? 0, 0, v.w, v.h);
+        ctx.clip();
+        render(ctx, game, v, arenaCanvas(game.arena.id), abilityAimRadius(game.players[i]), game.players[i]);
+        ctx.restore();
+      }
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = '#14110f'; // the seam between the viewpoints
+      for (let i = 1; i < views.length; i++) ctx.fillRect((views[i].x ?? 0) - view.dpr, 0, 2 * view.dpr, view.h);
+    }
     const t = begin();
     updateHud(game);
     inspect(game);
@@ -646,7 +673,7 @@ function draw(now: number): void {
 function inspect(g: Game): void {
   const pt = state === 'playing' ? inspectPoint() : null;
   if (!pt) return updateInspect(null, 0, 0);
-  const cam = cameraFor(g, view);
+  const cam = cameraFor(g, viewsFor(g)[0]); // the mouse is the first player's
   const k = view.dpr / view.zoom;
   const found = g.hash.query(cam.x + pt.x * k, cam.y + pt.y * k, 10, []).find((e) => !e.dead && !e.hidden) ?? null;
   updateInspect(found, pt.x, pt.y);
@@ -824,8 +851,9 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
         for (let i = 0; i < n && game && state !== 'results'; i++) {
           if (state === 'choice') (document.querySelector('[data-pick], [data-leave], [data-bank]') as HTMLElement).click(); // v0.6: a win is banked
           if (state !== 'playing') continue;
-          const intent = mode === 'input' ? sampleInput(game) : mode ? botInput(game) : { ...game.input, ability }; // the bot moves and casts, but the real choice screens still open
-          step(game, [intentCommand(game, intent)]);
+          const g = game;
+          if (mode === 'input') step(g, g.players.map((_, s) => intentCommand(g, sampleInput(g, s), s))); // every local seat, as tick() does
+          else step(g, [intentCommand(g, mode ? botInput(g) : { ...g.input, ability })]); // the bot moves and casts, but the real choice screens still open
           afterStep(game);
         }
       },

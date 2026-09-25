@@ -20,6 +20,7 @@ import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, 
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
 import { lastStand, zoneStruck } from './dodge';
+import { isPlayer, withPlayer } from '../logic/players';
 import { spawnEnemy } from './spawning';
 
 const BLOOD = '#8e1b1b';
@@ -299,11 +300,12 @@ export function damageMinion(g: Game, m: Minion, amount: number): void {
 /** Enemies hit whatever they are fighting through this. */
 export function hurtTarget(g: Game, t: Player | Minion, amount: number, ignoreIFrames = false, attacker: Enemy | null = null, cause?: string): void {
   const before = t.hp;
-  if (t === g.player) damagePlayer(g, amount, ignoreIFrames, attacker, cause);
+  const player = isPlayer(g, t); // v0.8 (#28): any player, hurt with the focus on them
+  if (player) withPlayer(g, t, () => damagePlayer(g, amount, ignoreIFrames, attacker, cause));
   else damageMinion(g, t as Minion, amount);
   // some enemies leave something behind: wolves make you bleed, cultists set you alight, the Lich curses
   const inflicts = attacker && t.hp < before ? ENEMY_STATUS[attacker.def.id] : undefined;
-  if (inflicts && t === g.player) applyStatusTo(g.player.statuses, { ...inflicts, power: (inflicts.power ?? 0) * g.waveDmgMult });
+  if (inflicts && player) applyStatusTo(t.statuses, { ...inflicts, power: (inflicts.power ?? 0) * g.waveDmgMult });
   if (attacker?.affixes.includes('vampiric') && t.hp < before) {
     attacker.hp = Math.min(attacker.maxHp, attacker.hp + (before - t.hp) * AFFIXES.vampiric.n.heal);
   }

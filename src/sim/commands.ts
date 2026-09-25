@@ -7,6 +7,7 @@ import type { UtilityUpgradeId } from '../config/utility';
 import type { Game } from '../core/types';
 import { updateGame } from '../game';
 import { rerollCost } from '../logic/economy';
+import { withPlayer } from '../logic/players';
 import type { LevelUpOption } from '../logic/upgrades';
 import { chooseAbilityUpgrade } from '../systems/abilities';
 import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReforge, merchantReroll, merchantSalvage, merchantSell } from '../systems/acts';
@@ -150,11 +151,18 @@ export const intentCommand = (g: Game, intent: Intent, player = 0): Command => (
 
 /**
  * One tick: the choices first, then each player's intent, then the simulation. A player with no intent this tick keeps the last
- * one (what a dropped packet does online). ponytail: one player; commands for other players wait for g.players (#28).
+ * one (what a dropped packet does online). A command for a player the run does not have is dropped. v0.8 (#28): a choice is made
+ * with the focus on its player (logic/players.ts); the choice queues themselves are still the run's until co-op rules (#29).
  */
 export function step(g: Game, commands: readonly Command[]): void {
-  for (const cmd of commands) if (cmd.kind === 'choice') applyChoice(g, cmd.choice);
-  for (const cmd of commands) if (cmd.kind === 'intent') g.input = { ...cmd.intent };
+  for (const cmd of commands) {
+    const p = g.players[cmd.player];
+    if (p && cmd.kind === 'choice') withPlayer(g, p, () => applyChoice(g, cmd.choice));
+  }
+  for (const cmd of commands) {
+    const p = g.players[cmd.player];
+    if (p && cmd.kind === 'intent') withPlayer(g, p, () => (g.input = { ...cmd.intent }));
+  }
   g.tick++;
   updateGame(g, DT);
 }

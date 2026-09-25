@@ -15,6 +15,7 @@ export function createPlayer(cls: ClassDef, arena: ArenaDef, stats: Stats = cls.
   return {
     cls,
     relics: emptyRelics(), // createGame fills in the pool, the tier cap and the relic stream
+    input: { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, utility: false, showAim: false },
     ward: 0,
     armorStacks: 0,
     armorStackT: 0,

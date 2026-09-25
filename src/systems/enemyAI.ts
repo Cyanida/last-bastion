@@ -18,6 +18,7 @@ import { waypoint } from '../logic/regions';
 import { regionsOf } from './regions';
 import { markPhase } from './runlog';
 import { aimFan, updatePattern } from './patterns';
+import { nearestPlayer } from '../logic/players';
 import { watchTelegraph } from './dodge';
 
 const HOSTILE = '#c23a2e';
@@ -26,7 +27,7 @@ const HOSTILE = '#c23a2e';
 function pickTarget(g: Game, e: Enemy): Target {
   if (e.tauntT > 0) return g.player; // Challenged: nothing else exists
   if (e.squad?.marching && e.squad.target) return e.squad.target;
-  let best: Target = g.player;
+  let best: Target = nearestPlayer(g, e.x, e.y); // v0.8 (#28): the closest player
   let bestD = dist2(e.x, e.y, best.x, best.y);
   for (const m of g.minions) {
     const d = dist2(e.x, e.y, m.x, m.y);

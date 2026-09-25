@@ -13,7 +13,8 @@ import { WAVES } from './config/waves';
 import { compact, mulberry32 } from './core/math';
 import { begin, end } from './sim/view';
 import { SpatialHash } from './core/spatial';
-import type { Game } from './core/types';
+import type { Game, Player } from './core/types';
+import { focus } from './logic/players';
 import { createPlayer } from './entities/actors';
 import { runTimer } from './entities/hazards';
 import { accountPerks, masteryBonus, metaLoadout, startingStats, type MetaRanks } from './logic/economy';
@@ -72,6 +73,7 @@ export interface RunOptions {
   relicTier?: number;
   relicPicks?: number;
   noRelics?: boolean;
+  allies?: ClassId[]; // v0.8 (#28): players 2-4 of this run, by class (up to GAME.maxPlayers in all)
 }
 
 /** The difficulty tier with an Oath's numbers folded in, so every place that reads the tier sees them. */
@@ -86,8 +88,16 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
   const oath = oathStack(opts.oath ?? 0);
   const curses = oath.level > 0 ? oath.curses : [...new Set(opts.curses ?? [])]; // v0.6: an Oath brings its own curses
   const chain = opts.chain && mastery.treasureStep >= 1 ? opts.chain : null;
+  const player = createPlayer(cls, arena, startingStats(cls.base, opts.meta ?? {}, mastery.secondary));
+  const allies = (opts.allies ?? []).slice(0, GAME.maxPlayers - 1).map((id, i) => {
+    const a = createPlayer(CLASSES[id], arena, startingStats(CLASSES[id].base, opts.meta ?? {}, mastery.secondary));
+    a.x += GAME.playerSpacing * (i + 1);
+    Object.assign(a.relics, { pool: relicPoolFor(id, opts.lockedRelics ?? []), rng: relicStream(seed, i + 1) });
+    return a;
+  });
   const g: Game = {
-    player: createPlayer(cls, arena, startingStats(cls.base, opts.meta ?? {}, mastery.secondary)),
+    player,
+    players: [player, ...allies],
     enemies: [],
     minions: [],
     projectiles: [],
@@ -99,7 +109,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     effects: [],
     hash: new SpatialHash(GAME.spatialCell),
     rng: mulberry32(seed),
-    input: { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, utility: false, showAim: false },
+    input: player.input,
     wave: 0,
     waveHpMult: 1,
     waveDmgMult: 1,
@@ -207,12 +217,14 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
   initQuests(g);
   applyTrait(g, opts.trait ?? 'none');
   if (loadout.traitSlots > 1 && opts.trait2 && opts.trait2 !== opts.trait) applyTrait(g, opts.trait2, true);
-  g.player.mods = { ...g.baseMods };
-  // the Barracks' Veteran Levies and mastery's Seasoned: start a level or two up (growth, no boons)
-  for (let l = 0; l < loadout.startLevel + mastery.startLevel; l++) {
-    g.player.level++;
-    g.player.stats = applyGrowth(g.player.stats, cls.growth);
-    g.player.hp = g.player.stats.hp;
+  for (const p of g.players) {
+    p.mods = { ...g.baseMods };
+    // the Barracks' Veteran Levies and mastery's Seasoned: start a level or two up (growth, no boons)
+    for (let l = 0; l < loadout.startLevel + mastery.startLevel; l++) {
+      p.level++;
+      p.stats = applyGrowth(p.stats, p.cls.growth);
+      p.hp = p.stats.hp;
+    }
   }
   for (const id of opts.relics ?? []) addRelic(g, id, 'other', opts.relicTier ?? 1);
   for (let i = 0; i < (opts.relicPicks ?? 0); i++) {
@@ -290,25 +302,12 @@ export function updateGame(g: Game, dt: number): void {
   for (const t of g.timers) if ((t.t -= dt) <= 0) runTimer(g, t);
   compact(g.timers, (t) => t.t > 0);
 
-  const p = g.player;
-  p.iFrames -= dt;
-  p.flash -= dt;
-  p.invulnT -= dt;
-  p.chillT -= dt;
-  p.mods = { ...g.baseMods }; // rebuilt every tick: meta + tradeoffs, then relics, then passive ability upgrades
-  updateRelics(g, dt);
-  talentPassives(g);
-  updateTreasures(g);
-  abilityPassives(g, dt);
-  dodgePassives(g);
-  healPlayer(g, (p.cls.regen + p.mods.regen) * dt, false);
-
-  updatePlayerMovement(g, dt);
-  updateAbility(g, dt);
-  updateUtility(g, dt);
-  _t = begin();
-  updatePlayerAttack(g, dt);
-  end('attack', _t);
+  // v0.8 (#28): each player's own systems, with the focus on them (logic/players.ts); the world after, once
+  for (const p of g.players) {
+    focus(g, p);
+    updatePlayer(g, p, dt);
+  }
+  focus(g, g.players[0]);
   _t = begin();
   updateSquads(g, dt);
   end('squads', _t);
@@ -352,4 +351,26 @@ export function updateGame(g: Game, dt: number): void {
   _t = begin();
   updateSpawning(g, dt); // after cleanup so "no enemies left" is accurate
   end('spawning', _t);
+}
+
+/** One player's turn in a tick: timers, mods, passives, then movement, ability, utility and attack. */
+function updatePlayer(g: Game, p: Player, dt: number): void {
+  p.iFrames -= dt;
+  p.flash -= dt;
+  p.invulnT -= dt;
+  p.chillT -= dt;
+  p.mods = { ...g.baseMods }; // rebuilt every tick: meta + tradeoffs, then relics, then passive ability upgrades
+  updateRelics(g, dt);
+  talentPassives(g);
+  updateTreasures(g);
+  abilityPassives(g, dt);
+  dodgePassives(g);
+  healPlayer(g, (p.cls.regen + p.mods.regen) * dt, false);
+
+  updatePlayerMovement(g, dt);
+  updateAbility(g, dt);
+  updateUtility(g, dt);
+  const t = begin();
+  updatePlayerAttack(g, dt);
+  end('attack', t);
 }

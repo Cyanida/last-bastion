@@ -1,5 +1,6 @@
 import { ACTS } from '../config/acts';
 import { ARENAS, type ArenaId } from '../config/arenas';
+import { GAME } from '../config/game';
 import type { ClassId } from '../config/classes';
 import type { RelicId } from '../config/relics';
 import { TALENT_BY_ID } from '../config/talents';
@@ -24,22 +25,24 @@ export interface TestSetup {
   level: number;
   talents: string[];
   relics: Partial<Record<RelicId, number>>; // B5: held from the start, at this tier (1-3)
+  players?: number; // v0.8 (#28): local players, all of the chosen class, one viewpoint each
 }
 
 export const isTestRun = (g: Game) => g.vars.test === 1;
 
 export function createTestRun(s: TestSetup, seed: number): Game {
-  const g = createGame(s.classId, seed, { arena: s.arena });
+  const g = createGame(s.classId, seed, { arena: s.arena, allies: Array((s.players ?? 1) - 1).fill(s.classId) });
   g.vars.test = 1;
   while (g.act < s.act) nextAct(g);
   if (g.arena.id !== s.arena) {
     g.arena = ARENAS[s.arena];
     initRegions(g);
-    Object.assign(g.player, { x: g.arena.w / 2, y: g.arena.h / 2 });
+    g.players.forEach((p, i) => Object.assign(p, { x: g.arena.w / 2 + i * GAME.playerSpacing, y: g.arena.h / 2 }));
   }
-  const p = g.player;
-  for (; p.level < s.level; p.level++) p.stats = applyGrowth(p.stats, p.cls.growth);
-  p.hp = p.stats.hp;
+  for (const p of g.players) {
+    for (; p.level < s.level; p.level++) p.stats = applyGrowth(p.stats, p.cls.growth);
+    p.hp = p.stats.hp;
+  }
   g.talentPoints += s.talents.length;
   for (const id of [...s.talents].sort((a, b) => TALENT_BY_ID[a].row - TALENT_BY_ID[b].row)) spendTalent(g, id); // one a tree cannot take stays a point to spend
   for (const [id, tier] of Object.entries(s.relics ?? {})) addRelic(g, id as RelicId, 'other', tier);
