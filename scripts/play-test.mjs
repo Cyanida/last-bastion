@@ -283,9 +283,9 @@ await check('relic offer: the card shows the effect first, details on hover or t
     const effect = card.querySelector('p'), lines = card.querySelectorAll('.preview');
     const big = parseFloat(getComputedStyle(effect).fontSize) > parseFloat(getComputedStyle(lines[0]).fontSize);
     const first = card.querySelector('h2').nextElementSibling.nextElementSibling === effect;
+    await P.wait(50); // let the screen settle: the real cursor's own pointerover would hide a tip shown before it
     card.dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); // a hover: focus() is not reliable in a CI page without window focus
-    await P.wait(50);
-    const tip = document.getElementById('tooltip');
+    const tip = document.getElementById('tooltip'); // read at once: the tip is placed synchronously
     const shown = tip?.style.display === 'block' && tip.innerText.includes('For this build') && tip.innerText.includes('Tier II');
     await P.click('[data-skip]'); // skipped, so the later checks still take Butcher's Hook fresh
     return { ok: big && first && lines.length === 1 && !lines[0].innerText.includes('\n') && shown && rel.offers.length === 0, detail: `effect "${effect.innerText}", line "${lines[0]?.innerText}" (${lines.length}), bigger ${big}, tip shown ${shown}${shown ? '' : ` (${tip?.style.display}: ${(tip?.innerText ?? '').slice(0, 60)})`}` };
