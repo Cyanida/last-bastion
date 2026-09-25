@@ -124,11 +124,19 @@ await check('test mode starts a run', () =>
     relic('Brimstone Oil', 'II');
     relic('Frost Brand', 'I');
     relic('Serrated Edge', 'I');
+    relic('Phoenix Feather', 'II'); // #108: a Phoenix Feather that arrives at tier II still holds its revive
     [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
     await P.wait(300);
     const g = window.__lb.game;
     g.player.invulnerable = true; // the checks are about screens and controls, not survival
-    return { ok: !!g && g.player.cls.id === 'viking' && g.player.level === 20 && g.player.relics.held.length === 3 && document.body.innerText.includes('TEST'), detail: `${g?.player.cls.id} lv ${g?.player.level}, relics ${g?.player.relics.held.join(', ')}` };
+    return { ok: !!g && g.player.cls.id === 'viking' && g.player.level === 20 && g.player.relics.held.length === 4 && document.body.innerText.includes('TEST'), detail: `${g?.player.cls.id} lv ${g?.player.level}, relics ${g?.player.relics.held.join(', ')}` };
+  }),
+);
+
+await check('Phoenix Feather taken at tier II holds its revive', () =>
+  inPage(() => {
+    const p = window.__lb.game.player;
+    return { ok: p.relics.tiers.phoenixFeather === 2 && p.revives === 1, detail: `tier ${p.relics.tiers.phoenixFeather}, revives ${p.revives}` };
   }),
 );
 

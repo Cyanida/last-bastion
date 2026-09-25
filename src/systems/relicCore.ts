@@ -168,12 +168,13 @@ export type RelicHooks = { [K in EventName]?: (g: Game, ev: GameEvents[K], p: Pl
 };
 
 /**
- * A relic that cuts max HP to `frac` (Blood Pact; Crimson Chalice's curse), under its own key: unrounded, so tier-ups, a lifted curse and
- * removal round-trip exactly.
+ * A relic that cuts max HP to `frac` (Blood Pact; Crimson Chalice's curse), under its own key: it keeps the HP it took and gives exactly that
+ * back first, so tier-ups, a lifted curse and removal round-trip without inflating max HP gained after the cut.
  */
 export function cutMaxHp(g: Game, p: Player, key: string, frac: number): void {
-  p.stats.hp = (p.stats.hp / (g.vars[key] ?? 1)) * frac;
-  g.vars[key] = frac;
+  const full = p.stats.hp + (g.vars[key] ?? 0);
+  g.vars[key] = full * (1 - frac);
+  p.stats.hp = full - g.vars[key];
   p.hp = Math.min(p.hp, p.stats.hp);
 }
 
