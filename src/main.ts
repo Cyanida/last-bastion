@@ -33,7 +33,7 @@ import { buildArena } from './render/arena';
 import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
 import { view as simView } from './sim/view';
-import { applyChoice, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
+import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
 import { abilityAimRadius } from './systems/abilities';
 import { relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
@@ -368,8 +368,8 @@ function resume(): void {
   play(); // the loop opens the next queued choice, if any
 }
 
-/** v0.8: a choice screen's answer, as a command for player 0. Applied now: the simulation is paused while a screen is open. */
-const choose = (g: Game, choice: Choice): boolean => applyChoice(g, choice);
+/** v0.8: a choice screen's answer, as a command for player 0, stepped now without advancing: the run is paused while a screen is open. */
+const choose = (g: Game, choice: Choice): boolean => step(g, [choiceCommand(g, choice)], false);
 
 function openLevelUp(g: Game): void {
   const p = g.player;

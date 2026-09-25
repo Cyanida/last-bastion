@@ -13,6 +13,7 @@ import type { BlessingId, FeatureKind, Rect, RegionId, WingId } from '../config/
 import type { UtilityUpgradeId } from '../config/utility';
 import type { QuestKind, RewardKind } from '../config/quests';
 import type { RunLogDraft } from '../logic/runlog';
+import type { Command } from '../sim/commands';
 import type { EvolutionId } from '../config/evolutions';
 import type { Route } from '../logic/routes';
 import type { EventKind } from '../config/events';
@@ -576,6 +577,7 @@ export interface Game {
   chain: Chain | null; // v0.5: the treasure chain, while mastery has opened it (never in a Daily Trial)
   banner: { text: string; t: number; top?: boolean }; // top: a wing opening in the same moment does not cover it (the vault)
   log: RunLogDraft; // v0.6 run log, recorded by systems/runlog.ts
+  replay: Command[]; // v0.8 (#113): every choice step() made, with its tick and player (sim/commands.ts)
   victory: 'none' | 'pending' | 'endless'; // v0.6: the Usurper fell (pending: the choice to bank or go on is up); endless: gone on past him
   victoryKills: number; // v0.6: kills when he fell (the Endless score counts from there)
   lastStand: 'ready' | 'used' | 'off'; // v0.6: once a run at 0 HP (SKILL.lastStand); an Oath can take it away

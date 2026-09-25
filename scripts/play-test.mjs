@@ -394,6 +394,18 @@ await check('talent from the pause menu', async () => {
   });
 });
 
+await check('every screen answered above is in the replay log, in tick order, for player 0', () =>
+  inPage(() => {
+    const g = window.__lb.game;
+    if (!g.replay) return { skip: true, detail: 'no replay log on this branch (before #113)' };
+    const kinds = new Set(g.replay.map((c) => c.choice.c));
+    const want = ['quests', 'levelReroll', 'levelBanish', 'levelUp', 'relicReroll', 'relicTake', 'relicSkip', 'abilityUpgrade', 'utilityUpgrade', 'merchantHeal', 'merchantBuy', 'merchantLeave', 'route', 'blessing', 'peddlerBuy', 'peddlerLeave', 'talent'];
+    const missing = want.filter((k) => !kinds.has(k));
+    const ordered = g.replay.every((c, i) => c.player === 0 && c.tick <= g.tick && (i === 0 || c.tick >= g.replay[i - 1].tick));
+    return { ok: !missing.length && ordered, detail: `${g.replay.length} choices${missing.length ? `, missing ${missing.join(', ')}` : ''}${ordered ? '' : ', out of order'}` };
+  }),
+);
+
 await check('Esc in a pause sub-screen goes back to the pause menu', async () => {
   await page.keyboard.press('Escape');
   const seen = [];
