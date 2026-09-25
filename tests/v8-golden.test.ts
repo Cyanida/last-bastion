@@ -46,20 +46,20 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 }
 
 const GOLDEN: Record<string, string> = {
-  'paladin:1234': 'wave 13 kills 464 level 15 gold 1615 relics 5 hash 63499707',
-  'paladin:98765': 'wave 16 kills 699 level 17 gold 2535 relics 6 hash b350fff8',
-  'viking:98765': 'wave 14 kills 576 level 15 gold 2014 relics 5 hash e2c0ed62',
-  'viking:5': 'wave 18 kills 634 level 18 gold 3336 relics 7 hash c4db39c4',
-  'angel:1234': 'wave 18 kills 743 level 19 gold 3769 relics 6 hash 96c84665',
-  'angel:98765': 'wave 17 kills 725 level 18 gold 3332 relics 6 hash ae9eac51',
+  'paladin:1234': 'wave 13 kills 457 level 14 gold 1607 relics 5 hash 485b7be',
+  'paladin:98765': 'wave 15 kills 629 level 16 gold 2316 relics 5 hash 53a9fab0',
+  'viking:98765': 'wave 9 kills 309 level 10 gold 782 relics 2 hash 895078a1',
+  'viking:5': 'wave 19 kills 702 level 19 gold 3324 relics 7 hash bfa52c3a',
+  'angel:1234': 'wave 18 kills 746 level 19 gold 3778 relics 6 hash 36ac650e',
+  'angel:98765': 'wave 17 kills 705 level 18 gold 3764 relics 7 hash 6f0b5e84',
   'necromancer:1234': 'wave 9 kills 288 level 10 gold 869 relics 4 hash 18ffd29a',
-  'necromancer:5': 'wave 9 kills 267 level 10 gold 757 relics 3 hash 29960912',
+  'necromancer:5': 'wave 14 kills 457 level 15 gold 1925 relics 6 hash fe1fa5c8',
   'archer:2026': 'wave 10 kills 328 level 12 gold 1367 relics 3 hash cdcf075e',
-  'archer:5': 'wave 22 kills 931 level 21 gold 5913 relics 10 hash d0f42d45',
+  'archer:5': 'wave 14 kills 429 level 14 gold 1853 relics 5 hash cfe1dc6a',
   'paladin:7 meta': 'wave 14 kills 558 level 17 gold 2055 relics 7 hash eb298154',
-  'viking:98765 curse': 'wave 18 kills 748 level 18 gold 3783 relics 7 hash b4875a29',
-  'angel:98765 oath 3': 'wave 17 kills 732 level 18 gold 4029 relics 6 hash cb861360',
-  'archer:5 variant 1': 'wave 9 kills 254 level 10 gold 1015 relics 3 hash ba8346f0',
+  'viking:98765 curse': 'wave 18 kills 748 level 18 gold 3818 relics 7 hash b348574c',
+  'angel:98765 oath 3': 'wave 18 kills 756 level 18 gold 4661 relics 7 hash 6443fd05',
+  'archer:5 variant 1': 'wave 14 kills 450 level 14 gold 2114 relics 5 hash d0d2de7',
 };
 
 describe('v0.8 golden runs', () => {

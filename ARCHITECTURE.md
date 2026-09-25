@@ -1,5 +1,12 @@
 # Architecture
 
+> **Co-op is dropped (25-09-2026).** Jesse and his brothers decided that Last Bastion is a polished single-player game on PC and phone
+> ([ROADMAP.md](ROADMAP.md)).
+> - **What stays:** the steps that are done (the golden runs, commands, the pure simulation, save/restore/replay, and #113/#114). They
+>   give single-player save-and-resume (the phone, v0.9) and exact replays.
+> - **What's cancelled:** the multi-player steps (#28-#31, and the networking after them). The text below keeps them for the record.
+>   "The plan" now ends where the groundwork ends.
+
 How Last Bastion is built today, and the step-by-step plan that turns the single-player simulation into one that runs 1-4 players
 from commands (v0.8.0, [ROADMAP.md](ROADMAP.md)). Written for [#24](https://github.com/Cyanida/last-bastion/issues/24) and brought up to date
 for [#116](https://github.com/Cyanida/last-bastion/issues/116). It names files and functions rather than line numbers; sections 3

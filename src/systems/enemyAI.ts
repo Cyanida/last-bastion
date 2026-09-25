@@ -13,6 +13,7 @@ import { cleanse, isStunned, speedFactor } from '../logic/status';
 import { angleTo, chargeStart, chargeThrough, distTo, enraged, hitDamage, keepRange, move, moveTo, POISON, seek, shootAt, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { burst, ring, shake } from './effects';
 import { SPECIALS } from './specials';
+import { aggroDist2 } from '../logic/quests';
 import { waypoint } from '../logic/regions';
 import { regionsOf } from './regions';
 import { markPhase } from './runlog';
@@ -21,14 +22,14 @@ import { watchTelegraph } from './dodge';
 
 const HOSTILE = '#c23a2e';
 
-/** Enemies go for whatever is closest, so minions genuinely tank for the Necromancer. A marching squad shares one target. */
+/** Enemies go for whatever is closest, so minions genuinely tank for the Necromancer (the quest monk counts as farther, #119). A marching squad shares one target. */
 function pickTarget(g: Game, e: Enemy): Target {
   if (e.tauntT > 0) return g.player; // Challenged: nothing else exists
   if (e.squad?.marching && e.squad.target) return e.squad.target;
   let best: Target = g.player;
   let bestD = dist2(e.x, e.y, best.x, best.y);
   for (const m of g.minions) {
-    const d = dist2(e.x, e.y, m.x, m.y);
+    const d = aggroDist2(dist2(e.x, e.y, m.x, m.y), m.kind);
     if (d < bestD) {
       bestD = d;
       best = m;

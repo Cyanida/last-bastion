@@ -158,14 +158,14 @@ describe('quests', () => {
     expect(g.talentPoints).toBe(points + 1);
   });
 
-  it('the monk: waits while enemies are near, done at the chapel, failed if he dies', () => {
+  it('the monk: slows while enemies are near, done at the chapel, failed if he dies', () => {
     const g = withQuest('monk', 'rune');
     const q = g.quests[0];
     const monk = q.unit!;
     const e = spawnEnemy(g, 'peasant', monk.x + 40, monk.y);
     g.hash.insert(e);
     updateQuests(g, DT);
-    expect(monk.speed).toBe(0);
+    expect(monk.speed).toBe(QUESTS.monk.speed * QUESTS.monk.waitSpeed); // #119: slowed, not stopped
     e.dead = true;
     g.hash.clear();
     updateQuests(g, DT);

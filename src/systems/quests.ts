@@ -9,7 +9,7 @@ import { compact } from '../core/math';
 import type { Enemy, Game, Minion, Quest } from '../core/types';
 import { createMinion } from '../entities/actors';
 import { enemyDmgMult } from '../logic/formulas';
-import { placeRng, rollBoard } from '../logic/quests';
+import { monkSpeed, placeRng, rollBoard } from '../logic/quests';
 import { floorPoint, spawnPoint } from '../logic/regions';
 import { chainStep } from '../logic/treasures';
 import { nearestEnemy } from './combat';
@@ -82,7 +82,7 @@ const HOOKS: Record<QuestKind, QuestHooks> = {
     },
   },
 
-  // walks straight for the chapel on the far side, and stands still while anything hostile is near him
+  // walks straight for the chapel on the far side, and slows while anything hostile is near him
   monk: {
     start(g, q) {
       const chapel = clearPoint(g, spawnPoint(g.openFloors, q.rng, g.player.x, g.player.y, QUESTS.monk.chapelDist, 90));
@@ -92,7 +92,7 @@ const HOOKS: Record<QuestKind, QuestHooks> = {
     },
     update(g, q) {
       const u = q.unit!;
-      u.speed = nearestEnemy(g, u.x, u.y, QUESTS.monk.wait) ? 0 : QUESTS.monk.speed;
+      u.speed = monkSpeed(!!nearestEnemy(g, u.x, u.y, QUESTS.monk.wait));
       if (u.hp <= 0) end(g, q, false);
       else if (dist(u, q) < 30) end(g, q, true);
     },
