@@ -283,7 +283,7 @@ await check('relic offer: the card shows the effect first, details on hover or t
     const effect = card.querySelector('p'), lines = card.querySelectorAll('.preview');
     const big = parseFloat(getComputedStyle(effect).fontSize) > parseFloat(getComputedStyle(lines[0]).fontSize);
     const first = card.querySelector('h2').nextElementSibling.nextElementSibling === effect;
-    card.focus();
+    card.dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); // a hover: focus() is not reliable in a CI page without window focus
     await P.wait(50);
     const tip = document.getElementById('tooltip');
     const shown = tip?.style.display === 'block' && tip.innerText.includes('For this build') && tip.innerText.includes('Tier II');

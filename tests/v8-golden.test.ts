@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { ACTS } from '../src/config/acts';
 import type { ClassId } from '../src/config/classes';
 import type { RunOptions } from '../src/game';
@@ -65,6 +65,8 @@ const GOLDEN: Record<string, string> = {
 };
 
 describe('v0.8 golden runs', () => {
+  // each run blocks the worker for seconds; yield between them, or vitest's 60 s worker RPC times out over the whole file
+  beforeEach(() => new Promise((r) => setTimeout(r, 0)));
   for (const [name, run] of Object.entries(RUNS))
     it(`${name} plays exactly as before`, () => {
       expect(golden(run)).toBe(GOLDEN[name]);
