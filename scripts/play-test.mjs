@@ -580,6 +580,7 @@ await check('touch: joystick moves, release stops', () =>
   inPage(() => {
     const lb = window.__lb, g = lb.game, p = g.player, canvas = document.querySelector('canvas');
     const ev = (type, x, y) => canvas.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerType: 'touch', pointerId: 7, isPrimary: true, bubbles: true }));
+    for (let i = 0; i < 20 && lb.state === 'choice'; i++) lb.run(1, false, 'input'); // a screen the frame loop opened since the last check hides the controls
     const x0 = p.x;
     ev('pointerdown', 200, 500);
     ev('pointermove', 260, 500);
