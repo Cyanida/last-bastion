@@ -12,6 +12,7 @@ import { simulateRun } from '../src/sim/bot';
  * draw moved.
  * Update GOLDEN only in a commit that says why (a balance change, never a refactor).
  * Re-recorded for #101 (v0.8): Squire no longer fields Mirror Knights, Hound Masters, spearmen or siege towers, so its waves changed on purpose.
+ * Re-recorded for #126 (v0.8): the Bone Colossus is capped and no longer eats the skeletons, so both Necromancer runs changed on purpose.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -54,8 +55,8 @@ const GOLDEN: Record<string, string> = {
   'viking:5': 'wave 18 kills 692 level 18 gold 2836 relics 7 hash 3430f5e1',
   'angel:1234': 'wave 16 kills 670 level 17 gold 2627 relics 5 hash 807696a7',
   'angel:98765': 'wave 17 kills 723 level 18 gold 3701 relics 7 hash 21447760',
-  'necromancer:1234': 'wave 20 kills 861 level 20 gold 3934 relics 8 hash f39d880a',
-  'necromancer:5': 'wave 14 kills 485 level 15 gold 2012 relics 7 hash 4a8ec9e5',
+  'necromancer:1234': 'wave 21 kills 912 level 20 gold 4603 relics 8 hash 2d0f4e4d',
+  'necromancer:5': 'wave 19 kills 731 level 18 gold 3090 relics 7 hash 165f7074',
   'archer:2027': 'wave 9 kills 301 level 10 gold 883 relics 4 hash 8fc7b0c2',
   'archer:5': 'wave 20 kills 806 level 20 gold 4211 relics 8 hash 118e250d',
   'paladin:7 meta': 'wave 14 kills 545 level 17 gold 1772 relics 6 hash d77a11a5',

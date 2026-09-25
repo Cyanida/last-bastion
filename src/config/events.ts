@@ -6,7 +6,7 @@
 export const EVENT_ROLL = { fromWave: 3, chance: 0.25 };
 
 export const EVENTS = {
-  peddler: { name: 'Wandering merchant', icon: '🧺', desc: 'A peddler sets up his pack for the wave. Walk up to him to trade.', stock: 1, heal: 0.4, reach: 50 }, // v0.7: he sells a healing draught (a share of max HP) at the Merchant's heal price; relics come at fixed moments
+  peddler: { name: 'Wandering merchant', icon: '🧺', desc: 'A peddler sets up his pack for the wave. Walk up to him to trade.', stock: 1, heal: 0.4, token: 25, reach: 50 }, // v0.7: he sells a healing draught (a share of max HP) at the Merchant's heal price; relics come at fixed moments. #128: or a reroll token (one more free reroll on your next level-up), `token` gold times the Merchant's price growth; one sale a visit either way
   cursedChest: { name: 'Cursed chest', icon: '📦', desc: 'A chest that hums. Gold and a Rune shard inside, and the horde’s best around it.', elites: 3, reach: 40, gold: 60 }, // v0.7: gold per Act, no relic
   ambush: { name: 'Ambush', icon: '⚔️', desc: 'Two squads fall on you from both sides at once.', delay: 5, dist: 480, gold: 40 }, // gold times the Act, when the wave is cleared
   knight: { name: 'Lost knight', icon: '🛡️', desc: 'A knight who lost his company fights beside you for the wave.', hp: 900, damage: 28, speed: 120, attackCd: 0.8 },

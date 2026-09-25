@@ -397,6 +397,27 @@ await check('peddler: buy a draught, leave', () =>
   }),
 );
 
+await check('peddler at full health: the draught is shut, a reroll token buys one more free reroll on the next level-up (#128)', () =>
+  inPage(async () => {
+    const P = window.__play, lb = window.__lb, g = lb.game, p = g.player;
+    g.gold = 300;
+    p.hp = p.stats.hp;
+    g.event = { kind: 'peddler', x: p.x, y: p.y, unit: null, foe: null, used: false, t: 0, stock: 1 };
+    if (!P.toChoice() || !document.querySelector('[data-buy="1"]')) return { ok: false, detail: `no reroll token (${P.title()})` };
+    const shut = document.querySelector('[data-buy="0"]').disabled;
+    const gold = g.gold;
+    await P.click('[data-buy="1"]');
+    const bought = g.gold < gold && g.event.stock === 0;
+    await P.click('[data-leave]');
+    g.pendingLevelUps++;
+    if (!P.toChoice() || !document.querySelector('[data-reroll]')) return { ok: false, detail: 'no level-up screen' };
+    const label = document.querySelector('[data-reroll]').textContent.trim();
+    const free = label.includes(`${g.rerolls + 1} free`);
+    await P.click('[data-pick="0"]');
+    return { ok: shut && bought && free && lb.state === 'playing', detail: `draught ${shut ? 'shut' : 'OPEN'}, gold ${gold} → ${g.gold}, "${label}"` };
+  }),
+);
+
 await check('monk escort: taken from the board, he keeps walking with an enemy beside him (#119)', () =>
   inPage(async () => {
     const P = window.__play, lb = window.__lb, g = lb.game;
@@ -449,7 +470,7 @@ await check('every screen answered above is in the replay log, in tick order, fo
     const g = window.__lb.game;
     if (!g.replay) return { skip: true, detail: 'no replay log on this branch (before #113)' };
     const kinds = new Set(g.replay.map((c) => c.choice.c));
-    const want = ['quests', 'levelReroll', 'levelBanish', 'levelUp', 'relicReroll', 'relicTake', 'relicSkip', 'abilityUpgrade', 'utilityUpgrade', 'merchantHeal', 'merchantBuy', 'merchantLeave', 'route', 'blessing', 'peddlerBuy', 'peddlerLeave', 'talent'];
+    const want = ['quests', 'levelReroll', 'levelBanish', 'levelUp', 'relicReroll', 'relicTake', 'relicSkip', 'abilityUpgrade', 'utilityUpgrade', 'merchantHeal', 'merchantBuy', 'merchantLeave', 'route', 'blessing', 'peddlerBuy', 'peddlerToken', 'peddlerLeave', 'talent'];
     const missing = want.filter((k) => !kinds.has(k));
     const ordered = g.replay.every((c, i) => c.player === 0 && c.tick <= g.tick && (i === 0 || c.tick >= g.replay[i - 1].tick));
     return { ok: !missing.length && ordered, detail: `${g.replay.length} choices${missing.length ? `, missing ${missing.join(', ')}` : ''}${ordered ? '' : ', out of order'}` };
@@ -836,6 +857,116 @@ await check('Act III: a slam that is due fires when you walk into range', async 
   return { ok: fired >= 0, detail: `Act ${start.act} ${start.id}: ${fired >= 0 ? `slammed ${fired} ticks after the walk-up` : 'no slam in 40 ticks'}` };
 });
 
+// ---------- v0.8 (#126): the Bone Colossus stays capped over many casts, and the skeletons stand beside it ----------
+await check('Bone Colossus: capped over many Raise Deads, skeletons stay beside it', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  await inPage(async () => {
+    const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'necromancer');
+    set('tm-act', '3');
+    set('tm-wave', '5');
+    set('tm-level', '30');
+    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    await wait(300);
+    const g = lb.game;
+    g.player.invulnerable = true;
+    g.evolutions = ['boneColossus']; // test mode has no evolution picker
+  });
+  const seen = [];
+  for (let cast = 0; cast < 25; cast++) {
+    await inPage(() => {
+      const lb = window.__lb, g = lb.game, p = g.player;
+      for (let i = 0; i < 1200 && p.abilityTime > 0; i++) lb.run(1, false, 'input');
+      for (let i = 0; i < 6; i++) g.corpses.push({ x: p.x + 30 * i, y: p.y + 20, t: 0 });
+      p.abilityCd = 0;
+    });
+    await page.keyboard.down('Space');
+    await inPage(() => window.__lb.run(2, false, 'input'));
+    await page.keyboard.up('Space');
+    seen.push(await inPage(() => {
+      const g = window.__lb.game, colossi = g.minions.filter((m) => m.cleave);
+      return { colossi: colossi.length, damage: colossi[0]?.damage ?? 0, fused: colossi[0]?.fused ?? 0, bones: g.minions.filter((m) => !m.kind && !m.cleave).length };
+    }));
+  }
+  const last = seen.at(-1);
+  const ok = seen.every((s) => s.colossi === 1 && s.bones > 0 && s.fused <= 10) && last.fused === 10 && last.damage > 0 && last.damage < 5000;
+  return { ok, detail: `after ${seen.length} casts: ${last.bones} skeletons, Colossus ×${last.fused}, ${Math.round(last.damage)} dmg (first ${Math.round(seen[0].damage)})` };
+});
+
+// ---------- #127: the Usurper's last phase is a short hold he fights through, then your blows finish him ----------
+await check("Usurper: the last phase holds a few seconds, he attacks through it, then he falls", async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  return inPage(async () => {
+    const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-arena', 'bastion');
+    set('tm-act', '4');
+    set('tm-wave', '10');
+    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    await wait(300);
+    const g = lb.game, p = g.player;
+    p.invulnerable = true;
+    const usurper = () => g.enemies.find((e) => e.def.id === 'usurper' && !e.dead);
+    for (let i = 0; i < 6000 && !usurper() && lb.game === g; i++) lb.run(1, false, true);
+    const u = usurper();
+    if (!u) return { ok: false, detail: 'no Usurper reached' };
+    // set up phase 3: past his first threshold, the Royal Flames out, then below a third
+    lb.run(60 * 21, false, true);
+    u.hp = u.maxHp * 0.6;
+    lb.run(5, false, true);
+    for (const f of g.enemies) if (f.def.id === 'royalFlame') f.hp = 0.01;
+    for (let i = 0; i < 600 && u.warded; i++) {
+      for (const f of g.enemies) if (f.def.id === 'royalFlame' && !f.dead) Object.assign(p, { x: f.x - f.r - 20, y: f.y });
+      lb.run(1, false, 'input');
+    }
+    if (u.warded) return { ok: false, detail: 'the ward never broke' };
+    u.hp = u.maxHp * 0.3;
+    lb.run(2, false, 'input');
+    if (u.phase !== 3) return { ok: false, detail: `phase ${u.phase}, not 3` };
+    g.baseMods.damage *= 1e4; // a huge build: only the hold keeps him up
+    let attacks = 0, t = 0;
+    const tick = () => {
+      Object.assign(p, { x: u.x - u.r - 30, y: u.y });
+      lb.run(1, false, 'input');
+      t += 1 / 60;
+      if (g.zones.some((z) => z.owner === u) || u.telegraph) attacks++;
+    };
+    for (let i = 0; i < 60 * 3; i++) tick();
+    const heldAt3s = !u.dead && u.hp <= 1;
+    for (let i = 0; i < 60 * 20 && !u.dead; i++) tick();
+    g.baseMods.damage /= 1e4;
+    return { ok: heldAt3s && attacks > 0 && u.dead && t < 12, detail: `held at 3 s: ${heldAt3s}, he attacked on ${attacks} ticks, fell after ${t.toFixed(1)} s of phase 3` };
+  });
+});
+
 // ---------- v0.7.5 (#109): the Gallows pays in a cursed run, and the results screen shows it ----------
 await check('Gallows: a cursed run earns its bonus, the results show it', () =>
   inPage(async () => {
@@ -905,6 +1036,55 @@ await check('difficulty: Knight names its new foes, and its waves bring none fro
       const ok = g.tierIndex === 1 && tips[0].includes('the basic foes') && /new foes: Hound Master, Mirror Knight/.test(tips[1]) && seen.size > 3 && above.length === 0;
       return { ok, detail: `tier ${g.tierIndex}, waves to ${g.wave}, seen ${[...seen].join(', ')}${above.length ? `, above: ${above}` : ''} · "${tips[1].split('· ').pop()}"` };
     });
+  }),
+);
+
+// ---------- v0.8 (#124): flash cards, in a real run (a test run shows none) ----------
+await check('flash card: a new foe shows one, the run waits, Enter closes it, never twice, kept in the Glossary', () =>
+  inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  }).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const first = await inPage(async () => {
+      const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+      document.querySelector('[data-go="start"]').click();
+      await wait();
+      document.querySelector('[data-class="viking"]').click();
+      await wait(200);
+      const g = lb.game;
+      g.player.invulnerable = true;
+      for (let i = 0; i < 3000 && !document.querySelector('[data-card]'); i++) lb.run(1, false, true);
+      const card = document.querySelector('[data-card]');
+      if (!card) return null;
+      const tick = g.tick;
+      await wait(300); // real frames: the loop must not step the run under the card
+      return { id: card.dataset.card, name: card.querySelector('h2').textContent, words: card.querySelector('p').textContent.split(' ').length, state: lb.state, held: g.tick === tick, saved: lb.save.cards.includes(card.dataset.card) };
+    });
+    if (!first) return { ok: false, detail: 'no card in 3000 ticks' };
+    await page.keyboard.press('Enter');
+    const after = await inPage(async (id) => {
+      const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+      await wait(100);
+      const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+      const shown = [id];
+      for (let i = 0; i < 1500 && lb.state !== 'results'; i++) {
+        lb.run(1, false, true);
+        const c = document.querySelector('[data-card]');
+        if (c) (shown.push(c.dataset.card), c.querySelector('[data-leave]').click());
+      }
+      return { closed, shown };
+    }, first.id);
+    await page.keyboard.press('Escape');
+    const glossary = await inPage(async () => {
+      await new Promise((r) => setTimeout(r, 100));
+      document.querySelector('[data-glossary]')?.click();
+      await new Promise((r) => setTimeout(r, 100));
+      return document.querySelector('.cards-met')?.innerText ?? '';
+    });
+    const once = new Set(after.shown).size === after.shown.length;
+    const ok = first.state === 'choice' && first.held && first.saved && first.words <= 14 && after.closed && once && glossary.includes(first.name);
+    return { ok, detail: `"${first.name}" (${first.words} words), held ${first.held}, saved ${first.saved}, Enter closed ${after.closed}; cards ${after.shown.join(', ')}${once ? '' : ' (REPEATED)'}; Glossary ${glossary ? 'lists it' : 'MISSING'}` };
   }),
 );
 

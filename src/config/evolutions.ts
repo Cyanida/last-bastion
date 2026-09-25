@@ -86,8 +86,8 @@ export const EVOLUTIONS = {
 
   // ---------------------------------------------------------------- Necromancer: Raise Dead (Soul Power), Corpse Explosion
   boneColossus: evo('necromancer', 'signature', 'Bone Colossus', '💀', [{ kind: 'upgrade', id: 'boneGolems' }, { kind: 'keystone', branch: 'necromancer.horde' }],
-    { hp: 1.2, damage: 0.7, cleave: 70, scale: 7, grow: 0.25 },
-    'Raise Dead fuses your skeletons into one Bone Colossus that cleaves everything around what it strikes. Raising again feeds it.'),
+    { hp: 1.2, damage: 0.7, cleave: 70, scale: 7, maxParts: 10 }, // v0.8: parts add up to maxParts skeletons' worth, never compound (#126)
+    'Raise Dead also fuses the corpses your skeletons leave into a Bone Colossus that cleaves everything around what it strikes. Raising again feeds it.'),
   plagueLegion: evo('necromancer', 'signature', 'Plague Legion', '🦠', [{ kind: 'upgrade', id: 'volatileBones' }, { kind: 'relic', id: 'gravePact', tier: 2 }],
     { every: 0.9, radius: 40, dps: 6, dpsPer: 0.6, life: 3, cloud: 90 },
     'Your skeletons rise as plague-bearers: they leave poison where they walk and burst into a plague cloud when they fall.'),

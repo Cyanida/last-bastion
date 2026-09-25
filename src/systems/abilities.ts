@@ -78,6 +78,9 @@ function ballistaShot(g: Game, c: Cfg<'arrowVolley'>, angle: number, status: Sta
 }
 
 type Volley = { ballista: boolean; c: Cfg<'arrowVolley'>; angle: number; tx: number; ty: number; status: Status };
+/** Raise Dead's own cast, for the Bone Colossus, which raises the skeletons as usual before it fuses the rest (v0.8, #126). */
+export const raiseSkeletons = (g: Game): boolean => HOOKS.raiseDead.activate(g, g.player.cls.ability as Cfg<'raiseDead'>);
+
 const fireVolley = (g: Game, v: Volley): void => (v.ballista ? ballistaShot(g, v.c, v.angle, v.status) : volleyZones(g, v.c, v.tx, v.ty, v.status));
 const volleyAgain = timer('arrowVolley.again', fireVolley); // Double Volley
 

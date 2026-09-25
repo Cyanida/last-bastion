@@ -295,6 +295,7 @@ export interface Minion extends Body {
   // v0.5 friendly units from quests and events; a skeleton has none of these
   kind?: 'caravan' | 'monk' | 'knight' | 'hound' | 'standard' | 'decoy' | 'shade'; // hound: the Bow of the Wild Hunt's (v0.5 treasures); standard, decoy, shade: v0.6 evolutions
   cleave?: number; // v0.6: its hits land on everything within this of its target (the Bone Colossus)
+  fused?: number; // v0.8: the parts fed into the Bone Colossus so far
   onEnd?: { radius: number; damage: number; color: string; dtype: DamageType }; // v0.6: bursts when it falls or fades
   shoot?: { every: number; damage: number; t: number }; // v0.6: a passive unit that shoots the nearest enemy (the Archer's shadow)
   passive?: boolean; // does not attack or chase: walks its path (if any) at `speed`

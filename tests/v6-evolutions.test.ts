@@ -11,6 +11,7 @@ import { createGame, summarizeRun, updateGame } from '../src/game';
 import { completes, nearlyReady, readyEvolutions, recipeProgress, requirementMet, type BuildState } from '../src/logic/evolutions';
 import { applyRun, defaultSave, migrate } from '../src/logic/save';
 import { buildState } from '../src/systems/evolutions';
+import { skeletonCount } from '../src/systems/minions';
 import { chooseLevelUp, levelUpOptions } from '../src/systems/leveling';
 import { spawnEnemy } from '../src/systems/spawning';
 
@@ -182,11 +183,12 @@ describe('every evolution does its thing (v0.6)', () => {
     expect(g.projectiles.at(-1)!.hostile).toBe(false);
   });
 
-  it('Bone Colossus fuses the skeletons into one, and raising again feeds it', () => {
+  it('Bone Colossus rises beside the skeletons, and raising again feeds it', () => {
     const { g } = fieldWith('boneColossus');
     updateGame(g, DT);
     const colossus = g.minions.find((m) => m.cleave)!;
     expect(colossus).toBeDefined();
+    expect(skeletonCount(g)).toBeGreaterThan(0); // v0.8: it no longer eats them (#126)
     const hp = colossus.maxHp;
     g.player.abilityCd = 0;
     g.corpses.push({ x: g.player.x, y: g.player.y, t: 0 });

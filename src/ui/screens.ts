@@ -46,6 +46,7 @@ import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
 import { GLOSSARY } from '../config/glossary';
+import { cardInfo, type CardId } from '../config/cards';
 import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
 import type { TestSetup } from '../systems/testMode';
 
@@ -696,16 +697,16 @@ export function showBoard(act: number, quests: { kind: QuestKind; reward: Reward
   });
 }
 
-/** v0.5: the wandering merchant (a wave event): a couple of relics rolled by the drop rules, at the Merchant's prices. */
-export function showPeddler(info: { stock: number; price: number; gold: number; hurt: boolean }, on: { buy: () => void; leave: () => void }): void {
+/** v0.5: the wandering merchant (a wave event): a healing draught or (#128) a reroll token, one sale a visit. */
+export function showPeddler(info: { stock: number; price: number; tokenPrice: number; gold: number; hurt: boolean }, on: { buy: () => void; token: () => void; leave: () => void }): void {
   const el = show(`
     <div class="levelup">
       <h1 class="small">🧺 A wandering merchant</h1>
       <p class="sub">"Good things, fair prices, no questions." Purse: <b class="goldtext">🪙 ${info.gold}</b> — what you spend here never reaches the Keep.</p>
-      <div class="cards">${info.stock > 0 ? `<button class="card panel boon shop" data-buy="0" ${info.gold >= info.price && info.hurt ? '' : 'disabled'}><div class="num">1</div><h2>🧪 Healing draught</h2><p>${info.hurt ? 'Drink, and mend a good part of your wounds.' : 'You are not hurt.'}</p><div class="best">🪙 ${info.price}</div></button>` : '<p class="sub">Sold out.</p>'}</div>
+      <div class="cards">${info.stock > 0 ? `<button class="card panel boon shop" data-buy="0" ${info.gold >= info.price && info.hurt ? '' : 'disabled'}><div class="num">1</div><h2>🧪 Healing draught</h2><p>${info.hurt ? 'Drink, and mend a good part of your wounds.' : 'You are not hurt.'}</p><div class="best">🪙 ${info.price}</div></button><button class="card panel boon shop" data-buy="1" ${info.gold >= info.tokenPrice ? '' : 'disabled'}><div class="num">2</div><h2>🎲 Reroll token</h2><p>One more free reroll on your next level-up.</p><div class="best">🪙 ${info.tokenPrice}</div></button>` : '<p class="sub">Sold out.</p>'}</div>
       <button class="btn big" data-leave>Leave</button>
     </div>`);
-  click(el, '[data-buy]', () => on.buy());
+  click(el, '[data-buy]', (b) => (b.dataset.buy === '1' ? on.token() : on.buy()));
   click(el, '[data-leave]', on.leave);
   onActions((a) => {
     const m = /^pick(\d)$/.exec(a);
@@ -1086,16 +1087,32 @@ export function showWhatsNew(w: WhatsNew, onBack: () => void): void {
 }
 
 /** v0.7.1: every game term and what it means (config/glossary.ts), from the pause menu and the Keep. Tooltips underline the same words. */
-export function showGlossary(onBack: () => void): void {
+export function showGlossary(onBack: () => void, cards: CardId[] = []): void {
+  const met = cards.map(cardInfo).sort((a, b) => a.name.localeCompare(b.name));
   const el = show(`
     <div class="panel dialog wide glossary">
       <h1 class="small">Glossary</h1>
       <p class="sub">The words the game uses, and what they mean. Tooltips underline them and explain them too.</p>
       <dl>${[...GLOSSARY].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<dt>${t.name}</dt><dd>${t.def}</dd>`).join('')}</dl>
+      ${met.length ? `<h2 class="small">Foes and marks met</h2><dl class="cards-met">${met.map((c) => `<dt>${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
+}
+
+/** v0.8 (#124): a flash card, the first time a foe, a boss or a mechanic is met. The run waits under it. `pause` (Esc) also opens the pause menu. */
+export function showFlashCard(id: CardId, onDone: (pause: boolean) => void): void {
+  const c = cardInfo(id);
+  const el = show(`
+    <div class="panel dialog flash-card${c.boss ? ' boss' : ''}" data-card="${id}">
+      <div class="tag">${c.boss ? 'Boss' : 'New'}</div>
+      <h2>${c.name}</h2>
+      <p>${c.text}</p>
+      <button class="btn big" data-leave>Got it</button>
+    </div>`);
+  click(el, '[data-leave]', () => onDone(false));
+  onActions((a) => (a === 'confirm' || a === 'cancel' || a === 'pause') && onDone(a === 'pause'));
 }
 
 const JUKEBOX_LAYERS = ['Sparse: a breather, the Merchant', 'Base: a wave', 'Second layer: a dense or dangerous fight', 'Boss: drums and a bass line'];
