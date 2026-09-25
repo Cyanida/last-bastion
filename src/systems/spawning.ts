@@ -3,7 +3,7 @@ import { routeChoices } from '../logic/routes';
 import type { AffixId } from '../config/elites';
 import { ENEMIES, type EnemyId } from '../config/enemies';
 import { MODIFIERS, WAVES } from '../config/waves';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { emit } from '../core/events';
 import type { Enemy, Game } from '../core/types';
 import { createEnemy } from '../entities/actors';

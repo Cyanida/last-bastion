@@ -1,6 +1,6 @@
 import { AFFIXES } from '../config/elites';
 import { GAME } from '../config/game';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { compact } from '../core/math';
 import type { Body, Enemy, Game } from '../core/types';
 import { clampToRects } from '../logic/regions';

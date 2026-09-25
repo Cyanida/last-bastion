@@ -1,6 +1,6 @@
 import { ACTS, FINAL } from '../config/acts';
 import { VICTORY } from '../config/economy';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { addListener, type GameEvents } from '../core/events';
 import type { Game } from '../core/types';
 import { burst, ring, shake } from './effects';

@@ -1,5 +1,5 @@
 import { SKILL } from '../config/game';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { addListener, type GameEvents } from '../core/events';
 import type { Enemy, Game } from '../core/types';
 import { cooldownFloor } from '../logic/formulas';
