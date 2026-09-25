@@ -278,7 +278,7 @@ structure left alone gives up. Elites and bosses are never stragglers. Boss phas
 knob: late characters kill in bursts (a revived fresh Viking carries ~19 relics at tier II by wave 40, the Necromancer's skeletons took
 the Usurper from 20,000 to 0 in three seconds), so raising his HP from 3500 to 5500 changed the fight time by almost nothing, and only the
 weak-damage Paladin would have paid for it. Instead **every phase has a minimum length** (`FINAL.usurper.minPhase`: 20 s for the first; he
-cannot fall before 25 s of the last), enforced by an HP floor on the enemy (`Enemy.hpFloor`). Phase 2 needs none: the flames are spread
+cannot fall before 8 s of the last; 25 s until #127 in v0.8, which only taught players to walk away until it ran out), enforced by an HP floor on the enemy (`Enemy.hpFloor`). Phase 2 needs none: the flames are spread
 across the hall and take their time.
 
 Time from wave 40's start to his fall, with the minimums (2 seeds each; "fresh" = no Keep, revived on death like the wall probe):
