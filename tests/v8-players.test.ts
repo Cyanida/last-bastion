@@ -5,6 +5,7 @@ import { addField, addZone, fireProjectile } from '../src/entities/hazards';
 import { updateFields, updateProjectiles, updateZones } from '../src/systems/combat';
 import { nearestPlayer, withPlayer } from '../src/logic/players';
 import { botChoose, botInput } from '../src/sim/bot';
+import { gainXp } from '../src/systems/leveling';
 import { intentCommand, step } from '../src/sim/commands';
 import { hashState, restore, snapshot } from '../src/sim/snapshot';
 
@@ -98,4 +99,19 @@ describe('v0.8 multi-player state (#28)', () => {
     expect(r.player).toBe(r.players[0]);
     expect(hashState(r)).toBe(hashState(g));
   }, 60_000);
+
+  it("a player's gold, level-ups, talent points and last stand are their own", () => {
+    const g = createGame('paladin', 5, { allies: ['viking'] });
+    const [p1, p2] = g.players;
+    expect(p2.gold).toBe(p1.gold);
+    expect(p2.rerolls).toBe(p1.rerolls);
+    withPlayer(g, p2, () => {
+      gainXp(g, 10_000);
+      g.player.gold += 50;
+      g.player.lastStand = 'used';
+    });
+    expect(p2.pendingLevelUps).toBeGreaterThan(0);
+    expect(p2.talentPoints).toBeGreaterThan(p1.talentPoints);
+    expect([p1.pendingLevelUps, p1.pendingAbilityTiers.length, p2.gold - p1.gold, p1.lastStand]).toEqual([0, 0, 50, 'ready']);
+  });
 });

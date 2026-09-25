@@ -346,10 +346,10 @@ describe('the hidden talent node', () => {
     expect(talentBlocker([], id, 3)).toMatch(/sacred treasure/);
     expect(talentBlocker([], id, 3, undefined, 'holyGrail')).toBeNull();
     const bare = createGame('paladin', 1);
-    bare.talentPoints = 1;
+    bare.player.talentPoints = 1;
     expect(spendTalent(bare, id)).toBe(false);
     const g = createGame('paladin', 1, { treasure: 1 });
-    g.talentPoints = 1;
+    g.player.talentPoints = 1;
     const faith = g.player.stats.secondary;
     botChoose(g);
     expect(g.player.talents).toEqual([id]);

@@ -66,10 +66,10 @@ describe('relic moments (v0.7)', () => {
     expect(offer.options).not.toEqual(first);
     expect(rerollRelicOffer(g)).toBe(false); // out of rerolls
     expect(resolveRelicOffer(g, RELIC_IDS.find((id) => !offer.options.includes(id))!)).toBe(false); // only an offered relic
-    const gold = g.gold;
+    const gold = g.player.gold;
     const shards = g.salvage;
     expect(skipRelicOffer(g)).toBe(true);
-    expect(g.gold).toBe(gold + skipReward(g).gold);
+    expect(g.player.gold).toBe(gold + skipReward(g).gold);
     expect(g.salvage).toBe(shards + RELIC_MOMENTS.skip.shards);
     expect(g.player.relics.offers).toHaveLength(0);
   });
@@ -105,10 +105,11 @@ describe('strongboxes (v0.7 A8, Jesse on #13)', () => {
     g.regionOpen[f.wing] = true;
     g.player.x = f.x;
     g.player.y = f.y;
-    const { gold, salvage } = g;
+    const { salvage } = g;
+    const { gold } = g.player;
     updateRegions(g, 1 / 60);
     expect(f.used).toBe(true);
-    expect(g.gold).toBeGreaterThan(gold);
+    expect(g.player.gold).toBeGreaterThan(gold);
     expect(g.salvage).toBe(salvage + 1);
     expect(g.player.relics.offers).toHaveLength(0);
   });

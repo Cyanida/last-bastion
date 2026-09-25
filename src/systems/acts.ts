@@ -19,8 +19,8 @@ import { takeFragment } from './treasures';
 /** Pay for a Merchant item. Gold spent here never reaches the Keep: this run, or the next hundred? */
 function pay(g: Game, item: MerchantItem): boolean {
   const price = merchantPrice(item, g.act);
-  if (g.gold < price) return false;
-  g.gold -= price;
+  if (g.player.gold < price) return false;
+  g.player.gold -= price;
   g.merchantSpent += price;
   sfx(g, 'xp');
   return true;
@@ -84,7 +84,7 @@ export const salvageValue = (id: RelicId, tier: number): number => RELIC_DROPS.s
 export function merchantSell(g: Game, id: RelicId): boolean {
   const tier = relicTier(g.player.relics.tiers, id);
   if (tier === 0) return false;
-  g.gold += sellPrice(id, tier, g.act);
+  g.player.gold += sellPrice(id, tier, g.act);
   sfx(g, 'xp');
   return removeRelic(g, id);
 }
@@ -135,7 +135,7 @@ export function nextAct(g: Game, route: Route | null = null): void {
   // nothing is left lying on the old field: loot is swept up, stragglers and hazards stay behind
   for (const k of g.pickups) {
     if (k.kind === 'xp') gainXp(g, k.value);
-    else if (k.kind === 'gold') g.gold += k.value;
+    else if (k.kind === 'gold') g.player.gold += k.value;
     else if (k.kind === 'fragment') takeFragment(g);
   }
   for (const e of g.enemies) e.dead = true;

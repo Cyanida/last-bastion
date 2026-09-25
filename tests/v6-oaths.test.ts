@@ -57,15 +57,15 @@ describe('an Oath run (v0.6)', () => {
     expect(custom.curses).toEqual(['swarm']);
     expect(sworn.curses).toEqual(oathStack(20).curses);
     expect(sworn.tier.enemyHp).toBeCloseTo(TIERS[0].enemyHp * oathStack(20).n.hp);
-    expect(sworn.lastStand).toBe('off');
-    expect(sworn.rerolls).toBe(custom.rerolls - 1);
-    expect(createGame('viking', 1, { oath: 13 }).lastStand).toBe('ready');
+    expect(sworn.player.lastStand).toBe('off');
+    expect(sworn.player.rerolls).toBe(custom.player.rerolls - 1);
+    expect(createGame('viking', 1, { oath: 13 }).player.lastStand).toBe('ready');
   });
 
   it('Unbowed Crowns: a boss rises once with 30% HP, then falls for good', () => {
     noResolve();
     const g = createGame('paladin', 2, { oath: 4 });
-    g.lastStand = 'off';
+    g.player.lastStand = 'off';
     const boss = spawnEnemy(g, 'blackKnight', g.player.x + 300, g.player.y);
     damageEnemy(g, boss, boss.maxHp * 2);
     expect(boss.dead).toBe(false);

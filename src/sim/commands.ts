@@ -61,12 +61,12 @@ export type Command = { tick: number; player: number } & ({ kind: 'intent'; inte
  * banish or reroll. Nothing else draws between the end of a tick and that read, so single-player draws exactly as before.
  */
 export function levelHand(g: Game): LevelUpOption[] {
-  return (g.levelHand ??= levelUpOptions(g));
+  return (g.player.levelHand ??= levelUpOptions(g));
 }
 
 /** This level-up screen's rerolls: the free ones first, then paid ones that double in price. */
 export function levelRerolls(g: Game): { free: number; paid: number } {
-  return (g.levelRerolls ??= { free: g.rerolls, paid: 0 });
+  return (g.player.levelRerolls ??= { free: g.player.rerolls, paid: 0 });
 }
 
 /** v0.8 (#113): is this choice's screen up? A choice for a screen that is not (a stale or a forged command) changes nothing. */
@@ -75,17 +75,17 @@ export function choiceOpen(g: Game, ch: Choice): boolean {
     case 'levelUp':
     case 'levelBanish':
     case 'levelReroll':
-      return g.pendingLevelUps > 0;
+      return g.player.pendingLevelUps > 0;
     case 'relicTake':
     case 'relicSkip':
     case 'relicReroll':
       return g.player.relics.offers.length > 0;
     case 'abilityUpgrade':
-      return g.pendingAbilityTiers.length > 0;
+      return g.player.pendingAbilityTiers.length > 0;
     case 'utilityUpgrade':
-      return g.pendingUtilityTiers.length > 0;
+      return g.player.pendingUtilityTiers.length > 0;
     case 'talent':
-      return g.talentPoints > 0;
+      return g.player.talentPoints > 0;
     case 'blessing':
       return !!g.pendingShrine?.includes(ch.id);
     case 'quests':
@@ -115,22 +115,22 @@ export function applyChoice(g: Game, ch: Choice): boolean {
       const o = levelHand(g)[ch.index];
       if (!o) return false;
       chooseLevelUp(g, o);
-      g.levelHand = g.levelRerolls = null;
+      g.player.levelHand = g.player.levelRerolls = null;
       return true;
     }
     case 'levelBanish': {
       const o = levelHand(g)[ch.index];
       if (!o || !banishOption(g, o)) return false;
-      g.levelHand = null; // v0.6: struck for good, and a fresh hand
+      g.player.levelHand = null; // v0.6: struck for good, and a fresh hand
       return true;
     }
     case 'levelReroll': {
       levelHand(g); // the hand being rerolled was dealt, even if nobody looked at it (a replay)
       const r = levelRerolls(g);
       if (r.free > 0) r.free--;
-      else if (g.gold >= rerollCost(r.paid)) g.gold -= rerollCost(r.paid++);
+      else if (g.player.gold >= rerollCost(r.paid)) g.player.gold -= rerollCost(r.paid++);
       else return false;
-      g.levelHand = null;
+      g.player.levelHand = null;
       return true;
     }
     case 'relicTake':
@@ -143,11 +143,11 @@ export function applyChoice(g: Game, ch: Choice): boolean {
       return rerollRelicOffer(g);
     case 'abilityUpgrade':
       if (chooseAbilityUpgrade(g, ch.id)) return true;
-      g.pendingAbilityTiers.shift(); // never leave the player stuck on a choice that cannot be made
+      g.player.pendingAbilityTiers.shift(); // never leave the player stuck on a choice that cannot be made
       return false;
     case 'utilityUpgrade':
       if (chooseUtilityUpgrade(g, ch.id)) return true;
-      g.pendingUtilityTiers.shift();
+      g.player.pendingUtilityTiers.shift();
       return false;
     case 'talent':
       return spendTalent(g, ch.id);

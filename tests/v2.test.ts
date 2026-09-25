@@ -131,7 +131,7 @@ describe('relic hooks', () => {
     expect(g.over).toBe(false);
     expect(g.player.hp).toBeCloseTo(g.player.stats.hp * 0.5);
     g.player.invulnT = 0;
-    g.lastStand = 'off'; // v0.6: otherwise the Last Stand catches the second blow
+    g.player.lastStand = 'off'; // v0.6: otherwise the Last Stand catches the second blow
     damagePlayer(g, 9999, true);
     expect(g.over).toBe(true);
   });
@@ -170,7 +170,7 @@ describe('ability upgrade selection', () => {
     const { g } = arena('angel');
     gainXp(g, 100000);
     expect(g.player.level).toBeGreaterThan(15);
-    expect(g.pendingAbilityTiers).toEqual([0, 1, 2]);
+    expect(g.player.pendingAbilityTiers).toEqual([0, 1, 2]);
   });
 
   it('options within a tier are mutually exclusive, and only valid picks count', () => {
@@ -186,10 +186,10 @@ describe('ability upgrade selection', () => {
   it('the game only accepts a pick for the pending tier', () => {
     const { g } = arena('archer');
     expect(chooseAbilityUpgrade(g, 'ballista')).toBe(false);
-    g.pendingAbilityTiers.push(0);
+    g.player.pendingAbilityTiers.push(0);
     expect(chooseAbilityUpgrade(g, 'pinning')).toBe(false);
     expect(chooseAbilityUpgrade(g, 'ballista')).toBe(true);
-    expect(g.pendingAbilityTiers).toEqual([]);
+    expect(g.player.pendingAbilityTiers).toEqual([]);
   });
 
   it('upgraded abilities still scale with the secondary stat', () => {
@@ -362,10 +362,10 @@ describe('gold and cost calculations', () => {
 
     const g = createGame('archer', 1, { meta: maxed });
     expect(g.relicSlots).toBe(metaLoadout(maxed).relicSlots); // v0.4: no longer a cap
-    expect(g.rerolls).toBe(3);
-    expect(g.gold).toBe(100);
+    expect(g.player.rerolls).toBe(3);
+    expect(g.player.gold).toBe(100);
     expect(g.player.level).toBe(1 + META.startLevel.max); // v0.4 Veteran Levies
-    expect(g.talentPoints).toBe(META.talentPoint.max);
+    expect(g.player.talentPoints).toBe(META.talentPoint.max);
     expect(summarizeRun(g).gold).toBe(0); // starting gold is not "earned"
   });
 

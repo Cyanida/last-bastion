@@ -11,7 +11,7 @@ import { clampToArena } from './movement';
 
 /**
  * The utility ability (config/utility.ts): one hook per class. Unlocked at UTILITY.unlockLevel, cast with g.input.utility,
- * tiers chosen at UTILITY.tiers levels (g.pendingUtilityTiers), upgrades read through has(). Talents scale it through
+ * tiers chosen at UTILITY.tiers levels (g.player.pendingUtilityTiers), upgrades read through has(). Talents scale it through
  * p.mods.utilityCd and p.mods.utilityPower.
  */
 const U = UTILITY_UPGRADES;
@@ -187,18 +187,18 @@ export function tauntedDamageMult(g: Game, attacker: Enemy | null): number {
 /** Resolve the first queued utility tier. Invalid picks (wrong tier, already taken) are ignored. */
 export function chooseUtilityUpgrade(g: Game, id: UtilityUpgradeId): boolean {
   const p = g.player;
-  const tier = g.pendingUtilityTiers[0];
+  const tier = g.player.pendingUtilityTiers[0];
   if (tier === undefined) return false;
   const options = UTILITY_TRACKS[p.cls.id][tier];
   if (!options || !(options as readonly string[]).includes(id) || options.some((o) => p.utilityUpgrades.includes(o))) return false;
   p.utilityUpgrades = [...p.utilityUpgrades, id];
-  g.pendingUtilityTiers.shift();
+  g.player.pendingUtilityTiers.shift();
   floatText(g, p.x, p.y - 50, U[id].name, utilityDef(p).color, 17);
   ring(g, p.x, p.y, 110, utilityDef(p).color, 0.6);
   return true;
 }
 
-export const utilityUpgradeOptions = (g: Game): readonly UtilityUpgradeId[] => UTILITY_TRACKS[g.player.cls.id][g.pendingUtilityTiers[0]] ?? [];
+export const utilityUpgradeOptions = (g: Game): readonly UtilityUpgradeId[] => UTILITY_TRACKS[g.player.cls.id][g.player.pendingUtilityTiers[0]] ?? [];
 
 export const describeUtility = (p: Player): string => {
   const def = utilityDef(p);

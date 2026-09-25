@@ -346,7 +346,7 @@ export const skipReward = (g: Game) => ({ gold: RELIC_MOMENTS.skip.gold + RELIC_
 export function skipRelicOffer(g: Game, p: Player = g.player): boolean {
   if (!p.relics.offers.shift()) return false;
   const reward = skipReward(g);
-  g.gold += reward.gold;
+  g.player.gold += reward.gold;
   g.salvage += reward.shards;
   floatText(g, p.x, p.y - 50, `+${reward.gold}g · ◆ shard`, '#c9a227', 15);
   return true;

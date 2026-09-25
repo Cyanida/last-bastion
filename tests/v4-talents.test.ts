@@ -18,8 +18,8 @@ import { xpToNext } from '../src/logic/formulas';
 const DT = 1 / 60;
 const levelTo = (g: ReturnType<typeof createGame>, level: number) => {
   while (g.player.level < level) gainXp(g, xpToNext(g.player.level) / Math.max(1, g.player.mods.xp));
-  g.pendingLevelUps = 0;
-  g.pendingAbilityTiers.length = 0;
+  g.player.pendingLevelUps = 0;
+  g.player.pendingAbilityTiers.length = 0;
 };
 
 describe('talent trees (v0.4)', () => {
@@ -44,7 +44,7 @@ describe('talent trees (v0.4)', () => {
     expect(talentPointsForLevel(30)).toBe(10);
     const g = createGame('paladin', 1);
     levelTo(g, 7);
-    expect(g.talentPoints).toBe(2);
+    expect(g.player.talentPoints).toBe(2);
   });
 
   it('prerequisites: a node needs one of its parents; a keystone needs 4 points in its branch; only one keystone', () => {
@@ -74,7 +74,7 @@ describe('talent trees (v0.4)', () => {
     expect(g.player.stats.hp).toBe(hp + 30);
     expect(spendTalent(g, a1)).toBe(true);
     expect(spendTalent(g, b0)).toBe(false); // out of points
-    expect(g.talentPoints).toBe(0);
+    expect(g.player.talentPoints).toBe(0);
     updateGame(g, DT);
     expect(g.player.mods.armor).toBeCloseTo(0.06);
     expect(talentMods([a1]).armor).toBeCloseTo(0.06);
@@ -96,7 +96,7 @@ describe('utility abilities', () => {
   it('unlock at level 3, own cooldown, tiers at levels 8 and 14 with two-way exclusive choices', () => {
     const plain = createGame('paladin', 1);
     levelTo(plain, 14);
-    expect(plain.pendingUtilityTiers).toEqual([0]); // the second tier is mastery rank 5's unlock
+    expect(plain.player.pendingUtilityTiers).toEqual([0]); // the second tier is mastery rank 5's unlock
     const g = createGame('paladin', 1, { classXp: MASTERY[4].xp });
     g.input.utility = true;
     updateUtility(g, DT);
@@ -111,16 +111,16 @@ describe('utility abilities', () => {
     updateUtility(g, DT);
     expect(g.player.utilityCd).toBeGreaterThan(0); // cast
     expect(e.tauntT).toBeGreaterThan(0); // Challenged
-    expect(g.pendingUtilityTiers).toEqual([]);
+    expect(g.player.pendingUtilityTiers).toEqual([]);
     levelTo(g, 8);
-    expect(g.pendingUtilityTiers).toEqual([0]);
+    expect(g.player.pendingUtilityTiers).toEqual([0]);
     const [a, b] = UTILITY_TRACKS.paladin[0];
     expect(chooseUtilityUpgrade(g, UTILITY_TRACKS.paladin[1][0])).toBe(false); // wrong tier
     expect(chooseUtilityUpgrade(g, a)).toBe(true);
     expect(g.player.utilityUpgrades).toEqual([a]);
     expect(chooseUtilityUpgrade(g, b)).toBe(false); // nothing pending, and the other path is lost
     levelTo(g, 14);
-    expect(g.pendingUtilityTiers).toEqual([1]);
+    expect(g.player.pendingUtilityTiers).toEqual([1]);
     for (const classId of CLASS_ORDER) for (const tier of UTILITY_TRACKS[classId]) for (const id of tier) expect(UTILITY_UPGRADES[id]).toBeDefined();
     expect(Object.keys(UTILITIES)).toHaveLength(5);
   });
@@ -161,7 +161,7 @@ describe('starting traits', () => {
     expect(glass.player.stats.hp).toBe(Math.round(plain.player.stats.hp * 0.75));
     updateGame(glass, DT);
     expect(glass.player.mods.damage).toBeCloseTo(1.3);
-    expect(glass.trait).toBe('glassCannon');
+    expect(glass.player.trait).toBe('glassCannon');
     const lucky = createGame('viking', 1);
     applyTrait(lucky, 'cursedLuck');
     expect(lucky.vars['trait.rerolls']).toBe(1); // v0.7: an extra reroll at every relic moment
@@ -183,12 +183,12 @@ describe('the mixed level-up pool', () => {
     expect(talents).toBeGreaterThan(400 * TALENT_CARD_CHANCE * 0.6);
     expect(relics).toBeGreaterThan(20);
     const g = createGame('archer', 1);
-    g.pendingLevelUps = 2;
+    g.player.pendingLevelUps = 2;
     chooseLevelUp(g, { kind: 'talent' });
-    expect(g.talentPoints).toBe(1);
+    expect(g.player.talentPoints).toBe(1);
     chooseLevelUp(g, { kind: 'relic', id: 'frostBrand' });
     expect(g.player.relics.held).toContain('frostBrand');
-    expect(g.pendingLevelUps).toBe(0);
+    expect(g.player.pendingLevelUps).toBe(0);
     expect(levelUpOptions(g)).toHaveLength(3);
   });
 });

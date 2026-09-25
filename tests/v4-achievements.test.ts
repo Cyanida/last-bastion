@@ -97,7 +97,7 @@ describe('tiers', () => {
     expect(migrate(JSON.parse(JSON.stringify(worn)))).toEqual(worn); // the worn title survives a round trip
     const points = withAchievements(withCounters({ actsCleared: 4 })).save; // Second Act, gold: a permanent talent point
     expect(points.talentPoints).toBe(1);
-    expect(createGame('viking', 1, { bonusTalentPoints: points.talentPoints }).talentPoints).toBe(1);
+    expect(createGame('viking', 1, { bonusTalentPoints: points.talentPoints }).player.talentPoints).toBe(1);
   });
 });
 

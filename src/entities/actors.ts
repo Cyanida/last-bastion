@@ -53,6 +53,22 @@ export function createPlayer(cls: ClassDef, arena: ArenaDef, stats: Stats = cls.
     dotT: 0,
     iFrames: 0,
     flash: 0,
+    pendingLevelUps: 0,
+    levelHand: null,
+    levelRerolls: null,
+    rerolls: 0,
+    banishes: 0,
+    pendingAbilityTiers: [],
+    pendingUtilityTiers: [],
+    talentPoints: 0,
+    talentModsCache: null,
+    talentRowCap: 0,
+    trait2: 'none',
+    trait: 'none',
+    evolutions: [],
+    lastStand: 'ready',
+    goldStart: 0,
+    gold: 0,
   };
 }
 

@@ -605,7 +605,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
 };
 
 /** The evolution this run took for that slot, if any. */
-export const evolutionIn = (g: Game, slot: EvolutionSlot): EvolutionId | undefined => g.evolutions.find((id) => EVOLUTIONS[id].slot === slot);
+export const evolutionIn = (g: Game, slot: EvolutionSlot): EvolutionId | undefined => g.player.evolutions.find((id) => EVOLUTIONS[id].slot === slot);
 export const evolutionHook = (g: Game, slot: EvolutionSlot): EvolutionHook | undefined => {
   const id = evolutionIn(g, slot);
   return id && HOOKS[id];
@@ -613,14 +613,14 @@ export const evolutionHook = (g: Game, slot: EvolutionSlot): EvolutionHook | und
 
 /** Every tick, after the ability passives (game.ts). */
 export function evolutionPassives(g: Game, dt: number): void {
-  for (const id of g.evolutions) HOOKS[id].passive?.(g, dt);
+  for (const id of g.player.evolutions) HOOKS[id].passive?.(g, dt);
 }
 
 /** Take an evolution (the gold level-up card). */
 export function evolve(g: Game, id: EvolutionId): void {
-  if (g.evolutions.includes(id) || evolutionIn(g, EVOLUTIONS[id].slot)) return;
+  if (g.player.evolutions.includes(id) || evolutionIn(g, EVOLUTIONS[id].slot)) return;
   const p = g.player;
-  g.evolutions = [...g.evolutions, id];
+  g.player.evolutions = [...g.player.evolutions, id];
   g.banner = { text: `Evolved: ${EVOLUTIONS[id].name}`, t: 3 };
   floatText(g, p.x, p.y - 60, `${EVOLUTIONS[id].icon} ${EVOLUTIONS[id].name}`, '#f2c94c', 20);
   ring(g, p.x, p.y, 180, '#f2c94c', 0.9);
@@ -632,8 +632,8 @@ export function evolve(g: Game, id: EvolutionId): void {
 }
 
 /** What the recipe logic (logic/evolutions.ts) needs from a run. */
-export const buildState = (g: Game): BuildState => ({ classId: g.player.cls.id, upgrades: g.player.upgrades, utilityUpgrades: g.player.utilityUpgrades, talents: g.player.talents, relicTiers: g.player.relics.tiers, evolutions: g.evolutions });
+export const buildState = (g: Game): BuildState => ({ classId: g.player.cls.id, upgrades: g.player.upgrades, utilityUpgrades: g.player.utilityUpgrades, talents: g.player.talents, relicTiers: g.player.relics.tiers, evolutions: g.player.evolutions });
 
 addListener((g, name, ev) => {
-  for (const id of g.evolutions) dispatch(HOOKS[id].on, g, name, ev as GameEvents[typeof name]);
+  for (const id of g.player.evolutions) dispatch(HOOKS[id].on, g, name, ev as GameEvents[typeof name]);
 });

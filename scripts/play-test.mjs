@@ -156,46 +156,46 @@ await check('quest board: take two', () =>
 await check('level-up: free reroll, paid reroll, banish, pick', () =>
   inPage(async () => {
     const P = window.__play, lb = window.__lb, g = lb.game, p = g.player;
-    g.gold = 5000;
-    g.banishes = 1;
-    g.pendingLevelUps++;
+    g.player.gold = 5000;
+    g.player.banishes = 1;
+    g.player.pendingLevelUps++;
     if (!P.toChoice()) return { ok: false, detail: 'no level-up screen' };
-    const hand = () => ('levelHand' in g ? JSON.stringify(g.levelHand) : P.cards().join()); // the hand is game state from v0.8 on
+    const hand = () => ('levelHand' in g.player ? JSON.stringify(g.player.levelHand) : P.cards().join()); // the hand is game state from v0.8 on
     const hand0 = hand();
     await P.click('[data-reroll]'); // free
     const hand1 = hand();
-    const gold1 = g.gold;
+    const gold1 = g.player.gold;
     await P.click('[data-reroll]'); // paid
-    const paid = gold1 - g.gold;
+    const paid = gold1 - g.player.gold;
     const hand2 = hand();
     await P.click('[data-banish="2"]');
-    const banished = g.banishes === 0 && hand() !== hand2;
-    if (!('levelHand' in g)) {
+    const banished = g.player.banishes === 0 && hand() !== hand2;
+    if (!('levelHand' in g.player)) {
       await P.click('[data-pick="0"]');
       return { ok: hand1 !== hand0 && hand2 !== hand1 && paid > 0 && banished && lb.state === 'playing', detail: `paid reroll ${paid} gold, banish ${banished ? 'ok' : 'FAILED'} (card values not checked before v0.8)` };
     }
     // pick a flat stat card (a percent card shows +10 for a x1.1 multiplier) and check its number is what the stat gains
     const flat = (o) => o.kind === 'stat' && ['str', 'dex', 'int', 'hp', 'moveSpd'].includes(o.key);
-    for (let r = 0; r < 12 && !g.levelHand.some(flat); r++) await P.click('[data-reroll]');
-    const i = g.levelHand.findIndex(flat);
+    for (let r = 0; r < 12 && !g.player.levelHand.some(flat); r++) await P.click('[data-reroll]');
+    const i = g.player.levelHand.findIndex(flat);
     const text = document.querySelectorAll('[data-pick]')[i]?.innerText ?? '';
-    const key = g.levelHand[i]?.key;
+    const key = g.player.levelHand[i]?.key;
     const shown = Number(text.match(/\+(\d+(?:\.\d+)?)/)?.[1]);
     const before = p.stats[key];
     await P.click(`[data-pick="${i}"]`);
     const gained = +(p.stats[key] - before).toFixed(2);
-    const ok = hand1 !== hand0 && hand2 !== hand1 && paid > 0 && banished && i >= 0 && Math.abs(gained - shown) < 0.01 && g.levelHand === null && lb.state === 'playing';
+    const ok = hand1 !== hand0 && hand2 !== hand1 && paid > 0 && banished && i >= 0 && Math.abs(gained - shown) < 0.01 && g.player.levelHand === null && lb.state === 'playing';
     return { ok, detail: `paid reroll ${paid} gold, banish ${banished ? 'ok' : 'FAILED'}, card +${shown} ${key} → gained ${gained}` };
   }),
 );
 
 await check('level-up: pick with the 1 key', async () => {
   const opened = await inPage(() => {
-    window.__lb.game.pendingLevelUps++;
+    window.__lb.game.player.pendingLevelUps++;
     return window.__play.toChoice();
   });
   await page.keyboard.press('Digit1');
-  return inPage((opened) => ({ ok: opened && window.__lb.state === 'playing' && window.__lb.game.pendingLevelUps === 0, detail: opened ? '' : 'no screen' }), opened);
+  return inPage((opened) => ({ ok: opened && window.__lb.state === 'playing' && window.__lb.game.player.pendingLevelUps === 0, detail: opened ? '' : 'no screen' }), opened);
 });
 
 // v0.7.5 (#111): X picks the first level-up card and is also the utility button; held past the screen, it must not cast
@@ -208,7 +208,7 @@ await check('gamepad: the button that answers a screen does not also cast', () =
     const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))));
     try {
       await frames();
-      g.pendingLevelUps++;
+      g.player.pendingLevelUps++;
       if (!P.toChoice()) return { ok: false, detail: 'no level-up screen' };
       Object.assign(p, { utilityCd: 0 });
       buttons[2].pressed = true; // X: pick 1
@@ -267,9 +267,9 @@ await check('relic offer: skip pays what it says', () =>
     if (!P.toChoice()) return { ok: false, detail: 'no relic offer' };
     const label = document.querySelector('[data-skip]').textContent;
     const says = Number(label.match(/🪙\s*([\d,]+)/)?.[1].replace(',', ''));
-    const gold = g.gold;
+    const gold = g.player.gold;
     await P.click('[data-skip]');
-    return { ok: g.gold - gold === says && rel.offers.length === 0, detail: `"${label.trim()}", got ${g.gold - gold}` };
+    return { ok: g.player.gold - gold === says && rel.offers.length === 0, detail: `"${label.trim()}", got ${g.player.gold - gold}` };
   }),
 );
 
@@ -287,11 +287,11 @@ await check('relic offer: take a relic', () =>
 await check('ability and utility upgrades', () =>
   inPage(async () => {
     const P = window.__play, g = window.__lb.game, p = g.player;
-    g.pendingAbilityTiers.push(0);
+    g.player.pendingAbilityTiers.push(0);
     if (!P.toChoice()) return { ok: false, detail: 'no ability upgrade screen' };
     const a = document.querySelectorAll('[data-pick]')[1].dataset.pick;
     await P.click(`[data-pick="${a}"]`);
-    g.pendingUtilityTiers.push(0);
+    g.player.pendingUtilityTiers.push(0);
     if (!P.toChoice()) return { ok: false, detail: 'no utility upgrade screen' };
     const u = document.querySelectorAll('[data-pick]')[1].dataset.pick;
     await P.click(`[data-pick="${u}"]`);
@@ -302,33 +302,33 @@ await check('ability and utility upgrades', () =>
 await check('Merchant: heal, reroll, reforge, sell, salvage, buy, march on', () =>
   inPage(async () => {
     const P = window.__play, lb = window.__lb, g = lb.game, p = g.player, rel = p.relics;
-    g.gold = 600;
+    g.player.gold = 600;
     p.hp = Math.round(p.stats.hp / 4); // hurt before the screen draws, or the surgeon has nothing to heal
     g.pendingMerchant = true;
     if (!P.toChoice() || !document.querySelector('[data-heal]')) return { ok: false, detail: 'no Merchant' };
     const log = [];
-    let hp = p.hp, gold = g.gold;
+    let hp = p.hp, gold = g.player.gold;
     await P.click('[data-heal]');
-    log.push(p.hp > hp && g.gold < gold ? 'heal' : 'HEAL FAILED');
-    gold = g.gold;
+    log.push(p.hp > hp && g.player.gold < gold ? 'heal' : 'HEAL FAILED');
+    gold = g.player.gold;
     log.push(document.querySelector('[data-sell="brimstoneOil"], [data-sell="frostBrand"]') ? 'DUO RELICS LISTED' : 'duo relics not listed'); // #96: combined into Thermal Shock
     await P.click('[data-reroll="butchersHook"]');
-    log.push(!rel.held.includes('butchersHook') && g.gold < gold ? 'reroll' : 'REROLL FAILED');
-    gold = g.gold;
+    log.push(!rel.held.includes('butchersHook') && g.player.gold < gold ? 'reroll' : 'REROLL FAILED');
+    gold = g.player.gold;
     await P.click('[data-reforge="serratedEdge"]');
-    log.push(!rel.held.includes('serratedEdge') && g.gold < gold ? 'reforge' : 'REFORGE FAILED');
-    gold = g.gold;
+    log.push(!rel.held.includes('serratedEdge') && g.player.gold < gold ? 'reforge' : 'REFORGE FAILED');
+    gold = g.player.gold;
     const sold = document.querySelector('[data-sell]').dataset.sell;
     await P.click(`[data-sell="${sold}"]`);
-    log.push(!rel.held.includes(sold) && g.gold > gold ? 'sell' : 'SELL FAILED');
+    log.push(!rel.held.includes(sold) && g.player.gold > gold ? 'sell' : 'SELL FAILED');
     const last = document.querySelector('[data-salvage]').dataset.salvage;
     await P.click(`[data-salvage="${last}"]`);
     log.push(!rel.held.includes(last) ? 'salvage' : 'SALVAGE FAILED');
     const held = rel.held.length;
-    gold = g.gold;
+    gold = g.player.gold;
     await P.click('[data-buy="common"]');
     await P.click('[data-pick="0"]');
-    log.push(rel.held.length === held + 1 && g.gold < gold ? 'buy' : 'BUY FAILED');
+    log.push(rel.held.length === held + 1 && g.player.gold < gold ? 'buy' : 'BUY FAILED');
     P.toChoice(); // the Merchant comes back after the pick of three
     const back = !!document.querySelector('[data-heal]') && [...document.querySelectorAll('[data-buy]')].every((b) => b.disabled);
     log.push(back ? 'back, one relic a visit' : 'NOT BACK AFTER BUYING');
@@ -365,20 +365,20 @@ await check('peddler: buy a draught, leave', () =>
   inPage(async () => {
     const P = window.__play, lb = window.__lb, g = lb.game, p = g.player;
     for (let i = 0; i < 3000 && (g.breather > 0 || lb.state !== 'playing'); i++) lb.run(1, false, true); // a wave on
-    g.gold = 300;
+    g.player.gold = 300;
     p.hp = Math.round(p.stats.hp / 2);
     g.event = { kind: 'peddler', x: p.x, y: p.y, unit: null, foe: null, used: false, t: 0, stock: 1 };
     if (!P.toChoice() || !document.querySelector('[data-buy]')) return { ok: false, detail: 'no peddler' };
-    const hp = p.hp, gold = g.gold;
+    const hp = p.hp, gold = g.player.gold;
     await P.click('[data-buy="0"]');
-    const bought = p.hp > hp && g.gold < gold && g.event.stock === 0;
+    const bought = p.hp > hp && g.player.gold < gold && g.event.stock === 0;
     await P.click('[data-leave]');
-    return { ok: bought && !g.pendingShop && lb.state === 'playing', detail: `hp ${Math.round(hp)} → ${Math.round(p.hp)}, gold ${gold} → ${g.gold}` };
+    return { ok: bought && !g.pendingShop && lb.state === 'playing', detail: `hp ${Math.round(hp)} → ${Math.round(p.hp)}, gold ${gold} → ${g.player.gold}` };
   }),
 );
 
 await check('talent from the pause menu', async () => {
-  await inPage(() => (window.__lb.game.talentPoints = 1));
+  await inPage(() => (window.__lb.game.player.talentPoints = 1));
   await page.keyboard.press('Escape');
   return inPage(async () => {
     const P = window.__play, lb = window.__lb, g = lb.game, p = g.player;
@@ -388,7 +388,7 @@ await check('talent from the pause menu', async () => {
     const id = node.dataset.talent;
     node.click();
     await P.wait();
-    const taken = p.talents.includes(id) && g.talentPoints === 0;
+    const taken = p.talents.includes(id) && g.player.talentPoints === 0;
     await P.click('[data-back]');
     await P.click('[data-resume]');
     return { ok: taken && lb.state === 'playing', detail: id };
@@ -827,7 +827,7 @@ await check('a real run is banked: gold, the local day, the run log, the week', 
       await wait(200);
       lb.game.player.invulnerable = true;
       for (let i = 0; i < 2400 && lb.state !== 'results'; i++) lb.run(1, false, true);
-      const earned = lb.game.gold;
+      const earned = lb.game.player.gold;
       window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' }));
       window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', key: 'Escape' }));
       await wait(150);

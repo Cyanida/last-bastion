@@ -19,13 +19,13 @@ export function gainXp(g: Game, amount: number): void {
     p.level++;
     p.stats = applyGrowth(p.stats, p.cls.growth);
     p.hp = Math.min(p.stats.hp, p.hp + p.cls.growth.hp);
-    g.pendingLevelUps++; // main loop (or the bot) pauses and resolves the choice
+    g.player.pendingLevelUps++; // main loop (or the bot) pauses and resolves the choice
     const tier = tierForLevel(p.level);
-    if (tier >= 0) g.pendingAbilityTiers.push(tier);
+    if (tier >= 0) g.player.pendingAbilityTiers.push(tier);
     const utilityTier = UTILITY.tiers.indexOf(p.level);
-    if (utilityTier >= 0 && utilityTier < g.utilityTiers) g.pendingUtilityTiers.push(utilityTier); // the second tier is a mastery unlock
+    if (utilityTier >= 0 && utilityTier < g.utilityTiers) g.player.pendingUtilityTiers.push(utilityTier); // the second tier is a mastery unlock
     if (talentPointsForLevel(p.level) > talentPointsForLevel(p.level - 1)) {
-      g.talentPoints++;
+      g.player.talentPoints++;
       floatText(g, p.x, p.y - 48, 'TALENT POINT', '#e9c95a', 15);
     }
     ring(g, p.x, p.y, 90, '#c9a227', 0.6);
@@ -46,18 +46,18 @@ export function levelUpOptions(g: Game): LevelUpOption[] {
 
 /** v0.6 Quartermaster's Ledger: strike a level-up card from the run for good (a stat boon, the talent card, a relic, a tradeoff). */
 export function banishOption(g: Game, o: LevelUpOption): boolean {
-  if (g.banishes <= 0 || o.kind === 'evolution') return false;
+  if (g.player.banishes <= 0 || o.kind === 'evolution') return false;
   if (o.kind === 'stat') g.bannedStats = [...g.bannedStats, o.key];
   else if (o.kind === 'talent') g.vars.banTalent = 1;
   else if (o.kind === 'relic') g.player.relics.pool = g.player.relics.pool.filter((id) => id !== o.id);
   else g.vars[`tradeoff.${o.id}`] = 1; // counts as taken: never offered again, and changes nothing
-  g.banishes--;
+  g.player.banishes--;
   return true;
 }
 
 export function chooseLevelUp(g: Game, o: LevelUpOption): void {
   const p = g.player;
-  if (o.kind === 'talent') g.talentPoints++;
+  if (o.kind === 'talent') g.player.talentPoints++;
   else if (o.kind === 'evolution') evolve(g, o.id);
   else if (o.kind === 'relic') addRelic(g, o.id); // v0.7: never offered any more (relics come at fixed moments)
   else if (o.kind === 'tradeoff') {
@@ -70,5 +70,5 @@ export function chooseLevelUp(g: Game, o: LevelUpOption): void {
     if (o.key === 'hp') p.hp += upgradeAmount('hp', o.rarity);
   }
   p.hp = Math.min(p.hp, p.stats.hp);
-  g.pendingLevelUps--;
+  g.player.pendingLevelUps--;
 }

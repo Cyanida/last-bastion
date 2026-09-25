@@ -66,7 +66,7 @@ describe('snapshot and restore (#27)', () => {
     expect(g.kills).toBeGreaterThan(0);
     expect(r.rng.s).toBe(g.rng.s);
     expect(JSON.stringify(snapshot(r))).toBe(JSON.stringify(snapshot(g)));
-    expect([r.kills, r.wave, r.player.hp, r.gold, r.tick]).toEqual([g.kills, g.wave, g.player.hp, g.gold, g.tick]);
+    expect([r.kills, r.wave, r.player.hp, r.player.gold, r.tick]).toEqual([g.kills, g.wave, g.player.hp, g.player.gold, g.tick]);
   });
 
   it('refuses a function in the state', () => {
@@ -119,7 +119,7 @@ describe('replay (#27)', () => {
     const g = playTo(20);
     const r = restore(JSON.parse(JSON.stringify(snapshot(g))));
     expect(hashState(r)).toBe(hashState(g));
-    r.gold += 1;
+    r.player.gold += 1;
     expect(hashState(r)).not.toBe(hashState(g));
   });
 

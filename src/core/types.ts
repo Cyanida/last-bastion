@@ -176,6 +176,23 @@ export interface Player extends Body {
   dots: Partial<Record<DamageType, number>>; // damage-over-time waiting for the next tick
   dotT: number;
   iFrames: number;
+  // v0.8 (#28): what was the run's and is this player's: gold, the level-up and ability queues, talents, traits, evolutions, last stand
+  pendingLevelUps: number;
+  levelHand: LevelUpOption[] | null; // v0.8: the level-up cards on offer, dealt on first read (levelHand in sim/commands.ts)
+  levelRerolls: { free: number; paid: number } | null; // v0.8: this level-up screen's rerolls; null until the first
+  rerolls: number; // free rerolls per level-up screen
+  banishes: number; // v0.6: Quartermaster's Ledger: level-up cards left to strike from the run
+  pendingAbilityTiers: number[];
+  pendingUtilityTiers: number[]; // v0.4: utility ability choices due (UTILITY.tiers)
+  talentPoints: number; // unspent
+  talentModsCache: Mods | null; // talent mods folded together; rebuilt when a talent is taken
+  talentRowCap: number; // v0.4: the Library's level caps the talent rows (TALENT_ROW_CAP)
+  trait2: TraitId; // v0.6: the Second Banner's second trait ('none' without it)
+  trait: TraitId;
+  evolutions: EvolutionId[]; // v0.6: taken this run (one signature, one utility; config/evolutions.ts)
+  lastStand: 'ready' | 'used' | 'off'; // v0.6: once a run at 0 HP (SKILL.lastStand); an Oath can take it away
+  goldStart: number;
+  gold: number;
   flash: number;
 }
 
@@ -500,7 +517,6 @@ export interface Game {
   time: number;
   tick: number; // v0.8: steps taken (step() in sim/commands.ts); commands carry it
   shake: number;
-  pendingLevelUps: number;
   // --- v0.2 ---
   arena: ArenaDef;
   tier: TierDef;
@@ -513,25 +529,12 @@ export interface Game {
   salvage: number; // Rune shards from salvaged relics
   procDepth: number; // relic hooks running inside relic hooks; chains stop at RELIC_STACKING.procDepth
   relicSlots: number; // the Keep's old relic-slot ranks; no longer a cap (kept for save compatibility)
-  pendingAbilityTiers: number[];
-  pendingUtilityTiers: number[]; // v0.4: utility ability choices due (UTILITY.tiers)
-  talentPoints: number; // unspent
-  talentRowCap: number; // v0.4: the Library's level caps the talent rows (TALENT_ROW_CAP)
   utilityTiers: number; // v0.4: how many utility upgrade tiers this run offers (mastery rank 5 unlocks the second)
   eliteGold: number; // v0.4 Watchtower bounties
   bossGold: number;
-  talentModsCache: Mods | null; // talent mods folded together; rebuilt when a talent is taken
-  trait: TraitId;
-  trait2: TraitId; // v0.6: the Second Banner's second trait ('none' without it)
   oath: OathStack; // v0.6: the Oath sworn for this run (level 0: a custom run, nothing asked)
-  banishes: number; // v0.6: Quartermaster's Ledger: level-up cards left to strike from the run
   bannedStats: StatKey[]; // v0.6: stat boons struck from this run's level-ups
   palette: number; // v0.4: the class sprite's colours (mastery unlocks; SPRITE_PALETTES)
-  rerolls: number; // free rerolls per level-up screen
-  levelHand: LevelUpOption[] | null; // v0.8: the level-up cards on offer, dealt on first read (levelHand in sim/commands.ts)
-  levelRerolls: { free: number; paid: number } | null; // v0.8: this level-up screen's rerolls; null until the first
-  gold: number;
-  goldStart: number;
   wavesCleared: number;
   elitesKilled: number;
   bossesKilled: EnemyId[];
@@ -584,8 +587,6 @@ export interface Game {
   replay: Command[]; // v0.8 (#113): every choice step() made, with its tick and player (sim/commands.ts)
   victory: 'none' | 'pending' | 'endless'; // v0.6: the Usurper fell (pending: the choice to bank or go on is up); endless: gone on past him
   victoryKills: number; // v0.6: kills when he fell (the Endless score counts from there)
-  lastStand: 'ready' | 'used' | 'off'; // v0.6: once a run at 0 HP (SKILL.lastStand); an Oath can take it away
-  evolutions: EvolutionId[]; // v0.6: taken this run (one signature, one utility; config/evolutions.ts)
   prey: Enemy | null; // v0.6: the Hunter's Mark
   glows: Glow[]; // v0.6: lights the evolutions set every tick (wisps, souls, rings); cleared at the start of each tick
   over: boolean;

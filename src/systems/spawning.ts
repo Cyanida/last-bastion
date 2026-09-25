@@ -182,7 +182,7 @@ export function updateSpawning(g: Game, dt: number): void {
     // the director's rubber band: how much HP is left, and was the wave cleared quickly
     g.perf = updatePerformance(g.perf, g.player.hp / g.player.stats.hp, g.waveT, WAVES.spawn.maxDuration + 15);
     const bonus = waveClearGold(g.wave, g.player.mods.gold * g.tier.gold * (g.vars.curseMult ?? 1));
-    g.gold += bonus;
+    g.player.gold += bonus;
     g.levelAtWave.push(g.player.level); // for the simulation's pace report
     gainXp(g, waveClearXp(g.wave));
     floatText(g, g.player.x, g.player.y - 60, `+${bonus} gold`, '#c9a227', 15);

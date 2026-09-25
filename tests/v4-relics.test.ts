@@ -97,9 +97,9 @@ describe('drops, selling and salvage', () => {
     expect(sellPrice('frostBrand', 2, 1)).toBe(Math.round(MERCHANT.buy.common * RELIC_DROPS.sellFrac * 2));
     expect(sellPrice('bloodPact', 1, 2)).toBeGreaterThan(sellPrice('bloodPact', 1, 1));
     expect(salvageValue('bloodPact', 3)).toBe(RELIC_DROPS.salvage.legendary * 3);
-    const gold = g.gold;
+    const gold = g.player.gold;
     expect(merchantSell(g, 'frostBrand')).toBe(true);
-    expect(g.gold).toBe(gold + sellPrice('frostBrand', 2, g.act));
+    expect(g.player.gold).toBe(gold + sellPrice('frostBrand', 2, g.act));
     expect(g.player.relics.held).not.toContain('frostBrand');
     expect(merchantSell(g, 'frostBrand')).toBe(false);
     addRelic(g, 'shatterglass');

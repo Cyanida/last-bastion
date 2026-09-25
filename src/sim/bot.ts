@@ -209,19 +209,19 @@ export function botChoose(g: Game, variant = 0, out?: Command[]): void {
   if (g.pendingBoard) choose({ c: 'quests', picks: [...Array(QUEST_BOARD.offered + 1).keys()] }); // as many as it may, and the treasure trial (the free card after the board's)
   if (g.pendingShop) {
     // the first ware, and only with plenty of gold to spare
-    if (g.gold > 3 * peddlerPrice(g) && g.player.hp < g.player.stats.hp * 0.6) choose({ c: 'peddlerBuy' }); // v0.7: his healing draught, when hurt and rich
+    if (g.player.gold > 3 * peddlerPrice(g) && g.player.hp < g.player.stats.hp * 0.6) choose({ c: 'peddlerBuy' }); // v0.7: his healing draught, when hurt and rich
     choose({ c: 'peddlerLeave' });
   }
   while (g.player.relics.offers.length > 0) choose({ c: 'relicTake', id: draftRelic(g, g.player.relics.offers[0]) }); // a failed take drops the moment
-  while (g.pendingAbilityTiers.length > 0) choose({ c: 'abilityUpgrade', id: ABILITY_TRACKS[g.player.cls.id][g.pendingAbilityTiers[0]][variant] });
-  while (g.pendingUtilityTiers.length > 0) choose({ c: 'utilityUpgrade', id: UTILITY_TRACKS[g.player.cls.id][g.pendingUtilityTiers[0]][variant] });
+  while (g.player.pendingAbilityTiers.length > 0) choose({ c: 'abilityUpgrade', id: ABILITY_TRACKS[g.player.cls.id][g.player.pendingAbilityTiers[0]][variant] });
+  while (g.player.pendingUtilityTiers.length > 0) choose({ c: 'utilityUpgrade', id: UTILITY_TRACKS[g.player.cls.id][g.player.pendingUtilityTiers[0]][variant] });
   // talents: walk one branch (the variant picks which), spilling into the next when it is full
   let spent = true;
-  while (g.talentPoints > 0 && spent) {
+  while (g.player.talentPoints > 0 && spent) {
     spent = false;
     for (let b = 0; b < 3 && !spent; b++) {
       const plan = [`${g.player.cls.id}.treasure`, ...branchPlan(g.player.cls.id, variant + b)]; // the treasure's hidden node first, while it is equipped
-      const next = plan.find((id) => canTakeTalent(g.player.talents, id, g.talentPoints, g.talentRowCap, g.treasure?.id));
+      const next = plan.find((id) => canTakeTalent(g.player.talents, id, g.player.talentPoints, g.player.talentRowCap, g.treasure?.id));
       if (next) spent = choose({ c: 'talent', id: next });
     }
   }
@@ -232,7 +232,7 @@ export function botChoose(g: Game, variant = 0, out?: Command[]): void {
     choose({ c: 'merchantLeave' });
   }
   if (g.pendingRoute) choose({ c: 'route', index: 0 }); // the first fork: the rolls are seeded, so the sims stay reproducible
-  while (g.pendingLevelUps > 0) {
+  while (g.player.pendingLevelUps > 0) {
     const hand = levelHand(g);
     choose({ c: 'levelUp', index: hand.reduce((best, o, i) => (scoreOption(g, o) > scoreOption(g, hand[best]) ? i : best), 0) });
   }

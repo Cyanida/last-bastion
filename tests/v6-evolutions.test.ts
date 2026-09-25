@@ -78,19 +78,19 @@ describe('the gold card (v0.6)', () => {
     g.player.upgrades = ['doubleVolley'];
     g.player.relics.tiers.stormPennant = 2;
     g.player.relics.held.push('stormPennant');
-    g.pendingLevelUps = 1;
+    g.player.pendingLevelUps = 1;
     const first = levelUpOptions(g);
     expect(first[0]).toEqual({ kind: 'evolution', id: 'stormVolley' });
     expect(levelUpOptions(g)[0]).toEqual({ kind: 'evolution', id: 'stormVolley' }); // a reroll
     chooseLevelUp(g, first[0]);
-    expect(g.evolutions).toEqual(['stormVolley']);
+    expect(g.player.evolutions).toEqual(['stormVolley']);
     expect(g.log.marks.at(-1)?.[1]).toBe('evolution');
     expect(levelUpOptions(g).some((o) => o.kind === 'evolution')).toBe(false); // taken: no more
   });
 
   it('the save remembers every evolution ever taken, and reads only real ones back', () => {
     const g = createGame('archer', 4);
-    g.evolutions = ['stormVolley'];
+    g.player.evolutions = ['stormVolley'];
     const save = applyRun(defaultSave(), summarizeRun(g), 'd').save;
     expect(save.evolutions).toEqual(['stormVolley']);
     expect(migrate({ ...JSON.parse(JSON.stringify(save)), evolutions: ['stormVolley', 'nonsense', 3] }).evolutions).toEqual(['stormVolley']);
@@ -115,7 +115,7 @@ function fieldWith(id: EvolutionId): { g: Game } {
     return f;
   });
   for (let i = 0; i < 6; i++) g.corpses.push({ x: p.x + 40 * Math.cos(i), y: p.y + 40 * Math.sin(i), t: 0 });
-  g.evolutions = [id];
+  g.player.evolutions = [id];
   g.input.aimX = foes[0].x;
   g.input.aimY = foes[0].y;
   if (e.slot === 'signature') g.input.ability = true;
@@ -157,7 +157,7 @@ describe('every evolution does its thing (v0.6)', () => {
     it(`${EVOLUTIONS[id].name}: seen with it, never without it`, () => {
       const run = (evolved: boolean) => {
         const { g } = fieldWith(id);
-        if (!evolved) g.evolutions = [];
+        if (!evolved) g.player.evolutions = [];
         if (id === 'soulHarvest') g.vars.souls = 3; // souls come from minion kills; start with a few to loose
         if (id === 'bloodTide') for (const e of g.enemies.slice(0, 3)) e.hp = 1; // kills while raging
         const start = { x: g.player.x, y: g.player.y };

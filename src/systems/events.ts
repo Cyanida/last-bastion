@@ -86,7 +86,7 @@ function springAmbush(g: Game): void {
 function openCursedChest(g: Game, ev: WaveEvent): void {
   const p = g.player;
   // v0.7: the chest pays in gold and a Rune shard; relics come at fixed moments
-  g.gold += EVENTS.cursedChest.gold * g.act;
+  g.player.gold += EVENTS.cursedChest.gold * g.act;
   g.salvage += 1;
   floatText(g, p.x, p.y - 44, `+${EVENTS.cursedChest.gold * g.act}g · ◆ shard`, '#c9a227', 16);
   const pool = unlockedPool(g.wave, null);
@@ -105,7 +105,7 @@ function openCursedChest(g: Game, ev: WaveEvent): void {
 function endEvent(g: Game, ev: WaveEvent): void {
   if (ev.kind === 'ambush' && ev.used && !g.enemies.some((e) => !e.side && !e.dead)) {
     const gold = EVENTS.ambush.gold * g.act;
-    g.gold += gold;
+    g.player.gold += gold;
     floatText(g, g.player.x, g.player.y - 80, `Ambush repelled +${gold}g`, '#c9a227', 15);
   }
   if (ev.unit) compact(g.minions, (m) => m !== ev.unit);
@@ -148,8 +148,8 @@ export function peddlerBuy(g: Game): boolean {
   const ev = g.event;
   const price = peddlerPrice(g);
   const p = g.player;
-  if (!ev || ev.stock <= 0 || g.gold < price || p.hp >= p.stats.hp) return false;
-  g.gold -= price;
+  if (!ev || ev.stock <= 0 || g.player.gold < price || p.hp >= p.stats.hp) return false;
+  g.player.gold -= price;
   g.merchantSpent += price;
   ev.stock--;
   p.hp = Math.min(p.stats.hp, p.hp + p.stats.hp * EVENTS.peddler.heal); // like the Merchant's surgeon, not healPlayer: No Respite does not bind him
@@ -162,7 +162,7 @@ addListener((g, name, ev) => {
   if (name === 'onWaveStart') startEvent(g);
   else if (name === 'onKill' && g.event?.foe === (ev as GameEvents['onKill']).enemy) {
     const gold = EVENTS.plagueCart.gold * g.act;
-    g.gold += gold;
+    g.player.gold += gold;
     floatText(g, g.event.foe.x, g.event.foe.y - 40, `+${gold}g`, '#c9a227', 16);
   }
 });

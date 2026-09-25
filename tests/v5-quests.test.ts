@@ -114,22 +114,22 @@ describe('quests', () => {
     expect(cart.kind).toBe('caravan');
     expect(cart.passive).toBe(true);
     expect(skeletonCount(g)).toBe(0); // it does not take a Necromancer's slot
-    const gold = g.gold;
+    const gold = g.player.gold;
     const wings = openWings(g);
     g.wavesCleared += QUESTS.caravan.waves;
     updateQuests(g, DT);
     expect(q.state).toBe('done');
-    expect(g.gold).toBe(gold + REWARDS.gold.amount * g.act);
+    expect(g.player.gold).toBe(gold + REWARDS.gold.amount * g.act);
     expect(openWings(g)).toBe(wings + 1);
     expect(g.minions).not.toContain(cart);
     expect(g.questsDone).toBe(1);
 
     const h = withQuest('caravan');
-    const before = { gold: h.gold, hp: h.player.hp, talent: h.talentPoints, wings: openWings(h) };
+    const before = { gold: h.player.gold, hp: h.player.hp, talent: h.player.talentPoints, wings: openWings(h) };
     h.quests[0].unit!.hp = 0;
     updateQuests(h, DT);
     expect(h.quests[0].state).toBe('failed');
-    expect({ gold: h.gold, hp: h.player.hp, talent: h.talentPoints, wings: openWings(h) }).toEqual(before);
+    expect({ gold: h.player.gold, hp: h.player.hp, talent: h.player.talentPoints, wings: openWings(h) }).toEqual(before);
     expect(h.questsDone).toBe(0);
   });
 
@@ -151,11 +151,11 @@ describe('quests', () => {
     const camps = g.quests[0].foes;
     expect(camps).toHaveLength(QUESTS.camps.count);
     for (const c of camps) expect(c.side && c.def.structure).toBe(true);
-    const points = g.talentPoints;
+    const points = g.player.talentPoints;
     for (const c of camps) killEnemy(g, c);
     updateQuests(g, DT);
     expect(g.quests[0].state).toBe('done');
-    expect(g.talentPoints).toBe(points + 1);
+    expect(g.player.talentPoints).toBe(points + 1);
   });
 
   it('the monk: waits while enemies are near, done at the chapel, failed if he dies', () => {
@@ -264,12 +264,12 @@ describe('events', () => {
     Object.assign(g.player, { x: ev.x, y: ev.y });
     updateGame(g, DT);
     expect(g.pendingShop).toBe(true);
-    g.gold = 0;
+    g.player.gold = 0;
     g.player.hp = 1;
     expect(peddlerBuy(g)).toBe(false);
-    g.gold = 1000;
+    g.player.gold = 1000;
     expect(peddlerBuy(g)).toBe(true); // v0.7: a healing draught (relics come at fixed moments)
-    expect(g.gold).toBe(1000 - peddlerPrice(g));
+    expect(g.player.gold).toBe(1000 - peddlerPrice(g));
     expect(g.player.hp).toBeGreaterThan(1);
     expect(g.player.relics.offers).toHaveLength(0);
     expect(ev.stock).toBe(0);
@@ -285,11 +285,11 @@ describe('events', () => {
     const ev = g.event!;
     Object.assign(g.player, { x: ev.x, y: ev.y });
     const offers = g.player.relics.offers.length;
-    const gold = g.gold;
+    const gold = g.player.gold;
     const shards = g.salvage;
     updateGame(g, DT);
     expect(g.player.relics.offers.length).toBe(offers);
-    expect(g.gold).toBeGreaterThanOrEqual(gold + EVENTS.cursedChest.gold * g.act);
+    expect(g.player.gold).toBeGreaterThanOrEqual(gold + EVENTS.cursedChest.gold * g.act);
     expect(g.salvage).toBe(shards + 1);
     const elites = g.enemies.filter((e) => e.side && e.elite);
     expect(elites).toHaveLength(EVENTS.cursedChest.elites);
@@ -304,10 +304,10 @@ describe('events', () => {
     expect(g.banner.text).toBe('Ambush!');
     for (const e of g.enemies) e.dead = true;
     g.spawnQueue = [];
-    const gold = g.gold;
+    const gold = g.player.gold;
     for (let i = 0; i < 3 && g.event; i++) updateGame(g, DT);
     expect(g.event).toBeNull();
-    expect(g.gold).toBeGreaterThanOrEqual(gold + EVENTS.ambush.gold * g.act);
+    expect(g.player.gold).toBeGreaterThanOrEqual(gold + EVENTS.ambush.gold * g.act);
   });
 
   it('the lost knight fights for one wave', () => {
@@ -329,9 +329,9 @@ describe('events', () => {
     for (let i = 0; i < 120; i++) updateGame(g, DT);
     expect(Math.hypot(cart.x - at.x, cart.y - at.y)).toBeGreaterThan(30);
     expect(g.fields.some((f) => f.hostile)).toBe(true);
-    const gold = g.gold;
+    const gold = g.player.gold;
     killEnemy(g, cart);
-    expect(g.gold).toBe(gold + EVENTS.plagueCart.gold * g.act);
+    expect(g.player.gold).toBe(gold + EVENTS.plagueCart.gold * g.act);
   });
 
   it('side enemies do not hold a wave open', () => {

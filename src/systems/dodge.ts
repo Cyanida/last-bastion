@@ -64,9 +64,9 @@ export function dodgePassives(g: Game): void {
 
 /** The Last Stand: combat.ts calls this when a hit would kill. True when it caught the blow. */
 export function lastStand(g: Game): boolean {
-  if (g.lastStand !== 'ready') return false;
+  if (g.player.lastStand !== 'ready') return false;
   const p = g.player;
-  g.lastStand = 'used';
+  g.player.lastStand = 'used';
   p.hp = 1;
   p.invulnT = Math.max(p.invulnT, SKILL.lastStand.time);
   g.vars.lastStandUntil = g.time + SKILL.lastStand.time;

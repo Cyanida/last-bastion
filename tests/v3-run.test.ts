@@ -52,12 +52,12 @@ describe('Acts', () => {
     expect(g.wave).toBe(wave); // nothing spawns while he waits
     spawnEnemy(g, 'peasant', 300, 300);
     g.pickups.push({ x: 1, y: 1, value: 40, kind: 'gold' });
-    const gold = g.gold;
+    const gold = g.player.gold;
     nextAct(g);
     expect(g.act).toBe(2);
     expect(g.arena.id).toBe('graveyard');
     expect(g.enemies).toHaveLength(0);
-    expect(g.gold).toBe(gold + 40); // loot on the old field is swept up
+    expect(g.player.gold).toBe(gold + 40); // loot on the old field is swept up
     expect(g.player.x).toBe(g.arena.w / 2);
     expect(summarizeRun(g).actsCleared).toBe(1);
   });
@@ -74,7 +74,7 @@ describe('merchant pricing', () => {
 
   it('spending is real: it leaves the purse, and what is spent is never banked', () => {
     const g = createGame('viking', 3);
-    g.gold = 500;
+    g.player.gold = 500;
     g.player.hp = 10;
     expect(merchantHeal(g)).toBe(true);
     expect(g.player.hp).toBeCloseTo(10 + g.player.stats.hp * MERCHANT.heal.frac);
@@ -84,17 +84,17 @@ describe('merchant pricing', () => {
     expect(resolveRelicOffer(g, g.player.relics.offers.at(-1)!.options[0])).toBe(true);
     expect(g.player.relics.held).toHaveLength(1);
     const spent = MERCHANT.heal.cost + MERCHANT.buy.common;
-    expect(g.gold).toBe(500 - spent);
+    expect(g.player.gold).toBe(500 - spent);
     expect(g.merchantSpent).toBe(spent);
     expect(summarizeRun(g).gold).toBe(500 - spent);
   });
 
   it('refuses what cannot be done: no money, full HP, no free slot, nothing to reroll into', () => {
     const g = createGame('viking', 3);
-    g.gold = 5;
+    g.player.gold = 5;
     g.player.hp = 1;
     expect(merchantHeal(g)).toBe(false);
-    g.gold = 9999;
+    g.player.gold = 9999;
     g.player.hp = g.player.stats.hp;
     expect(merchantHeal(g)).toBe(false);
     for (let i = 0; i < 2; i++) {

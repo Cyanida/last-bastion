@@ -10,7 +10,7 @@ import { addRelic } from '../src/systems/relics';
 /** A game at the Merchant after Act I, holding `held` (id -> [tier, bar]), with gold to spend. */
 function atMerchant(held: Partial<Record<RelicId, [number, number]>>, seed = 3): Game {
   const g = createGame('paladin', seed);
-  g.gold = 1000;
+  g.player.gold = 1000;
   for (const [id, [tier, bar]] of Object.entries(held) as [RelicId, [number, number]][]) {
     addRelic(g, id, 'boss', tier);
     g.player.relics.attune[id] = bar;
@@ -37,7 +37,7 @@ describe('Merchant Reforge (v0.7.1 B7)', () => {
       expect(relicDef(id).family).toBe('flame');
       expect(['brimstoneOil', 'emberheart']).not.toContain(id);
     }
-    const gold = g.gold;
+    const gold = g.player.gold;
     expect(merchantReforge(g, 'brimstoneOil')).toBe(true);
     const r = g.player.relics;
     const next = r.held.at(-1)!;
@@ -46,7 +46,7 @@ describe('Merchant Reforge (v0.7.1 B7)', () => {
     expect(r.tiers[next]).toBe(1);
     expect(r.attune[next]).toBeCloseTo(0.75);
     expect(r.from[next]).toBe('merchant');
-    expect(g.gold).toBe(gold - merchantPrice('reforge', g.act));
+    expect(g.player.gold).toBe(gold - merchantPrice('reforge', g.act));
     expect(r.held).toHaveLength(3); // a swap: the family count stays
   });
 
@@ -66,13 +66,13 @@ describe('Merchant Reforge (v0.7.1 B7)', () => {
 
   it('refuses without gold, without another relic of the family to become, or for a cursed relic (no family)', () => {
     const poor = atMerchant({ brimstoneOil: [1, 0] });
-    poor.gold = 0;
+    poor.player.gold = 0;
     expect(merchantReforge(poor, 'brimstoneOil')).toBe(false);
     expect(poor.player.relics.held).toEqual(['brimstoneOil']);
     const cursed = atMerchant({ doomBell: [2, 0] });
     expect(reforgeChoices(cursed, 'doomBell')).toEqual([]);
     expect(merchantReforge(cursed, 'doomBell')).toBe(false);
-    expect(cursed.gold).toBe(1000);
+    expect(cursed.player.gold).toBe(1000);
     const full = atMerchant({ brimstoneOil: [1, 0] });
     full.player.relics.pool = ['brimstoneOil'];
     expect(merchantReforge(full, 'brimstoneOil')).toBe(false);

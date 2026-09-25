@@ -161,7 +161,7 @@ export function updateHud(g: Game): void {
   text('h-hp-text', `${Math.ceil(p.hp)} / ${Math.round(p.stats.hp)}`);
   width('h-xp-fill', p.xp / xpToNext(p.level));
   text('h-xp-text', `${Math.floor(p.xp)} / ${xpToNext(p.level)} XP`);
-  text('h-gold', `🪙 ${g.gold}`);
+  text('h-gold', `🪙 ${g.player.gold}`);
   text('h-tier', `${g.tier.name} · ${g.arena.name}`);
   // v0.8 (#28): the second player's own panel, on their half of the screen (ponytail: players 3-4 get one with local co-op, #1)
   const p2 = g.players[1];
@@ -207,7 +207,7 @@ export function updateHud(g: Game): void {
 
   // relic bar: one row of the newest relics that fit, older ones behind a "+N" chip (hover or tap); tap or hover a relic for its tooltip.
   // Rebuilt only when the set changes (or the window is resized).
-  const relicKey = `${g.player.relics.held.map((id) => `${id}${g.player.relics.tiers[id]}`).join(',')}|${g.player.relics.duos.join(',')}|${g.player.talents.length}|${g.evolutions.length}|${g.player.upgrades.length}|${g.player.utilityUpgrades.length}`; // v0.6: recipes change the tooltips too
+  const relicKey = `${g.player.relics.held.map((id) => `${id}${g.player.relics.tiers[id]}`).join(',')}|${g.player.relics.duos.join(',')}|${g.player.talents.length}|${g.player.evolutions.length}|${g.player.upgrades.length}|${g.player.utilityUpgrades.length}`; // v0.6: recipes change the tooltips too
   if (relicKey !== lastRelicKey) {
     lastRelicKey = relicKey;
     lastAttKey = ''; // new tiles: draw their attunement bars again
@@ -298,8 +298,8 @@ export function updateHud(g: Game): void {
   }
   html('h-quests', lines);
 
-  $('h-talent').classList.toggle('hidden', g.talentPoints === 0);
-  if (g.talentPoints > 0) text('h-talent', `${g.talentPoints} talent point${g.talentPoints > 1 ? 's' : ''} to spend — pause menu`);
+  $('h-talent').classList.toggle('hidden', g.player.talentPoints === 0);
+  if (g.player.talentPoints > 0) text('h-talent', `${g.player.talentPoints} talent point${g.player.talentPoints > 1 ? 's' : ''} to spend — pause menu`);
 
   // v0.6: the perfect-dodge buff and the Last Stand, as chips beside the statuses (whole seconds, so the DOM changes once a second)
   const perfect = Math.ceil((g.vars.perfectUntil ?? 0) - g.time);

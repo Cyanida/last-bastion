@@ -391,10 +391,10 @@ export function abilityPassives(g: Game, dt = 0): void {
 /** Resolve the first queued tier choice. Invalid picks (wrong class/tier, tier already taken) are ignored. */
 export function chooseAbilityUpgrade(g: Game, id: AbilityUpgradeId): boolean {
   const p = g.player;
-  const next = pickAbilityUpgrade(p.upgrades, p.cls.id, g.pendingAbilityTiers[0], id);
+  const next = pickAbilityUpgrade(p.upgrades, p.cls.id, g.player.pendingAbilityTiers[0], id);
   if (next === p.upgrades) return false;
   p.upgrades = next;
-  g.pendingAbilityTiers.shift();
+  g.player.pendingAbilityTiers.shift();
   floatText(g, p.x, p.y - 50, ABILITY_UPGRADES[id].name, p.cls.ability.aura, 17);
   ring(g, p.x, p.y, 110, p.cls.ability.aura, 0.6);
   return true;

@@ -84,7 +84,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   if (boss) {
     g.bossesKilled.push(e.def.id);
     if (!g.bossHit) g.flawlessBosses++;
-    g.gold += Math.round((GOLD.bossBonus + g.bossGold) * goldMult(g));
+    g.player.gold += Math.round((GOLD.bossBonus + g.bossGold) * goldMult(g));
     shake(g, 22);
     ring(g, e.x, e.y, 260, '#c9a227', 0.8);
     g.banner = { text: `${e.def.name} has fallen`, t: 2.5 };

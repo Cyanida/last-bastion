@@ -84,12 +84,12 @@ describe('the Keep: buildings, caps and costs', () => {
   it('the Library caps talent rows, the Chapel caps relic tiers, the Watchtower gates tiers', () => {
     expect(TALENT_ROW_CAP[0]).toBe(2); // v0.5: three rows open on a fresh save
     const g = createGame('paladin', 1, { libraryLevel: 0 });
-    g.talentPoints = 9;
+    g.player.talentPoints = 9;
     const plan = branchPlan('paladin', 0);
     for (const id of plan.slice(0, 6)) expect(spendTalent(g, id)).toBe(true);
     expect(spendTalent(g, plan[6])).toBe(false); // the keystone needs Library level 1
     const open = createGame('paladin', 1, { libraryLevel: 1 });
-    open.talentPoints = 9;
+    open.player.talentPoints = 9;
     for (const id of plan) expect(spendTalent(open, id)).toBe(true); // keystone included
     expect(buildingLevel({ watchtower: 2 }, 'watchtower')).toBe(2);
   });
@@ -112,7 +112,7 @@ describe('mastery: 25 named ranks, and the account level', () => {
     expect(masteryBonus(MASTERY[3].xp).utilityTier).toBe(false);
     const g = createGame('archer', 1, { classXp: MASTERY[24].xp });
     expect(g.player.level).toBe(2); // Seasoned
-    expect(g.talentPoints).toBe(1); // Prodigy
+    expect(g.player.talentPoints).toBe(1); // Prodigy
     expect(g.baseMods.utilityCd).toBeCloseTo(0.85); // three times Quick Hands
   });
 
@@ -125,7 +125,7 @@ describe('mastery: 25 named ranks, and the account level', () => {
     expect(accountPerks(75).talentPoint).toBe(1);
     expect(ACCOUNT_MILESTONES.map((m) => m.level)).toEqual([10, 25, 50, 75, 100]);
     const g = createGame('viking', 1, { accountLevel: 100 });
-    expect(g.rerolls).toBe(2);
+    expect(g.player.rerolls).toBe(2);
     expect(g.baseMods.gold).toBeCloseTo(1.05);
   });
 });

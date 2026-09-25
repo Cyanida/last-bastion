@@ -375,12 +375,12 @@ function openLevelUp(g: Game): void {
   const p = g.player;
   const hand = levelHand(g);
   const r = levelRerolls(g);
-  showLevelUp(p.level - g.pendingLevelUps + 1, hand, p.cls, p.stats, { free: r.free, cost: rerollCost(r.paid), gold: g.gold }, {
+  showLevelUp(p.level - g.player.pendingLevelUps + 1, hand, p.cls, p.stats, { free: r.free, cost: rerollCost(r.paid), gold: g.player.gold }, {
     pick(o) {
       choose(g, { c: 'levelUp', index: hand.indexOf(o) });
       resume();
     },
-    banish: g.banishes > 0 ? (o) => choose(g, { c: 'levelBanish', index: hand.indexOf(o) }) && openLevelUp(g) : undefined, // v0.6: struck for good, and a fresh hand
+    banish: g.player.banishes > 0 ? (o) => choose(g, { c: 'levelBanish', index: hand.indexOf(o) }) && openLevelUp(g) : undefined, // v0.6: struck for good, and a fresh hand
     reroll: () => void (choose(g, { c: 'levelReroll' }) && openLevelUp(g)),
   }, p.relics.tiers);
 }
@@ -408,14 +408,14 @@ function openChoice(g: Game): void {
       skip: () => void (choose(g, { c: 'relicSkip' }), resume()),
       reroll: () => void (choose(g, { c: 'relicReroll' }), openChoice(g)),
     });
-  } else if (g.pendingAbilityTiers.length > 0) {
-    const tier = g.pendingAbilityTiers[0];
+  } else if (g.player.pendingAbilityTiers.length > 0) {
+    const tier = g.player.pendingAbilityTiers[0];
     showAbilityUpgrade(tier, upgradeOptions(g.player.cls.id, tier), g.player.cls, (id) => {
       choose(g, { c: 'abilityUpgrade', id });
       resume();
     });
-  } else if (g.pendingUtilityTiers.length > 0) {
-    showUtilityUpgrade(g.pendingUtilityTiers[0], utilityUpgradeOptions(g), g.player.cls, (id) => {
+  } else if (g.player.pendingUtilityTiers.length > 0) {
+    showUtilityUpgrade(g.player.pendingUtilityTiers[0], utilityUpgradeOptions(g), g.player.cls, (id) => {
       choose(g, { c: 'utilityUpgrade', id });
       resume();
     });
@@ -437,13 +437,13 @@ function openChoice(g: Game): void {
       resume();
     });
   } else if (g.pendingShop) openPeddler(g);
-  else if (g.pendingLevelUps > 0) openLevelUp(g);
+  else if (g.player.pendingLevelUps > 0) openLevelUp(g);
   else openMerchant(g);
 }
 
 /** v0.5: the wandering merchant's wares; it re-opens after every purchase, like the Merchant. */
 function openPeddler(g: Game): void {
-  showPeddler({ stock: g.event?.stock ?? 0, price: peddlerPrice(g), gold: g.gold, hurt: g.player.hp < g.player.stats.hp }, {
+  showPeddler({ stock: g.event?.stock ?? 0, price: peddlerPrice(g), gold: g.player.gold, hurt: g.player.hp < g.player.stats.hp }, {
     buy() {
       if (choose(g, { c: 'peddlerBuy' })) openPeddler(g);
     },
@@ -459,7 +459,7 @@ function openMerchant(g: Game): void {
   const act = g.act;
   const again = (ok: boolean) => ok && openMerchant(g);
   showMerchant(
-    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: looseRelics(g.player.relics.held, g.player.relics.duos), tiers: g.player.relics.tiers, attune: g.player.relics.attune, reforgeable: g.player.relics.held.filter((id) => reforgeChoices(g, id).length > 0), salvage: g.salvage, relicsLeft: g.midMerchant ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant },
+    { act, gold: g.player.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: looseRelics(g.player.relics.held, g.player.relics.duos), tiers: g.player.relics.tiers, attune: g.player.relics.attune, reforgeable: g.player.relics.held.filter((id) => reforgeChoices(g, id).length > 0), salvage: g.salvage, relicsLeft: g.midMerchant ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant },
     {
       heal: () => again(choose(g, { c: 'merchantHeal' })),
       buy: (rarity) => void (choose(g, { c: 'merchantBuy', rarity }) && openChoice(g)), // v0.7: the pick of three opens, then the Merchant again
@@ -475,7 +475,7 @@ function openMerchant(g: Game): void {
   );
 }
 
-const buildOf = (g: Game) => ({ relics: g.player.relics.held, tiers: g.player.relics.tiers, attune: g.player.relics.attune, duos: g.player.relics.duos, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.trait, sacred: sacredLines(g), evolutions: g.evolutions });
+const buildOf = (g: Game) => ({ relics: g.player.relics.held, tiers: g.player.relics.tiers, attune: g.player.relics.attune, duos: g.player.relics.duos, upgrades: g.player.upgrades, classId: g.player.cls.id, talents: g.player.talents, talentPoints: g.player.talentPoints, utilityUpgrades: g.player.utilityUpgrades, trait: g.player.trait, sacred: sacredLines(g), evolutions: g.player.evolutions });
 
 /** v0.5: the sacred treasure carried, and what this run has done for the class's chain so far (pause and results). */
 function sacredLines(g: Game): { name: string; desc: string }[] {
@@ -491,7 +491,7 @@ function sacredLines(g: Game): { name: string; desc: string }[] {
   return news.length ? [...out, { name: '🧩 Treasure quest this run', desc: news.join(' · ') }] : out;
 }
 
-const hasChoice = (g: Game) => g.victory === 'pending' || g.pendingShrine !== null || g.player.relics.offers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant || g.pendingRoute !== null;
+const hasChoice = (g: Game) => g.victory === 'pending' || g.pendingShrine !== null || g.player.relics.offers.length > 0 || g.player.pendingAbilityTiers.length > 0 || g.player.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.player.pendingLevelUps > 0 || g.pendingMerchant || g.pendingRoute !== null;
 
 /** A screen opened from the pause menu (Talents, Glossary, Treasures) is up: its own Esc goes back to the pause menu, so this one must not resume. */
 let pauseSub = false;
@@ -528,7 +528,7 @@ function bored(): void {
 
 /** The talent tree, from the pause menu (the game stays paused). */
 function openTalents(g: Game): void {
-  showTalents({ classId: g.player.cls.id, taken: g.player.talents, points: g.talentPoints, rowCap: g.talentRowCap, treasure: g.treasure?.id }, {
+  showTalents({ classId: g.player.cls.id, taken: g.player.talents, points: g.player.talentPoints, rowCap: g.player.talentRowCap, treasure: g.treasure?.id }, {
     spend: (id) => choose(g, { c: 'talent', id }),
     back: () => pauseMenu(g),
   });
@@ -549,7 +549,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
   return {
     cls: g.player.cls, wave: g.wave, kills: g.kills, time: g.time, level: g.player.level,
     best: after.classes[id].bestWave, newBest: g.wave > prevBest,
-    gold: result.gold, goldRaw: Math.max(0, g.gold - g.goldStart), runes: result.runes, classXp: result.classXp, masteryRank: newRank,
+    gold: result.gold, goldRaw: Math.max(0, g.player.gold - g.player.goldStart), runes: result.runes, classXp: result.classXp, masteryRank: newRank,
     masteryName: newRank > prevRank ? MASTERY[newRank - 1].name : null,
     masteryNext: MASTERY[newRank] ? { name: MASTERY[newRank].name, need: Math.max(0, Math.round(MASTERY[newRank].xp - after.classes[id].xp)) } : null,
     tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[after.tierUnlocked].name : null, earned: checked.earned, title: after.title, slain: g.over,
@@ -557,7 +557,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
     goals: closestGoals(after, id, weekKey(today(new Date()))),
     relicShares: relicShares(g),
-    restart: g.daily ? `the Daily Trial ${g.daily}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
+    restart: g.daily ? `the Daily Trial ${g.daily}` : [g.player.cls.name, ...[g.player.trait, g.player.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
   };
 }

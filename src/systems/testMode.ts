@@ -44,7 +44,7 @@ export function createTestRun(s: TestSetup, seed: number): Game {
     for (; p.level < s.level; p.level++) p.stats = applyGrowth(p.stats, p.cls.growth);
     p.hp = p.stats.hp;
   }
-  g.talentPoints += s.talents.length;
+  g.player.talentPoints += s.talents.length;
   for (const id of [...s.talents].sort((a, b) => TALENT_BY_ID[a].row - TALENT_BY_ID[b].row)) spendTalent(g, id); // one a tree cannot take stays a point to spend
   for (const [id, tier] of Object.entries(s.relics ?? {})) addRelic(g, id as RelicId, 'other', tier);
   g.wave = g.wavesCleared = (s.act - 1) * ACTS.length + s.wave - 1;

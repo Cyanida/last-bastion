@@ -25,7 +25,7 @@ describe('v0.7.5 gold fixes (#109)', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 8, 25, 0, 30)); // just past local midnight
     const g = createGame('paladin', 1, { curses: ['ironHorde'], daily: todayString(new Date()) });
-    g.gold = g.goldStart + 500;
+    g.player.gold = g.player.goldStart + 500;
     expect(banked(defaultSave(), g, new Date())!.save.dailyGold.date).toBe('2026-09-25');
   });
 });

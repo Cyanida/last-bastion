@@ -40,9 +40,9 @@ describe('the Keep rework migration (v0.6)', () => {
 describe('the Armory sidegrades (v0.6)', () => {
   it('Second Banner: two starting traits, and only with the rank', () => {
     const two = createGame('viking', 1, { meta: { traitSlot: 1 }, trait: 'stalwart', trait2: 'pilgrim' });
-    expect([two.trait, two.trait2]).toEqual(['stalwart', 'pilgrim']);
+    expect([two.player.trait, two.player.trait2]).toEqual(['stalwart', 'pilgrim']);
     const one = createGame('viking', 1, { trait: 'stalwart', trait2: 'pilgrim' });
-    expect([one.trait, one.trait2]).toEqual(['stalwart', 'none']);
+    expect([one.player.trait, one.player.trait2]).toEqual(['stalwart', 'none']);
   });
 
   it("Armorer's Choice: the run opens on three common relics", () => {
@@ -56,7 +56,7 @@ describe('the Armory sidegrades (v0.6)', () => {
 
   it("Quartermaster's Ledger: a banished card never comes back, and banishes run out", () => {
     const g = createGame('paladin', 5, { meta: { banish: 2 } });
-    expect(g.banishes).toBe(2);
+    expect(g.player.banishes).toBe(2);
     expect(banishOption(g, { kind: 'stat', key: 'str', rarity: 'common' })).toBe(true);
     expect(banishOption(g, { kind: 'talent' })).toBe(true);
     expect(banishOption(g, { kind: 'stat', key: 'dex', rarity: 'common' })).toBe(false); // none left

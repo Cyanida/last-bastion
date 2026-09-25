@@ -84,7 +84,7 @@ export function finishRunLog(g: Game): RunLog {
     daily: g.daily,
     curses: [...g.curses],
     oath: g.oath.level,
-    trait: g.trait,
+    trait: g.player.trait,
     time: round1(g.time),
     wave: g.wave,
     level: p.level,

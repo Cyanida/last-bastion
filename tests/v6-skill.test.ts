@@ -128,7 +128,7 @@ describe('the Last Stand (v0.6)', () => {
     expect(g.over).toBe(false);
     expect(p.hp).toBe(1);
     expect(p.invulnT).toBeCloseTo(SKILL.lastStand.time);
-    expect(g.lastStand).toBe('used');
+    expect(g.player.lastStand).toBe('used');
     expect(g.log.marks.at(-1)?.[1]).toBe('stand');
     p.abilityCd = 5;
     updateGame(g, DT);
@@ -140,7 +140,7 @@ describe('the Last Stand (v0.6)', () => {
 
   it('an Oath can take it away', () => {
     const g = field();
-    g.lastStand = 'off';
+    g.player.lastStand = 'off';
     damagePlayer(g, 1e6, true);
     expect(g.over).toBe(true);
   });

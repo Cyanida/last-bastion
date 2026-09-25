@@ -151,9 +151,9 @@ const HOOKS: Record<QuestKind, QuestHooks> = {
 
 export function payReward(g: Game, reward: RewardKind): void {
   if (reward === 'relic') offerRelics(g, 3, 'quest');
-  else if (reward === 'gold') g.gold += REWARDS.gold.amount * g.act;
+  else if (reward === 'gold') g.player.gold += REWARDS.gold.amount * g.act;
   else if (reward === 'rune') g.questRunes += RUNES.quest;
-  else if (reward === 'talent') g.talentPoints++;
+  else if (reward === 'talent') g.player.talentPoints++;
   else if (reward === 'fragment') takeFragment(g);
   else if (reward === 'trial') passTrial(g);
 }

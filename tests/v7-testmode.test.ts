@@ -22,7 +22,7 @@ describe('test mode (v0.7.1)', () => {
     expect(g.player.level).toBe(12);
     expect(g.player.hp).toBe(g.player.stats.hp);
     expect(g.player.talents).toEqual(row0);
-    expect(g.talentPoints).toBeGreaterThanOrEqual(1); // the keystone it could not take stays a point
+    expect(g.player.talentPoints).toBeGreaterThanOrEqual(1); // the keystone it could not take stays a point
     expect(g.player.relics.held).toEqual(['brimstoneOil', 'frostBrand', 'bloodPact']); // B5: relics at their attunement tier
     expect(g.player.relics.tiers).toEqual({ brimstoneOil: 1, frostBrand: 2, bloodPact: 3 });
   });

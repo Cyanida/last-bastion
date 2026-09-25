@@ -59,7 +59,7 @@ describe('combat fixes (v0.7.5, #111)', () => {
     // a line of weak enemies 90 apart (each tide reaches the next), a sturdy one halfway between each pair: two tides reach each
     const tide = (weak: number) => {
       const g = stage('viking');
-      g.evolutions = ['bloodTide'];
+      g.player.evolutions = ['bloodTide'];
       g.player.abilityTime = 10; // raging
       const x0 = g.player.x + 200;
       const foes = Array.from({ length: weak }, (_, i) => Object.assign(spawnEnemy(g, 'knight', x0 + i * 90, g.player.y), { hp: 1 }));
