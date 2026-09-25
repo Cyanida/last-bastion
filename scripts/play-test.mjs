@@ -604,6 +604,17 @@ await check('touch: joystick moves, release stops', () =>
     const press = () => (ev('pointerdown', 200, 500), ev('pointermove', 260, 500));
     // a screen (the frame loop's, or a level-up while the thumb is down) hides the controls and drops the thumb: answer it, press again
     for (let i = 0; i < 20 && lb.state === 'choice'; i++) lb.run(1, false, 'input');
+    // the boss checks before this leave the champion wherever they ended: maybe against a wall, inside a Warden's stone ring or
+    // stunned. Clear those and stand him on open floor with 200 px free to his right, so only the thumb decides whether he walks
+    const blocker = g.barriers.length, stunned = !!p.statuses.stun;
+    g.barriers.length = 0;
+    p.statuses = {};
+    p.chillT = 0;
+    const clear = (x, y) => g.arena.obstacles.every((o) => Math.abs(o.y - y) > o.r + p.r + 4 || o.x + o.r + p.r + 4 < x || o.x - o.r - p.r - 4 > x + 200);
+    const spot = g.openFloors.flatMap((r) => [0.5, 0.3, 0.7].flatMap((fy) => Array.from({ length: Math.max(0, Math.floor((r.w - 280) / 40)) }, (_, k) => ({ x: r.x + 40 + k * 40, y: r.y + r.h * fy }))))
+      .find((s) => clear(s.x, s.y));
+    if (!spot) return { ok: false, detail: 'no open floor 200 px wide' };
+    Object.assign(p, spot);
     press();
     let moved = 0, moveX = 0;
     for (let i = 0; i < 60 && moved <= 20; i++) {
@@ -621,7 +632,7 @@ await check('touch: joystick moves, release stops', () =>
     lb.run(3, false, 'input');
     const x1 = p.x;
     lb.run(5, false, 'input');
-    return { ok: moved > 20 && moveX > 0.9 && Math.abs(p.x - x1) < 1, detail: `moved ${Math.round(moved)} px, moveX ${moveX.toFixed(2)}` };
+    return { ok: moved > 20 && moveX > 0.9 && Math.abs(p.x - x1) < 1, detail: `moved ${Math.round(moved)} px, moveX ${moveX.toFixed(2)} (cleared ${blocker} barriers, stun ${stunned})` };
   }),
 );
 
@@ -824,8 +835,14 @@ await check('Act III: a slam that is due fires when you walk into range', async 
     set('tm-class', 'viking');
     set('tm-act', '3');
     set('tm-wave', '5');
-    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
-    await wait(300);
+    // a fixed run seed (test mode seeds from the clock), and set up before a real frame can step it: about one Act III boss wave in six brings no slammer at all
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
     const g = lb.game, p = g.player;
     p.invulnerable = true;
     p.attackTimer = 1e9; // it must not die before the check
@@ -930,8 +947,14 @@ await check("Usurper: the last phase holds a few seconds, he attacks through it,
     set('tm-arena', 'bastion');
     set('tm-act', '4');
     set('tm-wave', '10');
-    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
-    await wait(300);
+    // a fixed run seed (test mode seeds from the clock), and set up before a real frame can step it: the same Usurper fight every time
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
     const g = lb.game, p = g.player;
     p.invulnerable = true;
     const usurper = () => g.enemies.find((e) => e.def.id === 'usurper' && !e.dead);
@@ -942,9 +965,10 @@ await check("Usurper: the last phase holds a few seconds, he attacks through it,
     lb.run(60 * 21, false, true);
     u.hp = u.maxHp * 0.6;
     lb.run(5, false, true);
-    for (const f of g.enemies) if (f.def.id === 'royalFlame') f.hp = 0.01;
+    // your blows put the flames out one by one; kept at a sliver every tick, since a priest's heal can refill one out of reach
     for (let i = 0; i < 600 && u.warded; i++) {
-      for (const f of g.enemies) if (f.def.id === 'royalFlame' && !f.dead) Object.assign(p, { x: f.x - f.r - 20, y: f.y });
+      const f = g.enemies.find((f) => f.def.id === 'royalFlame' && !f.dead);
+      if (f) Object.assign(f, { hp: 0.01 }) && Object.assign(p, { x: f.x - f.r - 20, y: f.y });
       lb.run(1, false, 'input');
     }
     if (u.warded) return { ok: false, detail: 'the ward never broke' };
