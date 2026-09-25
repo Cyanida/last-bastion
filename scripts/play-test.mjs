@@ -461,7 +461,11 @@ await check('keyboard: move and both abilities', async () => {
   const c = await pos();
   await inPage(() => window.__lb.run(10, false, 'input'));
   const d = await pos();
-  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, utilityCd: 0 }));
+  await inPage(() => {
+    const lb = window.__lb, p = lb.game.player;
+    for (let i = 0; i < 1200 && p.abilityTime > 0; i++) lb.run(1, false, 'input'); // an ability cast by an earlier check must end first
+    Object.assign(p, { abilityCd: 0, utilityCd: 0 });
+  });
   await page.keyboard.down('Space');
   await inPage(() => window.__lb.run(2, false, 'input'));
   await page.keyboard.up('Space');
