@@ -295,7 +295,7 @@ await check('relic offer: the card shows the effect first, details on hover or t
 await check('relic offer: take a relic', () =>
   inPage(async () => {
     const P = window.__play, rel = window.__lb.game.player.relics;
-    rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant'], rerolls: 0, duo: null });
+    rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant', 'thunderDrum'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 0, duo: null }); // one already held is taken silently
     if (!P.toChoice()) return { ok: false, detail: 'no relic offer' };
     await P.click('[data-pick="0"]');
     return { ok: rel.held.includes('butchersHook'), detail: rel.held.join(', ') };
@@ -641,7 +641,7 @@ await check('sound cues: played and emptied, a relic pick is heard', () =>
     if (!Array.isArray(g.out)) return { skip: true, detail: 'no cue queue on this branch (before #114)' };
     P.play(60);
     const drained = g.out.length === 0;
-    rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant'], rerolls: 0, duo: null });
+    rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant', 'thunderDrum'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 0, duo: null }); // one already held is taken silently
     if (!P.toChoice()) return { ok: false, detail: 'no relic offer' };
     const before = P.sounds.levelup ?? 0;
     await P.click('[data-pick="0"]'); // no step runs in between: the next frame plays it
@@ -924,6 +924,64 @@ await check('a real run is banked: gold, the local day, the run log, the week', 
     });
   }),
 );
+
+// ---------- v0.8 (#123): Settings › Text size scales the HUD; at 1400x800 and at phone width nothing in it overlaps ----------
+await check('text size: Larger grows the HUD, no overlap at 1400x800 and 844x390', async () => {
+  const seen = [];
+  for (const [w, h] of [[1400, 800], [844, 390]]) {
+    for (const size of ['normal', 'larger']) {
+      await page.setViewportSize({ width: w, height: h });
+      await inPage(() => {
+        localStorage.removeItem('lastbastion.save');
+        location.reload();
+      });
+      await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+      seen.push(await inPage(async (size) => {
+        const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+        const btn = (text) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === text);
+        if (innerWidth < 900) { // a phone: a touch first, so the HUD takes its touch layout (relic bar at the top)
+          const canvas = document.querySelector('canvas');
+          for (const type of ['pointerdown', 'pointerup']) canvas.dispatchEvent(new PointerEvent(type, { clientX: 200, clientY: 300, pointerType: 'touch', pointerId: 9, isPrimary: true, bubbles: true }));
+        }
+        btn('Settings').click();
+        await wait(150);
+        document.querySelector(`[data-text-size="${size}"]`).click();
+        await wait();
+        const chip = document.querySelector(`[data-text-size="${size}"]`).classList.contains('on');
+        document.querySelector('[data-act="test"]').click();
+        await wait();
+        const selects = [...document.querySelectorAll('#tm-relics select')].slice(0, 9); // enough relics for the "+N" overflow chip
+        for (const s of selects) {
+          s.value = '1';
+          s.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+        await wait(300);
+        lb.game.player.invulnerable = true;
+        lb.run(30, false, true);
+        lb.game.banner = { ...lb.game.banner, text: 'Wave 12', t: 9 };
+        await wait(300);
+        const parts = ['.hud-tl', '#h-quests', '#h-map', '#h-stats', '.hud-tr', '#h-families', '#h-relics', '.hud-wave', '#h-banner', '#h-talent', '.hud-ability', '#h-toasts'];
+        const boxes = parts.map((sel) => [sel, document.querySelector(sel)?.getBoundingClientRect()]).filter(([, r]) => r && r.width > 0 && r.height > 0);
+        const hits = [];
+        for (let i = 0; i < boxes.length; i++) {
+          const [a, r] = boxes[i];
+          if (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) hits.push(`${a} off screen`);
+          for (let j = i + 1; j < boxes.length; j++) {
+            const [b, q] = boxes[j];
+            if (r.left < q.right - 1 && q.left < r.right - 1 && r.top < q.bottom - 1 && q.top < r.bottom - 1) hits.push(`${a} × ${b}`);
+          }
+        }
+        return { chip, tl: document.querySelector('.hud-tl').getBoundingClientRect().width, more: !!document.querySelector('#h-relics .more'), hits };
+      }, size));
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const [dn, dl, pn, pl] = seen;
+  const hits = seen.flatMap((s, i) => s.hits.map((x) => `${['desk N', 'desk L', 'phone N', 'phone L'][i]}: ${x}`));
+  const ok = seen.every((s) => s.chip && s.more) && dl.tl / dn.tl > 1.25 && pl.tl / pn.tl > 1.1 && hits.length === 0;
+  return { ok, detail: `player panel ${Math.round(dn.tl)} -> ${Math.round(dl.tl)}px (1400x800), ${Math.round(pn.tl)} -> ${Math.round(pl.tl)}px (844x390), +N ${seen.map((s) => s.more).join('/')}${hits.length ? `; overlaps: ${hits.slice(0, 4).join(', ')}` : ''}` };
+});
 
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose

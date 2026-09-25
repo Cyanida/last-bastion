@@ -40,6 +40,7 @@ import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
+import { textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
@@ -231,7 +232,7 @@ function toSettings(): void {
   menu();
   const d = platform.desktop;
   showSettings(
-    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), manualAim: save.settings.manualAim, version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
+    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), manualAim: save.settings.manualAim, textSize: save.settings.textSize, version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
     {
       back: toTitle,
       saveData: toSaveDialog,
@@ -255,6 +256,11 @@ function toSettings(): void {
       },
       runMusic() {
         setRunMusic(!runMusicOn());
+        toSettings();
+      },
+      textSize(size) {
+        commit({ ...save, settings: { ...save.settings, textSize: size } });
+        resize();
         toSettings();
       },
       aim(manual) {
@@ -724,7 +730,11 @@ function resize(): void {
   canvas.style.width = `${w}px`;
   canvas.style.height = `${h}px`;
   view.zoom = clamp(Math.min(w / VIEW.targetW, h / VIEW.targetH), VIEW.minZoom, VIEW.maxZoom) * view.dpr;
-  document.documentElement.classList.toggle('compact', h < 560); // v0.5: phones get a denser HUD layout at full text size, not a scaled-down one
+  // v0.8 (#123): Settings › Text size zooms the HUD and the screens (style.css --ui-scale); the layout then has w/scale × h/scale to fill
+  const scale = textScale(save.settings.textSize, w, h);
+  document.documentElement.style.setProperty('--ui-scale', String(scale));
+  document.documentElement.classList.toggle('scaled', scale !== 1);
+  document.documentElement.classList.toggle('compact', h / scale < 560); // v0.5: phones get a denser HUD layout at full text size, not a scaled-down one
 }
 window.addEventListener('resize', resize);
 window.visualViewport?.addEventListener('resize', resize);

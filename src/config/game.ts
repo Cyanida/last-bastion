@@ -72,4 +72,9 @@ export const RENDER = {
 };
 
 /** Camera zoom: the view is about VIEW.targetW x VIEW.targetH world pixels, within these bounds (phones zoom out). */
+/** v0.8 (#123): Settings › Text size scales the HUD and every screen. A small screen caps it, so the HUD still fits (logic/textSize.ts). */
+export type TextSize = 'normal' | 'large' | 'larger';
+export const TEXT_SIZES: Record<TextSize, number> = { normal: 1, large: 1.15, larger: 1.3 };
+export const TEXT_FIT = { minW: 640, minH: 320 }; // the HUD's layout needs at least this many CSS pixels once scaled
+
 export const VIEW = { targetW: 1280, targetH: 720, minZoom: 0.6, maxZoom: 2 };
