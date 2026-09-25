@@ -562,6 +562,10 @@ canvas#game { touch-action: none; }
 #tooltip .gloss { margin-top: 6px; padding-top: 5px; border-top: 1px dotted currentColor; font-size: 13px; line-height: 1.3; white-space: normal; }
 .glossary dt { font-weight: bold; margin-top: 10px; }
 .glossary dd { margin: 2px 0 0; }
+.flash-card { max-width: 340px; text-align: center; }
+.flash-card .tag { color: var(--gold); font-weight: bold; text-transform: uppercase; letter-spacing: 1px; font-size: 0.8em; }
+.flash-card.boss .tag { color: var(--blood); }
+.flash-card p { font-size: 1.15em; margin: 8px 0 14px; }
 
 /* v0.7.1 test mode */
 .hud-test { align-self: center; padding: 2px 12px; font: bold 15px var(--hud-display); letter-spacing: 3px; color: #ff8a7a; }

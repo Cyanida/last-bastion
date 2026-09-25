@@ -8,6 +8,8 @@ import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLev
 import { addListener, type EventName } from './core/events';
 import { moodOf, type Stinger } from './logic/runMusic';
 import { showWhatsNewNow } from './logic/whatsNew';
+import { nextCard } from './logic/cards';
+import { CARD_IDS, CARDS } from './config/cards';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
@@ -38,7 +40,7 @@ import { abilityAimRadius } from './systems/abilities';
 import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showTestMode, showCrash, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
 import { textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
@@ -215,7 +217,7 @@ function toKeep(): void {
     mastery: (id) => showMastery(save, id, toKeep),
     treasures: () => showTreasures(save, null, toKeep),
     history: () => showRunHistory(save.runs, toKeep),
-    glossary: () => showGlossary(toKeep),
+    glossary: () => showGlossary(toKeep, save.cards),
     buy(id: MetaId) {
       commit(buyMeta(save, id));
       toKeep();
@@ -520,7 +522,7 @@ function pauseMenu(g: Game): void {
     quit: () => endRun(g),
     talents: () => { pauseSub = true; openTalents(g); },
     treasures: () => { pauseSub = true; showTreasures(banked(save, g, new Date())?.save ?? save, g.player.cls.id, () => pauseMenu(g)); }, // the log as it would stand if the run ended now
-    glossary: () => { pauseSub = true; showGlossary(() => pauseMenu(g)); },
+    glossary: () => { pauseSub = true; showGlossary(() => pauseMenu(g), save.cards); },
     bored: () => markBored(g),
   });
 }
@@ -640,7 +642,22 @@ function afterStep(g: Game): void {
     checkToasts(g);
     chainToasts(g);
     if (hasChoice(g)) openChoice(g);
+    else flashCard(g);
   }
+}
+
+/** v0.8 (#124): a card the first time a foe, a boss or a mechanic is met; the run waits under it. A test run leaves no trace, so it shows none. */
+function flashCard(g: Game): void {
+  if (g.tick % CARDS.checkEvery || isTestRun(g)) return;
+  const id = nextCard(g.enemies, g.player.x, g.player.y, save.cards);
+  if (!id) return;
+  commit({ ...save, cards: [...save.cards, id] }); // seen as soon as it shows: a reload never shows it twice
+  state = 'choice';
+  setTouchControls(false);
+  showFlashCard(id, (pause) => {
+    resume();
+    if (pause) togglePause(); // Esc is the pause key: it closes the card and pauses
+  });
 }
 
 function tick(): void {
@@ -794,6 +811,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
         return save;
       },
       quality,
+      cardIds: CARD_IDS, // v0.8 (#124): the perf test marks every flash card seen
       setQuality, // v0.8: the play test compares particle budgets
       view: simView, // v0.8: the play test wraps view.sfx to hear what the simulation plays
       perf,
