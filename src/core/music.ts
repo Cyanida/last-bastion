@@ -3,6 +3,7 @@ import { BAR_BEATS, BPM, composeBar, type NoteEvent } from '../logic/music';
 import { barSeconds, composeRunBar, conduct, newConductor, nextBeat, stingerNotes, type Conductor, type Mood, type Stinger } from '../logic/runMusic';
 import { isMuted, sharedAudio } from './audio';
 import { quality } from './quality';
+import { prefs } from './storage';
 
 /**
  * Menu music, and (v0.7.1) quiet run music: plays logic/music.ts's and logic/runMusic.ts's scores on the sfx AudioContext through a
@@ -18,10 +19,9 @@ const LOOKAHEAD = 0.4;
 const FADE_IN = 2;
 const FADE_OUT = 1.5;
 
-const hasStorage = typeof localStorage !== 'undefined';
-const stored = hasStorage ? localStorage.getItem(KEY) : null;
+const stored = prefs.get(KEY);
 let level: MusicLevel = MUSIC_LEVELS.includes(stored as MusicLevel) ? (stored as MusicLevel) : 'medium';
-let inRuns = !hasStorage || localStorage.getItem(RUN_KEY) !== '0'; // v0.7.1 "Music during runs", on by default
+let inRuns = prefs.get(RUN_KEY) !== '0'; // v0.7.1 "Music during runs", on by default
 let menu = false; // a menu screen is up
 let mood: Mood | null = null; // v0.7.1: a run is on screen and not paused
 let jukebox = false; // v0.7.1: test mode's jukebox plays the run music on a menu, whatever "Music during runs" says
@@ -37,14 +37,14 @@ let peak = 0; // the most voices sounding at once (the perf test checks the budg
 export const musicLevel = () => level;
 export function setMusicLevel(next: MusicLevel): void {
   level = next;
-  if (hasStorage) localStorage.setItem(KEY, next);
+  prefs.set(KEY, next);
   if (bus && next !== 'off') bus.master.gain.setTargetAtTime(MUSIC.volume[next], bus.master.context.currentTime, 0.1);
   refreshMusic();
 }
 export const runMusicOn = () => inRuns;
 export function setRunMusic(on: boolean): void {
   inRuns = on;
-  if (hasStorage) localStorage.setItem(RUN_KEY, on ? '1' : '0');
+  prefs.set(RUN_KEY, on ? '1' : '0');
   refreshMusic();
 }
 export function startMenuMusic(): void {

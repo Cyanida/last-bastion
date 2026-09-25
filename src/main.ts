@@ -13,7 +13,7 @@ import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
 import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as setPerfOverlay, summary } from './core/perf';
 import { quality, sampleFrame, setQuality } from './core/quality';
-import { loadSave, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
+import { loadSave, prefs, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
 import { createGame, updateGame } from './game';
 import { banked, createTestRun, isTestRun, type TestSetup } from './systems/testMode';
@@ -38,7 +38,8 @@ import { banishOption, chooseLevelUp, levelUpOptions } from './systems/leveling'
 import { relicPreview, relicShares, rerollRelicOffer, resolveRelicOffer, skipRelicOffer, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showTestMode, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showTestMode, showCrash, type TitleInfo } from './ui/screens';
+import { crashReport } from './logic/crash';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
@@ -129,9 +130,9 @@ function toWhatsNew(): void {
 }
 function whatsNewOnce(): void {
   const key = 'lastbastion.whatsNew';
-  const seen = localStorage.getItem(key);
+  const seen = prefs.get(key);
   const show = showWhatsNewNow(seen, platform.whatsNew?.version, platform.version, CLASS_ORDER.some((id) => save.classes[id].runs > 0));
-  if (seen !== platform.version) localStorage.setItem(key, platform.version);
+  if (seen !== platform.version) prefs.set(key, platform.version);
   if (show) toWhatsNew();
 }
 
@@ -672,6 +673,7 @@ function togglePerf(): void {
 }
 
 function frame(now: number): void {
+  requestAnimationFrame(frame); // v0.7.5 (#106): first, so an error in this frame doesn't stop the next one
   const elapsed = now - last;
   acc += elapsed / 1000;
   last = now;
@@ -695,8 +697,20 @@ function frame(now: number): void {
   }
   frameDone(elapsed, t1 - t0, t2 - t1, g ? { enemies: g.enemies.length, projectiles: g.projectiles.length, particles: g.particles.length, fields: g.fields.length, zones: g.zones.length, texts: g.texts.length } : { enemies: 0, projectiles: 0, particles: 0, fields: 0, zones: 0, texts: 0 });
   if (perf.enabled) perfEl.textContent = overlayText();
-  requestAnimationFrame(frame);
 }
+
+/** v0.7.5 (#106): any uncaught error shows the error overlay; a run is paused under it, so Continue lands on the pause menu. */
+function crashed(error: unknown): void {
+  if (document.getElementById('crash')) return; // the browser has logged it already
+  try {
+    if (state === 'playing') togglePause();
+  } catch {
+    /* the overlay still comes up */
+  }
+  showCrash(crashReport(error, platform.version));
+}
+window.addEventListener('error', (e) => crashed(e.error ?? e.message));
+window.addEventListener('unhandledrejection', (e) => crashed(e.reason));
 
 // ---------- boot ----------
 function resize(): void {

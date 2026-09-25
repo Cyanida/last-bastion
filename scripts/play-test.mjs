@@ -463,6 +463,66 @@ await check('sounds reach the audio', () =>
   }),
 );
 
+// ---------- v0.7.5 (#106): an error in a frame shows the error overlay, and the game goes on ----------
+await check('an error in a frame: the overlay, Continue, the run goes on', () =>
+  inPage(async () => {
+    const lb = window.__lb, P = window.__play;
+    if (!lb.game || lb.state !== 'playing') {
+      lb.start('viking');
+      await P.wait(200);
+    }
+    const g = lb.game;
+    g.player.invulnerable = true;
+    let texts = g.texts, thrown = false;
+    Object.defineProperty(g, 'texts', {
+      configurable: true,
+      get() {
+        if (thrown) return texts;
+        thrown = true;
+        throw new Error('play-test crash'); // once, in the middle of a real frame
+      },
+      set(v) {
+        texts = v;
+      },
+    });
+    await P.wait(400);
+    const crash = document.getElementById('crash');
+    const shown = { overlay: !!crash, text: crash?.innerText.includes('Something went wrong') && crash.querySelector('pre').textContent.includes('play-test crash'), state: lb.state };
+    if (!crash) return { ok: false, detail: `no overlay, state ${lb.state}` };
+    await P.click('#crash [data-continue]');
+    await P.click('[data-resume]');
+    const t0 = g.time;
+    await P.wait(400); // real frames, not lb.run: the loop itself must still be running
+    return { ok: shown.text && shown.state === 'paused' && !document.getElementById('crash') && lb.state === 'playing' && g.time > t0, detail: `overlay ${shown.overlay}, paused under it: ${shown.state}, run time +${(g.time - t0).toFixed(2)} s after Continue` };
+  }),
+);
+const expected = (m) => m.includes('play-test crash');
+
+// ---------- v0.7.5 (#106): the game starts with site data blocked ----------
+await check('starts with site data blocked: title, Settings, sound toggle', async () => {
+  const blocked = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  blocked.on('pageerror', (e) => errs.push(e.message));
+  blocked.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await blocked.addInitScript(() =>
+    Object.defineProperty(window, 'localStorage', {
+      get() {
+        throw new DOMException('The operation is insecure.', 'SecurityError');
+      },
+    }),
+  );
+  await blocked.goto(`http://localhost:${PORT}/`);
+  await blocked.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await blocked.getByRole('button', { name: 'Settings' }).click();
+  const mute = blocked.locator('[data-act="mute"]');
+  const before = await mute.textContent();
+  await mute.click();
+  const after = await blocked.locator('[data-act="mute"]').textContent();
+  const crash = await blocked.locator('#crash').count();
+  await blocked.close();
+  return { ok: before !== after && crash === 0 && errs.length === 0, detail: `title up, sound ${before} -> ${after}${errs.length ? `, errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- a real run (not a test run) is banked ----------
 await check('a real run is banked: gold, the day, the run log, the week', () =>
   inPage(async () => {
@@ -491,7 +551,10 @@ await check('a real run is banked: gold, the day, the run log, the week', () =>
   }),
 );
 
-await check('no console errors', async () => ({ ok: errors.length === 0, detail: errors.slice(0, 3).join(' | ') }));
+await check('no console errors', async () => {
+  const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
+  return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
+});
 
 await browser.close();
 const width = Math.max(...results.map((r) => r.name.length));

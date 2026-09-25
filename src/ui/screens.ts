@@ -1152,3 +1152,23 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
   click(el, '[data-back]', on.back);
   onActions((a) => a === 'cancel' && on.back());
 }
+
+/**
+ * v0.7.5 (#106): an error anywhere no longer freezes the game silently. Its own layer above every screen, so the screen under it stays
+ * as it was; one at a time (an error every frame would stack them). The report is shown as text, for a bug report.
+ */
+export function showCrash(report: string): void {
+  if (document.getElementById('crash')) return;
+  const el = document.createElement('div');
+  el.id = 'crash';
+  el.innerHTML = `
+    <div class="panel dialog wide">
+      <h1 class="small">Something went wrong</h1>
+      <p>The game can go on. If this keeps happening, please send this with a bug report:</p>
+      <pre></pre>
+      <button class="btn big" data-continue>Continue</button>
+    </div>`;
+  el.querySelector('pre')!.textContent = report;
+  el.querySelector('[data-continue]')!.addEventListener('click', () => el.remove());
+  document.body.append(el);
+}
