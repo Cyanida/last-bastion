@@ -388,10 +388,12 @@ await check('monk escort: taken from the board, he keeps walking with an enemy b
     await P.click('[data-leave]');
     const q = g.quests.find((x) => x.kind === 'monk' && x.state === 'active');
     if (!q) return { ok: false, detail: 'the monk was not taken' };
+    const alive = () => g.enemies.find((o) => !o.dead && !o.side);
+    for (let i = 0; i < 600 && !alive() && q.state === 'active'; i++) lb.run(1); // wait for the wave to put an enemy on the field
     const monk = q.unit, x0 = monk.x, y0 = monk.y, hp0 = Math.round(monk.maxHp);
     let wary = false;
     for (let i = 0; i < 60 && q.state === 'active'; i++) {
-      const e = g.enemies.find((o) => !o.dead && !o.side);
+      const e = alive();
       if (!e) break;
       Object.assign(e, { x: monk.x + 40, y: monk.y }); // an enemy always at his side
       lb.run(1);
@@ -399,7 +401,7 @@ await check('monk escort: taken from the board, he keeps walking with an enemy b
       wary ||= document.getElementById('h-quests')?.innerText.includes('wary') ?? false;
     }
     const moved = Math.round(Math.hypot(monk.x - x0, monk.y - y0));
-    return { ok: wary && moved > 10, detail: `${hp0} HP, walked ${moved} px in a second with an enemy beside him, tracker ${wary ? '"wary"' : 'NEVER WARY'}` };
+    return { ok: wary && moved > 10, detail: `${lb.state}, ${hp0} HP, walked ${moved} px in a second with an enemy beside him, tracker ${wary ? '"wary"' : 'NEVER WARY'}` };
   }),
 );
 
