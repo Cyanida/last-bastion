@@ -57,7 +57,7 @@ export type Choice =
 export type Command = { tick: number; player: number } & ({ kind: 'intent'; intent: Intent } | { kind: 'choice'; choice: Choice });
 
 /**
- * The level-up cards on offer, dealt from g.rng on first read (the screen, the bot, or a replayed command) and kept until a pick,
+ * The level-up cards on offer, dealt from the player's own rolls (p.rng) on first read (the screen, the bot, or a replayed command) and kept until a pick,
  * banish or reroll. Nothing else draws between the end of a tick and that read, so single-player draws exactly as before.
  */
 export function levelHand(g: Game): LevelUpOption[] {

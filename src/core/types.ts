@@ -143,6 +143,7 @@ export interface Player extends Body {
   relics: RelicState; // v0.7: this player's relics
   vars: Record<string, number>; // v0.8 (#28): this player's scratch for relics, abilities, evolutions and the perfect dodge (g.vars keeps the run's)
   input: Game['input']; // v0.8 (#28): this player's last intent; g.input is the focused player's (logic/players.ts)
+  rng: SeededRng; // v0.8 (#28): this player's rolls (crits, dodges, procs, level-up cards); P1's is g.rng itself, so solo draws are unchanged
   ward: number; // v0.7: absorbs damage before HP (Holy)
   armorStacks: number; // v0.7: +3% armor each (Steel), they fade a few seconds after the last was gained
   armorStackT: number; // when the last armor stack was gained

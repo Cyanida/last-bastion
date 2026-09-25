@@ -48,7 +48,7 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   haloOfMercy: {
     onKill(g, ev, p) {
       const n = nOf(p, 'haloOfMercy');
-      if (g.rng() >= n.chance) return;
+      if (p.rng() >= n.chance) return;
       ring(g, ev.enemy.x, ev.enemy.y, 26, F.color, 0.4);
       relicHeal(g, p, p.stats.hp * n.heal, true);
       if (awakened(p, 'haloOfMercy')) gainWard(g, p, p.stats.hp * n.heal); // Grace

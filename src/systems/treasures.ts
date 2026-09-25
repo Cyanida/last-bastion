@@ -42,10 +42,9 @@ const HOOKS: Record<TreasureId, TreasureHooks> = {
 
   // Berserker Rage: a Rage-scaled chance per hit to call lightning down, jumping to the nearest enemy not struck yet
   mjolnirShard: {
-    onHit(g, ev) {
-      const p = g.player;
+    onHit(g, ev, p) {
       const c = n(g);
-      if (ev.source !== 'attack' || p.abilityTime <= 0 || g.rng() >= Math.min(c.cap, c.chance * p.stats.secondary)) return;
+      if (ev.source !== 'attack' || p.abilityTime <= 0 || p.rng() >= Math.min(c.cap, c.chance * p.stats.secondary)) return;
       const struck: Enemy[] = [ev.enemy];
       let from = ev.enemy;
       ring(g, from.x, from.y, 40, '#9fd8ff', 0.3);
@@ -155,8 +154,8 @@ export function updateTreasures(g: Game): void {
   if (g.treasure) HOOKS[g.treasure.id].tick?.(g, n(g));
 }
 
-addListener((g, name, ev) => {
-  if (g.treasure) dispatch(HOOKS[g.treasure.id], g, name, ev);
+addListener((g, name, ev, p) => {
+  if (g.treasure) dispatch(HOOKS[g.treasure.id], g, name, ev, p);
   const c = g.chain;
   if (name !== 'onKill' || !c) return;
   const e = (ev as GameEvents['onKill']).enemy;

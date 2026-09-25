@@ -14,15 +14,15 @@ const F = FAMILIES.storm;
 /** The player's own hit, for "3× your hit" strikes. */
 const yourHit = (g: Game, p: Player) => rollPlayerHit(g, p.cls.attack.damage, p.cls.attack.scaling).amount;
 /** Eye of the Storm: a chain hit crits on the player's own crit chance. */
-const chainCrit = (g: Game, p: Player) => awakened(p, 'tempestEye') && g.rng() < critChance(p.stats.dex) + p.mods.crit;
+const chainCrit = (p: Player) => awakened(p, 'tempestEye') && p.rng() < critChance(p.stats.dex) + p.mods.crit;
 const hitCount = (g: Game, key: string) => (g.player.vars[key] = (g.player.vars[key] ?? 0) + 1);
 
 export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   stormPennant: {
     onHit(g, ev, p) {
       const n = nOf(p, 'stormPennant');
-      if (!attackHit(p, ev.source) || g.rng() >= n.chance) return;
-      const crit = chainCrit(g, p);
+      if (!attackHit(p, ev.source) || p.rng() >= n.chance) return;
+      const crit = chainCrit(p);
       chainFrom(g, p, ev.enemy, ev.amount * n.mult * (crit ? GAME.critMult : 1), awakened(p, 'stormPennant') ? 2 : 1, n.range, undefined, crit); // Thunderhead
     },
   },
@@ -48,7 +48,7 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onHit(g, ev, p) {
       if (!attackHit(p, ev.source) || !ev.crit) return;
       const n = nOf(p, 'tempestEye');
-      const crit = chainCrit(g, p);
+      const crit = chainCrit(p);
       chainFrom(g, p, ev.enemy, ev.amount * n.mult * (crit ? GAME.critMult : 1), 1, n.range, undefined, crit);
     },
   },

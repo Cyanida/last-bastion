@@ -619,6 +619,23 @@ await check('two local players: split screen, each on their own keys', async () 
   return { ok, detail: `solo run had ${setup.solo} player (P2 panel ${setup.soloP2 ? 'shown' : 'hidden'}), now ${setup.n} (${setup.state}); P2 panel "${setup.hud}"; seam ${setup.seam}; D: P1 ${Math.round(b[0].x - a[0].x)} px, P2 ${Math.round(b[1].x - a[1].x)} px; ←: P1 ${Math.round(c[0].x - b[0].x)} px, P2 ${Math.round(c[1].x - b[1].x)} px` };
 });
 
+await check("two local players: a cleared wave attunes P2's relics too", () =>
+  inPage(async () => {
+    const lb = window.__lb, g = lb.game;
+    if (g?.players.length !== 2) return { ok: false, detail: `players ${g?.players.length}` };
+    const r = g.players[1].relics, id = r.pool[0];
+    Object.assign(r, { held: [id], tiers: { [id]: 1 }, dirty: true }); // P2 holds a relic (Test mode gives relics to P1 only)
+    const before = r.attune[id] ?? 0, cleared = g.wavesCleared;
+    for (let i = 0; i < 1200 && g.wavesCleared === cleared; i++) {
+      g.spawnQueue.length = 0;
+      for (const e of g.enemies) e.hp = 0, e.dead = true; // the wave falls
+      lb.run(1, false, 'input');
+    }
+    const after = r.attune[id] ?? 0;
+    return { ok: g.wavesCleared > cleared && after > before, detail: `waves cleared ${cleared} -> ${g.wavesCleared}; P2's ${id} attunement ${before.toFixed(3)} -> ${after.toFixed(3)}` };
+  }),
+);
+
 await check('four players: a panel each for P2, P3 and P4, stacked on the right', () =>
   inPage(async () => {
     const P = window.__play, lb = window.__lb;

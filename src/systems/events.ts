@@ -158,11 +158,11 @@ export function peddlerBuy(g: Game): boolean {
   return true;
 }
 
-addListener((g, name, ev) => {
+addListener((g, name, ev, p) => {
   if (name === 'onWaveStart') startEvent(g);
   else if (name === 'onKill' && g.event?.foe === (ev as GameEvents['onKill']).enemy) {
     const gold = EVENTS.plagueCart.gold * g.act;
-    g.player.gold += gold;
+    p.gold += gold; // the killer's
     floatText(g, g.event.foe.x, g.event.foe.y - 40, `+${gold}g`, '#c9a227', 16);
   }
 });

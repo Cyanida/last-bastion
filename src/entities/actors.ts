@@ -4,6 +4,7 @@ import type { ClassDef } from '../config/classes';
 import type { AffixId } from '../config/elites';
 import type { EnemyDef } from '../config/enemies';
 import { GAME } from '../config/game';
+import { mulberry32 } from '../core/math';
 import type { Buff, Enemy, Minion, Player, Stats, Status } from '../core/types';
 import { applyAffixes } from '../logic/elites';
 import { armorFor } from '../logic/status';
@@ -16,6 +17,7 @@ export function createPlayer(cls: ClassDef, arena: ArenaDef, stats: Stats = cls.
     cls,
     relics: emptyRelics(), // createGame fills in the pool, the tier cap and the relic stream
     vars: {},
+    rng: mulberry32(0), // createGame gives each player their stream
     input: { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, utility: false, showAim: false },
     ward: 0,
     armorStacks: 0,

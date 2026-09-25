@@ -13,7 +13,7 @@ import { keyTip } from '../src/ui/relicText';
 
 function game(relics: RelicId[]): Game {
   const g = createGame('paladin', 1);
-  g.rng = Object.assign(() => 0.999, { s: 0 }); // no random procs unless a test says otherwise
+  g.rng = g.player.rng = Object.assign(() => 0.999, { s: 0 }); // no random procs unless a test says otherwise
   for (const id of relics) addRelic(g, id);
   return g;
 }
@@ -140,7 +140,7 @@ describe('duo effects', () => {
   it('Glacier Plate: a block freezes the attacker', () => {
     const g = formed(['shatterglass', 'towerShield'], 'glacierPlate');
     const e = foe(g, 40);
-    g.rng = Object.assign(() => 0, { s: 0 }); // Tower Shield blocks
+    g.rng = g.player.rng = Object.assign(() => 0, { s: 0 }); // Tower Shield blocks
     damagePlayer(g, 20, true, e);
     expect(e.frozenT).toBeGreaterThan(g.time);
   });

@@ -24,7 +24,7 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onHit(g, ev, p) {
       const n = nOf(p, 'brimstoneOil');
       if (ev.source === 'ability' && awakened(p, 'brimstoneOil')) addBurn(g, p, ev.enemy, 2, ev.amount * n.power); // Hellfire
-      if (!attackHit(p, ev.source) || g.rng() >= n.chance) return;
+      if (!attackHit(p, ev.source) || p.rng() >= n.chance) return;
       addBurn(g, p, ev.enemy, 1, ev.amount * n.power);
       flash(g, p, 'brimstoneOil'); // its burn's ticks are credited to it as they land (systems/status.ts)
     },

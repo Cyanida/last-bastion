@@ -82,6 +82,6 @@ export function lastStand(g: Game): boolean {
 /** While the Last Stand lasts the signature ability cools down faster (abilities.ts). */
 export const lastStandActive = (g: Game): boolean => g.time < (g.player.vars.lastStandUntil ?? 0);
 
-addListener((g, name, ev) => {
-  if (name === 'onUtilityUsed' && MOBILITY.has((ev as GameEvents['onUtilityUsed']).id)) g.player.vars.mobilityAt = g.time;
+addListener((g, name, ev, p) => {
+  if (name === 'onUtilityUsed' && MOBILITY.has((ev as GameEvents['onUtilityUsed']).id)) p.vars.mobilityAt = g.time;
 });

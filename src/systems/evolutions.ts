@@ -466,7 +466,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
       const hit = rollPlayerHit(g, u.damage * n.damage * (p.utilityUpgrades.includes('boneShards') ? 1.3 : 1) * p.mods.utilityPower, 'int');
       for (const c of corpses) {
         const e = nearestEnemy(g, c.x, c.y, n.range);
-        const a = e ? Math.atan2(e.y - c.y, e.x - c.x) : g.rng() * TAU;
+        const a = e ? Math.atan2(e.y - c.y, e.x - c.x) : p.rng() * TAU;
         fireProjectile(g, c.x, c.y, a, { damage: hit.amount, crit: hit.crit, hostile: false, pierce: 999, shape: 'arrow', color: '#d8d2bd', r: 9, speed: n.speed, range: n.range, source: 'ability', dtype: 'shadow' });
         burst(g, c.x, c.y, '#d8d2bd', 6, 140);
       }
@@ -485,8 +485,8 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
       const s = scale.raiseDead(c, sec(g));
       const count = Math.floor(per(g, n, 'raised'));
       for (let i = 0; i < count; i++) {
-        const a = g.rng() * TAU;
-        const d = 60 + g.rng() * 110;
+        const a = p.rng() * TAU;
+        const d = 60 + p.rng() * 110;
         const m = createMinion(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, { hp: c.minionHp, damage: attackDamage(s.damage, p.stats.int), speed: c.minionSpeed, attackCd: c.minionAttackCd, life: s.lifetime * 0.5 });
         g.minions.push(m);
         ring(g, m.x, m.y, 30, c.aura, 0.4);
@@ -634,6 +634,6 @@ export function evolve(g: Game, id: EvolutionId): void {
 /** What the recipe logic (logic/evolutions.ts) needs from a run. */
 export const buildState = (g: Game): BuildState => ({ classId: g.player.cls.id, upgrades: g.player.upgrades, utilityUpgrades: g.player.utilityUpgrades, talents: g.player.talents, relicTiers: g.player.relics.tiers, evolutions: g.player.evolutions });
 
-addListener((g, name, ev) => {
-  for (const id of g.player.evolutions) dispatch(HOOKS[id].on, g, name, ev as GameEvents[typeof name]);
-});
+addListener((g, name, ev, p) => {
+  for (const id of p.evolutions) dispatch(HOOKS[id].on, g, name, ev as GameEvents[typeof name], p);
+}, true);

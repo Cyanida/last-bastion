@@ -76,10 +76,9 @@ function attribute(g: Game, p: Player, ev: GameEvents['onHit']): void {
   }
 }
 
-addListener((g, name, ev) => {
-  const p = g.player; // ponytail: one player; with co-op this runs for every player whose relics care about the event
+addListener((g, name, ev, p) => {
   if (name === 'onWaveStart') {
-    for (const q of g.players) q.vars.relicHeal = 0; // every player's soft cap starts over
+    p.vars.relicHeal = 0; // this player's soft cap starts over (a world event: every player hears it, core/events.ts)
     g.vars.dealtAtWave = g.vars.dealt ?? 0;
     p.relics.work = {};
   }
@@ -117,7 +116,7 @@ addListener((g, name, ev) => {
     relicContext.acting = outer;
     g.procDepth--;
   }
-});
+}, true);
 
 /**
  * Layers a player's relics onto p.mods (already reset to g.baseMods this tick): plain mods and the tick hooks' conditional bonuses add up

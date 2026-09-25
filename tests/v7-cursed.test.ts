@@ -14,7 +14,7 @@ import { summarizeRun } from '../src/game';
 /** A headless game holding `relics` (at `tier`), its relic stream fixed so a cursed card comes (0) or never does (0.99). */
 function game(relics: RelicId[] = [], tier = 1, roll = 0.99): Game {
   const g = createGame('viking', 7);
-  g.rng = Object.assign(() => 0.999, { s: 0 });
+  g.rng = g.player.rng = Object.assign(() => 0.999, { s: 0 });
   g.player.relics.rng = Object.assign(() => roll, { s: 0 });
   for (const id of relics) addRelic(g, id, 'other', tier);
   tick(g);

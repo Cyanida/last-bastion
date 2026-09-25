@@ -51,7 +51,7 @@ function activeFor(p: Player, seconds: number): void {
 function volleyZones(g: Game, c: Cfg<'arrowVolley'>, tx: number, ty: number, status: Status | null): void {
   const s = scale.arrowVolley(c, g.player.stats.secondary);
   for (let i = 0; i < s.arrows; i++) {
-    const a = g.rng() * TAU;
+    const a = g.player.rng() * TAU;
     const r = Math.sqrt(g.rng()) * c.radius;
     const hit = rollPlayerHit(g, c.damage, 'dex');
     addZone(g, {
@@ -341,7 +341,7 @@ function hookFor(p: Player): { hook: AbilityHook<AbilityId>; cfg: Cfg<AbilityId>
   return { hook: HOOKS[p.cls.ability.id] as unknown as AbilityHook<AbilityId>, cfg: p.cls.ability };
 }
 
-addListener((g, name, ev) => dispatch(hookFor(g.player).hook.on, g, name, ev));
+addListener((g, name, ev, p) => dispatch(hookFor(p).hook.on, g, name, ev, p), true);
 
 export function updateAbility(g: Game, dt: number): void {
   const p = g.player;

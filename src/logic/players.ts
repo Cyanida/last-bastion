@@ -1,4 +1,9 @@
-import type { Game, Player } from '../core/types';
+import { mulberry32 } from '../core/math';
+import type { Game, Player, SeededRng } from '../core/types';
+import { hashSeed } from './acts';
+
+/** Players 2-4 roll from their own stream split from the run seed, so a second player's crits never shift the world's draws. */
+export const rollStream = (seed: number, player: number): SeededRng => mulberry32(hashSeed(`rolls:${seed}:${player}`));
 
 /**
  * v0.8 (#28, ARCHITECTURE.md step 4): a run holds 1-4 players. Most systems still read `g.player` and `g.input`; they now mean the

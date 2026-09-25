@@ -63,7 +63,7 @@ describe('relic stacking (v0.7: face value)', () => {
 
   it('proc chains stop at depth 2 and the counter always unwinds', () => {
     const g = createGame('paladin', 1);
-    g.rng = Object.assign(() => 0, { s: 0 }); // every proc fires
+    g.rng = g.player.rng = Object.assign(() => 0, { s: 0 }); // every proc fires
     for (const id of ['brimstoneOil', 'emberheart', 'cinderCharm', 'salamanderScale'] as RelicId[]) addRelic(g, id); // Flame 4: Pyre
     updateGame(g, 1 / 60);
     g.wave = 5;

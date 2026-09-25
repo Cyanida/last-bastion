@@ -15,7 +15,7 @@ const armorOf = (p: { cls: { armor: number }; mods: { armor: number }; armorStac
 export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   towerShield: {
     onIncoming(g, ev, p) {
-      if (!ev.blocked && g.rng() < nOf(p, 'towerShield').chance) {
+      if (!ev.blocked && p.rng() < nOf(p, 'towerShield').chance) {
         ev.blocked = true;
         credit(g, p, 'towerShield', 'prevented', ev.amount, true);
       }

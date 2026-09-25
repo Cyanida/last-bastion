@@ -35,14 +35,18 @@ function configKey(o: object): string | undefined {
 }
 
 export function snapshot(g: Game, skip: ReadonlySet<string> = CACHES): Snapshot {
-  const ids = new Map<object, number>();
+  const ids = new Map<object, number>(); // objects and random streams
   const enc = (v: unknown, path: string): unknown => {
     if (v === undefined) return { $u: 1 };
     if (typeof v === 'number') return Number.isFinite(v) ? v : { $n: String(v) };
     if (v === null || typeof v !== 'object') {
       if (typeof v !== 'function') return v;
-      if (typeof (v as { s?: unknown }).s === 'number') return { $rng: (v as unknown as { s: number }).s };
-      throw new Error(`snapshot: a function at ${path}; state must be data (see timer() in entities/hazards.ts)`);
+      if (typeof (v as { s?: unknown }).s !== 'number') throw new Error(`snapshot: a function at ${path}; state must be data (see timer() in entities/hazards.ts)`);
+      // a stream met twice stays one stream (P1's rolls are g.rng itself, #28)
+      const seenRng = ids.get(v);
+      if (seenRng !== undefined) return { '@': seenRng };
+      ids.set(v, ids.size);
+      return { '#': ids.size - 1, $rng: (v as unknown as { s: number }).s };
     }
     const cfg = configKey(v);
     if (cfg) return { $c: cfg };
@@ -68,7 +72,11 @@ export function restore(data: Snapshot): Game {
     const w = v as Record<string, unknown>;
     if ('$u' in w) return undefined;
     if ('$n' in w) return Number(w.$n);
-    if ('$rng' in w) return mulberry32(w.$rng as number);
+    if ('$rng' in w) {
+      const r = mulberry32(w.$rng as number);
+      if ('#' in w) objs[w['#'] as number] = r;
+      return r;
+    }
     if ('$c' in w) {
       const [t, k] = (w.$c as string).split('.');
       return TABLES[t][k];

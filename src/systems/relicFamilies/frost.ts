@@ -28,7 +28,7 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   frostBrand: {
     onHit(g, ev, p) {
       const n = nOf(p, 'frostBrand');
-      if (!attackHit(p, ev.source) || g.rng() >= n.chance) return;
+      if (!attackHit(p, ev.source) || p.rng() >= n.chance) return;
       addChill(g, p, ev.enemy, n.chill);
     },
     onIncoming(g, ev, p) {

@@ -202,7 +202,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
 /** Damage of a player attack or ability with the given base and scaling stat, crit rolled from Dexterity. */
 export function rollPlayerHit(g: Game, base: number, scaling: 'str' | 'dex' | 'int'): { amount: number; crit: boolean } {
   const p = g.player;
-  const hit = rollCrit(attackDamage(base, p.stats[scaling], p.buff.damage * p.mods.damage), p.stats.dex, g.rng, p.mods.crit);
+  const hit = rollCrit(attackDamage(base, p.stats[scaling], p.buff.damage * p.mods.damage), p.stats.dex, p.rng, p.mods.crit);
   if (hit.crit && p.mods.critDamage > 0) hit.amount *= (GAME.critMult + p.mods.critDamage) / GAME.critMult;
   return hit;
 }
@@ -247,7 +247,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
     if (p.iFrames > 0) return;
     p.iFrames = GAME.contactIFrames;
   }
-  if (p.mods.dodge > 0 && g.rng() < Math.min(GAME.dodgeCap, p.mods.dodge)) {
+  if (p.mods.dodge > 0 && p.rng() < Math.min(GAME.dodgeCap, p.mods.dodge)) {
     floatText(g, p.x, p.y - 34, 'dodge', '#f2e6a0', 13);
     return;
   }

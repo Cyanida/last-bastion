@@ -53,11 +53,10 @@ export function talentPassives(g: Game): void {
   if (p.mods.lowHpDamage > 0 && p.hp < p.stats.hp * 0.5) p.mods.damage *= 1 + p.mods.lowHpDamage;
 }
 
-addListener((g, name, ev) => {
-  const p = g.player;
+addListener((g, name, ev, p) => {
   if (name === 'onKill' && p.mods.onKillHeal > 0) healPlayer(g, p.mods.onKillHeal, false);
   if (name === 'onDamageTaken') {
     const { attacker, amount } = ev as GameEvents['onDamageTaken'];
     if (p.mods.thorns > 0 && attacker) damageEnemy(g, attacker, amount * p.mods.thorns, false, 0, 0, 'relic');
   }
-});
+}, true);

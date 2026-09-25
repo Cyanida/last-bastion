@@ -15,7 +15,7 @@ const anyClass = (f: FamilyId): RelicId[] => RELIC_IDS.filter((id) => relicDef(i
 /** A headless game holding the given relics, with bare knights placed next to the player. */
 function arena(relics: RelicId[], enemies: [number, number][] = [], classId: Parameters<typeof createGame>[0] = 'paladin'): { g: Game; foes: Enemy[] } {
   const g = createGame(classId, 1);
-  g.rng = Object.assign(() => 0.999, { s: 0 }); // no crits, no random procs unless a test says otherwise
+  g.rng = g.player.rng = Object.assign(() => 0.999, { s: 0 }); // no crits, no random procs unless a test says otherwise
   for (const id of relics) addRelic(g, id);
   const foes = enemies.map(([dx, dy]) => spawnEnemy(g, 'knight', g.player.x + dx, g.player.y + dy));
   for (const f of foes) f.armorHp = 0;
@@ -99,7 +99,7 @@ describe('family mechanics', () => {
   it('a blocked hit does nothing, and Bulwark (Steel 2) gives an armor stack for it; armor stacks cap and fade', () => {
     const { g } = arena(['towerShield', 'thornMail']);
     const p = g.player;
-    g.rng = Object.assign(() => 0, { s: 0 }); // Tower Shield blocks
+    g.rng = g.player.rng = Object.assign(() => 0, { s: 0 }); // Tower Shield blocks
     const hp = p.hp;
     damagePlayer(g, 30, true);
     expect(p.hp).toBe(hp);

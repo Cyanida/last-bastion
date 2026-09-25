@@ -14,7 +14,7 @@ import { compact, mulberry32 } from './core/math';
 import { begin, end } from './sim/view';
 import { SpatialHash } from './core/spatial';
 import type { Game, Player } from './core/types';
-import { focus } from './logic/players';
+import { focus, rollStream } from './logic/players';
 import { createPlayer } from './entities/actors';
 import { runTimer } from './entities/hazards';
 import { accountPerks, masteryBonus, metaLoadout, startingStats, type MetaRanks } from './logic/economy';
@@ -93,6 +93,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     const a = createPlayer(CLASSES[id], arena, startingStats(CLASSES[id].base, opts.meta ?? {}, mastery.secondary));
     a.x += GAME.playerSpacing * (i + 1);
     Object.assign(a.relics, { pool: relicPoolFor(id, opts.lockedRelics ?? []), rng: relicStream(seed, i + 1) });
+    a.rng = rollStream(seed, i + 1);
     return a;
   });
   const g: Game = {
@@ -193,6 +194,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     over: false,
   };
   Object.assign(g.player.relics, { pool: relicPoolFor(classId, opts.lockedRelics ?? []), rng: relicStream(seed, 0) });
+  player.rng = g.rng; // P1 rolls from the run's stream, as before co-op: a solo run draws exactly what it did
   // v0.8 (#28): each player's own start (ponytail: every seat gets the host's Keep loadout; a joining player's own save is #30's)
   for (const p of g.players)
     Object.assign(p, {
@@ -225,19 +227,19 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
   }
   for (const id of opts.relics ?? []) addRelic(g, id, 'other', opts.relicTier ?? 1);
   for (let i = 0; i < (opts.relicPicks ?? 0); i++) {
-    const [pick] = rollRelics(g.player.relics.pool, g.player.relics.held, g.rng, 1);
+    const [pick] = rollRelics(g.player.relics.pool, g.player.relics.held, g.player.rng, 1);
     if (pick) addRelic(g, pick, 'start');
   }
   if (opts.noRelics) g.player.relics.pool = [];
   if (loadout.startRelic) {
     // v0.6 Armorer's Choice: the run opens on a choice of three common relics
     const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
-    const choice = rollRelics(commons, [], g.rng, 3);
+    const choice = rollRelics(commons, [], g.player.rng, 3);
     if (choice.length) (g.player.relics.offers.push({ from: 'start', options: choice, rerolls: RELIC_MOMENTS.rerolls }), (g.vars.armorerOffer = 1));
   }
   if (mastery.relic) {
     const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
-    const [gift] = rollRelics(commons, g.player.relics.held, g.rng, 1);
+    const [gift] = rollRelics(commons, g.player.relics.held, g.player.rng, 1);
     if (gift) addRelic(g, gift, 'start');
   }
   startRunLog(g);

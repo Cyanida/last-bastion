@@ -17,7 +17,7 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   soulLantern: {
     onKill(g, ev, p) {
       const n = nOf(p, 'soulLantern');
-      if (ev.enemy.def.boss || skeletonsBy(g, 'soulLantern') >= n.max || g.rng() >= n.chance) return;
+      if (ev.enemy.def.boss || skeletonsBy(g, 'soulLantern') >= n.max || p.rng() >= n.chance) return;
       const m = raiseSkeleton(g, p, ev.enemy.x, ev.enemy.y, 'soulLantern', { hp: n.hp, damage: n.damage, life: n.life });
       if (awakened(p, 'soulLantern')) m.onEnd = { ...shadow, damage: relicDamage(p, 14) }; // Lantern of the Lost
     },
@@ -61,7 +61,7 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 
   deathmask: {
     onHit(g, ev, p) {
-      if (ev.source !== 'relic' && ev.source !== 'hazard' && g.rng() < nOf(p, 'deathmask').chance) applyStatus(ev.enemy, { apply: [{ id: 'curse', stacks: 1 }] }, g); // A8: its own curses
+      if (ev.source !== 'relic' && ev.source !== 'hazard' && p.rng() < nOf(p, 'deathmask').chance) applyStatus(ev.enemy, { apply: [{ id: 'curse', stacks: 1 }] }, g); // A8: its own curses
     },
     onIncoming(g, ev, p) {
       if (!ev.attacker || !isCursed(ev.attacker)) return;

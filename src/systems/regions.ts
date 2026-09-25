@@ -149,7 +149,7 @@ export function chooseBlessing(g: Game, id: BlessingId): void {
 /** Is a point inside an open region (for spawning things that must be reachable)? */
 export const isOpenAt = (g: Game, x: number, y: number): boolean => g.openRects.some((q) => inRect(q, x, y));
 
-addListener((g, name, ev) => {
+addListener((g, name, ev, p) => {
   if (name !== 'onKill') return;
   const e = (ev as GameEvents['onKill']).enemy;
   // the mid-Act boss (wave x5) opens a wing; the Act boss moves the run on to the next arena anyway
@@ -157,7 +157,7 @@ addListener((g, name, ev) => {
   const lair = g.features.find((f) => f.boss === e);
   if (lair) {
     lair.boss = null;
-    g.player.gold += REGIONS.lairBoss.gold * g.act;
+    p.gold += REGIONS.lairBoss.gold * g.act; // the killer's
     floatText(g, e.x, e.y - 40, `+${REGIONS.lairBoss.gold * g.act}g`, '#c9a227', 16);
     offerRelics(g, undefined, 'lair');
   }

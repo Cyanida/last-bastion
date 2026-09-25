@@ -1,6 +1,7 @@
 import type { EvolutionId } from '../config/evolutions';
 import type { DuoId, FamilyId, RelicId, SetLevel } from '../config/relics';
-import type { DamageSource, Enemy, Game } from './types';
+import { withPlayer } from '../logic/players';
+import type { DamageSource, Enemy, Game, Player } from './types';
 
 /**
  * Tiny synchronous event bus. Combat and spawning emit; relics and ability upgrades listen.
@@ -31,20 +32,30 @@ export interface GameEvents {
   onBossPhase: { enemy: Enemy; phase: number };
 }
 export type EventName = keyof GameEvents;
-export type Handlers = { [K in EventName]?: (g: Game, ev: GameEvents[K]) => void };
+export type Handlers = { [K in EventName]?: (g: Game, ev: GameEvents[K], p: Player) => void };
 
-type Listener = <K extends EventName>(g: Game, name: K, ev: GameEvents[K]) => void;
-const listeners: Listener[] = [];
+/** v0.8 (#28): every event carries its player `p`: who hit, killed, was hurt, healed or cast. */
+type Listener = <K extends EventName>(g: Game, name: K, ev: GameEvents[K], p: Player) => void;
+const listeners: { l: Listener; each: boolean }[] = [];
 
-export function addListener(l: Listener): void {
-  listeners.push(l);
+/** The run's own moments: a per-player listener hears each of them once for every player, with the focus on that player. */
+const WORLD = new Set<EventName>(['onWaveStart', 'onWaveCleared', 'onBossPhase']);
+
+/** `each`: the listener is about one player's things (their relics, talents, ability, evolutions), so it hears world events per player. */
+export function addListener(l: Listener, each = false): void {
+  listeners.push({ l, each });
 }
 
 /** Calls handlers[name] if present. The cast is sound: name and ev share the same K. */
-export function dispatch<K extends EventName>(handlers: Handlers | undefined, g: Game, name: K, ev: GameEvents[K]): void {
-  (handlers?.[name] as ((g: Game, ev: GameEvents[K]) => void) | undefined)?.(g, ev);
+export function dispatch<K extends EventName>(handlers: Handlers | undefined, g: Game, name: K, ev: GameEvents[K], p: Player): void {
+  (handlers?.[name] as ((g: Game, ev: GameEvents[K], p: Player) => void) | undefined)?.(g, ev, p);
 }
 
-export function emit<K extends EventName>(g: Game, name: K, ev: GameEvents[K]): void {
-  for (const l of listeners) l(g, name, ev);
+/** `p` defaults to the player whose turn it is (logic/players.ts focus), which is the one acting at every emit site today. */
+export function emit<K extends EventName>(g: Game, name: K, ev: GameEvents[K], p: Player = g.player): void {
+  const world = WORLD.has(name);
+  for (const { l, each } of listeners) {
+    if (world && each) for (const q of g.players) withPlayer(g, q, () => l(g, name, ev, q));
+    else l(g, name, ev, p);
+  }
 }
