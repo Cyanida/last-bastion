@@ -96,6 +96,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     corpses: [],
     particles: [],
     texts: [],
+    out: [],
     effects: [],
     hash: new SpatialHash(GAME.spatialCell),
     rng: mulberry32(seed),

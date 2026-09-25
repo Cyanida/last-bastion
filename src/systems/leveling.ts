@@ -30,7 +30,7 @@ export function gainXp(g: Game, amount: number): void {
     }
     ring(g, p.x, p.y, 90, '#c9a227', 0.6);
     floatText(g, p.x, p.y - 30, 'LEVEL UP', '#c9a227', 18);
-    sfx('levelup');
+    sfx(g, 'levelup');
   }
 }
 

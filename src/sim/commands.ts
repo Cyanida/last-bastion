@@ -153,6 +153,7 @@ export const intentCommand = (g: Game, intent: Intent, player = 0): Command => (
  * one (what a dropped packet does online). ponytail: one player; commands for other players wait for g.players (#28).
  */
 export function step(g: Game, commands: readonly Command[]): void {
+  g.out.length = 0; // the last tick's cues were played (or nobody listens: tests, the bot)
   for (const cmd of commands) if (cmd.kind === 'choice') applyChoice(g, cmd.choice);
   for (const cmd of commands) if (cmd.kind === 'intent') g.input = { ...cmd.intent };
   g.tick++;

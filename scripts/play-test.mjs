@@ -545,6 +545,22 @@ await check('sounds reach the audio', () =>
   }),
 );
 
+// v0.8 (#114): sounds leave the simulation as cues in g.out; the screen plays and empties them, a pick between steps included
+await check('sound cues: played and emptied, a relic pick is heard', () =>
+  inPage(async () => {
+    const P = window.__play, g = window.__lb.game, rel = g.player.relics;
+    if (!Array.isArray(g.out)) return { skip: true, detail: 'no cue queue on this branch (before #114)' };
+    P.play(60);
+    const drained = g.out.length === 0;
+    rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant'], rerolls: 0, duo: null });
+    if (!P.toChoice()) return { ok: false, detail: 'no relic offer' };
+    const before = P.sounds.levelup ?? 0;
+    await P.click('[data-pick="0"]'); // no step runs in between: the next frame plays it
+    const heard = (P.sounds.levelup ?? 0) - before;
+    return { ok: drained && heard >= 1 && g.out.length === 0, detail: `queue after steps ${drained ? 'empty' : 'NOT empty'}, pick played levelup ×${heard}, queue now ${g.out.length}` };
+  }),
+);
+
 // ---------- v0.7.5 (#106): an error in a frame shows the error overlay, and the game goes on ----------
 await check('an error in a frame: the overlay, Continue, the run goes on', () =>
   inPage(async () => {

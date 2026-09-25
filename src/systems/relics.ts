@@ -186,7 +186,7 @@ export function addRelic(g: Game, id: RelicId, from: RelicSource = 'other', tier
   r.from[id] ??= from;
   HOOKS[id]?.acquire?.(g, g.player);
   floatText(g, g.player.x, g.player.y - 50, relicDef(id).name, '#c9a227', 16);
-  sfx('levelup');
+  sfx(g, 'levelup');
   return true;
 }
 
@@ -209,7 +209,7 @@ function tierUp(g: Game, p: Player, id: RelicId): void {
   const color = duo ? keyColor(duo) : keyColor(id);
   floatText(g, p.x, p.y - 60, tier >= RELIC_MAX_TIER ? `${def.icon} ${def.name} awakens: ${def.awaken.name}` : `${def.icon} ${def.name} attuned: tier ${TIER_NUMERALS[tier]}`, color, 17);
   ring(g, p.x, p.y, 70, color, 0.6);
-  sfx('levelup');
+  sfx(g, 'levelup');
   emit(g, 'onRelicTier', { id, tier });
 }
 
@@ -334,7 +334,7 @@ export function formDuo(g: Game, p: Player, id: DuoId): boolean {
   const d = DUOS[id];
   floatText(g, p.x, p.y - 60, `${d.icon} ${d.name}`, '#f2c94c', 18);
   ring(g, p.x, p.y, 80, '#f2c94c', 0.7);
-  sfx('levelup');
+  sfx(g, 'levelup');
   emit(g, 'onDuoFormed', { id });
   return true;
 }

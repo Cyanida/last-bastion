@@ -25,7 +25,7 @@ export function perfectDodge(g: Game): void {
   floatText(g, p.x, p.y - 48, 'PERFECT DODGE', SKILL.colors.perfect, 18);
   ring(g, p.x, p.y, 90, SKILL.colors.perfect, 0.45);
   shake(g, 3);
-  sfx('xp');
+  sfx(g, 'xp');
 }
 
 /** Rolled, blinked or leapt through it just now: it counts even though the body is still inside. */
@@ -74,7 +74,7 @@ export function lastStand(g: Game): boolean {
   floatText(g, p.x, p.y - 50, 'LAST STAND', '#f4a595', 22);
   ring(g, p.x, p.y, 160, '#c23a2e', 0.8);
   shake(g, 14);
-  sfx('warn');
+  sfx(g, 'warn');
   markStand(g);
   return true;
 }
