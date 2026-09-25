@@ -756,6 +756,8 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
         return save;
       },
       quality,
+      setQuality, // v0.8: the play test compares particle budgets
+      view: simView, // v0.8: the play test wraps view.sfx to hear what the simulation plays
       perf,
       music: musicStats, // v0.7.1
       stinger, // v0.7.1

@@ -29,16 +29,20 @@ Attach the JSON to a Playtest feedback issue.
 
 1. **Pick an issue labelled `help wanted`** (`gh issue list --label "help wanted"`), and say in a comment that you (or your agent) are on
    it, so two people don't fix the same thing. A pull request for any other issue becomes a draft and waits until the issue is planned.
-2. **Branch** from `main` in this repository: `<your-name>/<issue-number>-short-description`, for example `lobsterssss/54-class-card-title`.
+2. **Branch** from the **release branch** of the issue's milestone: `release/x.y.z` for a feature release, `patch/x.y.z` for a patch (the
+   main AI names it on the issue). Call yours `<your-name>/<issue-number>-short-description`, for example `lobsterssss/54-class-card-title`.
 3. **Keep it small**: one issue per pull request. Follow the style of the code around you (README: "Where to tune balance" and
    "Structure"). Numbers go in `src/config/`. Add or update a test for any logic you change.
-4. **Check it locally**: `npm run typecheck`, `npm test`, `npm run build`.
-5. **Open a pull request** into `main` and fill in the template. Put `Fixes #N` in the description. If an AI agent wrote the change, add the
-   label **`ai-proposed`** and name the agent in the template.
+4. **Check it locally**: `npm run typecheck`, `npm test`, `npm run build`, and `npm run build && npm run test:play` (the headless play
+   test). If a player sees or does anything different, add a check for it to `scripts/play-test.mjs`.
+5. **Open a pull request** into that **release branch** (never into `main`) and fill in the template. Put `Fixes #N` in the description.
+   If an AI agent wrote the change, add the label **`ai-proposed`** and name the agent in the template.
 6. **Don't touch**: the version in `package.json`, `CHANGELOG.md`, `.github/workflows/`, the release scripts, or the save format. Those
    belong to releases, which the maintainer runs. Don't pick a version for your change either: Jesse decides which release it ships in.
 
-## How a pull request gets merged
+## How work gets merged and released
+
+Work is collected per release on its own branch. `main` only ever takes a **finished** release, so it never holds half of one.
 
 ```mermaid
 flowchart LR
@@ -47,29 +51,33 @@ flowchart LR
   H -- not yet --> W[Stays an idea<br/>on the roadmap]
   H -- Jesse skips it --> X[Skipped<br/>off the backlog]
   H -- help wanted --> C[Claim it<br/>🤖 comment · board: In progress]
-  C --> B[Branch<br/>name/issue-slug]
-  B --> P[Pull request<br/>Fixes #N · ai-proposed<br/>board: In review]
-  P --> CI{CI<br/>typecheck · tests<br/>build · perf}
+  C --> B[Branch<br/>from the release branch]
+  B --> P[Pull request<br/>into the release branch<br/>Fixes #N · ai-proposed]
+  P --> CI{CI and play test<br/>typecheck · tests · build<br/>perf · test:play}
   CI -- red --> B
   CI -- green --> R{Main AI review<br/>🤖 verdict}
   R -- changes requested --> B
-  R -- recommend merging --> A{Jesse<br/>approves}
-  A -- approved --> M[Merged<br/>issue closes]
-  M --> S[Next release<br/>only Jesse tags]
+  R -- recommend merging --> M[Main AI merges it<br/>into the release branch]
+  M --> D{Every issue of<br/>the release done?}
+  D -- not yet --> C
+  D -- yes --> RP[One release PR into main<br/>label: ready to merge]
+  RP --> A{Jesse merges it}
+  A --> S[Released<br/>tagged and shipped]
 ```
 
-1. **CI** runs by itself on every pull request. A red check has to be fixed before anything else.
-2. **The main AI reviews** every PR (label **`needs-review`** marks the queue). The review is a GitHub review comment that starts with 🤖
-   and ends with a verdict:
-   - **Recommend merging**, with anything worth knowing;
+1. **CI** runs by itself on every pull request and on every push to a release branch. A red check has to be fixed before anything else.
+2. **The main AI reviews** every pull request into a release branch. The review is a GitHub review comment that starts with 🤖 and ends
+   with a verdict:
+   - **Recommend merging**, with anything worth knowing. The main AI then merges it into the release branch;
    - **Changes requested**, with exactly what to change (then push to the same branch; the review happens again).
-3. **Jesse approves** in GitHub (Files changed → Review changes → Approve). `main` is protected: a pull request can only merge with his
-   approval and green checks. A new push after an approval needs a new approval.
-4. **Merging**: Jesse or the main AI merges once approved. The change ships in the next release; the CHANGELOG entry is written then.
+3. **One pull request per release.** When every issue of a release is done on its branch, the main AI adds the CHANGELOG and the version,
+   runs every check, and opens one pull request from the release branch into `main` with the label **`ready to merge`**: "Ready to
+   merge to main: all issues for this merge have been completed". Only the main AI sets that label, and only on a complete release.
+4. **Jesse merges** that pull request, and that's his go: the release is tagged and shipped (installed games update themselves). A
+   hotfix works the same way, on a `patch/x.y.z` branch.
 
-Nobody pushes to `main` directly, and only the maintainer creates `v*` tags: a tag builds a release that installed games download
-automatically. The main AI's own pull requests are opened as @Cyanida, so GitHub can't ask Jesse to approve them: for work Jesse asked for,
-they merge through the maintainer's bypass once the checks are green.
+Nobody pushes to `main` directly, and only the maintainer creates `v*` tags. Tooling and process changes (workflows, scripts, these docs)
+come to `main` the same way: as one complete pull request with the `ready to merge` label.
 
 ## The project board
 

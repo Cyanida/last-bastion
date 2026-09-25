@@ -19,7 +19,8 @@
     "dist": "npm run build && electron-builder --win --publish never",
     "release": "node scripts/release.mjs",
     "cap:sync": "npm run build && cap sync",
-    "test:perf": "node scripts/perf-test.mjs"
+    "test:perf": "node scripts/perf-test.mjs",
+    "test:play": "node scripts/play-test.mjs"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
