@@ -6,7 +6,7 @@ import type { ArenaId } from './arenas';
 /** Runs are cut into Acts of `length` waves. The last wave of an Act is its boss; then the Merchant, then a new arena. */
 export const ACTS = {
   length: 10,
-  bosses: ['dragon', 'warden'] as EnemyId[], // Act-end bosses, in turn. Mid-Act bosses (wave x5) come from the arena's own rotation.
+  bosses: ['dragon', 'warden'] as EnemyId[], // the Act-end bosses' enemy ids; which one ends which Act, and the mid-Act draw, are in config/bosses.ts
 };
 
 /** Announced when the Act starts; tilts what the spawn director buys. Act I is always the first one, the rest rotate by seed. */

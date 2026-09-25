@@ -7,7 +7,7 @@ import { CURSE_IDS, CURSES } from '../src/config/curses';
 import { ENEMIES } from '../src/config/enemies';
 import { createGame, summarizeRun, updateGame } from '../src/game';
 import { lockedCurses, unlockedCurses, withAchievements } from '../src/logic/achievements';
-import { actOf, arenaFor, bossForWave, dailySetup, formatSeed, hashSeed, isActEnd, merchantPrice, parseSeed, themeFor } from '../src/logic/acts';
+import { actOf, arenaFor, bossDef, bossForWave, dailySetup, formatSeed, hashSeed, isActEnd, merchantPrice, parseSeed, themeFor } from '../src/logic/acts';
 import { curseMultiplier, curseValue } from '../src/logic/curses';
 import { applyRun, defaultSave } from '../src/logic/save';
 import { simulateRun } from '../src/sim/bot';
@@ -21,13 +21,13 @@ describe('Acts', () => {
     expect([9, 10, 15, 20].map(isActEnd)).toEqual([false, true, false, true]);
   });
 
-  it('Act bosses end the Act; mid-Act bosses come from the arena', () => {
-    expect(bossForWave(7, 'courtyard')).toBeNull();
-    expect(bossForWave(5, 'courtyard')).toBe('blackKnight');
-    expect(bossForWave(5, 'graveyard')).toBe('abbot');
-    expect(bossForWave(10, 'courtyard')).toBe(ACTS.bosses[0]);
-    expect(bossForWave(20, 'keep')).toBe(ACTS.bosses[1]);
-    expect(bossForWave(30, 'keep')).toBe(ACTS.bosses[0]);
+  it('Act bosses end the Act; mid-Act bosses are drawn (#99: tests/v8-bosses.test.ts)', () => {
+    const draw = (arena: 'courtyard' | 'keep') => ({ seed: 1, arena, seen: [], quests: [] });
+    expect(bossForWave(7, draw('courtyard'))).toBeNull();
+    expect(ENEMIES[bossDef(bossForWave(5, draw('courtyard'))!).from].boss).toBe(true);
+    expect(bossForWave(10, draw('courtyard'))).toBe('dragon');
+    expect(bossForWave(20, draw('keep'))).toBe('warden');
+    expect(bossForWave(30, draw('keep'))).toBe('ashWyrm');
     for (const id of ACTS.bosses) expect(ENEMIES[id].phases).toBe(3);
   });
 

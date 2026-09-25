@@ -37,8 +37,9 @@ function throneRoom(): { g: Game; u: ReturnType<typeof spawnEnemy> } {
 describe('the final Act (v0.6)', () => {
   it('Act IV is the Last Bastion and its last wave is the Usurper; it is never a starting arena', () => {
     expect(arenaFor(FINAL.act, 'courtyard')).toBe('bastion');
-    expect(bossForWave(40, 'bastion')).toBe('usurper');
-    expect(bossForWave(35, 'bastion')).toBe(ARENAS.bastion.bosses[(FINAL.act - 1) % 3]);
+    const draw = { seed: 1, arena: 'bastion' as const, seen: [], quests: [] };
+    expect(bossForWave(40, draw)).toBe('usurper');
+    expect(bossForWave(35, draw)).not.toBe('usurper');
     expect(ARENA_IDS).not.toContain('bastion');
   });
 
