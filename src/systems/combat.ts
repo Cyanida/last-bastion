@@ -367,8 +367,8 @@ const reflects = (e: Enemy, vx: number, vy: number): boolean =>
 export const stopsShot = (e: Enemy, x: number, y: number): boolean => reflects(e, e.x - x, e.y - y) || blockedByShield(e, e.x - x, e.y - y);
 
 /**
- * v0.7.3 (#59): the ranged auto-attack's target: the nearest enemy the shot can hurt. A front-facing shield bearer is only shot at when nothing
- * else is in reach (the shot wears his shield down); a mirror knight that would throw it back is never shot at (he is, the moment he swings).
+ * v0.7.3 (#59): the ranged auto-attack's target: the nearest enemy the shot can hurt. A front-facing shield bearer or mirror knight is only shot
+ * at when nothing else is in reach (v0.7.5, #92: the shot wears his shield or mirror down until it breaks).
  */
 function shotTarget(g: Game, x: number, y: number, range: number): Enemy | null {
   let best: Enemy | null = null;
@@ -380,7 +380,7 @@ function shotTarget(g: Game, x: number, y: number, range: number): Enemy | null 
     const d = dist2(x, y, e.x, e.y);
     if (!stopsShot(e, x, y)) {
       if (d < bestD) (bestD = d), (best = e);
-    } else if (!reflects(e, e.x - x, e.y - y) && d < fallbackD) (fallbackD = d), (fallback = e);
+    } else if (d < fallbackD) (fallbackD = d), (fallback = e);
   }
   return best ?? fallback;
 }
