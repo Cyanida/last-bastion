@@ -12,15 +12,15 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 | v0.7.4 | Fixes & polish | released 2026-09-24 |
 | v0.7.5 | Aiming & fixes | released 2026-09-25 |
 | v0.7.6 | Quest fixes | released 2026-09-25 |
-| v0.8.0 | Co-op foundation | backlog |
-| v0.9.0 | Online co-op | backlog |
-| v0.10.0 | Co-op polish | backlog |
-| v1.0.0 | Stable co-op | backlog |
-| v1.1.0 | Class select & roster | ideas |
-| v1.2.0 | The Keep as a castle | ideas |
-| v1.3.0 | Potions | ideas |
-| v1.4.0 | Hidden subclasses | ideas |
-| 1.x | After 1.0 (inbox, sorted into numbered releases) | ideas |
+| v0.8.0 | Balance, relics & bosses | next |
+| v0.9.0 | Phone | planned |
+| v0.10.0 | Classes & roster | planned |
+| v0.11.0 | Items & arena | planned |
+| v0.12.0 | The Keep | planned |
+| v1.0.0 | Polished release | planned |
+| Ideas | not planned yet (the inbox) | – |
+
+**Co-op is dropped** (25-09-2026): see [the last section](#co-op-dropped).
 
 ## v0.7.0 – Relic rework
 
@@ -133,84 +133,112 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 
 **Out of scope.** New systems (those are feature releases).
 
-## v0.8.0 – Co-op foundation
+## v0.8.0 – Balance, relics & bosses
 
-[Milestone](https://github.com/Cyanida/last-bastion/milestone/3) · no networking yet
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/3) · the next release
 
-**Goal.** Turn the single-player simulation into a multi-player one that runs identically from commands, so a second player can be added without touching game rules again.
+**Goal.** Every fight reads clearly and is worth fighting:
+- classes and relics in balance;
+- bosses that are real fights;
+- a card that explains each new thing you meet;
+- a HUD you can read at a glance, on a PC and on a phone.
 
 **Scope.**
-1. ([#24](https://github.com/Cyanida/last-bastion/issues/24)) ARCHITECTURE.md: the current structure and a migration plan to a multi-player simulation.
-2. ([#25](https://github.com/Cyanida/last-bastion/issues/25)) Command layer: all input (keyboard, gamepad, touch, bot) becomes player commands with a player id and a tick.
-3. ([#26](https://github.com/Cyanida/last-bastion/issues/26)) Simulation/view separation: no DOM, audio, storage or wall clock in the simulation, enforced by a lint rule or test.
-4. ([#27](https://github.com/Cyanida/last-bastion/issues/27)) Serializable state: snapshot, restore, a state hash, a replay test.
-5. ([#28](https://github.com/Cyanida/last-bastion/issues/28)) Multi-player state: 1-4 players with per-player systems, and a view per local viewpoint.
-6. ([#29](https://github.com/Cyanida/last-bastion/issues/29)) Co-op rules: enemy scaling per player; shared XP with slow-motion level-up picks and a timer; instanced relic drops; downed and revive; per-player rewards and profiles.
-7. ([#30](https://github.com/Cyanida/last-bastion/issues/30)) Bot ally as a real player type.
+1. ([#123](https://github.com/Cyanida/last-bastion/issues/123)) The HUD reworked so it reads at a glance, with a text size setting.
+2. ([#124](https://github.com/Cyanida/last-bastion/issues/124)) Flash cards: a card the first time you meet an enemy, a boss or a new mechanic, once per player, with a collection to look them up again.
+3. ([#98](https://github.com/Cyanida/last-bastion/issues/98)) Relic cards that are easier to read.
+4. ([#99](https://github.com/Cyanida/last-bastion/issues/99)) A bigger boss pool, with rare, strong and quest-gated bosses.
+5. ([#100](https://github.com/Cyanida/last-bastion/issues/100)) Bosses or arenas that only drop certain relic families, so rerolls can't force a build.
+6. ([#127](https://github.com/Cyanida/last-bastion/issues/127)) The Usurper's last phase is a fight, not a wait.
+7. ([#126](https://github.com/Cyanida/last-bastion/issues/126)) The Necromancer's giant skeleton stays strong without ending every fight.
+8. ([#128](https://github.com/Cyanida/last-bastion/issues/128)) The wandering merchant sells something worth buying at full health.
+9. ([#101](https://github.com/Cyanida/last-bastion/issues/101)) New enemy types unlock over the difficulties.
+10. ([#79](https://github.com/Cyanida/last-bastion/issues/79)) The harder difficulties unlock faster.
+11. ([#117](https://github.com/Cyanida/last-bastion/issues/117)) The remaining balance numbers move into `src/config`, and dead code goes.
+12. ([#125](https://github.com/Cyanida/last-bastion/issues/125)) The balance pass, last: classes, relics and bosses measured and tuned.
 
-The goal these build toward: [#1](https://github.com/Cyanida/last-bastion/issues/1) local co-op (two players on one machine).
-8. ([#31](https://github.com/Cyanida/last-bastion/issues/31)) Loopback transport: two windows on one machine with simulated latency and loss.
+**Already on the release branch:** the groundwork built for co-op, kept for single-player (#25-#27, #113-#116):
+- a run can be saved mid-wave, restored and replayed exactly;
+- every screen answer is checked and logged;
+- sounds leave through a cue queue;
+- stronger tests.
 
-**Out of scope.** Real networking, lobbies, signaling (0.9).
+**Out of scope.** The phone app (0.9). New classes, items and the Keep (0.10-0.12).
 
-**Exit criteria.** Single-player is unchanged (tests, sims and the Daily Trial give the same results), and a 2-window loopback run completes an Act.
+**Exit criteria.**
+- The balance targets in BALANCE.md are met.
+- No boss dies to a single ability, in the sims or in the playtests.
+- Every enemy, boss and mechanic has a card.
+- The HUD reads at phone width at every text size (checked by the play test).
 
-## v0.9.0 – Online co-op
+## v0.9.0 – Phone
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/4)
 
-**Goal.** Play together over the internet.
+**Goal.** Last Bastion reads and plays naturally on a phone.
 
-**Scope.**
-1. ([#32](https://github.com/Cyanida/last-bastion/issues/32)) WebRTC transport behind the transport interface.
-2. ([#33](https://github.com/Cyanida/last-bastion/issues/33)) A small free-tier signaling service and a TURN fallback for carrier-grade NAT.
-3. ([#34](https://github.com/Cyanida/last-bastion/issues/34)) Lobby with an invite code, ready state, class pick, and a version check that blocks mismatches.
-4. ([#35](https://github.com/Cyanida/last-bastion/issues/35)) Host-authoritative snapshots with delta compression, client-side prediction of your own movement, interpolation of others.
-5. ([#36](https://github.com/Cyanida/last-bastion/issues/36)) A network overlay (ping, loss, snapshot size) in the perf overlay.
-6. ([#37](https://github.com/Cyanida/last-bastion/issues/37)) A network test with players from different homes and networks.
+**Scope.** ([#120](https://github.com/Cyanida/last-bastion/issues/120)):
+- a phone layout on top of 0.8's HUD;
+- save and resume a run (built on #27), and a pause when the app goes to the background;
+- light haptics, and a battery option;
+- the iPhone app through TestFlight, once the Apple Developer account exists.
 
-The goal these build toward: [#2](https://github.com/Cyanida/last-bastion/issues/2) online co-op.
+**Exit criteria.** A full run on an iPhone reads without zooming, survives closing the app, and installs from TestFlight.
 
-**Out of scope.** Host migration and reconnect (0.10 and 1.0), co-op achievements.
-
-**Exit criteria.** A 2-player online run across two households completes Act II.
-
-## v0.10.0 – Co-op polish
+## v0.10.0 – Classes & roster
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/5)
 
-**Goal.** Make co-op feel finished: tuned, communicative and robust when someone leaves.
+**Scope.**
+- ([#64](https://github.com/Cyanida/last-bastion/issues/64)) Unlockable classes.
+- ([#65](https://github.com/Cyanida/last-bastion/issues/65)) The character select, improved.
+- ([#66](https://github.com/Cyanida/last-bastion/issues/66)) A new class: the Wizard.
+- ([#80](https://github.com/Cyanida/last-bastion/issues/80)) Class sprites: an overhaul of the five base characters.
+- ([#83](https://github.com/Cyanida/last-bastion/issues/83)) The Necromancer's Raise Dead upgrade: skeleton archers.
+- ([#58](https://github.com/Cyanida/last-bastion/issues/58)) Hidden subclasses.
+
+## v0.11.0 – Items & arena
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/22)
 
 **Scope.**
-1. ([#38](https://github.com/Cyanida/last-bastion/issues/38)) Tune co-op scaling and revive from playtest data.
-2. ([#39](https://github.com/Cyanida/last-bastion/issues/39)) Shared quests, events and the Merchant in co-op.
-3. ([#40](https://github.com/Cyanida/last-bastion/issues/40)) Co-op achievements.
-4. ([#41](https://github.com/Cyanida/last-bastion/issues/41)) Pings and markers, and spectating while downed.
-5. ([#42](https://github.com/Cyanida/last-bastion/issues/42)) Host migration, or a graceful end when the host leaves.
-6. ([#43](https://github.com/Cyanida/last-bastion/issues/43)) Structured playtest sessions with run logs from all players.
+- ([#62](https://github.com/Cyanida/last-bastion/issues/62)) Potions: carry up to 3 and drink them when you need them.
+- ([#86](https://github.com/Cyanida/last-bastion/issues/86)) A relic that puts a shield in front of you.
+- ([#89](https://github.com/Cyanida/last-bastion/issues/89)) Breakable objects in the arena, with small rewards inside.
 
-**Out of scope.** Reconnect mid-run and the save format freeze (1.0).
+## v0.12.0 – The Keep
 
-**Exit criteria.** Structured playtests with 3-4 players complete full runs with shared quests and the Merchant; a host leaving migrates or ends the run cleanly for everyone.
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/23)
 
-## v1.0.0 – Stable co-op
+**Scope.**
+- ([#67](https://github.com/Cyanida/last-bastion/issues/67)) The Keep drawn as a castle of buildings that grow with its upgrades.
+
+## v1.0.0 – Polished release
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/6)
 
-**Goal.** A stable 1.0: co-op that survives real networks, and saves that never break.
+**Goal.** A polished single-player game on PC and phone.
 
 **Scope.**
-1. ([#44](https://github.com/Cyanida/last-bastion/issues/44)) Reconnect after a dropped connection mid-run.
-2. ([#45](https://github.com/Cyanida/last-bastion/issues/45)) Freeze the save format, with a migration test suite from every earlier version.
-3. ([#46](https://github.com/Cyanida/last-bastion/issues/46)) The perf budget holds with 4 players and 250 enemies, on desktop and on a recent phone.
-4. ([#47](https://github.com/Cyanida/last-bastion/issues/47)) A crash and desync sweep: a full 4-player run to victory with no desync.
-5. ([#48](https://github.com/Cyanida/last-bastion/issues/48)) Write down the 1.0 scope, and move everything beyond it to 1.x.
-6. ([#60](https://github.com/Cyanida/last-bastion/issues/60)) A tutorial: a mode that introduces mechanics, status effects, relic families and duos one at a time, with a card for each new mechanic (like Kingdom Rush).
+1. ([#60](https://github.com/Cyanida/last-bastion/issues/60)) A tutorial that introduces the mechanics one at a time, built on the flash cards (#124).
+2. ([#45](https://github.com/Cyanida/last-bastion/issues/45)) The save format frozen, with a migration test suite from every earlier version.
+3. ([#46](https://github.com/Cyanida/last-bastion/issues/46)) The perf budget holds on a recent phone and on a PC.
+4. ([#47](https://github.com/Cyanida/last-bastion/issues/47)) A crash sweep: full runs to victory on PC and phone, without a crash or an error.
+5. ([#48](https://github.com/Cyanida/last-bastion/issues/48)) The 1.0 scope written down, with every release before it checked against it.
+
+If the Apple Developer account exists by then, the App Store release comes from 0.9's TestFlight pipeline.
 
 **Exit criteria.** Everything in [RELEASES.md](RELEASES.md) under "1.0.0 is released only when".
 
-## 1.x – After 1.0
+## Ideas – not planned yet
 
-[Milestone](https://github.com/Cyanida/last-bastion/milestone/9) · features for 1.X.0 releases, scheduled when their time comes
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/9) · the inbox
 
-- ([#58](https://github.com/Cyanida/last-bastion/issues/58)) Subclasses during a run: each class specs into a subclass mid-run, so the same champion plays differently each time.
+New ideas wait here until Jesse gives them a release. Everything open today is planned before 1.0.
+
+## Co-op (dropped)
+
+Co-op was the plan for v0.8-v1.0 until 25-09-2026. That day Jesse and his brothers dropped it, because the game is heading to a polished single-player game on PC and phone, where co-op adds little.
+- Its issues (#1, #2, #28-#44) are closed as not planned.
+- The groundwork built for it stays in v0.8, because single-player uses it (save and resume, replays).
+- [ARCHITECTURE.md](ARCHITECTURE.md) describes that groundwork.
