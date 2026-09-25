@@ -1,4 +1,4 @@
-import { ARMOR, BACK_ARC, RESISTS, STATUS_TUNING, STATUSES, type DamageType, type StatusId } from '../config/damage';
+import { ARMOR, BACK_ARC, BOSS_RESOLVE, RESISTS, STATUS_TUNING, STATUSES, type DamageType, type StatusId } from '../config/damage';
 import type { EnemyId } from '../config/enemies';
 
 /** Pure status-effect and damage-type rules, shared by enemies, the player and minions. */
@@ -85,6 +85,19 @@ export function throughArmor(amount: number, armorHp: number, reduction: number)
   const soaked = Math.min(armorHp, amount * reduction);
   const left = armorHp - soaked;
   return { dealt: amount - soaked, armorHp: left, broke: left <= 0 };
+}
+
+/**
+ * v0.7.5 (#95): a hit on a boss through its resolve (BOSS_RESOLVE). `load` is the damage it took lately (as of time `t`), draining at
+ * `perSec` of its max HP a second; what lands past the `burst` allowance does `excess` of itself, up to `cap` in all. Returns the
+ * damage and the new load.
+ */
+export function throughResolve(amount: number, maxHp: number, load: number, t: number, now: number): { dealt: number; load: number } {
+  const { burst, perSec, excess, cap } = BOSS_RESOLVE;
+  const cur = Math.max(0, load - (now - t) * perSec * maxHp);
+  const room = Math.max(0, burst * maxHp - cur);
+  const dealt = Math.min(Math.min(amount, room) + Math.max(0, amount - room) * excess, Math.max(0, cap * maxHp - cur));
+  return { dealt, load: cur + dealt };
 }
 
 /** Did a hit travelling along (kx, ky) strike an enemy facing `facing` in the back? */

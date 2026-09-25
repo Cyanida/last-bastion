@@ -25,6 +25,7 @@ interface RunRow {
   power: number | null; // relics' share of the damage dealt in waves 11-20
   power3: number | null; // ...and in waves 21-30, with the build complete
   late: { shares: Record<string, number>; waves: number } | null; // each relic held at wave 20: its share (best of damage, healing, mitigation) from wave 21 on
+  bosses?: [string, number][]; // v0.7.5 (#95): each boss killed and how long it lived, in seconds
 }
 
 const snap = (g: Game): Snap => ({ stats: JSON.parse(JSON.stringify(g.player.relics.stats)), dealt: g.vars.dealt ?? 0, healed: g.vars.healed ?? 0, taken: g.vars.taken ?? 0, prevented: g.vars.prevented ?? 0 });
@@ -48,8 +49,12 @@ function play(classId: ClassId, seed: number, opts: RunOptions, variant: number)
   let at20: Snap | null = null;
   let at30: Snap | null = null;
   let heldAt20: string[] = [];
+  const bossSeen = new Map<Game['enemies'][number], number>();
+  const bosses: [string, number][] = [];
   while (!g.over && g.time < 60 * 60 && g.victory === 'none') {
     botStep(g, variant);
+    for (const e of g.enemies) if (e.def.boss && !e.dead && !bossSeen.has(e)) bossSeen.set(e, g.time);
+    for (const [e, t] of bossSeen) if (e.dead) (bosses.push([e.def.id, g.time - t]), bossSeen.delete(e));
     if (!at10 && g.wavesCleared >= 10) at10 = snap(g);
     if (!at30 && g.wavesCleared >= 30) at30 = snap(g);
     if (!at20 && g.wavesCleared >= 20) (at20 = snap(g)), (heldAt20 = [...g.player.relics.held, ...g.player.relics.duos, ...FAMILY_IDS.filter((f) => (g.player.relics.sets[f]?.level ?? 0) > 0)]);
@@ -73,7 +78,7 @@ function play(classId: ClassId, seed: number, opts: RunOptions, variant: number)
     awakened: r.held.filter((id) => (r.tiers[id] ?? 0) >= 3).length,
     levels: Object.fromEntries(FAMILY_IDS.filter((f) => sets[f]).map((f) => [f, sets[f]!.level])),
     sixes: FAMILY_IDS.filter((f) => sets[f]?.level === 6).map((f) => [f, sets[f]!.straight]),
-    power, power3, late,
+    power, power3, late, bosses,
   };
 }
 
@@ -116,6 +121,16 @@ Relic moments a winning run met: ${avg(won.map((r) => Object.values(r.moments).r
     if (!mine.length) continue;
     const fours = FAMILY_IDS.filter((f) => mine.some((r) => (r.levels[f] ?? 0) >= 4));
     console.log(`| ${c} | ${mine.length} | ${mine.filter((r) => r.won).length} | ${fours.map((f) => FAMILIES[f].name).join(', ') || '-'} ${ok(fours.length >= 2)} | ${pooled(mine, 'power').toFixed(2)} / ${pooled(mine, 'power3').toFixed(2)} | ${avg(mine.map((r) => r.held)).toFixed(1)} | ${avg(mine.map((r) => r.duos)).toFixed(1)} | ${avg(mine.map((r) => r.awakened)).toFixed(1)} |`);
+  }
+  const fights = rows.flatMap((r) => r.bosses ?? []);
+  if (fights.length) {
+    // v0.7.5 (#95): a boss is a fight to survive, not one ability: how long each lived from its arrival to its death
+    const med = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+    console.log(`\n## Boss fights (${fights.length})\n\nSeconds from a boss's arrival to its death.\n\n| Boss | Fights | Median | Fastest | Under 10 s |\n|---|---|---|---|---|`);
+    for (const id of [...new Set(fights.map(([id]) => id))]) {
+      const t = fights.filter(([x]) => x === id).map(([, s]) => s);
+      console.log(`| ${id} | ${t.length} | ${med(t).toFixed(0)} | ${Math.min(...t).toFixed(1)} | ${t.filter((s) => s < 10).length} |`);
+    }
   }
   const late = rows.filter((r) => r.late);
   console.log(`\n## Contribution from wave 21 on (${late.length} runs)\n\nEach relic and duo held at wave 20: its share of the damage dealt, the healing received or the damage turned away (the largest), averaged over the runs that held it. Target 3-35%.\n`);

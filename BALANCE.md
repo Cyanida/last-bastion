@@ -1,5 +1,24 @@
 # Balance notes
 
+## v0.7.5: a boss's resolve (#95)
+
+A playtest (#93) had the Usurper die about 10 seconds in to one Volley from a 6 Flame / 6 Storm build. Bosses now have **resolve**
+(`BOSS_RESOLVE` in `config/damage.ts`, `throughResolve` in `logic/status.ts`): up to 15% of a boss's max HP lands in full at once, that
+allowance refills at 10% a second, damage past it does 25% of itself, and no burst takes more than 35%. Status ticks (burn, bleed, poison)
+count too: they were how the relic builds melted bosses. Ordinary fights stay under the allowance, so they don't change.
+
+`npm run sim -- relics 3` (maxed saves, the family-following bot, 15 runs), with the new boss-fight table (seconds from a boss's arrival to
+its death):
+
+| | Boss fights | Under 10 s | Fastest | Fastest Usurper | Runs won |
+|---|---|---|---|---|---|
+| Before | 99 | 31 | 1.1 s | 20.2 s | 9 |
+| After | 97 | 11 | 7.2 s | 70.8 s | 8 |
+
+The Act bosses' medians went from 14-20 s to 18-29 s. Fresh runs (`npm run sim -- 3`, and the fresh bot fights logged one by one) barely
+fill the allowance: a fresh boss fight ends with the resolve under 5% loaded, so their wave spread is seed noise, not the resolve. A first try
+at 6% a second did cost fresh runs their close wave-5 fights; that is why the allowance is this wide.
+
 ## v0.7.3: the class spread (B8, #22)
 
 `npm run sim -- deep 6` per class (`SIM_CLASS`, one process each), on v0.7.3 with the Archer's aim fix (#59) and the Paladin's shield floor (#53).

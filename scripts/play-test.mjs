@@ -376,6 +376,35 @@ await check('mouse: aim follows the cursor', async () => {
   return { ok, detail: dirs.map((d) => `(${d.x},${d.y})`).join(' ') };
 });
 
+// v0.7.5 (#95): a boss is a fight to survive, not one ability
+await check('boss: one enormous ability does not end the fight', async () => {
+  const start = await inPage(() => {
+    const lb = window.__lb, g = lb.game, p = g.player;
+    const boss = () => g.enemies.find((e) => e.def.boss && !e.dead && !e.warded);
+    for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) lb.run(1, false, true); // the bot plays on to the wave-10 Act boss
+    const b = boss();
+    if (!b) return null;
+    window.__play.boss = b;
+    Object.assign(p, { x: b.x - b.r - 40, y: b.y, abilityCd: 0 });
+    g.baseMods.damage *= 1000; // a monstrous build (mods are rebuilt from these every tick)
+    return { hp: b.hp, max: b.maxHp, name: b.def.name, resolve: 'resolve' in b };
+  });
+  if (!start) return { ok: false, detail: 'no boss reached' };
+  if (!start.resolve) return { skip: true, detail: 'no boss resolve on this branch (before v0.7.5)' };
+  await page.mouse.move(700, 360); // aim at him (he is just right of the champion)
+  await page.keyboard.down('Space');
+  await inPage(() => window.__lb.run(2, false, 'input'));
+  await page.keyboard.up('Space');
+  await inPage(() => window.__lb.run(60, false, 'input'));
+  const end = await inPage(() => {
+    const b = window.__play.boss;
+    window.__lb.game.baseMods.damage /= 1000;
+    return { hp: b.hp, dead: b.dead };
+  });
+  const lost = (start.hp - end.hp) / start.max;
+  return { ok: !end.dead && lost > 0 && end.hp > start.max * 0.5, detail: `${start.name}: a 1000x ability took ${(lost * 100).toFixed(0)}% of his HP in a second` };
+});
+
 await check('touch: joystick moves, release stops', () =>
   inPage(() => {
     const lb = window.__lb, g = lb.game, p = g.player, canvas = document.querySelector('canvas');
