@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <!-- viewport-fit=cover + env(safe-area-inset-*) in the CSS keep the HUD out from under the notch and home indicator -->
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <!-- v0.7.5: only our own scripts run; inline styles are how the screens set colors and widths, Google Fonts serves the type (#105) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'" />
     <title>Last Bastion</title>
     <meta name="description" content="Medieval wave-survival: five classes, relics, squads, bosses. Plays in the browser, on iPhone and on Windows." />
     <meta name="theme-color" content="#14110f" />

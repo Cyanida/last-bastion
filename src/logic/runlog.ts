@@ -74,7 +74,7 @@ export function readRunLog(raw: unknown): RunLog | null {
     tier: fin(raw.tier) ? raw.tier : 0,
     arena: ARENA_IDS.includes(raw.arena as ArenaId) ? (raw.arena as ArenaId) : 'courtyard',
     seed: fin(raw.seed) ? raw.seed : 0,
-    daily: typeof raw.daily === 'string' ? raw.daily : null,
+    daily: typeof raw.daily === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.daily) ? raw.daily : null, // v0.7.5: a date only, it goes into the page (#105)
     curses: strs(raw.curses),
     oath: fin(raw.oath) ? raw.oath : 0,
     trait: typeof raw.trait === 'string' ? raw.trait : 'none',
