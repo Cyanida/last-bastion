@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { CLASSES, type ClassId } from '../src/config/classes';
-import { FAMILY_IDS, RELIC_MAX_TIER, type RelicId } from '../src/config/relics';
+import { FAMILY_IDS, RELIC_IDS, RELIC_MAX_TIER, RELIC_MOMENTS, type RelicId } from '../src/config/relics';
+import { mulberry32 } from '../src/core/math';
 import type { Game } from '../src/core/types';
 import { createGame } from '../src/game';
-import { addWork, duoTier, familySets, joinTiers, looseRelics, relicPoolFor } from '../src/logic/relics';
-import { addRelic, offerRelics, relicShares, resolveRelicOffer, updateRelics } from '../src/systems/relics';
+import { addWork, duoTier, familySets, joinTiers, looseRelics, relicPoolFor, rollOffer } from '../src/logic/relics';
+import { addRelic, familyOf, offerRelics, relicShares, resolveRelicOffer, updateRelics } from '../src/systems/relics';
 
 function game(relics: RelicId[]): Game {
   const g = createGame('paladin', 1);
@@ -70,5 +71,19 @@ describe('a duo combines its two relics into one (#96)', () => {
       const sets = familySets(relicPoolFor(c, []));
       expect(FAMILY_IDS.some((f) => sets[f]?.level === 6), c).toBe(true);
     }
+  });
+});
+
+describe('offers lean toward held families, so a 6-set stays reachable (#96)', () => {
+  it('the game\'s lean shows two cards of your family clearly more often than no lean', () => {
+    expect(RELIC_MOMENTS.heldFamilyWeight).toBeGreaterThan(1);
+    const held = RELIC_IDS.filter((id) => familyOf(id) === 'flame').slice(0, 3);
+    const doubles = (lean: number) => { // one held-family card is guaranteed anyway; the lean shows in the second
+      const rng = mulberry32(96);
+      let n = 0;
+      for (let i = 0; i < 2000; i++) if (rollOffer([...RELIC_IDS], held, rng, 3, familyOf, lean).filter((id) => familyOf(id) === 'flame').length >= 2) n++;
+      return n;
+    };
+    expect(doubles(RELIC_MOMENTS.heldFamilyWeight)).toBeGreaterThan(doubles(1) * 1.3);
   });
 });

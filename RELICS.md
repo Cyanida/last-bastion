@@ -154,8 +154,9 @@ higher tier of its two sources (and that tier's fuller bar) and attunes as one r
 fills one bar, and a tier-up raises both (`logic/relics.ts` `joinTiers`, `systems/relics.ts` `tierUp`). The relic bar, the build panel,
 the Relics results (credit summed into the duo's row) and the Merchant show the duo instead of its sources, so a combined relic cannot be
 sold, rerolled or reforged. Every class still reaches a 6-set: each of its three preferred families holds six relics it can find.
-First measure (`sim -- relics 4`, 20 runs, 13 won): 6-sets in 7.7% of winning runs (was 41-65%, mostly completed with a duo), 1.00 duos a winning run, power index 2.04. The 6-set target (about a
-third of winning runs) is now missed: raising it is a balance call for a follow-up (more lean toward held families, or a duo worth a piece).
+First measure (`sim -- relics 4`, 20 runs, 13 won): 6-sets in 7.7% of winning runs (was 41-65%, mostly completed with a duo), 1.00 duos a winning run, power index 2.04. Jesse's new target
+(on #96): a 6-set in **about 15% of winning runs**, rarer than before but a noticeable power-up. Offers now lean 1.6× toward the families
+you hold (`RELIC_MOMENTS.heldFamilyWeight`, was 1): 6-sets in 15.4% of winning runs, still 1.00 duos and a power index of 2.04 (BALANCE.md).
 
 ## A7 · Keep, achievements, migration (built)
 

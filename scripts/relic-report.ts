@@ -5,7 +5,7 @@
  *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json>     maxed saves, the family-following bot, a win stops the run
  *   npx vite-node scripts/relic-report.ts merge <out.json> ...                the tables
  *
- * Targets (the v0.7 brief): every relic 3-35% of what it does in the builds that hold it; a 6-set in about a third of winning runs; 1-2 duos
+ * Targets (the v0.7 brief): every relic 3-35% of what it does in the builds that hold it; a 6-set in about 15% of winning runs (#96, was a third); 1-2 duos
  * a winning run and 3+ in under 15%; every class at a 4-set in two or more families; relic power index 1.8-2.2 (see POWER below).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -105,7 +105,7 @@ if (cmd === 'run') {
   const power23 = powerIndex(avg(rows.flatMap((r) => [r.power, r.power3]).filter((v): v is number => v != null)));
   console.log(`\n## Relic balance (A8)\n\n${rows.length} runs (maxed saves, the family-following bot), ${won.length} won.\n`);
   console.log('| Target | Measured | |\n|---|---|---|');
-  console.log(`| A 6-set in about a third of winning runs | ${pct(six)} | ${ok(six >= 0.2 && six <= 0.45)} |`);
+  console.log(`| A 6-set in about 15% of winning runs | ${pct(six)} | ${ok(six >= 0.1 && six <= 0.22)} |`);
   console.log(`| 1-2 duos a winning run | ${duos.toFixed(2)} | ${ok(duos >= 1 && duos <= 2)} |`);
   console.log(`| 3+ duos in under 15% of winning runs | ${pct(duos3)} | ${ok(duos3 < 0.15)} |`);
   console.log(`| Relic power index 1.8-2.2 (Acts II-III, waves 11-30) | ${power23.toFixed(2)} (Act II ${power.toFixed(2)}, Act III ${power3.toFixed(2)}) | ${ok(power23 >= 1.8 && power23 <= 2.2)} |`);
