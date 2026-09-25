@@ -3,6 +3,7 @@ import { oathReward } from './oaths';
 import { advanceContracts, weekKey, type Contract, type ContractState } from './contracts';
 import { CONTRACTS_PER_WEEK } from '../config/contracts';
 import { EVOLUTION_IDS, type EvolutionId } from '../config/evolutions';
+import { CARD_IDS, type CardId } from '../config/cards';
 import { ACHIEVEMENTS, FEAT_KEYS, type FeatKey } from '../config/achievements';
 import { ARENA_IDS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
@@ -122,6 +123,7 @@ export interface Save {
   newRelics: RelicId[]; // v0.7: relics that arrived with the rework, marked new in the compendium until found
   evolutions: EvolutionId[]; // v0.6: evolutions ever taken (the compendium shows their recipes in full)
   duos: DuoId[]; // v0.7: duos ever formed (the compendium shows them in full)
+  cards: CardId[]; // v0.8 (#124): flash cards seen (an entry, not a format change: an older save has seen none)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
   settings: { arena: ArenaId; tier: number; quality: QualitySetting; textSize: TextSize; prerelease: boolean; manualAim: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
 }
@@ -194,6 +196,7 @@ export function defaultSave(): Save {
     refund: null,
     evolutions: [],
     duos: [],
+    cards: [],
     newRelics: [],
     wins: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     oaths: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
@@ -302,6 +305,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
       }
     }
     if (Array.isArray(raw.evolutions)) save.evolutions = EVOLUTION_IDS.filter((id) => (raw.evolutions as unknown[]).includes(id));
+    if (Array.isArray(raw.cards)) save.cards = CARD_IDS.filter((id) => (raw.cards as unknown[]).includes(id));
     if (Array.isArray(raw.duos)) save.duos = DUO_IDS.filter((id) => (raw.duos as unknown[]).includes(id));
     if (Array.isArray(raw.runs)) save.runs = keepRuns(raw.runs.map(readRunLog).filter((r): r is RunLog => r !== null));
     if (isObj(raw.daily)) for (const [day, wave] of Object.entries(raw.daily)) if (/^\d{4}-\d{2}-\d{2}$/.test(day) && num(wave) > 0) save.daily[day] = num(wave);

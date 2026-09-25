@@ -46,6 +46,7 @@ import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
 import { GLOSSARY } from '../config/glossary';
+import { cardInfo, type CardId } from '../config/cards';
 import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
 import type { TestSetup } from '../systems/testMode';
 
@@ -1086,16 +1087,32 @@ export function showWhatsNew(w: WhatsNew, onBack: () => void): void {
 }
 
 /** v0.7.1: every game term and what it means (config/glossary.ts), from the pause menu and the Keep. Tooltips underline the same words. */
-export function showGlossary(onBack: () => void): void {
+export function showGlossary(onBack: () => void, cards: CardId[] = []): void {
+  const met = cards.map(cardInfo).sort((a, b) => a.name.localeCompare(b.name));
   const el = show(`
     <div class="panel dialog wide glossary">
       <h1 class="small">Glossary</h1>
       <p class="sub">The words the game uses, and what they mean. Tooltips underline them and explain them too.</p>
       <dl>${[...GLOSSARY].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<dt>${t.name}</dt><dd>${t.def}</dd>`).join('')}</dl>
+      ${met.length ? `<h2 class="small">Foes and marks met</h2><dl class="cards-met">${met.map((c) => `<dt>${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
+}
+
+/** v0.8 (#124): a flash card, the first time a foe, a boss or a mechanic is met. The run waits under it. `pause` (Esc) also opens the pause menu. */
+export function showFlashCard(id: CardId, onDone: (pause: boolean) => void): void {
+  const c = cardInfo(id);
+  const el = show(`
+    <div class="panel dialog flash-card${c.boss ? ' boss' : ''}" data-card="${id}">
+      <div class="tag">${c.boss ? 'Boss' : 'New'}</div>
+      <h2>${c.name}</h2>
+      <p>${c.text}</p>
+      <button class="btn big" data-leave>Got it</button>
+    </div>`);
+  click(el, '[data-leave]', () => onDone(false));
+  onActions((a) => (a === 'confirm' || a === 'cancel' || a === 'pause') && onDone(a === 'pause'));
 }
 
 const JUKEBOX_LAYERS = ['Sparse: a breather, the Merchant', 'Base: a wave', 'Second layer: a dense or dangerous fight', 'Boss: drums and a bass line'];
