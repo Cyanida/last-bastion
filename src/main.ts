@@ -35,7 +35,7 @@ import { botInput, botStep } from './sim/bot';
 import { playCues, view as simView } from './sim/view';
 import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
 import { abilityAimRadius } from './systems/abilities';
-import { relicPreview, relicShares, skipReward } from './systems/relics';
+import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showTestMode, showCrash, type TitleInfo } from './ui/screens';
@@ -49,7 +49,7 @@ import { CLASS_ORDER } from './config/classes';
 import { MASTERY } from './config/economy';
 import { markBored } from './systems/runlog';
 import { buildState } from './systems/evolutions';
-import { setRecipeBuild } from './ui/relicText';
+import { recipeLines, setRecipeBuild } from './ui/relicText';
 import { endlessScore } from './systems/victory';
 import { peddlerPrice } from './systems/events';
 import { utilityUpgradeOptions } from './systems/utility';
@@ -403,7 +403,7 @@ function openChoice(g: Game): void {
     });
   } else if (g.player.relics.offers.length > 0) {
     const p = g.player;
-    showRelicOffer(p.relics.offers[0], p.relics.held, p.relics.tiers, { skip: skipReward(g), preview: (id) => relicPreview(p, id) }, {
+    showRelicOffer(p.relics.offers[0], p.relics.held, p.relics.tiers, { skip: skipReward(g), preview: (id) => relicPreview(p, id), line: (id) => relicOfferLine(p, id, recipeLines({ relic: id }).length > 0) }, {
       take: (id) => void (choose(g, { c: 'relicTake', id }), resume()),
       skip: () => void (choose(g, { c: 'relicSkip' }), resume()),
       reroll: () => void (choose(g, { c: 'relicReroll' }), openChoice(g)),
