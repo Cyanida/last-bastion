@@ -5,6 +5,7 @@ import { GAME } from '../config/game';
 import { mulberry32 } from '../core/math';
 import { SpatialHash } from '../core/spatial';
 import type { Game } from '../core/types';
+import { hashSeed } from '../logic/acts';
 
 /**
  * v0.8 step 3.2 (#27, ARCHITECTURE.md): the whole `Game` as plain JSON and back.
@@ -21,6 +22,8 @@ export type Snapshot = { v: 1; game: unknown };
 
 const TABLES: Record<string, Record<string, object>> = { classes: CLASSES, enemies: ENEMIES, arenas: ARENAS };
 const CACHES = new Set(['spr', 'img']); // Enemy.spr, FloatText.img: the renderer fills them again
+// cosmetics drawn from Math.random (systems/effects.ts): in the snapshot for the renderer, but not in the hash
+const COSMETIC = new Set([...CACHES, 'particles', 'texts', 'lastText']);
 
 let configKeys: Map<object, string> | null = null;
 function configKey(o: object): string | undefined {
@@ -31,7 +34,7 @@ function configKey(o: object): string | undefined {
   return configKeys.get(o);
 }
 
-export function snapshot(g: Game): Snapshot {
+export function snapshot(g: Game, skip: ReadonlySet<string> = CACHES): Snapshot {
   const ids = new Map<object, number>();
   const enc = (v: unknown, path: string): unknown => {
     if (v === undefined) return { $u: 1 };
@@ -52,7 +55,7 @@ export function snapshot(g: Game): Snapshot {
     const proto = Object.getPrototypeOf(v);
     if (proto !== Object.prototype && proto !== null) throw new Error(`snapshot: a ${proto?.constructor?.name ?? 'class'} instance at ${path}`);
     const o: Record<string, unknown> = {};
-    for (const [k, x] of Object.entries(v)) o[k] = CACHES.has(k) ? null : enc(x, `${path}.${k}`);
+    for (const [k, x] of Object.entries(v)) o[k] = skip.has(k) ? null : enc(x, `${path}.${k}`);
     return { '#': id, o };
   };
   return { v: 1, game: enc(g, 'g') };
@@ -86,3 +89,6 @@ export function restore(data: Snapshot): Game {
   };
   return dec(data.game) as Game;
 }
+
+/** Step 3.4: the simulation state as one number (FNV-1a over the snapshot's JSON, cosmetics left out), to compare two runs or a host and a client. */
+export const hashState = (g: Game): number => hashSeed(JSON.stringify(snapshot(g, COSMETIC)));

@@ -135,17 +135,16 @@ export const fullArmorStacks = (p: Player): boolean => p.armorStacks >= armorSta
 
 // ---------------------------------------------------------------- skeletons for any class
 
-/** Skeletons raised by relics and sets (tagged, so a family can count its own). */
-export const relicSkeletons = new WeakMap<Minion, RelicKey | FamilyId>();
+/** Skeletons raised by relics and sets (tagged in `relicBy`, so a family can count its own). */
 export function raiseSkeleton(g: Game, p: Player, x: number, y: number, by: RelicKey | FamilyId, o: { hp: number; damage: number; life: number }): Minion {
   const m = createMinion(x, y, { hp: o.hp, damage: relicDamage(p, o.damage), speed: 165, attackCd: 0.7, life: o.life });
-  relicSkeletons.set(m, by);
+  m.relicBy = by;
   g.minions.push(m);
   if (by in RELICS) addWork(p.relics, by as RelicId, ATTUNEMENT.summon);
   ring(g, x, y, 30, FAMILIES.grave.color);
   return m;
 }
-export const skeletonsBy = (g: Game, by: RelicKey | FamilyId): number => g.minions.filter((m) => relicSkeletons.get(m) === by).length;
+export const skeletonsBy = (g: Game, by: RelicKey | FamilyId): number => g.minions.filter((m) => m.relicBy === by).length;
 
 /** A cone in front of the player (Dragon's Tongue): every enemy within `range` and `arc` radians of `angle`. */
 export function cone(g: Game, p: Player, angle: number, range: number, arc: number): Enemy[] {
@@ -188,15 +187,13 @@ export function relicHeal(g: Game, p: Player, amount: number, show = false): num
   return healed;
 }
 
-/** Each held relic's raw bonus per mod key this tick (static mods plus conditional bonuses): the weights for sharing out a total. */
-export const rawBy = new WeakMap<Player, Partial<Record<RelicKey, Partial<Record<keyof Mods, number>>>>>();
 /** A tick hook's conditional bonus (a charge, a count, a missing-HP bonus): it joins the held relics' plain mods at face value. */
 export function bonus(p: Player, key: keyof Mods, amount: number): void {
   if (!amount) return;
   p.relics.dyn[key] = (p.relics.dyn[key] ?? 0) + amount;
   const id = relicContext.acting;
   if (id) {
-    const keys = ((rawBy.get(p) ?? {})[id] ??= {});
+    const keys = (p.relics.raw[id] ??= {});
     keys[key] = (keys[key] ?? 0) + amount;
   }
 }

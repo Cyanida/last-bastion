@@ -74,6 +74,10 @@ export interface RelicState {
   sets: Partial<Record<FamilyId, { count: number; straight: number; level: 0 | 2 | 4 | 6; strength: number }>>; // family counts and set levels, rebuilt with the mods
   duos: DuoId[]; // v0.7 A5: formed duos, in order (a duo counts toward both its families)
   cursedAct: number; // v0.7.1 B6: the last Act a cursed relic was offered to this player (0: none yet)
+  // v0.8 (#27): per-relic state that lived in module WeakMaps, here so a snapshot carries it
+  raw: Partial<Record<RelicKey, Partial<Record<keyof Mods, number>>>>; // each held relic's raw bonus per mod key this tick (the contribution weights)
+  warded: Minion[]; // Hallowed Bones: the skeletons it has warded, to notice the ones that expire
+  streak: number[]; // Tempest: the times of the recent kills
 }
 
 export interface Mods {
@@ -229,6 +233,7 @@ export interface Enemy extends Body {
   lastTele: Telegraph | null; // v0.6: the telegraph it had last tick (perfect dodge checks it when it fires)
   pulled: boolean; // v0.6: one of a wave's last stragglers, coming straight at the player (WAVES.stragglers)
   frozenT: number; // v0.7: frozen until this time (chill tipped over; Frost reads it)
+  rimeT?: number; // v0.8 (#27): Rimewalker can't freeze it again before this time
   hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
   secondWind: number; // v0.6 Oath: a boss rises once more from the brink with this fraction of its HP; 0 = none (or spent)
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
@@ -294,6 +299,8 @@ export interface Minion extends Body {
   passive?: boolean; // does not attack or chase: walks its path (if any) at `speed`
   path?: { x: number; y: number }[]; // waypoints, walked in a loop
   pathI?: number;
+  relicBy?: RelicKey | FamilyId; // raised by this relic or set (relicCore.raiseSkeleton)
+  frostLegion?: boolean; // Lich Lantern's Frost Legion has given it its burst
 }
 
 export interface Projectile extends Body {
@@ -420,6 +427,7 @@ export interface Corpse {
   x: number;
   y: number;
   t: number;
+  walked?: boolean; // Charnel: walked over already
 }
 
 export interface Particle {

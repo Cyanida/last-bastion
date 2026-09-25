@@ -1,5 +1,5 @@
 import { ATTUNEMENT, FAMILIES, relicDef, type RelicId, type SetLevel } from '../../config/relics';
-import type { Corpse, Player } from '../../core/types';
+import type { Player } from '../../core/types';
 import { timer } from '../../entities/hazards';
 import { applyStatus, nearestEnemy } from '../combat';
 import { awakened, bonus, credit, isCursed, nOf, nova, raiseSkeleton, relicDamage, sOf, skeletonsBy, type RelicHooks } from '../relicCore';
@@ -88,15 +88,14 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   },
 };
 
-const walked = new WeakSet<Corpse>(); // Charnel: corpses already walked over
 
 export const GRAVE_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   2: {
     tick(g, _dt, p) {
       g.vars['corpse.mult'] = F.n.corpseMult; // Charnel: game.ts keeps corpses this much longer
       for (const c of g.corpses) {
-        if (walked.has(c) || Math.hypot(c.x - p.x, c.y - p.y) > p.r + 12) continue;
-        walked.add(c); // and walking over one attunes your Grave relics
+        if (c.walked || Math.hypot(c.x - p.x, c.y - p.y) > p.r + 12) continue;
+        c.walked = true; // and walking over one attunes your Grave relics
         for (const id of p.relics.held) if (relicDef(id).family === 'grave') addWork(p.relics, id, ATTUNEMENT.corpse);
       }
     },

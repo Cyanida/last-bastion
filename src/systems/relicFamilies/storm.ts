@@ -16,7 +16,6 @@ const yourHit = (g: Game, p: Player) => rollPlayerHit(g, p.cls.attack.damage, p.
 /** Eye of the Storm: a chain hit crits on the player's own crit chance. */
 const chainCrit = (g: Game, p: Player) => awakened(p, 'tempestEye') && g.rng() < critChance(p.stats.dex) + p.mods.crit;
 const hitCount = (g: Game, key: string) => (g.vars[key] = (g.vars[key] ?? 0) + 1);
-const streaks = new WeakMap<Player, number[]>();
 
 export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   stormPennant: {
@@ -136,13 +135,13 @@ export const STORM_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   6: {
     // Tempest: chains reach 50% further (relicCore.chainFrom); 10 kills within 5 s reset the utility cooldown
     onKill(g, _ev, p) {
-      const times = (streaks.get(p) ?? []).filter((t) => g.time - t < F.n.streakWindow);
+      const times = p.relics.streak.filter((t) => g.time - t < F.n.streakWindow);
       times.push(g.time);
       if (times.length >= F.n.streakKills) {
         p.utilityCd = 0;
         times.length = 0;
       }
-      streaks.set(p, times);
+      p.relics.streak = times;
     },
   },
 };

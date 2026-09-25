@@ -3,7 +3,9 @@ import { mulberry32 } from '../src/core/math';
 import { createGame } from '../src/game';
 import { botStep } from '../src/sim/bot';
 import { aimFan } from '../src/systems/patterns';
-import { restore, snapshot } from '../src/sim/snapshot';
+import { hashState, restore, snapshot, type Snapshot } from '../src/sim/snapshot';
+import { step, type Command } from '../src/sim/commands';
+import { raiseSkeleton } from '../src/systems/relicCore';
 
 /** v0.8 step 3 (#27, ARCHITECTURE.md): serializable state. Step 3.1: every stored random stream keeps its whole state in `.s`. */
 
@@ -82,4 +84,67 @@ describe('timers as data (#27)', () => {
     for (let i = 0; i < 60; i++) (botStep(g), botStep(r));
     expect(JSON.stringify(snapshot(r))).toBe(JSON.stringify(snapshot(g)));
   });
+});
+
+/** Step 3.3b: the relic state that lived in module WeakMaps (Frost, Holy, Storm, Grave, raised skeletons) is in the state now. */
+describe('relic state in the snapshot (#27)', () => {
+  it("a relic's skeleton, a warded one, a kill streak and a walked corpse come back from a restore", () => {
+    const g = playTo(30);
+    const p = g.player;
+    const m = raiseSkeleton(g, p, p.x, p.y, 'grave', { hp: 10, damage: 5, life: 5 });
+    p.relics.warded.push(m);
+    p.relics.streak.push(g.time);
+    g.enemies[0].rimeT = g.time + 3;
+    g.corpses.push({ x: 1, y: 2, t: 0, walked: true });
+    const r = restore(JSON.parse(JSON.stringify(snapshot(g))));
+    const rm = r.minions[r.minions.length - 1];
+    expect(rm.relicBy).toBe('grave');
+    expect(r.player.relics.warded).toEqual([rm]);
+    expect(r.player.relics.streak).toEqual([g.time]);
+    expect(r.enemies[0].rimeT).toBe(g.time + 3);
+    expect(r.corpses[r.corpses.length - 1].walked).toBe(true);
+  });
+});
+
+/**
+ * Step 3.4: hashState and the replay test from the issue. The bot plays a full Act with relics and writes down its commands; a fresh
+ * Game replays them and the hashes match every 60 ticks. A run restored mid-Act and continued ends on the same hash.
+ */
+describe('replay (#27)', () => {
+  it('equal states hash equal, and one changed number changes the hash', () => {
+    const g = playTo(20);
+    const r = restore(JSON.parse(JSON.stringify(snapshot(g))));
+    expect(hashState(r)).toBe(hashState(g));
+    r.gold += 1;
+    expect(hashState(r)).not.toBe(hashState(g));
+  });
+
+  it('the same commands give the same hash for a full Act, and a mid-Act restore ends the same', () => {
+    const seed = 11; // a seed the bot clears Act 1 on (with relics, so their state is in play)
+    const g = createGame('angel', seed);
+    const log: Command[] = [];
+    const hashes: number[] = [];
+    let mid: Snapshot | null = null;
+    while (g.act === 1 && !g.over && g.time < 30 * 60) {
+      if (g.tick % 60 === 0) hashes.push(hashState(g));
+      if (!mid && g.wave === 5) mid = JSON.parse(JSON.stringify(snapshot(g)));
+      botStep(g, 0, log);
+    }
+    expect(g.act).toBe(2); // the bot cleared Act 1: a whole Act was recorded
+    const end = hashState(g);
+
+    const r = createGame('angel', seed);
+    const at = new Map<number, Command[]>();
+    for (const c of log) (at.get(c.tick) ?? at.set(c.tick, []).get(c.tick)!).push(c);
+    const last = g.tick;
+    while (r.tick < last) {
+      if (r.tick % 60 === 0) expect(hashState(r), `tick ${r.tick}`).toBe(hashes[r.tick / 60]);
+      step(r, at.get(r.tick) ?? []);
+    }
+    expect(hashState(r)).toBe(end);
+
+    const m = restore(mid!);
+    while (m.tick < last) step(m, at.get(m.tick) ?? []);
+    expect(hashState(m)).toBe(end);
+  }, 300_000);
 });

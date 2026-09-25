@@ -24,9 +24,6 @@ export function freeze(g: Game, e: Enemy, time: number): void {
   emit(g, 'onFreeze', { enemy: e }); // as a chill that tips over does (combat.applyStatus)
 }
 
-const touchCd = new WeakMap<Enemy, number>();
-const legion = new WeakSet<object>();
-
 export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   frostBrand: {
     onHit(g, ev, p) {
@@ -131,8 +128,8 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (!awakened(p, 'lichLantern')) return;
       for (const m of g.minions) {
         // Frost Legion: every skeleton (not the quest and event units) bursts in a frost nova when it falls or fades
-        if (m.kind || m.onEnd || legion.has(m)) continue;
-        legion.add(m);
+        if (m.kind || m.onEnd || m.frostLegion) continue;
+        m.frostLegion = true;
         m.onEnd = { radius: 80, damage: relicDamage(p, 12), color: F.color, dtype: 'frost' };
       }
     },
@@ -158,8 +155,8 @@ export const FROST_SETS: Partial<Record<SetLevel, RelicHooks>> = {
         addField(g, { x: p.x, y: p.y, r: n.trailRadius, life: n.trailLife, dps: 0, hostile: false, color: F.color, dtype: 'frost', apply: { id: 'slow', stacks: 1 } });
       }
       for (const e of g.hash.query(p.x, p.y, p.r + 30, [])) {
-        if (g.time < (touchCd.get(e) ?? 0) || Math.hypot(e.x - p.x, e.y - p.y) > p.r + e.r + 4) continue;
-        touchCd.set(e, g.time + n.touchCd);
+        if (g.time < (e.rimeT ?? 0) || Math.hypot(e.x - p.x, e.y - p.y) > p.r + e.r + 4) continue;
+        e.rimeT = g.time + n.touchCd;
         freeze(g, e, n.touchFreeze * strength(p, 'frost'));
       }
     },

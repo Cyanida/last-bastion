@@ -1,19 +1,17 @@
 import { ATTUNEMENT, FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import { cooldownFloor } from '../../logic/formulas';
 import { addWork } from '../../logic/relics';
-import type { Minion } from '../../core/types';
 import { fireProjectile } from '../../entities/hazards';
 import { TAU } from '../../core/math';
 import { rollPlayerHit } from '../combat';
 import { ring } from '../effects';
-import { awakened, bonus, credit, gainWard, nOf, nova, relicHeal, relicSkeletons, sOf, strength, type RelicHooks } from '../relicCore';
+import { awakened, bonus, credit, gainWard, nOf, nova, relicHeal, sOf, strength, type RelicHooks } from '../relicCore';
 
 /**
  * ✨ Holy (RELICS.md): healing, ward and blessing. Relics heal, grant ward (combat.damagePlayer lets ward take a hit first) or save you from
  * death; the sets turn healing into ward (Blessed), overhealing into a holy pulse (Radiance) and share it all with minions and allies (Communion).
  */
 const F = FAMILIES.holy;
-const bones = new WeakMap<object, Set<Minion>>(); // Hallowed Bones: the skeletons it has warded, to notice the ones that expire
 
 export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   rallyBanner: {
@@ -96,17 +94,16 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   hallowedBones: {
     tick(g, _dt, p) {
       const n = nOf(p, 'hallowedBones');
-      const seen = bones.get(p) ?? new Set<Minion>();
-      bones.set(p, seen);
+      const seen = p.relics.warded;
       for (const m of g.minions) {
-        if (m.kind || relicSkeletons.has(m) || seen.has(m)) continue;
-        seen.add(m);
+        if (m.kind || m.relicBy || seen.includes(m)) continue;
+        seen.push(m);
         m.maxHp *= 1 + n.ward; // the ward, as extra HP on a skeleton you raised
         m.hp *= 1 + n.ward;
       }
-      for (const m of seen) {
+      for (const m of [...seen]) {
         if (g.minions.includes(m) && m.hp > 0 && m.life > 0) continue;
-        seen.delete(m);
+        seen.splice(seen.indexOf(m), 1);
         relicHeal(g, p, p.stats.hp * (n.heal + n.perSoul * sOf(p)));
       }
     },
