@@ -230,7 +230,7 @@ function toSettings(): void {
   menu();
   const d = platform.desktop;
   showSettings(
-    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
+    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), manualAim: save.settings.manualAim, version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
     {
       back: toTitle,
       saveData: toSaveDialog,
@@ -254,6 +254,10 @@ function toSettings(): void {
       },
       runMusic() {
         setRunMusic(!runMusicOn());
+        toSettings();
+      },
+      aim(manual) {
+        commit({ ...save, settings: { ...save.settings, manualAim: manual } });
         toSettings();
       },
       dev() {
@@ -586,8 +590,10 @@ function sampleInput(g: Game): void {
   const castRange = 'castRange' in ability ? ability.castRange : DEFAULT_CAST_RANGE;
   const needsAuto = intent.aim.kind !== 'screen' && (intent.ability || intent.showAim);
   const auto = needsAuto ? densestCluster(g.enemies, p, castRange, abilityAimRadius(p) || 120) : null;
+  // v0.7.5 (#81): Manual aims basic attacks at the mouse or the right stick; touch and an idle stick stay on auto-aim
+  const manualAim = save.settings.manualAim && (intent.aim.kind === 'screen' || intent.aim.kind === 'stick');
   const aim = resolveAim(intent.aim, p, auto, castRange, (x, y) => ({ x: cam.x + x * pxToWorld, y: cam.y + y * pxToWorld }), pxToWorld);
-  g.input = { moveX: intent.moveX, moveY: intent.moveY, aimX: aim.x, aimY: aim.y, ability: intent.ability, utility: intent.utility, showAim: intent.showAim };
+  g.input = { moveX: intent.moveX, moveY: intent.moveY, aimX: aim.x, aimY: aim.y, ability: intent.ability, utility: intent.utility, showAim: intent.showAim, manualAim };
 }
 
 /**

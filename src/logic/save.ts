@@ -123,7 +123,7 @@ export interface Save {
   evolutions: EvolutionId[]; // v0.6: evolutions ever taken (the compendium shows their recipes in full)
   duos: DuoId[]; // v0.7: duos ever formed (the compendium shows them in full)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
-  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
+  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; manualAim: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
 }
 
 /** What a finished (or abandoned) run reports. The v0.3 fields are optional so older callers keep working. */
@@ -199,7 +199,7 @@ export function defaultSave(): Save {
     oaths: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     contracts: { week: '', progress: Array(CONTRACTS_PER_WEEK).fill(0) },
     endless: Object.fromEntries(CLASS_ORDER.map((id) => [id, []])) as unknown as Record<ClassId, EndlessEntry[]>,
-    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
+    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, manualAim: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
   };
 }
 
@@ -314,6 +314,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
         oath: Math.max(0, Math.min(OATHS.length, Math.floor(num(s.oath)))),
         palettes: isObj(s.palettes) ? Object.fromEntries(CLASS_ORDER.filter((c) => num((s.palettes as Record<string, unknown>)[c]) > 0).map((c) => [c, Math.floor(num((s.palettes as Record<string, unknown>)[c]))])) : {},
         prerelease: s.prerelease === true,
+        manualAim: s.manualAim === true, // v0.7.5 (#81)
         curses: Array.isArray(s.curses) ? CURSE_IDS.filter((id) => (s.curses as unknown[]).includes(id)) : [],
       };
     }

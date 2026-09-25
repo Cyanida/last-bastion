@@ -150,13 +150,14 @@ export interface SettingsInfo {
   music: MusicLevel;
   effects: MusicLevel; // v0.7.1
   runMusic: boolean; // v0.7.1
+  manualAim: boolean; // v0.7.5 (#81)
   version: string; // v0.7.1: tap it five times for test mode
   dev: boolean; // v0.7.1: test mode is open
   perf: boolean;
   desktop: { version: string; status: string; prerelease: boolean } | null;
 }
 
-export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
+export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; aim: (manual: boolean) => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
   const chip = (q: QualitySetting) => `<button class="chip ${info.quality === q ? 'on' : ''}" data-quality="${q}">${q[0].toUpperCase()}${q.slice(1)}</button>`;
   const el = show(`
     <div class="panel dialog wide settings">
@@ -166,6 +167,7 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
       <div class="setting"><div><b>Music</b><span>Composed live. In a run it plays quieter, under the effects.${info.muted ? ' Silent while Sound is off.' : ''}</span></div><div>${MUSIC_LEVELS.map((l) => `<button class="chip ${info.music === l ? 'on' : ''}" data-music="${l}">${l[0].toUpperCase()}${l.slice(1)}</button>`).join('')}</div></div>
       <div class="setting"><div><b>Music during runs</b><span>A quiet theme for every arena that builds a little in a fight.</span></div><button class="chip ${info.runMusic ? 'on' : ''}" data-act="runMusic">${info.runMusic ? 'On' : 'Off'}</button></div>
       <div class="setting"><div><b>Effects</b><span>How loud the sound effects are.</span></div><div>${MUSIC_LEVELS.map((l) => `<button class="chip ${info.effects === l ? 'on' : ''}" data-effects="${l}">${l[0].toUpperCase()}${l.slice(1)}</button>`).join('')}</div></div>
+      <div class="setting"><div><b>Aim</b><span>Auto: basic attacks pick their own target. Manual: they go where the mouse or right stick points. Touch always aims itself.</span></div><div><button class="chip ${info.manualAim ? '' : 'on'}" data-aim="auto">Auto</button><button class="chip ${info.manualAim ? 'on' : ''}" data-aim="manual">Manual</button></div></div>
       <div class="setting"><div><b>Performance overlay</b><span>Frame, update and render times, entity counts, draw calls (F3 in a run).</span></div><button class="chip ${info.perf ? 'on' : ''}" data-act="perf">${info.perf ? 'On' : 'Off'}</button></div>
       ${info.desktop ? `
       <div class="setting"><div><b>Updates</b><span>Version ${info.desktop.version}. ${info.desktop.status}</span></div><button class="chip" data-act="check">Check for updates</button></div>
@@ -180,6 +182,7 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
   click(el, '[data-quality]', (b) => on.quality(b.dataset.quality as QualitySetting));
   click(el, '[data-music]', (b) => on.music(b.dataset.music as MusicLevel));
   click(el, '[data-effects]', (b) => on.effects(b.dataset.effects as MusicLevel));
+  click(el, '[data-aim]', (b) => on.aim(b.dataset.aim === 'manual'));
   click(el, '[data-act]', (b) => {
     const act = b.dataset.act;
     if (act === 'mute') on.mute();

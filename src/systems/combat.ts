@@ -316,11 +316,15 @@ export function updatePlayerAttack(g: Game, dt: number): void {
   if (p.attackTimer > 0) return;
   const atk = p.cls.attack;
   const range = atk.kind === 'melee' ? atk.range * p.buff.range : atk.range;
-  const target = atk.kind === 'melee' ? nearestEnemy(g, p.x, p.y, range) : shotTarget(g, p.x, p.y, range);
+  // v0.7.5 (#81): with manual aim the attack still waits for an enemy in reach, but goes where the player aims
+  const { aimX, aimY, manualAim } = g.input;
+  const aimed = !!manualAim && (aimX !== p.x || aimY !== p.y);
+  const target = atk.kind === 'melee' || aimed ? nearestEnemy(g, p.x, p.y, range) : shotTarget(g, p.x, p.y, range);
   if (!target) return;
+  const to = aimed ? { x: aimX, y: aimY } : target;
   p.attackTimer = 1 / Math.min(GAME.maxAttackRate, p.stats.atkSpd * p.buff.atkSpd * p.mods.atkSpd);
-  p.facing = Math.atan2(target.y - p.y, target.x - p.x);
-  p.flip = target.x < p.x;
+  p.facing = Math.atan2(to.y - p.y, to.x - p.x);
+  p.flip = to.x < p.x;
 
   if (atk.kind === 'melee') {
     const arc = p.buff.fullCircle ? TAU : atk.arc;
