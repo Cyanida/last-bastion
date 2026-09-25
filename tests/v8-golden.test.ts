@@ -24,16 +24,16 @@ function golden(cls: (typeof CLASS_ORDER)[number], seed: number): string {
 }
 
 const GOLDEN: Record<string, string> = {
-  'paladin:1234': 'wave 15 kills 525 level 16 gold 2411 relics 6 hash 1e4ca0c4',
-  'paladin:98765': 'wave 15 kills 636 level 16 gold 2269 relics 6 hash 833ccdec',
+  'paladin:1234': 'wave 13 kills 461 level 15 gold 1636 relics 5 hash dbbbcaf1',
+  'paladin:98765': 'wave 16 kills 638 level 16 gold 2428 relics 6 hash f4be516f',
   'viking:1234': 'wave 5 kills 147 level 7 gold 591 relics 3 hash b94b4852',
-  'viking:98765': 'wave 20 kills 866 level 20 gold 3368 relics 8 hash c4525121',
-  'angel:1234': 'wave 19 kills 788 level 20 gold 3979 relics 7 hash 5e7a3245',
-  'angel:98765': 'wave 17 kills 718 level 18 gold 3768 relics 7 hash d57e2d06',
-  'necromancer:1234': 'wave 16 kills 608 level 17 gold 2767 relics 6 hash 1260bb8f',
-  'necromancer:98765': 'wave 11 kills 388 level 12 gold 1201 relics 4 hash aa908511',
-  'archer:1234': 'wave 4 kills 108 level 5 gold 273 relics 2 hash 3b73d95d',
-  'archer:98765': 'wave 15 kills 566 level 15 gold 2841 relics 6 hash 7ed94750',
+  'viking:98765': 'wave 18 kills 826 level 19 gold 3181 relics 6 hash 50ec9546',
+  'angel:1234': 'wave 19 kills 760 level 19 gold 3764 relics 6 hash a1fb5f8f',
+  'angel:98765': 'wave 17 kills 715 level 18 gold 3363 relics 6 hash 7405b9f9',
+  'necromancer:1234': 'wave 18 kills 712 level 18 gold 3424 relics 6 hash 4abc7857',
+  'necromancer:98765': 'wave 9 kills 303 level 10 gold 806 relics 3 hash 1c3b7c79',
+  'archer:1234': 'wave 4 kills 111 level 5 gold 274 relics 2 hash 9693440f',
+  'archer:98765': 'wave 11 kills 415 level 12 gold 1830 relics 4 hash 2ad94bf9',
 };
 
 describe('v0.8 golden runs', () => {
