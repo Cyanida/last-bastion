@@ -33,7 +33,10 @@ const SW = `const CACHE = '__CACHE__';
 const FILES = __FILES__;
 const FONTS = 'fonts-lb';
 
-self.addEventListener('install', (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES))));
+// cache: 'reload' skips the HTTP cache (Pages sets max-age=600), so two quick deploys can't pair an old index.html with new files
+self.addEventListener('install', (e) =>
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' }))))),
+);
 
 self.addEventListener('activate', (e) =>
   e.waitUntil(

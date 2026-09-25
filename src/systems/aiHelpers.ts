@@ -75,3 +75,16 @@ export function summon(g: Game, e: Enemy): void {
 }
 
 export const specialDamage = (e: Enemy) => hitDamage(e) * e.def.specialMult!;
+
+const chargeHits = new WeakMap<Enemy, Set<Target>>();
+/** A charge starts: nobody has been run through yet. */
+export const chargeStart = (e: Enemy) => chargeHits.set(e, new Set());
+/** One tick of a charge: it hits the player and each minion it touches once per charge, not every tick it overlaps them. */
+export function chargeThrough(g: Game, e: Enemy): void {
+  const hit = chargeHits.get(e) ?? chargeStart(e).get(e)!;
+  for (const v of [g.player, ...g.minions]) {
+    if (hit.has(v) || distTo(e, v) > e.r + v.r + 6) continue;
+    hit.add(v);
+    hurtTarget(g, v, specialDamage(e), true, e);
+  }
+}

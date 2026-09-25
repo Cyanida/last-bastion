@@ -1,5 +1,35 @@
 # Balance notes
 
+## v0.7.5: a duo combines its two relics (#96)
+
+A duo no longer counts as a third relic for both its families (RELICS.md), so 6-sets fell from 41-65% of winning runs to 7.7%. Jesse's
+target (on #96): **a 6-set in about 15% of winning runs**, rarer than before but a noticeable power-up. Offers now lean 1.6× toward the
+families you hold (`RELIC_MOMENTS.heldFamilyWeight` in `config/relics.ts`, was 1).
+
+| `npm run sim -- relics 4` (20 runs) | 6-sets in winning runs | Duos a winning run | 3+ duos | Power index (Acts II-III) |
+|---|---|---|---|---|
+| Duo combines, lean 1 | 7.7% | 1.00 | | 2.04 |
+| Duo combines, lean 1.6 | 15.4% (Flame 2, Holy 2, Frost 1, Steel 1) | 1.00 | 7.7% | 2.04 (Act II 1.60, Act III 2.98) |
+
+## v0.7.5: a boss's resolve (#95)
+
+A playtest (#93) had the Usurper die about 10 seconds in to one Volley from a 6 Flame / 6 Storm build. Bosses now have **resolve**
+(`BOSS_RESOLVE` in `config/damage.ts`, `throughResolve` in `logic/status.ts`): up to 15% of a boss's max HP lands in full at once, that
+allowance refills at 10% a second, damage past it does 25% of itself, and no burst takes more than 35%. Status ticks (burn, bleed, poison)
+count too: they were how the relic builds melted bosses. Ordinary fights stay under the allowance, so they don't change.
+
+`npm run sim -- relics 3` (maxed saves, the family-following bot, 15 runs), with the new boss-fight table (seconds from a boss's arrival to
+its death):
+
+| | Boss fights | Under 10 s | Fastest | Fastest Usurper | Runs won |
+|---|---|---|---|---|---|
+| Before | 99 | 31 | 1.1 s | 20.2 s | 9 |
+| After | 97 | 11 | 7.2 s | 70.8 s | 8 |
+
+The Act bosses' medians went from 14-20 s to 18-29 s. Fresh runs (`npm run sim -- 3`, and the fresh bot fights logged one by one) barely
+fill the allowance: a fresh boss fight ends with the resolve under 5% loaded, so their wave spread is seed noise, not the resolve. A first try
+at 6% a second did cost fresh runs their close wave-5 fights; that is why the allowance is this wide.
+
 ## v0.7.3: the class spread (B8, #22)
 
 `npm run sim -- deep 6` per class (`SIM_CLASS`, one process each), on v0.7.3 with the Archer's aim fix (#59) and the Paladin's shield floor (#53).

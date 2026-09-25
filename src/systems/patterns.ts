@@ -65,7 +65,8 @@ export function updatePattern(g: Game, e: Enemy, dt: number): void {
   const p = PATTERNS[e.def.id];
   if (!p || g.act < p.from) return;
   if (e.patternT < 0) e.patternT = p.cd * (0.4 + 0.6 * e.flankRoll); // not all of a wave at once
-  if ((e.patternT -= dt) > 0 || e.hidden || e.pulled || e.telegraph || distTo(e, g.player) > p.range) return;
+  e.patternT = Math.max(0, e.patternT - dt); // it waits at 0 until the player is in range, not back into a cooldown (#112)
+  if (e.patternT > 0 || e.hidden || e.pulled || e.telegraph || distTo(e, g.player) > p.range) return;
   e.patternT = p.cd;
   KINDS[p.kind](g, e, p);
 }

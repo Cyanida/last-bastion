@@ -4,8 +4,7 @@ import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
 import { addZone, after } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
-import { angleTo, distTo, hitDamage, keepRange, move, moveTo, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
-import { hurtTarget } from './combat';
+import { angleTo, chargeStart, chargeThrough, distTo, hitDamage, keepRange, move, moveTo, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { pickTarget, registerBoss } from './enemyAI';
 import { burst, floatText, ring, shake } from './effects';
 import { regionsOf } from './regions';
@@ -312,15 +311,11 @@ registerBoss(FINAL.boss, (g, e, dt) => {
       e.state = 3;
       e.timer = U.lunge.dist / U.lunge.speed;
       e.telegraph = null;
-      e.charged = false;
+      chargeStart(e);
     }
   } else if (e.state === 3) {
     move(e, e.angle, U.lunge.speed, dt);
-    for (const v of [g.player, ...g.minions]) {
-      if (distTo(e, v) > e.r + v.r + 6 || (v === g.player && e.charged)) continue;
-      if (v === g.player) e.charged = true;
-      hurtTarget(g, v, specialDamage(e), true, e);
-    }
+    chargeThrough(g, e);
     if (e.timer <= 0) {
       if (e.phase === 3 && g.vars['usurper.chain']++ < U.lunge.chain - 1) lungeWindup(e, t, 0.55); // phase 3: straight into the next one
       else (e.state = 4), (e.timer = U.lunge.recover);

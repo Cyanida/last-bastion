@@ -4,7 +4,7 @@ import { sfx } from '../sim/view';
 import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
 import { combineMods } from '../logic/mods';
-import { attuneAll, duoFamilies, foldRelicMods, readyDuos, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
+import { attuneAll, duoPartner, duoTier, foldRelicMods, joinTiers, looseRelics, readyDuos, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
 import { floatText, ring } from './effects';
 import { relicContext } from './relicContext';
 import { credit, familySets, rawBy, type RelicHooks } from './relicCore';
@@ -92,6 +92,10 @@ addListener((g, name, ev) => {
   if (name === 'onHit') attribute(g, p, ev as GameEvents['onHit']);
   if (name === 'onDamageTaken') g.vars.taken = (g.vars.taken ?? 0) + (ev as GameEvents['onDamageTaken']).amount;
   if (name === 'onIncoming') g.vars.incoming = (g.vars.incoming ?? 0) + (ev as GameEvents['onIncoming']).amount;
+  // v0.7: every wave boss is a relic moment (a lair's boss is the lair's moment; the Usurper ends the run),
+  // before the chain limit: a boss killed by the last link of a relic chain still counts
+  const slain = name === 'onKill' ? (ev as GameEvents['onKill']).enemy : null;
+  if (slain?.def.boss && !slain.side && slain.def.id !== 'usurper') offerRelics(g, BOSS_RELIC_CHOICES + (g.vars['keep.bossChoices'] ?? 0), 'boss'); // + the Reliquary Vault
   if (g.procDepth >= RELIC_STACKING.procDepth) return; // a relic reacting to a relic's damage is the last link of the chain
   g.procDepth++;
   const outer = relicContext.acting;
@@ -113,9 +117,6 @@ addListener((g, name, ev) => {
     relicContext.acting = outer;
     g.procDepth--;
   }
-  // v0.7: every wave boss is a relic moment (a lair's boss is the lair's moment; the Usurper ends the run)
-  const slain = name === 'onKill' ? (ev as GameEvents['onKill']).enemy : null;
-  if (slain?.def.boss && !slain.side && slain.def.id !== 'usurper') offerRelics(g, BOSS_RELIC_CHOICES + (g.vars['keep.bossChoices'] ?? 0), 'boss'); // + the Reliquary Vault
 });
 
 /**
@@ -128,7 +129,7 @@ export function updateRelics(g: Game, dt: number): void {
   if (r.dirty) {
     const was = r.sets;
     r.static = relicModTotals(r.held, r.tiers);
-    r.sets = familySets(r.held, duoFamilies(r.duos));
+    r.sets = familySets(r.held);
     r.dirty = false;
     for (const f of FAMILY_IDS) {
       const level = r.sets[f]?.level ?? 0;
@@ -189,16 +190,23 @@ export function addRelic(g: Game, id: RelicId, from: RelicSource = 'other', tier
   return true;
 }
 
-/** A4: a full attunement bar. Tier II strengthens the relic, tier III awakens it; a flash, a sound, and the onRelicTier event (run log, stinger). */
+/**
+ * A4: a full attunement bar. Tier II strengthens the relic, tier III awakens it; a flash, a sound, and the onRelicTier event (run log, stinger).
+ * v0.7.5 (#96): a relic combined into a duo takes its partner along, so the duo tiers up as one relic.
+ */
 function tierUp(g: Game, p: Player, id: RelicId): void {
   const r = p.relics;
   const tier = relicTier(r.tiers, id) + 1;
-  r.tiers = { ...r.tiers, [id]: tier };
-  r.attune[id] = 0; // ponytail: progress past a full bar is dropped; carry it over if tiers ever come too slowly
+  const partner = duoPartner(r.duos, id);
+  for (const s of partner ? [id, partner] : [id]) {
+    r.tiers = { ...r.tiers, [s]: tier };
+    r.attune[s] = 0; // ponytail: progress past a full bar is dropped; carry it over if tiers ever come too slowly
+    HOOKS[s]?.acquire?.(g, p); // Blood Pact's HP cut follows its tier
+  }
   r.dirty = true;
-  HOOKS[id]?.acquire?.(g, p); // Blood Pact's HP cut follows its tier
-  const def = relicDef(id);
-  const color = keyColor(id);
+  const duo = partner && r.duos.find((d) => DUOS[d].from.includes(id));
+  const def = duo ? { ...DUOS[duo], awaken: { name: `${relicDef(id).awaken.name} + ${relicDef(partner).awaken.name}` } } : relicDef(id);
+  const color = duo ? keyColor(duo) : keyColor(id);
   floatText(g, p.x, p.y - 60, tier >= RELIC_MAX_TIER ? `${def.icon} ${def.name} awakens: ${def.awaken.name}` : `${def.icon} ${def.name} attuned: tier ${TIER_NUMERALS[tier]}`, color, 17);
   ring(g, p.x, p.y, 70, color, 0.6);
   sfx('levelup');
@@ -263,9 +271,12 @@ export function relicShares(g: Game, p: Player = g.player): { id: RelicKey; tier
   const r = p.relics;
   const pct = (v: number, of: number) => (of > 0 ? Math.round((v / of) * 1000) / 10 : 0);
   const taken = (g.vars.taken ?? 0) + (g.vars.prevented ?? 0);
-  return [...r.held, ...r.duos, ...FAMILY_IDS.filter((f) => (r.sets[f]?.level ?? 0) > 0)].map((id: RelicKey) => {
-    const s = r.stats[id] ?? { damage: 0, healing: 0, prevented: 0 };
-    return { id, tier: isDuo(id) || isFamily(id) ? 0 : relicTier(r.tiers, id as RelicId), from: r.from[id] ?? 'other', damage: pct(s.damage, g.vars.dealt ?? 0), healing: pct(s.healing, g.vars.healed ?? 0), mitigation: pct(s.prevented, taken) };
+  const none = { damage: 0, healing: 0, prevented: 0 };
+  const statOf = (id: RelicKey) => r.stats[id] ?? none;
+  return [...looseRelics(r.held, r.duos), ...r.duos, ...FAMILY_IDS.filter((f) => (r.sets[f]?.level ?? 0) > 0)].map((id: RelicKey) => {
+    // v0.7.5 (#96): a duo's row is the one relic it made, so its two sources' shares are its own
+    const s = isDuo(id) ? [id, ...DUOS[id].from].map(statOf).reduce((a, b) => ({ damage: a.damage + b.damage, healing: a.healing + b.healing, prevented: a.prevented + b.prevented })) : statOf(id);
+    return { id, tier: isDuo(id) ? duoTier(r.tiers, id) : isFamily(id) ? 0 : relicTier(r.tiers, id as RelicId), from: r.from[id] ?? 'other', damage: pct(s.damage, g.vars.dealt ?? 0), healing: pct(s.healing, g.vars.healed ?? 0), mitigation: pct(s.prevented, taken) };
   }).sort((a, b) => Math.max(b.damage, b.healing, b.mitigation) - Math.max(a.damage, a.healing, a.mitigation));
 }
 
@@ -313,10 +324,12 @@ export function resolveRelicOffer(g: Game, id: RelicId | DuoId | null, p: Player
   return true;
 }
 
-/** v0.7 A5: take a ready duo: it counts toward both its families from now on, and its two source relics feed no other duo. */
+/** v0.7 A5: take a ready duo. v0.7.5 (#96): it combines its two source relics into one, at the higher of their tiers (joinTiers). */
 export function formDuo(g: Game, p: Player, id: DuoId): boolean {
   if (!readyDuos(p.relics).includes(id)) return false;
   p.relics.duos = [...p.relics.duos, id];
+  joinTiers(p.relics, id);
+  for (const s of DUOS[id].from) HOOKS[s]?.acquire?.(g, p); // a source that rose a tier: Blood Pact's HP cut follows it
   p.relics.dirty = true;
   const d = DUOS[id];
   floatText(g, p.x, p.y - 60, `${d.icon} ${d.name}`, '#f2c94c', 18);

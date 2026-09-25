@@ -63,14 +63,30 @@ describe("the Archer's hard counters (v0.7.3, #59)", () => {
     expect(shield.hp).toBeLessThan(hp); // the shield is gone: arrows land
   });
 
-  it('a mirror knight alone is not shot at while he would throw the arrow back; the moment he swings, he is', () => {
+  it('v0.7.5 (#92): alone, a mirror knight is shot at, and the thrown-back arrows wear his mirror down until it breaks', () => {
     const { g, foes } = range([['mirrorKnight', 150, 0]]);
     const [mirror] = foes;
+    g.player.hp = 1e6; // survive the arrows coming back
+    let broke = false;
+    for (let i = 0; i < 120 && !broke; i++) {
+      mirror.attackTimer = 0; // mirror up for every shot
+      shoot(g);
+      expect(g.projectiles.filter((pr) => !pr.hostile).length).toBeGreaterThan(0);
+      fly(g, 0.6);
+      broke = mirror.armorHp === 0;
+    }
+    expect(broke).toBe(true);
+    const hp = mirror.hp;
     shoot(g);
-    expect(g.projectiles.filter((pr) => !pr.hostile)).toHaveLength(0);
-    mirror.attackTimer = 1;
+    fly(g, 0.6);
+    expect(mirror.hp).toBeLessThan(hp); // the mirror is gone: arrows land
+  });
+
+  it('auto-aim still prefers an enemy the arrow can hurt over a mirror knight that would throw it back', () => {
+    const { g, foes } = range([['mirrorKnight', 120, 0], ['peasant', 0, 300]]);
     shoot(g);
-    expect(g.projectiles.filter((pr) => !pr.hostile).length).toBeGreaterThan(0);
+    const aim = Math.atan2(foes[1].y - g.player.y, foes[1].x - g.player.x);
+    expect(g.player.facing).toBeCloseTo(aim, 1);
   });
 
   it('a thrown-back arrow costs the mirror half its damage', () => {

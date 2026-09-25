@@ -28,11 +28,9 @@ export const hasDuo = (p: Player, id: DuoId): boolean => p.relics.duos.includes(
 export const sOf = (p: Player): number => p.stats.secondary;
 export const relicDamage = (p: Player, base: number): number => base * (1 + p.level * RELIC_DAMAGE_PER_LEVEL);
 
-const NO_SET: SetState = { count: 0, straight: 0, level: 0, strength: 1 };
+const NO_SET: SetState = { count: 0, level: 0 };
 export const setOf = (p: Player, f: FamilyId): SetState => p.relics.sets[f] ?? NO_SET;
 export const setAt = (p: Player, f: FamilyId, level: SetLevel): boolean => setOf(p, f).level >= level;
-/** The strength a family's set works at: a 6 completed with a duo is stronger (DUO_SIX_STRENGTH); every other level is 1. */
-export const strength = (p: Player, f: FamilyId): number => setOf(p, f).strength;
 
 // ---------------------------------------------------------------- hits
 
@@ -68,13 +66,15 @@ export function strike(g: Game, x: number, y: number, damage: number, radius: nu
 export function chainFrom(g: Game, p: Player, from: Enemy, amount: number, jumps: number, range: number, each?: (e: Enemy) => void, crit = false): void {
   const reach = range * (setAt(p, 'storm', 6) ? FAMILIES.storm.n.rangeMult : 1);
   let at = from;
+  const hit = [from];
   for (let i = 0; i < jumps; i++) {
-    const next = nearestEnemy(g, at.x, at.y, reach, at);
+    const next = nearestEnemy(g, at.x, at.y, reach, hit);
     if (!next) return;
     line(g, at.x, at.y, next.x, next.y, FAMILIES.storm.color);
     damageEnemy(g, next, amount, crit, 0, 0, 'relic');
     each?.(next);
     emit(g, 'onChain', { enemy: next, from: at, amount });
+    hit.push(next);
     at = next;
   }
 }
@@ -109,7 +109,7 @@ export const isCursed = (e: Enemy): boolean => (e.statuses.curse?.stacks ?? 0) >
 export function wardMax(p: Player): number {
   const n = FAMILIES.holy.n;
   const base = setAt(p, 'holy', 2) ? p.stats.hp * (n.wardMax + n.wardMaxPerS * sOf(p)) : p.stats.hp * 0.1;
-  return base * (setAt(p, 'holy', 6) ? n.wardMaxMult : 1) * Math.max(1, strength(p, 'holy'));
+  return base * (setAt(p, 'holy', 6) ? n.wardMaxMult : 1);
 }
 export function gainWard(g: Game, p: Player, amount: number): void {
   if (amount <= 0) return;
@@ -168,12 +168,13 @@ export type RelicHooks = { [K in EventName]?: (g: Game, ev: GameEvents[K], p: Pl
 };
 
 /**
- * A relic that cuts max HP to `frac` (Blood Pact; Crimson Chalice's curse), under its own key: unrounded, so tier-ups, a lifted curse and
- * removal round-trip exactly.
+ * A relic that cuts max HP to `frac` (Blood Pact; Crimson Chalice's curse), under its own key: it keeps the HP it took and gives exactly that
+ * back first, so tier-ups, a lifted curse and removal round-trip without inflating max HP gained after the cut.
  */
 export function cutMaxHp(g: Game, p: Player, key: string, frac: number): void {
-  p.stats.hp = (p.stats.hp / (g.vars[key] ?? 1)) * frac;
-  g.vars[key] = frac;
+  const full = p.stats.hp + (g.vars[key] ?? 0);
+  g.vars[key] = full * (1 - frac);
+  p.stats.hp = full - g.vars[key];
   p.hp = Math.min(p.hp, p.stats.hp);
 }
 
