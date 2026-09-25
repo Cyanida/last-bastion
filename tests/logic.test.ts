@@ -50,9 +50,10 @@ describe('stat scaling', () => {
 
   it('growth adds per-level values without mutating', () => {
     const c = CLASSES.paladin;
+    const before = { ...c.base };
     const grown = applyGrowth(c.base, c.growth);
     expect(grown.hp).toBe(c.base.hp + c.growth.hp);
-    expect(c.base.hp).toBe(CLASSES.paladin.base.hp);
+    expect(c.base).toEqual(before); // #115: was compared with itself
   });
 
   it('every class defines all seven stats and the classes are actually different', () => {
@@ -165,9 +166,10 @@ describe('level-up pool', () => {
 
   it('applies add and mult upgrades without mutating', () => {
     const base = CLASSES.viking.base;
+    const before = { ...base };
     expect(applyStatUpgrade(base, 'str').str).toBe(base.str + UPGRADES.str.amount);
     expect(applyStatUpgrade(base, 'atkSpd').atkSpd).toBeCloseTo(base.atkSpd * UPGRADES.atkSpd.amount);
-    expect(base.str).toBe(CLASSES.viking.base.str);
+    expect(base).toEqual(before); // #115: was compared with itself
   });
 });
 

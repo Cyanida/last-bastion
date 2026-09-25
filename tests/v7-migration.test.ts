@@ -6,14 +6,14 @@ import { createGame, summarizeRun } from '../src/game';
 import { newlyEarned } from '../src/logic/achievements';
 import { metaLoadout } from '../src/logic/economy';
 import { applyRun, defaultSave, migrate, SAVE_VERSION, type RunSummary } from '../src/logic/save';
+import { oldSave } from './fixtures/saves';
 import { killEnemy } from '../src/systems/combat';
 import { momentRerolls } from '../src/systems/relics';
 import { spawnEnemy } from '../src/systems/spawning';
 
 /** A save as v0.6.0 wrote it: format 5, the old relic ids in the compendium, three ranks of the old Reliquary Guard. */
 const v060 = () => ({
-  ...JSON.parse(JSON.stringify(defaultSave())),
-  version: 5,
+  ...oldSave('v0.6.0'),
   gold: 1000,
   meta: { relicChance: 3, relicSlot: 1, startRelic: 1 },
   relicPicks: { whetstone: 5, echoBell: 3, hawkeyeQuiver: 2, frostBrand: 4, powderKeg: 1, bloodPact: 2 },
