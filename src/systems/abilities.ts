@@ -24,13 +24,13 @@ import { SKILL } from '../config/game';
  */
 interface AbilityHook<K extends AbilityId> {
   /** Return false if the cast could not happen (cooldown is not spent). */
-  activate(g: Game, c: Cfg<K>): boolean;
+  activate(g: Game, c: Cfg<K>, p: Player): boolean;
   /** Every tick while p.abilityTime > 0. */
-  tick?(g: Game, c: Cfg<K>, dt: number): void;
+  tick?(g: Game, c: Cfg<K>, dt: number, p: Player): void;
   /** When p.abilityTime runs out. */
-  expire?(g: Game, c: Cfg<K>): void;
+  expire?(g: Game, c: Cfg<K>, p: Player): void;
   /** Every tick regardless of the ability being active: passive upgrades adjust p.mods here. */
-  passive?(g: Game, c: Cfg<K>): void;
+  passive?(g: Game, c: Cfg<K>, p: Player): void;
   /** Reactions to combat events (only called for the class that owns the ability). */
   on?: Handlers;
   /** Current numbers for the HUD, so secondary-stat scaling is visible. */
@@ -83,8 +83,7 @@ const volleyAgain = timer('arrowVolley.again', fireVolley); // Double Volley
 
 const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
   divineShield: {
-    activate(g, c) {
-      const p = g.player;
+    activate(g, c, p) {
       activeFor(p, scale.divineShield(c, p.stats.secondary).duration);
       p.vars['shield.up'] = 0;
       p.vars['shield.burst'] = 1;
@@ -94,8 +93,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       ring(g, p.x, p.y, 60, c.aura);
       return true;
     },
-    tick(g, _c, dt) {
-      const p = g.player;
+    tick(g, _c, dt, p) {
       const faith = p.stats.secondary;
       p.vars['shield.up'] = (p.vars['shield.up'] ?? 0) + dt;
       if (has(p, 'zeal')) p.buff.atkSpd = 1 + U.zeal.n.atkSpd + faith * U.zeal.n.perFaith;
@@ -109,8 +107,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
         }
       }
     },
-    expire(g, c) {
-      const p = g.player;
+    expire(g, c, p) {
       p.invulnerable = false;
       // v0.7.3 (#53): the shield never comes back sooner than it was up (at most half the time invulnerable, whatever stacks)
       const downtime = (p.vars['shield.up'] ?? 0) * c.minDowntime;
@@ -149,8 +146,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
   },
 
   berserkerRage: {
-    activate(g, c) {
-      const p = g.player;
+    activate(g, c, p) {
       const rage = p.stats.secondary;
       activeFor(p, scale.berserkerRage(c, rage, 1).duration);
       p.vars.frenzy = 0;
@@ -164,8 +160,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       shake(g, 6);
       return true;
     },
-    tick(g, c) {
-      const p = g.player;
+    tick(g, c, _dt, p) {
       const b = scale.berserkerRage(c, p.stats.secondary, p.hp / p.stats.hp); // re-evaluated live: lower HP = angrier
       p.buff = {
         ...neutralBuff(),
@@ -178,8 +173,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       p.deathless = has(p, 'undying');
       if (cosmetic() < 0.4) burst(g, p.x, p.y - 8, c.aura, 1, 90);
     },
-    expire(g) {
-      const p = g.player;
+    expire(g, _c, p) {
       p.buff = neutralBuff();
       p.deathless = false;
       if (has(p, 'earthshaker')) {
@@ -213,8 +207,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
   },
 
   heavenlyRadiance: {
-    activate(g, c) {
-      const p = g.player;
+    activate(g, c, p) {
       const grace = p.stats.secondary;
       const s = scale.heavenlyRadiance(c, grace);
       const status: Status | null = has(p, 'blindingLight') ? { slowMul: U.blindingLight.n.slow, slowT: U.blindingLight.n.time } : null;
@@ -239,10 +232,10 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       shake(g, 8);
       return true;
     },
-    tick(g) {
-      if (has(g.player, 'ascension')) g.player.buff.multishot = U.ascension.n.bolts;
+    tick(_g, _c, _dt, p) {
+      if (has(p, 'ascension')) p.buff.multishot = U.ascension.n.bolts;
     },
-    expire: (g) => void (g.player.buff = neutralBuff()),
+    expire: (_g, _c, p) => void (p.buff = neutralBuff()),
     describe(p, c) {
       const s = scale.heavenlyRadiance(c, p.stats.secondary);
       return `heal ${Math.round(attackDamage(s.heal, p.stats.int))} · radius ${Math.round(s.radius)}`;
@@ -250,8 +243,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
   },
 
   raiseDead: {
-    activate(g, c) {
-      const p = g.player;
+    activate(g, c, p) {
       const s = scale.raiseDead(c, p.stats.secondary);
       const golems = has(p, 'boneGolems');
       const max = (golems ? Math.ceil(s.maxMinions / U.boneGolems.n.divisor) : s.maxMinions) + p.mods.minionMax;
@@ -283,8 +275,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       floatText(g, p.x, p.y - 40, `${corpses.length} risen`, c.aura, 15);
       return true;
     },
-    passive(g) {
-      const p = g.player;
+    passive(g, _c, p) {
       if (has(p, 'boneArmor')) p.mods.armor += skeletonCount(g) * U.boneArmor.n.armor;
       if (has(p, 'frenziedDead')) p.mods.minionAtkSpd *= U.frenziedDead.n.mult;
     },
@@ -298,8 +289,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
   },
 
   arrowVolley: {
-    activate(g, c) {
-      const p = g.player;
+    activate(g, c, p) {
       // clamp the target point to cast range
       const dx = g.input.aimX - p.x;
       const dy = g.input.aimY - p.y;
@@ -324,10 +314,10 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       activeFor(p, has(p, 'quickDraw') ? U.quickDraw.n.time : 0.3);
       return true;
     },
-    tick(g) {
-      if (has(g.player, 'quickDraw')) g.player.buff.atkSpd = 1 + U.quickDraw.n.atkSpd;
+    tick(_g, _c, _dt, p) {
+      if (has(p, 'quickDraw')) p.buff.atkSpd = 1 + U.quickDraw.n.atkSpd;
     },
-    expire: (g) => void (g.player.buff = neutralBuff()),
+    expire: (_g, _c, p) => void (p.buff = neutralBuff()),
     describe(p, c) {
       const s = scale.arrowVolley(c, p.stats.secondary);
       return has(p, 'ballista') ? `1 bolt = ${Math.round(s.arrows * U.ballista.n.mult * 10) / 10} arrows · pierces all` : `${s.arrows} arrows · pierce ${s.pierce}`;
@@ -356,12 +346,12 @@ export function updateAbility(g: Game, dt: number): void {
       p.abilityTime = 0;
     } else {
       p.abilityTime -= dt;
-      hook.tick?.(g, cfg, dt);
+      hook.tick?.(g, cfg, dt, p);
       evo?.tick?.(g, dt, p);
     }
     if (p.abilityTime <= 0) {
       p.abilityTime = 0;
-      hook.expire?.(g, cfg);
+      hook.expire?.(g, cfg, p);
       evo?.expire?.(g, p);
       emit(g, 'onAbilityEnd', {});
     }
@@ -371,7 +361,7 @@ export function updateAbility(g: Game, dt: number): void {
   if (p.abilityTime <= 0) p.abilityCd = Math.max(cooldownFloor(g), p.abilityCd - dt * (lastStandActive(g) ? SKILL.lastStand.cooldownRate : 1)); // v0.6: the Last Stand hurries it (v0.7.3: not below the floor)
   if (g.input.ability && p.abilityCd <= 0 && p.abilityTime <= 0) {
     p.vars.cdRefund = 0;
-    if (!(evo?.replaceCast ? evo.replaceCast(g, p) : hook.activate(g, cfg))) return;
+    if (!(evo?.replaceCast ? evo.replaceCast(g, p) : hook.activate(g, cfg, p))) return;
     evo?.cast?.(g, p);
     const upgradeMult = has(p, 'secondWind') ? U.secondWind.n.cooldown : 1;
     const cooldown = abilityCooldown(cfg.cooldown, p.stats.int) * p.mods.cooldown * p.mods.abilityCd * upgradeMult * (1 - (p.vars.cdRefund ?? 0));
@@ -384,7 +374,7 @@ export function updateAbility(g: Game, dt: number): void {
 /** Passive ability upgrades adjust p.mods; runs every tick after relics. */
 export function abilityPassives(g: Game, dt = 0): void {
   const { hook, cfg } = hookFor(g.player);
-  hook.passive?.(g, cfg);
+  hook.passive?.(g, cfg, g.player);
   evolutionPassives(g, dt); // v0.6
 }
 
