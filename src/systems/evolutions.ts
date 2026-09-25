@@ -11,7 +11,7 @@ import { addField, addZone, fireProjectile, timer } from '../entities/hazards';
 import * as scale from '../logic/abilities';
 import type { BuildState } from '../logic/evolutions';
 import { attackDamage } from '../logic/formulas';
-import { freeVolley } from './abilities';
+import { freeVolley, raiseSkeletons } from './abilities';
 import { applyStatus, damageEnemy, healPlayer, nearestEnemy, rollPlayerHit } from './combat';
 import { burst, floatText, line, ring, shake, swingArc } from './effects';
 import { skeletonCount } from './minions';
@@ -377,32 +377,32 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   // ---------------------------------------------------------------- Necromancer
   boneColossus: {
     replaceCast(g) {
-      // the skeletons you have, and any corpses near you, fuse into one Colossus; with one already standing, they feed it
+      // Raise Dead raises its skeletons as usual (even with no slot free); the corpses they left, and one of its own, fuse into the Colossus beside them or feed it
+      raiseSkeletons(g);
       const p = g.player;
-      const n = N('boneColossus');
+      const n = N('boneColossus') as { hp: number; damage: number; cleave: number; scale: number; maxParts: number };
       const c = p.cls.ability as Cfg<'raiseDead'>;
       const s = scale.raiseDead(c, sec(g));
       const each = { hp: c.minionHp, damage: attackDamage(s.damage, p.stats.int) };
-      const bones = g.minions.filter((m) => !m.kind && !m.cleave);
-      const corpses = g.corpses.splice(0, Math.max(1, s.maxMinions));
-      const parts = bones.length + corpses.length || 1;
-      for (const m of bones) m.life = 0;
+      const corpses = g.corpses.splice(0, s.maxMinions);
+      const parts = corpses.length + 1;
       let colossus = g.minions.find((m) => m.cleave);
+      const st = scale.boneColossus(n, each, (colossus?.fused ?? 0) + parts);
       if (colossus) {
-        const gain = 1 + n.grow * parts;
-        colossus.maxHp *= gain;
-        colossus.hp = Math.min(colossus.maxHp, colossus.hp * gain + each.hp * parts);
-        colossus.damage *= 1 + (n.grow / 2) * parts;
+        colossus.hp = Math.min(st.hp, colossus.hp + st.hp - colossus.maxHp + each.hp * parts);
+        colossus.maxHp = st.hp;
+        colossus.damage = st.damage;
         colossus.life = s.lifetime * 2;
       } else {
-        colossus = createMinion(p.x + 40, p.y, { hp: each.hp * parts * n.hp, damage: each.damage * parts * n.damage, speed: c.minionSpeed * 0.8, attackCd: c.minionAttackCd * 1.4, life: s.lifetime * 2, r: 30, scale: n.scale });
+        colossus = createMinion(p.x + 40, p.y, { hp: st.hp, damage: st.damage, speed: c.minionSpeed * 0.8, attackCd: c.minionAttackCd * 1.4, life: s.lifetime * 2, r: 30, scale: n.scale });
         colossus.cleave = n.cleave;
         g.minions.push(colossus);
       }
+      colossus.fused = st.parts;
       for (const at of corpses) line(g, at.x, at.y, colossus.x, colossus.y, c.aura);
       ring(g, colossus.x, colossus.y, 90, c.aura, 0.6);
       burst(g, colossus.x, colossus.y, '#d8d2bd', 30, 260);
-      floatText(g, colossus.x, colossus.y - 70, `COLOSSUS ×${parts}`, c.aura, 17);
+      floatText(g, colossus.x, colossus.y - 70, `COLOSSUS ×${st.parts}`, c.aura, 17);
       p.abilityTime = p.abilityDur = 0.4;
       return true;
     },

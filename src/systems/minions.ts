@@ -13,8 +13,8 @@ import { regionsOf } from './regions';
 const AGGRO = 280;
 const LEASH = 70; // idle minions hover this close to the player
 
-/** The Necromancer's own: skeletons and golems (v0.5 quest and event units have a kind and do not take up his slots). */
-export const skeletonCount = (g: Game): number => g.minions.reduce((n, m) => n + (m.kind ? 0 : 1), 0);
+/** The Necromancer's own: skeletons and golems (v0.5 quest and event units have a kind and do not take up his slots, nor does the Bone Colossus). */
+export const skeletonCount = (g: Game): number => g.minions.reduce((n, m) => n + (m.kind || m.cleave ? 0 : 1), 0);
 
 /** v0.5: a caravan or a monk walks its waypoints in a loop at its current speed (its quest sets it to 0 to make it wait). */
 function walkPath(g: Game, m: Minion, dt: number): void {

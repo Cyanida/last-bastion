@@ -836,6 +836,56 @@ await check('Act III: a slam that is due fires when you walk into range', async 
   return { ok: fired >= 0, detail: `Act ${start.act} ${start.id}: ${fired >= 0 ? `slammed ${fired} ticks after the walk-up` : 'no slam in 40 ticks'}` };
 });
 
+// ---------- v0.8 (#126): the Bone Colossus stays capped over many casts, and the skeletons stand beside it ----------
+await check('Bone Colossus: capped over many Raise Deads, skeletons stay beside it', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  await inPage(async () => {
+    const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'necromancer');
+    set('tm-act', '3');
+    set('tm-wave', '5');
+    set('tm-level', '30');
+    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    await wait(300);
+    const g = lb.game;
+    g.player.invulnerable = true;
+    g.evolutions = ['boneColossus']; // test mode has no evolution picker
+  });
+  const seen = [];
+  for (let cast = 0; cast < 25; cast++) {
+    await inPage(() => {
+      const lb = window.__lb, g = lb.game, p = g.player;
+      for (let i = 0; i < 1200 && p.abilityTime > 0; i++) lb.run(1, false, 'input');
+      for (let i = 0; i < 6; i++) g.corpses.push({ x: p.x + 30 * i, y: p.y + 20, t: 0 });
+      p.abilityCd = 0;
+    });
+    await page.keyboard.down('Space');
+    await inPage(() => window.__lb.run(2, false, 'input'));
+    await page.keyboard.up('Space');
+    seen.push(await inPage(() => {
+      const g = window.__lb.game, colossi = g.minions.filter((m) => m.cleave);
+      return { colossi: colossi.length, damage: colossi[0]?.damage ?? 0, fused: colossi[0]?.fused ?? 0, bones: g.minions.filter((m) => !m.kind && !m.cleave).length };
+    }));
+  }
+  const last = seen.at(-1);
+  const ok = seen.every((s) => s.colossi === 1 && s.bones > 0 && s.fused <= 10) && last.fused === 10 && last.damage > 0 && last.damage < 5000;
+  return { ok, detail: `after ${seen.length} casts: ${last.bones} skeletons, Colossus ×${last.fused}, ${Math.round(last.damage)} dmg (first ${Math.round(seen[0].damage)})` };
+});
+
 // ---------- v0.7.5 (#109): the Gallows pays in a cursed run, and the results screen shows it ----------
 await check('Gallows: a cursed run earns its bonus, the results show it', () =>
   inPage(async () => {
