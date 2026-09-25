@@ -81,7 +81,7 @@ describe('the Keep: buildings, caps and costs', () => {
     expect(total.runes).toBeGreaterThan(50);
   });
 
-  it('the Library caps talent rows, the Chapel caps relic tiers, the Watchtower gates tiers', () => {
+  it('the Library caps talent rows, the Chapel caps relic tiers, buildings have levels', () => {
     expect(TALENT_ROW_CAP[0]).toBe(2); // v0.5: three rows open on a fresh save
     const g = createGame('paladin', 1, { libraryLevel: 0 });
     g.talentPoints = 9;

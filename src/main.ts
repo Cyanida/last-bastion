@@ -175,7 +175,7 @@ function toSelect(): void {
       toSelect();
     },
     settings(arena, tier) {
-      if (lockedArenas(save).includes(arena) || tier > save.tierUnlocked || tier > buildingLevel(save.buildings, 'watchtower')) return;
+      if (lockedArenas(save).includes(arena) || tier > save.tierUnlocked) return;
       commit({ ...save, settings: { ...save.settings, arena, tier } });
       toSelect();
     },
