@@ -34,6 +34,12 @@ export function rollEvent(seed: number, wave: number): EventKind | null {
   return EVENT_KINDS[Math.floor(rng() * EVENT_KINDS.length)];
 }
 
+/** #119: the monk's pace, slowed (never stopped) while an enemy is within QUESTS.monk.wait of him. */
+export const monkSpeed = (enemyNear: boolean): number => QUESTS.monk.speed * (enemyNear ? QUESTS.monk.waitSpeed : 1);
+
+/** #119: the squared distance an enemy weighs a friendly unit at when picking its target: the monk counts as QUESTS.monk.lure times farther. */
+export const aggroDist2 = (d2: number, kind?: string): number => (kind === 'monk' ? d2 * QUESTS.monk.lure ** 2 : d2);
+
 /** Where a quest (key 1000 * act + slot) or an event (key = wave) puts its things. */
 export const placeRng = (seed: number, key: number) => waveRng(seed ^ PLACE_SALT, key);
 
@@ -64,7 +70,7 @@ export function questProgress(q: Quest): string {
   const hp = q.unit ? ` · ${Math.max(0, Math.ceil(q.unit.hp))} HP` : '';
   if (q.kind === 'caravan') return `wave ${Math.min(q.progress, QUESTS.caravan.waves)}/${QUESTS.caravan.waves}${hp}`;
   if (q.kind === 'camps') return `${q.progress}/${QUESTS.camps.count}`;
-  if (q.kind === 'monk') return `${q.unit?.speed ? 'walking' : 'waiting'}${hp}`;
+  if (q.kind === 'monk') return `${(q.unit?.speed ?? 0) < QUESTS.monk.speed ? 'wary' : 'walking'}${hp}`;
   if (q.kind === 'elite') return q.foes.length ? 'on the field' : `comes with wave ${q.since}`;
   if (q.kind === 'shrine') return `${Math.floor(q.progress)}/${QUESTS.shrine.seconds} s`;
   if (q.kind === 'trial') return `${Math.floor(q.progress)}/${q.since}`;
