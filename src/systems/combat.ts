@@ -65,7 +65,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
 
   if (g.modifier === 'plague' && !boss) {
     const n = MODIFIERS.plague.n;
-    addField(g, { x: e.x, y: e.y, r: n.radius, life: n.life, dps: n.dps * g.waveDmgMult, hostile: true, color: '#6f8f4e' });
+    addField(g, { x: e.x, y: e.y, r: n.radius, life: n.life, dps: n.dps * g.waveDmgMult * g.tier.enemyDmg, hostile: true, color: '#6f8f4e' });
   }
   if (e.elite) {
     g.elitesKilled++;
@@ -311,7 +311,7 @@ export function hurtTarget(g: Game, t: Player | Minion, amount: number, ignoreIF
   else damageMinion(g, t as Minion, amount);
   // some enemies leave something behind: wolves make you bleed, cultists set you alight, the Lich curses
   const inflicts = attacker && t.hp < before ? ENEMY_STATUS[attacker.def.id] : undefined;
-  if (inflicts && t === g.player) applyStatusTo(g.player.statuses, { ...inflicts, power: (inflicts.power ?? 0) * g.waveDmgMult });
+  if (inflicts && t === g.player) applyStatusTo(g.player.statuses, { ...inflicts, power: (inflicts.power ?? 0) * g.waveDmgMult * g.tier.enemyDmg });
   if (attacker?.affixes.includes('vampiric') && t.hp < before) {
     attacker.hp = Math.min(attacker.maxHp, attacker.hp + (before - t.hp) * AFFIXES.vampiric.n.heal);
   }
