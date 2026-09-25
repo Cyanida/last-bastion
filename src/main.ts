@@ -498,7 +498,11 @@ function sacredLines(g: Game): { name: string; desc: string }[] {
 
 const hasChoice = (g: Game) => g.victory === 'pending' || g.pendingShrine !== null || g.player.relics.offers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant || g.pendingRoute !== null;
 
+/** A screen opened from the pause menu (Talents, Glossary, Treasures) is up: its own Esc goes back to the pause menu, so this one must not resume. */
+let pauseSub = false;
+
 function togglePause(): void {
+  if (pauseSub) return;
   if (state === 'playing' && game) {
     const g = game;
     state = 'paused';
@@ -508,13 +512,14 @@ function togglePause(): void {
 }
 
 function pauseMenu(g: Game): void {
+  pauseSub = false;
   setRecipeBuild(buildState(g));
   showPause(buildOf(g), {
     resume: togglePause,
     quit: () => endRun(g),
-    talents: () => openTalents(g),
-    treasures: () => showTreasures(banked(save, g)?.save ?? save, g.player.cls.id, () => pauseMenu(g)), // the log as it would stand if the run ended now
-    glossary: () => showGlossary(() => pauseMenu(g)),
+    talents: () => { pauseSub = true; openTalents(g); },
+    treasures: () => { pauseSub = true; showTreasures(banked(save, g)?.save ?? save, g.player.cls.id, () => pauseMenu(g)); }, // the log as it would stand if the run ended now
+    glossary: () => { pauseSub = true; showGlossary(() => pauseMenu(g)); },
     bored: () => markBored(g),
   });
 }

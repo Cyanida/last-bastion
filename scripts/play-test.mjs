@@ -4,7 +4,7 @@
  * Plays the production build in headless Chromium the way a person checks a change by hand: every choice screen answered
  * through its real buttons (level-up with rerolls and a banish, relic offers with reroll, duo, take and skip, both upgrade
  * screens, the quest board, the shrine, the peddler, the Merchant's every action, the route fork, a talent from the pause
- * menu), the keyboard, mouse and touch controls, the sounds the simulation asks for, the particle budget, the perf sections,
+ * menu, Esc out of its sub-screens), the keyboard, mouse and touch controls, the sounds the simulation asks for, the particle budget, the perf sections,
  * and banking a real run. Any console error fails it.
  *
  * Screens are brought up through the game's own pending queues (a level-up, a relic offer, the Merchant), so each one is
@@ -342,6 +342,30 @@ await check('talent from the pause menu', async () => {
     await P.click('[data-resume]');
     return { ok: taken && lb.state === 'playing', detail: id };
   });
+});
+
+await check('Esc in a pause sub-screen goes back to the pause menu', async () => {
+  await page.keyboard.press('Escape');
+  const seen = [];
+  for (const btn of ['talents', 'glossary', 'treasures']) {
+    const opened = await inPage(async (b) => {
+      if (!document.querySelector(`[data-${b}]`)) return false;
+      await window.__play.click(`[data-${b}]`);
+      return !document.querySelector('[data-resume]');
+    }, btn);
+    if (!opened) return { ok: false, detail: `${btn}: did not open from the pause menu` };
+    const t0 = await inPage(() => window.__lb.game.time);
+    await page.keyboard.press('Escape');
+    const after = await inPage(async (t) => {
+      await window.__play.wait(100);
+      const lb = window.__lb;
+      return { menu: !!document.querySelector('[data-resume]'), state: lb.state, still: lb.game.time === t };
+    }, t0);
+    seen.push(`${btn}: ${after.menu ? 'menu' : 'no menu'}, ${after.state}`);
+    if (!after.menu || after.state !== 'paused' || !after.still) return { ok: false, detail: seen.join(' · ') };
+  }
+  await inPage(() => window.__play.click('[data-resume]'));
+  return { ok: (await inPage(() => window.__lb.state)) === 'playing', detail: seen.join(' · ') };
 });
 
 await check('keyboard: move and both abilities', async () => {
