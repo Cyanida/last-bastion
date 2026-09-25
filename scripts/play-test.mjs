@@ -40,6 +40,20 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, dev
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+// Test mode seeds its run from the clock, so a check would play a different run each time: every test-mode start goes through
+// here, on a fixed seed. It returns synchronously, so a check can set its run up before a real frame steps it.
+await page.addInitScript(() => {
+  window.__startTest = (seed = 2654435761) => {
+    const now = Date.now;
+    Date.now = () => seed;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+    return window.__lb.game;
+  };
+});
 await page.goto(`http://localhost:${PORT}/?debug&dev=1`);
 await page.waitForFunction(() => typeof window.__lb !== 'undefined');
 
@@ -125,10 +139,9 @@ await check('test mode starts a run', () =>
     relic('Frost Brand', 'I');
     relic('Serrated Edge', 'I');
     relic('Phoenix Feather', 'II'); // #108: a Phoenix Feather that arrives at tier II still holds its revive
-    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
-    await P.wait(300);
-    const g = window.__lb.game;
-    g.player.invulnerable = true; // the checks are about screens and controls, not survival
+    const g = window.__startTest();
+    g.player.invulnerable = true;
+    await P.wait(300); // the HUD draws its TEST tag // the checks are about screens and controls, not survival
     return { ok: !!g && g.player.cls.id === 'viking' && g.player.level === 20 && g.player.relics.held.length === 4 && document.body.innerText.includes('TEST'), detail: `${g?.player.cls.id} lv ${g?.player.level}, relics ${g?.player.relics.held.join(', ')}` };
   }),
 );
@@ -835,14 +848,7 @@ await check('Act III: a slam that is due fires when you walk into range', async 
     set('tm-class', 'viking');
     set('tm-act', '3');
     set('tm-wave', '5');
-    // a fixed run seed (test mode seeds from the clock), and set up before a real frame can step it: about one Act III boss wave in six brings no slammer at all
-    const now = Date.now;
-    Date.now = () => 2654435761;
-    try {
-      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
-    } finally {
-      Date.now = now;
-    }
+    window.__startTest(); // set up before a real frame steps it: about one Act III boss wave in six brings no slammer at all
     const g = lb.game, p = g.player;
     p.invulnerable = true;
     p.attackTimer = 1e9; // it must not die before the check
@@ -897,11 +903,10 @@ await check('Bone Colossus: capped over many Raise Deads, skeletons stay beside 
     set('tm-act', '3');
     set('tm-wave', '5');
     set('tm-level', '30');
-    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
-    await wait(300);
-    const g = lb.game;
+    const g = window.__startTest();
     g.player.invulnerable = true;
     g.evolutions = ['boneColossus']; // test mode has no evolution picker
+    g.breather = 1e9; // the wave never starts: foes killing skeletons at random would decide whether any stand after a cast
   });
   const seen = [];
   for (let cast = 0; cast < 25; cast++) {
@@ -909,6 +914,7 @@ await check('Bone Colossus: capped over many Raise Deads, skeletons stay beside 
       const lb = window.__lb, g = lb.game, p = g.player;
       for (let i = 0; i < 1200 && p.abilityTime > 0; i++) lb.run(1, false, 'input');
       for (let i = 0; i < 6; i++) g.corpses.push({ x: p.x + 30 * i, y: p.y + 20, t: 0 });
+      for (let i = g.minions.length - 1; i >= 0; i--) if (!g.minions[i].kind && !g.minions[i].cleave) g.minions.splice(i, 1); // so the skeletons counted after a cast are its own
       p.abilityCd = 0;
     });
     await page.keyboard.down('Space');
@@ -947,14 +953,7 @@ await check("Usurper: the last phase holds a few seconds, he attacks through it,
     set('tm-arena', 'bastion');
     set('tm-act', '4');
     set('tm-wave', '10');
-    // a fixed run seed (test mode seeds from the clock), and set up before a real frame can step it: the same Usurper fight every time
-    const now = Date.now;
-    Date.now = () => 2654435761;
-    try {
-      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
-    } finally {
-      Date.now = now;
-    }
+    window.__startTest(); // set up before a real frame steps it: the same Usurper fight every time
     const g = lb.game, p = g.player;
     p.invulnerable = true;
     const usurper = () => g.enemies.find((e) => e.def.id === 'usurper' && !e.dead);
@@ -1197,9 +1196,8 @@ await check('text size: Larger grows the HUD, no overlap at 1400x800 and 844x390
           s.value = '1';
           s.dispatchEvent(new Event('change', { bubbles: true }));
         }
-        [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+        window.__startTest().player.invulnerable = true;
         await wait(300);
-        lb.game.player.invulnerable = true;
         lb.run(30, false, true);
         lb.game.banner = { ...lb.game.banner, text: 'Wave 12', t: 9 };
         await wait(300);
