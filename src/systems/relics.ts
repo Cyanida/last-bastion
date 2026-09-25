@@ -92,6 +92,10 @@ addListener((g, name, ev) => {
   if (name === 'onHit') attribute(g, p, ev as GameEvents['onHit']);
   if (name === 'onDamageTaken') g.vars.taken = (g.vars.taken ?? 0) + (ev as GameEvents['onDamageTaken']).amount;
   if (name === 'onIncoming') g.vars.incoming = (g.vars.incoming ?? 0) + (ev as GameEvents['onIncoming']).amount;
+  // v0.7: every wave boss is a relic moment (a lair's boss is the lair's moment; the Usurper ends the run),
+  // before the chain limit: a boss killed by the last link of a relic chain still counts
+  const slain = name === 'onKill' ? (ev as GameEvents['onKill']).enemy : null;
+  if (slain?.def.boss && !slain.side && slain.def.id !== 'usurper') offerRelics(g, BOSS_RELIC_CHOICES + (g.vars['keep.bossChoices'] ?? 0), 'boss'); // + the Reliquary Vault
   if (g.procDepth >= RELIC_STACKING.procDepth) return; // a relic reacting to a relic's damage is the last link of the chain
   g.procDepth++;
   const outer = relicContext.acting;
@@ -113,9 +117,6 @@ addListener((g, name, ev) => {
     relicContext.acting = outer;
     g.procDepth--;
   }
-  // v0.7: every wave boss is a relic moment (a lair's boss is the lair's moment; the Usurper ends the run)
-  const slain = name === 'onKill' ? (ev as GameEvents['onKill']).enemy : null;
-  if (slain?.def.boss && !slain.side && slain.def.id !== 'usurper') offerRelics(g, BOSS_RELIC_CHOICES + (g.vars['keep.bossChoices'] ?? 0), 'boss'); // + the Reliquary Vault
 });
 
 /**
