@@ -82,10 +82,10 @@ const HOOKS: Record<TreasureId, TreasureHooks> = {
     },
   },
 
-  // combat.ts splits every g.vars.splitEvery-th arrow; Arrow Volley calls spectral hounds (they have a kind: no skeleton slots)
+  // combat.ts splits every g.player.vars.splitEvery-th arrow; Arrow Volley calls spectral hounds (they have a kind: no skeleton slots)
   wildHuntBow: {
     tick(g, c) {
-      g.vars.splitEvery = Math.max(c.min, c.every - Math.floor(g.player.stats.secondary / c.perFocus));
+      g.player.vars.splitEvery = Math.max(c.min, c.every - Math.floor(g.player.stats.secondary / c.perFocus));
     },
     onAbilityUsed(g) {
       const p = g.player;

@@ -1,3 +1,4 @@
+import type { Game } from '../../core/types';
 import { DUOS, FAMILIES, relicN, type DuoId } from '../../config/relics';
 import { damageEnemy } from '../combat';
 import { ring } from '../effects';
@@ -9,7 +10,7 @@ import { freeze } from './frost';
  * Consecration's ward half in relicCore.gainWard, where the thing they change happens.
  */
 const n = <D extends DuoId>(d: D) => DUOS[d].n;
-const every = (g: { vars: Record<string, number> }, key: string, dt: number, period: number) => (g.vars[key] = (g.vars[key] ?? 0) + dt) >= period && ((g.vars[key] = 0), true);
+const every = (g: Game, key: string, dt: number, period: number) => (g.player.vars[key] = (g.player.vars[key] ?? 0) + dt) >= period && ((g.player.vars[key] = 0), true);
 
 export const DUO_HOOKS: Partial<Record<DuoId, RelicHooks>> = {
   thermalShock: {
@@ -92,13 +93,13 @@ export const DUO_HOOKS: Partial<Record<DuoId, RelicHooks>> = {
 
   martyrsCovenant: {
     onDamageTaken(g, ev) {
-      g.vars['covenant.pool'] = (g.vars['covenant.pool'] ?? 0) + ev.amount * n('martyrsCovenant').share;
+      g.player.vars['covenant.pool'] = (g.player.vars['covenant.pool'] ?? 0) + ev.amount * n('martyrsCovenant').share;
     },
     tick(g, dt, p) {
-      const pool = g.vars['covenant.pool'] ?? 0;
+      const pool = g.player.vars['covenant.pool'] ?? 0;
       if (pool <= 0) return;
       const give = Math.min(pool, (pool * dt) / n('martyrsCovenant').over + dt); // it drains over about 3 s
-      g.vars['covenant.pool'] = pool - give;
+      g.player.vars['covenant.pool'] = pool - give;
       gainWard(g, p, give);
     },
   },

@@ -15,7 +15,7 @@ const F = FAMILIES.storm;
 const yourHit = (g: Game, p: Player) => rollPlayerHit(g, p.cls.attack.damage, p.cls.attack.scaling).amount;
 /** Eye of the Storm: a chain hit crits on the player's own crit chance. */
 const chainCrit = (g: Game, p: Player) => awakened(p, 'tempestEye') && g.rng() < critChance(p.stats.dex) + p.mods.crit;
-const hitCount = (g: Game, key: string) => (g.vars[key] = (g.vars[key] ?? 0) + 1);
+const hitCount = (g: Game, key: string) => (g.player.vars[key] = (g.player.vars[key] ?? 0) + 1);
 
 export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   stormPennant: {
@@ -36,8 +36,8 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     },
     tick(g, dt, p) {
       const n = nOf(p, 'quicksilverSpurs');
-      if (g.time > (g.vars['spurs.until'] ?? 0)) g.vars['spurs.stacks'] = 0;
-      const stacks = g.vars['spurs.stacks'] ?? 0;
+      if (g.time > (g.player.vars['spurs.until'] ?? 0)) g.player.vars['spurs.stacks'] = 0;
+      const stacks = g.player.vars['spurs.stacks'] ?? 0;
       bonus(p, 'atkSpd', stacks * n.per);
       bonus(p, 'moveSpd', stacks * n.per);
       if (awakened(p, 'quicksilverSpurs') && stacks >= n.max) p.utilityCd = Math.max(0, p.utilityCd - dt * 0.5); // Blur
@@ -64,7 +64,7 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onKill(g, _ev, p) {
       const n = nOf(p, 'stormcallersHorn');
       if (hitCount(g, 'horn.kills') < n.every) return;
-      g.vars['horn.kills'] = 0;
+      g.player.vars['horn.kills'] = 0;
       let target: Enemy | null = null;
       for (const e of g.hash.query(p.x, p.y, n.range, [])) if (!target || e.hp > target.hp) target = e;
       if (!target) return;
@@ -89,7 +89,7 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 
   stormbornPelt: {
     onAbilityUsed(g) {
-      g.vars['thunderGod'] = 0;
+      g.player.vars['thunderGod'] = 0;
     },
     onHit(g, ev, p) {
       if (ev.source !== 'attack' || p.abilityTime <= 0) return;
@@ -99,8 +99,8 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onKill(g, _ev, p) {
       if (!awakened(p, 'stormbornPelt') || p.abilityTime <= 0) return;
       const ext = 0.03 * sOf(p); // Thunder God
-      if ((g.vars['thunderGod'] ?? 0) + ext > p.abilityDur) return;
-      g.vars['thunderGod'] = (g.vars['thunderGod'] ?? 0) + ext;
+      if ((g.player.vars['thunderGod'] ?? 0) + ext > p.abilityDur) return;
+      g.player.vars['thunderGod'] = (g.player.vars['thunderGod'] ?? 0) + ext;
       p.abilityTime += ext;
     },
   },
@@ -108,8 +108,8 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 
 function spur(g: Game, p: Player): void {
   const n = nOf(p, 'quicksilverSpurs');
-  g.vars['spurs.stacks'] = Math.min(n.max, (g.vars['spurs.stacks'] ?? 0) + 1);
-  g.vars['spurs.until'] = g.time + n.time;
+  g.player.vars['spurs.stacks'] = Math.min(n.max, (g.player.vars['spurs.stacks'] ?? 0) + 1);
+  g.player.vars['spurs.until'] = g.time + n.time;
 }
 
 function clap(g: Game, p: Player): void {

@@ -147,7 +147,7 @@ describe('duo effects', () => {
 
   it("Martyr's Covenant: damage taken comes back as ward over a few seconds", () => {
     const g = formed(['bloodPact', 'guardiansAegis'], 'martyrsCovenant');
-    g.vars['aegis.t'] = -999; // keep the Aegis's own ward out of it
+    g.player.vars['aegis.t'] = -999; // keep the Aegis's own ward out of it
     damagePlayer(g, 40, true);
     expect(g.player.ward).toBe(0);
     for (let i = 0; i < 300; i++) tick(g);

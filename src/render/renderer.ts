@@ -624,7 +624,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.globalAlpha = 1;
     }
     if (q.invulnT <= 0 || Math.floor(g.time * 16) % 2 === 0) {
-      drawSprite(ctx, getSprite(q.cls.sprite, GAME.spriteScale + (g.vars.avatar ? 2 : 0), q === g.players[0] ? g.palette : 0), q.x, q.y, q.flip, q.flash > 0); // v0.6: the Avatar of Wrath is a giant
+      drawSprite(ctx, getSprite(q.cls.sprite, GAME.spriteScale + (q.vars.avatar ? 2 : 0), q === g.players[0] ? g.palette : 0), q.x, q.y, q.flip, q.flash > 0); // v0.6: the Avatar of Wrath is a giant
     }
     if (q.chillT > 0) {
       ctx.fillStyle = 'rgba(169,216,239,0.3)';

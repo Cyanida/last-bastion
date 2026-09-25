@@ -164,7 +164,7 @@ describe('starting traits', () => {
     expect(glass.player.trait).toBe('glassCannon');
     const lucky = createGame('viking', 1);
     applyTrait(lucky, 'cursedLuck');
-    expect(lucky.vars['trait.rerolls']).toBe(1); // v0.7: an extra reroll at every relic moment
+    expect(lucky.player.vars['trait.rerolls']).toBe(1); // v0.7: an extra reroll at every relic moment
     expect(TRAITS.scavenger.unlock.achievement).toBe('treasurer');
   });
 });

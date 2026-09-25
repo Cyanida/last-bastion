@@ -35,10 +35,10 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const n = nOf(p, 'emberheart');
       const burning = g.hash.query(p.x, p.y, n.radius, []).filter((e) => burnStacks(e) > 0).length;
       bonus(p, 'damage', Math.min(n.max, burning) * n.per);
-      g.vars['emberheart.kindled'] = awakened(p, 'emberheart') && burning >= 5 ? 1 : 0;
+      g.player.vars['emberheart.kindled'] = awakened(p, 'emberheart') && burning >= 5 ? 1 : 0;
     },
     onHit(g, ev, p) {
-      if (g.vars['emberheart.kindled'] && attackHit(p, ev.source)) addBurn(g, p, ev.enemy, 1, ev.amount * 0.2); // Kindled
+      if (g.player.vars['emberheart.kindled'] && attackHit(p, ev.source)) addBurn(g, p, ev.enemy, 1, ev.amount * 0.2); // Kindled
     },
   },
 
@@ -73,12 +73,12 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 
   dragonsTongue: {
     tick(g, dt) {
-      g.vars['dragon.t'] = (g.vars['dragon.t'] ?? 0) + dt;
+      g.player.vars['dragon.t'] = (g.player.vars['dragon.t'] ?? 0) + dt;
     },
     onHit(g, ev, p) {
       const n = nOf(p, 'dragonsTongue');
-      if (ev.source !== 'attack' || (g.vars['dragon.t'] ?? 0) < n.every) return;
-      g.vars['dragon.t'] = 0;
+      if (ev.source !== 'attack' || (g.player.vars['dragon.t'] ?? 0) < n.every) return;
+      g.player.vars['dragon.t'] = 0;
       const angle = Math.atan2(ev.enemy.y - p.y, ev.enemy.x - p.x);
       for (const e of cone(g, p, angle, n.range, n.arc)) {
         if (awakened(p, 'dragonsTongue') && e.statuses.burn) {
@@ -130,8 +130,8 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     tick(g, dt, p) {
       if (!awakened(p, 'radiantBrand') || !p.invulnerable) return;
       // Pillar of Dawn: while the shield holds, burning enemies touching you take their burn again every second
-      if ((g.vars['dawn.t'] = (g.vars['dawn.t'] ?? 0) + dt) < 1) return;
-      g.vars['dawn.t'] = 0;
+      if ((g.player.vars['dawn.t'] = (g.player.vars['dawn.t'] ?? 0) + dt) < 1) return;
+      g.player.vars['dawn.t'] = 0;
       for (const e of g.hash.query(p.x, p.y, p.r + 40, [])) {
         const b = e.statuses.burn;
         if (b) damageEnemy(g, e, b.power * b.stacks, false, 0, 0, 'relic', 'fire');
@@ -153,8 +153,8 @@ export const FLAME_SETS: Partial<Record<SetLevel, RelicHooks>> = {
     },
     tick(g, dt, p) {
       const n = F.n;
-      if ((g.vars['inferno.t'] = (g.vars['inferno.t'] ?? 0) + dt) < n.spreadEvery) return;
-      g.vars['inferno.t'] = 0;
+      if ((g.player.vars['inferno.t'] = (g.player.vars['inferno.t'] ?? 0) + dt) < n.spreadEvery) return;
+      g.player.vars['inferno.t'] = 0;
       for (const e of g.enemies) {
         if (e.dead || !e.statuses.burn) continue;
         const to = nearestEnemy(g, e.x, e.y, n.spreadRange, e);

@@ -51,8 +51,8 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   shockSigil: {
     onDamageTaken(g, _ev, p) {
       const n = nOf(p, 'shockSigil');
-      if (g.time < (g.vars.shockReady ?? 0)) return;
-      g.vars.shockReady = g.time + n.cooldown;
+      if (g.time < (g.player.vars.shockReady ?? 0)) return;
+      g.player.vars.shockReady = g.time + n.cooldown;
       const rod = hasDuo(p, 'lightningRod') ? DUOS.lightningRod.n : null; // Lightning Rod: a strike on every enemy the shockwave hits
       const strikeAt = (e: Enemy) => {
         relicContext.acting = 'lightningRod';
@@ -67,14 +67,14 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   unbreakable: {
     onIncoming(g, ev, p) {
       const n = nOf(p, 'unbreakable');
-      if (ev.blocked || g.time < (g.vars['unbreakable.ready'] ?? 0) || ev.amount <= p.hp * n.over) return;
+      if (ev.blocked || g.time < (g.player.vars['unbreakable.ready'] ?? 0) || ev.amount <= p.hp * n.over) return;
       ev.blocked = true;
-      g.vars['unbreakable.ready'] = g.time + n.every;
+      g.player.vars['unbreakable.ready'] = g.time + n.every;
       credit(g, p, 'unbreakable', 'prevented', ev.amount, true);
-      if (awakened(p, 'unbreakable')) g.vars['adamant.until'] = g.time + 4; // Adamant
+      if (awakened(p, 'unbreakable')) g.player.vars['adamant.until'] = g.time + 4; // Adamant
     },
     tick(g, _dt, p) {
-      if (g.time < (g.vars['adamant.until'] ?? 0)) bonus(p, 'armor', (p.cls.armor + p.mods.armor) * 0.5);
+      if (g.time < (g.player.vars['adamant.until'] ?? 0)) bonus(p, 'armor', (p.cls.armor + p.mods.armor) * 0.5);
     },
   },
 
@@ -90,8 +90,8 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   ironhide: {
     tick(g, dt, p) {
       if (p.abilityTime <= 0) return;
-      if ((g.vars['ironhide.t'] = (g.vars['ironhide.t'] ?? 0) + dt) < nOf(p, 'ironhide').every) return;
-      g.vars['ironhide.t'] = 0;
+      if ((g.player.vars['ironhide.t'] = (g.player.vars['ironhide.t'] ?? 0) + dt) < nOf(p, 'ironhide').every) return;
+      g.player.vars['ironhide.t'] = 0;
       gainArmorStacks(g, p, 1);
     },
     onBlock(g, _ev, p) {

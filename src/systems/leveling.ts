@@ -34,10 +34,10 @@ export function gainXp(g: Game, amount: number): void {
   }
 }
 
-const takenTradeoffs = (g: Game) => TRADEOFF_IDS.filter((id) => g.vars[`tradeoff.${id}`]) as TradeoffId[];
+const takenTradeoffs = (g: Game) => TRADEOFF_IDS.filter((id) => g.player.vars[`tradeoff.${id}`]) as TradeoffId[];
 
 export function levelUpOptions(g: Game): LevelUpOption[] {
-  const options = rollLevelUpOptions(g.rng, takenTradeoffs(g), null /* v0.7: no relic cards; relics come at fixed moments */, g.bannedStats, g.vars.banTalent === 1);
+  const options = rollLevelUpOptions(g.rng, takenTradeoffs(g), null /* v0.7: no relic cards; relics come at fixed moments */, g.bannedStats, g.player.vars.banTalent === 1);
   // v0.6: a complete evolution recipe is always the first card, until it is taken (rerolls keep it)
   const [ready] = readyEvolutions(buildState(g));
   if (ready) options[0] = { kind: 'evolution', id: ready };
@@ -48,9 +48,9 @@ export function levelUpOptions(g: Game): LevelUpOption[] {
 export function banishOption(g: Game, o: LevelUpOption): boolean {
   if (g.player.banishes <= 0 || o.kind === 'evolution') return false;
   if (o.kind === 'stat') g.bannedStats = [...g.bannedStats, o.key];
-  else if (o.kind === 'talent') g.vars.banTalent = 1;
+  else if (o.kind === 'talent') g.player.vars.banTalent = 1;
   else if (o.kind === 'relic') g.player.relics.pool = g.player.relics.pool.filter((id) => id !== o.id);
-  else g.vars[`tradeoff.${o.id}`] = 1; // counts as taken: never offered again, and changes nothing
+  else g.player.vars[`tradeoff.${o.id}`] = 1; // counts as taken: never offered again, and changes nothing
   g.player.banishes--;
   return true;
 }
@@ -64,7 +64,7 @@ export function chooseLevelUp(g: Game, o: LevelUpOption): void {
     const next = applyTradeoff(p.stats, g.baseMods, o.id);
     p.stats = next.stats;
     g.baseMods = next.mods;
-    g.vars[`tradeoff.${o.id}`] = 1;
+    g.player.vars[`tradeoff.${o.id}`] = 1;
   } else {
     p.stats = applyStatUpgrade(p.stats, o.key, o.rarity);
     if (o.key === 'hp') p.hp += upgradeAmount('hp', o.rarity);

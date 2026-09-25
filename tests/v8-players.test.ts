@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GAME } from '../src/config/game';
+import { GAME, SKILL } from '../src/config/game';
 import { createGame } from '../src/game';
 import { addField, addZone, fireProjectile } from '../src/entities/hazards';
 import { updateFields, updateProjectiles, updateZones } from '../src/systems/combat';
@@ -113,5 +113,21 @@ describe('v0.8 multi-player state (#28)', () => {
     expect(p2.pendingLevelUps).toBeGreaterThan(0);
     expect(p2.talentPoints).toBeGreaterThan(p1.talentPoints);
     expect([p1.pendingLevelUps, p1.pendingAbilityTiers.length, p2.gold - p1.gold, p1.lastStand]).toEqual([0, 0, 50, 'ready']);
+  });
+  it('player 2 earns a perfect dodge of their own; player-owned scratch lives on each player (#28)', () => {
+    const g = createGame('paladin', 5, { allies: ['viking'] });
+    const [a, b] = g.players;
+    b.x = a.x + 400;
+    b.abilityCd = b.abilityCdMax = 10;
+    addZone(g, { x: b.x, y: b.y, r: 40, delay: 1, damage: 50, hostile: true, color: '#fff' });
+    for (let t = 0; t < 1.05; t += 0.05) {
+      if (t >= 0.85) b.x = a.x + 700; // stepped out at the last moment
+      updateZones(g, 0.05);
+    }
+    expect(b.hp).toBe(b.stats.hp);
+    expect(b.vars.perfectUntil).toBeGreaterThan(g.time);
+    expect(b.abilityCd).toBeCloseTo(10 - 10 * SKILL.perfect.refund, 1);
+    expect(a.vars.perfectUntil).toBeUndefined(); // player 1 was never in it
+    expect(a.vars).not.toBe(b.vars);
   });
 });

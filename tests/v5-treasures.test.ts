@@ -316,7 +316,7 @@ describe('the effects: build-defining, per tier', () => {
       const g = createGame('archer', 1, { treasure: tier });
       updateTreasures(g);
       const every = treasureN('archer', tier).every;
-      expect(g.vars.splitEvery).toBe(every);
+      expect(g.player.vars.splitEvery).toBe(every);
       const e = spawnEnemy(g, 'knight', g.player.x + 150, g.player.y);
       e.hp = e.maxHp = 1e9;
       g.hash.insert(e);
@@ -330,7 +330,7 @@ describe('the effects: build-defining, per tier', () => {
       expect(skeletonCount(g)).toBe(0); // hounds take no skeleton slots
       g.player.stats.secondary = 40;
       updateTreasures(g);
-      expect(g.vars.splitEvery).toBe(3);
+      expect(g.player.vars.splitEvery).toBe(3);
     }
   });
 });

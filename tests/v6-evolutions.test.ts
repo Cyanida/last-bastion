@@ -130,7 +130,7 @@ const SIGNS: Record<EvolutionId, (g: Game, start: { x: number; y: number }) => b
   crusadersCharge: (g, s) => Math.hypot(g.player.x - s.x, g.player.y - s.y) > 60,
   lionsRoar: (g) => g.enemies.some((e) => e.statuses.curse !== undefined), // marks are Cursed stacks since v0.3
   standardOfFaith: (g) => g.minions.some((m) => m.kind === 'standard'),
-  avatarOfWrath: (g) => g.vars.avatar === 1,
+  avatarOfWrath: (g) => g.player.vars.avatar === 1,
   maelstrom: (g) => g.effects.some((e) => e.kind === 'arc' && e.arc > 6),
   bloodTide: (g) => g.effects.some((e) => e.kind === 'ring' && e.color === '#8e1b1b'), // the tide of blood where one fell
   thunderfall: (g) => g.enemies.some((e) => e.statuses.stun !== undefined),
@@ -158,7 +158,7 @@ describe('every evolution does its thing (v0.6)', () => {
       const run = (evolved: boolean) => {
         const { g } = fieldWith(id);
         if (!evolved) g.player.evolutions = [];
-        if (id === 'soulHarvest') g.vars.souls = 3; // souls come from minion kills; start with a few to loose
+        if (id === 'soulHarvest') g.player.vars.souls = 3; // souls come from minion kills; start with a few to loose
         if (id === 'bloodTide') for (const e of g.enemies.slice(0, 3)) e.hp = 1; // kills while raging
         const start = { x: g.player.x, y: g.player.y };
         let seen = false;

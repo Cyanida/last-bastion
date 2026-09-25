@@ -141,6 +141,7 @@ export interface Body {
 export interface Player extends Body {
   cls: ClassDef;
   relics: RelicState; // v0.7: this player's relics
+  vars: Record<string, number>; // v0.8 (#28): this player's scratch for relics, abilities, evolutions and the perfect dodge (g.vars keeps the run's)
   input: Game['input']; // v0.8 (#28): this player's last intent; g.input is the focused player's (logic/players.ts)
   ward: number; // v0.7: absorbs damage before HP (Holy)
   armorStacks: number; // v0.7: +3% armor each (Steel), they fade a few seconds after the last was gained
@@ -249,7 +250,7 @@ export interface Enemy extends Body {
   warded: boolean; // v0.6: takes no damage at all (the Usurper while his Royal Flames burn)
   windupT: number; // v0.6: seconds its telegraphed attack still winds up (it glows); set by addZone for zones it owns
   patternT: number; // v0.6: until its Act III pattern (config/ai.ts PATTERNS); -1 = not started
-  lineIn: number; // v0.6: when the player last stood in its line or aim telegraph (perfect dodge)
+  lineIn: number[]; // v0.6: when each player (by seat, v0.8) last stood in its line or aim telegraph (perfect dodge)
   lastTele: Telegraph | null; // v0.6: the telegraph it had last tick (perfect dodge checks it when it fires)
   pulled: boolean; // v0.6: one of a wave's last stragglers, coming straight at the player (WAVES.stragglers)
   frozenT: number; // v0.7: frozen until this time (chill tipped over; Frost reads it)
@@ -347,7 +348,7 @@ export interface Projectile extends Body {
 export interface Zone extends Body {
   delay: number;
   t: number;
-  lastIn: number; // v0.6: when the player last stood in it before it struck (perfect dodge), -1 = never
+  lastIn: number[]; // v0.6: when each player (by seat, v0.8) last stood in it before it struck (perfect dodge); missing = never
   damage: number;
   crit: boolean;
   hostile: boolean;

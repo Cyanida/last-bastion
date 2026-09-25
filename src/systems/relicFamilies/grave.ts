@@ -51,8 +51,8 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const n = nOf(p, 'gravediggersSpade');
       const near = g.corpses.filter((c) => Math.hypot(c.x - p.x, c.y - p.y) < n.radius);
       bonus(p, 'damage', Math.min(n.max, near.length) * n.per);
-      if (!awakened(p, 'gravediggersSpade') || !near.length || (g.vars['exhume.t'] = (g.vars['exhume.t'] ?? 0) + dt) < 20) return;
-      g.vars['exhume.t'] = 0; // Exhume: the oldest corpse near you rises
+      if (!awakened(p, 'gravediggersSpade') || !near.length || (g.player.vars['exhume.t'] = (g.player.vars['exhume.t'] ?? 0) + dt) < 20) return;
+      g.player.vars['exhume.t'] = 0; // Exhume: the oldest corpse near you rises
       const oldest = near.reduce((a, b) => (a.t > b.t ? a : b));
       g.corpses.splice(g.corpses.indexOf(oldest), 1);
       raiseSkeleton(g, p, oldest.x, oldest.y, 'gravediggersSpade', { hp: 50, damage: 10, life: 20 });
@@ -83,7 +83,7 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     },
     onHit(g, ev, p) {
       if (!awakened(p, 'boneChime') || ev.source !== 'minion') return;
-      if ((g.vars['knell.hits'] = (g.vars['knell.hits'] ?? 0) + 1) % 20 === 0) nova(g, ev.enemy.x, ev.enemy.y, 90, relicDamage(p, 20), 120, F.color, 'shadow'); // Death Knell
+      if ((g.player.vars['knell.hits'] = (g.player.vars['knell.hits'] ?? 0) + 1) % 20 === 0) nova(g, ev.enemy.x, ev.enemy.y, 90, relicDamage(p, 20), 120, F.color, 'shadow'); // Death Knell
     },
   },
 };
@@ -102,7 +102,7 @@ export const GRAVE_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   },
   4: {
     onKill(g, ev, p) {
-      if ((g.vars['host.kills'] = (g.vars['host.kills'] ?? 0) + 1) % F.n.every !== 0) return; // Undying Host
+      if ((g.player.vars['host.kills'] = (g.player.vars['host.kills'] ?? 0) + 1) % F.n.every !== 0) return; // Undying Host
       if (skeletonsBy(g, 'grave') >= F.n.max + Math.floor(sOf(p) / 10) * F.n.maxPer10S) return;
       raiseSkeleton(g, p, ev.enemy.x, ev.enemy.y, 'grave', { hp: F.n.hp, damage: F.n.damage, life: F.n.life });
     },

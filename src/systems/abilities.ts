@@ -86,8 +86,8 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
     activate(g, c) {
       const p = g.player;
       activeFor(p, scale.divineShield(c, p.stats.secondary).duration);
-      g.vars['shield.up'] = 0;
-      g.vars['shield.burst'] = 1;
+      g.player.vars['shield.up'] = 0;
+      g.player.vars['shield.burst'] = 1;
       p.invulnerable = true;
       p.absorbed = 0;
       if (has(p, 'secondWind')) healPlayer(g, p.stats.hp * U.secondWind.n.heal);
@@ -97,15 +97,15 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
     tick(g, _c, dt) {
       const p = g.player;
       const faith = p.stats.secondary;
-      g.vars['shield.up'] = (g.vars['shield.up'] ?? 0) + dt;
+      g.player.vars['shield.up'] = (g.player.vars['shield.up'] ?? 0) + dt;
       if (has(p, 'zeal')) p.buff.atkSpd = 1 + U.zeal.n.atkSpd + faith * U.zeal.n.perFaith;
       if (has(p, 'sanctuary')) {
         const n = U.sanctuary.n;
         healPlayer(g, n.heal * (1 + faith * n.perFaith) * dt, false);
         const crowded = g.hash.query(p.x, p.y, n.radius, near).length >= n.enemies;
-        if (crowded && (g.vars.sanctuary ?? 0) < p.abilityDur * n.maxExtend) {
+        if (crowded && (g.player.vars.sanctuary ?? 0) < p.abilityDur * n.maxExtend) {
           p.abilityTime += dt * n.slowdown; // drains at half speed while surrounded
-          g.vars.sanctuary = (g.vars.sanctuary ?? 0) + dt * n.slowdown;
+          g.player.vars.sanctuary = (g.player.vars.sanctuary ?? 0) + dt * n.slowdown;
         }
       }
     },
@@ -113,14 +113,14 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const p = g.player;
       p.invulnerable = false;
       // v0.7.3 (#53): the shield never comes back sooner than it was up (at most half the time invulnerable, whatever stacks)
-      const downtime = (g.vars['shield.up'] ?? 0) * c.minDowntime;
-      g.vars['ability.readyAt'] = g.time + downtime;
+      const downtime = (g.player.vars['shield.up'] ?? 0) * c.minDowntime;
+      g.player.vars['ability.readyAt'] = g.time + downtime;
       p.abilityCd = Math.max(p.abilityCd, downtime);
       p.buff = neutralBuff();
-      g.vars.sanctuary = 0;
+      g.player.vars.sanctuary = 0;
       const radius = c.burstRadius * (has(p, 'judgement') ? U.judgement.n.radius : 1);
       const base = scale.divineShield(c, p.stats.secondary).burstDamage;
-      const dmg = (attackDamage(base, p.stats.str, p.mods.damage) + (has(p, 'martyr') ? p.absorbed * U.martyr.n.mult : 0)) * (g.vars['shield.burst'] ?? 1); // v0.7.4 (#63): weaker when detonated early
+      const dmg = (attackDamage(base, p.stats.str, p.mods.damage) + (has(p, 'martyr') ? p.absorbed * U.martyr.n.mult : 0)) * (g.player.vars['shield.burst'] ?? 1); // v0.7.4 (#63): weaker when detonated early
       for (const e of g.hash.query(p.x, p.y, radius, near)) {
         const a = Math.atan2(e.y - p.y, e.x - p.x);
         damageEnemy(g, e, dmg, false, Math.cos(a) * c.burstKnockback, Math.sin(a) * c.burstKnockback, 'ability', 'holy');
@@ -153,8 +153,8 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const p = g.player;
       const rage = p.stats.secondary;
       activeFor(p, scale.berserkerRage(c, rage, 1).duration);
-      g.vars.frenzy = 0;
-      g.vars.rageKills = 0;
+      g.player.vars.frenzy = 0;
+      g.player.vars.rageKills = 0;
       if (has(p, 'dreadHowl')) {
         const n = U.dreadHowl.n;
         for (const e of g.hash.query(p.x, p.y, n.radius, near)) if (!e.def.boss) e.fearT = n.time + rage * n.perRage;
@@ -169,7 +169,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const b = scale.berserkerRage(c, p.stats.secondary, p.hp / p.stats.hp); // re-evaluated live: lower HP = angrier
       p.buff = {
         ...neutralBuff(),
-        damage: b.damage + (g.vars.frenzy ?? 0),
+        damage: b.damage + (g.player.vars.frenzy ?? 0),
         atkSpd: b.atkSpd,
         lifesteal: b.lifesteal * (has(p, 'bloodthirst') ? U.bloodthirst.n.mult : 1),
         fullCircle: has(p, 'whirlwind'),
@@ -199,10 +199,10 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       onKill(g) {
         const p = g.player;
         if (p.abilityTime <= 0) return;
-        feat(g, 'rageKills', (g.vars.rageKills = (g.vars.rageKills ?? 0) + 1));
+        feat(g, 'rageKills', (g.player.vars.rageKills = (g.player.vars.rageKills ?? 0) + 1));
         if (!has(p, 'frenzy')) return;
         const n = U.frenzy.n;
-        g.vars.frenzy = Math.min(n.cap + p.stats.secondary * n.capPerRage, (g.vars.frenzy ?? 0) + n.perKill);
+        g.player.vars.frenzy = Math.min(n.cap + p.stats.secondary * n.capPerRage, (g.player.vars.frenzy ?? 0) + n.perKill);
       },
     },
     describe(p, c) {
@@ -226,7 +226,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
         applyStatus(e, status, g);
         if (e.dead) slain++;
       }
-      if (has(p, 'benediction')) g.vars.cdRefund = Math.min(U.benediction.n.cap, slain * U.benediction.n.refund);
+      if (has(p, 'benediction')) g.player.vars.cdRefund = Math.min(U.benediction.n.cap, slain * U.benediction.n.refund);
       if (has(p, 'twinPulse')) addZone(g, { x: p.x, y: p.y, r: s.radius, delay: U.twinPulse.n.delay, damage: dmg * U.twinPulse.n.mult, hostile: false, color: c.aura, status, dtype: 'holy' });
       if (has(p, 'consecration')) {
         const n = U.consecration.n;
@@ -347,12 +347,12 @@ export function updateAbility(g: Game, dt: number): void {
   const p = g.player;
   const { hook, cfg } = hookFor(p);
   const evo = evolutionHook(g, 'signature'); // v0.6: an evolution adds to the ability, or takes its cast over
-  const pressed = g.input.ability && !g.vars['ability.held']; // a new press, not a held key
-  g.vars['ability.held'] = g.input.ability ? 1 : 0;
+  const pressed = g.input.ability && !g.player.vars['ability.held']; // a new press, not a held key
+  g.player.vars['ability.held'] = g.input.ability ? 1 : 0;
   if (p.abilityTime > 0) {
     if (pressed && cfg.id === 'divineShield') {
       // v0.7.4 (#63): pressing again ends Divine Shield now, for a weaker burst
-      g.vars['shield.burst'] = scale.shieldBurst(cfg.earlyBurst, g.vars['shield.up'] ?? 0, p.abilityTime);
+      g.player.vars['shield.burst'] = scale.shieldBurst(cfg.earlyBurst, g.player.vars['shield.up'] ?? 0, p.abilityTime);
       p.abilityTime = 0;
     } else {
       p.abilityTime -= dt;
@@ -370,11 +370,11 @@ export function updateAbility(g: Game, dt: number): void {
   // the cooldown waits for the ability to end, so duration stacking can never reach 100% uptime
   if (p.abilityTime <= 0) p.abilityCd = Math.max(cooldownFloor(g), p.abilityCd - dt * (lastStandActive(g) ? SKILL.lastStand.cooldownRate : 1)); // v0.6: the Last Stand hurries it (v0.7.3: not below the floor)
   if (g.input.ability && p.abilityCd <= 0 && p.abilityTime <= 0) {
-    g.vars.cdRefund = 0;
+    g.player.vars.cdRefund = 0;
     if (!(evo?.replaceCast ? evo.replaceCast(g) : hook.activate(g, cfg))) return;
     evo?.cast?.(g);
     const upgradeMult = has(p, 'secondWind') ? U.secondWind.n.cooldown : 1;
-    const cooldown = abilityCooldown(cfg.cooldown, p.stats.int) * p.mods.cooldown * p.mods.abilityCd * upgradeMult * (1 - (g.vars.cdRefund ?? 0));
+    const cooldown = abilityCooldown(cfg.cooldown, p.stats.int) * p.mods.cooldown * p.mods.abilityCd * upgradeMult * (1 - (g.player.vars.cdRefund ?? 0));
     p.abilityCd = p.abilityCdMax = cooldown;
     sfx(g, 'ability');
     emit(g, 'onAbilityUsed', { cooldown });

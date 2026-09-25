@@ -619,6 +619,32 @@ await check('two local players: split screen, each on their own keys', async () 
   return { ok, detail: `solo run had ${setup.solo} player (P2 panel ${setup.soloP2 ? 'shown' : 'hidden'}), now ${setup.n} (${setup.state}); P2 panel "${setup.hud}"; seam ${setup.seam}; D: P1 ${Math.round(b[0].x - a[0].x)} px, P2 ${Math.round(b[1].x - a[1].x)} px; ←: P1 ${Math.round(c[0].x - b[0].x)} px, P2 ${Math.round(c[1].x - b[1].x)} px` };
 });
 
+await check('four players: a panel each for P2, P3 and P4, stacked on the right', () =>
+  inPage(async () => {
+    const P = window.__play, lb = window.__lb;
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', key: 'Escape' }));
+    await P.wait(150);
+    await P.click('[data-quit]');
+    await P.wait(200);
+    const players = document.getElementById('tm-players');
+    if (!players) return { ok: false, detail: 'no Players choice' };
+    players.value = '4';
+    players.dispatchEvent(new Event('change', { bubbles: true }));
+    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    await P.wait(300);
+    const g = lb.game;
+    for (const p of g.players) p.invulnerable = true;
+    lb.run(5, false, 'input');
+    await P.wait(100); // the HUD draws on the next frame
+    const panels = [2, 3, 4].map((n) => document.getElementById(`h-p${n}`));
+    const shown = panels.map((el) => (el && !el.classList.contains('hidden') && el.getBoundingClientRect().left > innerWidth / 2 ? el.innerText.replace(/\s+/g, ' ') : ''));
+    const tops = panels.map((el) => el?.getBoundingClientRect().top ?? 0);
+    const ok = g.players.length === 4 && shown.every((t, i) => t.includes(`P${i + 2} · ${g.players[i + 1].cls.name}`)) && tops[0] < tops[1] && tops[1] < tops[2];
+    return { ok, detail: `${g.players.length} players; panels ${shown.map((t) => `"${t}"`).join(', ')}; tops ${tops.map(Math.round).join(', ')}` };
+  }),
+);
+
 // ---------- v0.7.5 (#106): an error in a frame shows the error overlay, and the game goes on ----------
 await check('an error in a frame: the overlay, Continue, the run goes on', () =>
   inPage(async () => {

@@ -24,11 +24,11 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 
   blessedWater: {
     tick(g, _dt, p) {
-      g.vars.relicHealMult = (g.vars.relicHealMult ?? 1) + nOf(p, 'blessedWater').bonus; // combat.healPlayer reads it
+      g.player.vars.relicHealMult = (g.player.vars.relicHealMult ?? 1) + nOf(p, 'blessedWater').bonus; // combat.healPlayer reads it
     },
     onHeal(g, ev, p) {
       const bonus = nOf(p, 'blessedWater').bonus;
-      credit(g, p, 'blessedWater', 'healing', (ev.amount * bonus) / (g.vars.relicHealMult ?? 1 + bonus)); // its share of the heal
+      credit(g, p, 'blessedWater', 'healing', (ev.amount * bonus) / (g.player.vars.relicHealMult ?? 1 + bonus)); // its share of the heal
       if (!awakened(p, 'blessedWater') || ev.amount <= 0) return;
       for (const id of ['poison', 'bleed', 'curse', 'slow'] as const) if (p.statuses[id]) return void delete p.statuses[id]; // Baptism
     },
@@ -37,8 +37,8 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   guardiansAegis: {
     tick(g, dt, p) {
       const n = nOf(p, 'guardiansAegis');
-      if ((g.vars['aegis.t'] = (g.vars['aegis.t'] ?? 0) + dt) >= n.every) {
-        g.vars['aegis.t'] = 0;
+      if ((g.player.vars['aegis.t'] = (g.player.vars['aegis.t'] ?? 0) + dt) >= n.every) {
+        g.player.vars['aegis.t'] = 0;
         gainWard(g, p, p.stats.hp * n.ward);
       }
       if (awakened(p, 'guardiansAegis') && p.ward > 0) bonus(p, 'damage', 0.15); // Faithful
@@ -57,8 +57,8 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 
   phoenixFeather: {
     acquire(g, p) {
-      if (!g.vars['phoenix.given']) (g.vars['phoenix.given'] = 1), (p.revives += 1); // once per run, whatever tier it arrives at
-      g.vars['phoenix.hp'] = nOf(p, 'phoenixFeather').hp; // combat.revive reads it
+      if (!g.player.vars['phoenix.given']) (g.player.vars['phoenix.given'] = 1), (p.revives += 1); // once per run, whatever tier it arrives at
+      g.player.vars['phoenix.hp'] = nOf(p, 'phoenixFeather').hp; // combat.revive reads it
     },
     onRevive(g, _ev, p) {
       if (!awakened(p, 'phoenixFeather')) return;

@@ -71,11 +71,11 @@ export function buildHud(onPause: () => void, onMute: () => void): void {
     </div>
     <div class="hud-right">
       <div class="hud-tr"><button id="btn-mute" title="Mute (M)"></button><button id="btn-pause" title="Pause (Esc / P)">❚❚</button></div>
-      <div id="h-p2" class="hud-tl hud-panel hidden">
-        <div class="hud-name"><span id="h-p2-class"></span><span>Lv <span id="h-p2-level"></span></span></div>
-        <div class="bar hp"><div id="h-p2-hp-fill"></div><span id="h-p2-hp-text"></span></div>
-        <div class="hud-purse"><span id="h-p2-ab"></span><span id="h-p2-ut"></span></div>
-      </div>
+      ${[2, 3, 4].map((n) => `<div id="h-p${n}" class="hud-tl hud-panel hidden">
+        <div class="hud-name"><span id="h-p${n}-class"></span><span>Lv <span id="h-p${n}-level"></span></span></div>
+        <div class="bar hp"><div id="h-p${n}-hp-fill"></div><span id="h-p${n}-hp-text"></span></div>
+        <div class="hud-purse"><span id="h-p${n}-ab"></span><span id="h-p${n}-ut"></span></div>
+      </div>`).join('')}
       <div class="hud-families" id="h-families"></div>
       <div class="hud-relics" id="h-relics"></div>
       <div id="h-toasts"></div>
@@ -163,16 +163,18 @@ export function updateHud(g: Game): void {
   text('h-xp-text', `${Math.floor(p.xp)} / ${xpToNext(p.level)} XP`);
   text('h-gold', `🪙 ${g.player.gold}`);
   text('h-tier', `${g.tier.name} · ${g.arena.name}`);
-  // v0.8 (#28): the second player's own panel, on their half of the screen (ponytail: players 3-4 get one with local co-op, #1)
-  const p2 = g.players[1];
-  $('h-p2').classList.toggle('hidden', !p2);
-  if (p2) {
-    text('h-p2-class', `P2 · ${p2.cls.name}`);
-    text('h-p2-level', String(p2.level));
-    width('h-p2-hp-fill', p2.hp / p2.stats.hp);
-    text('h-p2-hp-text', `${Math.ceil(p2.hp)} / ${Math.round(p2.stats.hp)}`);
-    text('h-p2-ab', `${p2.cls.ability.name} ${p2.abilityCd <= 0 ? '✦' : p2.abilityCd.toFixed(1)}`);
-    text('h-p2-ut', utilityUnlocked(p2) ? `${utilityDef(p2).name} ${p2.utilityCd <= 0 ? '✦' : p2.utilityCd.toFixed(1)}` : '');
+  // v0.8 (#28): players 2-4 each have their own panel on the right, stacked; hidden while the seat is empty
+  for (let n = 2; n <= 4; n++) {
+    const q = g.players[n - 1];
+    const id = `h-p${n}`;
+    $(id).classList.toggle('hidden', !q);
+    if (!q) continue;
+    text(`${id}-class`, `P${n} · ${q.cls.name}`);
+    text(`${id}-level`, String(q.level));
+    width(`${id}-hp-fill`, q.hp / q.stats.hp);
+    text(`${id}-hp-text`, `${Math.ceil(q.hp)} / ${Math.round(q.stats.hp)}`);
+    text(`${id}-ab`, `${q.cls.ability.name} ${q.abilityCd <= 0 ? '✦' : q.abilityCd.toFixed(1)}`);
+    text(`${id}-ut`, utilityUnlocked(q) ? `${utilityDef(q).name} ${q.utilityCd <= 0 ? '✦' : q.utilityCd.toFixed(1)}` : '');
   }
 
   $('h-test').classList.toggle('hidden', !isTestRun(g)); // v0.7.1 test mode
@@ -197,7 +199,7 @@ export function updateHud(g: Game): void {
   const relicStats = (Object.entries(g.player.relics.totals) as [keyof Mods, RelicModTotal][]).filter(([, t]) => t.count > 1);
   const relicRows = relicStats.map(([key, t]) => `<div class="dim" data-tip="${esc(`${t.count} relics add up to +${Math.round(t.raw * 100)}% ${MOD_NAMES[key] ?? key}.`)}"><span>Relics: ${MOD_NAMES[key] ?? key}</span><b>+${Math.round(t.eff * 100)}%</b></div>`).join('');
   const procs = ''; // v0.7: no proc sharing
-  const heal = g.vars.relicHeal ?? 0;
+  const heal = g.player.vars.relicHeal ?? 0;
   const healRow = heal > 0 ? `<div class="dim" data-tip="${esc(`Relics healed ${Math.round(heal * 100)}% of your max HP this wave. Past the soft cap (${Math.round(RELIC_STACKING.healCap * 100)}%) each further heal counts for less.`)}"><span>Relic healing (wave)</span><b>${Math.round(softCap(heal, RELIC_STACKING.healCap) * 100)}%${heal > RELIC_STACKING.healCap ? ` <s>${Math.round(heal * 100)}</s>` : ''}</b></div>` : '';
   const damage = `×${(p.mods.damage * p.buff.damage).toFixed(2)}`;
   // in a fight: the six numbers that matter, in two columns; hover (tap) the panel for everything
@@ -259,7 +261,7 @@ export function updateHud(g: Game): void {
   $('h-ab-cd').style.height = `${(p.abilityCd / p.abilityCdMax) * 100}%`;
   // v0.7.4 (#63): while Divine Shield holds, the slot shows the burst a second press would set off
   const ab = p.cls.ability;
-  const detonate = p.abilityTime > 0 && ab.id === 'divineShield' ? `${Math.round(shieldBurst(ab.earlyBurst, g.vars['shield.up'] ?? 0, p.abilityTime) * 100)}%` : '';
+  const detonate = p.abilityTime > 0 && ab.id === 'divineShield' ? `${Math.round(shieldBurst(ab.earlyBurst, g.player.vars['shield.up'] ?? 0, p.abilityTime) * 100)}%` : '';
   text('h-ab-time', detonate || (ready ? '✦' : p.abilityCd.toFixed(1)));
   // the touch ability button mirrors the cooldown, because a thumb covers the HUD panel
   const touchBtn = document.getElementById('btn-ability');
@@ -302,8 +304,8 @@ export function updateHud(g: Game): void {
   if (g.player.talentPoints > 0) text('h-talent', `${g.player.talentPoints} talent point${g.player.talentPoints > 1 ? 's' : ''} to spend — pause menu`);
 
   // v0.6: the perfect-dodge buff and the Last Stand, as chips beside the statuses (whole seconds, so the DOM changes once a second)
-  const perfect = Math.ceil((g.vars.perfectUntil ?? 0) - g.time);
-  const stand = Math.ceil((g.vars.lastStandUntil ?? 0) - g.time);
+  const perfect = Math.ceil((g.player.vars.perfectUntil ?? 0) - g.time);
+  const stand = Math.ceil((g.player.vars.lastStandUntil ?? 0) - g.time);
   const skill = `${perfect > 0 ? `<span style="background:${SKILL.colors.perfect}">Perfect ${perfect}s</span>` : ''}${stand > 0 ? `<span style="background:#f4a595">Last Stand ${stand}s</span>` : ''}`;
   html('h-status', skill + activeStatuses(p.statuses).map((id) => `<span style="background:${STATUSES[id].color}">${STATUSES[id].name}${(p.statuses[id]?.stacks ?? 1) > 1 ? ` ×${p.statuses[id]!.stacks}` : ''}</span>`).join(''));
   root().classList.toggle('last-stand', stand > 0);

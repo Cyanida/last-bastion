@@ -214,7 +214,7 @@ function revive(g: Game): boolean {
     frac = ABILITY_UPGRADES.guardianAngel.n.hp;
     p.reviveT = 0;
   } else if (p.revives > 0) {
-    frac = g.vars['phoenix.hp'] ?? GAME.reviveHp; // v0.7: Phoenix Feather's tier
+    frac = g.player.vars['phoenix.hp'] ?? GAME.reviveHp; // v0.7: Phoenix Feather's tier
     p.revives--;
     emit(g, 'onRevive', {});
   } else return false;
@@ -289,7 +289,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
 export function healPlayer(g: Game, amount: number, show = true): number {
   const p = g.player;
   if (g.breather > 0 && g.wave > 0 && g.curses.includes('noRespite')) return 0; // No Respite: nothing mends between waves
-  const heal = amount * healFactor(g.wave) * (g.vars.relicHealMult ?? 1); // v0.5: sustain fades past wave 30; v0.7: Blessed Water
+  const heal = amount * healFactor(g.wave) * (g.player.vars.relicHealMult ?? 1); // v0.5: sustain fades past wave 30; v0.7: Blessed Water
   const healed = Math.min(p.stats.hp - p.hp, heal);
   if (heal > 0) emit(g, 'onHeal', { amount: Math.max(0, healed), over: heal - Math.max(0, healed) }); // v0.7: Holy turns overhealing into ward and pulses
   if (healed <= 0) return 0;
@@ -348,8 +348,8 @@ export function updatePlayerAttack(g: Game, dt: number): void {
     }
   } else {
     // v0.5 the Bow of the Wild Hunt (systems/treasures.ts sets splitEvery): every n-th shot splits into three
-    const every = g.vars.splitEvery ?? 0;
-    const shots = p.buff.multishot + (every > 0 && (g.vars.shots = (g.vars.shots ?? 0) + 1) % every === 0 ? 2 : 0);
+    const every = g.player.vars.splitEvery ?? 0;
+    const shots = p.buff.multishot + (every > 0 && (g.player.vars.shots = (g.player.vars.shots ?? 0) + 1) % every === 0 ? 2 : 0);
     for (let i = -shots / 2; i <= shots / 2; i++) {
       const hit = rollPlayerHit(g, atk.damage, atk.scaling);
       fireProjectile(g, p.x, p.y - 6, p.facing + i * 0.18, {
@@ -481,16 +481,14 @@ export function updateZones(g: Game, dt: number): void {
   compact(g.zones, (z) => {
     if (z.owner?.dead) return false;
     z.t += dt;
-    // ponytail: the perfect dodge (lastIn, zoneStruck) still watches only the first player; per-player when dodge state moves onto Player
-    const p = g.players[0];
-    const inside = z.hostile && dist2(z.x, z.y, p.x, p.y) <= (z.r + p.r) ** 2;
+    const inside = (p: Player) => z.hostile && dist2(z.x, z.y, p.x, p.y) <= (z.r + p.r) ** 2;
     if (z.t < z.delay) {
-      if (inside && z.delay >= SKILL.perfect.minDelay) z.lastIn = g.time; // v0.6: the perfect dodge watches who stood in it
+      if (z.delay >= SKILL.perfect.minDelay) g.players.forEach((p, i) => inside(p) && (z.lastIn[i] = g.time)); // v0.6: the perfect dodge watches who stood in it (v0.8: every player, by seat)
       return true;
     }
     if (z.killsOwner && z.owner) killEnemy(g, z.owner, 'hazard');
     if (z.hostile) {
-      if (z.delay >= SKILL.perfect.minDelay) zoneStruck(g, z.lastIn, inside);
+      if (z.delay >= SKILL.perfect.minDelay) g.players.forEach((p, i) => zoneStruck(g, p, z.lastIn[i] ?? -1, inside(p)));
       for (const q of g.players) if (dist2(z.x, z.y, q.x, q.y) <= (z.r + q.r) ** 2) hurtTarget(g, q, z.damage, true, z.owner); // v0.8 (#28): every player in it
       for (const m of g.minions) if (dist2(z.x, z.y, m.x, m.y) <= (z.r + m.r) ** 2) hurtTarget(g, m, z.damage, true, z.owner);
       ring(g, z.x, z.y, z.r, z.color);

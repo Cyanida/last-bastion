@@ -170,19 +170,19 @@ export type RelicHooks = { [K in EventName]?: (g: Game, ev: GameEvents[K], p: Pl
  * A relic that cuts max HP to `frac` (Blood Pact; Crimson Chalice's curse), under its own key: it keeps the HP it took and gives exactly that
  * back first, so tier-ups, a lifted curse and removal round-trip without inflating max HP gained after the cut.
  */
-export function cutMaxHp(g: Game, p: Player, key: string, frac: number): void {
-  const full = p.stats.hp + (g.vars[key] ?? 0);
-  g.vars[key] = full * (1 - frac);
-  p.stats.hp = full - g.vars[key];
+export function cutMaxHp(_g: Game, p: Player, key: string, frac: number): void {
+  const full = p.stats.hp + (p.vars[key] ?? 0);
+  p.vars[key] = full * (1 - frac);
+  p.stats.hp = full - p.vars[key];
   p.hp = Math.min(p.hp, p.stats.hp);
 }
 
 /** Healing from relics passes a soft cap per wave (a share of max HP): sustain relics add up, then each heals less. */
 export function relicHeal(g: Game, p: Player, amount: number, show = false): number {
   const max = p.stats.hp;
-  const prev = g.vars.relicHeal ?? 0;
+  const prev = g.player.vars.relicHeal ?? 0;
   const next = prev + amount / max;
-  g.vars.relicHeal = next;
+  g.player.vars.relicHeal = next;
   const healed = healPlayer(g, (softCap(next, RELIC_STACKING.healCap) - softCap(prev, RELIC_STACKING.healCap)) * max, show);
   if (relicContext.acting) credit(g, p, relicContext.acting, 'healing', healed, true);
   return healed;

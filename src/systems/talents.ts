@@ -41,7 +41,7 @@ export function applyTrait(g: Game, id: TraitId, second = false): void {
   if (t.mods) combineMods(g.baseMods, t.mods);
   if (second) g.player.trait2 = id; // v0.6: the Second Banner's
   else g.player.trait = id;
-  if (t.n) for (const [k, v] of Object.entries(t.n)) g.vars[`trait.${k}`] = v;
+  if (t.n) for (const [k, v] of Object.entries(t.n)) g.player.vars[`trait.${k}`] = v;
 }
 
 /** Every tick after relics: talent mods, and the conditional ones (below half HP). */

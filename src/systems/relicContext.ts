@@ -23,7 +23,7 @@ export function credit(g: Game, p: Player, id: RelicKey, kind: 'damage' | 'heali
 const RELIC_FLASH = 1.2;
 export function flash(g: Game, p: Player, id: RelicKey): void {
   const key = `flash.${id}`;
-  if (g.time - (g.vars[key] ?? -99) < RELIC_FLASH) return;
-  g.vars[key] = g.time;
+  if (g.time - (p.vars[key] ?? -99) < RELIC_FLASH) return;
+  p.vars[key] = g.time;
   floatText(g, p.x + (cosmetic() - 0.5) * 30, p.y - p.r - 34, keyIcon(id), keyColor(id), 15);
 }

@@ -79,7 +79,7 @@ function attribute(g: Game, p: Player, ev: GameEvents['onHit']): void {
 addListener((g, name, ev) => {
   const p = g.player; // ponytail: one player; with co-op this runs for every player whose relics care about the event
   if (name === 'onWaveStart') {
-    g.vars.relicHeal = 0;
+    for (const q of g.players) q.vars.relicHeal = 0; // every player's soft cap starts over
     g.vars.dealtAtWave = g.vars.dealt ?? 0;
     p.relics.work = {};
   }
@@ -138,7 +138,7 @@ export function updateRelics(g: Game, dt: number): void {
   }
   for (const key of Object.keys(r.dyn) as (keyof Mods)[]) r.dyn[key] = 0;
   // numbers the families set every tick, back to neutral first (Blessed Water, Butcher's Hook, Charnel; the Doom Bell's and Tyrant's Banner's curses)
-  g.vars.relicHealMult = 1;
+  g.player.vars.relicHealMult = 1;
   g.vars['relic.bleedSlow'] = 0;
   g.vars['corpse.mult'] = 1;
   g.vars['relic.enemySpeed'] = 1;
@@ -281,7 +281,7 @@ export function relicShares(g: Game, p: Player = g.player): { id: RelicKey; tier
 }
 
 /** Rerolls a moment starts with: the base, the Cursed Luck trait, the Keep's Reliquary Guard, the Elite path's Act. */
-export const momentRerolls = (g: Game): number => RELIC_MOMENTS.rerolls + (g.vars['trait.rerolls'] ?? 0) + (g.vars['keep.relicRerolls'] ?? 0) + (g.route?.focus === 'elite' ? ROUTES.elite.rerolls : 0);
+export const momentRerolls = (g: Game): number => RELIC_MOMENTS.rerolls + (g.player.vars['trait.rerolls'] ?? 0) + (g.vars['keep.relicRerolls'] ?? 0) + (g.route?.focus === 'elite' ? ROUTES.elite.rerolls : 0);
 
 function roll(p: Player, pool: RelicId[], n: number): RelicId[] {
   const r = p.relics;

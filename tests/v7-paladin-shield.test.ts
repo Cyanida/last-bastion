@@ -39,8 +39,8 @@ describe('Divine Shield uptime (v0.7.3, #53)', () => {
     const p = g.player;
     run(g, 1 / 60); // cast
     while (p.abilityTime > 0) run(g, 1 / 60, false); // Sanctuary stretches it while surrounded
-    expect(g.vars['shield.up']).toBeGreaterThan(p.abilityCdMax); // the shield outlasted its own cooldown...
-    expect(p.abilityCd).toBeGreaterThanOrEqual(g.vars['shield.up'] - 1 / 30); // ...so the cooldown now lasts as long as the shield did
+    expect(g.player.vars['shield.up']).toBeGreaterThan(p.abilityCdMax); // the shield outlasted its own cooldown...
+    expect(p.abilityCd).toBeGreaterThanOrEqual(g.player.vars['shield.up'] - 1 / 30); // ...so the cooldown now lasts as long as the shield did
     expect(cooldownFloor(g)).toBeGreaterThan(p.abilityCdMax);
   });
 

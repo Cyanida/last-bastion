@@ -21,19 +21,19 @@ function bleedHp(g: Game, p: Player, amount: number, text: string): void {
 export const CURSED_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   hungeringBlade: {
     onWaveStart(g) {
-      g.vars['hunger.kills'] = 0;
+      g.player.vars['hunger.kills'] = 0;
     },
     onKill(g) {
-      g.vars['hunger.kills'] = (g.vars['hunger.kills'] ?? 0) + 1;
-      g.vars['hunger.fed'] = g.time;
+      g.player.vars['hunger.kills'] = (g.player.vars['hunger.kills'] ?? 0) + 1;
+      g.player.vars['hunger.fed'] = g.time;
     },
     tick(g, _dt, p) {
       const n = nOf(p, 'hungeringBlade');
-      bonus(p, 'damage', Math.min(n.max, (g.vars['hunger.kills'] ?? 0) * n.per));
+      bonus(p, 'damage', Math.min(n.max, (g.player.vars['hunger.kills'] ?? 0) * n.per));
       // the curse: it only starves you in a fight
-      if (!cursed(p, 'hungeringBlade') || g.breather > 0 || !g.enemies.length) g.vars['hunger.fed'] = g.time;
-      else if (g.time - (g.vars['hunger.fed'] ??= g.time) >= n.starve) {
-        g.vars['hunger.fed'] = g.time;
+      if (!cursed(p, 'hungeringBlade') || g.breather > 0 || !g.enemies.length) g.player.vars['hunger.fed'] = g.time;
+      else if (g.time - (g.player.vars['hunger.fed'] ??= g.time) >= n.starve) {
+        g.player.vars['hunger.fed'] = g.time;
         bleedHp(g, p, p.stats.hp * n.bite, 'HUNGER');
       }
     },
@@ -81,11 +81,11 @@ export const CURSED_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 
   tyrantsBanner: {
     onKill(g, ev) {
-      if (ev.enemy.elite) g.vars['banner.elites'] = (g.vars['banner.elites'] ?? 0) + 1;
+      if (ev.enemy.elite) g.player.vars['banner.elites'] = (g.player.vars['banner.elites'] ?? 0) + 1;
     },
     tick(g, _dt, p) {
       const n = nOf(p, 'tyrantsBanner');
-      const b = Math.min(n.max, (g.vars['banner.elites'] ?? 0) * n.per);
+      const b = Math.min(n.max, (g.player.vars['banner.elites'] ?? 0) * n.per);
       bonus(p, 'damage', b);
       bonus(p, 'atkSpd', b);
       if (cursed(p, 'tyrantsBanner')) g.vars['relic.eliteMult'] = n.elites; // spawning reads it when it plans a wave

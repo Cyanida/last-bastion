@@ -1,7 +1,7 @@
 import { SKILL } from '../config/game';
 import { sfx } from '../sim/view';
 import { addListener, type GameEvents } from '../core/events';
-import type { Enemy, Game } from '../core/types';
+import type { Enemy, Game, Player } from '../core/types';
 import { cooldownFloor } from '../logic/formulas';
 import { inTelegraph, isPerfectDodge } from '../logic/telegraph';
 import { floatText, ring, shake } from './effects';
@@ -14,14 +14,13 @@ import { markStand } from './runlog';
 const MOBILITY = new Set(['dodgeRoll', 'blink', 'leap']);
 
 /** A telegraphed attack landed and missed by a hair: a damage buff, part of the signature ability's cooldown back, and a flash. */
-export function perfectDodge(g: Game): void {
+export function perfectDodge(g: Game, p: Player = g.player): void {
   const s = SKILL.perfect;
-  if (g.time < (g.vars.perfectReady ?? 0)) return;
-  const p = g.player;
-  g.vars.perfectReady = g.time + s.every;
-  g.vars.perfectUntil = g.time + s.time;
-  p.abilityCd = Math.max(cooldownFloor(g), p.abilityCd - p.abilityCdMax * s.refund);
-  g.vars.perfects = (g.vars.perfects ?? 0) + 1;
+  if (g.time < (p.vars.perfectReady ?? 0)) return;
+  p.vars.perfectReady = g.time + s.every;
+  p.vars.perfectUntil = g.time + s.time;
+  p.abilityCd = Math.max(cooldownFloor({ player: p, time: g.time }), p.abilityCd - p.abilityCdMax * s.refund);
+  p.vars.perfects = (p.vars.perfects ?? 0) + 1;
   floatText(g, p.x, p.y - 48, 'PERFECT DODGE', SKILL.colors.perfect, 18);
   ring(g, p.x, p.y, 90, SKILL.colors.perfect, 0.45);
   shake(g, 3);
@@ -29,11 +28,11 @@ export function perfectDodge(g: Game): void {
 }
 
 /** Rolled, blinked or leapt through it just now: it counts even though the body is still inside. */
-const throughIt = (g: Game) => g.player.invulnT > 0 && g.time - (g.vars.mobilityAt ?? -9) <= SKILL.perfect.window + 0.1;
+const throughIt = (g: Game, p: Player) => p.invulnT > 0 && g.time - (p.vars.mobilityAt ?? -9) <= SKILL.perfect.window + 0.1;
 
-/** A zone strikes (combat.ts updateZones): was that a perfect dodge? */
-export function zoneStruck(g: Game, lastIn: number, inside: boolean): void {
-  if (isPerfectDodge(lastIn, g.time, inside) || (inside && throughIt(g))) perfectDodge(g);
+/** A zone strikes (combat.ts updateZones): was that a perfect dodge, for player `p` (v0.8 #28: every player)? */
+export function zoneStruck(g: Game, p: Player, lastIn: number, inside: boolean): void {
+  if (isPerfectDodge(lastIn, g.time, inside) || (inside && throughIt(g, p))) perfectDodge(g, p);
 }
 
 /**
@@ -41,10 +40,9 @@ export function zoneStruck(g: Game, lastIn: number, inside: boolean): void {
  * telegraph ran its full course and went away), a player who stepped out in the last moment dodged it perfectly.
  */
 export function watchTelegraph(g: Game, e: Enemy): void {
-  const p = g.player;
   const t = e.telegraph;
   if (t) {
-    if (inTelegraph(t, e.x, e.y, p.x, p.y, p.r)) e.lineIn = g.time;
+    g.players.forEach((p, i) => inTelegraph(t, e.x, e.y, p.x, p.y, p.r) && (e.lineIn[i] = g.time)); // v0.8 (#28): every player, by seat
     e.lastTele = t;
     return;
   }
@@ -52,14 +50,16 @@ export function watchTelegraph(g: Game, e: Enemy): void {
   if (!last) return;
   e.lastTele = null;
   if (last.t < last.dur - 0.05) return; // interrupted (stunned, feared, slain): nothing came
-  const inside = inTelegraph(last, e.x, e.y, p.x, p.y, p.r);
-  if (isPerfectDodge(e.lineIn, g.time, inside) || (inside && throughIt(g))) perfectDodge(g);
-  e.lineIn = -1;
+  g.players.forEach((p, i) => {
+    const inside = inTelegraph(last, e.x, e.y, p.x, p.y, p.r);
+    if (isPerfectDodge(e.lineIn[i] ?? -1, g.time, inside) || (inside && throughIt(g, p))) perfectDodge(g, p);
+  });
+  e.lineIn = [];
 }
 
 /** Every tick, after the mods are rebuilt: the perfect-dodge buff. */
 export function dodgePassives(g: Game): void {
-  if (g.time < (g.vars.perfectUntil ?? 0)) g.player.mods.damage *= SKILL.perfect.damage;
+  if (g.time < (g.player.vars.perfectUntil ?? 0)) g.player.mods.damage *= SKILL.perfect.damage;
 }
 
 /** The Last Stand: combat.ts calls this when a hit would kill. True when it caught the blow. */
@@ -69,7 +69,7 @@ export function lastStand(g: Game): boolean {
   g.player.lastStand = 'used';
   p.hp = 1;
   p.invulnT = Math.max(p.invulnT, SKILL.lastStand.time);
-  g.vars.lastStandUntil = g.time + SKILL.lastStand.time;
+  g.player.vars.lastStandUntil = g.time + SKILL.lastStand.time;
   g.banner = { text: 'Last Stand', t: 2.5 };
   floatText(g, p.x, p.y - 50, 'LAST STAND', '#f4a595', 22);
   ring(g, p.x, p.y, 160, '#c23a2e', 0.8);
@@ -80,8 +80,8 @@ export function lastStand(g: Game): boolean {
 }
 
 /** While the Last Stand lasts the signature ability cools down faster (abilities.ts). */
-export const lastStandActive = (g: Game): boolean => g.time < (g.vars.lastStandUntil ?? 0);
+export const lastStandActive = (g: Game): boolean => g.time < (g.player.vars.lastStandUntil ?? 0);
 
 addListener((g, name, ev) => {
-  if (name === 'onUtilityUsed' && MOBILITY.has((ev as GameEvents['onUtilityUsed']).id)) g.vars.mobilityAt = g.time;
+  if (name === 'onUtilityUsed' && MOBILITY.has((ev as GameEvents['onUtilityUsed']).id)) g.player.vars.mobilityAt = g.time;
 });

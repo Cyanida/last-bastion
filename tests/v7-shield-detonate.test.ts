@@ -66,7 +66,7 @@ describe('Divine Shield detonation (v0.7.4, #63)', () => {
     step(g, true);
     expect(p.abilityTime).toBe(0);
     expect(p.invulnerable).toBe(false);
-    expect(p.abilityCd).toBeGreaterThanOrEqual(g.vars['shield.up'] - 1e-9);
-    expect(g.vars['ability.readyAt']).toBeCloseTo(g.time - 1 / 60 + g.vars['shield.up'], 5);
+    expect(p.abilityCd).toBeGreaterThanOrEqual(g.player.vars['shield.up'] - 1e-9);
+    expect(g.player.vars['ability.readyAt']).toBeCloseTo(g.time - 1 / 60 + g.player.vars['shield.up'], 5);
   });
 });

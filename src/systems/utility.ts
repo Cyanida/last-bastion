@@ -84,7 +84,7 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
     }
     feat(g, 'leapHits', hits);
     if (has(p, 'bloodLanding')) healPlayer(g, hits * U.bloodLanding.n.heal, false);
-    if (has(p, 'warCry')) g.vars.warCry = g.time + U.warCry.n.time;
+    if (has(p, 'warCry')) g.player.vars.warCry = g.time + U.warCry.n.time;
     ring(g, p.x, p.y, radius, '#c23a2e', 0.4);
     burst(g, p.x, p.y, '#8a6a4a', 14, 220);
     shake(g, 8);
@@ -148,7 +148,7 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
     p.y = to.y;
     clampToArena(g, p);
     p.invulnT = Math.max(p.invulnT, n.invuln * (has(p, 'ghostStep') ? U.ghostStep.n.invuln : 1));
-    if (has(p, 'ghostStep')) g.vars.ghostStep = g.time + U.ghostStep.n.time;
+    if (has(p, 'ghostStep')) g.player.vars.ghostStep = g.time + U.ghostStep.n.time;
     const dps = n.caltropDps * (has(p, 'sharpCaltrops') ? U.sharpCaltrops.n.dps : 1) * p.mods.utilityPower;
     addField(g, {
       x: from.x, y: from.y, r: n.caltropRadius * (has(p, 'scatter') ? U.scatter.n.radius : 1), life: n.caltropLife * (has(p, 'scatter') ? U.scatter.n.life : 1),
@@ -165,8 +165,8 @@ export function updateUtility(g: Game, dt: number): void {
   const p = g.player;
   p.utilityCd = Math.max(0, p.utilityCd - dt);
   // upgrade after-effects
-  if (g.time < (g.vars.warCry ?? 0)) p.mods.atkSpd *= 1 + U.warCry.n.atkSpd;
-  if (g.time < (g.vars.ghostStep ?? 0)) p.mods.moveSpd *= 1 + U.ghostStep.n.moveSpd;
+  if (g.time < (g.player.vars.warCry ?? 0)) p.mods.atkSpd *= 1 + U.warCry.n.atkSpd;
+  if (g.time < (g.player.vars.ghostStep ?? 0)) p.mods.moveSpd *= 1 + U.ghostStep.n.moveSpd;
   if (!g.input.utility || p.utilityCd > 0 || !utilityUnlocked(p)) return;
   const def = utilityDef(p);
   const from = { x: p.x, y: p.y };

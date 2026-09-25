@@ -48,7 +48,7 @@ describe('attunement (v0.7 A4)', () => {
     damageEnemy(g, e, 1, false, 0, 0, 'ability'); // Hex Doll curses what the ability hits
     expect(e.statuses.curse).toBeTruthy();
     expect(att(g, 'hexDoll')).toBeCloseTo(ATTUNEMENT.proc);
-    g.vars['aegis.t'] = 99;
+    g.player.vars['aegis.t'] = 99;
     tick(g); // Guardian's Aegis: ward now
     expect(p.ward).toBeGreaterThan(0);
     expect(att(g, 'guardiansAegis')).toBeCloseTo((ATTUNEMENT.support * p.ward) / p.stats.hp);

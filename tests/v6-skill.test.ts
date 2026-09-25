@@ -63,7 +63,7 @@ describe('the perfect dodge window (v0.6)', () => {
       if (t >= 0.85) p.x = g.arena.w / 2 + 200; // 0.15 s before it lands
     });
     expect(p.hp).toBe(p.stats.hp);
-    expect(g.vars.perfectUntil).toBeGreaterThan(g.time);
+    expect(g.player.vars.perfectUntil).toBeGreaterThan(g.time);
     expect(p.abilityCd).toBeCloseTo(10 - 10 * SKILL.perfect.refund, 1);
   });
 
@@ -73,13 +73,13 @@ describe('the perfect dodge window (v0.6)', () => {
     steps(early, 1.05, (t) => {
       if (t >= 0.5) early.player.x += 300 * DT;
     });
-    expect(early.vars.perfectUntil).toBeUndefined();
+    expect(early.player.vars.perfectUntil).toBeUndefined();
     const quick = field();
     addZone(quick, { x: quick.player.x, y: quick.player.y, r: 60, delay: SKILL.perfect.minDelay - 0.1, damage: 50, hostile: true, color: '#fff' });
     steps(quick, 0.3, (t) => {
       if (t >= 0.25) quick.player.x = quick.arena.w / 2 + 200;
     });
-    expect(quick.vars.perfectUntil).toBeUndefined();
+    expect(quick.player.vars.perfectUntil).toBeUndefined();
   });
 
   it('rolling through it counts too, untouched', () => {
@@ -91,7 +91,7 @@ describe('the perfect dodge window (v0.6)', () => {
     emit(g, 'onUtilityUsed', { id: 'dodgeRoll' });
     steps(g, 0.15);
     expect(p.hp).toBe(p.stats.hp);
-    expect(g.vars.perfectUntil).toBeGreaterThan(g.time);
+    expect(g.player.vars.perfectUntil).toBeGreaterThan(g.time);
   });
 
   it('a volley along aim lines: step off the line at the last moment', () => {
@@ -105,16 +105,16 @@ describe('the perfect dodge window (v0.6)', () => {
       if (i === 30) p.y += 45; // 0.1 s before the shots: between the middle line and the upper one
       updateGame(g, DT);
     }
-    expect(g.vars.perfectUntil).toBeGreaterThan(g.time);
+    expect(g.player.vars.perfectUntil).toBeGreaterThan(g.time);
     expect(g.projectiles.filter((pr) => pr.hostile && pr.shape === 'orb')).toHaveLength(3); // the volley (its own bolts are arrows)
   });
 
   it('the buff: more damage while it lasts, then gone', () => {
     const g = field();
-    g.vars.perfectUntil = g.time + 1;
+    g.player.vars.perfectUntil = g.time + 1;
     updateGame(g, DT);
     expect(g.player.mods.damage).toBeCloseTo(g.baseMods.damage * SKILL.perfect.damage);
-    g.vars.perfectUntil = 0;
+    g.player.vars.perfectUntil = 0;
     updateGame(g, DT);
     expect(g.player.mods.damage).toBeCloseTo(g.baseMods.damage);
   });

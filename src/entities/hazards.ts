@@ -37,7 +37,7 @@ export function fireProjectile(
 }
 
 export function addZone(g: Game, z: Pick<Zone, 'x' | 'y' | 'r' | 'delay' | 'damage' | 'hostile' | 'color'> & Partial<Zone>): void {
-  g.zones.push({ t: 0, lastIn: -1, crit: false, maxHits: 0, owner: null, killsOwner: false, arrow: false, status: null, leaveField: null, dtype: 'physical', source: 'ability', ...z });
+  g.zones.push({ t: 0, lastIn: [], crit: false, maxHits: 0, owner: null, killsOwner: false, arrow: false, status: null, leaveField: null, dtype: 'physical', source: 'ability', ...z });
   if (z.hostile && z.owner && z.delay > 0) z.owner.windupT = Math.max(z.owner.windupT, z.delay); // v0.6: whoever set it glows until it lands
 }
 
