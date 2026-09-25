@@ -735,6 +735,7 @@ await check('Act III: a slam that is due fires when you walk into range', async 
     const g = lb.game, p = g.player;
     p.invulnerable = true;
     p.attackTimer = 1e9; // it must not die before the check
+    g.tierIndex = 3; // #101: Legend's full roster, so Mirror Knights and Bone Collectors come too and a slammer turns up soon
     const slammer = () => g.enemies.find((e) => !e.dead && ['knight', 'mirrorKnight', 'boneCollector'].includes(e.def.id));
     for (let i = 0; i < 6000 && !slammer() && lb.game === g; i++) lb.run(1, false, true);
     const e = slammer();
@@ -795,6 +796,41 @@ await check('Gallows: a cursed run earns its bonus, the results show it', () =>
       const line = [...document.querySelectorAll('div')].find((d) => d.firstElementChild?.textContent === 'Curses')?.innerText ?? '';
       const ok = g.curses.length === 1 && mult > shown + 0.1 && line.includes(`×${mult.toFixed(2)}`);
       return { ok, detail: `select ×${shown}, run ×${mult.toFixed(2)}, results "${line.replace(/\s+/g, ' ')}"` };
+    });
+  }),
+);
+
+// #101: each difficulty adds enemy types; the tier's tip names them, and a Knight run fields no Champion or Legend type
+await check('difficulty: Knight names its new foes, and its waves bring none from the tiers above', () =>
+  inPage(async () => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  }).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async () => {
+      const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+      lb.save.tierUnlocked = 1; // as if wave 15 was cleared on Squire, with the Watchtower raised
+      lb.save.buildings.watchtower = 1;
+      document.querySelector('[data-go="start"]').click();
+      await wait();
+      const tipOf = (i) => document.querySelector(`[data-tier="${i}"]`)?.dataset.tip ?? '';
+      document.querySelector('[data-tier="1"]').click();
+      await wait();
+      const tips = [tipOf(0), tipOf(1)];
+      document.querySelector('[data-class="viking"]').click();
+      await wait(200);
+      const g = lb.game;
+      g.player.invulnerable = true;
+      g.wave = 13; // every type is unlocked by wave 14: only the tier holds them back
+      const seen = new Set();
+      for (let i = 0; i < 1200 && lb.state !== 'results' && g.wave < 17; i++) {
+        lb.run(1, false, true);
+        for (const u of g.spawnQueue) seen.add(u.id);
+        for (const e of g.enemies) seen.add(e.def.id);
+      }
+      const above = ['shieldwall', 'siegeTower'].filter((id) => seen.has(id));
+      const ok = g.tierIndex === 1 && tips[0].includes('the basic foes') && /new foes: Hound Master, Mirror Knight/.test(tips[1]) && seen.size > 3 && above.length === 0;
+      return { ok, detail: `tier ${g.tierIndex}, waves to ${g.wave}, seen ${[...seen].join(', ')}${above.length ? `, above: ${above}` : ''} · "${tips[1].split('· ').pop()}"` };
     });
   }),
 );

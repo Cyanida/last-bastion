@@ -54,10 +54,17 @@ export function rollModifier(wave: number, rng: Rng, chanceMult = 1, from = WAVE
   return MODIFIER_IDS[Math.floor(rng() * MODIFIER_IDS.length)];
 }
 
-/** Enemy types unlocked at this wave with their base weights (Siege multiplies the ranged ones). */
-export function unlockedPool(wave: number, modifier: ModifierId | null): { weight: number; value: EnemyId }[] {
+/** v0.8 (#101): whether this difficulty tier fields the type (WAVES.tierRoster). No tier: every type. */
+export function tierAllows(id: EnemyId, tier?: number): boolean {
+  if (tier === undefined) return true;
+  const at = WAVES.tierRoster.findIndex((types) => types.includes(id));
+  return at <= tier; // -1: in no list, so on every tier
+}
+
+/** Enemy types unlocked at this wave (and difficulty tier) with their base weights (Siege multiplies the ranged ones). */
+export function unlockedPool(wave: number, modifier: ModifierId | null, tier?: number): { weight: number; value: EnemyId }[] {
   return WAVES.pool
-    .filter((p) => wave >= p.from)
+    .filter((p) => wave >= p.from && tierAllows(p.id, tier))
     .map((p) => ({ weight: p.weight * (modifier === 'siege' && WAVES.rangedTypes.includes(p.id) ? MODIFIERS.siege.n.rangedWeight : 1), value: p.id }));
 }
 

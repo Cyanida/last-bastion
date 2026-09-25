@@ -7,7 +7,7 @@ import { clamp, mulberry32, pickWeighted } from '../core/math';
 import { eliteChance, rollAffixes } from './elites';
 import { enemyDmgMult, enemyHpMult } from './formulas';
 import type { Formation } from './squads';
-import { bossFor, enemyCount, rollModifier, spawnIntervalFor, unlockedPool } from './waves';
+import { bossFor, enemyCount, rollModifier, spawnIntervalFor, tierAllows, unlockedPool } from './waves';
 
 export interface DirectorInput {
   seed: number; // run seed: with the same inputs, the same wave comes out
@@ -16,6 +16,7 @@ export interface DirectorInput {
   performance?: number; // -1 struggling .. +1 cruising
   bosses?: EnemyId[];
   eliteMult?: number; // difficulty tier
+  tier?: number; // v0.8 (#101): the difficulty tier's roster (WAVES.tierRoster); none = every type
   themeBias?: Partial<Record<EnemyId, number>>; // the current Act's theme
   budgetMult?: number; // curses
   squadMult?: number;
@@ -70,6 +71,9 @@ function squadCost(t: SquadTemplate): number {
 
 export const squadPlan = (t: SquadTemplate): SquadPlan => ({ template: t.id, formation: t.formation, spacing: t.spacing, holdUntil: t.holdUntil });
 
+/** v0.8 (#101): a squad comes only on a tier that fields its commander and every member. */
+export const squadOnTier = (t: SquadTemplate, tier?: number) => [t.commander, ...t.members.map((m) => m[0])].every((id) => !id || tierAllows(id, tier));
+
 /** A squad template's units in spawn order, the commander first (the v0.5 ambush event spawns squads outside the director too). */
 export function squadUnits(t: SquadTemplate, squad: number, affixes: (commander: boolean) => AffixId[] = () => []): SpawnUnit[] {
   const units: SpawnUnit[] = [];
@@ -96,7 +100,7 @@ export function directWave(input: DirectorInput): DirectedWave {
 
   // class, modifier and Act theme all tilt the weights (Siege's crossbows are already handled by unlockedPool)
   const bias = (id: EnemyId) => (input.classId ? (CLASS_BIAS[input.classId][id] ?? 1) : 1) * (modifier ? (MODIFIER_BIAS[modifier][id] ?? 1) : 1) * (input.themeBias?.[id] ?? 1);
-  const pool = unlockedPool(wave, modifier).map((p) => ({ value: p.value, weight: p.weight * bias(p.value) }));
+  const pool = unlockedPool(wave, modifier, input.tier).map((p) => ({ value: p.value, weight: p.weight * bias(p.value) }));
 
   const chance = eliteChance(wave, input.eliteMult ?? 1) * (1 + Math.max(0, performance) * DIRECTOR.rubberBand.eliteBonus);
   const affixesFor = (force: boolean): AffixId[] => (force || rng() < chance ? rollAffixes(wave, rng) : []);
@@ -105,7 +109,7 @@ export function directWave(input: DirectorInput): DirectedWave {
   const squads: SquadPlan[] = [];
   const sq = DIRECTOR.squads;
   if (wave >= sq.fromWave) {
-    const templates = SQUADS.filter((t) => wave >= t.from).map((t) => ({ value: t, weight: t.weight * (t.commander ? bias(t.commander) : 1) * bias(t.members[0][0]) }));
+    const templates = SQUADS.filter((t) => wave >= t.from && squadOnTier(t, input.tier)).map((t) => ({ value: t, weight: t.weight * (t.commander ? bias(t.commander) : 1) * bias(t.members[0][0]) }));
     const squadChance = Math.min(0.95, (sq.chance + sq.perWave * (wave - sq.fromWave) + DIRECTOR.actBias.squadChance[actIdx(wave)]) * (input.squadMult ?? 1));
     let squadBudget = budget * (sq.maxShare + DIRECTOR.actBias.maxShare[actIdx(wave)]);
     while (templates.length > 0 && squads.length < sq.maxPerWave && rng() < squadChance) {

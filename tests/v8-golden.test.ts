@@ -11,6 +11,7 @@ import { simulateRun } from '../src/sim/bot';
  * another seed for it and re-record. The co-op refactor (#25-#31) must keep single-player identical, so a change here means a random
  * draw moved.
  * Update GOLDEN only in a commit that says why (a balance change, never a refactor).
+ * Re-recorded for #101 (v0.8): Squire no longer fields Mirror Knights, Hound Masters, spearmen or siege towers, so its waves changed on purpose.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -46,20 +47,20 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 }
 
 const GOLDEN: Record<string, string> = {
-  'paladin:1234': 'wave 13 kills 457 level 14 gold 1607 relics 5 hash 485b7be',
-  'paladin:98765': 'wave 15 kills 629 level 16 gold 2316 relics 5 hash 53a9fab0',
+  'paladin:1234': 'wave 14 kills 502 level 15 gold 2194 relics 5 hash 77775865',
+  'paladin:98765': 'wave 15 kills 618 level 16 gold 2297 relics 6 hash dc21fab0',
   'viking:98765': 'wave 9 kills 309 level 10 gold 782 relics 2 hash 895078a1',
-  'viking:5': 'wave 19 kills 702 level 19 gold 3324 relics 7 hash bfa52c3a',
-  'angel:1234': 'wave 18 kills 746 level 19 gold 3778 relics 6 hash 36ac650e',
-  'angel:98765': 'wave 17 kills 705 level 18 gold 3764 relics 7 hash 6f0b5e84',
-  'necromancer:1234': 'wave 9 kills 288 level 10 gold 869 relics 4 hash 18ffd29a',
-  'necromancer:5': 'wave 14 kills 457 level 15 gold 1925 relics 6 hash fe1fa5c8',
-  'archer:2026': 'wave 10 kills 328 level 12 gold 1367 relics 3 hash cdcf075e',
-  'archer:5': 'wave 14 kills 429 level 14 gold 1853 relics 5 hash cfe1dc6a',
-  'paladin:7 meta': 'wave 14 kills 558 level 17 gold 2055 relics 7 hash eb298154',
-  'viking:98765 curse': 'wave 18 kills 748 level 18 gold 3818 relics 7 hash b348574c',
-  'angel:98765 oath 3': 'wave 18 kills 756 level 18 gold 4661 relics 7 hash 6443fd05',
-  'archer:5 variant 1': 'wave 14 kills 450 level 14 gold 2114 relics 5 hash d0d2de7',
+  'viking:5': 'wave 18 kills 671 level 17 gold 2805 relics 7 hash 676e6ca1',
+  'angel:1234': 'wave 18 kills 765 level 18 gold 3056 relics 6 hash 5893c32a',
+  'angel:98765': 'wave 15 kills 612 level 16 gold 2728 relics 7 hash f06e48fb',
+  'necromancer:1234': 'wave 9 kills 289 level 11 gold 888 relics 4 hash d376b858',
+  'necromancer:5': 'wave 18 kills 709 level 18 gold 2708 relics 7 hash ab6b1a11',
+  'archer:2026': 'wave 19 kills 822 level 19 gold 5415 relics 5 hash 1b672e48',
+  'archer:5': 'wave 21 kills 947 level 20 gold 4966 relics 10 hash c1078cbb',
+  'paladin:7 meta': 'wave 14 kills 549 level 17 gold 2114 relics 7 hash 5f0cbc04',
+  'viking:98765 curse': 'wave 18 kills 774 level 18 gold 3766 relics 7 hash 65e44ff6',
+  'angel:98765 oath 3': 'wave 15 kills 655 level 16 gold 3463 relics 7 hash e882589c',
+  'archer:5 variant 1': 'wave 21 kills 891 level 20 gold 6453 relics 10 hash 90d8d57',
 };
 
 describe('v0.8 golden runs', () => {
