@@ -565,3 +565,7 @@ canvas#game { touch-action: none; }
 .testmode input[type='number'] { width: 4.5em; }
 .testmode .tm-talents { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-top: 10px; font-size: 14px; }
 .testmode .tm-talents label { display: flex; }
+
+/* v0.7.5 (#106): the error overlay, above every screen and the tooltip */
+#crash { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(10, 8, 6, 0.8); }
+#crash pre { max-height: 40vh; overflow: auto; text-align: left; white-space: pre-wrap; word-break: break-word; font-size: 13px; background: rgba(0, 0, 0, 0.08); padding: 8px 10px; user-select: text; }
