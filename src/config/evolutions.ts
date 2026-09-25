@@ -121,4 +121,3 @@ export const EVOLUTIONS = {
 
 export type EvolutionId = keyof typeof EVOLUTIONS;
 export const EVOLUTION_IDS = Object.keys(EVOLUTIONS) as EvolutionId[];
-export const evolutionDef = (id: EvolutionId): EvolutionDef => ({ id, ...EVOLUTIONS[id] }) as EvolutionDef;

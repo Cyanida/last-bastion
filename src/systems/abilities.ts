@@ -332,7 +332,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const s = scale.arrowVolley(c, p.stats.secondary);
       return has(p, 'ballista') ? `1 bolt = ${Math.round(s.arrows * U.ballista.n.mult * 10) / 10} arrows · pierces all` : `${s.arrows} arrows · pierce ${s.pierce}`;
     },
-    aimRadius: (p, c) => (has(p, 'ballista') ? 14 : c.radius),
+    aimRadius: (p, c) => (has(p, 'ballista') ? U.ballista.n.radius : c.radius), // the bolt's own radius: the preview is the shot
   },
 };
 

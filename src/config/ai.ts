@@ -97,6 +97,16 @@ export const AI_TUNING = {
   fleeSpeed: 1.15,
   regroupSpeed: 1.2, // catching up with the formation
   healerSearch: 600,
+  // the state machine (logic/fsm.ts)
+  spawnIdle: 0.35, // seconds a new enemy stands still
+  fleeMaxTime: 6,
+  fleeRecover: 0.2, // comes back once HP is this far above fleeBelow
+  flankMaxTime: 4,
+  flankRange: 440,
+  range: [160, 300] as [number, number], // a ranged/support profile without its own range
+  // nobody calls more in above this many enemies: summoners and bosses (aiHelpers.ts summon), siege towers and camps (specials.ts)
+  maxSummons: 60,
+  maxDeploy: 70,
 };
 
 /** What a squad does when its commander falls (EnemyDef.onDeath). fear > 0: they run; otherwise a rage buff. */

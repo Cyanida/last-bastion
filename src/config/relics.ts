@@ -22,7 +22,7 @@ export interface RelicDef {
   mods?: Partial<Mods>; // a few relics also carry a plain bonus (Blood Pact's damage, Tempest Eye's crit)
   n: Record<string, number>; // tier I numbers, read by the family module
   tiers: [{ n?: Record<string, number>; mods?: Partial<Mods> }, { n?: Record<string, number>; mods?: Partial<Mods> }]; // tier II, tier III (awakened: II's numbers)
-  awaken: { name: string; desc: string };
+  awaken: { name: string; desc: string; n: Record<string, number> }; // n: the awakening's own numbers (tier III), read by the family module
   desc: string; // tier I text
   describe: (n: Record<string, number>) => string; // text for any tier's numbers
 }
@@ -30,12 +30,13 @@ export interface RelicDef {
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 /** Keeps each relic's numbers typed and its text in sync with them. Tier III (awakened) keeps tier II's numbers. */
-function relic<N extends Record<string, number>>(r: {
+function relic<N extends Record<string, number>, A extends Record<string, number> = Record<string, never>>(r: {
   name: string; rarity: Rarity; icon: string; family?: FamilyId; cursed?: true; classId?: ClassId; mods?: Partial<Mods>; mods2?: Partial<Mods>;
-  n: N; n2: Partial<N>; awaken: [string, string]; desc: (n: N) => string;
+  n: N; n2: Partial<N>; a?: A; awaken: [string, string | ((a: A) => string)]; desc: (n: N) => string;
 }): RelicDef {
-  const { n2, mods2, awaken, desc, ...rest } = r;
-  return { ...rest, tiers: [{ n: n2 as Record<string, number>, mods: mods2 }, {}], awaken: { name: awaken[0], desc: awaken[1] }, desc: desc(r.n), describe: desc as (n: Record<string, number>) => string };
+  const { n2, mods2, a = {} as A, awaken, desc, ...rest } = r;
+  const [name, text] = awaken;
+  return { ...rest, tiers: [{ n: n2 as Record<string, number>, mods: mods2 }, {}], awaken: { name, desc: typeof text === 'string' ? text : text(a), n: a }, desc: desc(r.n), describe: desc as (n: Record<string, number>) => string };
 }
 
 export const RELIC_MAX_TIER = 3;
@@ -215,21 +216,21 @@ export const RELICS = {
     awaken: ['Pillar of Dawn', 'While the shield holds, burning enemies touching you take their burn damage again every second.'], desc: (n) => `Divine Shield's burst adds ${n.base} + Faith/${n.per} burn stacks.` }),
 
   // ---------------------------------------------------------------- ❄️ Frost
-  frostBrand: relic({ name: 'Frost Brand', rarity: 'common', icon: '❄️', family: 'frost', n: { chance: 0.35, chill: 2 }, n2: { chance: 0.5 },
-    awaken: ['Hoarfrost', 'Chilled enemies deal 20% less damage.'], desc: (n) => `Attacks have a ${pct(n.chance)} chance to chill.` }),
-  wintersGrasp: relic({ name: "Winter's Grasp", rarity: 'common', icon: '🧤', family: 'frost', n: { chill: 3 }, n2: { chill: 5 },
-    awaken: ['Deep Freeze', 'Enemies your ability freezes stay frozen 1 s longer.'], desc: (n) => `Your signature ability chills everything it hits (${n.chill} chill).` }),
-  shatterglass: relic({ name: 'Shatterglass', rarity: 'rare', icon: '🔹', family: 'frost', n: { critDamage: 0.25 }, n2: { critDamage: 0.4 },
-    awaken: ['Splinter', 'A crit on a frozen enemy sprays 3 ice shards that chill.'], desc: (n) => `Your hits on frozen enemies always crit, with +${pct(n.critDamage)} crit damage.` }),
-  glacialHeart: relic({ name: 'Glacial Heart', rarity: 'rare', icon: '💠', family: 'frost', n: { reduce: 0.2, count: 2, radius: 260 }, n2: { reduce: 0.25 },
-    awaken: ['Cold Blood', 'Every freeze near you gives +20% attack speed for 2 s.'], desc: (n) => `While ${n.count} or more chilled enemies are near you, you take ${pct(n.reduce)} less damage.` }),
-  everfrostCrown: relic({ name: 'Everfrost Crown', rarity: 'legendary', icon: '👑', family: 'frost', n: { every: 10, radius: 200, chill: 5 }, n2: { every: 7 },
-    awaken: ['Blizzard', 'The nova leaves a freezing field for 3 s.'], desc: (n) => `Every ${n.every} s a frost nova around you chills everything within ${n.radius} px (${n.chill} chill).` }),
-  rimebow: relic({ name: 'Rimebow', rarity: 'rare', icon: '🎯', family: 'frost', classId: 'archer', n: { chill: 2, perFocus: 0.03 }, n2: { perFocus: 0.04 },
-    awaken: ['Frozen Volley', 'Arrow Volley freezes what it hits for 0.5 s.'], desc: (n) => `Crits chill (${n.chill} chill); your chill lasts ${pct(n.perFocus)} longer per Focus.` }),
-  frostwardHalo: relic({ name: 'Frostward Halo', rarity: 'rare', icon: '🌨️', family: 'frost', classId: 'angel', n: { chill: 2, heal: 0.15, max: 3 }, n2: { heal: 0.2 },
-    awaken: ['Winter Grace', 'Freezing an enemy near you grants ward (2% of your max HP).'], desc: (n) => `Heavenly Radiance chills (${n.chill} chill) and heals ${pct(n.heal)} more per frozen enemy near you (up to ${n.max}).` }),
-  lichLantern: relic({ name: 'Lich Lantern', rarity: 'rare', icon: '🏮', family: 'frost', classId: 'necromancer', n: { per: 15 }, n2: { per: 10 },
+  frostBrand: relic({ name: 'Frost Brand', rarity: 'common', icon: '❄️', family: 'frost', n: { chance: 0.35, chill: 2 }, n2: { chance: 0.5 }, a: { reduce: 0.2 },
+    awaken: ['Hoarfrost', (a) => `Chilled enemies deal ${pct(a.reduce)} less damage.`], desc: (n) => `Attacks have a ${pct(n.chance)} chance to chill.` }),
+  wintersGrasp: relic({ name: "Winter's Grasp", rarity: 'common', icon: '🧤', family: 'frost', n: { chill: 3 }, n2: { chill: 5 }, a: { time: 1 },
+    awaken: ['Deep Freeze', (a) => `Enemies your ability freezes stay frozen ${a.time} s longer.`], desc: (n) => `Your signature ability chills everything it hits (${n.chill} chill).` }),
+  shatterglass: relic({ name: 'Shatterglass', rarity: 'rare', icon: '🔹', family: 'frost', n: { critDamage: 0.25 }, n2: { critDamage: 0.4 }, a: { shards: 3, reach: 180, damage: 10, chill: 1 },
+    awaken: ['Splinter', (a) => `A crit on a frozen enemy sprays ${a.shards} ice shards that chill.`], desc: (n) => `Your hits on frozen enemies always crit, with +${pct(n.critDamage)} crit damage.` }),
+  glacialHeart: relic({ name: 'Glacial Heart', rarity: 'rare', icon: '💠', family: 'frost', n: { reduce: 0.2, count: 2, radius: 260 }, n2: { reduce: 0.25 }, a: { atkSpd: 0.2, time: 2 },
+    awaken: ['Cold Blood', (a) => `Every freeze near you gives +${pct(a.atkSpd)} attack speed for ${a.time} s.`], desc: (n) => `While ${n.count} or more chilled enemies are near you, you take ${pct(n.reduce)} less damage.` }),
+  everfrostCrown: relic({ name: 'Everfrost Crown', rarity: 'legendary', icon: '👑', family: 'frost', n: { every: 10, radius: 200, chill: 5 }, n2: { every: 7 }, a: { life: 3, size: 0.8, dps: 6 },
+    awaken: ['Blizzard', (a) => `The nova leaves a freezing field for ${a.life} s.`], desc: (n) => `Every ${n.every} s a frost nova around you chills everything within ${n.radius} px (${n.chill} chill).` }),
+  rimebow: relic({ name: 'Rimebow', rarity: 'rare', icon: '🎯', family: 'frost', classId: 'archer', n: { chill: 2, perFocus: 0.03 }, n2: { perFocus: 0.04 }, a: { freeze: 0.5 },
+    awaken: ['Frozen Volley', (a) => `Arrow Volley freezes what it hits for ${a.freeze} s.`], desc: (n) => `Crits chill (${n.chill} chill); your chill lasts ${pct(n.perFocus)} longer per Focus.` }),
+  frostwardHalo: relic({ name: 'Frostward Halo', rarity: 'rare', icon: '🌨️', family: 'frost', classId: 'angel', n: { chill: 2, heal: 0.15, max: 3 }, n2: { heal: 0.2 }, a: { ward: 0.02 },
+    awaken: ['Winter Grace', (a) => `Freezing an enemy near you grants ward (${pct(a.ward)} of your max HP).`], desc: (n) => `Heavenly Radiance chills (${n.chill} chill) and heals ${pct(n.heal)} more per frozen enemy near you (up to ${n.max}).` }),
+  lichLantern: relic({ name: 'Lich Lantern', rarity: 'rare', icon: '🏮', family: 'frost', classId: 'necromancer', n: { per: 15 }, n2: { per: 10 }, a: { radius: 80, damage: 12 },
     awaken: ['Frost Legion', 'Skeletons burst in a frost nova when they expire.'], desc: (n) => `Skeletons' hits chill: 1 chill, +1 per ${n.per} Soul Power.` }),
 
   // ---------------------------------------------------------------- ⚡ Storm

@@ -6,7 +6,7 @@ import { addField } from '../../entities/hazards';
 import * as scale from '../../logic/abilities';
 import { applyStatus, damageEnemy, nearestEnemy } from '../combat';
 import { ring } from '../effects';
-import { addChill, attackHit, awakened, bonus, credit, gainWard, isChilled, isFrozen, nOf, nova, relicDamage, relicHeal, sOf, type RelicHooks } from '../relicCore';
+import { addChill, aOf, attackHit, awakened, bonus, credit, gainWard, isChilled, isFrozen, nOf, nova, relicDamage, relicHeal, sOf, type RelicHooks } from '../relicCore';
 import { relicContext } from '../relicContext';
 
 /**
@@ -33,8 +33,9 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     },
     onIncoming(g, ev, p) {
       if (!awakened(p, 'frostBrand') || !ev.attacker || !isChilled(ev.attacker)) return;
-      credit(g, p, 'frostBrand', 'prevented', ev.amount * 0.2);
-      ev.amount *= 0.8; // Hoarfrost
+      const a = aOf('frostBrand'); // Hoarfrost
+      credit(g, p, 'frostBrand', 'prevented', ev.amount * a.reduce);
+      ev.amount *= 1 - a.reduce;
     },
   },
 
@@ -44,8 +45,9 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const was = isFrozen(g, ev.enemy);
       addChill(g, p, ev.enemy, nOf(p, 'wintersGrasp').chill);
       if (!was && isFrozen(g, ev.enemy) && awakened(p, 'wintersGrasp') && ev.enemy.statuses.stun) {
-        ev.enemy.statuses.stun.time += 1; // Deep Freeze
-        ev.enemy.frozenT += 1;
+        const { time } = aOf('wintersGrasp'); // Deep Freeze
+        ev.enemy.statuses.stun.time += time;
+        ev.enemy.frozenT += time;
       }
     },
   },
@@ -59,12 +61,13 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       damageEnemy(g, ev.enemy, extra, true, 0, 0, 'relic', 'frost');
       if (!awakened(p, 'shatterglass')) return;
       // Splinter: three ice shards at the nearest enemies
+      const a = aOf('shatterglass');
       const hit: Enemy[] = [ev.enemy];
-      for (let i = 0; i < 3; i++) {
-        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, 180, hit);
+      for (let i = 0; i < a.shards; i++) {
+        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, a.reach, hit);
         if (!to) break;
-        damageEnemy(g, to, relicDamage(p, 10), false, 0, 0, 'relic', 'frost');
-        addChill(g, p, to, 1);
+        damageEnemy(g, to, relicDamage(p, a.damage), false, 0, 0, 'relic', 'frost');
+        addChill(g, p, to, a.chill);
         hit.push(to);
       }
     },
@@ -78,10 +81,10 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       ev.amount *= 1 - n.reduce;
     },
     onFreeze(g, ev, p) {
-      if (awakened(p, 'glacialHeart') && Math.hypot(ev.enemy.x - p.x, ev.enemy.y - p.y) < NEAR) g.vars['coldBlood.until'] = g.time + 2; // Cold Blood
+      if (awakened(p, 'glacialHeart') && Math.hypot(ev.enemy.x - p.x, ev.enemy.y - p.y) < NEAR) g.vars['coldBlood.until'] = g.time + aOf('glacialHeart').time; // Cold Blood
     },
     tick(g, _dt, p) {
-      if (g.time < (g.vars['coldBlood.until'] ?? 0)) bonus(p, 'atkSpd', 0.2);
+      if (g.time < (g.vars['coldBlood.until'] ?? 0)) bonus(p, 'atkSpd', aOf('glacialHeart').atkSpd);
     },
   },
 
@@ -92,14 +95,15 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       g.vars['crown.t'] = 0;
       for (const e of g.hash.query(p.x, p.y, n.radius, [])) addChill(g, p, e, n.chill);
       ring(g, p.x, p.y, n.radius, F.color, 0.5);
-      if (awakened(p, 'everfrostCrown')) addField(g, { x: p.x, y: p.y, r: n.radius * 0.8, life: 3, dps: relicDamage(p, 6), hostile: false, color: F.color, dtype: 'frost', apply: { id: 'slow', stacks: 1 } }); // Blizzard
+      const a = aOf('everfrostCrown');
+      if (awakened(p, 'everfrostCrown')) addField(g, { x: p.x, y: p.y, r: n.radius * a.size, life: a.life, dps: relicDamage(p, a.dps), hostile: false, color: F.color, dtype: 'frost', apply: { id: 'slow', stacks: 1 } }); // Blizzard
     },
   },
 
   rimebow: {
     onHit(g, ev, p) {
       const n = nOf(p, 'rimebow');
-      if (ev.source === 'ability' && awakened(p, 'rimebow')) freeze(g, ev.enemy, 0.5); // Frozen Volley
+      if (ev.source === 'ability' && awakened(p, 'rimebow')) freeze(g, ev.enemy, aOf('rimebow').freeze); // Frozen Volley
       if (attackHit(p, ev.source) && ev.crit) addChill(g, p, ev.enemy, n.chill, 3 * (1 + n.perFocus * sOf(p)));
     },
   },
@@ -116,7 +120,7 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (frozen) relicHeal(g, p, scale.heavenlyRadiance(ability, sOf(p)).heal * n.heal * frozen, true);
     },
     onFreeze(g, ev, p) {
-      if (awakened(p, 'frostwardHalo') && Math.hypot(ev.enemy.x - p.x, ev.enemy.y - p.y) < NEAR) gainWard(g, p, p.stats.hp * 0.02); // Winter Grace
+      if (awakened(p, 'frostwardHalo') && Math.hypot(ev.enemy.x - p.x, ev.enemy.y - p.y) < NEAR) gainWard(g, p, p.stats.hp * aOf('frostwardHalo').ward); // Winter Grace
     },
   },
 
@@ -130,7 +134,7 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
         // Frost Legion: every skeleton (not the quest and event units) bursts in a frost nova when it falls or fades
         if (m.kind || m.onEnd || m.frostLegion) continue;
         m.frostLegion = true;
-        m.onEnd = { radius: 80, damage: relicDamage(p, 12), color: F.color, dtype: 'frost' };
+        m.onEnd = { radius: aOf('lichLantern').radius, damage: relicDamage(p, aOf('lichLantern').damage), color: F.color, dtype: 'frost' };
       }
     },
   },

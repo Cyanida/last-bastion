@@ -1,3 +1,4 @@
+import { ACTS } from '../config/acts';
 import type { ClassId } from '../config/classes';
 import { CLASS_BIAS, DIRECTOR, MODIFIER_BIAS, SQUADS, type SquadTemplate } from '../config/director';
 import type { AffixId } from '../config/elites';
@@ -56,7 +57,7 @@ export const enemyCost = (id: EnemyId) => Math.max(1, ENEMIES[id].xp);
 /** Per-wave rng that does not depend on anything that happened during play. */
 export const waveRng = (seed: number, wave: number) => mulberry32((Math.imul(seed | 0, 0x9e3779b1) ^ Math.imul(wave, 0x85ebca6b)) >>> 0);
 
-const actIdx = (wave: number) => Math.min(DIRECTOR.actBias.squadChance.length - 1, Math.max(0, Math.ceil(wave / 10) - 1));
+const actIdx = (wave: number) => Math.min(DIRECTOR.actBias.squadChance.length - 1, Math.max(0, Math.ceil(wave / ACTS.length) - 1));
 
 export function waveBudget(wave: number, performance = 0, budgetMult = 1): number {
   const c = DIRECTOR.costPerHead;

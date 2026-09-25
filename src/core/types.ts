@@ -202,12 +202,8 @@ export interface Enemy extends Body {
   shield: number; // Shielded affix
   shieldMax: number;
   shieldT: number; // seconds until the shield starts regenerating
-  slowT: number;
-  slowMul: number;
   fearT: number;
   tauntT: number; // v0.4: the Paladin's Challenge; it can only go for the player while > 0
-  markT: number;
-  markMul: number;
   phase: number; // bosses: 1, then 2 below half HP
   combo: number;
   // v0.3: state machine (logic/fsm.ts), squads, commander auras

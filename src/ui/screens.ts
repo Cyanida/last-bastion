@@ -373,7 +373,7 @@ function timeline(r: RunLog): string {
   const waves = r.waves.map(([start, end, dmg, quiet], i) => {
     const w = i + 1;
     const took = (end || r.time) - start;
-    return `<i class="tw act${Math.floor(i / ACTS.length) % 2} ${w % 5 === 0 ? 'boss' : ''}" style="left:${at(start)};width:${at(took)}" data-tip="${esc(`Wave ${w} · ${fmtTime(took)}${end ? '' : ' (not cleared)'} · ${dmg} damage taken · ${Math.round(quiet)} s with under 5 enemies`)}"></i>`;
+    return `<i class="tw act${Math.floor(i / ACTS.length) % 2} ${w % WAVES.bossEvery === 0 ? 'boss' : ''}" style="left:${at(start)};width:${at(took)}" data-tip="${esc(`Wave ${w} · ${fmtTime(took)}${end ? '' : ' (not cleared)'} · ${dmg} damage taken · ${Math.round(quiet)} s with under 5 enemies`)}"></i>`;
   }).join('');
   const ticks = r.marks.filter((m) => m[1] === 'level').map(([t]) => `<i class="tl" style="left:${at(t)}"></i>`).join('');
   const marks = r.marks.filter((m) => m[1] !== 'level').map(([t, kind, detail]) => `<i class="tm m-${kind}" style="left:${at(t)}" data-tip="${esc(`${fmtTime(t)} · ${MARK_NAMES[kind]}${detail ? `: ${detail}` : ''}`)}">${MARK_ICONS[kind]}</i>`).join('');

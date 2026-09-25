@@ -23,6 +23,8 @@ export const tierOf = (p: Player, id: RelicId): number => p.relics.tiers[id] ?? 
 export const has = (p: Player, id: RelicId): boolean => tierOf(p, id) > 0;
 export const nOf = (p: Player, id: RelicId) => relicN(id, tierOf(p, id));
 export const awakened = (p: Player, id: RelicId): boolean => tierOf(p, id) >= RELIC_MAX_TIER;
+/** The awakening's own numbers (config/relics.ts `a`). */
+export const aOf = (id: RelicId): Record<string, number> => RELICS[id].awaken.n;
 export const hasDuo = (p: Player, id: DuoId): boolean => p.relics.duos.includes(id);
 /** The class's secondary stat: Faith, Rage, Grace, Soul Power, Focus. */
 export const sOf = (p: Player): number => p.stats.secondary;

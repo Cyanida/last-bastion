@@ -398,10 +398,8 @@ export function updateEnemies(g: Game, dt: number): void {
     if (e.dead) continue;
     e.attackTimer -= dt;
     e.flash -= dt;
-    e.slowT -= dt;
     e.fearT -= dt;
     e.tauntT -= dt;
-    e.markT -= dt;
     e.buffT -= dt;
     if (e.def.boss) {
       const phases = e.def.phases ?? 2; // phase thresholds split the HP bar evenly: 2 phases -> 50%, 3 -> 66% and 33%

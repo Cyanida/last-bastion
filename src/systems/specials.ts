@@ -1,3 +1,4 @@
+import { AI_TUNING } from '../config/ai';
 import { sfx } from '../sim/view';
 import type { Enemy, Game } from '../core/types';
 import { addZone } from '../entities/hazards';
@@ -113,7 +114,7 @@ export const SPECIALS: Record<string, Special> = {
 
   // siege tower: the door drops and more of them pile out, until it is a heap of planks
   deploy(g, e) {
-    if (g.enemies.length > 70) return true;
+    if (g.enemies.length > AI_TUNING.maxDeploy) return true;
     for (let i = 0; i < e.def.summonCount!; i++) spawnEnemy(g, g.rng() < 0.6 ? 'peasant' : 'crossbow', e.x + (i ? 36 : -36), e.y + 34);
     ring(g, e.x, e.y + 20, 50, '#8a6a42');
     return true;
@@ -121,7 +122,7 @@ export const SPECIALS: Record<string, Special> = {
 
   // v0.5 siege camp (a quest target): one more of the levy, only while a wave is on. Side content, like the camp itself.
   muster(g, e) {
-    if (g.breather > 0 || g.enemies.length > 70) return true;
+    if (g.breather > 0 || g.enemies.length > AI_TUNING.maxDeploy) return true;
     spawnEnemy(g, 'peasant', e.x, e.y + e.r + 14).side = true;
     ring(g, e.x, e.y + 10, 40, '#8a6a42');
     return true;

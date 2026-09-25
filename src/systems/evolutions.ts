@@ -1,7 +1,7 @@
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import type { Cfg } from '../config/classes';
 import { EVOLUTIONS, type EvolutionId, type EvolutionSlot } from '../config/evolutions';
-import { UTILITIES } from '../config/utility';
+import { UTILITIES, UTILITY_UPGRADES } from '../config/utility';
 import { sfx } from '../sim/view';
 import { addListener, dispatch, emit, type GameEvents, type Handlers } from '../core/events';
 import { TAU } from '../core/math';
@@ -460,10 +460,10 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
       const p = g.player;
       const u = UTILITIES.necromancer.n;
       const n = N('corpseLance');
-      const radius = u.radius * (p.utilityUpgrades.includes('deathWave') ? 2 : 1);
+      const radius = u.radius * (p.utilityUpgrades.includes('deathWave') ? UTILITY_UPGRADES.deathWave.n.radius : 1);
       const corpses = g.corpses.filter((c) => Math.hypot(c.x - p.x, c.y - p.y) <= radius);
       if (corpses.length === 0) return false;
-      const hit = rollPlayerHit(g, u.damage * n.damage * (p.utilityUpgrades.includes('boneShards') ? 1.3 : 1) * p.mods.utilityPower, 'int');
+      const hit = rollPlayerHit(g, u.damage * n.damage * (p.utilityUpgrades.includes('boneShards') ? UTILITY_UPGRADES.boneShards.n.damage : 1) * p.mods.utilityPower, 'int');
       for (const c of corpses) {
         const e = nearestEnemy(g, c.x, c.y, n.range);
         const a = e ? Math.atan2(e.y - c.y, e.x - c.x) : g.rng() * TAU;
