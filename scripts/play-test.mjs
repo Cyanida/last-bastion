@@ -550,6 +550,7 @@ await check('two local players: split screen, each on their own keys', async () 
   const setup = await inPage(async () => {
     const P = window.__play, lb = window.__lb;
     const solo = lb.game.players.length;
+    const soloP2 = !document.getElementById('h-p2')?.classList.contains('hidden');
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' }));
     window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', key: 'Escape' }));
     await P.wait(150);
@@ -566,7 +567,10 @@ await check('two local players: split screen, each on their own keys', async () 
     lb.draw();
     const c = document.getElementById('game');
     const seam = [...c.getContext('2d').getImageData(Math.floor(c.width / 2), Math.floor(c.height / 2), 1, 1).data].slice(0, 3).join(',');
-    return { solo, n: g.players.length, state: lb.state, seam };
+    await P.wait(100); // the HUD draws on the next frame
+    const p2 = document.getElementById('h-p2');
+    const hud = p2 && !p2.classList.contains('hidden') && p2.getBoundingClientRect().left > innerWidth / 2 ? p2.innerText.replace(/\s+/g, ' ') : '';
+    return { solo, n: g.players.length, state: lb.state, seam, soloP2, hud, cls: g.players[1].cls.name };
   });
   if (setup.n !== 2) return { ok: false, detail: `players ${setup.n}` };
   const pos = () => inPage(() => window.__lb.game.players.map((p) => ({ x: p.x, y: p.y })));
@@ -582,8 +586,8 @@ await check('two local players: split screen, each on their own keys', async () 
   const b = await pos();
   await hold('ArrowLeft');
   const c = await pos();
-  const ok = setup.solo === 1 && setup.seam === '20,17,15' && b[0].x - a[0].x > 20 && Math.abs(b[1].x - a[1].x) < 1 && c[1].x - b[1].x < -20 && Math.abs(c[0].x - b[0].x) < 1;
-  return { ok, detail: `solo run had ${setup.solo} player, now ${setup.n} (${setup.state}); seam ${setup.seam}; D: P1 ${Math.round(b[0].x - a[0].x)} px, P2 ${Math.round(b[1].x - a[1].x)} px; ←: P1 ${Math.round(c[0].x - b[0].x)} px, P2 ${Math.round(c[1].x - b[1].x)} px` };
+  const ok = setup.solo === 1 && !setup.soloP2 && setup.hud.includes(`P2 · ${setup.cls}`) && setup.seam === '20,17,15' && b[0].x - a[0].x > 20 && Math.abs(b[1].x - a[1].x) < 1 && c[1].x - b[1].x < -20 && Math.abs(c[0].x - b[0].x) < 1;
+  return { ok, detail: `solo run had ${setup.solo} player (P2 panel ${setup.soloP2 ? 'shown' : 'hidden'}), now ${setup.n} (${setup.state}); P2 panel "${setup.hud}"; seam ${setup.seam}; D: P1 ${Math.round(b[0].x - a[0].x)} px, P2 ${Math.round(b[1].x - a[1].x)} px; ←: P1 ${Math.round(c[0].x - b[0].x)} px, P2 ${Math.round(c[1].x - b[1].x)} px` };
 });
 
 // ---------- v0.7.5 (#106): an error in a frame shows the error overlay, and the game goes on ----------

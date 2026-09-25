@@ -413,15 +413,14 @@ function blockedByShield(e: Enemy, vx: number, vy: number): boolean {
 /** Projectile step. No per-projectile allocation: the dead go back to the pool, hostile hits scan minions in place. */
 export function updateProjectiles(g: Game, dt: number): void {
   const { obstacles } = g.arena;
-  const p = g.player;
   compact(g.projectiles, (pr) => {
-    const alive = stepProjectile(g, pr, dt, obstacles, p);
+    const alive = stepProjectile(g, pr, dt, obstacles);
     if (!alive) recycleProjectile(pr);
     return alive;
   });
 }
 
-function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly Body[], p: Player): boolean {
+function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly Body[]): boolean {
   if (pr.seek && !pr.hostile) {
     // v0.6: a seeking bolt (Soul Harvest) turns toward the nearest enemy, at most SEEK_TURN radians a second
     const e = nearestEnemy(g, pr.x, pr.y, 420);
@@ -441,7 +440,7 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
   for (const o of obstacles) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
   for (const o of g.barriers) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
   if (pr.hostile) {
-    if (dist2(pr.x, pr.y, p.x, p.y) <= (pr.r + p.r) ** 2) return (hurtTarget(g, p, pr.damage, true, null, pr.dtype === 'physical' ? 'an arrow' : `a bolt of ${DAMAGE_TYPES[pr.dtype].name.toLowerCase()}`), false);
+    for (const q of g.players) if (dist2(pr.x, pr.y, q.x, q.y) <= (pr.r + q.r) ** 2) return (hurtTarget(g, q, pr.damage, true, null, pr.dtype === 'physical' ? 'an arrow' : `a bolt of ${DAMAGE_TYPES[pr.dtype].name.toLowerCase()}`), false); // v0.8 (#28): any player
     for (const m of g.minions) if (dist2(pr.x, pr.y, m.x, m.y) <= (pr.r + m.r) ** 2) return (hurtTarget(g, m, pr.damage, true), false);
     return true;
   }
@@ -482,7 +481,9 @@ export function updateZones(g: Game, dt: number): void {
   compact(g.zones, (z) => {
     if (z.owner?.dead) return false;
     z.t += dt;
-    const inside = z.hostile && dist2(z.x, z.y, g.player.x, g.player.y) <= (z.r + g.player.r) ** 2;
+    // ponytail: the perfect dodge (lastIn, zoneStruck) still watches only the first player; per-player when dodge state moves onto Player
+    const p = g.players[0];
+    const inside = z.hostile && dist2(z.x, z.y, p.x, p.y) <= (z.r + p.r) ** 2;
     if (z.t < z.delay) {
       if (inside && z.delay >= SKILL.perfect.minDelay) z.lastIn = g.time; // v0.6: the perfect dodge watches who stood in it
       return true;
@@ -490,7 +491,7 @@ export function updateZones(g: Game, dt: number): void {
     if (z.killsOwner && z.owner) killEnemy(g, z.owner, 'hazard');
     if (z.hostile) {
       if (z.delay >= SKILL.perfect.minDelay) zoneStruck(g, z.lastIn, inside);
-      if (inside) hurtTarget(g, g.player, z.damage, true, z.owner);
+      for (const q of g.players) if (dist2(z.x, z.y, q.x, q.y) <= (z.r + q.r) ** 2) hurtTarget(g, q, z.damage, true, z.owner); // v0.8 (#28): every player in it
       for (const m of g.minions) if (dist2(z.x, z.y, m.x, m.y) <= (z.r + m.r) ** 2) hurtTarget(g, m, z.damage, true, z.owner);
       ring(g, z.x, z.y, z.r, z.color);
       burst(g, z.x, z.y, z.color, 18, 240);
@@ -521,15 +522,16 @@ export function updateFields(g: Game, dt: number): void {
     f.tickT -= dt;
     if (f.tickT <= 0) {
       f.tickT += GAME.fieldTick;
-      const inside = dist2(f.x, f.y, p.x, p.y) <= f.r * f.r;
       if (f.hostile) {
-        if (inside) {
-          damagePlayer(g, f.dps * GAME.fieldTick, true, null, `${DAMAGE_TYPES[f.dtype].name.toLowerCase()} on the ground`);
-          if (f.apply) applyStatusTo(p.statuses, f.apply);
+        // v0.8 (#28): every player standing in it
+        for (const q of g.players) {
+          if (dist2(f.x, f.y, q.x, q.y) > f.r * f.r) continue;
+          withPlayer(g, q, () => damagePlayer(g, f.dps * GAME.fieldTick, true, null, `${DAMAGE_TYPES[f.dtype].name.toLowerCase()} on the ground`));
+          if (f.apply) applyStatusTo(q.statuses, f.apply);
         }
         for (const m of g.minions) if (dist2(f.x, f.y, m.x, m.y) <= f.r * f.r) damageMinion(g, m, f.dps * GAME.fieldTick);
       } else {
-        if (inside && f.heal > 0) healPlayer(g, f.heal * GAME.fieldTick, false);
+        if (f.heal > 0) for (const q of g.players) if (dist2(f.x, f.y, q.x, q.y) <= f.r * f.r) withPlayer(g, q, () => healPlayer(g, f.heal * GAME.fieldTick, false));
         for (const e of g.hash.query(f.x, f.y, f.r, near)) {
           if (e.dead) continue;
           const outer = relicContext.acting;

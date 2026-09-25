@@ -2,7 +2,8 @@ import { PATTERNS, type Pattern, type PatternKind } from '../config/ai';
 import type { DamageType } from '../config/damage';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
-import type { Enemy, Game, Telegraph } from '../core/types';
+import type { Enemy, Game, Player, Telegraph } from '../core/types';
+import { nearestPlayer } from '../logic/players';
 import { addZone, fireProjectile, timer } from '../entities/hazards';
 import { lineAngle } from '../logic/telegraph';
 import { angleTo, distTo, hitDamage } from './aiHelpers';
@@ -38,11 +39,11 @@ const loose = timer('aimFan', (g, { e, tele, o }: { e: Enemy; tele: Telegraph; o
 const blast = (g: Game, e: Enemy, p: Pattern, x: number, y: number, delay = p.windup) =>
   addZone(g, { x, y, r: p.radius, delay, damage: hitDamage(e) * p.damage, hostile: true, color: COLORS[p.dtype ?? 'physical'], owner: e, dtype: p.dtype ?? 'physical' });
 
-const KINDS: Record<PatternKind, (g: Game, e: Enemy, p: Pattern) => void> = {
-  fan: (g, e, p) => aimFan(g, e, { angle: angleTo(e, g.player), count: p.count, spread: p.spread, windup: p.windup, damage: hitDamage(e) * p.damage, speed: p.radius * 5, range: p.range * 1.3, dtype: p.dtype }),
-  ring: (g, e, p) => aimFan(g, e, { angle: angleTo(e, g.player), count: p.count, spread: TAU, windup: p.windup, damage: hitDamage(e) * p.damage, speed: p.radius * 5, range: p.range, dtype: p.dtype }),
-  mortar(g, e, p) {
-    const { x, y } = g.player;
+const KINDS: Record<PatternKind, (g: Game, e: Enemy, p: Pattern, t: Player) => void> = {
+  fan: (g, e, p, t) => aimFan(g, e, { angle: angleTo(e, t), count: p.count, spread: p.spread, windup: p.windup, damage: hitDamage(e) * p.damage, speed: p.radius * 5, range: p.range * 1.3, dtype: p.dtype }),
+  ring: (g, e, p, t) => aimFan(g, e, { angle: angleTo(e, t), count: p.count, spread: TAU, windup: p.windup, damage: hitDamage(e) * p.damage, speed: p.radius * 5, range: p.range, dtype: p.dtype }),
+  mortar(g, e, p, t) {
+    const { x, y } = t;
     blast(g, e, p, x, y);
     for (let i = 1; i < p.count; i++) {
       const a = g.rng() * TAU;
@@ -50,12 +51,12 @@ const KINDS: Record<PatternKind, (g: Game, e: Enemy, p: Pattern) => void> = {
       blast(g, e, p, x + Math.cos(a) * d, y + Math.sin(a) * d, p.windup + i * 0.15);
     }
   },
-  circle(g, e, p) {
+  circle(g, e, p, t) {
     const off = g.rng() * TAU;
-    for (let i = 0; i < p.count; i++) blast(g, e, p, g.player.x + Math.cos(off + (i / p.count) * TAU) * p.spread, g.player.y + Math.sin(off + (i / p.count) * TAU) * p.spread);
+    for (let i = 0; i < p.count; i++) blast(g, e, p, t.x + Math.cos(off + (i / p.count) * TAU) * p.spread, t.y + Math.sin(off + (i / p.count) * TAU) * p.spread);
   },
-  cross(g, e, p) {
-    const { x, y } = g.player;
+  cross(g, e, p, t) {
+    const { x, y } = t;
     blast(g, e, p, x, y);
     for (let k = 1; k <= p.count; k++) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) blast(g, e, p, x + dx * k * p.spread, y + dy * k * p.spread, p.windup + k * 0.08);
   },
@@ -69,7 +70,9 @@ export function updatePattern(g: Game, e: Enemy, dt: number): void {
   if (!p || g.act < p.from) return;
   if (e.patternT < 0) e.patternT = p.cd * (0.4 + 0.6 * e.flankRoll); // not all of a wave at once
   e.patternT = Math.max(0, e.patternT - dt); // it waits at 0 until the player is in range, not back into a cooldown (#112)
-  if (e.patternT > 0 || e.hidden || e.pulled || e.telegraph || distTo(e, g.player) > p.range) return;
+  if (e.patternT > 0 || e.hidden || e.pulled || e.telegraph) return;
+  const t = nearestPlayer(g, e.x, e.y); // v0.8 (#28): aimed at the closest player
+  if (distTo(e, t) > p.range) return;
   e.patternT = p.cd;
-  KINDS[p.kind](g, e, p);
+  KINDS[p.kind](g, e, p, t);
 }

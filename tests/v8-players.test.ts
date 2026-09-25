@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { GAME } from '../src/config/game';
 import { createGame } from '../src/game';
+import { addField, addZone, fireProjectile } from '../src/entities/hazards';
+import { updateFields, updateProjectiles, updateZones } from '../src/systems/combat';
 import { nearestPlayer, withPlayer } from '../src/logic/players';
 import { botChoose, botInput } from '../src/sim/bot';
 import { intentCommand, step } from '../src/sim/commands';
@@ -55,6 +57,27 @@ describe('v0.8 multi-player state (#28)', () => {
     const [a, b] = g.players;
     expect(nearestPlayer(g, b.x + 5, b.y)).toBe(b);
     expect(nearestPlayer(g, (a.x + b.x) / 2, a.y)).toBe(a);
+  });
+
+  it('enemy bolts, blasts and burning ground hurt player 2 too, not only player 1', () => {
+    const g = createGame('paladin', 5, { allies: ['viking'] });
+    const [a, b] = g.players;
+    b.x = a.x + 400; // far from player 1
+    const hurt = () => b.stats.hp - b.hp;
+    fireProjectile(g, b.x - 20, b.y, 0, { damage: 10, crit: false, hostile: true, pierce: 0, shape: 'orb', color: '#fff', r: 7, speed: 400, range: 200 });
+    updateProjectiles(g, 0.05);
+    const byBolt = hurt();
+    expect(byBolt).toBeGreaterThan(0);
+    b.iFrames = 0;
+    addZone(g, { x: b.x, y: b.y, r: 30, delay: 0, damage: 10, hostile: true, color: '#fff' });
+    updateZones(g, 0.01);
+    const byZone = hurt();
+    expect(byZone).toBeGreaterThan(byBolt);
+    addField(g, { x: b.x, y: b.y, r: 30, life: 1, dps: 50, hostile: true, color: '#fff' });
+    updateFields(g, 0.01);
+    expect(hurt()).toBeGreaterThan(byZone);
+    expect(a.hp).toBe(a.stats.hp);
+    expect(g.player).toBe(a);
   });
 
   it('two bot players play several waves in one Game, and the run snapshots and restores', () => {

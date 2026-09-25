@@ -71,6 +71,11 @@ export function buildHud(onPause: () => void, onMute: () => void): void {
     </div>
     <div class="hud-right">
       <div class="hud-tr"><button id="btn-mute" title="Mute (M)"></button><button id="btn-pause" title="Pause (Esc / P)">❚❚</button></div>
+      <div id="h-p2" class="hud-tl hud-panel hidden">
+        <div class="hud-name"><span id="h-p2-class"></span><span>Lv <span id="h-p2-level"></span></span></div>
+        <div class="bar hp"><div id="h-p2-hp-fill"></div><span id="h-p2-hp-text"></span></div>
+        <div class="hud-purse"><span id="h-p2-ab"></span><span id="h-p2-ut"></span></div>
+      </div>
       <div class="hud-families" id="h-families"></div>
       <div class="hud-relics" id="h-relics"></div>
       <div id="h-toasts"></div>
@@ -158,6 +163,17 @@ export function updateHud(g: Game): void {
   text('h-xp-text', `${Math.floor(p.xp)} / ${xpToNext(p.level)} XP`);
   text('h-gold', `🪙 ${g.gold}`);
   text('h-tier', `${g.tier.name} · ${g.arena.name}`);
+  // v0.8 (#28): the second player's own panel, on their half of the screen (ponytail: players 3-4 get one with local co-op, #1)
+  const p2 = g.players[1];
+  $('h-p2').classList.toggle('hidden', !p2);
+  if (p2) {
+    text('h-p2-class', `P2 · ${p2.cls.name}`);
+    text('h-p2-level', String(p2.level));
+    width('h-p2-hp-fill', p2.hp / p2.stats.hp);
+    text('h-p2-hp-text', `${Math.ceil(p2.hp)} / ${Math.round(p2.stats.hp)}`);
+    text('h-p2-ab', `${p2.cls.ability.name} ${p2.abilityCd <= 0 ? '✦' : p2.abilityCd.toFixed(1)}`);
+    text('h-p2-ut', utilityUnlocked(p2) ? `${utilityDef(p2).name} ${p2.utilityCd <= 0 ? '✦' : p2.utilityCd.toFixed(1)}` : '');
+  }
 
   $('h-test').classList.toggle('hidden', !isTestRun(g)); // v0.7.1 test mode
   text('h-wave', g.wave > 0 ? `${g.victory === 'endless' ? 'Endless · ' : ''}${actName(g.act)} · Wave ${g.wave}` : 'Prepare…');
