@@ -15,6 +15,7 @@ import { digitGlyphs, fogSprite, getSprite, glyphIndex, isNumeric, outlineSprite
 import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
 import { typeMultiplier } from '../logic/status';
+import { uiScale } from '../ui/tooltip';
 
 export interface View {
   w: number; // canvas pixels
@@ -113,15 +114,16 @@ function drawClosedRegions(ctx: Ctx, g: Game, cx: number, cy: number, vw: number
 let closedPattern: CanvasPattern | null = null;
 let closedArena = '';
 
-/** #h-map's content box in canvas pixels: the HUD lays the minimap's frame out (style.css), the canvas fills it. Read once per window size. */
+/** #h-map's content box in canvas pixels: the HUD lays the minimap's frame out (style.css), the canvas fills it. Read once per window size (and text size). */
 function minimapBox(view: View): { x: number; bottom: number; w: number } | null {
-  const key = view.w * 100000 + view.h;
+  const key = view.w * 100000 + view.h + uiScale() / 10; // v0.8 (#123): a new text size moves the frame too
   if (mapBox && mapKey === key) return mapBox;
   const el = document.getElementById('h-map');
   const r = el?.getBoundingClientRect();
   if (!el || !r?.width) return null; // the HUD is not laid out yet: try again next frame
   mapKey = key;
-  return (mapBox = { x: (r.left + el.clientLeft) * view.dpr, bottom: (r.top + el.clientTop + el.clientHeight) * view.dpr, w: el.clientWidth * view.dpr });
+  const s = uiScale(); // the rect is on screen, client sizes are in the HUD's zoomed pixels
+  return (mapBox = { x: (r.left + el.clientLeft * s) * view.dpr, bottom: (r.top + (el.clientTop + el.clientHeight) * s) * view.dpr, w: el.clientWidth * s * view.dpr });
 }
 let mapBox: { x: number; bottom: number; w: number } | null = null;
 let mapKey = 0;

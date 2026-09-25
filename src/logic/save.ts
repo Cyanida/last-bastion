@@ -10,7 +10,7 @@ import { CURSE_IDS, type CurseId } from '../config/curses';
 import { ACTS } from '../config/acts';
 import { BUILDING_IDS, BUILDINGS, MASTERY, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
 import type { EnemyId } from '../config/enemies';
-import type { QualitySetting } from '../config/game';
+import { TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
 import { DUO_IDS, isCursedRelic, RELIC_IDS, type DuoId, type RelicId } from '../config/relics';
 import { familySets } from './relics';
 import { TRAIT_IDS, type TraitId } from '../config/traits';
@@ -123,7 +123,7 @@ export interface Save {
   evolutions: EvolutionId[]; // v0.6: evolutions ever taken (the compendium shows their recipes in full)
   duos: DuoId[]; // v0.7: duos ever formed (the compendium shows them in full)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
-  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; manualAim: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
+  settings: { arena: ArenaId; tier: number; quality: QualitySetting; textSize: TextSize; prerelease: boolean; manualAim: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
 }
 
 /** What a finished (or abandoned) run reports. The v0.3 fields are optional so older callers keep working. */
@@ -199,7 +199,7 @@ export function defaultSave(): Save {
     oaths: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     contracts: { week: '', progress: Array(CONTRACTS_PER_WEEK).fill(0) },
     endless: Object.fromEntries(CLASS_ORDER.map((id) => [id, []])) as unknown as Record<ClassId, EndlessEntry[]>,
-    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, manualAim: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
+    settings: { arena: 'courtyard', tier: 0, quality: 'auto', textSize: 'normal', prerelease: false, manualAim: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
   };
 }
 
@@ -311,6 +311,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
         arena: ARENA_IDS.includes(s.arena as ArenaId) ? (s.arena as ArenaId) : 'courtyard',
         tier: Math.min(save.tierUnlocked, Math.floor(num(s.tier))),
         quality: s.quality === 'low' || s.quality === 'high' ? s.quality : 'auto',
+        textSize: typeof s.textSize === 'string' && Object.hasOwn(TEXT_SIZES, s.textSize) ? (s.textSize as TextSize) : 'normal', // v0.8 (#123): older saves read Normal
         trait: TRAIT_IDS.includes(s.trait as TraitId) ? (s.trait as TraitId) : 'none',
         trait2: TRAIT_IDS.includes(s.trait2 as TraitId) ? (s.trait2 as TraitId) : 'none',
         oath: Math.max(0, Math.min(OATHS.length, Math.floor(num(s.oath)))),

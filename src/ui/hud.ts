@@ -20,6 +20,7 @@ import { QUESTS, REWARDS } from '../config/quests';
 import { questProgress } from '../logic/quests';
 import { duoTip, esc, relicClass, relicTip, setRecipeBuild, tierBadge } from './relicText';
 import { isTestRun } from '../systems/testMode';
+import { uiScale } from './tooltip';
 
 /** Tooltip for the enemy under the pointer (hover, or a tap on touch): what it is, what hurts it, what is on it. */
 export function updateInspect(e: Enemy | null, x: number, y: number): void {
@@ -41,10 +42,11 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
     ${e.def.aura ? `<div>Aura: ${e.def.aura.kind === 'heal' ? 'heals and rallies' : `+${Math.round((e.def.aura.value - 1) * 100)}% ${e.def.aura.kind}`} nearby allies</div>` : ''}
     ${statuses.length ? `<div>${statuses.join(' · ')}</div>` : ''}`);
   // right of the pointer, and above it in the lower half so it never runs off the bottom
-  el.style.left = `${Math.min(window.innerWidth - 260, x + 18)}px`;
+  const s = uiScale(); // v0.8 (#123): the HUD is zoomed, the pointer is not
+  el.style.left = `${Math.min(window.innerWidth - 260 * s, x + 18) / s}px`;
   const below = y < window.innerHeight / 2;
-  el.style.top = below ? `${Math.max(8, y - 20)}px` : '';
-  el.style.bottom = below ? '' : `${window.innerHeight - y - 20}px`;
+  el.style.top = below ? `${Math.max(8, y - 20) / s}px` : '';
+  el.style.bottom = below ? '' : `${(window.innerHeight - y - 20) / s}px`;
 }
 
 const root = () => document.getElementById('hud')!;
@@ -201,10 +203,11 @@ export function updateHud(g: Game): void {
       const tier = g.player.relics.tiers[id] ?? 1;
       return `<div class="relic ${relicClass(id)}" data-id="${id}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.player.relics.held))}">${r.icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
     };
-    // 50px a tile; desktop keeps clear of the ability panel, touch (bar at the top) of the wave plate
-    const fit = Math.max(3, Math.min(8, Math.floor((innerWidth / 2 - (document.documentElement.classList.contains('compact') ? 140 : 300)) / 50)));
+    // 50px a tile; desktop keeps clear of the ability panel (a small window too), touch (bar at the top) of the wave plate
+    const fit = Math.max(3, Math.min(8, Math.floor((innerWidth / uiScale() / 2 - (document.documentElement.classList.contains('touch') ? 140 : 300)) / 50)));
     const loose = looseRelics(g.player.relics.held, g.player.relics.duos); // v0.7.5 (#96): a duo's two relics show as the duo
-    const older = loose.length > fit ? loose.slice(0, loose.length - fit) : [];
+    const room = Math.max(1, fit - g.player.relics.duos.length); // v0.8 (#123): the duos and the "+N" chip take tiles of the row too
+    const older = loose.length > room ? loose.slice(0, loose.length - room + 1) : [];
     const more = older.length ? `<div class="relic more" tabindex="0">+${older.length}<div class="hud-pop hud-plate">${older.map(tile).join('')}</div></div>` : '';
     const duos = g.player.relics.duos.map((d) => {
       const tier = duoTier(g.player.relics.tiers, d);

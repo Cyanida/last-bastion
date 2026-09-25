@@ -22,7 +22,7 @@ import { salvageValue, sellPrice } from '../systems/acts';
 import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
-import type { QualitySetting } from '../config/game';
+import { TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { latchGamepad, onAction } from '../input';
@@ -146,6 +146,7 @@ export function showTitle(info: TitleInfo, on: { start: () => void; daily: () =>
 
 export interface SettingsInfo {
   quality: QualitySetting;
+  textSize: TextSize;
   effective: string;
   muted: boolean;
   music: MusicLevel;
@@ -158,12 +159,13 @@ export interface SettingsInfo {
   desktop: { version: string; status: string; prerelease: boolean } | null;
 }
 
-export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; aim: (manual: boolean) => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
+export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; aim: (manual: boolean) => void; textSize: (size: TextSize) => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
   const chip = (q: QualitySetting) => `<button class="chip ${info.quality === q ? 'on' : ''}" data-quality="${q}">${q[0].toUpperCase()}${q.slice(1)}</button>`;
   const el = show(`
     <div class="panel dialog wide settings">
       <h1 class="small">Settings</h1>
       <div class="setting"><div><b>Graphics quality</b><span>Low cuts particles, screen shake and shadows. Auto measures the first waves and drops to low if needed. Now: ${info.effective}.</span></div><div>${(['auto', 'low', 'high'] as const).map(chip).join('')}</div></div>
+      <div class="setting"><div><b>Text size</b><span>The HUD and every screen. A small screen keeps what still fits.</span></div><div>${(Object.keys(TEXT_SIZES) as TextSize[]).map((t) => `<button class="chip ${info.textSize === t ? 'on' : ''}" data-text-size="${t}">${t[0].toUpperCase()}${t.slice(1)}</button>`).join('')}</div></div>
       <div class="setting"><div><b>Sound</b><span>Synthesised effects and music (M).</span></div><button class="chip on" data-act="mute">${info.muted ? 'Off' : 'On'}</button></div>
       <div class="setting"><div><b>Music</b><span>Composed live. In a run it plays quieter, under the effects.${info.muted ? ' Silent while Sound is off.' : ''}</span></div><div>${MUSIC_LEVELS.map((l) => `<button class="chip ${info.music === l ? 'on' : ''}" data-music="${l}">${l[0].toUpperCase()}${l.slice(1)}</button>`).join('')}</div></div>
       <div class="setting"><div><b>Music during runs</b><span>A quiet theme for every arena that builds a little in a fight.</span></div><button class="chip ${info.runMusic ? 'on' : ''}" data-act="runMusic">${info.runMusic ? 'On' : 'Off'}</button></div>
@@ -183,6 +185,7 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
   click(el, '[data-quality]', (b) => on.quality(b.dataset.quality as QualitySetting));
   click(el, '[data-music]', (b) => on.music(b.dataset.music as MusicLevel));
   click(el, '[data-effects]', (b) => on.effects(b.dataset.effects as MusicLevel));
+  click(el, '[data-text-size]', (b) => on.textSize(b.dataset.textSize as TextSize));
   click(el, '[data-aim]', (b) => on.aim(b.dataset.aim === 'manual'));
   click(el, '[data-act]', (b) => {
     const act = b.dataset.act;

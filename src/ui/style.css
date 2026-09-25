@@ -50,7 +50,11 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
    .hud-badge  small pill: keys, relic tiers, upgrade chips
    Type: --hud-display (Cinzel) for names and headings, --hud-text (Alegreya Sans, tabular figures) for the rest; 14px minimum, 13 for hints.
    Layout: corner stacks (.hud-left, .hud-right) and centre columns (.hud-top, .hud-bottom) flow, so their parts never overlap.
-   No transform scaling: phones get the denser .compact layout instead of smaller text. */
+   No transform scaling: phones get the denser .compact layout instead of smaller text.
+   v0.8 (#123): Settings › Text size zooms the HUD and the screens by --ui-scale (main.ts resize). Zoom scales vw and vh as well, so
+   everything inside uses --vw / --vh (a viewport percent divided by the scale): a scaled layout still fits the window. */
+:root { --ui-scale: 1; --vw: calc(1vw / var(--ui-scale)); --vh: calc(1vh / var(--ui-scale)); }
+.scaled #hud, .scaled #overlay, .scaled #tooltip, .scaled #crash { zoom: var(--ui-scale); } /* only when needed: Normal stays unzoomed */
 :root { --hud-display: 'Cinzel', Georgia, serif; --hud-text: 'Alegreya Sans', Georgia, serif; --hud-gap: 14px; --hud-light: #f3ead0; --hud-gold: #e9c95a; }
 #hud { position: fixed; inset: 0; pointer-events: none; font: 15px/1.3 var(--hud-text); font-variant-numeric: lining-nums tabular-nums; color: var(--ink); }
 #hud button { pointer-events: auto; }
@@ -95,7 +99,7 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 @keyframes quest-flash { from { filter: brightness(1); } to { filter: brightness(1.5); box-shadow: 0 0 10px var(--gold); } }
 
 /* bottom left: the minimap (drawn by renderer.ts inside this frame) and the stats panel */
-#h-map { box-sizing: content-box; width: clamp(108px, 15vw, 232px); margin-top: auto; }
+#h-map { box-sizing: content-box; width: clamp(108px, calc(15 * var(--vw)), 232px); margin-top: auto; }
 /* fixed height: the minimap frame above it must not move with content (renderer.ts reads its place once per window size) */
 .hud-stats { position: relative; width: 236px; height: 85px; padding: 6px 12px; pointer-events: auto; cursor: help; }
 .hud-stats::after { content: '▴'; position: absolute; top: 1px; right: 5px; font-size: 11px; color: #8a6a3a; } /* more above */
@@ -115,7 +119,7 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 .hud-tr button { width: 40px; height: 40px; padding: 0; font-size: 16px; cursor: pointer; }
 .hud-tr button:hover { border-color: var(--gold); }
 #h-toasts { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
-.toast { display: flex; flex-direction: column; max-width: min(300px, 28vw); padding: 5px 12px; animation: toast-in 0.25s ease-out; }
+.toast { display: flex; flex-direction: column; max-width: min(300px, calc(28 * var(--vw))); padding: 5px 12px; animation: toast-in 0.25s ease-out; }
 .toast b { font: 700 15px/1.25 var(--hud-display); color: var(--hud-gold); }
 .toast span { font-size: 14px; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } }
@@ -131,14 +135,14 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 .touch .hud-relics .hud-pop { top: calc(100% + 8px); bottom: auto; }
 
 /* top centre: the wave plate, the banner under it */
-.hud-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: 4vh; text-align: center; }
-.hud-wave { max-width: min(520px, 40vw); padding: 4px 18px 6px; }
+.hud-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: calc(4 * var(--vh)); text-align: center; }
+.hud-wave { max-width: min(520px, calc(40 * var(--vw))); padding: 4px 18px 6px; }
 #h-wave { font: 700 26px/1.2 var(--hud-display); color: var(--hud-gold); white-space: nowrap; }
 #h-left { font-size: 15px; }
 #h-mod { font-size: 14px; color: #f4a595; }
 #h-boss { margin: 4px 0 2px; }
 #h-boss-name { font: 700 17px/1.3 var(--hud-display); color: #f4a595; }
-#hud .bar.boss { height: 14px; width: min(460px, calc(40vw - 38px)); margin: 3px auto 0; border-color: var(--gold); }
+#hud .bar.boss { height: 14px; width: min(460px, calc(40 * var(--vw) - 38px)); margin: 3px auto 0; border-color: var(--gold); }
 .bar.boss > div { background: linear-gradient(#a5382c, #5e0f0f); }
 
 /* bottom centre: the talent hint over the ability panel */
@@ -164,7 +168,7 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 .touch #h-ab-text, .touch #h-ut-slot { pointer-events: none; } /* a thumb landing there should still steer */
 
 /* floating: the banner (kept clear of the side stacks) and the enemy inspect tooltip */
-#h-banner { max-width: calc(100vw - 640px); padding: 2px 24px 6px; font: 700 40px/1.2 var(--hud-display); color: var(--hud-gold); text-shadow: 0 2px 0 #2a1d10, 0 0 12px #000; opacity: 0; }
+#h-banner { max-width: calc(100 * var(--vw) - 640px); padding: 2px 24px 6px; font: 700 40px/1.2 var(--hud-display); color: var(--hud-gold); text-shadow: 0 2px 0 #2a1d10, 0 0 12px #000; opacity: 0; }
 #h-inspect { position: absolute; z-index: 3; width: 240px; padding: 8px 12px; font-size: 14px; line-height: 1.35; }
 #h-inspect b { font: 700 16px var(--hud-display); color: var(--hud-gold); }
 #h-inspect em { font-style: normal; color: #f2c94c; }
@@ -174,16 +178,16 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 .compact .hud-stats, .compact #h-tier, .compact #h-mod span, .compact #h-ut-slot, .compact #h-ab-ups { display: none; } /* the pause screen shows the build */
 .compact .hud-tl { width: 212px; padding: 6px 10px; }
 .compact .hud-name { font-size: 16px; margin-bottom: 4px; }
-.compact .hud-wave { max-width: min(212px, calc(100vw - 460px)); padding: 2px 12px 4px; } /* clear of the player panel and the relic bar */
+.compact .hud-wave { max-width: min(212px, calc(100 * var(--vw) - 460px)); padding: 2px 12px 4px; } /* clear of the player panel and the relic bar */
 .compact #h-boss-name { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .compact #h-wave { font-size: 18px; }
 .compact #h-left { font-size: 14px; }
-.compact #hud .bar.boss { width: min(180px, calc(100vw - 490px)); }
-.compact .hud-ability { width: auto; max-width: calc(100vw - 420px); padding: 6px 12px 6px 8px; gap: 10px; } /* clear of the minimap and the thumb buttons */
+.compact #hud .bar.boss { width: min(180px, calc(100 * var(--vw) - 490px)); }
+.compact .hud-ability { width: auto; max-width: calc(100 * var(--vw) - 420px); padding: 6px 12px 6px 8px; gap: 10px; } /* clear of the minimap and the thumb buttons */
 .compact #h-ab-icon { width: 44px; height: 44px; }
-.compact #h-banner { font-size: 20px; max-width: min(calc(100vw - 468px), calc(48vw - 44px)); padding: 2px 12px 4px; } /* clear of the player panel and the toasts */
+.compact #h-banner { font-size: 20px; max-width: min(calc(100 * var(--vw) - 468px), calc(48 * var(--vw) - 44px)); padding: 2px 12px 4px; } /* clear of the player panel and the toasts */
 .compact #h-toasts > :nth-last-child(n + 3) { display: none; } /* two at most, one line each, above the thumb buttons */
-.compact .toast { max-width: 26vw; }
+.compact .toast { max-width: calc(26 * var(--vw)); }
 .compact .toast b, .compact .toast span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .compact .toast b { font-size: 14px; }
 .compact .toast span { font-size: 13px; }
@@ -213,8 +217,8 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 
 /* ---------- Screens ---------- */
 #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(rgba(20, 17, 15, 0.55), rgba(10, 8, 6, 0.92)); overflow: auto; padding: 20px; }
-h1 { font-family: var(--title); font-size: clamp(56px, 10vw, 120px); margin: 0; color: #e9c95a; text-shadow: 0 4px 0 #2a1d10, 0 0 30px rgba(0, 0, 0, 0.9); font-weight: 700; }
-h1.small { font-family: var(--heading); font-size: clamp(32px, 4.5vw, 50px); }
+h1 { font-family: var(--title); font-size: clamp(56px, calc(10 * var(--vw)), 120px); margin: 0; color: #e9c95a; text-shadow: 0 4px 0 #2a1d10, 0 0 30px rgba(0, 0, 0, 0.9); font-weight: 700; }
+h1.small { font-family: var(--heading); font-size: clamp(32px, calc(4.5 * var(--vw)), 50px); }
 .dialog h1 { color: var(--ink); text-shadow: none; }
 .dialog h1.blood { color: var(--blood); }
 h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
@@ -256,7 +260,7 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 /* tooltips: relic slots, arena / difficulty chips */
 [data-tip] { position: relative; }
 /* v0.5: one floating tooltip for every [data-tip] (ui/tooltip.ts): parchment in the menus, a dark plate over the arena */
-#tooltip { display: none; position: fixed; z-index: 50; max-width: min(280px, calc(100vw - 12px)); padding: 8px 10px; pointer-events: none;
+#tooltip { display: none; position: fixed; z-index: 50; max-width: min(280px, calc(100 * var(--vw) - 12px)); padding: 8px 10px; pointer-events: none;
   font: 14px/1.3 var(--body); text-align: left; white-space: pre-line; color: var(--ink);
   background: linear-gradient(var(--parchment), var(--parchment-dark)); border: 2px solid #5a3d25; border-radius: 3px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6); }
 #tooltip.hud { font: 14px/1.35 var(--hud-text); color: var(--hud-light); padding: 8px 10px; background: rgba(20, 17, 15, 0.94); border-radius: 6px; }
@@ -300,7 +304,7 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .levelup .btn { margin-top: 4px; }
 
 /* dialogs */
-.dialog.wide { width: min(880px, 96vw); max-height: 94vh; overflow-y: auto; text-align: left; padding: 22px 32px; }
+.dialog.wide { width: min(880px, calc(96 * var(--vw))); max-height: calc(94 * var(--vh)); overflow-y: auto; text-align: left; padding: 22px 32px; }
 .dialog.wide h1, .dialog.wide .sub { text-align: center; }
 .dialog.wide h2 { border-bottom: 1px solid rgba(90, 61, 37, 0.5); margin: 14px 0 8px; }
 .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 26px; }
@@ -500,7 +504,7 @@ canvas#game { touch-action: none; }
 .talent.recipe { box-shadow: 0 0 0 2px #f2c94c inset, 0 0 12px rgba(242, 201, 76, 0.6); } /* v0.6: completes an evolution recipe */
 
 /* v0.6 the fork in the road between Acts */
-.routes .fork { display: block; width: min(420px, 80vw); height: 60px; margin: 0 auto -6px; }
+.routes .fork { display: block; width: min(420px, calc(80 * var(--vw))); height: 60px; margin: 0 auto -6px; }
 .routes .fork circle { fill: #e9c95a; }
 .routes .fork path { stroke: #e9c95a; stroke-width: 3; stroke-dasharray: 6 5; fill: none; }
 .route p { margin: 4px 0; font-size: 14px; }
@@ -568,4 +572,4 @@ canvas#game { touch-action: none; }
 
 /* v0.7.5 (#106): the error overlay, above every screen and the tooltip */
 #crash { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(10, 8, 6, 0.8); }
-#crash pre { max-height: 40vh; overflow: auto; text-align: left; white-space: pre-wrap; word-break: break-word; font-size: 13px; background: rgba(0, 0, 0, 0.08); padding: 8px 10px; user-select: text; }
+#crash pre { max-height: calc(40 * var(--vh)); overflow: auto; text-align: left; white-space: pre-wrap; word-break: break-word; font-size: 13px; background: rgba(0, 0, 0, 0.08); padding: 8px 10px; user-select: text; }

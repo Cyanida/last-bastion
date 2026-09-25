@@ -25,9 +25,13 @@ function place(el: HTMLElement): void {
   const r = el.getBoundingClientRect();
   const t = box.getBoundingClientRect();
   const above = r.top - t.height - GAP >= EDGE;
-  box.style.top = `${above ? r.top - t.height - GAP : clamp(r.bottom + GAP, EDGE, window.innerHeight - t.height - EDGE)}px`;
-  box.style.left = `${clamp(r.left + r.width / 2 - t.width / 2, EDGE, window.innerWidth - t.width - EDGE)}px`;
+  const s = uiScale(); // the box is zoomed too: its top and left are in scaled pixels
+  box.style.top = `${(above ? r.top - t.height - GAP : clamp(r.bottom + GAP, EDGE, window.innerHeight - t.height - EDGE)) / s}px`;
+  box.style.left = `${clamp(r.left + r.width / 2 - t.width / 2, EDGE, window.innerWidth - t.width - EDGE) / s}px`;
 }
+
+/** v0.8 (#123): the text size's zoom on the HUD and the screens (main.ts resize sets it). Positions set from pointer or window pixels divide by it. */
+export const uiScale = (): number => Number(document.documentElement.style.getPropertyValue('--ui-scale')) || 1;
 
 function hide(): void {
   if (box) box.style.display = 'none';
