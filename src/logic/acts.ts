@@ -1,11 +1,15 @@
 import { ACT_THEMES, ACTS, FINAL, MERCHANT } from '../config/acts';
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
+import { BOSS_RULES, BOSSES, type BossDef, type BossKey } from '../config/bosses';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
 import { CURSE_IDS, type CurseId } from '../config/curses';
 import type { EnemyId } from '../config/enemies';
+import type { QuestKind } from '../config/quests';
 import type { Rarity } from '../config/relics';
 import { WAVES } from '../config/waves';
-import { mulberry32 } from '../core/math';
+import { mulberry32, pickWeighted } from '../core/math';
+import type { Rng } from '../core/types';
+import { waveRng } from './director';
 
 // ---------- Acts ----------
 export const actOf = (wave: number) => Math.max(1, Math.ceil(wave / ACTS.length));
@@ -27,14 +31,43 @@ export function arenaFor(act: number, start: ArenaId): ArenaId {
   return ARENA_IDS[(ARENA_IDS.indexOf(start) + act - 1 - (act > FINAL.act ? 1 : 0)) % ARENA_IDS.length];
 }
 
-/** Wave x0 ends the Act with an Act boss; wave x5 brings a boss from the current arena's rotation. */
-export function bossForWave(wave: number, arena: ArenaId): EnemyId | null {
+/** #99: what a boss wave draws from: the run's seed and arena, the bosses met so far and the quests taken this Act. */
+export interface BossDraw {
+  seed: number;
+  arena: ArenaId;
+  seen: BossKey[];
+  quests: QuestKind[];
+}
+
+/** Wave x0 ends the Act with an Act boss (config/bosses.ts, in order; the Usurper in Act IV); wave x5 draws a mid-Act boss. */
+export function bossForWave(wave: number, draw: BossDraw): BossKey | null {
   if (wave % WAVES.bossEvery !== 0) return null;
   const act = actOf(wave);
-  if (isActEnd(wave)) return act === FINAL.act ? FINAL.boss : ACTS.bosses[(act - 1) % ACTS.bosses.length];
-  const rotation = ARENAS[arena].bosses;
-  return rotation[(act - 1) % rotation.length];
+  if (isActEnd(wave)) return act === FINAL.act ? FINAL.boss : ACT_BOSSES[(act - 1) % ACT_BOSSES.length];
+  return pickMidBoss(act, draw, waveRng(draw.seed ^ 0xb055, wave));
 }
+
+const ACT_BOSSES = Object.keys(BOSSES).filter((k) => BOSSES[k].slot === 'act');
+const MID_BOSSES = Object.keys(BOSSES).filter((k) => BOSSES[k].slot === 'mid');
+
+/**
+ * A mid-Act boss: weighted, never one already met this run until every boss it could draw has been met (then anyone but the last one).
+ * Act I keeps the arena's opener. Rare ones wait for their Act; quest ones need their quest taken; the arena's own rotation weighs more.
+ */
+export function pickMidBoss(act: number, draw: BossDraw, rng: Rng): BossKey {
+  if (act < BOSS_RULES.poolFromAct) return ARENAS[draw.arena].bosses[0];
+  const open = MID_BOSSES.filter((k) => (BOSSES[k].fromAct ?? 1) <= act && (!BOSSES[k].quest || draw.quests.includes(BOSSES[k].quest!)));
+  let left = open.filter((k) => !draw.seen.includes(k));
+  if (left.length === 0) {
+    const last = [...draw.seen].reverse().find((k) => open.includes(k));
+    left = open.filter((k) => k !== last);
+  }
+  const rotation: readonly string[] = ARENAS[draw.arena].bosses;
+  return pickWeighted(left.map((k) => ({ value: k, weight: BOSSES[k].weight * (rotation.includes(k) ? BOSS_RULES.arenaBias : 1) })), rng);
+}
+
+/** The boss a key names: its table entry, or a plain boss by its enemy id (the Usurper). */
+export const bossDef = (key: BossKey): BossDef => BOSSES[key] ?? { from: key as EnemyId, slot: 'act', weight: 0 };
 
 // ---------- Merchant ----------
 export type MerchantItem = 'heal' | 'reroll' | 'reforge' | `buy:${Rarity}`;

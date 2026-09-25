@@ -561,6 +561,7 @@ export interface Game {
   pendingBoard: boolean;
   questsDone: number;
   questRunes: number;
+  bossesSeen: string[]; // #99: config/bosses.ts keys of the bosses met this run, in order (no boss comes back until the pool is spent)
   event: WaveEvent | null;
   eventsSeen: number;
   pendingShop: boolean; // the wandering merchant's screen is due (his wares: event.wares)

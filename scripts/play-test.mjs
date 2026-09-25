@@ -606,6 +606,24 @@ await check('sound cues: played and emptied, a relic pick is heard', () =>
   }),
 );
 
+// #99: a bigger boss pool; no boss comes back in a run until the pool is spent, and the HUD names the boss drawn (a variant by its own name)
+await check('boss pool: the next boss is not one already met this run', async () => {
+  const r = await inPage(async () => {
+    const lb = window.__lb, g = lb.game, first = window.__play.boss;
+    if (!('bossesSeen' in g)) return { skip: true };
+    const next = () => g.enemies.find((e) => e.def.boss && !e.dead && !e.side && !e.warded && e !== first);
+    for (let i = 0; i < 80000 && !next() && lb.game === g; i++) lb.run(1, false, true); // the bot plays on through the Merchant to wave 15
+    const b = next();
+    if (!b) return null;
+    await window.__play.wait(150); // a real frame draws the HUD
+    return { seen: [...g.bossesSeen], name: b.def.name, wave: g.wave, hud: document.getElementById('h-boss-name')?.textContent ?? '' };
+  });
+  if (!r) return { ok: false, detail: 'no second boss reached' };
+  if (r.skip) return { skip: true, detail: 'no boss pool on this branch (before #99)' };
+  const ok = r.seen.length >= 2 && new Set(r.seen).size === r.seen.length && r.hud.includes(r.name);
+  return { ok, detail: `wave ${r.wave}: ${r.name}; met ${r.seen.join(', ')}; HUD "${r.hud}"` };
+});
+
 // ---------- v0.7.5 (#106): an error in a frame shows the error overlay, and the game goes on ----------
 await check('an error in a frame: the overlay, Continue, the run goes on', () =>
   inPage(async () => {

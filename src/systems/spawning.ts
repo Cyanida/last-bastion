@@ -7,7 +7,7 @@ import { sfx } from '../sim/view';
 import { emit } from '../core/events';
 import type { Enemy, Game } from '../core/types';
 import { createEnemy } from '../entities/actors';
-import { actName, bossForWave, isActEnd, themeFor } from '../logic/acts';
+import { actName, bossDef, bossForWave, isActEnd, themeFor } from '../logic/acts';
 import { curseValue } from '../logic/curses';
 import { enemyXpMult, waveClearXp } from '../logic/formulas';
 import { gainXp } from './leveling';
@@ -57,6 +57,16 @@ export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes
   return e;
 }
 
+/** #99: a variant boss (config/bosses.ts) fights as its base boss, renamed, tinted and stronger, like a treasure guardian. */
+function dressBoss(g: Game, e: Enemy): void {
+  const b = bossDef(g.bossesSeen[g.bossesSeen.length - 1] ?? '');
+  if (!b.name || b.from !== e.def.id) return;
+  e.def = { ...e.def, name: b.name, palette: b.palette };
+  e.maxHp = e.hp = Math.round(e.hp * (b.hp ?? 1));
+  e.damage *= b.damage ?? 1;
+  g.banner = { text: b.rare ? `${b.name} · Rare` : b.name, t: 3 };
+}
+
 /** A squad arrives together, already in formation, facing the player. `at`: where (the v0.5 ambush), else an edge of the map. */
 export function spawnSquad(g: Game, index: number, units: SpawnUnit[], at = edgePoint(g)): void {
   const plan = g.squadPlans[index];
@@ -77,13 +87,16 @@ export function spawnSquad(g: Game, index: number, units: SpawnUnit[], at = edge
 
 function startWave(g: Game): void {
   g.wave++;
-  const boss = bossForWave(g.wave, g.arena.id);
+  const quests = g.pendingBoard ? [] : g.quests.filter((q) => q.state === 'active' || q.state === 'done').map((q) => q.kind);
+  const key = bossForWave(g.wave, { seed: g.seed, arena: g.arena.id, seen: g.bossesSeen, quests });
+  if (key) g.bossesSeen.push(key);
+  const boss = key ? bossDef(key).from : null;
   const plan = directWave({
     seed: g.seed,
     wave: g.wave,
     classId: g.player.cls.id,
     performance: g.perf,
-    bosses: boss ? [boss] : g.arena.bosses, // Act boss at x0, the arena's own rotation at x5
+    bosses: boss ? [boss] : g.arena.bosses, // #99: the boss drawn above (only boss waves have one)
     eliteMult: g.tier.eliteMult * (g.route?.focus === 'elite' ? ROUTES.elite.eliteMult : 1) * (g.vars['relic.eliteMult'] ?? 1), // v0.6 Elite path; v0.7.1 Tyrant's Banner
     themeBias: actTheme(g).bias, // v0.6: the route's theme
     budgetMult: curseValue(g.curses, 'swarm', 'budget') * pacingBudget(g.wave), // v0.5: breathers and heavy waves (WAVES.pacing)
@@ -150,7 +163,8 @@ export function updateSpawning(g: Game, dt: number): void {
     while (g.spawnTimer <= 0 && g.spawnQueue.length > 0) {
       const next = g.spawnQueue.shift()!;
       if (next.squad < 0) {
-        spawnEnemy(g, next.id, undefined, undefined, next.affixes);
+        const e = spawnEnemy(g, next.id, undefined, undefined, next.affixes);
+        if (e.def.boss) dressBoss(g, e);
         g.spawnTimer += g.spawnInterval;
       } else {
         // the rest of the squad is right behind it in the queue
