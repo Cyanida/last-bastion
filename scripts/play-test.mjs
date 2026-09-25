@@ -647,6 +647,60 @@ await check('import: a save with markup stays text', () =>
   }),
 );
 
+// ---------- v0.7.5 (#112): an Act III slam that came due while you kept away lands as soon as you walk up ----------
+await check('Act III: a slam that is due fires when you walk into range', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  const start = await inPage(async () => {
+    const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '3');
+    set('tm-wave', '5');
+    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    await wait(300);
+    const g = lb.game, p = g.player;
+    p.invulnerable = true;
+    p.attackTimer = 1e9; // it must not die before the check
+    const slammer = () => g.enemies.find((e) => !e.dead && ['knight', 'mirrorKnight', 'boneCollector'].includes(e.def.id));
+    for (let i = 0; i < 6000 && !slammer() && lb.game === g; i++) lb.run(1, false, true);
+    const e = slammer();
+    if (!e) return null;
+    for (let i = 0; i < 60 * 9; i++) { // longer than its cooldown, kept out of range
+      Object.assign(e, { x: p.x + 420, y: p.y, hp: e.maxHp });
+      p.attackTimer = 1e9;
+      lb.run(1, false, true);
+    }
+    Object.assign(e, { x: p.x + 170, y: p.y });
+    window.__slam = { e, zones: g.zones.length };
+    return { id: e.def.id, act: g.act };
+  });
+  if (!start) return { ok: false, detail: 'no knight reached' };
+  await page.keyboard.down('KeyD'); // walk up to it
+  const fired = await inPage(() => {
+    const { e } = window.__slam, g = window.__lb.game;
+    for (let i = 0; i < 40; i++) {
+      window.__lb.run(1, false, 'input');
+      if (g.zones.some((z) => z.owner === e)) return i;
+    }
+    return -1;
+  });
+  await page.keyboard.up('KeyD');
+  return { ok: fired >= 0, detail: `Act ${start.act} ${start.id}: ${fired >= 0 ? `slammed ${fired} ticks after the walk-up` : 'no slam in 40 ticks'}` };
+});
+
 // ---------- v0.7.5 (#109): the Gallows pays in a cursed run, and the results screen shows it ----------
 await check('Gallows: a cursed run earns its bonus, the results show it', () =>
   inPage(async () => {
