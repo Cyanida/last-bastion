@@ -3,12 +3,12 @@ import { oathReward } from './oaths';
 import { advanceContracts, weekKey, type Contract, type ContractState } from './contracts';
 import { CONTRACTS_PER_WEEK } from '../config/contracts';
 import { EVOLUTION_IDS, type EvolutionId } from '../config/evolutions';
-import { FEAT_KEYS, type FeatKey } from '../config/achievements';
+import { ACHIEVEMENTS, FEAT_KEYS, type FeatKey } from '../config/achievements';
 import { ARENA_IDS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
 import { CURSE_IDS, type CurseId } from '../config/curses';
 import { ACTS } from '../config/acts';
-import { BUILDING_IDS, BUILDINGS, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
+import { BUILDING_IDS, BUILDINGS, MASTERY, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
 import type { EnemyId } from '../config/enemies';
 import type { QualitySetting } from '../config/game';
 import { DUO_IDS, isCursedRelic, RELIC_IDS, type DuoId, type RelicId } from '../config/relics';
@@ -255,8 +255,10 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
     }
     if (isObj(raw.dailyGold) && typeof raw.dailyGold.date === 'string') save.dailyGold = { date: raw.dailyGold.date, curse: num(raw.dailyGold.curse), trial: num(raw.dailyGold.trial) };
     if (Array.isArray(raw.achievements)) save.achievements = raw.achievements.filter((a): a is string => typeof a === 'string').map((a) => RENAMED_ACHIEVEMENTS[a] ?? a);
-    if (Array.isArray(raw.titles)) save.titles = [...new Set(raw.titles.filter((t): t is string => typeof t === 'string'))];
-    if (typeof raw.title === 'string') save.title = raw.title;
+    // v0.7.5: only titles the game can award, so an imported save can't carry markup into the page (#105)
+    const known = new Set<unknown>([...ACHIEVEMENTS.flatMap((a) => a.tiers.map((t) => t.reward.title)), ...MASTERY.map((r) => (r.reward.kind === 'title' ? r.reward.title : undefined))].filter(Boolean));
+    if (Array.isArray(raw.titles)) save.titles = [...new Set(raw.titles.filter((t): t is string => known.has(t)))];
+    if (known.has(raw.title)) save.title = raw.title as string;
     if (Array.isArray(raw.palettes)) save.palettes = [...new Set(raw.palettes.map((p) => Math.floor(num(p))).filter((p) => p > 0))];
     save.talentPoints = Math.floor(num(raw.talentPoints));
     for (const id of CLASS_ORDER) {

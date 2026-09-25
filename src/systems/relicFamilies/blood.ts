@@ -34,12 +34,12 @@ export const BLOOD_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const b = ev.enemy.statuses.bleed;
       if (!awakened(p, 'butchersHook') || !b) return;
       // Gutting: its bleed passes to the two enemies nearest it
-      let from: Enemy = ev.enemy;
+      const hit: Enemy[] = [ev.enemy];
       for (let i = 0; i < 2; i++) {
-        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, 180, from);
+        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, 180, hit);
         if (!to) break;
         applyStatus(to, { apply: [{ id: 'bleed', stacks: b.stacks, power: b.power }] }, g);
-        from = to;
+        hit.push(to);
       }
     },
   },

@@ -66,13 +66,15 @@ export function strike(g: Game, x: number, y: number, damage: number, radius: nu
 export function chainFrom(g: Game, p: Player, from: Enemy, amount: number, jumps: number, range: number, each?: (e: Enemy) => void, crit = false): void {
   const reach = range * (setAt(p, 'storm', 6) ? FAMILIES.storm.n.rangeMult : 1);
   let at = from;
+  const hit = [from];
   for (let i = 0; i < jumps; i++) {
-    const next = nearestEnemy(g, at.x, at.y, reach, at);
+    const next = nearestEnemy(g, at.x, at.y, reach, hit);
     if (!next) return;
     line(g, at.x, at.y, next.x, next.y, FAMILIES.storm.color);
     damageEnemy(g, next, amount, crit, 0, 0, 'relic');
     each?.(next);
     emit(g, 'onChain', { enemy: next, from: at, amount });
+    hit.push(next);
     at = next;
   }
 }
@@ -166,12 +168,13 @@ export type RelicHooks = { [K in EventName]?: (g: Game, ev: GameEvents[K], p: Pl
 };
 
 /**
- * A relic that cuts max HP to `frac` (Blood Pact; Crimson Chalice's curse), under its own key: unrounded, so tier-ups, a lifted curse and
- * removal round-trip exactly.
+ * A relic that cuts max HP to `frac` (Blood Pact; Crimson Chalice's curse), under its own key: it keeps the HP it took and gives exactly that
+ * back first, so tier-ups, a lifted curse and removal round-trip without inflating max HP gained after the cut.
  */
 export function cutMaxHp(g: Game, p: Player, key: string, frac: number): void {
-  p.stats.hp = (p.stats.hp / (g.vars[key] ?? 1)) * frac;
-  g.vars[key] = frac;
+  const full = p.stats.hp + (g.vars[key] ?? 0);
+  g.vars[key] = full * (1 - frac);
+  p.stats.hp = full - g.vars[key];
   p.hp = Math.min(p.hp, p.stats.hp);
 }
 

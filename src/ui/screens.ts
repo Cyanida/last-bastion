@@ -25,7 +25,7 @@ import { dropStaleTooltip } from './tooltip';
 import type { QualitySetting } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
-import { onAction } from '../input';
+import { latchGamepad, onAction } from '../input';
 import type { Action } from '../input/mapping';
 import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
@@ -63,6 +63,7 @@ function show(html: string): HTMLElement {
 export function clearOverlay(): void {
   stopActions?.();
   stopActions = null;
+  latchGamepad();
   overlay().classList.add('hidden');
   overlay().innerHTML = '';
   dropStaleTooltip(); // after the old screen is gone, so its tooltip goes with it
@@ -123,7 +124,7 @@ export function showTitle(info: TitleInfo, on: { start: () => void; daily: () =>
       <h1>Last Bastion</h1>
       <div class="version">${info.label}${info.mobile ? ' <span class="badge">Mobile</span>' : ''}</div>
       ${info.whatsNew ? '<button class="btn small whatsnew-link" data-go="whatsNew">What’s new</button>' : ''}
-      ${info.title ? `<div class="epithet">${info.title}</div>` : ''}
+      ${info.title ? `<div class="epithet">${esc(info.title)}</div>` : ''}
       <p class="sub">The walls have fallen silent. The courtyard has not.</p>
       ${info.notice ? `<div class="notice panel"><span>${info.notice.text}</span><button class="btn small" data-notice>${info.notice.button}</button></div>` : ''}
       <button class="btn big" data-go="start">Take up arms</button>
@@ -384,7 +385,7 @@ export function showRunHistory(runs: RunLog[], onBack: () => void): void {
     const trait = r.trait !== 'none' && TRAIT_IDS.includes(r.trait as TraitId) ? `${TRAITS[r.trait as TraitId].icon} ${TRAITS[r.trait as TraitId].name}` : '';
     const when = r.at ? new Date(r.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
     return `<div class="run panel">
-      <div class="rhead"><b>${CLASSES[r.classId].name}</b><span>${TIERS[r.tier]?.name ?? ''} · ${ARENAS[r.arena].name}${r.daily ? ` · Daily Trial ${r.daily}` : ''}</span><span class="dim">${when}</span></div>
+      <div class="rhead"><b>${CLASSES[r.classId].name}</b><span>${TIERS[r.tier]?.name ?? ''} · ${ARENAS[r.arena].name}${r.daily ? ` · Daily Trial ${esc(r.daily)}` : ''}</span><span class="dim">${when}</span></div>
       <div class="rstats">${actName(Math.max(1, Math.ceil(r.wave / ACTS.length)))} · wave ${r.wave} · ${fmtTime(r.time)} · level ${r.level} · ${r.kills} kills · ${r.end === 'slain' ? `slain by ${esc(r.cause || 'something unseen')}` : 'ended from the pause menu'}</div>
       ${timeline(r)}
       <div class="rbuild">${trait ? `<span>${trait}</span>` : ''}<span class="rrelics">${relics || '<em class="dim">no relics</em>'}</span></div>
@@ -491,7 +492,7 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
   const chip = (key: 'cat' | 'state', value: string, label: string) => `<button class="chip ${chronicleView[key] === value ? 'on' : ''}" data-filter="${key}:${value}">${label}</button>`;
   const titles = earnedTitles(save);
   const titleChips = onEquip
-    ? `<div class="titles">${[`<button class="chip ${save.title === null ? 'on' : ''}" data-equip="">Bare name</button>`, ...titles.map((t) => `<button class="chip ${save.title === t ? 'on' : ''}" data-equip="${esc(t)}">${t}</button>`)].join('')}</div>`
+    ? `<div class="titles">${[`<button class="chip ${save.title === null ? 'on' : ''}" data-equip="">Bare name</button>`, ...titles.map((t) => `<button class="chip ${save.title === t ? 'on' : ''}" data-equip="${esc(t)}">${esc(t)}</button>`)].join('')}</div>`
     : '';
   const records = CLASS_ORDER.map((id) => save.classes[id]);
   const favorite = (Object.entries(save.relicPicks) as [RelicId, number][]).sort((a, b) => b[1] - a[1])[0];
@@ -884,7 +885,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
   const el = show(`
     <div class="panel dialog ${r.won ? 'victory' : ''}">
       <h1 class="small ${r.won && !r.endless ? 'gold' : 'blood'}">${title}</h1>
-      <p class="sub">${r.cls.name}${r.title ? `, <em>${r.title}</em>` : ''} · ${r.tier}${r.oath ? ` · Oath ${r.oath}` : ''}${r.newBest ? ' — <span class="gold">new record!</span>' : ''}${deciding ? '<br>Bank the win now, or march on into Endless: waves without end, for a score. Either way the win counts when the run is banked.' : ''}</p>
+      <p class="sub">${r.cls.name}${r.title ? `, <em>${esc(r.title)}</em>` : ''} · ${r.tier}${r.oath ? ` · Oath ${r.oath}` : ''}${r.newBest ? ' — <span class="gold">new record!</span>' : ''}${deciding ? '<br>Bank the win now, or march on into Endless: waves without end, for a score. Either way the win counts when the run is banked.' : ''}</p>
       ${deciding ? `<div class="row"><button class="btn big" data-endless>March on into Endless</button><button class="btn big" data-bank>Bank the win</button><button class="btn" data-restart data-tip="Bank the win and start again at once: ${esc(r.restart)}">Bank and restart</button></div>` : ''}
       <div class="stats wide">
         <div><span>Reached</span><b>${r.endless ? 'Endless · ' : ''}${actName(r.act)} · wave ${r.wave}</b></div>
@@ -1155,4 +1156,24 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
   });
   click(el, '[data-back]', on.back);
   onActions((a) => a === 'cancel' && on.back());
+}
+
+/**
+ * v0.7.5 (#106): an error anywhere no longer freezes the game silently. Its own layer above every screen, so the screen under it stays
+ * as it was; one at a time (an error every frame would stack them). The report is shown as text, for a bug report.
+ */
+export function showCrash(report: string): void {
+  if (document.getElementById('crash')) return;
+  const el = document.createElement('div');
+  el.id = 'crash';
+  el.innerHTML = `
+    <div class="panel dialog wide">
+      <h1 class="small">Something went wrong</h1>
+      <p>The game can go on. If this keeps happening, please send this with a bug report:</p>
+      <pre></pre>
+      <button class="btn big" data-continue>Continue</button>
+    </div>`;
+  el.querySelector('pre')!.textContent = report;
+  el.querySelector('[data-continue]')!.addEventListener('click', () => el.remove());
+  document.body.append(el);
 }

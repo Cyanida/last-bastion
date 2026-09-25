@@ -130,6 +130,7 @@ function pullStragglers(g: Game, dt: number): void {
     if (e.def.structure) killEnemy(g, e, 'hazard');
     else {
       e.pulled = true;
+      e.hidden = false; // the pull replaces an assassin's behaviour, the only thing that would unhide him
       e.telegraph = null;
       floatText(g, e.x, e.y - e.r - 18, '!', '#f4a595', 18);
     }

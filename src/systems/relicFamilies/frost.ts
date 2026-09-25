@@ -62,13 +62,13 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       damageEnemy(g, ev.enemy, extra, true, 0, 0, 'relic', 'frost');
       if (!awakened(p, 'shatterglass')) return;
       // Splinter: three ice shards at the nearest enemies
-      let from: Enemy = ev.enemy;
+      const hit: Enemy[] = [ev.enemy];
       for (let i = 0; i < 3; i++) {
-        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, 180, from);
+        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, 180, hit);
         if (!to) break;
         damageEnemy(g, to, relicDamage(p, 10), false, 0, 0, 'relic', 'frost');
         addChill(g, p, to, 1);
-        from = to;
+        hit.push(to);
       }
     },
   },

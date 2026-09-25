@@ -84,5 +84,6 @@ export const MUSIC = {
   calmBars: 2,
   crossfadeBars: 2,
   voices: { high: 28, low: 16 },
+  lookahead: 1, // v0.7.5: seconds of music queued ahead on the audio clock; a frame stall shorter than this cannot open a gap
   stingerGap: 1.5, // v0.7.1: seconds after a stinger before another can sound (a burst of tier-ups rings once)
 };
