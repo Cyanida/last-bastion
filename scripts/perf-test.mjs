@@ -77,6 +77,22 @@ for (const [i, arena] of ARENAS.entries()) {
   music.push({ want: arena, ...m, queued: m.queued - before.queued, stingers: m.stingers - before.stingers });
 }
 
+// v0.7.5 (#97): a frame-rate dip. The run keeps playing while every frame blocks the main thread for half a second (2 fps) for 6 s;
+// the scheduler's timer runs late, and the music has to keep every bar on its downbeat (no bar reached after it should have sounded).
+const dipBefore = await page.evaluate(() => window.__lb.music());
+await page.evaluate(() => new Promise((done) => {
+  const until = performance.now() + 6000;
+  const frame = () => {
+    const end = performance.now() + 500;
+    while (performance.now() < end);
+    if (performance.now() < until) requestAnimationFrame(frame);
+    else done();
+  };
+  requestAnimationFrame(frame);
+}));
+const dipAfter = await page.evaluate(() => window.__lb.music());
+const dip = { ...dipAfter, queued: dipAfter.queued - dipBefore.queued, late: dipAfter.late - dipBefore.late };
+
 const results = [];
 for (const modifier of SCENARIOS) {
   await page.evaluate((modifier) => {
@@ -150,6 +166,11 @@ for (const m of music) {
   const ok = m.playing === 'run' && m.context === 'running' && m.arena === m.want && m.queued > 0 && m.stingers === 2 && m.peak <= m.budget;
   failed ||= !ok;
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${m.want.padEnd(10)} ${m.playing ?? 'silent'} · theme ${m.arena} · context ${m.context} · layer ${m.layer} · ${m.queued} notes queued · ${m.voices} voices · ${m.stingers} stingers · peak ${m.peak} of ${m.budget} voices`);
+}
+{
+  const ok = dip.playing === 'run' && dip.queued > 0 && dip.late === 0;
+  failed ||= !ok;
+  console.log(`${ok ? 'PASS' : 'FAIL'}  frame dip  6 s at 2 fps · ${dip.playing ?? 'silent'} · ${dip.queued} notes queued · ${dip.late} bars late`);
 }
 console.log(`\nperf test · wave 20 · 250 enemies (the Usurper: wave 40, 150) · ${FRAMES} live frames · budget p95 <= ${BUDGET} ms\n`);
 for (const r of results) {

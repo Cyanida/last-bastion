@@ -4,13 +4,13 @@ import { SKILL } from '../config/game';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
-import { DUOS, FAMILIES, FAMILY_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, type FamilyId, type RelicId } from '../config/relics';
+import { DUOS, FAMILIES, FAMILY_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
 import { STAT_KEYS, type Enemy, type Game, type Mods, type Quest, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
 import { actName } from '../logic/acts';
 import { shieldBurst } from '../logic/abilities';
-import { duoFamilies, familySets, softCap, type RelicModTotal } from '../logic/relics';
+import { duoTier, familySets, looseRelics, softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
@@ -203,19 +203,23 @@ export function updateHud(g: Game): void {
     };
     // 50px a tile; desktop keeps clear of the ability panel, touch (bar at the top) of the wave plate
     const fit = Math.max(3, Math.min(8, Math.floor((innerWidth / 2 - (document.documentElement.classList.contains('compact') ? 140 : 300)) / 50)));
-    const older = g.player.relics.held.length > fit ? g.player.relics.held.slice(0, g.player.relics.held.length - fit) : [];
+    const loose = looseRelics(g.player.relics.held, g.player.relics.duos); // v0.7.5 (#96): a duo's two relics show as the duo
+    const older = loose.length > fit ? loose.slice(0, loose.length - fit) : [];
     const more = older.length ? `<div class="relic more" tabindex="0">+${older.length}<div class="hud-pop hud-plate">${older.map(tile).join('')}</div></div>` : '';
-    const duos = g.player.relics.duos.map((d) => `<div class="relic duo" tabindex="0" data-tip="${esc(duoTip(d))}">${DUOS[d].icon}</div>`).join(''); // v0.7 A5
-    html('h-relics', more + g.player.relics.held.slice(older.length).map(tile).join('') + duos);
+    const duos = g.player.relics.duos.map((d) => {
+      const tier = duoTier(g.player.relics.tiers, d);
+      return `<div class="relic duo" data-duo="${d}" tabindex="0" data-tip="${esc(duoTip(d, tier))}">${DUOS[d].icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
+    }).join(''); // v0.7 A5
+    html('h-relics', more + loose.slice(older.length).map(tile).join('') + duos);
     // v0.7: the family row: icon and count per family held; a reached threshold (2, 4, 6) lights up, and flashes when it is new
-    const sets = familySets(g.player.relics.held, duoFamilies(g.player.relics.duos));
+    const sets = familySets(g.player.relics.held);
     html('h-families', FAMILY_IDS.filter((f) => sets[f]).map((f) => {
       const st = sets[f]!;
       const fam = FAMILIES[f];
       const fresh = st.level > (lastLevels[f] ?? 0);
       lastLevels[f] = st.level;
       const next = ([2, 4, 6] as const).find((l) => l > st.count);
-      const tip = `${fam.name} · ${st.count} held${st.level ? ` · ${([2, 4, 6] as const).filter((l) => st.level >= l).map((l) => fam.sets[l][0]).join(', ')}` : ''}${next ? `\nNext at ${next}: ${fam.sets[next][0]}, ${fam.sets[next][1]}` : ''}${st.strength > 1 ? '\nCompleted with a duo: its 6 works at 125%.' : ''}`;
+      const tip = `${fam.name} · ${st.count} held${st.level ? ` · ${([2, 4, 6] as const).filter((l) => st.level >= l).map((l) => fam.sets[l][0]).join(', ')}` : ''}${next ? `\nNext at ${next}: ${fam.sets[next][0]}, ${fam.sets[next][1]}` : ''}`;
       return `<div class="fam-chip ${st.level ? 'on' : ''} ${fresh ? 'flash' : ''}" style="--fam:${fam.color}" tabindex="0" data-tip="${esc(tip)}">${fam.icon}<b>${st.count}</b></div>`;
     }).join(''));
   }
@@ -224,6 +228,7 @@ export function updateHud(g: Game): void {
   if (attKey !== lastAttKey) {
     lastAttKey = attKey;
     for (const el of document.querySelectorAll<HTMLElement>('#h-relics .relic[data-id]')) el.style.setProperty('--att', String(g.player.relics.attune[el.dataset.id as RelicId] ?? 0));
+    for (const el of document.querySelectorAll<HTMLElement>('#h-relics .relic[data-duo]')) el.style.setProperty('--att', String(Math.max(...DUOS[el.dataset.duo as DuoId].from.map((id) => g.player.relics.attune[id] ?? 0))));
   }
 
   const sig = evolutionIn(g, 'signature'); // v0.6: an evolved ability wears its new name

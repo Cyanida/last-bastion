@@ -1,5 +1,6 @@
 import { MUSIC } from '../config/music';
 import type { MusicLevel } from './music';
+import { prefs } from './storage';
 
 /** Tiny WebAudio synth. Every sound is one oscillator or noise burst with a pitch slide. */
 type Wave = OscillatorType | 'noise';
@@ -22,13 +23,12 @@ const HEAVY: SfxName[] = ['boom', 'ability', 'levelup', 'wave'];
 
 const MUTE_KEY = 'lastbastion.muted';
 const FX_KEY = 'lastbastion.effects';
-const hasStorage = typeof localStorage !== 'undefined';
 let ctx: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
 let fxBus: GainNode | null = null; // v0.7.1: the effects volume
 let musicBus: GainNode | null = null; // v0.7.1: the music goes out through here, so an effect can duck it
-let muted = hasStorage && localStorage.getItem(MUTE_KEY) === '1';
-const storedFx = hasStorage ? localStorage.getItem(FX_KEY) : null;
+let muted = prefs.get(MUTE_KEY) === '1';
+const storedFx = prefs.get(FX_KEY);
 let effects: MusicLevel = storedFx && storedFx in MUSIC.effects ? (storedFx as MusicLevel) : 'high';
 const lastPlayed: Partial<Record<SfxName, number>> = {};
 
@@ -54,7 +54,7 @@ export const sharedAudio = () => (ctx && noise && musicBus ? { ctx, noise, out: 
 export const effectsLevel = () => effects;
 export function setEffectsLevel(next: MusicLevel): void {
   effects = next;
-  if (hasStorage) localStorage.setItem(FX_KEY, next);
+  prefs.set(FX_KEY, next);
   if (ctx && fxBus) fxBus.gain.setTargetAtTime(MUSIC.effects[next], ctx.currentTime, 0.05);
 }
 
@@ -72,7 +72,7 @@ function duck(now: number): void {
 export const isMuted = () => muted;
 export function toggleMute(): boolean {
   muted = !muted;
-  if (hasStorage) localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
+  prefs.set(MUTE_KEY, muted ? '1' : '0');
   return muted;
 }
 

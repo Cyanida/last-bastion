@@ -3,10 +3,12 @@ import { BAR_BEATS, BPM, composeBar, type NoteEvent } from '../logic/music';
 import { barSeconds, composeRunBar, conduct, newConductor, nextBeat, stingerNotes, type Conductor, type Mood, type Stinger } from '../logic/runMusic';
 import { isMuted, sharedAudio } from './audio';
 import { quality } from './quality';
+import { prefs } from './storage';
 
 /**
  * Menu music, and (v0.7.1) quiet run music: plays logic/music.ts's and logic/runMusic.ts's scores on the sfx AudioContext through a
- * reverb. A lookahead scheduler queues a bar once its downbeat is near. The run music follows the run's mood (main.ts sets it every
+ * reverb. A lookahead scheduler queues a bar once its downbeat is within MUSIC.lookahead on the audio clock, so a dip in the frame rate
+ * (which delays its timer) does not open a gap. The run music follows the run's mood (main.ts sets it every
  * frame). On mute, pause, the Music settings and with the page hidden it is faded out and the scheduler stopped.
  */
 export type MusicLevel = 'off' | 'low' | 'medium' | 'high';
@@ -14,37 +16,36 @@ export const MUSIC_LEVELS: MusicLevel[] = ['off', 'low', 'medium', 'high'];
 const KEY = 'lastbastion.music';
 const RUN_KEY = 'lastbastion.runMusic';
 const BEAT = 60 / BPM;
-const LOOKAHEAD = 0.4;
 const FADE_IN = 2;
 const FADE_OUT = 1.5;
 
-const hasStorage = typeof localStorage !== 'undefined';
-const stored = hasStorage ? localStorage.getItem(KEY) : null;
+const stored = prefs.get(KEY);
 let level: MusicLevel = MUSIC_LEVELS.includes(stored as MusicLevel) ? (stored as MusicLevel) : 'medium';
-let inRuns = !hasStorage || localStorage.getItem(RUN_KEY) !== '0'; // v0.7.1 "Music during runs", on by default
+let inRuns = prefs.get(RUN_KEY) !== '0'; // v0.7.1 "Music during runs", on by default
 let menu = false; // a menu screen is up
 let mood: Mood | null = null; // v0.7.1: a run is on screen and not paused
 let jukebox = false; // v0.7.1: test mode's jukebox plays the run music on a menu, whatever "Music during runs" says
 let conductor: Conductor | null = null; // the run's place in its music, kept through a pause
 let bus: { master: GainNode; input: AudioNode } | null = null;
-let session: { kind: 'menu' | 'run'; out: GainNode; timer: ReturnType<typeof setInterval> } | null = null;
+let session: { kind: 'menu' | 'run'; out: GainNode; tick: () => void; timer: ReturnType<typeof setInterval> } | null = null;
 let voices: number[] = []; // when each queued note ends: the voice budget
 let queued = 0; // notes queued since load (the perf test reads it)
 let lastStinger = -Infinity;
 let stingers = 0; // stingers played (the perf test reads it)
+let late = 0; // v0.7.5: bars the scheduler reached after their downbeat, so the music skipped (the perf test checks a frame dip has none)
 let peak = 0; // the most voices sounding at once (the perf test checks the budget)
 
 export const musicLevel = () => level;
 export function setMusicLevel(next: MusicLevel): void {
   level = next;
-  if (hasStorage) localStorage.setItem(KEY, next);
+  prefs.set(KEY, next);
   if (bus && next !== 'off') bus.master.gain.setTargetAtTime(MUSIC.volume[next], bus.master.context.currentTime, 0.1);
   refreshMusic();
 }
 export const runMusicOn = () => inRuns;
 export function setRunMusic(on: boolean): void {
   inRuns = on;
-  if (hasStorage) localStorage.setItem(RUN_KEY, on ? '1' : '0');
+  prefs.set(RUN_KEY, on ? '1' : '0');
   refreshMusic();
 }
 export function startMenuMusic(): void {
@@ -64,6 +65,7 @@ export function runMusic(next: Mood | null, fromJukebox = false): void {
   mood = next;
   jukebox = fromJukebox;
   if (changed) refreshMusic();
+  else if (session?.kind === 'run') session.tick(); // v0.7.5: slow frames also delay the timer, so each frame gets a look too (#97)
 }
 
 /**
@@ -79,7 +81,8 @@ export function stinger(kind: Stinger): void {
   stingers++;
   const at = nextBeat(conductor, ctx.currentTime);
   const beat = 60 / THEMES[conductor.arena].bpm;
-  for (const e of stingerNotes(THEMES[conductor.arena], at >= conductor.at ? conductor.bar : conductor.bar - 1, kind)) play(ctx, noise, session.out, e, at + e.time * beat, beat);
+  const back = Math.ceil((conductor.at - at) / barSeconds(THEMES[conductor.arena]) - 1e-6); // the lookahead can be over a bar ahead
+  for (const e of stingerNotes(THEMES[conductor.arena], Math.max(0, conductor.bar - back), kind)) play(ctx, noise, session.out, e, at + e.time * beat, beat);
 }
 
 /** Plays or fades out to match the screen, mute, the Music settings and page visibility. Call when any of them changes. */
@@ -97,7 +100,7 @@ document.addEventListener('visibilitychange', refreshMusic);
 export function musicStats() {
   const ctx = sharedAudio()?.ctx;
   const now = ctx?.currentTime ?? 0;
-  return { playing: session?.kind ?? null, context: ctx?.state ?? null, arena: conductor?.arena ?? null, layer: conductor?.layer ?? null, bar: conductor?.bar ?? 0, voices: voices.filter((end) => end > now).length, queued, stingers, peak, budget: quality.level === 'low' ? MUSIC.voices.low : MUSIC.voices.high };
+  return { playing: session?.kind ?? null, context: ctx?.state ?? null, arena: conductor?.arena ?? null, layer: conductor?.layer ?? null, bar: conductor?.bar ?? 0, voices: voices.filter((end) => end > now).length, queued, stingers, late, peak, budget: quality.level === 'low' ? MUSIC.voices.low : MUSIC.voices.high };
 }
 
 function begin(audio: { ctx: AudioContext; noise: AudioBuffer; out: AudioNode }, kind: 'menu' | 'run'): void {
@@ -109,7 +112,7 @@ function begin(audio: { ctx: AudioContext; noise: AudioBuffer; out: AudioNode },
   out.connect(bus.input);
   const tick = kind === 'menu' ? menuTicker(ctx, noise, out) : runTicker(ctx, noise, out);
   tick();
-  session = { kind, out, timer: setInterval(tick, 100) };
+  session = { kind, out, tick, timer: setInterval(tick, 100) };
 }
 
 function menuTicker(ctx: AudioContext, noise: AudioBuffer, out: GainNode): () => void {
@@ -118,7 +121,7 @@ function menuTicker(ctx: AudioContext, noise: AudioBuffer, out: GainNode): () =>
   let at = ctx.currentTime + 0.1;
   return () => {
     at = Math.max(at, ctx.currentTime); // after a long stall, skip ahead rather than pile up late notes
-    for (; at < ctx.currentTime + LOOKAHEAD; at += BAR_BEATS * BEAT, bar++) {
+    for (; at < ctx.currentTime + MUSIC.lookahead; at += BAR_BEATS * BEAT, bar++) {
       for (const e of composeBar(seed, bar)) play(ctx, noise, out, e, at + e.time * BEAT, BEAT);
     }
   };
@@ -132,7 +135,8 @@ function runTicker(ctx: AudioContext, noise: AudioBuffer, out: GainNode): () => 
   conductor = conductor ? { ...conductor, at: start } : newConductor(mood!, (Math.random() * 2 ** 32) >>> 0, start);
   return () => {
     if (!mood || !conductor) return;
-    const next = conduct(conductor, mood, ctx.currentTime, LOOKAHEAD);
+    const next = conduct(conductor, mood, ctx.currentTime, MUSIC.lookahead);
+    if (next.bars.length && next.bars[0].at > conductor.at) late++;
     conductor = next.c;
     for (const b of next.bars) {
       if (b.from) {

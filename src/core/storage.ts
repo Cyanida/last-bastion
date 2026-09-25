@@ -40,6 +40,9 @@ const local: KV = {
   },
 };
 
+/** v0.7.5 (#106): the small settings (sound, music, What's new) go through the same guarded storage, so blocked site data can't stop the start. */
+export const prefs: KV = local;
+
 function parse(text: string | null): unknown {
   if (text === null) return undefined;
   try {

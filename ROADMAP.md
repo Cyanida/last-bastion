@@ -10,6 +10,7 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 | v0.7.1 | Music & convenience (the results-screen hotfix shipped first as v0.7.1; the rest as v0.7.2) | released 2026-09-24 |
 | v0.7.3 | Fixes & class balance | released 2026-09-24 |
 | v0.7.4 | Fixes & polish | released 2026-09-24 |
+| v0.7.5 | Aiming & fixes | released 2026-09-25 |
 | v0.8.0 | Co-op foundation | backlog |
 | v0.9.0 | Online co-op | backlog |
 | v0.10.0 | Co-op polish | backlog |
@@ -94,6 +95,29 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 **Scope.**
 1. ([#63](https://github.com/Cyanida/last-bastion/issues/63)) The Paladin can detonate Divine Shield early, for a weaker burst.
 2. ([#68](https://github.com/Cyanida/last-bastion/issues/68)) The Dragon redrawn from the side.
+
+**Out of scope.** New systems (those are feature releases).
+
+## v0.7.5 – Aiming & fixes
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/17) · a patch release, from the 25-09 playtest ([#93](https://github.com/Cyanida/last-bastion/issues/93)) and code review
+
+**Goal.** Manual aiming and the fixes found in the playtest and the code review, before v0.8.0.
+
+**Scope.**
+1. ([#81](https://github.com/Cyanida/last-bastion/issues/81)) An Aim setting: your basic attacks go where you point.
+2. ([#92](https://github.com/Cyanida/last-bastion/issues/92)) The Archer against mirror knights; thrown-back arrows wear the mirror down.
+3. ([#95](https://github.com/Cyanida/last-bastion/issues/95)) Bosses last a real fight instead of dying to one ability.
+4. ([#96](https://github.com/Cyanida/last-bastion/issues/96)) A duo combines its two relics into one; offers lean toward your families (6-set in about 15% of winning runs).
+5. ([#97](https://github.com/Cyanida/last-bastion/issues/97)) The run music plays without stuttering.
+6. ([#105](https://github.com/Cyanida/last-bastion/issues/105)) Save import shows shared text as text only.
+7. ([#106](https://github.com/Cyanida/last-bastion/issues/106)) Startup with site data blocked; an error no longer freezes the game.
+8. ([#107](https://github.com/Cyanida/last-bastion/issues/107)) The web version never stays on a stale page after two quick releases.
+9. ([#108](https://github.com/Cyanida/last-bastion/issues/108)) Phoenix Feather, a boss's relic moment, Blood Pact and Rebirth do what they say.
+10. ([#109](https://github.com/Cyanida/last-bastion/issues/109)) Gallows gold and the Daily Trial gold cap.
+11. ([#110](https://github.com/Cyanida/last-bastion/issues/110)) Esc goes back to the pause menu from Talents, the Glossary and Treasures.
+12. ([#111](https://github.com/Cyanida/last-bastion/issues/111)) Chains, charges, fields, Blood Tide, assassins, arena zones and the gamepad as designed.
+13. ([#112](https://github.com/Cyanida/last-bastion/issues/112)) Late-Act slams fire as designed; enemy damage over time follows the difficulty.
 
 **Out of scope.** New systems (those are feature releases).
 

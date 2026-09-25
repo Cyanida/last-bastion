@@ -5,7 +5,7 @@ import { fireProjectile } from '../../entities/hazards';
 import { TAU } from '../../core/math';
 import { rollPlayerHit } from '../combat';
 import { ring } from '../effects';
-import { awakened, bonus, credit, gainWard, nOf, nova, relicHeal, sOf, strength, type RelicHooks } from '../relicCore';
+import { awakened, bonus, credit, gainWard, nOf, nova, relicDamage, relicHeal, relicSkeletons, sOf, type RelicHooks } from '../relicCore';
 
 /**
  * ✨ Holy (RELICS.md): healing, ward and blessing. Relics heal, grant ward (combat.damagePlayer lets ward take a hit first) or save you from
@@ -57,13 +57,13 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 
   phoenixFeather: {
     acquire(g, p) {
-      if ((p.relics.tiers.phoenixFeather ?? 0) === 1) p.revives += 1; // once per run, whatever its tier
+      if (!g.vars['phoenix.given']) (g.vars['phoenix.given'] = 1), (p.revives += 1); // once per run, whatever tier it arrives at
       g.vars['phoenix.hp'] = nOf(p, 'phoenixFeather').hp; // combat.revive reads it
     },
     onRevive(g, _ev, p) {
       if (!awakened(p, 'phoenixFeather')) return;
       const n = nOf(p, 'phoenixFeather');
-      nova(g, p.x, p.y, n.radius, n.damage * (1 + p.level * 0.09), 500, F.color, 'holy'); // Rebirth
+      nova(g, p.x, p.y, n.radius, relicDamage(p, n.damage), 500, F.color, 'holy'); // Rebirth
     },
   },
 
@@ -116,12 +116,12 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 export const HOLY_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   2: {
     onHeal(g, ev, p) {
-      if (ev.amount > 0) gainWard(g, p, ev.amount * F.n.wardShare * strength(p, 'holy')); // Blessed (the ward's maximum: relicCore.wardMax)
+      if (ev.amount > 0) gainWard(g, p, ev.amount * F.n.wardShare); // Blessed (the ward's maximum: relicCore.wardMax)
     },
   },
   4: {
     onHeal(g, ev, p) {
-      if (ev.over > 1) nova(g, p.x, p.y, F.n.pulseRadius, ev.over * F.n.pulseMult * strength(p, 'holy'), 120, F.color, 'holy'); // Radiance
+      if (ev.over > 1) nova(g, p.x, p.y, F.n.pulseRadius, ev.over * F.n.pulseMult, 120, F.color, 'holy'); // Radiance
     },
   },
   6: {

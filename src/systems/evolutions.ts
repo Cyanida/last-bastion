@@ -232,7 +232,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
         const n = N('bloodTide');
         const e = ev.enemy;
         const dmg = attackHit(g) * per(g, n, 'damage');
-        for (const o of g.hash.query(e.x, e.y, n.radius, near)) {
+        for (const o of g.hash.query(e.x, e.y, n.radius, [])) { // a fresh array: its own kills run this again mid-loop
           if (o.dead) continue;
           damageEnemy(g, o, dmg, false, 0, 0, 'ability');
           applyStatus(o, { apply: [{ id: 'bleed', power: dmg * 0.2 }] }, g);

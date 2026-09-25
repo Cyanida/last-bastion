@@ -5,7 +5,7 @@ import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, ARMOR_WEAR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GOLD } from '../config/economy';
-import { GAME, SKILL } from '../config/game';
+import { GAME, RENDER, SKILL } from '../config/game';
 import { ROUTES } from '../config/routes';
 import { MODIFIERS } from '../config/waves';
 import { sfx } from '../sim/view';
@@ -16,7 +16,7 @@ import { addField, fireProjectile, recycleProjectile } from '../entities/hazards
 import { goldDrop } from '../logic/economy';
 import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
-import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, typeMultiplier, type StatusApply } from '../logic/status';
+import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, throughResolve, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
 import { lastStand, zoneStruck } from './dodge';
@@ -27,11 +27,12 @@ const near: Enemy[] = []; // scratch for the loops in this file
 const SEEK_TURN = 6; // v0.6: radians a second a seeking bolt can turn
 const nearest: Enemy[] = []; // nearestEnemy's own scratch: it may be called from inside those loops
 
-export function nearestEnemy(g: Game, x: number, y: number, range: number, exclude?: Enemy): Enemy | null {
+/** `exclude`: one enemy, or every enemy a chain has already hit (so it never bounces back A→B→A). */
+export function nearestEnemy(g: Game, x: number, y: number, range: number, exclude?: Enemy | readonly Enemy[]): Enemy | null {
   let best: Enemy | null = null;
   let bestD = Infinity;
   for (const e of g.hash.query(x, y, range, nearest)) {
-    if (e.dead || e.hidden || e.warded || e === exclude) continue; // v0.6: nothing auto-targets a warded enemy (hitting it does nothing)
+    if (e.dead || e.hidden || e.warded || e === exclude || (Array.isArray(exclude) && exclude.includes(e))) continue; // v0.6: nothing auto-targets a warded enemy (hitting it does nothing)
     const d = dist2(x, y, e.x, e.y);
     if (d < bestD) {
       bestD = d;
@@ -64,7 +65,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
 
   if (g.modifier === 'plague' && !boss) {
     const n = MODIFIERS.plague.n;
-    addField(g, { x: e.x, y: e.y, r: n.radius, life: n.life, dps: n.dps * g.waveDmgMult, hostile: true, color: '#6f8f4e' });
+    addField(g, { x: e.x, y: e.y, r: n.radius, life: n.life, dps: n.dps * g.waveDmgMult * g.tier.enemyDmg, hostile: true, color: '#6f8f4e' });
   }
   if (e.elite) {
     g.elitesKilled++;
@@ -158,6 +159,13 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   // shieldwall: while the line holds, anything that comes at the pavises from the front barely scratches
   const wall = e.def.wall;
   if (wall && e.charged && (kx !== 0 || ky !== 0) && !fromBehind(kx, ky, e.angle)) amount *= 1 - wall.reduction;
+  if (e.def.boss) {
+    // v0.7.5 (#95): a boss's resolve: a burst past its allowance does a fraction, so one ability cannot end the fight (status ticks included)
+    const r = throughResolve(amount, e.maxHp, e.resolve, e.resolveT, g.time);
+    amount = r.dealt;
+    e.resolve = r.load;
+    e.resolveT = g.time;
+  }
   e.flash = 0.1;
   e.kx += kx * (1 - e.def.knockbackResist);
   e.ky += ky * (1 - e.def.knockbackResist);
@@ -303,7 +311,7 @@ export function hurtTarget(g: Game, t: Player | Minion, amount: number, ignoreIF
   else damageMinion(g, t as Minion, amount);
   // some enemies leave something behind: wolves make you bleed, cultists set you alight, the Lich curses
   const inflicts = attacker && t.hp < before ? ENEMY_STATUS[attacker.def.id] : undefined;
-  if (inflicts && t === g.player) applyStatusTo(g.player.statuses, { ...inflicts, power: (inflicts.power ?? 0) * g.waveDmgMult });
+  if (inflicts && t === g.player) applyStatusTo(g.player.statuses, { ...inflicts, power: (inflicts.power ?? 0) * g.waveDmgMult * g.tier.enemyDmg });
   if (attacker?.affixes.includes('vampiric') && t.hp < before) {
     attacker.hp = Math.min(attacker.maxHp, attacker.hp + (before - t.hp) * AFFIXES.vampiric.n.heal);
   }
@@ -316,11 +324,15 @@ export function updatePlayerAttack(g: Game, dt: number): void {
   if (p.attackTimer > 0) return;
   const atk = p.cls.attack;
   const range = atk.kind === 'melee' ? atk.range * p.buff.range : atk.range;
-  const target = atk.kind === 'melee' ? nearestEnemy(g, p.x, p.y, range) : shotTarget(g, p.x, p.y, range);
+  // v0.7.5 (#81): with manual aim the attack still waits for an enemy in reach, but goes where the player aims
+  const { aimX, aimY, manualAim } = g.input;
+  const aimed = !!manualAim && (aimX !== p.x || aimY !== p.y);
+  const target = atk.kind === 'melee' || aimed ? nearestEnemy(g, p.x, p.y, range) : shotTarget(g, p.x, p.y, range);
   if (!target) return;
+  const to = aimed ? { x: aimX, y: aimY } : target;
   p.attackTimer = 1 / Math.min(GAME.maxAttackRate, p.stats.atkSpd * p.buff.atkSpd * p.mods.atkSpd);
-  p.facing = Math.atan2(target.y - p.y, target.x - p.x);
-  p.flip = target.x < p.x;
+  p.facing = Math.atan2(to.y - p.y, to.x - p.x);
+  p.flip = to.x < p.x;
 
   if (atk.kind === 'melee') {
     const arc = p.buff.fullCircle ? TAU : atk.arc;
@@ -363,8 +375,8 @@ const reflects = (e: Enemy, vx: number, vy: number): boolean =>
 export const stopsShot = (e: Enemy, x: number, y: number): boolean => reflects(e, e.x - x, e.y - y) || blockedByShield(e, e.x - x, e.y - y);
 
 /**
- * v0.7.3 (#59): the ranged auto-attack's target: the nearest enemy the shot can hurt. A front-facing shield bearer is only shot at when nothing
- * else is in reach (the shot wears his shield down); a mirror knight that would throw it back is never shot at (he is, the moment he swings).
+ * v0.7.3 (#59): the ranged auto-attack's target: the nearest enemy the shot can hurt. A front-facing shield bearer or mirror knight is only shot
+ * at when nothing else is in reach (v0.7.5, #92: the shot wears his shield or mirror down until it breaks).
  */
 function shotTarget(g: Game, x: number, y: number, range: number): Enemy | null {
   let best: Enemy | null = null;
@@ -376,7 +388,7 @@ function shotTarget(g: Game, x: number, y: number, range: number): Enemy | null 
     const d = dist2(x, y, e.x, e.y);
     if (!stopsShot(e, x, y)) {
       if (d < bestD) (bestD = d), (best = e);
-    } else if (!reflects(e, e.x - x, e.y - y) && d < fallbackD) (fallbackD = d), (fallback = e);
+    } else if (d < fallbackD) (fallbackD = d), (fallback = e);
   }
   return best ?? fallback;
 }
@@ -486,7 +498,7 @@ export function updateZones(g: Game, dt: number): void {
       let hits = 0;
       for (const e of g.hash.query(z.x, z.y, z.r, near)) {
         if (e.dead) continue;
-        damageEnemy(g, e, z.damage, z.crit, 0, 0, 'ability', z.dtype);
+        damageEnemy(g, e, z.damage, z.crit, 0, 0, z.source, z.dtype);
         applyStatus(e, z.status, g);
         if (z.maxHits > 0 && ++hits >= z.maxHits) break;
       }
@@ -528,4 +540,6 @@ export function updateFields(g: Game, dt: number): void {
     }
     return f.life > 0;
   });
+  // the oldest go past the cap (a Plague wave would otherwise carpet the arena); trimmed here, never while the loop above runs
+  if (g.fields.length > RENDER.maxFields) g.fields.splice(0, g.fields.length - RENDER.maxFields);
 }

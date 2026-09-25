@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import { ACHIEVEMENTS } from '../src/config/achievements';
 import { FINAL } from '../src/config/acts';
 import { ARENA_IDS, ARENAS } from '../src/config/arenas';
+import { BOSS_RESOLVE } from '../src/config/damage';
 import { VICTORY } from '../src/config/economy';
 import type { Game } from '../src/core/types';
 import { createGame, summarizeRun, updateGame } from '../src/game';
@@ -14,6 +15,12 @@ import { spawnEnemy } from '../src/systems/spawning';
 import { endlessScore, goEndless } from '../src/systems/victory';
 
 const DT = 1 / 60;
+/** v0.7.5 (#95): these blows test phases, not a boss's resolve: it is off for the one test. */
+const noResolve = () => {
+  const keep = { ...BOSS_RESOLVE };
+  Object.assign(BOSS_RESOLVE, { burst: Infinity, cap: Infinity });
+  onTestFinished(() => void Object.assign(BOSS_RESOLVE, keep));
+};
 const tick = (g: Game, n = 1) => {
   for (let i = 0; i < n; i++) updateGame(g, DT);
 };
@@ -68,6 +75,7 @@ describe('the final Act (v0.6)', () => {
   });
 
   it('a phase runs its minimum time: until then his HP holds at the threshold, and in phase 3 he cannot fall', () => {
+    noResolve();
     const { g, u } = throneRoom();
     tick(g, 1);
     damageEnemy(g, u, 1e9);

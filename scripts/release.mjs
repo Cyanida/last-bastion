@@ -9,6 +9,11 @@ const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
 const tag = `v${version}`;
 
 if (run('git status --porcelain')) throw new Error('Working tree is not clean: commit first.');
+// a release is tagged from main (a feature release, after its PR merged) or from a patch branch (cut from the last tag), exactly as on GitHub
+const branch = run('git rev-parse --abbrev-ref HEAD');
+if (!/^(main|patch\/\d+\.\d+\.\d+)$/.test(branch)) throw new Error(`Release from main or a patch/x.y.z branch, not "${branch}".`);
+run('git fetch -q origin');
+if (run('git rev-parse HEAD') !== run(`git rev-parse origin/${branch}`)) throw new Error(`${branch} differs from origin/${branch}: pull or push first.`);
 if (run('git tag --list ' + tag)) throw new Error(`${tag} already exists: bump "version" in package.json first.`);
 run('git push origin HEAD');
 run(`git tag -a ${tag} -m "Last Bastion ${tag}"`);

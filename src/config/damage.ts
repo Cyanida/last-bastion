@@ -47,6 +47,12 @@ export const ARMOR: Partial<Record<EnemyId, { frac: number; reduction: number; b
 };
 /** v0.7.3 (#59): how much of a blocked (shield bearer) or thrown-back (mirror knight) shot's damage wears the shield or mirror down. */
 export const ARMOR_WEAR = { block: 1, reflect: 0.5 };
+/**
+ * v0.7.5 (#95): a boss's resolve. Up to `burst` of its max HP lands in full at once, and that allowance refills at `perSec` of its max HP a
+ * second; damage past it does `excess` of itself, and no burst takes more than `cap` of its max HP. So one ability cannot end a boss
+ * fight, and a strong build still shortens it.
+ */
+export const BOSS_RESOLVE = { burst: 0.15, perSec: 0.1, excess: 0.25, cap: 0.35 };
 export const BACK_ARC = 1.2; // radians: a hit travelling within this angle of the enemy's facing came from behind
 
 export type StatusId = 'burn' | 'slow' | 'bleed' | 'poison' | 'stun' | 'fear' | 'curse' | 'blessed';

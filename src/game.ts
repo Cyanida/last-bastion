@@ -200,7 +200,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
   // curses that are plain numbers live in g.vars; the rest are read where they matter (spawning, director)
   g.vars.damageTaken = curseValue(curses, 'glassBones', 'damage');
   g.vars.enemySpeed = curseValue(curses, 'frenzy', 'speed');
-  g.vars.curseMult = curseMultiplier(curses);
+  g.vars.curseMult = curseMultiplier(curses) + curses.length * loadout.curseBonus; // the Gallows, as applyRun counts it at banking
   g.vars['keep.relicRerolls'] = loadout.relicRerolls;
   g.vars['keep.bossChoices'] = loadout.bossChoices;
   initRegions(g);

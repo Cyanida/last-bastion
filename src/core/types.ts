@@ -71,7 +71,7 @@ export interface RelicState {
   dyn: Partial<Record<keyof Mods, number>>; // this tick's conditional bonuses from tick hooks (charges, horns, crowns)
   totals: RelicTotals; // static + dynamic, soft-capped: what went into p.mods this tick (the stats panel reads it)
   dirty: boolean;
-  sets: Partial<Record<FamilyId, { count: number; straight: number; level: 0 | 2 | 4 | 6; strength: number }>>; // family counts and set levels, rebuilt with the mods
+  sets: Partial<Record<FamilyId, { count: number; level: 0 | 2 | 4 | 6 }>>; // family counts and set levels, rebuilt with the mods
   duos: DuoId[]; // v0.7 A5: formed duos, in order (a duo counts toward both its families)
   cursedAct: number; // v0.7.1 B6: the last Act a cursed relic was offered to this player (0: none yet)
   // v0.8 (#27): per-relic state that lived in module WeakMaps, here so a snapshot carries it
@@ -234,6 +234,8 @@ export interface Enemy extends Body {
   pulled: boolean; // v0.6: one of a wave's last stragglers, coming straight at the player (WAVES.stragglers)
   frozenT: number; // v0.7: frozen until this time (chill tipped over; Frost reads it)
   rimeT?: number; // v0.8 (#27): Rimewalker can't freeze it again before this time
+  resolve: number; // v0.7.5 (#95): a boss's recent damage taken, as of resolveT (logic/status throughResolve)
+  resolveT: number;
   hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
   secondWind: number; // v0.6 Oath: a boss rises once more from the brink with this fraction of its HP; 0 = none (or spent)
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
@@ -337,6 +339,7 @@ export interface Zone extends Body {
   status: Status | null;
   leaveField: { life: number; dps: number; color: string; dtype?: DamageType; apply?: StatusApply } | null; // what stays behind after detonation
   dtype: DamageType;
+  source: DamageSource; // a friendly zone's damage: 'ability', or 'hazard' for the arena's own (braziers, the gatehouse)
 }
 
 /** Lasting area: fire, poison, consecrated ground. Ticks every GAME.fieldTick seconds. */
@@ -480,7 +483,7 @@ export interface Game {
   effects: Effect[];
   hash: SpatialHash<Enemy>;
   rng: SeededRng;
-  input: { moveX: number; moveY: number; aimX: number; aimY: number; ability: boolean; utility: boolean; showAim: boolean };
+  input: { moveX: number; moveY: number; aimX: number; aimY: number; ability: boolean; utility: boolean; showAim: boolean; manualAim?: boolean }; // manualAim: basic attacks go toward (aimX, aimY) (v0.7.5, #81)
   wave: number;
   waveHpMult: number;
   waveDmgMult: number;
