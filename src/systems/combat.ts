@@ -5,7 +5,7 @@ import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import { ARMOR, ARMOR_WEAR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GOLD } from '../config/economy';
-import { GAME, SKILL } from '../config/game';
+import { GAME, RENDER, SKILL } from '../config/game';
 import { ROUTES } from '../config/routes';
 import { MODIFIERS } from '../config/waves';
 import { sfx } from '../core/audio';
@@ -27,11 +27,12 @@ const near: Enemy[] = []; // scratch for the loops in this file
 const SEEK_TURN = 6; // v0.6: radians a second a seeking bolt can turn
 const nearest: Enemy[] = []; // nearestEnemy's own scratch: it may be called from inside those loops
 
-export function nearestEnemy(g: Game, x: number, y: number, range: number, exclude?: Enemy): Enemy | null {
+/** `exclude`: one enemy, or every enemy a chain has already hit (so it never bounces back A→B→A). */
+export function nearestEnemy(g: Game, x: number, y: number, range: number, exclude?: Enemy | readonly Enemy[]): Enemy | null {
   let best: Enemy | null = null;
   let bestD = Infinity;
   for (const e of g.hash.query(x, y, range, nearest)) {
-    if (e.dead || e.hidden || e.warded || e === exclude) continue; // v0.6: nothing auto-targets a warded enemy (hitting it does nothing)
+    if (e.dead || e.hidden || e.warded || e === exclude || (Array.isArray(exclude) && exclude.includes(e))) continue; // v0.6: nothing auto-targets a warded enemy (hitting it does nothing)
     const d = dist2(x, y, e.x, e.y);
     if (d < bestD) {
       bestD = d;
@@ -497,7 +498,7 @@ export function updateZones(g: Game, dt: number): void {
       let hits = 0;
       for (const e of g.hash.query(z.x, z.y, z.r, near)) {
         if (e.dead) continue;
-        damageEnemy(g, e, z.damage, z.crit, 0, 0, 'ability', z.dtype);
+        damageEnemy(g, e, z.damage, z.crit, 0, 0, z.source, z.dtype);
         applyStatus(e, z.status, g);
         if (z.maxHits > 0 && ++hits >= z.maxHits) break;
       }
@@ -539,4 +540,6 @@ export function updateFields(g: Game, dt: number): void {
     }
     return f.life > 0;
   });
+  // the oldest go past the cap (a Plague wave would otherwise carpet the arena); trimmed here, never while the loop above runs
+  if (g.fields.length > RENDER.maxFields) g.fields.splice(0, g.fields.length - RENDER.maxFields);
 }

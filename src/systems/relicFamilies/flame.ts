@@ -47,14 +47,14 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (burnStacks(ev.enemy) === 0) return;
       const n = nOf(p, 'cinderCharm');
       const throws = awakened(p, 'cinderCharm') ? 3 : 1; // Ember Storm
-      let from: Enemy = ev.enemy;
+      const hit: Enemy[] = [ev.enemy];
       for (let i = 0; i < throws; i++) {
-        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, n.range, i ? from : ev.enemy);
+        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, n.range, hit);
         if (!to) return;
         line(g, ev.enemy.x, ev.enemy.y, to.x, to.y, F.color);
         addBurn(g, p, to, n.stacks, relicDamage(p, 4));
         flash(g, p, 'cinderCharm'); // its burn's ticks are credited to it as they land (systems/status.ts)
-        from = to;
+        hit.push(to);
       }
     },
   },

@@ -68,13 +68,15 @@ export function strike(g: Game, x: number, y: number, damage: number, radius: nu
 export function chainFrom(g: Game, p: Player, from: Enemy, amount: number, jumps: number, range: number, each?: (e: Enemy) => void, crit = false): void {
   const reach = range * (setAt(p, 'storm', 6) ? FAMILIES.storm.n.rangeMult : 1);
   let at = from;
+  const hit = [from];
   for (let i = 0; i < jumps; i++) {
-    const next = nearestEnemy(g, at.x, at.y, reach, at);
+    const next = nearestEnemy(g, at.x, at.y, reach, hit);
     if (!next) return;
     line(g, at.x, at.y, next.x, next.y, FAMILIES.storm.color);
     damageEnemy(g, next, amount, crit, 0, 0, 'relic');
     each?.(next);
     emit(g, 'onChain', { enemy: next, from: at, amount });
+    hit.push(next);
     at = next;
   }
 }

@@ -1,4 +1,4 @@
-import { actionForKey, gamepadActions, joystickVector, keyboardMove, mergeIntents, PAD_ABILITY_BUTTONS, stickVector, type Action, type Intent, PAD_UTILITY_BUTTONS, UTILITY_KEYS } from './mapping';
+import { actionForKey, gamepadActions, joystickVector, keyboardMove, livePad, mergeIntents, unlatch, PAD_ABILITY_BUTTONS, stickVector, type Action, type Intent, PAD_UTILITY_BUTTONS, UTILITY_KEYS } from './mapping';
 
 /**
  * The only place that listens to raw keyboard, mouse, touch and gamepad events.
@@ -13,7 +13,7 @@ const INSPECT_TIME = 2500;
 const keys = new Set<string>();
 const mouse = { x: 0, y: 0, rmb: false, used: false };
 const touch = { joyId: -1, ox: 0, oy: 0, px: 0, py: 0, abilityId: -1, sx: 0, sy: 0, dx: 0, dy: 0, fire: false, fireDx: 0, fireDy: 0, visible: false, targeted: false, utility: false };
-const pad = { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, utility: false, prev: [] as boolean[] };
+const pad = { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, utility: false, prev: [] as boolean[], latched: [] as boolean[] };
 const inspect = { x: 0, y: 0, until: 0 };
 const listeners = new Set<(a: Action) => void>();
 const gestureCallbacks: (() => void)[] = [];
@@ -184,12 +184,20 @@ export function pumpGamepad(): void {
     return;
   }
   const now = gp.buttons.map((b) => b.pressed);
-  for (const a of gamepadActions(pad.prev, now)) emit(a);
+  const prev = pad.prev;
+  pad.prev = now; // before emitting: a screen the press closes latches what is held now (latchGamepad)
+  for (const a of gamepadActions(prev, now)) emit(a);
   if (now.some(Boolean)) gesture();
-  pad.prev = now;
+  pad.latched = unlatch(pad.latched, now);
+  const live = livePad(pad.latched, now);
   const move = stickVector(gp.axes[0] ?? 0, gp.axes[1] ?? 0);
   const aim = stickVector(gp.axes[2] ?? 0, gp.axes[3] ?? 0, 0.3);
-  Object.assign(pad, { moveX: move.x, moveY: move.y, aimX: aim.x, aimY: aim.y, ability: PAD_ABILITY_BUTTONS.some((i) => now[i]), utility: PAD_UTILITY_BUTTONS.some((i) => now[i]) });
+  Object.assign(pad, { moveX: move.x, moveY: move.y, aimX: aim.x, aimY: aim.y, ability: PAD_ABILITY_BUTTONS.some((i) => live[i]), utility: PAD_UTILITY_BUTTONS.some((i) => live[i]) });
+}
+
+/** A screen closed: the gamepad buttons held right now cast nothing until they are released (A answers a screen and is also cast). */
+export function latchGamepad(): void {
+  pad.latched = [...pad.prev];
 }
 
 /** Once per simulation step. A touch "fire on release" is consumed by the step that reads it. */

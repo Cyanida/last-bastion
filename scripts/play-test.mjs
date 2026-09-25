@@ -10,7 +10,7 @@
  * Screens are brought up through the game's own pending queues (a level-up, a relic offer, the Merchant), so each one is
  * reached every time instead of waiting for the bot to happen upon it; the answers go through the real screen code.
  * The routine and CI run it on every pull request. A change a player sees gets its own check added here (see AGENTS.md).
- * Not covered: a gamepad, and how it feels.
+ * Not covered: a gamepad beyond the press that answers a screen, and how it feels.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from 'playwright';
@@ -197,6 +197,41 @@ await check('level-up: pick with the 1 key', async () => {
   await page.keyboard.press('Digit1');
   return inPage((opened) => ({ ok: opened && window.__lb.state === 'playing' && window.__lb.game.pendingLevelUps === 0, detail: opened ? '' : 'no screen' }), opened);
 });
+
+// v0.7.5 (#111): X picks the first level-up card and is also the utility button; held past the screen, it must not cast
+await check('gamepad: the button that answers a screen does not also cast', () =>
+  inPage(async () => {
+    const P = window.__play, lb = window.__lb, g = lb.game, p = g.player;
+    const buttons = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
+    const real = navigator.getGamepads;
+    navigator.getGamepads = () => [{ connected: true, buttons, axes: [0, 0, 0, 0] }];
+    const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))));
+    try {
+      await frames();
+      g.pendingLevelUps++;
+      if (!P.toChoice()) return { ok: false, detail: 'no level-up screen' };
+      Object.assign(p, { utilityCd: 0 });
+      buttons[2].pressed = true; // X: pick 1
+      await frames();
+      const picked = lb.state === 'playing';
+      p.utilityCd = 0;
+      lb.run(3, false, 'input');
+      const heldCast = p.utilityCd > 0;
+      buttons[2].pressed = false;
+      await frames();
+      buttons[2].pressed = true; // a fresh press casts
+      await frames();
+      p.utilityCd = 0;
+      lb.run(3, false, 'input');
+      const freshCast = p.utilityCd > 0;
+      buttons[2].pressed = false;
+      await frames();
+      return { ok: picked && !heldCast && freshCast, detail: `picked ${picked}, held X cast ${heldCast}, fresh X cast ${freshCast}` };
+    } finally {
+      navigator.getGamepads = real;
+    }
+  }),
+);
 
 await check('relic offer: reroll, then take the duo', () =>
   inPage(async () => {
