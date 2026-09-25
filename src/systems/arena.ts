@@ -30,14 +30,14 @@ export function updateArena(g: Game, dt: number): void {
     for (let i = 0; i <= n; i++) {
       const x = core.x + hz.spacing / 2 + (fromLeft ? i : n - i) * ((core.w - hz.spacing) / n);
       addZone(g, { x, y, r: hz.radius, delay: hz.delay + i * 0.09, damage, hostile: true, color: '#e07b28', dtype: 'fire' });
-      addZone(g, { x, y, r: hz.radius, delay: hz.delay + i * 0.09, damage: damage * 3, hostile: false, color: '#e07b28', dtype: 'fire' });
+      addZone(g, { x, y, r: hz.radius, delay: hz.delay + i * 0.09, damage: damage * 3, hostile: false, color: '#e07b28', dtype: 'fire', source: 'hazard' });
     }
   } else {
     // braziers burn friend and foe: one hostile zone and one friendly zone on the same spot
     for (const o of g.arena.obstacles) {
       if (o.kind !== 'brazier') continue;
       addZone(g, { x: o.x, y: o.y, r: hz.radius, delay: hz.delay, damage, hostile: true, color: '#e07b28' });
-      addZone(g, { x: o.x, y: o.y, r: hz.radius, delay: hz.delay, damage: damage * 3, hostile: false, color: '#e07b28' });
+      addZone(g, { x: o.x, y: o.y, r: hz.radius, delay: hz.delay, damage: damage * 3, hostile: false, color: '#e07b28', source: 'hazard' });
     }
   }
 }

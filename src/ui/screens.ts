@@ -25,7 +25,7 @@ import { dropStaleTooltip } from './tooltip';
 import type { QualitySetting } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
-import { onAction } from '../input';
+import { latchGamepad, onAction } from '../input';
 import type { Action } from '../input/mapping';
 import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
@@ -63,6 +63,7 @@ function show(html: string): HTMLElement {
 export function clearOverlay(): void {
   stopActions?.();
   stopActions = null;
+  latchGamepad();
   overlay().classList.add('hidden');
   overlay().innerHTML = '';
   dropStaleTooltip(); // after the old screen is gone, so its tooltip goes with it
