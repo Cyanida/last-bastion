@@ -5,7 +5,7 @@ import { UTILITIES } from '../config/utility';
 import { sfx } from '../sim/view';
 import { addListener, dispatch, emit, type GameEvents, type Handlers } from '../core/events';
 import { TAU } from '../core/math';
-import type { Enemy, Game, Minion } from '../core/types';
+import type { Enemy, Game, Minion, Player } from '../core/types';
 import { createMinion } from '../entities/actors';
 import { addField, addZone, fireProjectile, timer } from '../entities/hazards';
 import * as scale from '../logic/abilities';
@@ -24,14 +24,14 @@ import { markEvolution } from './runlog';
  * Every number that grows with the class's secondary stat is `x + xPer * stat`.
  */
 export interface EvolutionHook {
-  cast?(g: Game): void; // after the signature ability's own cast went through
-  replaceCast?(g: Game): boolean; // instead of it (false: nothing happened, the cooldown is kept)
-  tick?(g: Game, dt: number): void; // every tick while the ability is active, after its own tick
-  expire?(g: Game): void; // when it ends, after its own expire
-  passive?(g: Game, dt: number): void; // every tick
+  cast?(g: Game, p: Player): void; // after the signature ability's own cast went through
+  replaceCast?(g: Game, p: Player): boolean; // instead of it (false: nothing happened, the cooldown is kept)
+  tick?(g: Game, dt: number, p: Player): void; // every tick while the ability is active, after its own tick
+  expire?(g: Game, p: Player): void; // when it ends, after its own expire
+  passive?(g: Game, dt: number, p: Player): void; // every tick
   on?: Handlers;
-  utility?(g: Game, from: { x: number; y: number }): void; // after the utility's own effect; `from`: where you stood before it
-  replaceUtility?(g: Game, from: { x: number; y: number }): boolean;
+  utility?(g: Game, from: { x: number; y: number }, p: Player): void; // after the utility's own effect; `from`: where you stood before it
+  replaceUtility?(g: Game, from: { x: number; y: number }, p: Player): boolean;
 }
 
 const near: Enemy[] = [];
@@ -78,14 +78,13 @@ const attackHit = (g: Game) => {
 const HOOKS: Record<EvolutionId, EvolutionHook> = {
   // ---------------------------------------------------------------- Paladin
   aegisOfDawn: {
-    cast(g) {
+    cast(g, p) {
       const n = N('aegisOfDawn');
-      addField(g, { x: g.player.x, y: g.player.y, r: per(g, n, 'radius'), life: g.player.abilityTime, dps: per(g, n, 'dps') * g.player.mods.damage, hostile: false, color: '#f2c94c', dtype: 'holy' });
+      addField(g, { x: p.x, y: p.y, r: per(g, n, 'radius'), life: p.abilityTime, dps: per(g, n, 'dps') * p.mods.damage, hostile: false, color: '#f2c94c', dtype: 'holy' });
       g.fields[g.fields.length - 1].follow = true;
     },
-    tick(g) {
+    tick(g, _dt, p) {
       // enemy shots that cross into the dome turn round as holy bolts
-      const p = g.player;
       const n = N('aegisOfDawn');
       const r = per(g, n, 'radius');
       for (const pr of g.projectiles) {
@@ -104,12 +103,11 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   dayOfJudgement: {
-    expire(g) {
+    expire(g, p) {
       // the shield's own burst is the first ring; two more roll out after it, then a sword falls on the strongest near you
-      const p = g.player;
       const n = N('dayOfJudgement');
       const c = p.cls.ability as Cfg<'divineShield'>;
-      const dmg = attackDamage(scale.divineShield(c, sec(g)).burstDamage, p.stats.str, p.mods.damage) * (g.player.vars['shield.burst'] ?? 1); // v0.7.4 (#63)
+      const dmg = attackDamage(scale.divineShield(c, sec(g)).burstDamage, p.stats.str, p.mods.damage) * (p.vars['shield.burst'] ?? 1); // v0.7.4 (#63)
       const { x, y } = p;
       for (let k = 1; k < n.waves; k++) {
         const inner = c.burstRadius * (1 + (k - 1) * n.grow);
@@ -123,9 +121,8 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   crusadersCharge: {
-    cast(g) {
+    cast(g, p) {
       // a charge toward your aim, trampling everything in the path, before the shield holds
-      const p = g.player;
       const n = N('crusadersCharge');
       const c = p.cls.ability as Cfg<'divineShield'>;
       const dx = g.input.aimX - p.x;
@@ -154,8 +151,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   lionsRoar: {
-    utility(g) {
-      const p = g.player;
+    utility(g, _from, p) {
       const n = N('lionsRoar');
       const hit = rollPlayerHit(g, per(g, n, 'damage') * p.mods.utilityPower, 'str');
       for (const e of g.hash.query(p.x, p.y, UTILITIES.paladin.n.radius, near)) {
@@ -168,8 +164,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   standardOfFaith: {
-    utility(g) {
-      const p = g.player;
+    utility(g, _from, p) {
       const n = N('standardOfFaith');
       for (const m of g.minions) if (m.kind === 'standard') m.life = 0; // one standard at a time
       const s = createMinion(p.x, p.y, { hp: per(g, n, 'hp'), damage: 0, speed: 0, attackCd: 99, life: per(g, n, 'life'), r: 16 });
@@ -177,9 +172,8 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
       g.minions.push(s);
       ring(g, p.x, p.y, n.radius, '#f2d675', 0.6);
     },
-    passive(g, dt) {
+    passive(g, dt, p) {
       const n = N('standardOfFaith');
-      const p = g.player;
       for (const m of g.minions) {
         if (m.kind !== 'standard') continue;
         g.glows.push({ x: m.x, y: m.y, r: n.radius, color: '#f2d675', ring: true });
@@ -190,12 +184,12 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
 
   // ---------------------------------------------------------------- Viking
   avatarOfWrath: {
-    tick(g) {
-      g.player.vars.avatar = 1;
-      g.player.buff.fullCircle = true;
-      g.player.buff.range = Math.max(g.player.buff.range, 1.3);
+    tick(_g, _dt, p) {
+      p.vars.avatar = 1;
+      p.buff.fullCircle = true;
+      p.buff.range = Math.max(p.buff.range, 1.3);
     },
-    expire: (g) => void (g.player.vars.avatar = 0),
+    expire: (_g, p) => void (p.vars.avatar = 0),
     on: {
       onHit(g, ev) {
         if (ev.source !== 'attack' || !raging(g)) return;
@@ -208,12 +202,11 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   maelstrom: {
-    tick(g, dt) {
+    tick(g, dt, p) {
       const n = N('maelstrom');
-      g.glows.push({ x: g.player.x, y: g.player.y - 6, r: per(g, n, 'radius'), color: '#e8e2d0', ring: true }); // the storm's edge, all the while it rages
-      if ((g.player.vars.maelstrom = (g.player.vars.maelstrom ?? 0) - dt) > 0) return;
-      g.player.vars.maelstrom = n.every;
-      const p = g.player;
+      g.glows.push({ x: p.x, y: p.y - 6, r: per(g, n, 'radius'), color: '#e8e2d0', ring: true }); // the storm's edge, all the while it rages
+      if ((p.vars.maelstrom = (p.vars.maelstrom ?? 0) - dt) > 0) return;
+      p.vars.maelstrom = n.every;
       const r = per(g, n, 'radius');
       const dmg = attackHit(g) * n.damage;
       for (const e of g.hash.query(p.x, p.y, r, near)) {
@@ -245,8 +238,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   thunderfall: {
-    utility(g) {
-      const p = g.player;
+    utility(g, _from, p) {
       const n = N('thunderfall');
       const hit = rollPlayerHit(g, n.damage * p.mods.utilityPower, 'str');
       const targets = g.hash.query(p.x, p.y, n.range, []).filter((e) => !e.dead).sort((a, b) => (a.x - p.x) ** 2 + (a.y - p.y) ** 2 - ((b.x - p.x) ** 2 + (b.y - p.y) ** 2)).slice(0, Math.floor(per(g, n, 'chains')));
@@ -264,30 +256,28 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   valkyrie: {
-    utility(g) {
-      const p = g.player;
+    utility(g, _from, p) {
       const n = N('valkyrie');
       addField(g, { x: p.x, y: p.y, r: UTILITIES.viking.n.radius, life: n.fire, dps: per(g, n, 'dps') * p.mods.utilityPower, hostile: false, color: '#e07b28', dtype: 'fire', apply: { id: 'burn', power: per(g, n, 'dps') * 0.2 } });
-      if (until(g, 'valkyrieUntil')) g.player.vars.valkyrieUntil = 0; // that was the second leap: the cooldown stands
+      if (until(g, 'valkyrieUntil')) p.vars.valkyrieUntil = 0; // that was the second leap: the cooldown stands
       else {
-        g.player.vars.valkyrieCd = p.utilityCd;
-        g.player.vars.valkyrieUntil = g.time + n.window;
+        p.vars.valkyrieCd = p.utilityCd;
+        p.vars.valkyrieUntil = g.time + n.window;
         p.utilityCd = 0; // a second leap, straight away
         floatText(g, p.x, p.y - 50, 'AGAIN!', '#e07b28', 16);
       }
     },
-    passive(g) {
+    passive(g, _dt, p) {
       // the window closed without a second leap: the first one's cooldown comes back (less the time already waited)
-      if (!g.player.vars.valkyrieUntil || g.time < g.player.vars.valkyrieUntil) return;
-      g.player.utilityCd = Math.max(g.player.utilityCd, (g.player.vars.valkyrieCd ?? 0) - N('valkyrie').window);
-      g.player.vars.valkyrieUntil = 0;
+      if (!p.vars.valkyrieUntil || g.time < p.vars.valkyrieUntil) return;
+      p.utilityCd = Math.max(p.utilityCd, (p.vars.valkyrieCd ?? 0) - N('valkyrie').window);
+      p.vars.valkyrieUntil = 0;
     },
   },
 
   // ---------------------------------------------------------------- Angel
   sunburst: {
-    cast(g) {
-      const p = g.player;
+    cast(g, p) {
       const n = N('sunburst');
       const dx = g.input.aimX - p.x;
       const dy = g.input.aimY - p.y;
@@ -295,28 +285,27 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
       const life = per(g, n, 'life');
       addField(g, { x: p.x, y: p.y, r: n.radius, life, dps: attackDamage(per(g, n, 'dps'), p.stats.int, p.mods.damage), hostile: false, color: '#f2c94c', dtype: 'holy' });
       Object.assign(g.fields[g.fields.length - 1], { vx: (dx / d) * n.speed, vy: (dy / d) * n.speed });
-      g.player.vars.sunUntil = g.time + life;
+      p.vars.sunUntil = g.time + life;
     },
-    passive(g, dt) {
+    passive(g, dt, p) {
       if (!until(g, 'sunUntil')) return;
       const n = N('sunburst');
       for (const f of g.fields) if (f.vx !== undefined) g.glows.push({ x: f.x, y: f.y, r: 16 + Math.sin(g.time * 10) * 2, color: '#fff6c8' }); // its blazing core
-      healPlayer(g, attackDamage(per(g, n, 'dps'), g.player.stats.int, g.player.mods.damage) * n.heal * dt, false);
+      healPlayer(g, attackDamage(per(g, n, 'dps'), p.stats.int, p.mods.damage) * n.heal * dt, false);
     },
   },
 
   choir: {
-    cast(g) {
-      g.player.vars.choirUntil = g.time + N('choir').life;
-      g.player.vars.choirT = 0;
+    cast(g, p) {
+      p.vars.choirUntil = g.time + N('choir').life;
+      p.vars.choirT = 0;
     },
-    passive(g, dt) {
+    passive(g, dt, p) {
       if (!until(g, 'choirUntil')) return;
-      const p = g.player;
       const n = N('choir');
       const count = Math.floor(per(g, n, 'wisps'));
-      const fire = (g.player.vars.choirT = (g.player.vars.choirT ?? 0) - dt) <= 0;
-      if (fire) g.player.vars.choirT = n.every;
+      const fire = (p.vars.choirT = (p.vars.choirT ?? 0) - dt) <= 0;
+      if (fire) p.vars.choirT = n.every;
       for (let i = 0; i < count; i++) {
         const a = g.time * 2.2 + (i / count) * TAU;
         const x = p.x + Math.cos(a) * n.orbit;
@@ -330,17 +319,16 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   sanctuaryWings: {
-    cast(g) {
-      g.player.vars.wingsUntil = g.time + per(g, N('sanctuaryWings'), 'life');
+    cast(g, p) {
+      p.vars.wingsUntil = g.time + per(g, N('sanctuaryWings'), 'life');
     },
-    passive(g, dt) {
+    passive(g, dt, p) {
       if (!until(g, 'wingsUntil')) return;
-      const p = g.player;
       const n = N('sanctuaryWings');
       g.glows.push({ x: p.x, y: p.y - 6, r: n.radius, color: '#f2e6a0', ring: true });
       healPlayer(g, p.stats.hp * n.heal * dt, false);
-      if ((g.player.vars.wingsT = (g.player.vars.wingsT ?? 0) - dt) > 0) return;
-      g.player.vars.wingsT = 0.3;
+      if ((p.vars.wingsT = (p.vars.wingsT ?? 0) - dt) > 0) return;
+      p.vars.wingsT = 0.3;
       const dmg = attackDamage(per(g, n, 'damage'), p.stats.int, p.mods.damage);
       for (const e of g.hash.query(p.x, p.y, n.radius + 30, near)) {
         const d = Math.hypot(e.x - p.x, e.y - p.y) || 1;
@@ -351,8 +339,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   starfall: {
-    utility(g, from) {
-      const p = g.player;
+    utility(g, from, p) {
       const n = N('starfall');
       const stars = Math.floor(per(g, n, 'stars'));
       const hit = rollPlayerHit(g, n.damage * p.mods.utilityPower, 'int');
@@ -364,8 +351,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   phaseWalk: {
-    utility(g, from) {
-      const p = g.player;
+    utility(g, from, p) {
       const n = N('phaseWalk');
       for (const m of g.minions) if (m.kind === 'decoy') m.life = 0;
       const decoy = createMinion(from.x, from.y, { hp: per(g, n, 'hp'), damage: 0, speed: 0, attackCd: 99, life: n.life, r: 13 });
@@ -376,9 +362,8 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
 
   // ---------------------------------------------------------------- Necromancer
   boneColossus: {
-    replaceCast(g) {
+    replaceCast(g, p) {
       // the skeletons you have, and any corpses near you, fuse into one Colossus; with one already standing, they feed it
-      const p = g.player;
       const n = N('boneColossus');
       const c = p.cls.ability as Cfg<'raiseDead'>;
       const s = scale.raiseDead(c, sec(g));
@@ -409,16 +394,15 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   plagueLegion: {
-    cast(g) {
-      const p = g.player;
+    cast(g, p) {
       const n = N('plagueLegion');
       for (const m of g.minions) if (!m.kind && !m.onEnd) m.onEnd = { radius: n.cloud, damage: attackDamage(per(g, n, 'dps'), p.stats.int, p.mods.damage) * 3, color: '#6f8f4e', dtype: 'shadow' };
     },
-    passive(g, dt) {
-      if ((g.player.vars.plagueT = (g.player.vars.plagueT ?? 0) - dt) > 0) return;
+    passive(g, dt, p) {
+      if ((p.vars.plagueT = (p.vars.plagueT ?? 0) - dt) > 0) return;
       const n = N('plagueLegion');
-      g.player.vars.plagueT = n.every;
-      const dps = attackDamage(per(g, n, 'dps'), g.player.stats.int, g.player.mods.damage);
+      p.vars.plagueT = n.every;
+      const dps = attackDamage(per(g, n, 'dps'), p.stats.int, p.mods.damage);
       for (const m of g.minions) {
         if (m.kind || !m.onEnd) continue; // plague-bearers only
         addField(g, { x: m.x, y: m.y, r: n.radius, life: n.life, dps, hostile: false, color: '#6f8f4e', dtype: 'shadow', apply: { id: 'poison', power: dps * 0.3 } });
@@ -427,20 +411,18 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   soulHarvest: {
-    cast(g) {
-      const p = g.player;
+    cast(g, p) {
       const n = N('soulHarvest');
-      const souls = g.player.vars.souls ?? 0;
+      const souls = p.vars.souls ?? 0;
       for (let i = 0; i < souls; i++) {
         const a = (i / Math.max(1, souls)) * TAU;
         fireProjectile(g, p.x + Math.cos(a) * 30, p.y + Math.sin(a) * 30, a, { damage: attackDamage(per(g, n, 'damage'), p.stats.int, p.mods.damage), crit: false, hostile: false, pierce: 0, shape: 'orb', color: '#7ec8d8', r: 6, speed: n.speed, range: 900, source: 'ability', dtype: 'shadow', seek: true });
       }
       if (souls > 0) floatText(g, p.x, p.y - 56, `${souls} souls`, '#7ec8d8', 15);
-      g.player.vars.souls = 0;
+      p.vars.souls = 0;
     },
-    passive(g) {
-      const souls = g.player.vars.souls ?? 0;
-      const p = g.player;
+    passive(g, _dt, p) {
+      const souls = p.vars.souls ?? 0;
       for (let i = 0; i < souls; i++) {
         const a = g.time * 1.6 + (i / souls) * TAU;
         g.glows.push({ x: p.x + Math.cos(a) * 34, y: p.y - 12 + Math.sin(a) * 34, r: 3.5, color: '#7ec8d8' });
@@ -455,9 +437,8 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   corpseLance: {
-    replaceUtility(g) {
+    replaceUtility(g, _from, p) {
       // each corpse in reach hurls a bone lance at the nearest enemy instead of bursting where it lies
-      const p = g.player;
       const u = UTILITIES.necromancer.n;
       const n = N('corpseLance');
       const radius = u.radius * (p.utilityUpgrades.includes('deathWave') ? 2 : 1);
@@ -477,9 +458,8 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   deathsDoor: {
-    utility(g) {
+    utility(g, _from, p) {
       // the bursting dead get up again, beyond the usual limit
-      const p = g.player;
       const n = N('deathsDoor');
       const c = p.cls.ability as Cfg<'raiseDead'>;
       const s = scale.raiseDead(c, sec(g));
@@ -497,8 +477,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
 
   // ---------------------------------------------------------------- Archer
   meteorArrow: {
-    replaceCast(g) {
-      const p = g.player;
+    replaceCast(g, p) {
       const n = N('meteorArrow');
       const c = p.cls.ability as Cfg<'arrowVolley'>;
       const dx = g.input.aimX - p.x;
@@ -519,8 +498,8 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   stormVolley: {
-    cast(g) {
-      g.player.vars.stormUntil = g.time + 3; // the volley (and a Double Volley) comes down over the next few seconds
+    cast(g, p) {
+      p.vars.stormUntil = g.time + 3; // the volley (and a Double Volley) comes down over the next few seconds
     },
     on: {
       onHit(g, ev) {
@@ -537,8 +516,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   huntersMark: {
-    cast(g) {
-      const p = g.player;
+    cast(g, p) {
       const c = p.cls.ability as Cfg<'arrowVolley'>;
       const dx = g.input.aimX - p.x;
       const dy = g.input.aimY - p.y;
@@ -548,7 +526,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
       for (const e of g.hash.query(p.x + dx * k, p.y + dy * k, c.radius, near)) if (!e.dead && !e.side && (!prey || e.maxHp > prey.maxHp)) prey = e;
       if (!prey) return;
       g.prey = prey;
-      g.player.vars.preyUntil = g.time + N('huntersMark').time;
+      p.vars.preyUntil = g.time + N('huntersMark').time;
       floatText(g, prey.x, prey.y - prey.r - 30, 'PREY', '#e0402f', 16);
     },
     passive(g, dt) {
@@ -585,8 +563,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   shadowStep: {
-    utility(g, from) {
-      const p = g.player;
+    utility(g, from, p) {
       const n = N('shadowStep');
       const shade = createMinion(from.x, from.y, { hp: n.hp, damage: 0, speed: 0, attackCd: 99, life: n.life, r: 12 });
       Object.assign(shade, { kind: 'shade', passive: true, flip: p.flip, shoot: { every: n.every, damage: attackHit(g) * n.damage, t: 0 } } satisfies Partial<Minion>);
@@ -595,8 +572,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
   },
 
   frostTrap: {
-    utility(g, from) {
-      const p = g.player;
+    utility(g, from, p) {
       const n = N('frostTrap');
       const hit = rollPlayerHit(g, per(g, n, 'damage') * p.mods.utilityPower, 'dex');
       addZone(g, { x: from.x, y: from.y, r: n.radius, delay: n.delay, damage: hit.amount, crit: hit.crit, hostile: false, color: '#a9d8ef', dtype: 'frost', status: { apply: [{ id: 'stun', time: n.freeze }] } });
@@ -613,7 +589,7 @@ export const evolutionHook = (g: Game, slot: EvolutionSlot): EvolutionHook | und
 
 /** Every tick, after the ability passives (game.ts). */
 export function evolutionPassives(g: Game, dt: number): void {
-  for (const id of g.player.evolutions) HOOKS[id].passive?.(g, dt);
+  for (const id of g.player.evolutions) HOOKS[id].passive?.(g, dt, g.player);
 }
 
 /** Take an evolution (the gold level-up card). */

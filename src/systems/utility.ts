@@ -84,7 +84,7 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
     }
     feat(g, 'leapHits', hits);
     if (has(p, 'bloodLanding')) healPlayer(g, hits * U.bloodLanding.n.heal, false);
-    if (has(p, 'warCry')) g.player.vars.warCry = g.time + U.warCry.n.time;
+    if (has(p, 'warCry')) p.vars.warCry = g.time + U.warCry.n.time;
     ring(g, p.x, p.y, radius, '#c23a2e', 0.4);
     burst(g, p.x, p.y, '#8a6a4a', 14, 220);
     shake(g, 8);
@@ -148,7 +148,7 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
     p.y = to.y;
     clampToArena(g, p);
     p.invulnT = Math.max(p.invulnT, n.invuln * (has(p, 'ghostStep') ? U.ghostStep.n.invuln : 1));
-    if (has(p, 'ghostStep')) g.player.vars.ghostStep = g.time + U.ghostStep.n.time;
+    if (has(p, 'ghostStep')) p.vars.ghostStep = g.time + U.ghostStep.n.time;
     const dps = n.caltropDps * (has(p, 'sharpCaltrops') ? U.sharpCaltrops.n.dps : 1) * p.mods.utilityPower;
     addField(g, {
       x: from.x, y: from.y, r: n.caltropRadius * (has(p, 'scatter') ? U.scatter.n.radius : 1), life: n.caltropLife * (has(p, 'scatter') ? U.scatter.n.life : 1),
@@ -171,12 +171,12 @@ export function updateUtility(g: Game, dt: number): void {
   const def = utilityDef(p);
   const from = { x: p.x, y: p.y };
   const evo = evolutionHook(g, 'utility'); // v0.6: an evolution adds to the utility, or takes it over
-  if (!(evo?.replaceUtility ? evo.replaceUtility(g, from) : HOOKS[def.id](g))) return;
+  if (!(evo?.replaceUtility ? evo.replaceUtility(g, from, p) : HOOKS[def.id](g))) return;
   const upgradeCd = (has(p, 'longJump') ? U.longJump.n.cooldown : 1) * (has(p, 'quickBlink') ? U.quickBlink.n.cooldown : 1) * (has(p, 'quickRoll') ? U.quickRoll.n.cooldown : 1);
   p.utilityCd = p.utilityCdMax = abilityCooldown(def.cooldown, p.stats.int) * p.mods.utilityCd * upgradeCd;
   sfx(g, 'ability');
   emit(g, 'onUtilityUsed', { id: def.id });
-  evo?.utility?.(g, from); // after the cooldown is set: Valkyrie's Descent hands it straight back
+  evo?.utility?.(g, from, p); // after the cooldown is set: Valkyrie's Descent hands it straight back
 }
 
 /** Taunted enemies deal less with Iron Will; called by combat for hits on the player. */
