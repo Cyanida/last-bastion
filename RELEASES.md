@@ -19,4 +19,5 @@ After 1.0: 1.X.0 features, 1.X.Y patches, 2.0.0 only for breaking changes (a sav
 
 Every release: CHANGELOG entry, version bump, tests and perf test green, and the updater check from the README.
 
-Only the maintainer releases: `main` only takes reviewed pull requests, and `v*` tags (which build a release that installed games download) can only be created by the maintainer. How changes get to `main`: [CONTRIBUTING.md](CONTRIBUTING.md).
+Only the maintainer releases: `main` only takes whole releases (one `ready to merge` pull request per release, built on its
+`release/x.y.z` or `patch/x.y.z` branch), and `v*` tags (which build a release that installed games download) can only be created by the maintainer. How changes get to `main`: [CONTRIBUTING.md](CONTRIBUTING.md).
