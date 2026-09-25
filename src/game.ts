@@ -188,6 +188,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     chain: chain && { fragments: chain.fragments, trial: chain.trial, tier: chain.tier, unlocked: mastery.treasureStep, found: 0, passed: false, guardian: null, slain: false },
     banner: { text: '', t: 0 },
     log: newRunLog(),
+    replay: [],
     victory: 'none',
     victoryKills: 0,
     lastStand: oath.n.noLastStand ? 'off' : 'ready',
