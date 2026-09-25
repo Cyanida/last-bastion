@@ -34,8 +34,8 @@ As of `release/0.8.0` after #25, #26 and #27 (steps 0-3 below). Multi-player sta
 - Choices are `pending*` flags on `Game` (`pendingLevelUps`, `pendingAbilityTiers`, `pendingUtilityTiers`, `pendingShrine`,
   `pendingBoard`, `pendingShop`, `pendingMerchant`, `pendingRoute`, `victory === 'pending'`, `player.relics.offers`). `afterStep`
   calls `hasChoice` and `openChoice`, which show a screen. Its buttons build a `Choice` and call `choose(g, choice)`, which is
-  `applyChoice` from src/sim/commands.ts. The choice is applied at once, not queued for the next `step`: the simulation is paused
-  while a screen is open, so nothing can run in between.
+  `step(g, [choiceCommand(g, choice)], false)`: the choice is checked against its open screen, recorded in `g.replay` and applied at
+  once, and no time passes (the simulation is paused while a screen is open, so nothing can run in between) (#113).
 
 ### State
 
@@ -69,9 +69,10 @@ zones, fields, pickups → arena, regions, quests, events, effects → compactio
 - `sampleInput` (main.ts) reads the devices and resolves aim to a world point with the camera and auto-aim (`densestCluster`,
   `resolveAim` in src/logic/aim.ts). It returns a world-space intent; `intentCommand(g, intent)` wraps it in a `Command`.
 - **src/sim/commands.ts** holds `Command` (`{ tick, player }` plus `kind: 'intent'` with an `intent`, or `kind: 'choice'` with a
-  `Choice`, one variant per choice screen), `applyChoice(g, choice)` and `step(g, commands)`. `step` applies the choice commands,
-  then sets `g.input` from the intent (a tick without one keeps the last intent), counts `g.tick` and runs `updateGame`. Only
-  `step` writes `g.input`. Commands for other players are ignored until #28.
+  `Choice`, one variant per choice screen), `applyChoice(g, choice)` and `step(g, commands, advance = true)`. `step` refuses a
+  command whose tick isn't the current one or whose player isn't in the run, and a choice whose screen isn't open; it records every
+  accepted choice in `g.replay`, applies it, then (when `advance`) sets `g.input` from the intent (a tick without one keeps the last
+  intent), counts `g.tick` and runs `updateGame`. Only `step` writes `g.input`, and only `step` calls `applyChoice` (#113).
 - The level-up hand is dealt once from `g.rng` on first read (`levelHand(g)`) and kept until a pick, banish or reroll, so a replayed
   `levelUp` command names a card by its index.
 - Systems still read `g.input` directly: movement, abilities, evolutions, utility, and the Blood and Flame relic families. The
@@ -117,7 +118,7 @@ zones, fields, pickups → arena, regions, quests, events, effects → compactio
   snapshot's JSON with the cosmetics (particles, texts, render caches) left out.
 - The save (src/logic/save.ts, `SAVE_VERSION = 6`) is **meta progression only**; there is no mid-run save. A run is banked at its
   end: `summarizeRun` → `applyRun` → `storeSave` (src/core/storage.ts keeps 3 backups).
-- `src/sim/bot.ts` is the balance bot. `botInput` returns an intent, `botChoose` answers choices through `applyChoice` (and can
+- `src/sim/bot.ts` is the balance bot. `botInput` returns an intent, `botChoose` answers choices through `step` (and can
   record them as commands), and `botStep` calls `step`. `simulateRun` and `probeRun` drive it; `npm run sim` (scripts/simulate.ts)
   and the balance, golden and replay tests use them. `npm run test:perf` drives `window.__lb` in a real browser.
 - The co-op tests: tests/v8-golden.test.ts (step 0), tests/v8-commands.test.ts (#25), tests/v8-pure-sim.test.ts (#26) and
@@ -129,7 +130,7 @@ zones, fields, pickups → arena, regions, quests, events, effects → compactio
 | Blocker | Where | Fixed in | Status |
 |---|---|---|---|
 | Devices write one `g.input`; choices are UI callbacks outside the tick | main.ts `sampleInput`, `openChoice`; bot.ts | #25 | done: commands and `step` |
-| Sound and particles are triggered from inside systems | `sfx()` in 22 files, effects.ts | #26 | done: through the `sim/view` hooks (no `g.out` cue list; stingers still on the event bus) |
+| Sound and particles are triggered from inside systems | `sfx()` in 22 files, effects.ts | #26 | done: sounds leave through the `g.out` cue list (#114); stingers still on the event bus |
 | Cosmetic `Math.random` and quality-dependent particle counts live in `Game` | effects.ts | #26 | done: still in `Game`, left out of the hash |
 | Closures in `g.timers`, RNG closures, WeakMaps keyed by `Player`, entity references without ids | hazards.ts, math.ts, relic families, types.ts | #27 | done: timers and streams are data, relic WeakMaps moved to `RelicState`, the snapshot relinks references (`chargeHits` in aiHelpers.ts is still a WeakMap) |
 | One `g.player`, and player state spread over `Game` and `g.vars` | about 365 `g.player` sites | #28 | open |
@@ -140,7 +141,7 @@ zones, fields, pickups → arena, regions, quests, events, effects → compactio
 
 ## 4. The target shape
 
-The plan as written for #24. Steps 2 and 3 landed in a different shape (no `g.out`, no `g.nextId`); section 5 says how.
+The plan as written for #24. Step 3 landed in a different shape (no `g.nextId`); section 5 says how.
 
 ```
 devices / bot / network ──► Command[] ──► step(g, commands) ──► Game ──► views (one per local viewpoint)
@@ -178,8 +179,8 @@ changes a single random draw. Stored values change only in a commit that says wh
 
 ### Step 1: command layer (#25)
 
-**Status: done.** One difference from the plan: a choice screen's answer is applied at once through `applyChoice`, not queued for
-the next `step`, because the simulation is paused while a screen is open. The bot records its choices as commands for the replay test.
+**Status: done.** One difference from the plan: a choice screen's answer is a `step` that doesn't advance time
+(`step(g, [cmd], false)`), not queued for the next ticking `step`, because the simulation is paused while a screen is open (#113). The bot records its choices as commands for the replay test.
 
 1. Add `Command` and `step(g, commands)`; `sampleInput` builds an intent command for player 0 instead of writing `g.input`.
 2. Turn each choice screen's callback into a choice command, queued and applied at the start of the next `step`. The screens stay;
@@ -190,8 +191,9 @@ the next `step`, because the simulation is paused while a screen is open. The bo
 
 ### Step 2: simulation/view separation (#26)
 
-**Status: done, in a different shape.** Instead of a `g.out` cue list, the simulation calls the hooks in src/sim/view.ts (`sfx`,
-`begin`, `end`, `particleBudget`) and main.ts plugs the device in. The music stingers still come from the event bus. Particles and
+**Status: done (#26, #114).** Sounds leave through `g.out`, a cue list the simulation appends to; main.ts plays it after each step
+and each frame (`playCues` in src/sim/view.ts), and a ticking `step` empties it first. The other view hooks (`begin`, `end`,
+`particleBudget`) stay in src/sim/view.ts. The music stingers still come from the event bus. Particles and
 texts stay in `Game`, left out of the hash. The enforcement test (tests/v8-pure-sim.test.ts) follows imports and needs no allow-list.
 
 1. `sfx(name)` inside `systems/` becomes a cue in `g.out`; main.ts plays the cues after each step. The music stingers move from the
