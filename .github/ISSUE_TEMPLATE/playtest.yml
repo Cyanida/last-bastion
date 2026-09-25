@@ -6,7 +6,7 @@ body:
     id: version
     attributes:
       label: Version
-      placeholder: v0.7.6
+      placeholder: v0.8.0
     validations:
       required: true
   - type: textarea

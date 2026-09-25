@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.8.0 — Balance, relics & bosses
+
+Every fight reads clearly and is worth fighting: a HUD you can read at a glance, a card for everything new you meet, more bosses that are real fights, and classes and relics brought into balance.
+
+- **HUD and text size**: the HUD is reworked to read at a glance, and a new *Text size* setting (Normal, Large, Larger) scales the HUD, every screen and the tooltips. On a phone it still fits.
+- **Flash cards**: the first time you meet an enemy, a boss, an elite or a marked attack, a short card explains it while the run waits. The Glossary keeps every card you've seen under "Foes and marks met".
+- **More bosses**: from Act II on, the wave boss comes from a bigger pool, with two rare strong bosses (the Dread Knight, the Frost Lich) and three that only come after a quest (the Siege Marshal, the Headsman, the Heretic). No boss comes back in a run until you've met the others, and Act III ends with the Ash Wyrm.
+- **Arena relic families**: a boss offers relics only from its arena's three families, rerolls too, so rerolling can't force a build. Lairs, quests, strongboxes, the Merchant and the run start still offer every family. The boss pick, the route cards and the arena tooltips show each arena's families.
+- **Relic cards**: an offer card leads with the effect and one short line about your families; the details are in its tooltip (hover, or tap on a phone).
+- **The Usurper's last phase**: he can't be killed for only the first 8 seconds (it was 25), and he keeps attacking through them. No more waiting it out.
+- **The Necromancer**: the Bone Colossus is capped at ten skeletons' worth and stands beside your skeletons instead of eating them. The Necromancer has more health (100, +6 a level) and raises 3 skeletons a cast.
+- **Relic balance**: Thorn Mail, Emberheart, Serrated Edge, Frost Brand, Winter's Grasp and Berserker Tooth are stronger.
+- **The wandering merchant**: besides the healing draught he sells a reroll token, so he's worth a visit at full health.
+- **New foes on harder difficulties**: Knight adds Hound Masters and Mirror Knights, Champion adds Shieldwall Spearmen, Legend adds Siege Towers. Each difficulty's tooltip names its new foes.
+- **Difficulties open faster**: Knight opens when you clear wave 15 on Squire; Champion at wave 30 on Knight plus a win on Squire; Legend with a win on Champion. The Watchtower no longer locks them, and a locked difficulty says what's still missing.
+- **Champions redrawn**: all five champions have new sprites, so each one reads at a glance.
+- **For developers**: a run can be saved mid-wave, restored, hashed and replayed exactly; every screen answer goes through `step()` and is checked and recorded; sounds leave through a cue queue; the balance numbers all live in `src/config`; golden runs reach the first boss. BALANCE.md has the v0.8 balance pass.
+
 ## v0.7.6 — Quest fixes
 
 A small patch from playtest feedback: the monk you escort can actually reach the chapel now.
