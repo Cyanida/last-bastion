@@ -573,8 +573,45 @@ await check('import: a save with markup stays text', () =>
   }),
 );
 
+// ---------- v0.7.5 (#109): the Gallows pays in a cursed run, and the results screen shows it ----------
+await check('Gallows: a cursed run earns its bonus, the results show it', () =>
+  inPage(async () => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  }).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async () => {
+      const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+      const P = { wait, click: async (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) throw new Error(`no ${sel} on screen (${document.querySelector('h1,h2')?.textContent.trim() ?? '?'})`);
+        el.click();
+        await wait();
+      } }; // the reload dropped window.__play
+      lb.save.meta.curseBonus = 3; // three ranks of the Gallows, as if bought at the Keep
+      lb.save.achievements.push('firstBlood'); // it unlocks the Iron Horde curse
+      await P.click('[data-go="start"]');
+      await P.click('[data-curse="ironHorde"]');
+      const shown = Number(document.querySelector('.select .mult').textContent.match(/×([\d.]+)/)[1]); // curses alone, without the Gallows
+      await P.click('[data-class="viking"]');
+      await P.wait(200);
+      const g = lb.game, mult = g.vars.curseMult;
+      g.player.invulnerable = true;
+      for (let i = 0; i < 600 && lb.state !== 'results'; i++) lb.run(1, false, true);
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', key: 'Escape' }));
+      await P.wait(150);
+      await P.click('[data-quit]');
+      await P.wait(300);
+      const line = [...document.querySelectorAll('div')].find((d) => d.firstElementChild?.textContent === 'Curses')?.innerText ?? '';
+      const ok = g.curses.length === 1 && mult > shown + 0.1 && line.includes(`×${mult.toFixed(2)}`);
+      return { ok, detail: `select ×${shown}, run ×${mult.toFixed(2)}, results "${line.replace(/\s+/g, ' ')}"` };
+    });
+  }),
+);
+
 // ---------- a real run (not a test run) is banked ----------
-await check('a real run is banked: gold, the day, the run log, the week', () =>
+await check('a real run is banked: gold, the local day, the run log, the week', () =>
   inPage(async () => {
     const P = window.__play, lb = window.__lb;
     localStorage.removeItem('lastbastion.save');
@@ -594,7 +631,7 @@ await check('a real run is banked: gold, the day, the run log, the week', () =>
       await wait(150);
       document.querySelector('[data-quit]').click();
       await wait(300);
-      const s = lb.save, today = new Date().toISOString().slice(0, 10), last = s.runs[s.runs.length - 1];
+      const s = lb.save, d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, last = s.runs[s.runs.length - 1];
       const ok = lb.state === 'results' && s.gold - before.gold === earned && earned > 0 && s.dailyGold.date === today && s.runs.length === before.runs + 1 && Math.abs(Date.parse(last.at) - Date.now()) < 120000 && !!s.contracts.week;
       return { ok, detail: `gold +${s.gold - before.gold} (earned ${earned}), day ${s.dailyGold.date}, runs ${s.runs.length}, week ${s.contracts.week}` };
     });

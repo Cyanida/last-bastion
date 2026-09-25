@@ -21,7 +21,6 @@ import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamep
 import { upgradeOptions } from './logic/abilityUpgrades';
 import { lockedArenas, lockedRelics, rewardText, tierKey, unlockedCurses, withAchievements } from './logic/achievements';
 import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from './logic/acts';
-import { curseMultiplier } from './logic/curses';
 import { oathCap } from './logic/oaths';
 import { closestGoals } from './logic/goals';
 import { currentProgress, weekKey, weeklyContracts } from './logic/contracts';
@@ -554,7 +553,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     masteryName: newRank > prevRank ? MASTERY[newRank - 1].name : null,
     masteryNext: MASTERY[newRank] ? { name: MASTERY[newRank].name, need: Math.max(0, Math.round(MASTERY[newRank].xp - after.classes[id].xp)) } : null,
     tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[after.tierUnlocked].name : null, earned: checked.earned, title: after.title, slain: g.over,
-    seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily, build: buildOf(g),
+    seed: formatSeed(g.seed), curseMult: g.vars.curseMult ?? 1, daily: g.daily, build: buildOf(g),
     act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
     goals: closestGoals(after, id, weekKey(today())),
     relicShares: relicShares(g),
