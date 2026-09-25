@@ -8,7 +8,7 @@ sprites are pixel grids in code, sound effects and the music (menus, and a quiet
 | **Browser / phone** | https://cyanida.github.io/last-bastion/ |
 | **Windows** | [Latest release](https://github.com/Cyanida/last-bastion/releases/latest): `last-bastion-Setup-<version>.exe` |
 | Roadmap and progress | [ROADMAP.md](ROADMAP.md) · [Project board](https://github.com/users/Cyanida/projects/2) · the pinned **🔨 Now building** issue · release rules: [RELEASES.md](RELEASES.md) · how to contribute (issues, pull requests, AI agents, reviews): [CONTRIBUTING.md](CONTRIBUTING.md) |
-| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.7.4: detonate Divine Shield early, the Dragon redrawn · v0.7.3: the Archer's aim, the Paladin's shield, fixes · v0.7.2: music in every arena, What's new, glossary, test mode, cursed relics, Reforge · v0.7: relics rebuilt, save backups) · the relic design: [RELICS.md](RELICS.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) |
+| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.7.5: aim setting, bosses last a real fight, duos combine, many fixes · v0.7.4: detonate Divine Shield early, the Dragon redrawn · v0.7.3: the Archer's aim, the Paladin's shield, fixes · v0.7.2: music in every arena, What's new, glossary, test mode, cursed relics, Reforge · v0.7: relics rebuilt, save backups) · the relic design: [RELICS.md](RELICS.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) |
 
 ## Play on iPhone (or any phone)
 
@@ -58,7 +58,7 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
-| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (406 tests) |
+| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (447 tests) |
 | `npm run test:perf` | headless Chromium frame-time test of Fog, Blood Moon and the Usurper's last phase against the built game, with the run music playing, plus a check that the music plays in every arena (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
 | `npm run icons` | redraw all icons and the README QR code from code |

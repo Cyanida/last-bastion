@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.7.5 — Aiming & fixes
+
+A patch from the 25-09 playtest and code review: aim your own attacks, bosses last a real fight, duos stop inflating your sets, and a long list of things now work the way their cards say.
+
+- **Aim setting**: a new setting sends your basic attacks where you point the mouse or the right stick, instead of at the nearest enemy.
+- **Bosses last a real fight**: a boss's resolve means one ability can no longer end it; the Act bosses and the Usurper take a real fight now.
+- **Duos combine**: a duo now joins its two relics into one relic with both effects plus its own, instead of adding a third. Your families keep the two relics' counts, and the duo can be attuned up to tier III.
+- **Relic offers**: offers lean more toward the families you already hold, so a 6-set comes in about one winning run in seven.
+- **Mirror knights**: the Archer shoots a lone mirror knight again, and the arrows it throws back wear its mirror down until it breaks.
+- **Late-Act slams**: in Act III and IV, a Knight, Mirror Knight or Bone Collector with its slam ready slams as soon as you come into range.
+- **Harder difficulties**: bleed, burn and poison from enemy hits and the Plague pools now scale with the difficulty, like every other enemy attack.
+- **Relics that do what they say**: Phoenix Feather always gives its revive, a boss ending a relic chain still offers relics, selling Blood Pact returns only what it took, and Rebirth scales like other relics.
+- **Combat fixes**: chains, charges, fields, Blood Tide, pulled assassins, arena fire and the gamepad behave as designed.
+- **Gold**: the Gallows pays during a cursed run, and a Daily Trial counts against the same day's gold cap.
+- **Pause**: Esc in Talents, the Glossary or Treasures goes back to the pause menu, and the run stays paused.
+- **Music**: the run music keeps playing smoothly when the frame rate dips.
+- **Startup**: the game starts with site data blocked, and an error shows a message instead of freezing the game.
+- **Shared saves**: a shared save's titles and Daily label always show as text.
+- **Web version**: two quick releases in a row can no longer leave the game on a stale page.
+
 ## v0.7.4 — Fixes & polish
 
 A small patch before co-op: the Paladin decides when his shield bursts, and the Dragon looks like a dragon.
