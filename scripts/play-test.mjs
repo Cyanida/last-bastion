@@ -794,6 +794,44 @@ await check('a real run is banked: gold, the local day, the run log, the week', 
   }),
 );
 
+await check('?net: two windows in a room connect and a level-up pick reaches the other; without it there is no transport', async () => {
+  const solo = await inPage(() => window.__lb.net);
+  if (solo === undefined) return { skip: true, detail: 'no loopback transport on this branch (before #31)' };
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const [a, b] = [await ctx.newPage(), await ctx.newPage()];
+  for (const p of [a, b]) {
+    p.on('pageerror', (e) => errors.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug&net=play-test`);
+    await p.waitForFunction(() => typeof window.__lb !== 'undefined');
+  }
+  await b.waitForFunction(() => window.__lb.net.connected, null, { timeout: 3000 });
+  const sent = await a.evaluate(async () => {
+    const lb = window.__lb;
+    lb.start('viking');
+    lb.game.player.invulnerable = true;
+    for (let i = 0; i < 5 && lb.state === 'playing'; i++) lb.run(1, false, true);
+    document.querySelector('[data-leave]')?.click(); // the quest board at the start: set out
+    await new Promise((r) => setTimeout(r, 60));
+    const ticks = [];
+    for (let k = 0; k < 3; k++) {
+      lb.game.pendingLevelUps++;
+      for (let i = 0; i < 5 && lb.state === 'playing'; i++) lb.run(1, false, true);
+      const btn = document.querySelector('[data-pick="0"]');
+      if (!btn) break;
+      ticks.push(lb.game.tick);
+      btn.click(); // the real card: main.ts choose() sends the command, then steps it
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    return ticks;
+  });
+  await b.waitForTimeout(400); // the simulated latency (config/net.ts)
+  const got = await b.evaluate(() => window.__lb.net.log.filter((m) => m.t === 'command' && m.cmd.kind === 'choice' && m.cmd.choice.c === 'levelUp').map((m) => `${m.cmd.tick}:${m.cmd.choice.c}`));
+  await ctx.close();
+  // 2% loss: three picks, at least one arrives, and whatever arrives is what was clicked
+  const ok = solo === null && sent.length === 3 && got.length > 0 && got.every((s) => sent.some((t) => s === `${t}:levelUp`));
+  return { ok, detail: `solo ${solo === null ? 'no transport' : 'HAS ONE'}, sent at ${sent.join(',')}, received ${got.join(', ') || 'none'}` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };

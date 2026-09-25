@@ -33,7 +33,8 @@ import { buildArena } from './render/arena';
 import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
 import { playCues, view as simView } from './sim/view';
-import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
+import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choice, type Command, type Intent } from './sim/commands';
+import { broadcastTransport, type NetMessage } from './net/transport';
 import { abilityAimRadius } from './systems/abilities';
 import { relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
@@ -79,6 +80,16 @@ let onTitle = false;
 let notice: TitleInfo['notice'] = null; // "new version available", shown on the title screen only
 let updateStatus = 'No check yet.';
 let devMode = new URLSearchParams(location.search).get('dev') === '1'; // v0.7.1 test mode: ?dev=1, or tap the version in Settings five times
+// v0.8 (#31), hidden: ?net=<room> links two windows on this machine over the loopback transport. Every command this window steps
+// goes to the other; what arrives is only kept (netLog) until the run has more than one player (#28). Without it nothing changes.
+const netRoom = new URLSearchParams(location.search).get('net');
+const net = netRoom ? broadcastTransport(netRoom) : null;
+const netLog: NetMessage[] = [];
+/** step(), and the same commands to the other window when ?net is on. */
+function stepLocal(g: Game, cmds: Command[], advance = true): boolean {
+  if (net) for (const cmd of cmds) net.send({ t: 'command', cmd });
+  return step(g, cmds, advance);
+}
 let testSetup: TestSetup = { classId: 'viking', arena: 'courtyard', act: 1, wave: 1, level: 1, talents: [], relics: {} };
 
 const arenaCache = new Map<ArenaId, HTMLCanvasElement>();
@@ -369,7 +380,7 @@ function resume(): void {
 }
 
 /** v0.8: a choice screen's answer, as a command for player 0, stepped now without advancing: the run is paused while a screen is open. */
-const choose = (g: Game, choice: Choice): boolean => step(g, [choiceCommand(g, choice)], false);
+const choose = (g: Game, choice: Choice): boolean => stepLocal(g, [choiceCommand(g, choice)], false);
 
 function openLevelUp(g: Game): void {
   const p = g.player;
@@ -640,7 +651,7 @@ function afterStep(g: Game): void {
 function tick(): void {
   if (state !== 'playing' || !game) return;
   playCues(game); // a pick made since the last frame: step clears the queue
-  step(game, [intentCommand(game, sampleInput(game))]);
+  stepLocal(game, [intentCommand(game, sampleInput(game))]);
   afterStep(game);
 }
 
@@ -679,6 +690,10 @@ function frame(now: number): void {
   acc += elapsed / 1000;
   last = now;
   pumpGamepad();
+  if (net) {
+    netLog.push(...net.receive());
+    netLog.splice(0, netLog.length - 1000); // ponytail: the last 1000 only, until #28 steps them
+  }
   let steps = 0;
   const t0 = performance.now(); // always measured (not begin()): the dynamic quality needs it with the overlay off
   while (acc >= DT) {
@@ -786,6 +801,13 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       quality,
       setQuality, // v0.8: the play test compares particle budgets
       view: simView, // v0.8: the play test wraps view.sfx to hear what the simulation plays
+      // v0.8 (#31): null without ?net
+      net: net && {
+        get connected() {
+          return net.connected;
+        },
+        log: netLog,
+      },
       perf,
       music: musicStats, // v0.7.1
       stinger, // v0.7.1
