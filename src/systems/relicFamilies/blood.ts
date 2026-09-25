@@ -72,18 +72,18 @@ export const BLOOD_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   },
 
   wolfskin: {
-    onAbilityUsed(g) {
-      g.player.vars.frenzy = 0;
+    onAbilityUsed(_g, _ev, p) {
+      p.vars.frenzy = 0;
     },
     onHit(g, ev, p) {
       if (ev.source !== 'attack' || p.abilityTime <= 0) return;
       addBleed(g, p, ev.enemy, 1 + Math.floor(sOf(p) / nOf(p, 'wolfskin').per), ev.amount * 0.1);
     },
-    onKill(g, ev, p) {
-      if (awakened(p, 'wolfskin') && p.abilityTime > 0 && isBleeding(ev.enemy)) g.player.vars.frenzy = Math.min(5, (g.player.vars.frenzy ?? 0) + 1); // Blood Frenzy
+    onKill(_g, ev, p) {
+      if (awakened(p, 'wolfskin') && p.abilityTime > 0 && isBleeding(ev.enemy)) p.vars.frenzy = Math.min(5, (p.vars.frenzy ?? 0) + 1); // Blood Frenzy
     },
-    tick(g, _dt, p) {
-      if (p.abilityTime > 0) bonus(p, 'atkSpd', (g.player.vars.frenzy ?? 0) * 0.05);
+    tick(_g, _dt, p) {
+      if (p.abilityTime > 0) bonus(p, 'atkSpd', (p.vars.frenzy ?? 0) * 0.05);
     },
   },
 };
@@ -100,16 +100,16 @@ export const BLOOD_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   },
   6: {
     // Blood Magic: with the ability cooling down, pressing it pays HP instead (once per cooldown)
-    onAbilityUsed(g) {
-      if (g.player.vars['bloodMagic.paid']) g.player.vars['bloodMagic.paid'] = 0; // this was the paid cast: the lock stays until a natural one
-      else g.player.vars['bloodMagic.lock'] = 0;
+    onAbilityUsed(_g, _ev, p) {
+      if (p.vars['bloodMagic.paid']) p.vars['bloodMagic.paid'] = 0; // this was the paid cast: the lock stays until a natural one
+      else p.vars['bloodMagic.lock'] = 0;
     },
     tick(g, _dt, p) {
-      if (!g.input.ability || p.abilityCd <= 0 || g.player.vars['bloodMagic.lock']) return;
+      if (!g.input.ability || p.abilityCd <= 0 || p.vars['bloodMagic.lock']) return;
       p.hp -= p.hp * F.n.hpCost;
       p.abilityCd = 0;
-      g.player.vars['bloodMagic.paid'] = 1;
-      g.player.vars['bloodMagic.lock'] = 1;
+      p.vars['bloodMagic.paid'] = 1;
+      p.vars['bloodMagic.lock'] = 1;
     },
   },
 };

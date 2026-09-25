@@ -347,12 +347,12 @@ export function updateAbility(g: Game, dt: number): void {
   const p = g.player;
   const { hook, cfg } = hookFor(p);
   const evo = evolutionHook(g, 'signature'); // v0.6: an evolution adds to the ability, or takes its cast over
-  const pressed = g.input.ability && !g.player.vars['ability.held']; // a new press, not a held key
-  g.player.vars['ability.held'] = g.input.ability ? 1 : 0;
+  const pressed = g.input.ability && !p.vars['ability.held']; // a new press, not a held key
+  p.vars['ability.held'] = g.input.ability ? 1 : 0;
   if (p.abilityTime > 0) {
     if (pressed && cfg.id === 'divineShield') {
       // v0.7.4 (#63): pressing again ends Divine Shield now, for a weaker burst
-      g.player.vars['shield.burst'] = scale.shieldBurst(cfg.earlyBurst, g.player.vars['shield.up'] ?? 0, p.abilityTime);
+      p.vars['shield.burst'] = scale.shieldBurst(cfg.earlyBurst, p.vars['shield.up'] ?? 0, p.abilityTime);
       p.abilityTime = 0;
     } else {
       p.abilityTime -= dt;
@@ -370,11 +370,11 @@ export function updateAbility(g: Game, dt: number): void {
   // the cooldown waits for the ability to end, so duration stacking can never reach 100% uptime
   if (p.abilityTime <= 0) p.abilityCd = Math.max(cooldownFloor(g), p.abilityCd - dt * (lastStandActive(g) ? SKILL.lastStand.cooldownRate : 1)); // v0.6: the Last Stand hurries it (v0.7.3: not below the floor)
   if (g.input.ability && p.abilityCd <= 0 && p.abilityTime <= 0) {
-    g.player.vars.cdRefund = 0;
+    p.vars.cdRefund = 0;
     if (!(evo?.replaceCast ? evo.replaceCast(g) : hook.activate(g, cfg))) return;
     evo?.cast?.(g);
     const upgradeMult = has(p, 'secondWind') ? U.secondWind.n.cooldown : 1;
-    const cooldown = abilityCooldown(cfg.cooldown, p.stats.int) * p.mods.cooldown * p.mods.abilityCd * upgradeMult * (1 - (g.player.vars.cdRefund ?? 0));
+    const cooldown = abilityCooldown(cfg.cooldown, p.stats.int) * p.mods.cooldown * p.mods.abilityCd * upgradeMult * (1 - (p.vars.cdRefund ?? 0));
     p.abilityCd = p.abilityCdMax = cooldown;
     sfx(g, 'ability');
     emit(g, 'onAbilityUsed', { cooldown });
@@ -391,10 +391,10 @@ export function abilityPassives(g: Game, dt = 0): void {
 /** Resolve the first queued tier choice. Invalid picks (wrong class/tier, tier already taken) are ignored. */
 export function chooseAbilityUpgrade(g: Game, id: AbilityUpgradeId): boolean {
   const p = g.player;
-  const next = pickAbilityUpgrade(p.upgrades, p.cls.id, g.player.pendingAbilityTiers[0], id);
+  const next = pickAbilityUpgrade(p.upgrades, p.cls.id, p.pendingAbilityTiers[0], id);
   if (next === p.upgrades) return false;
   p.upgrades = next;
-  g.player.pendingAbilityTiers.shift();
+  p.pendingAbilityTiers.shift();
   floatText(g, p.x, p.y - 50, ABILITY_UPGRADES[id].name, p.cls.ability.aura, 17);
   ring(g, p.x, p.y, 110, p.cls.ability.aura, 0.6);
   return true;

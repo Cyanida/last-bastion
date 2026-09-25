@@ -100,7 +100,7 @@ export function updateRegions(g: Game, dt: number): void {
       g.pendingShrine = shrineChoices(g);
     } else if (f.kind === 'chest' && !f.used && near) {
       f.used = true;
-      g.player.gold += REGIONS.chestGold * g.act;
+      p.gold += REGIONS.chestGold * g.act;
       g.salvage += 1; // v0.7 A8 (Jesse, #13): gold and a Rune shard, no longer a relic moment (a full run met ~17 moments and 6-sets came in ~70% of wins)
       floatText(g, f.x, f.y - 30, `+${REGIONS.chestGold * g.act}g · ◆ shard`, '#c9a227', 15);
       ring(g, f.x, f.y, 70, '#c9a227', 0.5);
@@ -111,7 +111,7 @@ export function updateRegions(g: Game, dt: number): void {
     } else if (f.kind === 'hazard') {
       if (!f.used && near) {
         f.used = true;
-        g.player.gold += REGIONS.cacheGold * g.act;
+        p.gold += REGIONS.cacheGold * g.act;
         floatText(g, f.x, f.y - 30, `+${REGIONS.cacheGold * g.act}g`, '#c9a227', 15);
         sfx(g, 'xp');
       }

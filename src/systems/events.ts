@@ -86,7 +86,7 @@ function springAmbush(g: Game): void {
 function openCursedChest(g: Game, ev: WaveEvent): void {
   const p = g.player;
   // v0.7: the chest pays in gold and a Rune shard; relics come at fixed moments
-  g.player.gold += EVENTS.cursedChest.gold * g.act;
+  p.gold += EVENTS.cursedChest.gold * g.act;
   g.salvage += 1;
   floatText(g, p.x, p.y - 44, `+${EVENTS.cursedChest.gold * g.act}g · ◆ shard`, '#c9a227', 16);
   const pool = unlockedPool(g.wave, null);
@@ -148,8 +148,8 @@ export function peddlerBuy(g: Game): boolean {
   const ev = g.event;
   const price = peddlerPrice(g);
   const p = g.player;
-  if (!ev || ev.stock <= 0 || g.player.gold < price || p.hp >= p.stats.hp) return false;
-  g.player.gold -= price;
+  if (!ev || ev.stock <= 0 || p.gold < price || p.hp >= p.stats.hp) return false;
+  p.gold -= price;
   g.merchantSpent += price;
   ev.stock--;
   p.hp = Math.min(p.stats.hp, p.hp + p.stats.hp * EVENTS.peddler.heal); // like the Merchant's surgeon, not healPlayer: No Respite does not bind him

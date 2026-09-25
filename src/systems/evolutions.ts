@@ -620,7 +620,7 @@ export function evolutionPassives(g: Game, dt: number): void {
 export function evolve(g: Game, id: EvolutionId): void {
   if (g.player.evolutions.includes(id) || evolutionIn(g, EVOLUTIONS[id].slot)) return;
   const p = g.player;
-  g.player.evolutions = [...g.player.evolutions, id];
+  p.evolutions = [...p.evolutions, id];
   g.banner = { text: `Evolved: ${EVOLUTIONS[id].name}`, t: 3 };
   floatText(g, p.x, p.y - 60, `${EVOLUTIONS[id].icon} ${EVOLUTIONS[id].name}`, '#f2c94c', 20);
   ring(g, p.x, p.y, 180, '#f2c94c', 0.9);

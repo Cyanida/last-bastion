@@ -165,8 +165,8 @@ export function updateUtility(g: Game, dt: number): void {
   const p = g.player;
   p.utilityCd = Math.max(0, p.utilityCd - dt);
   // upgrade after-effects
-  if (g.time < (g.player.vars.warCry ?? 0)) p.mods.atkSpd *= 1 + U.warCry.n.atkSpd;
-  if (g.time < (g.player.vars.ghostStep ?? 0)) p.mods.moveSpd *= 1 + U.ghostStep.n.moveSpd;
+  if (g.time < (p.vars.warCry ?? 0)) p.mods.atkSpd *= 1 + U.warCry.n.atkSpd;
+  if (g.time < (p.vars.ghostStep ?? 0)) p.mods.moveSpd *= 1 + U.ghostStep.n.moveSpd;
   if (!g.input.utility || p.utilityCd > 0 || !utilityUnlocked(p)) return;
   const def = utilityDef(p);
   const from = { x: p.x, y: p.y };
@@ -187,12 +187,12 @@ export function tauntedDamageMult(g: Game, attacker: Enemy | null): number {
 /** Resolve the first queued utility tier. Invalid picks (wrong tier, already taken) are ignored. */
 export function chooseUtilityUpgrade(g: Game, id: UtilityUpgradeId): boolean {
   const p = g.player;
-  const tier = g.player.pendingUtilityTiers[0];
+  const tier = p.pendingUtilityTiers[0];
   if (tier === undefined) return false;
   const options = UTILITY_TRACKS[p.cls.id][tier];
   if (!options || !(options as readonly string[]).includes(id) || options.some((o) => p.utilityUpgrades.includes(o))) return false;
   p.utilityUpgrades = [...p.utilityUpgrades, id];
-  g.player.pendingUtilityTiers.shift();
+  p.pendingUtilityTiers.shift();
   floatText(g, p.x, p.y - 50, U[id].name, utilityDef(p).color, 17);
   ring(g, p.x, p.y, 110, utilityDef(p).color, 0.6);
   return true;

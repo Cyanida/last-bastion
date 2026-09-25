@@ -78,18 +78,18 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       ev.amount *= 1 - n.reduce;
     },
     onFreeze(g, ev, p) {
-      if (awakened(p, 'glacialHeart') && Math.hypot(ev.enemy.x - p.x, ev.enemy.y - p.y) < NEAR) g.player.vars['coldBlood.until'] = g.time + 2; // Cold Blood
+      if (awakened(p, 'glacialHeart') && Math.hypot(ev.enemy.x - p.x, ev.enemy.y - p.y) < NEAR) p.vars['coldBlood.until'] = g.time + 2; // Cold Blood
     },
     tick(g, _dt, p) {
-      if (g.time < (g.player.vars['coldBlood.until'] ?? 0)) bonus(p, 'atkSpd', 0.2);
+      if (g.time < (p.vars['coldBlood.until'] ?? 0)) bonus(p, 'atkSpd', 0.2);
     },
   },
 
   everfrostCrown: {
     tick(g, dt, p) {
       const n = nOf(p, 'everfrostCrown');
-      if ((g.player.vars['crown.t'] = (g.player.vars['crown.t'] ?? 0) + dt) < n.every) return;
-      g.player.vars['crown.t'] = 0;
+      if ((p.vars['crown.t'] = (p.vars['crown.t'] ?? 0) + dt) < n.every) return;
+      p.vars['crown.t'] = 0;
       for (const e of g.hash.query(p.x, p.y, n.radius, [])) addChill(g, p, e, n.chill);
       ring(g, p.x, p.y, n.radius, F.color, 0.5);
       if (awakened(p, 'everfrostCrown')) addField(g, { x: p.x, y: p.y, r: n.radius * 0.8, life: 3, dps: relicDamage(p, 6), hostile: false, color: F.color, dtype: 'frost', apply: { id: 'slow', stacks: 1 } }); // Blizzard
@@ -150,8 +150,8 @@ export const FROST_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   6: {
     tick(g, dt, p) {
       const n = F.n;
-      if ((g.player.vars['rime.t'] = (g.player.vars['rime.t'] ?? 0) + dt) >= n.trailEvery) {
-        g.player.vars['rime.t'] = 0;
+      if ((p.vars['rime.t'] = (p.vars['rime.t'] ?? 0) + dt) >= n.trailEvery) {
+        p.vars['rime.t'] = 0;
         addField(g, { x: p.x, y: p.y, r: n.trailRadius, life: n.trailLife, dps: 0, hostile: false, color: F.color, dtype: 'frost', apply: { id: 'slow', stacks: 1 } });
       }
       for (const e of g.hash.query(p.x, p.y, p.r + 30, [])) {

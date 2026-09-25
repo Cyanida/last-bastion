@@ -66,10 +66,10 @@ export function dodgePassives(g: Game): void {
 export function lastStand(g: Game): boolean {
   if (g.player.lastStand !== 'ready') return false;
   const p = g.player;
-  g.player.lastStand = 'used';
+  p.lastStand = 'used';
   p.hp = 1;
   p.invulnT = Math.max(p.invulnT, SKILL.lastStand.time);
-  g.player.vars.lastStandUntil = g.time + SKILL.lastStand.time;
+  p.vars.lastStandUntil = g.time + SKILL.lastStand.time;
   g.banner = { text: 'Last Stand', t: 2.5 };
   floatText(g, p.x, p.y - 50, 'LAST STAND', '#f4a595', 22);
   ring(g, p.x, p.y, 160, '#c23a2e', 0.8);

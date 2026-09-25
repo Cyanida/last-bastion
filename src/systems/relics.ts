@@ -137,7 +137,7 @@ export function updateRelics(g: Game, dt: number): void {
   }
   for (const key of Object.keys(r.dyn) as (keyof Mods)[]) r.dyn[key] = 0;
   // numbers the families set every tick, back to neutral first (Blessed Water, Butcher's Hook, Charnel; the Doom Bell's and Tyrant's Banner's curses)
-  g.player.vars.relicHealMult = 1;
+  p.vars.relicHealMult = 1;
   g.vars['relic.bleedSlow'] = 0;
   g.vars['corpse.mult'] = 1;
   g.vars['relic.enemySpeed'] = 1;

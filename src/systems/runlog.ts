@@ -41,8 +41,8 @@ export function updateRunLog(g: Game, dt: number): void {
   if (row && g.enemies.length < RUN_LOG.quietBelow) row[3] += dt;
   for (; s.cleared < g.wavesCleared; s.cleared++) if (g.log.waves[s.cleared]) g.log.waves[s.cleared][1] = round1(g.time);
   while (s.level < p.level) mark(g, 'level', String(++s.level));
-  for (; s.relics < g.player.relics.found.length; s.relics++) {
-    const id = g.player.relics.found[s.relics];
+  for (; s.relics < p.relics.found.length; s.relics++) {
+    const id = p.relics.found[s.relics];
     mark(g, 'relic', relicDef(id).name);
   }
   for (; s.talents < p.talents.length; s.talents++) mark(g, 'talent', TALENT_BY_ID[p.talents[s.talents]]?.name ?? p.talents[s.talents]);
@@ -84,7 +84,7 @@ export function finishRunLog(g: Game): RunLog {
     daily: g.daily,
     curses: [...g.curses],
     oath: g.oath.level,
-    trait: g.player.trait,
+    trait: p.trait,
     time: round1(g.time),
     wave: g.wave,
     level: p.level,
@@ -92,7 +92,7 @@ export function finishRunLog(g: Game): RunLog {
     end: g.over ? 'slain' : g.victory === 'pending' ? 'won' : 'quit',
     won: g.victory !== 'none',
     cause: g.over ? g.log.cause : '',
-    relics: Object.fromEntries(g.player.relics.held.map((id) => [id, g.player.relics.tiers[id] ?? 1])),
+    relics: Object.fromEntries(p.relics.held.map((id) => [id, p.relics.tiers[id] ?? 1])),
     relicShares: Object.fromEntries(relicShares(g).map((r) => [r.id, [r.damage, r.healing, r.mitigation]])),
     talents: [...p.talents],
     upgrades: [...p.upgrades, ...p.utilityUpgrades],

@@ -375,12 +375,12 @@ function openLevelUp(g: Game): void {
   const p = g.player;
   const hand = levelHand(g);
   const r = levelRerolls(g);
-  showLevelUp(p.level - g.player.pendingLevelUps + 1, hand, p.cls, p.stats, { free: r.free, cost: rerollCost(r.paid), gold: g.player.gold }, {
+  showLevelUp(p.level - p.pendingLevelUps + 1, hand, p.cls, p.stats, { free: r.free, cost: rerollCost(r.paid), gold: p.gold }, {
     pick(o) {
       choose(g, { c: 'levelUp', index: hand.indexOf(o) });
       resume();
     },
-    banish: g.player.banishes > 0 ? (o) => choose(g, { c: 'levelBanish', index: hand.indexOf(o) }) && openLevelUp(g) : undefined, // v0.6: struck for good, and a fresh hand
+    banish: p.banishes > 0 ? (o) => choose(g, { c: 'levelBanish', index: hand.indexOf(o) }) && openLevelUp(g) : undefined, // v0.6: struck for good, and a fresh hand
     reroll: () => void (choose(g, { c: 'levelReroll' }) && openLevelUp(g)),
   }, p.relics.tiers);
 }

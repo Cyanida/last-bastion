@@ -1,4 +1,4 @@
-import type { Game } from '../../core/types';
+import type { Player } from '../../core/types';
 import { DUOS, FAMILIES, relicN, type DuoId } from '../../config/relics';
 import { damageEnemy } from '../combat';
 import { ring } from '../effects';
@@ -10,7 +10,7 @@ import { freeze } from './frost';
  * Consecration's ward half in relicCore.gainWard, where the thing they change happens.
  */
 const n = <D extends DuoId>(d: D) => DUOS[d].n;
-const every = (g: Game, key: string, dt: number, period: number) => (g.player.vars[key] = (g.player.vars[key] ?? 0) + dt) >= period && ((g.player.vars[key] = 0), true);
+const every = (p: Player, key: string, dt: number, period: number) => (p.vars[key] = (p.vars[key] ?? 0) + dt) >= period && ((p.vars[key] = 0), true);
 
 export const DUO_HOOKS: Partial<Record<DuoId, RelicHooks>> = {
   thermalShock: {
@@ -30,9 +30,9 @@ export const DUO_HOOKS: Partial<Record<DuoId, RelicHooks>> = {
   },
 
   boilingBlood: {
-    tick(g, dt) {
+    tick(g, dt, p) {
       const d = n('boilingBlood');
-      if (!every(g, 'boil.t', dt, d.every)) return;
+      if (!every(p, 'boil.t', dt, d.every)) return;
       for (const e of g.enemies) {
         const burn = e.statuses.burn;
         const bleed = e.statuses.bleed;
@@ -45,7 +45,7 @@ export const DUO_HOOKS: Partial<Record<DuoId, RelicHooks>> = {
   funeralPyre: {
     tick(g, dt, p) {
       const d = n('funeralPyre');
-      if (!every(g, 'pyre.t', dt, d.every)) return;
+      if (!every(p, 'pyre.t', dt, d.every)) return;
       const fire = [...g.enemies.filter((e) => !e.dead && e.statuses.burn), ...g.fields.filter((f) => !f.hostile && f.dtype === 'fire')];
       for (let i = g.corpses.length - 1; i >= 0; i--) {
         const c = g.corpses[i];
@@ -92,14 +92,14 @@ export const DUO_HOOKS: Partial<Record<DuoId, RelicHooks>> = {
   },
 
   martyrsCovenant: {
-    onDamageTaken(g, ev) {
-      g.player.vars['covenant.pool'] = (g.player.vars['covenant.pool'] ?? 0) + ev.amount * n('martyrsCovenant').share;
+    onDamageTaken(_g, ev, p) {
+      p.vars['covenant.pool'] = (p.vars['covenant.pool'] ?? 0) + ev.amount * n('martyrsCovenant').share;
     },
     tick(g, dt, p) {
-      const pool = g.player.vars['covenant.pool'] ?? 0;
+      const pool = p.vars['covenant.pool'] ?? 0;
       if (pool <= 0) return;
       const give = Math.min(pool, (pool * dt) / n('martyrsCovenant').over + dt); // it drains over about 3 s
-      g.player.vars['covenant.pool'] = pool - give;
+      p.vars['covenant.pool'] = pool - give;
       gainWard(g, p, give);
     },
   },

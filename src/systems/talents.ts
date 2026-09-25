@@ -17,15 +17,15 @@ import { floatText, ring } from './effects';
 /** Spend a talent point. False when the node cannot be taken (prerequisites, keystone rules, no points). */
 export function spendTalent(g: Game, id: string): boolean {
   const p = g.player;
-  if (!canTakeTalent(p.talents, id, g.player.talentPoints, g.player.talentRowCap, g.treasure?.id)) return false;
+  if (!canTakeTalent(p.talents, id, p.talentPoints, p.talentRowCap, g.treasure?.id)) return false;
   const node = TALENT_BY_ID[id];
   p.talents = [...p.talents, id];
-  g.player.talentPoints--;
+  p.talentPoints--;
   for (const [key, add] of Object.entries(node.stats ?? {}) as [StatKey, number][]) {
     p.stats[key] += add;
     if (key === 'hp') p.hp += add;
   }
-  g.player.talentModsCache = null;
+  p.talentModsCache = null;
   floatText(g, p.x, p.y - 50, node.name, '#e9c95a', 16);
   ring(g, p.x, p.y, 100, '#e9c95a', 0.5);
   sfx(g, 'levelup');
@@ -39,17 +39,17 @@ export function applyTrait(g: Game, id: TraitId, second = false): void {
   for (const [key, mult] of Object.entries(t.stats ?? {}) as [StatKey, number][]) p.stats[key] = Math.round(p.stats[key] * mult);
   p.hp = Math.min(p.hp, p.stats.hp);
   if (t.mods) combineMods(g.baseMods, t.mods);
-  if (second) g.player.trait2 = id; // v0.6: the Second Banner's
-  else g.player.trait = id;
-  if (t.n) for (const [k, v] of Object.entries(t.n)) g.player.vars[`trait.${k}`] = v;
+  if (second) p.trait2 = id; // v0.6: the Second Banner's
+  else p.trait = id;
+  if (t.n) for (const [k, v] of Object.entries(t.n)) p.vars[`trait.${k}`] = v;
 }
 
 /** Every tick after relics: talent mods, and the conditional ones (below half HP). */
 export function talentPassives(g: Game): void {
   const p = g.player;
   if (p.talents.length === 0) return;
-  g.player.talentModsCache ??= talentMods(p.talents);
-  combineMods(p.mods, g.player.talentModsCache);
+  p.talentModsCache ??= talentMods(p.talents);
+  combineMods(p.mods, p.talentModsCache);
   if (p.mods.lowHpDamage > 0 && p.hp < p.stats.hp * 0.5) p.mods.damage *= 1 + p.mods.lowHpDamage;
 }
 

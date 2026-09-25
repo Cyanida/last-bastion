@@ -161,7 +161,7 @@ export function updateHud(g: Game): void {
   text('h-hp-text', `${Math.ceil(p.hp)} / ${Math.round(p.stats.hp)}`);
   width('h-xp-fill', p.xp / xpToNext(p.level));
   text('h-xp-text', `${Math.floor(p.xp)} / ${xpToNext(p.level)} XP`);
-  text('h-gold', `🪙 ${g.player.gold}`);
+  text('h-gold', `🪙 ${p.gold}`);
   text('h-tier', `${g.tier.name} · ${g.arena.name}`);
   // v0.8 (#28): players 2-4 each have their own panel on the right, stacked; hidden while the seat is empty
   for (let n = 2; n <= 4; n++) {
@@ -196,10 +196,10 @@ export function updateHud(g: Game): void {
   const stats = STAT_KEYS.map((k) => `<div><span>${statLabel(k, p.cls)}</span><b>${fmt(k, p.stats[k])}</b></div>`).join('');
   const crit = Math.round(Math.min(0.6, critChance(p.stats.dex) + p.mods.crit) * 100);
   const armor = Math.round(Math.min(0.8, p.cls.armor + p.mods.armor) * 100);
-  const relicStats = (Object.entries(g.player.relics.totals) as [keyof Mods, RelicModTotal][]).filter(([, t]) => t.count > 1);
+  const relicStats = (Object.entries(p.relics.totals) as [keyof Mods, RelicModTotal][]).filter(([, t]) => t.count > 1);
   const relicRows = relicStats.map(([key, t]) => `<div class="dim" data-tip="${esc(`${t.count} relics add up to +${Math.round(t.raw * 100)}% ${MOD_NAMES[key] ?? key}.`)}"><span>Relics: ${MOD_NAMES[key] ?? key}</span><b>+${Math.round(t.eff * 100)}%</b></div>`).join('');
   const procs = ''; // v0.7: no proc sharing
-  const heal = g.player.vars.relicHeal ?? 0;
+  const heal = p.vars.relicHeal ?? 0;
   const healRow = heal > 0 ? `<div class="dim" data-tip="${esc(`Relics healed ${Math.round(heal * 100)}% of your max HP this wave. Past the soft cap (${Math.round(RELIC_STACKING.healCap * 100)}%) each further heal counts for less.`)}"><span>Relic healing (wave)</span><b>${Math.round(softCap(heal, RELIC_STACKING.healCap) * 100)}%${heal > RELIC_STACKING.healCap ? ` <s>${Math.round(heal * 100)}</s>` : ''}</b></div>` : '';
   const damage = `×${(p.mods.damage * p.buff.damage).toFixed(2)}`;
   // in a fight: the six numbers that matter, in two columns; hover (tap) the panel for everything
@@ -209,28 +209,28 @@ export function updateHud(g: Game): void {
 
   // relic bar: one row of the newest relics that fit, older ones behind a "+N" chip (hover or tap); tap or hover a relic for its tooltip.
   // Rebuilt only when the set changes (or the window is resized).
-  const relicKey = `${g.player.relics.held.map((id) => `${id}${g.player.relics.tiers[id]}`).join(',')}|${g.player.relics.duos.join(',')}|${g.player.talents.length}|${g.player.evolutions.length}|${g.player.upgrades.length}|${g.player.utilityUpgrades.length}`; // v0.6: recipes change the tooltips too
+  const relicKey = `${p.relics.held.map((id) => `${id}${p.relics.tiers[id]}`).join(',')}|${p.relics.duos.join(',')}|${p.talents.length}|${p.evolutions.length}|${p.upgrades.length}|${p.utilityUpgrades.length}`; // v0.6: recipes change the tooltips too
   if (relicKey !== lastRelicKey) {
     lastRelicKey = relicKey;
     lastAttKey = ''; // new tiles: draw their attunement bars again
     setRecipeBuild(buildState(g));
     const tile = (id: RelicId) => {
       const r = relicDef(id);
-      const tier = g.player.relics.tiers[id] ?? 1;
-      return `<div class="relic ${relicClass(id)}" data-id="${id}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.player.relics.held))}">${r.icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
+      const tier = p.relics.tiers[id] ?? 1;
+      return `<div class="relic ${relicClass(id)}" data-id="${id}" tabindex="0" data-tip="${esc(relicTip(id, tier, p.relics.held))}">${r.icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
     };
     // 50px a tile; desktop keeps clear of the ability panel, touch (bar at the top) of the wave plate
     const fit = Math.max(3, Math.min(8, Math.floor((innerWidth / 2 - (document.documentElement.classList.contains('compact') ? 140 : 300)) / 50)));
-    const loose = looseRelics(g.player.relics.held, g.player.relics.duos); // v0.7.5 (#96): a duo's two relics show as the duo
+    const loose = looseRelics(p.relics.held, p.relics.duos); // v0.7.5 (#96): a duo's two relics show as the duo
     const older = loose.length > fit ? loose.slice(0, loose.length - fit) : [];
     const more = older.length ? `<div class="relic more" tabindex="0">+${older.length}<div class="hud-pop hud-plate">${older.map(tile).join('')}</div></div>` : '';
-    const duos = g.player.relics.duos.map((d) => {
-      const tier = duoTier(g.player.relics.tiers, d);
+    const duos = p.relics.duos.map((d) => {
+      const tier = duoTier(p.relics.tiers, d);
       return `<div class="relic duo" data-duo="${d}" tabindex="0" data-tip="${esc(duoTip(d, tier))}">${DUOS[d].icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
     }).join(''); // v0.7 A5
     html('h-relics', more + loose.slice(older.length).map(tile).join('') + duos);
     // v0.7: the family row: icon and count per family held; a reached threshold (2, 4, 6) lights up, and flashes when it is new
-    const sets = familySets(g.player.relics.held);
+    const sets = familySets(p.relics.held);
     html('h-families', FAMILY_IDS.filter((f) => sets[f]).map((f) => {
       const st = sets[f]!;
       const fam = FAMILIES[f];
@@ -242,11 +242,11 @@ export function updateHud(g: Game): void {
     }).join(''));
   }
   // v0.7 A4: attunement bars under the relic tiles
-  const attKey = g.player.relics.held.map((id) => Math.floor((g.player.relics.attune[id] ?? 0) * 40)).join(',');
+  const attKey = p.relics.held.map((id) => Math.floor((p.relics.attune[id] ?? 0) * 40)).join(',');
   if (attKey !== lastAttKey) {
     lastAttKey = attKey;
-    for (const el of document.querySelectorAll<HTMLElement>('#h-relics .relic[data-id]')) el.style.setProperty('--att', String(g.player.relics.attune[el.dataset.id as RelicId] ?? 0));
-    for (const el of document.querySelectorAll<HTMLElement>('#h-relics .relic[data-duo]')) el.style.setProperty('--att', String(Math.max(...DUOS[el.dataset.duo as DuoId].from.map((id) => g.player.relics.attune[id] ?? 0))));
+    for (const el of document.querySelectorAll<HTMLElement>('#h-relics .relic[data-id]')) el.style.setProperty('--att', String(p.relics.attune[el.dataset.id as RelicId] ?? 0));
+    for (const el of document.querySelectorAll<HTMLElement>('#h-relics .relic[data-duo]')) el.style.setProperty('--att', String(Math.max(...DUOS[el.dataset.duo as DuoId].from.map((id) => p.relics.attune[id] ?? 0))));
   }
 
   const sig = evolutionIn(g, 'signature'); // v0.6: an evolved ability wears its new name
@@ -261,7 +261,7 @@ export function updateHud(g: Game): void {
   $('h-ab-cd').style.height = `${(p.abilityCd / p.abilityCdMax) * 100}%`;
   // v0.7.4 (#63): while Divine Shield holds, the slot shows the burst a second press would set off
   const ab = p.cls.ability;
-  const detonate = p.abilityTime > 0 && ab.id === 'divineShield' ? `${Math.round(shieldBurst(ab.earlyBurst, g.player.vars['shield.up'] ?? 0, p.abilityTime) * 100)}%` : '';
+  const detonate = p.abilityTime > 0 && ab.id === 'divineShield' ? `${Math.round(shieldBurst(ab.earlyBurst, p.vars['shield.up'] ?? 0, p.abilityTime) * 100)}%` : '';
   text('h-ab-time', detonate || (ready ? '✦' : p.abilityCd.toFixed(1)));
   // the touch ability button mirrors the cooldown, because a thumb covers the HUD panel
   const touchBtn = document.getElementById('btn-ability');
@@ -300,12 +300,12 @@ export function updateHud(g: Game): void {
   }
   html('h-quests', lines);
 
-  $('h-talent').classList.toggle('hidden', g.player.talentPoints === 0);
-  if (g.player.talentPoints > 0) text('h-talent', `${g.player.talentPoints} talent point${g.player.talentPoints > 1 ? 's' : ''} to spend — pause menu`);
+  $('h-talent').classList.toggle('hidden', p.talentPoints === 0);
+  if (p.talentPoints > 0) text('h-talent', `${p.talentPoints} talent point${p.talentPoints > 1 ? 's' : ''} to spend — pause menu`);
 
   // v0.6: the perfect-dodge buff and the Last Stand, as chips beside the statuses (whole seconds, so the DOM changes once a second)
-  const perfect = Math.ceil((g.player.vars.perfectUntil ?? 0) - g.time);
-  const stand = Math.ceil((g.player.vars.lastStandUntil ?? 0) - g.time);
+  const perfect = Math.ceil((p.vars.perfectUntil ?? 0) - g.time);
+  const stand = Math.ceil((p.vars.lastStandUntil ?? 0) - g.time);
   const skill = `${perfect > 0 ? `<span style="background:${SKILL.colors.perfect}">Perfect ${perfect}s</span>` : ''}${stand > 0 ? `<span style="background:#f4a595">Last Stand ${stand}s</span>` : ''}`;
   html('h-status', skill + activeStatuses(p.statuses).map((id) => `<span style="background:${STATUSES[id].color}">${STATUSES[id].name}${(p.statuses[id]?.stacks ?? 1) > 1 ? ` ×${p.statuses[id]!.stacks}` : ''}</span>`).join(''));
   root().classList.toggle('last-stand', stand > 0);
