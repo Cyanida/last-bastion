@@ -273,6 +273,25 @@ await check('relic offer: skip pays what it says', () =>
   }),
 );
 
+// #98: a relic card leads with its effect in large text and one compact line; the rest shows on hover or tap (focus)
+await check('relic offer: the card shows the effect first, details on hover or tap', () =>
+  inPage(async () => {
+    const P = window.__play, rel = window.__lb.game.player.relics;
+    rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant'], rerolls: 0, duo: null });
+    if (!P.toChoice()) return { ok: false, detail: 'no relic offer' };
+    const card = document.querySelector('[data-pick="0"]');
+    const effect = card.querySelector('p'), lines = card.querySelectorAll('.preview');
+    const big = parseFloat(getComputedStyle(effect).fontSize) > parseFloat(getComputedStyle(lines[0]).fontSize);
+    const first = card.querySelector('h2').nextElementSibling.nextElementSibling === effect;
+    card.focus();
+    await P.wait(50);
+    const tip = document.getElementById('tooltip');
+    const shown = tip?.style.display === 'block' && tip.innerText.includes('For this build') && tip.innerText.includes('Tier II');
+    await P.click('[data-skip]'); // skipped, so the later checks still take Butcher's Hook fresh
+    return { ok: big && first && lines.length === 1 && !lines[0].innerText.includes('\n') && shown && rel.offers.length === 0, detail: `effect "${effect.innerText}", line "${lines[0]?.innerText}" (${lines.length}), bigger ${big}, tip shown ${shown}` };
+  }),
+);
+
 await check('relic offer: take a relic', () =>
   inPage(async () => {
     const P = window.__play, rel = window.__lb.game.player.relics;

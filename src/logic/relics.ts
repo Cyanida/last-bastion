@@ -1,5 +1,5 @@
 import type { ClassId } from '../config/classes';
-import { ATTUNEMENT, DUO_IDS, DUOS, FAMILY_IDS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, DUO_IDS, DUOS, FAMILIES, FAMILY_IDS, SET_LEVELS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng, SeededRng } from '../core/types';
 import { mulberry32 } from '../core/math';
@@ -197,3 +197,16 @@ export function totalsToMods(totals: RelicTotals): Partial<Mods> {
 /** The one Mods object that folds every held relic's plain mods together (additive within a key, soft-capped). */
 export const relicModsCombined = (held: RelicId[], tiers: RelicTiers): Partial<Mods> => totalsToMods(relicModTotals(held, tiers));
 
+/**
+ * #98: a relic offer card's one compact line under its effect: the family count it raises (★ set bonus when that reaches one), and ✦ marks
+ * for a duo it completes or an evolution it is one step from. The long form of each is in the card's tooltip. `count` is the family's
+ * count now; an upgrade of a held relic (`upgrade`) leaves it as it is.
+ */
+export function relicCardLine(id: RelicId, count: number, o: { upgrade: boolean; duo: boolean; evolution: boolean }): string {
+  const fam = relicDef(id).family;
+  const next = o.upgrade ? count : count + 1;
+  const parts = [fam ? `${FAMILIES[fam].icon} ${FAMILIES[fam].name} ${o.upgrade ? count : `${count} → ${next}`}${!o.upgrade && (SET_LEVELS as readonly number[]).includes(next) ? ' ★ set bonus' : ''}` : '☠ no family'];
+  if (o.duo) parts.push('✦ duo');
+  if (o.evolution) parts.push('✦ evolution');
+  return parts.join(' · ');
+}

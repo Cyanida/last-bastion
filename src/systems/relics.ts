@@ -4,7 +4,7 @@ import { sfx } from '../sim/view';
 import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
 import { combineMods } from '../logic/mods';
-import { attuneAll, duoPartner, duoTier, foldRelicMods, joinTiers, looseRelics, readyDuos, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
+import { attuneAll, duoPartner, duoTier, foldRelicMods, joinTiers, looseRelics, readyDuos, relicCardLine, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
 import { floatText, ring } from './effects';
 import { relicContext } from './relicContext';
 import { credit, familySets, type RelicHooks } from './relicCore';
@@ -261,6 +261,16 @@ export function relicPreview(p: Player, id: RelicId): string[] {
     lines.push(busy ? `Would pair with ${relicDef(partner).name} for ${DUOS[duo].name}, but it already feeds ${DUOS[busy].name}` : `✦ Completes the duo ${DUOS[duo].icon} ${DUOS[duo].name} with ${relicDef(partner).name}: offered at the next relic moment`);
   }
   return lines;
+}
+
+/** #98: the compact line on a relic offer card (logic/relics relicCardLine) for this player; `evolution` when it is one step from one. */
+export function relicOfferLine(p: Player, id: RelicId, evolution: boolean): string {
+  const r = p.relics;
+  const fam = familyOf(id);
+  const duo = duoOf(id);
+  const partner = duo && DUOS[duo].from.find((s) => s !== id)!;
+  const completes = !!duo && !!partner && r.held.includes(partner) && !r.duos.includes(duo) && !r.duos.some((d) => DUOS[d].from.includes(partner));
+  return relicCardLine(id, fam ? (r.sets[fam]?.count ?? 0) : 0, { upgrade: r.held.includes(id), duo: completes, evolution });
 }
 
 /**
