@@ -266,7 +266,7 @@ describe('the effects: build-defining, per tier', () => {
   it("Mjölnir's Shard: during Rage a hit may call lightning that chains to 3 / 4 / 5 enemies", () => {
     const struck = [1, 2, 3].map((tier) => {
       const g = createGame('viking', 1, { treasure: tier });
-      g.rng = () => 0; // the proc always fires
+      g.rng = Object.assign(() => 0, { s: 0 }); // the proc always fires
       g.player.abilityTime = 3;
       const foes = Array.from({ length: 8 }, (_, i) => spawnEnemy(g, 'knight', g.player.x + 100 + i * 60, g.player.y));
       for (const e of foes) g.hash.insert(e);
@@ -275,7 +275,7 @@ describe('the effects: build-defining, per tier', () => {
     });
     expect(struck).toEqual([3, 4, 5]);
     const calm = createGame('viking', 1, { treasure: 3 });
-    calm.rng = () => 0;
+    calm.rng = Object.assign(() => 0, { s: 0 });
     const e = spawnEnemy(calm, 'knight', calm.player.x + 100, calm.player.y);
     const f = spawnEnemy(calm, 'knight', calm.player.x + 150, calm.player.y);
     calm.hash.insert(e);

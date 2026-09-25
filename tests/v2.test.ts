@@ -29,7 +29,7 @@ import { spawnEnemy } from '../src/systems/spawning';
 /** A headless game with some enemies placed next to the player and indexed in the spatial hash. */
 function arena(classId: Parameters<typeof createGame>[0], enemies: [number, number][] = []): { g: Game; foes: Enemy[] } {
   const g = createGame(classId, 1);
-  g.rng = () => 0.999; // no crits, no random procs unless a test says otherwise
+  g.rng = Object.assign(() => 0.999, { s: 0 }); // no crits, no random procs unless a test says otherwise
   const foes = enemies.map(([dx, dy]) => spawnEnemy(g, 'knight', g.player.x + dx, g.player.y + dy));
   for (const f of foes) f.armorHp = 0; // v0.3 gave knights breakable armor; these tests are about relics, so they fight bare knights
   for (const e of g.enemies) g.hash.insert(e);
@@ -81,7 +81,7 @@ describe('relic hooks', () => {
   it('onHit: Storm Pennant chains attacks (and only attacks) to a second enemy', () => {
     const { g, foes } = arena('archer', [[40, 0], [90, 0]]);
     addRelic(g, 'stormPennant');
-    g.rng = () => 0; // proc
+    g.rng = Object.assign(() => 0, { s: 0 }); // proc
     damageEnemy(g, foes[0], 10);
     expect(foes[1].maxHp - foes[1].hp).toBeCloseTo(10 * RELICS.stormPennant.n.mult);
     const hp = foes[1].hp;

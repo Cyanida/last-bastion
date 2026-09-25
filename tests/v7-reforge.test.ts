@@ -54,7 +54,7 @@ describe('Merchant Reforge (v0.7.1 B7)', () => {
     const pick = (streamSeed: number) => {
       const g = atMerchant({ everfrostCrown: [3, 0] });
       g.player.relics.rng = relicStream(streamSeed, 0);
-      g.rng = () => 0.5; // the run's own randomness plays no part
+      g.rng = Object.assign(() => 0.5, { s: 0 }); // the run's own randomness plays no part
       merchantReforge(g, 'everfrostCrown');
       return { next: g.player.relics.held[0], tier: g.player.relics.tiers[g.player.relics.held[0]] };
     };
