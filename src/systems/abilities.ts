@@ -5,7 +5,7 @@ import { addListener, dispatch, emit, type Handlers } from '../core/events';
 import { clamp, dist2, TAU } from '../core/math';
 import type { Enemy, Game, Player, Status } from '../core/types';
 import { createMinion, neutralBuff } from '../entities/actors';
-import { addField, addZone, after, fireProjectile } from '../entities/hazards';
+import { addField, addZone, fieldLater, fireProjectile, timer } from '../entities/hazards';
 import * as scale from '../logic/abilities';
 import { pickAbilityUpgrade } from '../logic/abilityUpgrades';
 import { abilityCooldown, attackDamage, cooldownFloor } from '../logic/formulas';
@@ -76,6 +76,10 @@ function ballistaShot(g: Game, c: Cfg<'arrowVolley'>, angle: number, status: Sta
   shake(g, 10);
   sfx('boom');
 }
+
+type Volley = { ballista: boolean; c: Cfg<'arrowVolley'>; angle: number; tx: number; ty: number; status: Status };
+const fireVolley = (g: Game, v: Volley): void => (v.ballista ? ballistaShot(g, v.c, v.angle, v.status) : volleyZones(g, v.c, v.tx, v.ty, v.status));
+const volleyAgain = timer('arrowVolley.again', fireVolley); // Double Volley
 
 const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
   divineShield: {
@@ -309,13 +313,13 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       if (has(p, 'markedForDeath')) Object.assign(status, { markMul: U.markedForDeath.n.mult, markT: U.markedForDeath.n.time });
 
       feat(g, 'volleyHits', g.hash.query(tx, ty, c.radius, near).length); // what the volley comes down on; the arrows land over the next second
-      const fire = has(p, 'ballista') ? () => ballistaShot(g, c, angle, status) : () => volleyZones(g, c, tx, ty, status);
-      fire();
-      if (has(p, 'doubleVolley')) after(g, U.doubleVolley.n.delay, fire);
+      const shot = { ballista: has(p, 'ballista'), c, angle, tx, ty, status };
+      fireVolley(g, shot);
+      if (has(p, 'doubleVolley')) volleyAgain(g, U.doubleVolley.n.delay, shot);
       if (has(p, 'burningRain')) {
         const n = U.burningRain.n;
         const dps = attackDamage(n.dps * (1 + p.stats.secondary * n.perFocus), p.stats.dex, p.mods.damage);
-        after(g, c.duration * 0.5, () => addField(g, { x: tx, y: ty, r: c.radius, life: n.time, dps, hostile: false, color: '#e07b28', dtype: 'fire', apply: { id: 'burn', power: dps * 0.25 } }));
+        fieldLater(g, c.duration * 0.5, { x: tx, y: ty, r: c.radius, life: n.time, dps, hostile: false, color: '#e07b28', dtype: 'fire', apply: { id: 'burn', power: dps * 0.25 } });
       }
       activeFor(p, has(p, 'quickDraw') ? U.quickDraw.n.time : 0.3);
       return true;

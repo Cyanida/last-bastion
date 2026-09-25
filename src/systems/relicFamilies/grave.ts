@@ -1,5 +1,6 @@
 import { ATTUNEMENT, FAMILIES, relicDef, type RelicId, type SetLevel } from '../../config/relics';
-import type { Corpse } from '../../core/types';
+import type { Player } from '../../core/types';
+import { timer } from '../../entities/hazards';
 import { applyStatus, nearestEnemy } from '../combat';
 import { awakened, bonus, credit, isCursed, nOf, nova, raiseSkeleton, relicDamage, sOf, skeletonsBy, type RelicHooks } from '../relicCore';
 import { addWork } from '../../logic/relics';
@@ -10,6 +11,7 @@ import { addWork } from '../../logic/relics';
  */
 const F = FAMILIES.grave;
 const shadow = { radius: 70, color: F.color, dtype: 'shadow' as const };
+const corpseBursts = timer('deathmask.burst', (g, a: { p: Player; x: number; y: number }) => nova(g, a.x, a.y, shadow.radius, relicDamage(a.p, 18), 140, F.color, 'shadow'));
 
 export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   soulLantern: {
@@ -70,7 +72,7 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onKill(g, ev, p) {
       if (!awakened(p, 'deathmask') || !isCursed(ev.enemy)) return;
       const { x, y } = ev.enemy; // Mark of the Grave: its corpse bursts a second later
-      g.timers.push({ t: 1, fn: () => nova(g, x, y, shadow.radius, relicDamage(p, 18), 140, F.color, 'shadow') });
+      corpseBursts(g, 1, { p, x, y });
     },
   },
 
@@ -86,15 +88,14 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   },
 };
 
-const walked = new WeakSet<Corpse>(); // Charnel: corpses already walked over
 
 export const GRAVE_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   2: {
     tick(g, _dt, p) {
       g.vars['corpse.mult'] = F.n.corpseMult; // Charnel: game.ts keeps corpses this much longer
       for (const c of g.corpses) {
-        if (walked.has(c) || Math.hypot(c.x - p.x, c.y - p.y) > p.r + 12) continue;
-        walked.add(c); // and walking over one attunes your Grave relics
+        if (c.walked || Math.hypot(c.x - p.x, c.y - p.y) > p.r + 12) continue;
+        c.walked = true; // and walking over one attunes your Grave relics
         for (const id of p.relics.held) if (relicDef(id).family === 'grave') addWork(p.relics, id, ATTUNEMENT.corpse);
       }
     },

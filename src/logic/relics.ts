@@ -11,7 +11,7 @@ export const relicStream = (seed: number, player: number): SeededRng => mulberry
 /** An empty relic state; createGame fills in the pool and the stream. */
 export const emptyRelics = (): RelicState => ({
   held: [], tiers: {}, attune: {}, work: {}, pool: [], offers: [], found: [], from: {}, stats: {}, rng: mulberry32(0),
-  static: {}, dyn: {}, totals: {}, dirty: true, sets: {}, duos: [], cursedAct: 0,
+  static: {}, dyn: {}, totals: {}, dirty: true, sets: {}, duos: [], cursedAct: 0, raw: {}, warded: [], streak: [],
 });
 
 export type RelicTiers = Partial<Record<RelicId, number>>;

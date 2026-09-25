@@ -15,6 +15,7 @@ import { begin, end } from './sim/view';
 import { SpatialHash } from './core/spatial';
 import type { Game } from './core/types';
 import { createPlayer } from './entities/actors';
+import { runTimer } from './entities/hazards';
 import { accountPerks, masteryBonus, metaLoadout, startingStats, type MetaRanks } from './logic/economy';
 import { TALENT_ROW_CAP } from './config/economy';
 import { applyGrowth } from './logic/formulas';
@@ -286,7 +287,7 @@ export function updateGame(g: Game, dt: number): void {
   for (const e of g.enemies) g.hash.insert(e);
   end('hash', _t);
 
-  for (const t of g.timers) if ((t.t -= dt) <= 0) t.fn();
+  for (const t of g.timers) if ((t.t -= dt) <= 0) runTimer(g, t);
   compact(g.timers, (t) => t.t > 0);
 
   const p = g.player;

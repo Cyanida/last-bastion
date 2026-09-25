@@ -7,7 +7,7 @@ import { combineMods } from '../logic/mods';
 import { attuneAll, duoFamilies, foldRelicMods, readyDuos, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
 import { floatText, ring } from './effects';
 import { relicContext } from './relicContext';
-import { credit, familySets, rawBy, type RelicHooks } from './relicCore';
+import { credit, familySets, type RelicHooks } from './relicCore';
 import { BLOOD_RELICS, BLOOD_SETS } from './relicFamilies/blood';
 import { FLAME_RELICS, FLAME_SETS } from './relicFamilies/flame';
 import { FROST_RELICS, FROST_SETS } from './relicFamilies/frost';
@@ -46,7 +46,7 @@ function reachedSets(p: Player): [FamilyId, RelicHooks][] {
 function shareOut(g: Game, p: Player, key: keyof Mods, amount: number, frac: number): void {
   const t = p.relics.totals[key];
   if (!t || t.raw <= 0 || frac <= 0) return;
-  for (const [id, keys] of Object.entries(rawBy.get(p) ?? {}) as [RelicKey, Partial<Record<keyof Mods, number>>][]) {
+  for (const [id, keys] of Object.entries(p.relics.raw) as [RelicKey, Partial<Record<keyof Mods, number>>][]) {
     const r = keys[key];
     if (r && r > 0) credit(g, p, id, 'damage', (amount * frac * r) / t.raw);
   }
@@ -148,7 +148,7 @@ export function updateRelics(g: Game, dt: number): void {
     const mods = relicMods(id, relicTier(r.tiers, id));
     if (mods) raw[id] = Object.fromEntries(Object.entries(mods).map(([k, v]) => [k, BONUS_KEYS.has(k as keyof Mods) ? (k === 'cooldown' ? 1 - v! : v! - 1) : v!]));
   }
-  rawBy.set(p, raw);
+  r.raw = raw;
   for (const id of r.held) {
     relicContext.acting = id;
     HOOKS[id]?.tick?.(g, dt, p);
