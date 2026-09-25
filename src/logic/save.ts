@@ -12,7 +12,7 @@ import { BUILDING_IDS, BUILDINGS, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS
 import type { EnemyId } from '../config/enemies';
 import type { QualitySetting } from '../config/game';
 import { DUO_IDS, isCursedRelic, RELIC_IDS, type DuoId, type RelicId } from '../config/relics';
-import { duoFamilies, familySets } from './relics';
+import { familySets } from './relics';
 import { TRAIT_IDS, type TraitId } from '../config/traits';
 import { TREASURE_RULES } from '../config/treasures';
 import { curseMultiplier } from './curses';
@@ -446,7 +446,7 @@ export function applyRun(save: Save, run: RunSummary, date = today(), at = new D
         goldEarned: c.goldEarned + run.gold,
         flawlessBosses: c.flawlessBosses + run.flawlessBosses,
         maxRelics: Math.max(c.maxRelics, run.relics.length),
-        sixSets: c.sixSets + (Object.values(familySets(run.relics, duoFamilies(run.duos ?? []))).some((st) => st!.level === 6) ? 1 : 0),
+        sixSets: c.sixSets + (Object.values(familySets(run.relics)).some((st) => st!.level === 6) ? 1 : 0),
         maxDuos: Math.max(c.maxDuos, run.duos?.length ?? 0),
         maxAwakened: Math.max(c.maxAwakened, Object.values(run.relicTiers ?? {}).filter((t) => t === 3).length),
         cursedWin: run.won ? Math.max(c.cursedWin, run.relics.filter(isCursedRelic).length) : c.cursedWin,

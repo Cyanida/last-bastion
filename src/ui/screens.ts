@@ -17,7 +17,7 @@ import { TREASURE_RULES, TREASURES, treasureDesc, type TreasureId } from '../con
 import { chainStep, followUpText, inText, nextFragmentBoss, rankFor } from '../logic/treasures';
 import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
 import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
-import { duoFamilies, familySets, halfAttunement, type RelicTiers } from '../logic/relics';
+import { duoTier, familySets, looseRelics, halfAttunement, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
 import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
@@ -96,10 +96,10 @@ const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, ex
   return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip="${esc(relicTip(id, tier, held))}"><div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.cursed ? 'no family' : r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${relicDesc(id, tier)}</p>${extra}</button>`;
 };
 
-/** v0.7 A5: a duo as a gold card: it takes the moment's pick and counts toward both its families. */
+/** v0.7 A5: a duo as a gold card: it takes the moment's pick. v0.7.5 (#96): it combines its two relics into one; the families keep their counts. */
 const duoCard = (id: DuoId, attrs: string, extra = '') => {
   const d = DUOS[id];
-  return `<button class="card panel boon evolution duo-card" ${attrs} data-tip="${esc(duoTip(id))}"><div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${d.desc}</p><div class="preview">From ${d.from.map((r) => relicDef(r).name).join(' + ')} · counts toward both families</div>${extra}</button>`;
+  return `<button class="card panel boon evolution duo-card" ${attrs} data-tip="${esc(duoTip(id))}"><div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${d.desc}</p><div class="preview">Combines ${d.from.map((r) => relicDef(r).name).join(' + ')} into one · families keep their counts</div>${extra}</button>`;
 };
 
 // ---------------------------------------------------------------- title & menus
@@ -772,7 +772,7 @@ export interface BuildInfo {
 
 /** The current build: ability upgrades, relics with tiers (tooltips), active synergies and clashes. Pause and results screens. */
 export function buildHtml(info: BuildInfo): string {
-  const relics = info.relics.map((id) => {
+  const relics = looseRelics(info.relics, info.duos ?? []).map((id) => { // v0.7.5 (#96): a duo's two relics show as the duo
     const tier = info.tiers[id] ?? 1;
     const att = info.attune && tier < RELIC_MAX_TIER ? ` · ${Math.floor((info.attune[id] ?? 0) * 100)}% to ${TIER_NUMERALS[tier + 1]}` : '';
     return `<div><span tabindex="0" data-tip="${esc(relicTip(id, tier, info.relics))}">${relicDef(id).icon} ${relicDef(id).name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}${att}</span><em>${relicDesc(id, tier)}</em></div>`;
@@ -784,8 +784,12 @@ export function buildHtml(info: BuildInfo): string {
   const talents = info.talents.length || info.talentPoints ? `<div><span>🌿 Talents${info.talentPoints ? ` · ${info.talentPoints} unspent` : ''}</span><em>${info.talents.map((id) => TALENT_BY_ID[id]?.name).join(' · ') || 'none yet'}</em></div>` : '';
   const sacred = (info.sacred ?? []).map((s) => `<div><span>${s.name}</span><em>${s.desc}</em></div>`).join('');
   // v0.7: the set bonuses reached, per family
-  const duos = (info.duos ?? []).map((id) => `<div class="evolved"><span tabindex="0" data-tip="${esc(duoTip(id))}">${DUOS[id].icon} ${DUOS[id].name}</span><em>${DUOS[id].desc}</em></div>`).join('');
-  const syns = Object.entries(familySets(info.relics, duoFamilies(info.duos ?? []))).map(([f, st]) => {
+  const duos = (info.duos ?? []).map((id) => {
+    const tier = duoTier(info.tiers, id);
+    const att = info.attune && tier < RELIC_MAX_TIER ? ` · ${Math.floor(Math.max(...DUOS[id].from.map((r) => info.attune![r] ?? 0)) * 100)}% to ${TIER_NUMERALS[tier + 1]}` : '';
+    return `<div class="evolved"><span tabindex="0" data-tip="${esc(duoTip(id, tier))}">${DUOS[id].icon} ${DUOS[id].name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}${att}</span><em>${DUOS[id].desc}</em></div>`;
+  }).join('');
+  const syns = Object.entries(familySets(info.relics)).map(([f, st]) => {
     const fam = FAMILIES[f as keyof typeof FAMILIES];
     const next = ([2, 4, 6] as const).find((l) => l > st.count);
     const reached = ([2, 4, 6] as const).filter((l) => st.level >= l).map((l) => `${fam.sets[l][0]}: ${fam.sets[l][1]}`).join(' ');
@@ -1015,7 +1019,7 @@ export function showCompendium(save: Save, onBack: () => void): void {
       <h2 style="color:${CURSED.color}">☠ Cursed</h2><p class="hint">No family and no set bonus, far stronger than any other relic, and each carries a curse; awakening it lifts the curse. At most one is offered an Act, as the purple third card of a wave boss or a lair.</p>
       <div class="cards wrap">${CURSED_IDS.map(card).join('')}</div>
       <h2>Duos · ${save.duos.length} / ${DUO_IDS.length} discovered</h2>
-      <p class="hint">Hold both relics of a recipe and a relic moment offers the duo as a gold fourth card; it counts toward both families, and each relic feeds one duo. A discovered duo shows in full.</p>
+      <p class="hint">Hold both relics of a recipe and a relic moment offers the duo as a gold fourth card; it combines the two into one relic that attunes as one, the families keep their counts, and each relic feeds one duo. A discovered duo shows in full.</p>
       <div class="recipes">${DUO_IDS.map((id) => {
         const d = DUOS[id];
         const known = save.duos.includes(id);

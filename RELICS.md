@@ -139,12 +139,23 @@ The 12 duos below live in `DUOS` (`config/relics.ts`), their effects in `systems
 Consecration's ward half in `gainWard`). A duo is **ready** when both source relics are held, neither feeds a formed duo and it is not formed
 yet; ready duos queue in the order they completed. Each relic moment carries at most one, the first ready duo not already on a queued moment,
 as a gold fourth card that takes the pick; a skipped duo comes back at the next moment, and a ready duo makes a moment even with nothing left to
-find. A formed duo counts toward both families (a 6 completed with it works at 125%), shows in the HUD, the pause screen and the Relics results
+find. A formed duo combines its two source relics into one (v0.7.5, below), shows in the HUD, the pause screen and the Relics results
 (its damage and healing credited to it), lands in the run log and emits `onDuoFormed`. The pick screen says when a relic would complete a duo;
 relic tooltips name their duo; the compendium shows each recipe as a hint until the duo is formed once (`save.duos`).
 
 First measure (the first-pick bot, maxed saves, 10 runs): 2.5 duos a run, 3 or more in 5 of 10, above the target (1-2, 3+ under 15%). That bot
 holds ~22 relics by wave 40 and takes every duo; A8 measures with the family-following bot and, if it stays high, offers fewer duos (no cap).
+
+**v0.7.5 · A duo combines its two relics ([#96](https://github.com/Cyanida/last-bastion/issues/96)).** A duo used to be a third relic
+that counted toward both its families, which made 6-sets far too easy. Now forming a duo turns its two source relics into one relic: both
+their effects keep working and the duo's own effect joins them. The families keep the counts of the two sources (Emberheart and Storm Pennant
+forming Wildfire stay Flame 1 and Storm 1); the duo adds none, so the 125% strength of a duo-completed 6 is gone with it. The duo takes the
+higher tier of its two sources (and that tier's fuller bar) and attunes as one relic up to tier III: the work of either source or of the duo
+fills one bar, and a tier-up raises both (`logic/relics.ts` `joinTiers`, `systems/relics.ts` `tierUp`). The relic bar, the build panel,
+the Relics results (credit summed into the duo's row) and the Merchant show the duo instead of its sources, so a combined relic cannot be
+sold, rerolled or reforged. Every class still reaches a 6-set: each of its three preferred families holds six relics it can find.
+First measure (`sim -- relics 4`, 20 runs, 13 won): 6-sets in 7.7% of winning runs (was 41-65%, mostly completed with a duo), 1.00 duos a winning run, power index 2.04. The 6-set target (about a
+third of winning runs) is now missed: raising it is a balance call for a follow-up (more lean toward held families, or a duo worth a piece).
 
 ## A7 · Keep, achievements, migration (built)
 
@@ -260,8 +271,8 @@ Half of that goes over as tier plus bar (`logic/relics.ts` `halfAttunement`):
 | Tier II, bar 50% | 1.5 | 0.75 | tier I, 75% |
 | Awakened (III) | 2 | 1 | tier II, empty |
 
-It costs 30 gold (+35% an Act; `MERCHANT.reforge`). A cursed relic has no family, so it cannot be reforged. A duo the old relic fed stays formed,
-as when it is sold. Reroll keeps the tier but not the family; Reforge keeps the family count but halves the attunement.
+It costs 30 gold (+35% an Act; `MERCHANT.reforge`). A cursed relic has no family, so it cannot be reforged. A relic combined into a duo is not
+listed (v0.7.5). Reroll keeps the tier but not the family; Reforge keeps the family count but halves the attunement.
 
 ## A0b · The new relic list (approved, revision 2)
 
@@ -279,13 +290,14 @@ the end for comparison.
 - **Preferred families.** Every class prefers three families, and its three class relics are one in each. So in a preferred family a class
   can find **6 straight pieces** (5 + its class relic) and max the family; in any other family it finds 5, which gives the 2 and 4 bonuses, and
   the 6 needs a duo piece (a duo counts for both its families). **A 6-set completed with a duo works at 125% strength** (all its numbers):
-  the rarer route is the stronger one.
+  the rarer route is the stronger one. *(v0.7.5, #96: a duo no longer counts toward families, so a 6 needs six relics of the family: see A5.)*
   The class select shows each class's preferred families, and the compendium shows which relics your class can find.
 - **50 relics**: 35 that any class can find and 15 class relics (3 per class, one in each preferred family). Rarity sets how often a relic
   is offered (common, rare, legendary), not how many you can hold: there are no duplicates.
 - **Attunement** (A4): a relic grows by doing its work. **Tier II** strengthens the numbers; **tier III awakens** it: an extra behavior with its own
   name. Numbers below are tier I → tier II.
-- **12 duos** (A5): hold the two named source relics and a gold fourth card can offer the duo at a relic moment. A duo counts toward both families.
+- **12 duos** (A5): hold the two named source relics and a gold fourth card can offer the duo at a relic moment. A duo combines its two relics
+  into one (v0.7.5); the families keep their counts.
 - *Scaling* marks a number that grows with the class's secondary stat (Faith, Rage, Grace, Soul Power, Focus: "S" below).
 - New mechanics the list needs, each small and reusable: **ward** (a shield that absorbs damage before HP, the Holy family's), **armor stacks**
   (Steel: +3% armor each, 5 max, they fade 4 s after the last one was gained), **block** (Steel: a blocked hit does no damage), **lightning strike**
@@ -394,7 +406,8 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 
 ### Duo relics (12)
 
-Hold both source relics and a duo can be offered (a gold fourth card, it takes the moment's pick). A duo counts toward both families; each
+Hold both source relics and a duo can be offered (a gold fourth card, it takes the moment's pick). A duo combines its two source relics into
+one relic with both their effects and its own, attuning as one up to tier III; the families keep the two relics' counts (v0.7.5, #96). Each
 source relic can feed only one formed duo.
 
 | Duo | Families | Source relics | Effect |

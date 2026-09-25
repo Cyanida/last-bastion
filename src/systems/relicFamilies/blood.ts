@@ -2,7 +2,7 @@ import { GAME } from '../../config/game';
 import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import type { Enemy } from '../../core/types';
 import { applyStatus, damageEnemy, nearestEnemy } from '../combat';
-import { addBleed, attackHit, awakened, bonus, cutMaxHp, flash, isBleeding, nOf, relicHeal, type RelicHooks, sOf, strength } from '../relicCore';
+import { addBleed, attackHit, awakened, bonus, cutMaxHp, flash, isBleeding, nOf, relicHeal, type RelicHooks, sOf } from '../relicCore';
 
 /**
  * 🩸 Blood (RELICS.md): bleed, and HP for power. Relics open wounds, reward bleeding enemies or turn missing HP into power; the sets add a
@@ -92,10 +92,10 @@ export const BLOOD_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   // 2 Open Wounds lives in combat.applyStatus: every bleed from the player gets a stack more
   4: {
     tick(_g, _dt, p) {
-      bonus(p, 'damage', Math.min(F.n.lustMax, missing(p) * F.n.perMissing) * strength(p, 'blood')); // Bloodlust
+      bonus(p, 'damage', Math.min(F.n.lustMax, missing(p) * F.n.perMissing)); // Bloodlust
     },
     onKill(g, ev, p) {
-      if (isBleeding(ev.enemy)) relicHeal(g, p, p.stats.hp * F.n.killHeal * strength(p, 'blood'));
+      if (isBleeding(ev.enemy)) relicHeal(g, p, p.stats.hp * F.n.killHeal);
     },
   },
   6: {
@@ -106,7 +106,7 @@ export const BLOOD_SETS: Partial<Record<SetLevel, RelicHooks>> = {
     },
     tick(g, _dt, p) {
       if (!g.input.ability || p.abilityCd <= 0 || g.vars['bloodMagic.lock']) return;
-      p.hp -= p.hp * (F.n.hpCost / strength(p, 'blood'));
+      p.hp -= p.hp * F.n.hpCost;
       p.abilityCd = 0;
       g.vars['bloodMagic.paid'] = 1;
       g.vars['bloodMagic.lock'] = 1;

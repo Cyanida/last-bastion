@@ -1,5 +1,5 @@
 import type { ClassId } from '../config/classes';
-import { ATTUNEMENT, DUO_IDS, DUO_SIX_STRENGTH, DUOS, FAMILY_IDS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, DUO_IDS, DUOS, FAMILY_IDS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng } from '../core/types';
 import { mulberry32 } from '../core/math';
@@ -18,7 +18,7 @@ export type RelicTiers = Partial<Record<RelicId, number>>;
 
 /** A4: attunement a relic earns by doing its work, up to ATTUNEMENT.workCap a wave (the tier-up itself happens in systems/relics updateRelics). */
 export function addWork(r: RelicState, key: RelicKey, amount: number): void {
-  const id = key as RelicId; // a duo is never held: it has no tiers and does not attune
+  const id = key in DUOS ? DUOS[key as DuoId].from[0] : (key as RelicId); // v0.7.5: a duo's work attunes the relic it combined (its sources share one tier)
   if (!r.held.includes(id) || (r.tiers[id] ?? 0) >= RELIC_MAX_TIER) return;
   const add = Math.min(amount, ATTUNEMENT.workCap - (r.work[id] ?? 0));
   if (!(add > 0)) return;
@@ -34,8 +34,28 @@ export function readyDuos(r: Pick<RelicState, 'held' | 'duos'>): DuoId[] {
   const done = (d: DuoId) => Math.max(...DUOS[d].from.map((id) => r.held.indexOf(id)));
   return DUO_IDS.filter((d) => !r.duos.includes(d) && DUOS[d].from.every((id) => r.held.includes(id) && !used.has(id))).sort((a, b) => done(a) - done(b));
 }
-/** The two families of every formed duo, for familySets. */
-export const duoFamilies = (duos: DuoId[]): [FamilyId, FamilyId][] => duos.map((d) => DUOS[d].families);
+/** v0.7.5 (#96): the held relics a formed duo combined; they still work and count toward their families, but show as the duo. */
+export const combined = (duos: DuoId[]): Set<RelicId> => new Set(duos.flatMap((d) => DUOS[d].from));
+/** Held relics that stand on their own, not combined into a duo: what the relic bar, the build and the Merchant list. */
+export const looseRelics = (held: RelicId[], duos: DuoId[]): RelicId[] => held.filter((id) => !combined(duos).has(id));
+/** The other source of the formed duo `id` was combined into, if any. */
+export const duoPartner = (duos: DuoId[], id: RelicId): RelicId | undefined => {
+  const d = duos.find((x) => DUOS[x].from.includes(id));
+  return d && DUOS[d].from.find((s) => s !== id);
+};
+/** A formed duo's tier: the one its two sources share. */
+export const duoTier = (tiers: RelicTiers, id: DuoId): number => tiers[DUOS[id].from[0]] ?? 1;
+/**
+ * v0.7.5 (#96): forming a duo makes its two sources one relic: both take the higher tier and the fuller bar of that tier, and tier up
+ * together from then on (systems/relics tierUp), up to tier III.
+ */
+export function joinTiers(r: Pick<RelicState, 'tiers' | 'attune'>, id: DuoId): void {
+  const [a, b] = DUOS[id].from;
+  const tier = Math.max(r.tiers[a] ?? 1, r.tiers[b] ?? 1);
+  const bar = Math.max(...[a, b].map((s) => ((r.tiers[s] ?? 1) === tier ? r.attune[s] ?? 0 : 0)));
+  r.tiers = { ...r.tiers, [a]: tier, [b]: tier };
+  r.attune[a] = r.attune[b] = bar;
+}
 
 /** A4: attunement every held relic below the top tier gains (a wave cleared, an elite killed). */
 export function attuneAll(r: RelicState, amount: number): void {
@@ -102,21 +122,16 @@ export function rollOffer(
   return out;
 }
 
-/** v0.7 (RELICS.md): a family's count, straight pieces (not duos), set level, and the strength its set works at. */
-export interface SetState { count: number; straight: number; level: 0 | SetLevel; strength: number }
+/** v0.7 (RELICS.md): a family's count and set level. */
+export interface SetState { count: number; level: 0 | SetLevel }
 
-/**
- * Family counts and set levels. `duoFamilies`: the two families of every formed duo (a duo counts for both). A 6 reached without 6 straight
- * pieces (a family the class does not prefer, completed with a duo) works at DUO_SIX_STRENGTH.
- */
-export function familySets(held: RelicId[], duoFamilies: [FamilyId, FamilyId][]): Partial<Record<FamilyId, SetState>> {
+/** Family counts and set levels. v0.7.5 (#96): a duo adds nothing; the two relics it combined keep counting toward their own families. */
+export function familySets(held: RelicId[]): Partial<Record<FamilyId, SetState>> {
   const out: Partial<Record<FamilyId, SetState>> = {};
   for (const f of FAMILY_IDS) {
-    const straight = held.filter((id) => relicDef(id).family === f).length;
-    const count = straight + duoFamilies.filter((d) => d.includes(f)).length;
+    const count = held.filter((id) => relicDef(id).family === f).length;
     if (!count) continue;
-    const level = count >= 6 ? 6 : count >= 4 ? 4 : count >= 2 ? 2 : 0;
-    out[f] = { count, straight, level, strength: level === 6 && straight < 6 ? DUO_SIX_STRENGTH : 1 };
+    out[f] = { count, level: count >= 6 ? 6 : count >= 4 ? 4 : count >= 2 ? 2 : 0 };
   }
   return out;
 }

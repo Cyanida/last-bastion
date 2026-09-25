@@ -108,9 +108,6 @@ export const RELIC_STACKING = {
 /** Proc icons and damage numbers of relics without a family colour. */
 export const RELIC_COLOR = '#d9a8ff';
 
-/** A 6-set completed with a duo (in a family you cannot max with straight pieces) is the rarer route, so it is the stronger one (Jesse, #5). */
-export const DUO_SIX_STRENGTH = 1.25;
-
 /**
  * The families. `preferredBy`: the classes that can max it with straight pieces (5 relics any class finds + that class's own class relic).
  * Set bonus numbers are read by systems/relicFamilies/<family>.ts; `...PerS` numbers grow with the class's secondary stat.
@@ -343,7 +340,8 @@ export const preferredFamilies = (classId: ClassId): FamilyId[] => FAMILY_IDS.fi
 
 /**
  * v0.7 A5 duo relics (RELICS.md): hold both source relics (of two families) and a relic moment offers the duo as a gold fourth card that
- * takes the pick. A formed duo counts toward both families; each source relic feeds at most one formed duo. Effects: systems/relicFamilies/duos.ts.
+ * takes the pick. v0.7.5 (#96): a formed duo combines its two sources into one relic (both effects plus its own, one shared tier up to III);
+ * the families keep the sources' counts and the duo adds none. Effects: systems/relicFamilies/duos.ts.
  */
 export interface DuoDef { name: string; icon: string; families: [FamilyId, FamilyId]; from: [RelicId, RelicId]; desc: string; n: Record<string, number> }
 const duo = (name: string, icon: string, families: [FamilyId, FamilyId], from: [RelicId, RelicId], desc: string, n: Record<string, number> = {}): DuoDef => ({ name, icon, families, from, desc, n });

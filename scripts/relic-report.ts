@@ -14,14 +14,14 @@ import { MASTERY, META, META_IDS } from '../src/config/economy';
 import { DUO_IDS, FAMILIES, FAMILY_IDS, isDuo, isFamily, keyName, RELIC_IDS, relicDef, type FamilyId, type RelicKey } from '../src/config/relics';
 import type { Game, RelicStat } from '../src/core/types';
 import { createGame, type RunOptions } from '../src/game';
-import { duoFamilies, familySets } from '../src/logic/relics';
+import { familySets } from '../src/logic/relics';
 import { botStep } from '../src/sim/bot';
 
 interface Snap { stats: Record<string, RelicStat>; dealt: number; healed: number; taken: number; prevented: number }
 interface RunRow {
   classId: ClassId; won: boolean; wave: number; held: number; duos: number; awakened: number; moments: Record<string, number>;
   levels: Partial<Record<FamilyId, number>>; // set level per family at the end
-  sixes: [FamilyId, number][]; // 6-sets at the end, with their straight pieces (under 6: completed with a duo)
+  sixes: FamilyId[]; // 6-sets at the end (v0.7.5: always 6 relics of the family; a duo adds no count)
   power: number | null; // relics' share of the damage dealt in waves 11-20
   power3: number | null; // ...and in waves 21-30, with the build complete
   late: { shares: Record<string, number>; waves: number } | null; // each relic held at wave 20: its share (best of damage, healing, mitigation) from wave 21 on
@@ -71,13 +71,13 @@ function play(classId: ClassId, seed: number, opts: RunOptions, variant: number)
     const hits = Math.max(1, end.taken - at20.taken + end.prevented - at20.prevented);
     late = { shares: Object.fromEntries(heldAt20.map((id) => { const d = diff(at20!, end, id); return [id, Math.max(d.damage / dealt, d.healing / healed, d.prevented / hits)]; })), waves: g.wavesCleared - 20 };
   }
-  const sets = familySets(r.held, duoFamilies(r.duos));
+  const sets = familySets(r.held);
   return {
     classId, won: g.victory !== 'none', wave: g.wave, held: r.held.length, duos: r.duos.length,
     moments: Object.fromEntries(Object.entries(g.vars).filter(([k]) => k.startsWith('moments.')).map(([k, v]) => [k.slice(8), v])),
     awakened: r.held.filter((id) => (r.tiers[id] ?? 0) >= 3).length,
     levels: Object.fromEntries(FAMILY_IDS.filter((f) => sets[f]).map((f) => [f, sets[f]!.level])),
-    sixes: FAMILY_IDS.filter((f) => sets[f]?.level === 6).map((f) => [f, sets[f]!.straight]),
+    sixes: FAMILY_IDS.filter((f) => sets[f]?.level === 6),
     power, power3, late, bosses,
   };
 }
@@ -111,7 +111,7 @@ if (cmd === 'run') {
   console.log(`| Relic power index 1.8-2.2 (Acts II-III, waves 11-30) | ${power23.toFixed(2)} (Act II ${power.toFixed(2)}, Act III ${power3.toFixed(2)}) | ${ok(power23 >= 1.8 && power23 <= 2.2)} |`);
   const sixes = won.flatMap((r) => r.sixes ?? []);
   console.log(`
-6-sets in winning runs: ${sixes.length} (${sixes.filter(([, n]) => n >= 6).length} straight, ${sixes.filter(([, n]) => n < 6).length} completed with a duo); by family: ${FAMILY_IDS.map((f) => `${FAMILIES[f].name} ${sixes.filter(([x]) => x === f).length}`).join(', ')}.`);
+6-sets in winning runs: ${sixes.length}; by family: ${FAMILY_IDS.map((f) => `${FAMILIES[f].name} ${sixes.filter((x) => x === f).length}`).join(', ')}.`);
   const sources = [...new Set(won.flatMap((r) => Object.keys(r.moments)))];
   console.log(`
 Relic moments a winning run met: ${avg(won.map((r) => Object.values(r.moments).reduce((a, b) => a + b, 0))).toFixed(1)} (${sources.map((s) => `${s} ${avg(won.map((r) => r.moments[s] ?? 0)).toFixed(1)}`).join(', ')}).`);

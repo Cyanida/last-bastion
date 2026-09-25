@@ -63,7 +63,7 @@ export function reforgeChoices(g: Game, id: RelicId): RelicId[] {
 
 /**
  * v0.7.1 B7: Reforge: swap a held relic for a random other relic of its family (weighted by rarity, from the player's relic stream), which
- * starts with half its attunement (logic/relics.ts halfAttunement). A duo it feeds stays formed, as when it is sold.
+ * starts with half its attunement (logic/relics.ts halfAttunement). A relic combined into a duo is not offered (the Merchant lists loose relics).
  */
 export function merchantReforge(g: Game, id: RelicId): boolean {
   const r = g.player.relics;

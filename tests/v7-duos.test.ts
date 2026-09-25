@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DUO_IDS, DUO_SIX_STRENGTH, DUOS, FAMILY_IDS, RELIC_IDS, relicDef, type RelicId } from '../src/config/relics';
+import { DUO_IDS, DUOS, FAMILY_IDS, RELIC_IDS, relicDef, type RelicId } from '../src/config/relics';
 import type { Game } from '../src/core/types';
 import { createGame, summarizeRun } from '../src/game';
 import { readyDuos } from '../src/logic/relics';
@@ -74,7 +74,7 @@ describe('duo offers', () => {
     expect(g.player.relics.offers[0].duo).toBe('wildfire');
   });
 
-  it('taking a duo costs the pick and counts toward both families; a duo-completed 6 works at 125%', () => {
+  it('taking a duo costs the pick; its two relics keep their family counts', () => {
     const flame = RELIC_IDS.filter((id) => relicDef(id).family === 'flame' && !relicDef(id).classId); // 5, Brimstone Oil among them
     const g = game([...flame, 'frostBrand']);
     offerRelics(g, 3, 'boss');
@@ -83,8 +83,8 @@ describe('duo offers', () => {
     expect(g.player.relics.held.length).toBe(held);
     expect(g.player.relics.offers).toHaveLength(0);
     tick(g);
-    expect(g.player.relics.sets.flame).toMatchObject({ count: 6, straight: 5, level: 6, strength: DUO_SIX_STRENGTH });
-    expect(g.player.relics.sets.frost).toMatchObject({ count: 2, level: 2 });
+    expect(g.player.relics.sets.flame).toMatchObject({ count: 5, level: 4 }); // v0.7.5 (#96): the duo adds no count
+    expect(g.player.relics.sets.frost).toMatchObject({ count: 1, level: 0 });
   });
 
   it('with nothing left to find, a ready duo still makes a moment', () => {
