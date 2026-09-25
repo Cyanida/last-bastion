@@ -51,6 +51,7 @@ export interface RelicOffer {
   options: RelicId[];
   rerolls: number;
   duo?: DuoId; // v0.7 A5: a ready duo, the gold fourth card
+  families?: FamilyId[]; // #100: a boss moment offers (and rerolls) only its arena's families
 }
 
 /**

@@ -1,10 +1,10 @@
 import { ROUTES } from '../config/routes';
-import { ATTUNEMENT, BOSS_RELIC_CHOICES, CURSED, CURSED_IDS, duoOf, DUOS, FAMILIES, isCursedRelic, isDuo, isFamily, FAMILY_IDS, keyColor, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ARENA_FAMILIES, ATTUNEMENT, BOSS_RELIC_CHOICES, CURSED, CURSED_IDS, duoOf, DUOS, FAMILIES, isCursedRelic, isDuo, isFamily, FAMILY_IDS, keyColor, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { sfx } from '../sim/view';
 import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
 import { combineMods } from '../logic/mods';
-import { attuneAll, duoPartner, duoTier, foldRelicMods, joinTiers, looseRelics, readyDuos, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
+import { attuneAll, duoPartner, duoTier, familyPool, foldRelicMods, joinTiers, looseRelics, readyDuos, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
 import { floatText, ring } from './effects';
 import { relicContext } from './relicContext';
 import { credit, familySets, type RelicHooks } from './relicCore';
@@ -283,9 +283,10 @@ export function relicShares(g: Game, p: Player = g.player): { id: RelicKey; tier
 /** Rerolls a moment starts with: the base, the Cursed Luck trait, the Keep's Reliquary Guard, the Elite path's Act. */
 export const momentRerolls = (g: Game): number => RELIC_MOMENTS.rerolls + (g.vars['trait.rerolls'] ?? 0) + (g.vars['keep.relicRerolls'] ?? 0) + (g.route?.focus === 'elite' ? ROUTES.elite.rerolls : 0);
 
-function roll(p: Player, pool: RelicId[], n: number): RelicId[] {
+/** A moment's options; `families` (#100: a boss's arena) narrows the pool to them while they can fill it. */
+function roll(p: Player, pool: RelicId[], n: number, families?: FamilyId[], exclude = p.relics.offers.flatMap((o) => o.options)): RelicId[] {
   const r = p.relics;
-  return rollOffer(pool, r.held, r.rng, n, familyOf, RELIC_MOMENTS.heldFamilyWeight, r.offers.flatMap((o) => o.options));
+  return rollOffer(families ? familyPool(pool, r.held, families, n, exclude) : pool, r.held, r.rng, n, familyOf, RELIC_MOMENTS.heldFamilyWeight, exclude);
 }
 
 /**
@@ -294,12 +295,13 @@ function roll(p: Player, pool: RelicId[], n: number): RelicId[] {
  */
 export function offerRelics(g: Game, count = BOSS_RELIC_CHOICES, from: RelicSource = 'other', p: Player = g.player, pool = p.relics.pool): void {
   const cursed = cursedCard(g, p, from);
-  const options = roll(p, pool, cursed ? count - 1 : count);
+  const families = from === 'boss' ? ARENA_FAMILIES[g.arena.id] : undefined;
+  const options = roll(p, pool, cursed ? count - 1 : count, families);
   if (cursed) options.splice(2, 0, cursed); // the third card (the last, if the pool ran short)
   // v0.7 A5: the first completed duo not already on a queued moment comes along as a gold fourth card (one a moment), at a wave boss (A8)
   const duo = RELIC_MOMENTS.duoAt.includes(from) ? readyDuos(p.relics).find((d) => !p.relics.offers.some((o) => o.duo === d)) : undefined;
   if (!options.length && !duo) return;
-  p.relics.offers.push({ from, options, rerolls: momentRerolls(g), ...(duo ? { duo } : {}) });
+  p.relics.offers.push({ from, options, rerolls: momentRerolls(g), ...(duo ? { duo } : {}), ...(families ? { families } : {}) });
   g.vars[`moments.${from}`] = (g.vars[`moments.${from}`] ?? 0) + 1; // counted for the sims (RELICS.md: 12-16 a run)
 }
 
@@ -359,7 +361,7 @@ export function rerollRelicOffer(g: Game, p: Player = g.player): boolean {
   const pool = offer.from === 'merchant' ? p.relics.pool.filter((id) => relicDef(id).rarity === relicDef(offer.options[0]).rarity) : p.relics.pool;
   const others = p.relics.offers.slice(1).flatMap((o) => o.options);
   const cursed = offer.options.filter(isCursedRelic); // B6: a cursed third card stays
-  const options = rollOffer(pool, p.relics.held, p.relics.rng, offer.options.length - cursed.length, familyOf, RELIC_MOMENTS.heldFamilyWeight, [...others, ...offer.options]);
+  const options = roll(p, pool, offer.options.length - cursed.length, offer.families, [...others, ...offer.options]);
   if (!options.length) return false;
   options.splice(2, 0, ...cursed);
   offer.options = options;

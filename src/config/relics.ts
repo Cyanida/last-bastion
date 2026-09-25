@@ -1,4 +1,5 @@
 import type { Mods } from '../core/types';
+import type { ArenaId } from './arenas';
 import type { ClassId } from './classes';
 
 /**
@@ -56,6 +57,19 @@ export const RELIC_MOMENTS = {
   classRelicWeight: 0.5, // A8: class relics come half as often (a straight 6-set in a preferred family needs its class relic)
   duoAt: ['boss', 'lair'] as string[], // A8: the moments that can carry a ready duo (at every moment, duos completed most 6-sets)
   merchantPerVisit: 1, // the Merchant sells one relic moment a visit between Acts (not at the Merchant path's caravan): at most 3 a run
+};
+
+/**
+ * #100: the families each arena's bosses drop. A boss moment offers only relics of its arena's families (plus a cursed third card or a ready
+ * duo), and so do its rerolls, so a boss can't be rerolled into any build. Lairs, quests, strongboxes, the Merchant and the run start stay
+ * open, so every class can still gather a 6-set of its preferred families. Every family is some arena's; a boss falls back to the whole
+ * pool when too few of its families' relics are left to fill the pick.
+ */
+export const ARENA_FAMILIES: Record<ArenaId, FamilyId[]> = {
+  courtyard: ['steel', 'storm', 'blood'], // an open brawl
+  graveyard: ['grave', 'frost', 'holy'], // the dead, the cold and the last rites
+  keep: ['flame', 'holy', 'steel'], // braziers and the knights' hall
+  bastion: ['flame', 'blood', 'frost'], // the Usurper's burning gate
 };
 
 /**
