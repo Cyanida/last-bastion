@@ -3,7 +3,7 @@ import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import type { Enemy, Game, Player } from '../../core/types';
 import { critChance } from '../../logic/formulas';
 import { rollPlayerHit } from '../combat';
-import { attackHit, awakened, bonus, chainFrom, nOf, nova, relicDamage, sOf, strength, strike, type RelicHooks } from '../relicCore';
+import { attackHit, awakened, bonus, chainFrom, nOf, nova, relicDamage, sOf, strike, type RelicHooks } from '../relicCore';
 
 /**
  * ⚡ Storm (RELICS.md): chains and speed. Relics chain hits to more enemies, turn chains and crits into speed, or call lightning; the sets
@@ -127,8 +127,8 @@ export const STORM_SETS: Partial<Record<SetLevel, RelicHooks>> = {
     },
   },
   4: {
-    onHit(g, ev, p) {
-      if (ev.crit && (ev.source === 'attack' || ev.source === 'ability')) strike(g, ev.enemy.x, ev.enemy.y, ev.amount * F.n.strikeMult * strength(p, 'storm'), F.n.strikeRadius); // Thunderstrike
+    onHit(g, ev) {
+      if (ev.crit && (ev.source === 'attack' || ev.source === 'ability')) strike(g, ev.enemy.x, ev.enemy.y, ev.amount * F.n.strikeMult, F.n.strikeRadius); // Thunderstrike
     },
   },
   6: {

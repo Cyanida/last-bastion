@@ -6,7 +6,7 @@ import { fireProjectile } from '../../entities/hazards';
 import { TAU } from '../../core/math';
 import { rollPlayerHit } from '../combat';
 import { ring } from '../effects';
-import { awakened, bonus, credit, gainWard, nOf, nova, relicDamage, relicHeal, relicSkeletons, sOf, strength, type RelicHooks } from '../relicCore';
+import { awakened, bonus, credit, gainWard, nOf, nova, relicDamage, relicHeal, relicSkeletons, sOf, type RelicHooks } from '../relicCore';
 
 /**
  * ✨ Holy (RELICS.md): healing, ward and blessing. Relics heal, grant ward (combat.damagePlayer lets ward take a hit first) or save you from
@@ -119,12 +119,12 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
 export const HOLY_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   2: {
     onHeal(g, ev, p) {
-      if (ev.amount > 0) gainWard(g, p, ev.amount * F.n.wardShare * strength(p, 'holy')); // Blessed (the ward's maximum: relicCore.wardMax)
+      if (ev.amount > 0) gainWard(g, p, ev.amount * F.n.wardShare); // Blessed (the ward's maximum: relicCore.wardMax)
     },
   },
   4: {
     onHeal(g, ev, p) {
-      if (ev.over > 1) nova(g, p.x, p.y, F.n.pulseRadius, ev.over * F.n.pulseMult * strength(p, 'holy'), 120, F.color, 'holy'); // Radiance
+      if (ev.over > 1) nova(g, p.x, p.y, F.n.pulseRadius, ev.over * F.n.pulseMult, 120, F.color, 'holy'); // Radiance
     },
   },
   6: {

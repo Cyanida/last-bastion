@@ -1,5 +1,16 @@
 # Balance notes
 
+## v0.7.5: a duo combines its two relics (#96)
+
+A duo no longer counts as a third relic for both its families (RELICS.md), so 6-sets fell from 41-65% of winning runs to 7.7%. Jesse's
+target (on #96): **a 6-set in about 15% of winning runs**, rarer than before but a noticeable power-up. Offers now lean 1.6× toward the
+families you hold (`RELIC_MOMENTS.heldFamilyWeight` in `config/relics.ts`, was 1).
+
+| `npm run sim -- relics 4` (20 runs) | 6-sets in winning runs | Duos a winning run | 3+ duos | Power index (Acts II-III) |
+|---|---|---|---|---|
+| Duo combines, lean 1 | 7.7% | 1.00 | | 2.04 |
+| Duo combines, lean 1.6 | 15.4% (Flame 2, Holy 2, Frost 1, Steel 1) | 1.00 | 7.7% | 2.04 (Act II 1.60, Act III 2.98) |
+
 ## v0.7.5: a boss's resolve (#95)
 
 A playtest (#93) had the Usurper die about 10 seconds in to one Volley from a 6 Flame / 6 Storm build. Bosses now have **resolve**

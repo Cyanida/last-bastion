@@ -9,7 +9,7 @@ import { GAME } from '../config/game';
 import { UPGRADE_RARITIES } from '../config/upgrades';
 import type { Game, RelicOffer, StatKey } from '../core/types';
 import { FAMILY_IDS, isCursedRelic, preferredFamilies, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
-import { duoFamilies, familySets } from '../logic/relics';
+import { familySets } from '../logic/relics';
 import { createGame, summarizeRun, updateGame, type RunOptions } from '../game';
 import type { RunSummary } from '../logic/save';
 import type { LevelUpOption } from '../logic/upgrades';
@@ -187,7 +187,7 @@ function draftRelic(g: Game, o: RelicOffer): RelicId | DuoId | null {
   const cursed = o.options.find(isCursedRelic); // v0.7.1 B6: a cursed relic whenever one is offered (the sims measure them)
   if (cursed) return cursed;
   const r = g.player.relics;
-  const sets = familySets(r.held, duoFamilies(r.duos));
+  const sets = familySets(r.held);
   const prefer = preferredFamilies(g.player.cls.id);
   const count = (f: FamilyId) => sets[f]?.count ?? 0;
   const main = FAMILY_IDS.reduce((a, b) => (count(b) > count(a) || (count(b) === count(a) && prefer.includes(b) && !prefer.includes(a)) ? b : a));

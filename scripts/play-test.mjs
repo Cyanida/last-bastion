@@ -247,6 +247,19 @@ await check('relic offer: reroll, then take the duo', () =>
   }),
 );
 
+// #96: the duo combines Brimstone Oil (II) and Frost Brand (I) into one relic bar tile at tier II; Flame and Frost stay at 1
+await check('duo: its two relics become one tile at the higher tier, families unchanged', () =>
+  inPage(async () => {
+    const P = window.__play;
+    await P.wait(300);
+    const tiles = [...document.querySelectorAll('#h-relics .relic[data-id]')].map((t) => t.dataset.id);
+    const duo = document.querySelector('#h-relics .relic[data-duo="thermalShock"]');
+    const fams = [...document.querySelectorAll('#h-families .fam-chip b')].map((b) => b.textContent);
+    const ok = !!duo && duo.innerText.includes('II') && /tier II/.test(duo.dataset.tip) && !tiles.includes('brimstoneOil') && !tiles.includes('frostBrand') && fams.filter((n) => n === '1').length >= 2 && !fams.includes('2');
+    return { ok, detail: `tiles ${tiles.join(', ')}; duo ${duo?.innerText.trim() ?? 'none'}; families ${fams.join(', ')}` };
+  }),
+);
+
 await check('relic offer: skip pays what it says', () =>
   inPage(async () => {
     const P = window.__play, g = window.__lb.game, rel = g.player.relics;
@@ -297,15 +310,17 @@ await check('Merchant: heal, reroll, reforge, sell, salvage, buy, march on', () 
     await P.click('[data-heal]');
     log.push(p.hp > hp && g.gold < gold ? 'heal' : 'HEAL FAILED');
     gold = g.gold;
-    await P.click('[data-reroll="brimstoneOil"]');
-    log.push(!rel.held.includes('brimstoneOil') && g.gold < gold ? 'reroll' : 'REROLL FAILED');
+    log.push(document.querySelector('[data-sell="brimstoneOil"], [data-sell="frostBrand"]') ? 'DUO RELICS LISTED' : 'duo relics not listed'); // #96: combined into Thermal Shock
+    await P.click('[data-reroll="butchersHook"]');
+    log.push(!rel.held.includes('butchersHook') && g.gold < gold ? 'reroll' : 'REROLL FAILED');
     gold = g.gold;
-    await P.click('[data-reforge="frostBrand"]');
-    log.push(!rel.held.includes('frostBrand') && g.gold < gold ? 'reforge' : 'REFORGE FAILED');
+    await P.click('[data-reforge="serratedEdge"]');
+    log.push(!rel.held.includes('serratedEdge') && g.gold < gold ? 'reforge' : 'REFORGE FAILED');
     gold = g.gold;
-    await P.click('[data-sell="serratedEdge"]');
-    log.push(!rel.held.includes('serratedEdge') && g.gold > gold ? 'sell' : 'SELL FAILED');
-    const last = rel.held[rel.held.length - 1];
+    const sold = document.querySelector('[data-sell]').dataset.sell;
+    await P.click(`[data-sell="${sold}"]`);
+    log.push(!rel.held.includes(sold) && g.gold > gold ? 'sell' : 'SELL FAILED');
+    const last = document.querySelector('[data-salvage]').dataset.salvage;
     await P.click(`[data-salvage="${last}"]`);
     log.push(!rel.held.includes(last) ? 'salvage' : 'SALVAGE FAILED');
     const held = rel.held.length;

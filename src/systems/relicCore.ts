@@ -28,11 +28,9 @@ export const hasDuo = (p: Player, id: DuoId): boolean => p.relics.duos.includes(
 export const sOf = (p: Player): number => p.stats.secondary;
 export const relicDamage = (p: Player, base: number): number => base * (1 + p.level * RELIC_DAMAGE_PER_LEVEL);
 
-const NO_SET: SetState = { count: 0, straight: 0, level: 0, strength: 1 };
+const NO_SET: SetState = { count: 0, level: 0 };
 export const setOf = (p: Player, f: FamilyId): SetState => p.relics.sets[f] ?? NO_SET;
 export const setAt = (p: Player, f: FamilyId, level: SetLevel): boolean => setOf(p, f).level >= level;
-/** The strength a family's set works at: a 6 completed with a duo is stronger (DUO_SIX_STRENGTH); every other level is 1. */
-export const strength = (p: Player, f: FamilyId): number => setOf(p, f).strength;
 
 // ---------------------------------------------------------------- hits
 
@@ -111,7 +109,7 @@ export const isCursed = (e: Enemy): boolean => (e.statuses.curse?.stacks ?? 0) >
 export function wardMax(p: Player): number {
   const n = FAMILIES.holy.n;
   const base = setAt(p, 'holy', 2) ? p.stats.hp * (n.wardMax + n.wardMaxPerS * sOf(p)) : p.stats.hp * 0.1;
-  return base * (setAt(p, 'holy', 6) ? n.wardMaxMult : 1) * Math.max(1, strength(p, 'holy'));
+  return base * (setAt(p, 'holy', 6) ? n.wardMaxMult : 1);
 }
 export function gainWard(g: Game, p: Player, amount: number): void {
   if (amount <= 0) return;

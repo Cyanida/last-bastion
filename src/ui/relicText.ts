@@ -33,14 +33,19 @@ export function relicTip(id: RelicId, tier: number, held: RelicId[] = []): strin
   return lines.join('\n');
 }
 
-/** v0.7 A5: a duo's tooltip: its families, sources and effect. */
-export function duoTip(id: DuoId): string {
+/**
+ * v0.7 A5: a duo's tooltip: its families, sources and effect. v0.7.5 (#96): a formed duo (`tier` > 0) is the one relic its sources became, so it
+ * lists their effects at its tier too.
+ */
+export function duoTip(id: DuoId, tier = 0): string {
   const d = DUOS[id];
-  return [`${d.name} · duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}`, d.desc, `From ${d.from.map((r) => relicDef(r).name).join(' + ')}; counts toward both families.`].join('\n');
+  const head = `${d.name} · duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}${tier > 0 ? ` · tier ${TIER_NUMERALS[tier]} of ${TIER_NUMERALS[RELIC_MAX_TIER]}` : ''}`;
+  const joined = tier > 0 ? d.from.map((r) => `${relicDef(r).icon} ${relicDef(r).name}: ${relicDesc(r, tier)}`) : [];
+  return [head, d.desc, ...joined, `Combines ${d.from.map((r) => relicDef(r).name).join(' + ')} into one relic that attunes as one, up to tier ${TIER_NUMERALS[RELIC_MAX_TIER]}; each family keeps its count.`].join('\n');
 }
 /** A relic's, a duo's or a set's tooltip. `held` may hold duos and sets too (the results table's rows): only the relics count for the family line. */
 export const keyTip = (id: RelicKey, tier: number, held: RelicKey[] = []): string =>
-  isDuo(id) ? duoTip(id) : isFamily(id) ? `${FAMILIES[id].name} set bonuses: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[id].sets[n][0]}`).join(' · ')}` : relicTip(id, tier, held.filter((k): k is RelicId => !isDuo(k) && !isFamily(k)));
+  isDuo(id) ? duoTip(id, tier) : isFamily(id) ? `${FAMILIES[id].name} set bonuses: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[id].sets[n][0]}`).join(' · ')}` : relicTip(id, tier, held.filter((k): k is RelicId => !isDuo(k) && !isFamily(k)));
 
 /** v0.7.1 B6: a relic's style: its rarity, or cursed (purple). */
 export const relicClass = (id: RelicId): string => (isCursedRelic(id) ? 'cursed' : relicDef(id).rarity);
