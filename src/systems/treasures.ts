@@ -2,7 +2,7 @@ import type { Cfg } from '../config/classes';
 import { RUNES } from '../config/economy';
 import { featureSpot } from '../config/regions';
 import { TREASURE_RULES, TREASURES, treasureN, type TreasureId } from '../config/treasures';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { addListener, dispatch, type GameEvents, type Handlers } from '../core/events';
 import { dist2, TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';

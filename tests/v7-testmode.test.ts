@@ -36,10 +36,10 @@ describe('test mode (v0.7.1)', () => {
     };
     const test = play(createTestRun({ ...SETUP, act: 1, wave: 1, arena: 'courtyard', level: 1, talents: [], relics: {} }, 5));
     expect(test.kills).toBeGreaterThan(0); // it was played: there was something to pay
-    expect(banked(save, test)).toBeNull();
+    expect(banked(save, test, new Date())).toBeNull();
     expect(JSON.stringify(save)).toBe(before);
     // the same play as a real run does pay, so the guard is what stops it
-    const real = banked(save, play(createGame('viking', 5)))!;
+    const real = banked(save, play(createGame('viking', 5)), new Date())!;
     expect(real.save.classes.viking.runs).toBe(1);
     expect(real.save.runs.length).toBe(1);
     expect(real.save.classes.viking.xp).toBeGreaterThan(0);

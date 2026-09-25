@@ -1,6 +1,6 @@
 import { TALENT_BY_ID } from '../config/talents';
 import { TRAITS, type TraitId } from '../config/traits';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { addListener, type GameEvents } from '../core/events';
 import type { Game, StatKey } from '../core/types';
 import { combineMods } from '../logic/mods';

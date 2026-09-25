@@ -1,5 +1,5 @@
 import { SQUAD_REACTIONS } from '../config/ai';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { addListener, type GameEvents } from '../core/events';
 import { compact, dist2 } from '../core/math';
 import type { Enemy, Game, Squad } from '../core/types';

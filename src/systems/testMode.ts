@@ -6,7 +6,7 @@ import { TALENT_BY_ID } from '../config/talents';
 import type { Game } from '../core/types';
 import { createGame, summarizeRun } from '../game';
 import { applyGrowth } from '../logic/formulas';
-import { applyRun, type Save } from '../logic/save';
+import { applyRun, today, type Save } from '../logic/save';
 import { nextAct } from './acts';
 import { addRelic } from './relics';
 import { initRegions } from './regions';
@@ -52,4 +52,4 @@ export function createTestRun(s: TestSetup, seed: number): Game {
  * The only way main.ts turns a run into rewards: the results screen, deed toasts mid-run, the treasure log's preview. A test run gets
  * null, so applyRun never sees it: no gold, Runes, class XP, deeds, contracts or run history.
  */
-export const banked = (save: Save, g: Game) => (isTestRun(g) ? null : applyRun(save, summarizeRun(g)));
+export const banked = (save: Save, g: Game, now: Date) => (isTestRun(g) ? null : applyRun(save, summarizeRun(g), today(now), now.toISOString()));

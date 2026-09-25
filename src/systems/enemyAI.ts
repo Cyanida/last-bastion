@@ -2,7 +2,7 @@ import { AI, AI_TUNING, AURA_PULSE, DEFAULT_AI } from '../config/ai';
 import { AFFIXES } from '../config/elites';
 import type { EnemyId } from '../config/enemies';
 import { MODIFIERS, WAVES } from '../config/waves';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { dist2, TAU } from '../core/math';
 import { emit } from '../core/events';
 import type { Enemy, Game } from '../core/types';

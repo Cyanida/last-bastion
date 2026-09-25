@@ -8,7 +8,7 @@ import { GOLD } from '../config/economy';
 import { GAME, SKILL } from '../config/game';
 import { ROUTES } from '../config/routes';
 import { MODIFIERS } from '../config/waves';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { emit } from '../core/events';
 import { angleDiff, compact, dist2, TAU } from '../core/math';
 import type { Body, DamageSource, Enemy, Game, Minion, Player, Projectile, Status } from '../core/types';
