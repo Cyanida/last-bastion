@@ -738,6 +738,15 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.stroke();
     ctx.setLineDash([]);
   }
+  // v0.7.5 (#81): where manual aim sends the basic attacks
+  if (g.input.manualAim) {
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = '#f3e2b3';
+    ctx.lineWidth = 2;
+    disc(ctx, g.input.aimX, g.input.aimY, 9);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
 
   end('reticle', _t);
   _t = begin();

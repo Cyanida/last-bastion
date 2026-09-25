@@ -3,7 +3,7 @@ import type { Enemy, Game, Player } from '../../core/types';
 import { addField } from '../../entities/hazards';
 import { damageEnemy, nearestEnemy } from '../combat';
 import { burst, line } from '../effects';
-import { addBurn, attackHit, awakened, bonus, burnStacks, cone, flash, maxBurn, nOf, nova, relicDamage, type RelicHooks, sOf, strength } from '../relicCore';
+import { addBurn, attackHit, awakened, bonus, burnStacks, cone, flash, maxBurn, nOf, nova, relicDamage, type RelicHooks, sOf } from '../relicCore';
 
 /**
  * 🔥 Flame (RELICS.md): burn stacks and fire bursts. Every relic adds burn stacks or rewards them; the sets make burns stack higher (Stoked),
@@ -14,7 +14,7 @@ const F = FAMILIES.flame;
 /** Pyre (4) and Solar Flare: a burning enemy's death bursts for a share of its max HP (+1% per point of S). */
 function pyre(g: Game, p: Player, e: Enemy): void {
   const n = F.n;
-  const dmg = e.maxHp * (n.pyreFrac + n.pyrePerS * sOf(p)) * strength(p, 'flame');
+  const dmg = e.maxHp * (n.pyreFrac + n.pyrePerS * sOf(p));
   nova(g, e.x, e.y, n.pyreRadius, dmg, 120, F.color, 'fire');
   burst(g, e.x, e.y, F.color, 14, 240);
 }
@@ -47,14 +47,14 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (burnStacks(ev.enemy) === 0) return;
       const n = nOf(p, 'cinderCharm');
       const throws = awakened(p, 'cinderCharm') ? 3 : 1; // Ember Storm
-      let from: Enemy = ev.enemy;
+      const hit: Enemy[] = [ev.enemy];
       for (let i = 0; i < throws; i++) {
-        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, n.range, i ? from : ev.enemy);
+        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, n.range, hit);
         if (!to) return;
         line(g, ev.enemy.x, ev.enemy.y, to.x, to.y, F.color);
         addBurn(g, p, to, n.stacks, relicDamage(p, 4));
         flash(g, p, 'cinderCharm'); // its burn's ticks are credited to it as they land (systems/status.ts)
-        from = to;
+        hit.push(to);
       }
     },
   },

@@ -78,6 +78,10 @@ export function gamepadActions(prev: readonly boolean[], now: readonly boolean[]
   return PAD_ACTIONS.filter(([i]) => now[i] && !prev[i]).map(([, a]) => a);
 }
 
+/** Buttons still held since a screen closed stay latched until released: the press that answered it does not also cast. */
+export const unlatch = (latched: readonly boolean[], now: readonly boolean[]): boolean[] => latched.map((l, i) => l && !!now[i]);
+export const livePad = (latched: readonly boolean[], now: readonly boolean[]): boolean[] => now.map((b, i) => b && !latched[i]);
+
 /** Several devices at once: the strongest movement wins, any device can cast, aim follows the device that casts. */
 export function mergeIntents(intents: Intent[]): Intent {
   const moving = intents.reduce((a, b) => (Math.hypot(b.moveX, b.moveY) > Math.hypot(a.moveX, a.moveY) ? b : a));

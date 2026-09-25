@@ -2,9 +2,10 @@ name: Performance test
 
 # Scripted Fog and Blood Moon waves at wave 20 with 250 enemies, measured over the live loop in headless Chromium.
 # The runner has no GPU (software raster), so the budget is looser than the 20 ms desktop target. See PERF.md.
+# Then the play test (scripts/play-test.mjs): every choice screen, the controls, the sounds and banking a run, played headless.
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**', 'patch/**'] # release branches are checked on every push: work reaches main only as a whole release
   pull_request:
   workflow_dispatch:
 
@@ -24,3 +25,4 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npx vite build
       - run: npm run test:perf
+      - run: npm run test:play

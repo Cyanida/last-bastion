@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CLASS_ORDER } from '../src/config/classes';
-import { DUO_SIX_STRENGTH, FAMILIES, FAMILY_IDS, preferredFamilies, RELIC_IDS, relicDef, SET_LEVELS, type FamilyId, type RelicId } from '../src/config/relics';
+import { FAMILIES, FAMILY_IDS, preferredFamilies, RELIC_IDS, relicDef, SET_LEVELS, type FamilyId, type RelicId } from '../src/config/relics';
 import { STATUSES } from '../src/config/damage';
 import type { Enemy, Game } from '../src/core/types';
 import { createGame } from '../src/game';
@@ -57,15 +57,11 @@ describe('family rules (RELICS.md, revision 2)', () => {
 describe('set thresholds', () => {
   const flame = anyClass('flame');
 
-  it('levels at 2, 4 and 6; a duo counts for both its families; a 6 completed with a duo works at 125% (rarity is strength)', () => {
-    expect(familySets(flame.slice(0, 1), []).flame).toEqual({ count: 1, straight: 1, level: 0, strength: 1 });
-    expect(familySets(flame.slice(0, 3), []).flame!.level).toBe(2);
-    expect(familySets(flame.slice(0, 5), []).flame!.level).toBe(4);
-    expect(familySets([...flame, 'fireArrows'], []).flame).toEqual({ count: 6, straight: 6, level: 6, strength: 1 });
-    const duo = familySets(flame, [['flame', 'frost']]);
-    expect(duo.flame).toEqual({ count: 6, straight: 5, level: 6, strength: DUO_SIX_STRENGTH });
-    expect(duo.frost).toEqual({ count: 1, straight: 0, level: 0, strength: 1 });
-    expect(DUO_SIX_STRENGTH).toBeGreaterThan(1);
+  it('levels at 2, 4 and 6', () => {
+    expect(familySets(flame.slice(0, 1)).flame).toEqual({ count: 1, level: 0 });
+    expect(familySets(flame.slice(0, 3)).flame!.level).toBe(2);
+    expect(familySets(flame.slice(0, 5)).flame!.level).toBe(4);
+    expect(familySets([...flame, 'fireArrows']).flame).toEqual({ count: 6, level: 6 });
   });
 
   it('a player\'s set levels follow what they hold', () => {

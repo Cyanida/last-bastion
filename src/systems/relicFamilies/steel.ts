@@ -2,7 +2,7 @@ import { DUOS, FAMILIES, type RelicId, type SetLevel } from '../../config/relics
 import type { Enemy } from '../../core/types';
 import { relicContext } from '../relicContext';
 import { applyStatus, damageEnemy } from '../combat';
-import { awakened, bonus, credit, fullArmorStacks, gainArmorStacks, hasDuo, nOf, nova, relicDamage, relicHeal, sOf, strength, strike, type RelicHooks } from '../relicCore';
+import { awakened, bonus, credit, fullArmorStacks, gainArmorStacks, hasDuo, nOf, nova, relicDamage, relicHeal, sOf, strike, type RelicHooks } from '../relicCore';
 
 /**
  * 🛡️ Steel (RELICS.md): armor stacks, block and thorns. Relics block hits (combat.damagePlayer's onIncoming), throw damage back or build armor
@@ -111,13 +111,13 @@ export const STEEL_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   },
   4: {
     onDamageTaken(g, ev, p) {
-      if (ev.attacker) damageEnemy(g, ev.attacker, ev.amount * F.n.thornsMult * armorOf(p) * strength(p, 'steel'), false, 0, 0, 'relic'); // Spiked
+      if (ev.attacker) damageEnemy(g, ev.attacker, ev.amount * F.n.thornsMult * armorOf(p), false, 0, 0, 'relic'); // Spiked
     },
   },
   6: {
     onHit(g, ev, p) {
       if (ev.source !== 'attack' || !fullArmorStacks(p)) return; // Juggernaut: full stacks go out as a shockwave
-      nova(g, ev.enemy.x, ev.enemy.y, F.n.quakeRadius, relicDamage(p, F.n.quakePerStack) * p.armorStacks * strength(p, 'steel'), 300, F.color);
+      nova(g, ev.enemy.x, ev.enemy.y, F.n.quakeRadius, relicDamage(p, F.n.quakePerStack) * p.armorStacks, 300, F.color);
       p.armorStacks = 0;
     },
   },

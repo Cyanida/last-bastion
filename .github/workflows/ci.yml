@@ -3,7 +3,7 @@ name: CI
 # Every pull request and every push to main: type check, unit tests and a build. `main` requires this check (CONTRIBUTING.md).
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**', 'patch/**'] # release branches are checked on every push: work reaches main only as a whole release
   pull_request:
   workflow_dispatch:
 

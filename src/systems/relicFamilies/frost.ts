@@ -6,7 +6,7 @@ import { addField } from '../../entities/hazards';
 import * as scale from '../../logic/abilities';
 import { applyStatus, damageEnemy, nearestEnemy } from '../combat';
 import { ring } from '../effects';
-import { addChill, attackHit, awakened, bonus, credit, gainWard, isChilled, isFrozen, nOf, nova, relicDamage, relicHeal, sOf, strength, type RelicHooks } from '../relicCore';
+import { addChill, attackHit, awakened, bonus, credit, gainWard, isChilled, isFrozen, nOf, nova, relicDamage, relicHeal, sOf, type RelicHooks } from '../relicCore';
 import { relicContext } from '../relicContext';
 
 /**
@@ -59,13 +59,13 @@ export const FROST_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       damageEnemy(g, ev.enemy, extra, true, 0, 0, 'relic', 'frost');
       if (!awakened(p, 'shatterglass')) return;
       // Splinter: three ice shards at the nearest enemies
-      let from: Enemy = ev.enemy;
+      const hit: Enemy[] = [ev.enemy];
       for (let i = 0; i < 3; i++) {
-        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, 180, from);
+        const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, 180, hit);
         if (!to) break;
         damageEnemy(g, to, relicDamage(p, 10), false, 0, 0, 'relic', 'frost');
         addChill(g, p, to, 1);
-        from = to;
+        hit.push(to);
       }
     },
   },
@@ -143,7 +143,7 @@ export const FROST_SETS: Partial<Record<SetLevel, RelicHooks>> = {
       const e = ev.enemy;
       if (!isFrozen(g, e) || e.def.boss) return; // Shatter
       relicContext.acting = (e.statuses.stun?.by as RelicKey | undefined) ?? 'frost'; // the relic whose chill froze it made the shatter (A8)
-      nova(g, e.x, e.y, F.n.shatterRadius, e.maxHp * (F.n.shatterFrac + F.n.shatterPerS * sOf(p)) * strength(p, 'frost'), 140, F.color, 'frost');
+      nova(g, e.x, e.y, F.n.shatterRadius, e.maxHp * (F.n.shatterFrac + F.n.shatterPerS * sOf(p)), 140, F.color, 'frost');
       relicContext.acting = 'frost';
     },
   },
@@ -157,7 +157,7 @@ export const FROST_SETS: Partial<Record<SetLevel, RelicHooks>> = {
       for (const e of g.hash.query(p.x, p.y, p.r + 30, [])) {
         if (g.time < (e.rimeT ?? 0) || Math.hypot(e.x - p.x, e.y - p.y) > p.r + e.r + 4) continue;
         e.rimeT = g.time + n.touchCd;
-        freeze(g, e, n.touchFreeze * strength(p, 'frost'));
+        freeze(g, e, n.touchFreeze);
       }
     },
   },

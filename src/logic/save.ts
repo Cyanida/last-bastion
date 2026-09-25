@@ -3,16 +3,16 @@ import { oathReward } from './oaths';
 import { advanceContracts, weekKey, type Contract, type ContractState } from './contracts';
 import { CONTRACTS_PER_WEEK } from '../config/contracts';
 import { EVOLUTION_IDS, type EvolutionId } from '../config/evolutions';
-import { FEAT_KEYS, type FeatKey } from '../config/achievements';
+import { ACHIEVEMENTS, FEAT_KEYS, type FeatKey } from '../config/achievements';
 import { ARENA_IDS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
 import { CURSE_IDS, type CurseId } from '../config/curses';
 import { ACTS } from '../config/acts';
-import { BUILDING_IDS, BUILDINGS, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
+import { BUILDING_IDS, BUILDINGS, MASTERY, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
 import type { EnemyId } from '../config/enemies';
 import type { QualitySetting } from '../config/game';
 import { DUO_IDS, isCursedRelic, RELIC_IDS, type DuoId, type RelicId } from '../config/relics';
-import { duoFamilies, familySets } from './relics';
+import { familySets } from './relics';
 import { TRAIT_IDS, type TraitId } from '../config/traits';
 import { TREASURE_RULES } from '../config/treasures';
 import { curseMultiplier } from './curses';
@@ -123,7 +123,7 @@ export interface Save {
   evolutions: EvolutionId[]; // v0.6: evolutions ever taken (the compendium shows their recipes in full)
   duos: DuoId[]; // v0.7: duos ever formed (the compendium shows them in full)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
-  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
+  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; manualAim: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
 }
 
 /** What a finished (or abandoned) run reports. The v0.3 fields are optional so older callers keep working. */
@@ -199,7 +199,7 @@ export function defaultSave(): Save {
     oaths: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     contracts: { week: '', progress: Array(CONTRACTS_PER_WEEK).fill(0) },
     endless: Object.fromEntries(CLASS_ORDER.map((id) => [id, []])) as unknown as Record<ClassId, EndlessEntry[]>,
-    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
+    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, manualAim: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
   };
 }
 
@@ -255,8 +255,10 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
     }
     if (isObj(raw.dailyGold) && typeof raw.dailyGold.date === 'string') save.dailyGold = { date: raw.dailyGold.date, curse: num(raw.dailyGold.curse), trial: num(raw.dailyGold.trial) };
     if (Array.isArray(raw.achievements)) save.achievements = raw.achievements.filter((a): a is string => typeof a === 'string').map((a) => RENAMED_ACHIEVEMENTS[a] ?? a);
-    if (Array.isArray(raw.titles)) save.titles = [...new Set(raw.titles.filter((t): t is string => typeof t === 'string'))];
-    if (typeof raw.title === 'string') save.title = raw.title;
+    // v0.7.5: only titles the game can award, so an imported save can't carry markup into the page (#105)
+    const known = new Set<unknown>([...ACHIEVEMENTS.flatMap((a) => a.tiers.map((t) => t.reward.title)), ...MASTERY.map((r) => (r.reward.kind === 'title' ? r.reward.title : undefined))].filter(Boolean));
+    if (Array.isArray(raw.titles)) save.titles = [...new Set(raw.titles.filter((t): t is string => known.has(t)))];
+    if (known.has(raw.title)) save.title = raw.title as string;
     if (Array.isArray(raw.palettes)) save.palettes = [...new Set(raw.palettes.map((p) => Math.floor(num(p))).filter((p) => p > 0))];
     save.talentPoints = Math.floor(num(raw.talentPoints));
     for (const id of CLASS_ORDER) {
@@ -314,6 +316,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
         oath: Math.max(0, Math.min(OATHS.length, Math.floor(num(s.oath)))),
         palettes: isObj(s.palettes) ? Object.fromEntries(CLASS_ORDER.filter((c) => num((s.palettes as Record<string, unknown>)[c]) > 0).map((c) => [c, Math.floor(num((s.palettes as Record<string, unknown>)[c]))])) : {},
         prerelease: s.prerelease === true,
+        manualAim: s.manualAim === true, // v0.7.5 (#81)
         curses: Array.isArray(s.curses) ? CURSE_IDS.filter((id) => (s.curses as unknown[]).includes(id)) : [],
       };
     }
@@ -446,7 +449,7 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
         goldEarned: c.goldEarned + run.gold,
         flawlessBosses: c.flawlessBosses + run.flawlessBosses,
         maxRelics: Math.max(c.maxRelics, run.relics.length),
-        sixSets: c.sixSets + (Object.values(familySets(run.relics, duoFamilies(run.duos ?? []))).some((st) => st!.level === 6) ? 1 : 0),
+        sixSets: c.sixSets + (Object.values(familySets(run.relics)).some((st) => st!.level === 6) ? 1 : 0),
         maxDuos: Math.max(c.maxDuos, run.duos?.length ?? 0),
         maxAwakened: Math.max(c.maxAwakened, Object.values(run.relicTiers ?? {}).filter((t) => t === 3).length),
         cursedWin: run.won ? Math.max(c.cursedWin, run.relics.filter(isCursedRelic).length) : c.cursedWin,

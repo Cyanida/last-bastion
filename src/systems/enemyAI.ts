@@ -10,8 +10,7 @@ import { addZone } from '../entities/hazards';
 import { nextState, type AiProfile, type AiState } from '../logic/fsm';
 import { slotPosition } from '../logic/squads';
 import { cleanse, isStunned, speedFactor } from '../logic/status';
-import { angleTo, distTo, enraged, hitDamage, keepRange, move, moveTo, POISON, seek, shootAt, specialDamage, summon, touch, type Target } from './aiHelpers';
-import { hurtTarget } from './combat';
+import { angleTo, chargeStart, chargeThrough, distTo, enraged, hitDamage, keepRange, move, moveTo, POISON, seek, shootAt, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { burst, ring, shake } from './effects';
 import { SPECIALS } from './specials';
 import { waypoint } from '../logic/regions';
@@ -221,15 +220,11 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
         e.state = 2;
         e.timer = def.chargeDist! / def.chargeSpeed!;
         e.telegraph = null;
-        e.charged = false;
+        chargeStart(e);
       }
     } else if (e.state === 2) {
       move(e, e.angle, def.chargeSpeed!, dt);
-      for (const v of [g.player, ...g.minions]) {
-        if (distTo(e, v) > e.r + v.r + 6 || (v === g.player && e.charged)) continue;
-        if (v === g.player) e.charged = true;
-        hurtTarget(g, v, specialDamage(e), true, e);
-      }
+      chargeThrough(g, e);
       if (e.timer <= 0) {
         if (e.phase >= 2 && e.combo < def.p2Combo!) {
           e.combo++;

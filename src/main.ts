@@ -13,7 +13,7 @@ import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
 import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as setPerfOverlay, summary } from './core/perf';
 import { particleBudget, quality, sampleFrame, setQuality } from './core/quality';
-import { loadSave, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
+import { loadSave, prefs, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
 import { createGame } from './game';
 import { banked, createTestRun, isTestRun, type TestSetup } from './systems/testMode';
@@ -21,7 +21,6 @@ import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamep
 import { upgradeOptions } from './logic/abilityUpgrades';
 import { lockedArenas, lockedRelics, rewardText, tierKey, unlockedCurses, withAchievements } from './logic/achievements';
 import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from './logic/acts';
-import { curseMultiplier } from './logic/curses';
 import { oathCap } from './logic/oaths';
 import { closestGoals } from './logic/goals';
 import { currentProgress, weekKey, weeklyContracts } from './logic/contracts';
@@ -39,10 +38,12 @@ import { abilityAimRadius } from './systems/abilities';
 import { relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showTestMode, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showTestMode, showCrash, type TitleInfo } from './ui/screens';
+import { crashReport } from './logic/crash';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
+import { looseRelics } from './logic/relics';
 import { TRAITS } from './config/traits';
 import { CLASS_ORDER } from './config/classes';
 import { MASTERY } from './config/economy';
@@ -129,9 +130,9 @@ function toWhatsNew(): void {
 }
 function whatsNewOnce(): void {
   const key = 'lastbastion.whatsNew';
-  const seen = localStorage.getItem(key);
+  const seen = prefs.get(key);
   const show = showWhatsNewNow(seen, platform.whatsNew?.version, platform.version, CLASS_ORDER.some((id) => save.classes[id].runs > 0));
-  if (seen !== platform.version) localStorage.setItem(key, platform.version);
+  if (seen !== platform.version) prefs.set(key, platform.version);
   if (show) toWhatsNew();
 }
 
@@ -230,7 +231,7 @@ function toSettings(): void {
   menu();
   const d = platform.desktop;
   showSettings(
-    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
+    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), manualAim: save.settings.manualAim, version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
     {
       back: toTitle,
       saveData: toSaveDialog,
@@ -254,6 +255,10 @@ function toSettings(): void {
       },
       runMusic() {
         setRunMusic(!runMusicOn());
+        toSettings();
+      },
+      aim(manual) {
+        commit({ ...save, settings: { ...save.settings, manualAim: manual } });
         toSettings();
       },
       dev() {
@@ -454,7 +459,7 @@ function openMerchant(g: Game): void {
   const act = g.act;
   const again = (ok: boolean) => ok && openMerchant(g);
   showMerchant(
-    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: g.player.relics.held, tiers: g.player.relics.tiers, attune: g.player.relics.attune, reforgeable: g.player.relics.held.filter((id) => reforgeChoices(g, id).length > 0), salvage: g.salvage, relicsLeft: g.midMerchant ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant },
+    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: looseRelics(g.player.relics.held, g.player.relics.duos), tiers: g.player.relics.tiers, attune: g.player.relics.attune, reforgeable: g.player.relics.held.filter((id) => reforgeChoices(g, id).length > 0), salvage: g.salvage, relicsLeft: g.midMerchant ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant },
     {
       heal: () => again(choose(g, { c: 'merchantHeal' })),
       buy: (rarity) => void (choose(g, { c: 'merchantBuy', rarity }) && openChoice(g)), // v0.7: the pick of three opens, then the Merchant again
@@ -488,7 +493,11 @@ function sacredLines(g: Game): { name: string; desc: string }[] {
 
 const hasChoice = (g: Game) => g.victory === 'pending' || g.pendingShrine !== null || g.player.relics.offers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant || g.pendingRoute !== null;
 
+/** A screen opened from the pause menu (Talents, Glossary, Treasures) is up: its own Esc goes back to the pause menu, so this one must not resume. */
+let pauseSub = false;
+
 function togglePause(): void {
+  if (pauseSub) return;
   if (state === 'playing' && game) {
     const g = game;
     state = 'paused';
@@ -498,13 +507,14 @@ function togglePause(): void {
 }
 
 function pauseMenu(g: Game): void {
+  pauseSub = false;
   setRecipeBuild(buildState(g));
   showPause(buildOf(g), {
     resume: togglePause,
     quit: () => endRun(g),
-    talents: () => openTalents(g),
-    treasures: () => showTreasures(banked(save, g, new Date())?.save ?? save, g.player.cls.id, () => pauseMenu(g)), // the log as it would stand if the run ended now
-    glossary: () => showGlossary(() => pauseMenu(g)),
+    talents: () => { pauseSub = true; openTalents(g); },
+    treasures: () => { pauseSub = true; showTreasures(banked(save, g, new Date())?.save ?? save, g.player.cls.id, () => pauseMenu(g)); }, // the log as it would stand if the run ended now
+    glossary: () => { pauseSub = true; showGlossary(() => pauseMenu(g)); },
     bored: () => markBored(g),
   });
 }
@@ -543,7 +553,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     masteryName: newRank > prevRank ? MASTERY[newRank - 1].name : null,
     masteryNext: MASTERY[newRank] ? { name: MASTERY[newRank].name, need: Math.max(0, Math.round(MASTERY[newRank].xp - after.classes[id].xp)) } : null,
     tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[after.tierUnlocked].name : null, earned: checked.earned, title: after.title, slain: g.over,
-    seed: formatSeed(g.seed), curseMult: curseMultiplier(g.curses), daily: g.daily, build: buildOf(g),
+    seed: formatSeed(g.seed), curseMult: g.vars.curseMult ?? 1, daily: g.daily, build: buildOf(g),
     act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
     goals: closestGoals(after, id, weekKey(today(new Date()))),
     relicShares: relicShares(g),
@@ -581,8 +591,10 @@ function sampleInput(g: Game, seat = 0): Intent {
   const castRange = 'castRange' in ability ? ability.castRange : DEFAULT_CAST_RANGE;
   const needsAuto = intent.aim.kind !== 'screen' && (intent.ability || intent.showAim);
   const auto = needsAuto ? densestCluster(g.enemies, p, castRange, abilityAimRadius(p) || 120) : null;
+  // v0.7.5 (#81): Manual aims basic attacks at the mouse or the right stick; touch and an idle stick stay on auto-aim
+  const manualAim = save.settings.manualAim && (intent.aim.kind === 'screen' || intent.aim.kind === 'stick');
   const aim = resolveAim(intent.aim, p, auto, castRange, (x, y) => ({ x: cam.x + x * pxToWorld, y: cam.y + y * pxToWorld }), pxToWorld);
-  return { moveX: intent.moveX, moveY: intent.moveY, aimX: aim.x, aimY: aim.y, ability: intent.ability, utility: intent.utility, showAim: intent.showAim };
+  return { moveX: intent.moveX, moveY: intent.moveY, aimX: aim.x, aimY: aim.y, ability: intent.ability, utility: intent.utility, showAim: intent.showAim, manualAim };
 }
 
 /**
@@ -686,6 +698,7 @@ function togglePerf(): void {
 }
 
 function frame(now: number): void {
+  requestAnimationFrame(frame); // v0.7.5 (#106): first, so an error in this frame doesn't stop the next one
   const elapsed = now - last;
   acc += elapsed / 1000;
   last = now;
@@ -709,8 +722,20 @@ function frame(now: number): void {
   }
   frameDone(elapsed, t1 - t0, t2 - t1, g ? { enemies: g.enemies.length, projectiles: g.projectiles.length, particles: g.particles.length, fields: g.fields.length, zones: g.zones.length, texts: g.texts.length } : { enemies: 0, projectiles: 0, particles: 0, fields: 0, zones: 0, texts: 0 });
   if (perf.enabled) perfEl.textContent = overlayText();
-  requestAnimationFrame(frame);
 }
+
+/** v0.7.5 (#106): any uncaught error shows the error overlay; a run is paused under it, so Continue lands on the pause menu. */
+function crashed(error: unknown): void {
+  if (document.getElementById('crash')) return; // the browser has logged it already
+  try {
+    if (state === 'playing') togglePause();
+  } catch {
+    /* the overlay still comes up */
+  }
+  showCrash(crashReport(error, platform.version));
+}
+window.addEventListener('error', (e) => crashed(e.error ?? e.message));
+window.addEventListener('unhandledrejection', (e) => crashed(e.reason));
 
 // ---------- boot ----------
 function resize(): void {
@@ -783,6 +808,8 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
         return save;
       },
       quality,
+      setQuality, // v0.8: the play test compares particle budgets
+      view: simView, // v0.8: the play test wraps view.sfx to hear what the simulation plays
       perf,
       music: musicStats, // v0.7.1
       stinger, // v0.7.1

@@ -4,13 +4,13 @@
  * Plays the production build in headless Chromium the way a person checks a change by hand: every choice screen answered
  * through its real buttons (level-up with rerolls and a banish, relic offers with reroll, duo, take and skip, both upgrade
  * screens, the quest board, the shrine, the peddler, the Merchant's every action, the route fork, a talent from the pause
- * menu), the keyboard, mouse and touch controls, the sounds the simulation asks for, the particle budget, the perf sections,
+ * menu, Esc out of its sub-screens), the keyboard, mouse and touch controls, the sounds the simulation asks for, the particle budget, the perf sections,
  * and banking a real run. Any console error fails it.
  *
  * Screens are brought up through the game's own pending queues (a level-up, a relic offer, the Merchant), so each one is
  * reached every time instead of waiting for the bot to happen upon it; the answers go through the real screen code.
  * The routine and CI run it on every pull request. A change a player sees gets its own check added here (see AGENTS.md).
- * Not covered: a gamepad, and how it feels.
+ * Not covered: a gamepad beyond the press that answers a screen, and how it feels.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from 'playwright';
@@ -124,11 +124,19 @@ await check('test mode starts a run', () =>
     relic('Brimstone Oil', 'II');
     relic('Frost Brand', 'I');
     relic('Serrated Edge', 'I');
+    relic('Phoenix Feather', 'II'); // #108: a Phoenix Feather that arrives at tier II still holds its revive
     [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
     await P.wait(300);
     const g = window.__lb.game;
     g.player.invulnerable = true; // the checks are about screens and controls, not survival
-    return { ok: !!g && g.player.cls.id === 'viking' && g.player.level === 20 && g.player.relics.held.length === 3 && document.body.innerText.includes('TEST'), detail: `${g?.player.cls.id} lv ${g?.player.level}, relics ${g?.player.relics.held.join(', ')}` };
+    return { ok: !!g && g.player.cls.id === 'viking' && g.player.level === 20 && g.player.relics.held.length === 4 && document.body.innerText.includes('TEST'), detail: `${g?.player.cls.id} lv ${g?.player.level}, relics ${g?.player.relics.held.join(', ')}` };
+  }),
+);
+
+await check('Phoenix Feather taken at tier II holds its revive', () =>
+  inPage(() => {
+    const p = window.__lb.game.player;
+    return { ok: p.relics.tiers.phoenixFeather === 2 && p.revives === 1, detail: `tier ${p.relics.tiers.phoenixFeather}, revives ${p.revives}` };
   }),
 );
 
@@ -190,6 +198,41 @@ await check('level-up: pick with the 1 key', async () => {
   return inPage((opened) => ({ ok: opened && window.__lb.state === 'playing' && window.__lb.game.pendingLevelUps === 0, detail: opened ? '' : 'no screen' }), opened);
 });
 
+// v0.7.5 (#111): X picks the first level-up card and is also the utility button; held past the screen, it must not cast
+await check('gamepad: the button that answers a screen does not also cast', () =>
+  inPage(async () => {
+    const P = window.__play, lb = window.__lb, g = lb.game, p = g.player;
+    const buttons = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
+    const real = navigator.getGamepads;
+    navigator.getGamepads = () => [{ connected: true, buttons, axes: [0, 0, 0, 0] }];
+    const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))));
+    try {
+      await frames();
+      g.pendingLevelUps++;
+      if (!P.toChoice()) return { ok: false, detail: 'no level-up screen' };
+      Object.assign(p, { utilityCd: 0 });
+      buttons[2].pressed = true; // X: pick 1
+      await frames();
+      const picked = lb.state === 'playing';
+      p.utilityCd = 0;
+      lb.run(3, false, 'input');
+      const heldCast = p.utilityCd > 0;
+      buttons[2].pressed = false;
+      await frames();
+      buttons[2].pressed = true; // a fresh press casts
+      await frames();
+      p.utilityCd = 0;
+      lb.run(3, false, 'input');
+      const freshCast = p.utilityCd > 0;
+      buttons[2].pressed = false;
+      await frames();
+      return { ok: picked && !heldCast && freshCast, detail: `picked ${picked}, held X cast ${heldCast}, fresh X cast ${freshCast}` };
+    } finally {
+      navigator.getGamepads = real;
+    }
+  }),
+);
+
 await check('relic offer: reroll, then take the duo', () =>
   inPage(async () => {
     const P = window.__play, g = window.__lb.game, rel = g.player.relics;
@@ -201,6 +244,19 @@ await check('relic offer: reroll, then take the duo', () =>
     const duo = [...document.querySelectorAll('[data-pick]')].findIndex((b) => b.innerText.includes('Thermal Shock'));
     await P.click(`[data-pick="${duo}"]`);
     return { ok: before.join() !== after.join() && rel.offers.length === 0 && rel.duos.includes('thermalShock'), detail: `${before.slice(0, 3).join(', ')} → ${after.slice(0, 3).join(', ')}; duos ${rel.duos.join(', ')}` };
+  }),
+);
+
+// #96: the duo combines Brimstone Oil (II) and Frost Brand (I) into one relic bar tile at tier II; Flame and Frost stay at 1
+await check('duo: its two relics become one tile at the higher tier, families unchanged', () =>
+  inPage(async () => {
+    const P = window.__play;
+    await P.wait(300);
+    const tiles = [...document.querySelectorAll('#h-relics .relic[data-id]')].map((t) => t.dataset.id);
+    const duo = document.querySelector('#h-relics .relic[data-duo="thermalShock"]');
+    const fams = [...document.querySelectorAll('#h-families .fam-chip b')].map((b) => b.textContent);
+    const ok = !!duo && duo.innerText.includes('II') && /tier II/.test(duo.dataset.tip) && !tiles.includes('brimstoneOil') && !tiles.includes('frostBrand') && fams.filter((n) => n === '1').length >= 2 && !fams.includes('2');
+    return { ok, detail: `tiles ${tiles.join(', ')}; duo ${duo?.innerText.trim() ?? 'none'}; families ${fams.join(', ')}` };
   }),
 );
 
@@ -254,15 +310,17 @@ await check('Merchant: heal, reroll, reforge, sell, salvage, buy, march on', () 
     await P.click('[data-heal]');
     log.push(p.hp > hp && g.gold < gold ? 'heal' : 'HEAL FAILED');
     gold = g.gold;
-    await P.click('[data-reroll="brimstoneOil"]');
-    log.push(!rel.held.includes('brimstoneOil') && g.gold < gold ? 'reroll' : 'REROLL FAILED');
+    log.push(document.querySelector('[data-sell="brimstoneOil"], [data-sell="frostBrand"]') ? 'DUO RELICS LISTED' : 'duo relics not listed'); // #96: combined into Thermal Shock
+    await P.click('[data-reroll="butchersHook"]');
+    log.push(!rel.held.includes('butchersHook') && g.gold < gold ? 'reroll' : 'REROLL FAILED');
     gold = g.gold;
-    await P.click('[data-reforge="frostBrand"]');
-    log.push(!rel.held.includes('frostBrand') && g.gold < gold ? 'reforge' : 'REFORGE FAILED');
+    await P.click('[data-reforge="serratedEdge"]');
+    log.push(!rel.held.includes('serratedEdge') && g.gold < gold ? 'reforge' : 'REFORGE FAILED');
     gold = g.gold;
-    await P.click('[data-sell="serratedEdge"]');
-    log.push(!rel.held.includes('serratedEdge') && g.gold > gold ? 'sell' : 'SELL FAILED');
-    const last = rel.held[rel.held.length - 1];
+    const sold = document.querySelector('[data-sell]').dataset.sell;
+    await P.click(`[data-sell="${sold}"]`);
+    log.push(!rel.held.includes(sold) && g.gold > gold ? 'sell' : 'SELL FAILED');
+    const last = document.querySelector('[data-salvage]').dataset.salvage;
     await P.click(`[data-salvage="${last}"]`);
     log.push(!rel.held.includes(last) ? 'salvage' : 'SALVAGE FAILED');
     const held = rel.held.length;
@@ -336,6 +394,30 @@ await check('talent from the pause menu', async () => {
   });
 });
 
+await check('Esc in a pause sub-screen goes back to the pause menu', async () => {
+  await page.keyboard.press('Escape');
+  const seen = [];
+  for (const btn of ['talents', 'glossary', 'treasures']) {
+    const opened = await inPage(async (b) => {
+      if (!document.querySelector(`[data-${b}]`)) return false;
+      await window.__play.click(`[data-${b}]`);
+      return !document.querySelector('[data-resume]');
+    }, btn);
+    if (!opened) return { ok: false, detail: `${btn}: did not open from the pause menu` };
+    const t0 = await inPage(() => window.__lb.game.time);
+    await page.keyboard.press('Escape');
+    const after = await inPage(async (t) => {
+      await window.__play.wait(100);
+      const lb = window.__lb;
+      return { menu: !!document.querySelector('[data-resume]'), state: lb.state, still: lb.game.time === t };
+    }, t0);
+    seen.push(`${btn}: ${after.menu ? 'menu' : 'no menu'}, ${after.state}`);
+    if (!after.menu || after.state !== 'paused' || !after.still) return { ok: false, detail: seen.join(' · ') };
+  }
+  await inPage(() => window.__play.click('[data-resume]'));
+  return { ok: (await inPage(() => window.__lb.state)) === 'playing', detail: seen.join(' · ') };
+});
+
 await check('keyboard: move and both abilities', async () => {
   const pos = () => inPage(() => ({ x: window.__lb.game.player.x, y: window.__lb.game.player.y }));
   await inPage(() => window.__lb.run(1, false, 'input'));
@@ -374,6 +456,35 @@ await check('mouse: aim follows the cursor', async () => {
   }
   const ok = dirs[0].x === 1 && dirs[1].y === -1 && dirs[2].x === -1 && dirs.every((d) => d.show);
   return { ok, detail: dirs.map((d) => `(${d.x},${d.y})`).join(' ') };
+});
+
+// v0.7.5 (#95): a boss is a fight to survive, not one ability
+await check('boss: one enormous ability does not end the fight', async () => {
+  const start = await inPage(() => {
+    const lb = window.__lb, g = lb.game, p = g.player;
+    const boss = () => g.enemies.find((e) => e.def.boss && !e.dead && !e.warded);
+    for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) lb.run(1, false, true); // the bot plays on to the wave-10 Act boss
+    const b = boss();
+    if (!b) return null;
+    window.__play.boss = b;
+    Object.assign(p, { x: b.x - b.r - 40, y: b.y, abilityCd: 0 });
+    g.baseMods.damage *= 1000; // a monstrous build (mods are rebuilt from these every tick)
+    return { hp: b.hp, max: b.maxHp, name: b.def.name, resolve: 'resolve' in b };
+  });
+  if (!start) return { ok: false, detail: 'no boss reached' };
+  if (!start.resolve) return { skip: true, detail: 'no boss resolve on this branch (before v0.7.5)' };
+  await page.mouse.move(700, 360); // aim at him (he is just right of the champion)
+  await page.keyboard.down('Space');
+  await inPage(() => window.__lb.run(2, false, 'input'));
+  await page.keyboard.up('Space');
+  await inPage(() => window.__lb.run(60, false, 'input'));
+  const end = await inPage(() => {
+    const b = window.__play.boss;
+    window.__lb.game.baseMods.damage /= 1000;
+    return { hp: b.hp, dead: b.dead };
+  });
+  const lost = (start.hp - end.hp) / start.max;
+  return { ok: !end.dead && lost > 0 && end.hp > start.max * 0.5, detail: `${start.name}: a 1000x ability took ${(lost * 100).toFixed(0)}% of his HP in a second` };
 });
 
 await check('touch: joystick moves, release stops', () =>
@@ -475,8 +586,201 @@ await check('two local players: split screen, each on their own keys', async () 
   return { ok, detail: `solo run had ${setup.solo} player, now ${setup.n} (${setup.state}); seam ${setup.seam}; D: P1 ${Math.round(b[0].x - a[0].x)} px, P2 ${Math.round(b[1].x - a[1].x)} px; ←: P1 ${Math.round(c[0].x - b[0].x)} px, P2 ${Math.round(c[1].x - b[1].x)} px` };
 });
 
+// ---------- v0.7.5 (#106): an error in a frame shows the error overlay, and the game goes on ----------
+await check('an error in a frame: the overlay, Continue, the run goes on', () =>
+  inPage(async () => {
+    const lb = window.__lb, P = window.__play;
+    if (!lb.game || lb.state !== 'playing') {
+      lb.start('viking');
+      await P.wait(200);
+    }
+    const g = lb.game;
+    g.player.invulnerable = true;
+    let texts = g.texts, thrown = false;
+    Object.defineProperty(g, 'texts', {
+      configurable: true,
+      get() {
+        if (thrown) return texts;
+        thrown = true;
+        throw new Error('play-test crash'); // once, in the middle of a real frame
+      },
+      set(v) {
+        texts = v;
+      },
+    });
+    await P.wait(400);
+    const crash = document.getElementById('crash');
+    const shown = { overlay: !!crash, text: crash?.innerText.includes('Something went wrong') && crash.querySelector('pre').textContent.includes('play-test crash'), state: lb.state };
+    if (!crash) return { ok: false, detail: `no overlay, state ${lb.state}` };
+    await P.click('#crash [data-continue]');
+    await P.click('[data-resume]');
+    const t0 = g.time;
+    await P.wait(400); // real frames, not lb.run: the loop itself must still be running
+    return { ok: shown.text && shown.state === 'paused' && !document.getElementById('crash') && lb.state === 'playing' && g.time > t0, detail: `overlay ${shown.overlay}, paused under it: ${shown.state}, run time +${(g.time - t0).toFixed(2)} s after Continue` };
+  }),
+);
+const expected = (m) => m.includes('play-test crash');
+
+// ---------- v0.7.5 (#106): the game starts with site data blocked ----------
+await check('starts with site data blocked: title, Settings, sound toggle', async () => {
+  const blocked = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  blocked.on('pageerror', (e) => errs.push(e.message));
+  blocked.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await blocked.addInitScript(() =>
+    Object.defineProperty(window, 'localStorage', {
+      get() {
+        throw new DOMException('The operation is insecure.', 'SecurityError');
+      },
+    }),
+  );
+  await blocked.goto(`http://localhost:${PORT}/`);
+  await blocked.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await blocked.getByRole('button', { name: 'Settings' }).click();
+  const mute = blocked.locator('[data-act="mute"]');
+  const before = await mute.textContent();
+  await mute.click();
+  const after = await blocked.locator('[data-act="mute"]').textContent();
+  const crash = await blocked.locator('#crash').count();
+  await blocked.close();
+  return { ok: before !== after && crash === 0 && errs.length === 0, detail: `title up, sound ${before} -> ${after}${errs.length ? `, errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- v0.7.5: a shared save with markup in its title, titles and a run's Daily label shows it as text, never as page (#105) ----------
+await check('import: a save with markup stays text', () =>
+  inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  }).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async () => {
+      const bad = '<b id="xss">x</b>', wait = (ms) => new Promise((r) => setTimeout(r, ms)); // the reload dropped window.__play
+      const P = { wait, click: async (sel) => (document.querySelector(sel).click(), wait(60)) };
+      const btn = (text) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith(text));
+      btn('Settings').click();
+      await P.wait(150);
+      await P.click('[data-act="save"]');
+      const area = document.getElementById('save-text');
+      const raw = JSON.parse(area.value);
+      const run = { at: '', classId: 'paladin', tier: 0, arena: 'courtyard', seed: 1, daily: bad, curses: [], oath: 0, trait: 'none', time: 60, wave: 3, level: 2, kills: 5, end: 'slain', cause: bad, relics: {}, talents: [], upgrades: [], waves: [], marks: [] };
+      area.value = JSON.stringify({ ...raw, title: bad, titles: [bad, 'the Steadfast'], runs: [run] });
+      await P.click('[data-act="import"]');
+      const imported = document.body.innerText.includes('Save imported');
+      const seen = [];
+      await P.click('[data-act="back"]');
+      btn('Back').click(); // settings -> title
+      await P.wait(150);
+      seen.push(!!document.getElementById('xss'));
+      btn('Chronicle').click();
+      await P.wait(150);
+      seen.push(!!document.getElementById('xss'));
+      const titles = [...document.querySelectorAll('[data-equip]')].map((b) => b.textContent.trim());
+      btn('Back').click();
+      await P.wait(150);
+      btn('The Keep').click();
+      await P.wait(150);
+      await P.click('[data-history]');
+      const rows = document.querySelectorAll('.run').length;
+      seen.push(!!document.getElementById('xss'));
+      const ok = imported && rows === 1 && !seen.some(Boolean) && titles.join('|') === 'Bare name|the Steadfast' && window.__lb.save.title === null;
+      return { ok, detail: `imported ${imported}, markup on title/chronicle/history ${seen.join('/')}, titles ${titles.join(', ')}, ${rows} run` };
+    });
+  }),
+);
+
+// ---------- v0.7.5 (#112): an Act III slam that came due while you kept away lands as soon as you walk up ----------
+await check('Act III: a slam that is due fires when you walk into range', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  const start = await inPage(async () => {
+    const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '3');
+    set('tm-wave', '5');
+    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    await wait(300);
+    const g = lb.game, p = g.player;
+    p.invulnerable = true;
+    p.attackTimer = 1e9; // it must not die before the check
+    const slammer = () => g.enemies.find((e) => !e.dead && ['knight', 'mirrorKnight', 'boneCollector'].includes(e.def.id));
+    for (let i = 0; i < 6000 && !slammer() && lb.game === g; i++) lb.run(1, false, true);
+    const e = slammer();
+    if (!e) return null;
+    for (let i = 0; i < 60 * 9; i++) { // longer than its cooldown, kept out of range
+      Object.assign(e, { x: p.x + 420, y: p.y, hp: e.maxHp });
+      p.attackTimer = 1e9;
+      lb.run(1, false, true);
+    }
+    Object.assign(e, { x: p.x + 170, y: p.y });
+    window.__slam = { e, zones: g.zones.length };
+    return { id: e.def.id, act: g.act };
+  });
+  if (!start) return { ok: false, detail: 'no knight reached' };
+  await page.keyboard.down('KeyD'); // walk up to it
+  const fired = await inPage(() => {
+    const { e } = window.__slam, g = window.__lb.game;
+    for (let i = 0; i < 40; i++) {
+      window.__lb.run(1, false, 'input');
+      if (g.zones.some((z) => z.owner === e)) return i;
+    }
+    return -1;
+  });
+  await page.keyboard.up('KeyD');
+  return { ok: fired >= 0, detail: `Act ${start.act} ${start.id}: ${fired >= 0 ? `slammed ${fired} ticks after the walk-up` : 'no slam in 40 ticks'}` };
+});
+
+// ---------- v0.7.5 (#109): the Gallows pays in a cursed run, and the results screen shows it ----------
+await check('Gallows: a cursed run earns its bonus, the results show it', () =>
+  inPage(async () => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  }).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async () => {
+      const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+      const P = { wait, click: async (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) throw new Error(`no ${sel} on screen (${document.querySelector('h1,h2')?.textContent.trim() ?? '?'})`);
+        el.click();
+        await wait();
+      } }; // the reload dropped window.__play
+      lb.save.meta.curseBonus = 3; // three ranks of the Gallows, as if bought at the Keep
+      lb.save.achievements.push('firstBlood'); // it unlocks the Iron Horde curse
+      await P.click('[data-go="start"]');
+      await P.click('[data-curse="ironHorde"]');
+      const shown = Number(document.querySelector('.select .mult').textContent.match(/×([\d.]+)/)[1]); // curses alone, without the Gallows
+      await P.click('[data-class="viking"]');
+      await P.wait(200);
+      const g = lb.game, mult = g.vars.curseMult;
+      g.player.invulnerable = true;
+      for (let i = 0; i < 600 && lb.state !== 'results'; i++) lb.run(1, false, true);
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', key: 'Escape' }));
+      await P.wait(150);
+      await P.click('[data-quit]');
+      await P.wait(300);
+      const line = [...document.querySelectorAll('div')].find((d) => d.firstElementChild?.textContent === 'Curses')?.innerText ?? '';
+      const ok = g.curses.length === 1 && mult > shown + 0.1 && line.includes(`×${mult.toFixed(2)}`);
+      return { ok, detail: `select ×${shown}, run ×${mult.toFixed(2)}, results "${line.replace(/\s+/g, ' ')}"` };
+    });
+  }),
+);
+
 // ---------- a real run (not a test run) is banked ----------
-await check('a real run is banked: gold, the day, the run log, the week', () =>
+await check('a real run is banked: gold, the local day, the run log, the week', () =>
   inPage(async () => {
     const P = window.__play, lb = window.__lb;
     localStorage.removeItem('lastbastion.save');
@@ -496,14 +800,17 @@ await check('a real run is banked: gold, the day, the run log, the week', () =>
       await wait(150);
       document.querySelector('[data-quit]').click();
       await wait(300);
-      const s = lb.save, today = new Date().toISOString().slice(0, 10), last = s.runs[s.runs.length - 1];
+      const s = lb.save, d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, last = s.runs[s.runs.length - 1];
       const ok = lb.state === 'results' && s.gold - before.gold === earned && earned > 0 && s.dailyGold.date === today && s.runs.length === before.runs + 1 && Math.abs(Date.parse(last.at) - Date.now()) < 120000 && !!s.contracts.week;
       return { ok, detail: `gold +${s.gold - before.gold} (earned ${earned}), day ${s.dailyGold.date}, runs ${s.runs.length}, week ${s.contracts.week}` };
     });
   }),
 );
 
-await check('no console errors', async () => ({ ok: errors.length === 0, detail: errors.slice(0, 3).join(' | ') }));
+await check('no console errors', async () => {
+  const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
+  return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
+});
 
 await browser.close();
 const width = Math.max(...results.map((r) => r.name.length));
