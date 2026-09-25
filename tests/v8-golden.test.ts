@@ -24,7 +24,7 @@ const RUNS: Record<string, GoldenRun> = {
   'angel:98765': { cls: 'angel', seed: 98765 },
   'necromancer:1234': { cls: 'necromancer', seed: 1234 },
   'necromancer:5': { cls: 'necromancer', seed: 5 },
-  'archer:2026': { cls: 'archer', seed: 2026 },
+  'archer:2027': { cls: 'archer', seed: 2027 }, // #100: 2026 dies before the Act boss
   'archer:5': { cls: 'archer', seed: 5 },
   'paladin:7 meta': { cls: 'paladin', seed: 7, opts: { meta: { hp: 3, moveSpd: 3, startLevel: 1, startGold: 5, pickup: 5, xp: 5, talentPoint: 2, rerolls: 2, utilityCd: 3 } } },
   'viking:98765 curse': { cls: 'viking', seed: 98765, opts: { curses: ['ironHorde'] } },
@@ -46,21 +46,22 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
   return `wave ${r.wavesCleared} kills ${r.kills} level ${r.level} gold ${r.gold} relics ${r.relicsFound?.length ?? 0} hash ${fnv(JSON.stringify(r))}`;
 }
 
+// v0.8 #99 + #100 + #101: re-recorded on release/0.8.0 because boss draws, boss relic families and the Squire enemy roster changed on purpose
 const GOLDEN: Record<string, string> = {
-  'paladin:1234': 'wave 14 kills 502 level 15 gold 2194 relics 5 hash 77775865',
-  'paladin:98765': 'wave 15 kills 618 level 16 gold 2297 relics 6 hash dc21fab0',
+  'paladin:1234': 'wave 13 kills 456 level 14 gold 1657 relics 4 hash 794bec69',
+  'paladin:98765': 'wave 15 kills 622 level 16 gold 2298 relics 6 hash 2255f556',
   'viking:98765': 'wave 9 kills 309 level 10 gold 782 relics 2 hash 895078a1',
-  'viking:5': 'wave 18 kills 671 level 17 gold 2805 relics 7 hash 676e6ca1',
-  'angel:1234': 'wave 18 kills 765 level 18 gold 3056 relics 6 hash 5893c32a',
-  'angel:98765': 'wave 15 kills 612 level 16 gold 2728 relics 7 hash f06e48fb',
-  'necromancer:1234': 'wave 9 kills 289 level 11 gold 888 relics 4 hash d376b858',
-  'necromancer:5': 'wave 18 kills 709 level 18 gold 2708 relics 7 hash ab6b1a11',
-  'archer:2026': 'wave 19 kills 822 level 19 gold 5415 relics 5 hash 1b672e48',
-  'archer:5': 'wave 21 kills 947 level 20 gold 4966 relics 10 hash c1078cbb',
-  'paladin:7 meta': 'wave 14 kills 549 level 17 gold 2114 relics 7 hash 5f0cbc04',
-  'viking:98765 curse': 'wave 18 kills 774 level 18 gold 3766 relics 7 hash 65e44ff6',
-  'angel:98765 oath 3': 'wave 15 kills 655 level 16 gold 3463 relics 7 hash e882589c',
-  'archer:5 variant 1': 'wave 21 kills 891 level 20 gold 6453 relics 10 hash 90d8d57',
+  'viking:5': 'wave 18 kills 692 level 18 gold 2836 relics 7 hash 3430f5e1',
+  'angel:1234': 'wave 16 kills 670 level 17 gold 2627 relics 5 hash 807696a7',
+  'angel:98765': 'wave 17 kills 723 level 18 gold 3701 relics 7 hash 21447760',
+  'necromancer:1234': 'wave 20 kills 861 level 20 gold 3934 relics 8 hash f39d880a',
+  'necromancer:5': 'wave 14 kills 485 level 15 gold 2012 relics 7 hash 4a8ec9e5',
+  'archer:2027': 'wave 9 kills 301 level 10 gold 883 relics 4 hash 8fc7b0c2',
+  'archer:5': 'wave 20 kills 806 level 20 gold 4211 relics 8 hash 118e250d',
+  'paladin:7 meta': 'wave 14 kills 545 level 17 gold 1772 relics 6 hash d77a11a5',
+  'viking:98765 curse': 'wave 18 kills 735 level 18 gold 3662 relics 7 hash d1c6edb8',
+  'angel:98765 oath 3': 'wave 16 kills 657 level 16 gold 3608 relics 7 hash ea637cb3',
+  'archer:5 variant 1': 'wave 14 kills 488 level 15 gold 2798 relics 5 hash 5b891ffd',
 };
 
 describe('v0.8 golden runs', () => {
