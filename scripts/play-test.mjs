@@ -376,6 +376,33 @@ await check('peddler: buy a draught, leave', () =>
   }),
 );
 
+await check('monk escort: taken from the board, he keeps walking with an enemy beside him (#119)', () =>
+  inPage(async () => {
+    const P = window.__play, lb = window.__lb, g = lb.game;
+    let s = 7;
+    const rng = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    g.quests.push({ kind: 'monk', reward: 'gold', state: 'offered', name: 'Monk', x: 0, y: 0, unit: null, foes: [], progress: 0, since: 0, t: 0, rng });
+    g.pendingBoard = true;
+    if (!P.toChoice() || !document.querySelector('[data-quest]')) return { ok: false, detail: `no quest board (${P.title()})` };
+    await P.click('[data-quest="0"]');
+    await P.click('[data-leave]');
+    const q = g.quests.find((x) => x.kind === 'monk' && x.state === 'active');
+    if (!q) return { ok: false, detail: 'the monk was not taken' };
+    const monk = q.unit, x0 = monk.x, y0 = monk.y, hp0 = Math.round(monk.maxHp);
+    let wary = false;
+    for (let i = 0; i < 60 && q.state === 'active'; i++) {
+      const e = g.enemies.find((o) => !o.dead && !o.side);
+      if (!e) break;
+      Object.assign(e, { x: monk.x + 40, y: monk.y }); // an enemy always at his side
+      lb.run(1);
+      lb.draw(); // the HUD tracker is drawn with the frame
+      wary ||= document.getElementById('h-quests')?.innerText.includes('wary') ?? false;
+    }
+    const moved = Math.round(Math.hypot(monk.x - x0, monk.y - y0));
+    return { ok: wary && moved > 10, detail: `${hp0} HP, walked ${moved} px in a second with an enemy beside him, tracker ${wary ? '"wary"' : 'NEVER WARY'}` };
+  }),
+);
+
 await check('talent from the pause menu', async () => {
   await inPage(() => (window.__lb.game.talentPoints = 1));
   await page.keyboard.press('Escape');
