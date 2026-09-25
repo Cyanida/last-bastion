@@ -49,7 +49,9 @@ export const FINAL = {
     specialCd: [3.4, 3.4, 2.6], // seconds between attacks, per phase
     // the shortest a phase can last: until then his HP holds at the next threshold (and he cannot fall in phase 3), so even a
     // huge build sees his attacks. Phase 2 needs no minimum: the Royal Flames take their time.
-    minPhase: [20, 0, 25],
+    // #127: phase 3 holds 8 s, not 25: a long hold only taught players to walk away from him until it ran out. 8 s is a decree
+    // and a lunge chain or quake at his phase-3 pace, then every blow counts.
+    minPhase: [20, 0, 8],
   },
 };
 

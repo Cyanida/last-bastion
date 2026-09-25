@@ -886,6 +886,66 @@ await check('Bone Colossus: capped over many Raise Deads, skeletons stay beside 
   return { ok, detail: `after ${seen.length} casts: ${last.bones} skeletons, Colossus ×${last.fused}, ${Math.round(last.damage)} dmg (first ${Math.round(seen[0].damage)})` };
 });
 
+// ---------- #127: the Usurper's last phase is a short hold he fights through, then your blows finish him ----------
+await check("Usurper: the last phase holds a few seconds, he attacks through it, then he falls", async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  return inPage(async () => {
+    const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-arena', 'bastion');
+    set('tm-act', '4');
+    set('tm-wave', '10');
+    [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    await wait(300);
+    const g = lb.game, p = g.player;
+    p.invulnerable = true;
+    const usurper = () => g.enemies.find((e) => e.def.id === 'usurper' && !e.dead);
+    for (let i = 0; i < 6000 && !usurper() && lb.game === g; i++) lb.run(1, false, true);
+    const u = usurper();
+    if (!u) return { ok: false, detail: 'no Usurper reached' };
+    // set up phase 3: past his first threshold, the Royal Flames out, then below a third
+    lb.run(60 * 21, false, true);
+    u.hp = u.maxHp * 0.6;
+    lb.run(5, false, true);
+    for (const f of g.enemies) if (f.def.id === 'royalFlame') f.hp = 0.01;
+    for (let i = 0; i < 600 && u.warded; i++) {
+      for (const f of g.enemies) if (f.def.id === 'royalFlame' && !f.dead) Object.assign(p, { x: f.x - f.r - 20, y: f.y });
+      lb.run(1, false, 'input');
+    }
+    if (u.warded) return { ok: false, detail: 'the ward never broke' };
+    u.hp = u.maxHp * 0.3;
+    lb.run(2, false, 'input');
+    if (u.phase !== 3) return { ok: false, detail: `phase ${u.phase}, not 3` };
+    g.baseMods.damage *= 1e4; // a huge build: only the hold keeps him up
+    let attacks = 0, t = 0;
+    const tick = () => {
+      Object.assign(p, { x: u.x - u.r - 30, y: u.y });
+      lb.run(1, false, 'input');
+      t += 1 / 60;
+      if (g.zones.some((z) => z.owner === u) || u.telegraph) attacks++;
+    };
+    for (let i = 0; i < 60 * 3; i++) tick();
+    const heldAt3s = !u.dead && u.hp <= 1;
+    for (let i = 0; i < 60 * 20 && !u.dead; i++) tick();
+    g.baseMods.damage /= 1e4;
+    return { ok: heldAt3s && attacks > 0 && u.dead && t < 12, detail: `held at 3 s: ${heldAt3s}, he attacked on ${attacks} ticks, fell after ${t.toFixed(1)} s of phase 3` };
+  });
+});
+
 // ---------- v0.7.5 (#109): the Gallows pays in a cursed run, and the results screen shows it ----------
 await check('Gallows: a cursed run earns its bonus, the results show it', () =>
   inPage(async () => {
