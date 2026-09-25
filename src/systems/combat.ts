@@ -16,7 +16,7 @@ import { addField, fireProjectile, recycleProjectile } from '../entities/hazards
 import { goldDrop } from '../logic/economy';
 import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
-import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, typeMultiplier, type StatusApply } from '../logic/status';
+import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, throughResolve, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
 import { lastStand, zoneStruck } from './dodge';
@@ -158,6 +158,13 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   // shieldwall: while the line holds, anything that comes at the pavises from the front barely scratches
   const wall = e.def.wall;
   if (wall && e.charged && (kx !== 0 || ky !== 0) && !fromBehind(kx, ky, e.angle)) amount *= 1 - wall.reduction;
+  if (e.def.boss) {
+    // v0.7.5 (#95): a boss's resolve: a burst past its allowance does a fraction, so one ability cannot end the fight (status ticks included)
+    const r = throughResolve(amount, e.maxHp, e.resolve, e.resolveT, g.time);
+    amount = r.dealt;
+    e.resolve = r.load;
+    e.resolveT = g.time;
+  }
   e.flash = 0.1;
   e.kx += kx * (1 - e.def.knockbackResist);
   e.ky += ky * (1 - e.def.knockbackResist);

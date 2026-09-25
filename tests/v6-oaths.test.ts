@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, onTestFinished } from 'vitest';
 import { OATHS } from '../src/config/oaths';
+import { BOSS_RESOLVE } from '../src/config/damage';
 import { TIERS } from '../src/config/economy';
 import { createGame, updateGame } from '../src/game';
 import { oathCap, oathReward, oathStack } from '../src/logic/oaths';
@@ -8,6 +9,12 @@ import { damageEnemy } from '../src/systems/combat';
 import { spawnEnemy } from '../src/systems/spawning';
 
 const DT = 1 / 60;
+/** v0.7.5 (#95): these blows test phases, not a boss's resolve: it is off for the one test. */
+const noResolve = () => {
+  const keep = { ...BOSS_RESOLVE };
+  Object.assign(BOSS_RESOLVE, { burst: Infinity, cap: Infinity });
+  onTestFinished(() => void Object.assign(BOSS_RESOLVE, keep));
+};
 
 describe('the Oath modifier stack (v0.6)', () => {
   it('Oath 0 asks nothing; every level keeps everything below it and adds exactly one thing', () => {
@@ -56,6 +63,7 @@ describe('an Oath run (v0.6)', () => {
   });
 
   it('Unbowed Crowns: a boss rises once with 30% HP, then falls for good', () => {
+    noResolve();
     const g = createGame('paladin', 2, { oath: 4 });
     g.lastStand = 'off';
     const boss = spawnEnemy(g, 'blackKnight', g.player.x + 300, g.player.y);
