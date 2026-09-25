@@ -10,7 +10,7 @@ import { rerollCost } from '../logic/economy';
 import type { LevelUpOption } from '../logic/upgrades';
 import { chooseAbilityUpgrade } from '../systems/abilities';
 import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReforge, merchantReroll, merchantSalvage, merchantSell } from '../systems/acts';
-import { peddlerBuy } from '../systems/events';
+import { peddlerBuy, peddlerToken } from '../systems/events';
 import { banishOption, chooseLevelUp, levelUpOptions } from '../systems/leveling';
 import { takeQuests } from '../systems/quests';
 import { chooseBlessing } from '../systems/regions';
@@ -43,6 +43,7 @@ export type Choice =
   | { c: 'quests'; picks: number[] }
   | { c: 'route'; index: number }
   | { c: 'peddlerBuy' }
+  | { c: 'peddlerToken' }
   | { c: 'peddlerLeave' }
   | { c: 'merchantHeal' }
   | { c: 'merchantBuy'; rarity: Rarity }
@@ -92,6 +93,7 @@ export function choiceOpen(g: Game, ch: Choice): boolean {
     case 'route':
       return !!g.pendingRoute?.[ch.index];
     case 'peddlerBuy':
+    case 'peddlerToken':
     case 'peddlerLeave':
       return g.pendingShop;
     case 'merchantHeal':
@@ -161,6 +163,8 @@ export function applyChoice(g: Game, ch: Choice): boolean {
       return true;
     case 'peddlerBuy':
       return peddlerBuy(g);
+    case 'peddlerToken':
+      return peddlerToken(g);
     case 'peddlerLeave':
       g.pendingShop = false;
       return true;

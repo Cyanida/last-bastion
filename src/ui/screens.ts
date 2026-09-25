@@ -696,16 +696,16 @@ export function showBoard(act: number, quests: { kind: QuestKind; reward: Reward
   });
 }
 
-/** v0.5: the wandering merchant (a wave event): a couple of relics rolled by the drop rules, at the Merchant's prices. */
-export function showPeddler(info: { stock: number; price: number; gold: number; hurt: boolean }, on: { buy: () => void; leave: () => void }): void {
+/** v0.5: the wandering merchant (a wave event): a healing draught or (#128) a reroll token, one sale a visit. */
+export function showPeddler(info: { stock: number; price: number; tokenPrice: number; gold: number; hurt: boolean }, on: { buy: () => void; token: () => void; leave: () => void }): void {
   const el = show(`
     <div class="levelup">
       <h1 class="small">🧺 A wandering merchant</h1>
       <p class="sub">"Good things, fair prices, no questions." Purse: <b class="goldtext">🪙 ${info.gold}</b> — what you spend here never reaches the Keep.</p>
-      <div class="cards">${info.stock > 0 ? `<button class="card panel boon shop" data-buy="0" ${info.gold >= info.price && info.hurt ? '' : 'disabled'}><div class="num">1</div><h2>🧪 Healing draught</h2><p>${info.hurt ? 'Drink, and mend a good part of your wounds.' : 'You are not hurt.'}</p><div class="best">🪙 ${info.price}</div></button>` : '<p class="sub">Sold out.</p>'}</div>
+      <div class="cards">${info.stock > 0 ? `<button class="card panel boon shop" data-buy="0" ${info.gold >= info.price && info.hurt ? '' : 'disabled'}><div class="num">1</div><h2>🧪 Healing draught</h2><p>${info.hurt ? 'Drink, and mend a good part of your wounds.' : 'You are not hurt.'}</p><div class="best">🪙 ${info.price}</div></button><button class="card panel boon shop" data-buy="1" ${info.gold >= info.tokenPrice ? '' : 'disabled'}><div class="num">2</div><h2>🎲 Reroll token</h2><p>One more free reroll on your next level-up.</p><div class="best">🪙 ${info.tokenPrice}</div></button>` : '<p class="sub">Sold out.</p>'}</div>
       <button class="btn big" data-leave>Leave</button>
     </div>`);
-  click(el, '[data-buy]', () => on.buy());
+  click(el, '[data-buy]', (b) => (b.dataset.buy === '1' ? on.token() : on.buy()));
   click(el, '[data-leave]', on.leave);
   onActions((a) => {
     const m = /^pick(\d)$/.exec(a);
