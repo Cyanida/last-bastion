@@ -1,6 +1,6 @@
 import { PATTERNS, type Pattern, type PatternKind } from '../config/ai';
 import type { DamageType } from '../config/damage';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game, Telegraph } from '../core/types';
 import { addZone, after, fireProjectile } from '../entities/hazards';

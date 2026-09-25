@@ -3,7 +3,7 @@ import { AFFIX_IDS, ELITES } from '../config/elites';
 import { QUEST_BOARD, QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
 import { ROUTES } from '../config/routes';
 import { TREASURES } from '../config/treasures';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { addListener, type GameEvents } from '../core/events';
 import { compact } from '../core/math';
 import type { Enemy, Game, Minion, Quest } from '../core/types';

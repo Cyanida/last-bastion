@@ -24,8 +24,8 @@ describe('v0.7.5 gold fixes (#109)', () => {
   it('a run is banked on the local day, the one the Daily Trial uses', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 8, 25, 0, 30)); // just past local midnight
-    const g = createGame('paladin', 1, { curses: ['ironHorde'], daily: todayString() });
+    const g = createGame('paladin', 1, { curses: ['ironHorde'], daily: todayString(new Date()) });
     g.gold = g.goldStart + 500;
-    expect(banked(defaultSave(), g)!.save.dailyGold.date).toBe('2026-09-25');
+    expect(banked(defaultSave(), g, new Date())!.save.dailyGold.date).toBe('2026-09-25');
   });
 });

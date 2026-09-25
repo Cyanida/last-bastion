@@ -1,6 +1,6 @@
 import { SQUADS } from '../config/director';
 import { EVENTS, type EventKind } from '../config/events';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { addListener, type GameEvents } from '../core/events';
 import { compact, pickWeighted, TAU } from '../core/math';
 import type { Game, Rng, WaveEvent } from '../core/types';

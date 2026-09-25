@@ -1,5 +1,5 @@
 import { FINAL } from '../config/acts';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
 import { addZone, after } from '../entities/hazards';

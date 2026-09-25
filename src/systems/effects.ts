@@ -1,6 +1,6 @@
 import { GAME, RENDER } from '../config/game';
 import { compact, TAU } from '../core/math';
-import { particleBudget } from '../core/quality';
+import { view } from '../sim/view';
 import type { Enemy, FloatText, Game, Particle } from '../core/types';
 
 // Cosmetic only, so Math.random instead of the seeded game rng.
@@ -10,7 +10,7 @@ const particlePool: Particle[] = [];
 const textPool: FloatText[] = [];
 
 export function burst(g: Game, x: number, y: number, color: string, n: number, speed = 130): void {
-  const count = Math.ceil(n * particleBudget());
+  const count = Math.ceil(n * view.particleBudget());
   for (let i = 0; i < count && g.particles.length < GAME.maxParticles; i++) {
     const a = Math.random() * TAU;
     const v = speed * (0.3 + Math.random() * 0.7);

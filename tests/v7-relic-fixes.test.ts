@@ -9,7 +9,7 @@ import { spawnEnemy } from '../src/systems/spawning';
 
 const game = (): Game => {
   const g = createGame('paladin', 1);
-  g.rng = () => 0.999;
+  g.rng = Object.assign(() => 0.999, { s: 0 });
   return g;
 };
 

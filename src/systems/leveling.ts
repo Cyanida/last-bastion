@@ -1,7 +1,7 @@
 import { TRADEOFF_IDS, type TradeoffId } from '../config/upgrades';
 import { UTILITY } from '../config/utility';
 import { talentPointsForLevel } from '../logic/talents';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import type { Game } from '../core/types';
 import { tierForLevel } from '../logic/abilityUpgrades';
 import { applyGrowth, catchUpMult, xpToNext } from '../logic/formulas';

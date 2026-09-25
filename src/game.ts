@@ -11,7 +11,7 @@ import { TREASURES } from './config/treasures';
 import { FREE_REROLLS } from './config/upgrades';
 import { WAVES } from './config/waves';
 import { compact, mulberry32 } from './core/math';
-import { begin, end } from './core/perf';
+import { begin, end } from './sim/view';
 import { SpatialHash } from './core/spatial';
 import type { Game } from './core/types';
 import { createPlayer } from './entities/actors';
@@ -76,7 +76,7 @@ export interface RunOptions {
 /** The difficulty tier with an Oath's numbers folded in, so every place that reads the tier sees them. */
 const withOath = (t: TierDef, o: OathStack): TierDef => (o.level ? { ...t, enemyHp: t.enemyHp * o.n.hp, enemyDmg: t.enemyDmg * o.n.damage, eliteMult: t.eliteMult * o.n.eliteMult } : t);
 
-export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions = {}): Game {
+export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}): Game {
   const cls = CLASSES[classId];
   const arena = ARENAS[opts.arena ?? 'courtyard'];
   const mastery = masteryBonus(opts.classXp ?? 0);
@@ -108,6 +108,7 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     breather: WAVES.firstWaveDelay,
     kills: 0,
     time: 0,
+    tick: 0,
     shake: 0,
     pendingLevelUps: 0,
     arena,
@@ -136,6 +137,8 @@ export function createGame(classId: ClassId, seed = Date.now(), opts: RunOptions
     bannedStats: [],
     palette: [...mastery.palettes, ...(opts.palettes ?? [])].includes(opts.palette ?? 0) ? opts.palette! : 0,
     rerolls: Math.max(0, FREE_REROLLS + loadout.rerolls + mastery.reroll + account.reroll - oath.n.rerollsLess),
+    levelHand: null,
+    levelRerolls: null,
     gold: loadout.gold,
     goldStart: loadout.gold,
     wavesCleared: 0,

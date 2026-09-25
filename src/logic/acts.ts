@@ -59,7 +59,7 @@ export function parseSeed(text: string): number | null {
   return Number.isFinite(code) && code <= 0xffffffff ? code : hashSeed(t);
 }
 
-export const todayString = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+export const todayString = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export interface DailySetup {
   date: string;

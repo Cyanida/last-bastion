@@ -2,7 +2,7 @@ import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
 import type { Cfg } from '../config/classes';
 import { EVOLUTIONS, type EvolutionId, type EvolutionSlot } from '../config/evolutions';
 import { UTILITIES } from '../config/utility';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { addListener, dispatch, emit, type GameEvents, type Handlers } from '../core/events';
 import { TAU } from '../core/math';
 import type { Enemy, Game, Minion } from '../core/types';
