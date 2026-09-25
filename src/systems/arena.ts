@@ -1,4 +1,4 @@
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Game } from '../core/types';
 import { addZone } from '../entities/hazards';

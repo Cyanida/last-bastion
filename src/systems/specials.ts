@@ -1,4 +1,4 @@
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import type { Enemy, Game } from '../core/types';
 import { addZone } from '../entities/hazards';
 import { angleTo, hitDamage, move, moveTo, POISON, touch, type Target } from './aiHelpers';

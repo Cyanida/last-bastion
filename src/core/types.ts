@@ -1,4 +1,5 @@
 import type { OathStack } from '../logic/oaths';
+import type { LevelUpOption } from '../logic/upgrades';
 import type { AbilityUpgradeId } from '../config/abilityUpgrades';
 import type { ArenaDef, ArenaId } from '../config/arenas';
 import type { CurseId } from '../config/curses';
@@ -31,6 +32,8 @@ export type Stats = Record<StatKey, number>;
 export const STAT_KEYS: StatKey[] = ['hp', 'str', 'dex', 'int', 'atkSpd', 'moveSpd', 'secondary'];
 
 export type Rng = () => number;
+/** A stored stream: `s` is its whole state, so a snapshot copies it and a restore sets it back (#27). */
+export type SeededRng = Rng & { s: number };
 export type DamageSource = 'attack' | 'ability' | 'minion' | 'relic' | 'hazard';
 
 /** Run-wide modifiers, rebuilt every tick from meta upgrades, tradeoffs, relics and passive ability upgrades. */
@@ -63,7 +66,7 @@ export interface RelicState {
   found: RelicId[]; // every pickup and tier-up this run, for the compendium
   from: Record<string, RelicSource>; // where each held relic came from
   stats: Record<string, RelicStat>; // what each held relic did this run (RELICS.md)
-  rng: Rng;
+  rng: SeededRng;
   static: RelicTotals; // held relics' plain mods summed per key; rebuilt when dirty
   dyn: Partial<Record<keyof Mods, number>>; // this tick's conditional bonuses from tick hooks (charges, horns, crowns)
   totals: RelicTotals; // static + dynamic, soft-capped: what went into p.mods this tick (the stats panel reads it)
@@ -380,7 +383,7 @@ export interface Quest {
   progress: number; // waves survived, camps burnt, seconds held
   since: number; // g.wavesCleared when taken (the caravan); the wave the named elite comes with; the trial's target
   t: number; // once over: seconds left on the tracker
-  rng: Rng; // its own seeded stream (logic/quests.ts placeRng), for where it puts things
+  rng: SeededRng; // its own seeded stream (logic/quests.ts placeRng), for where it puts things
 }
 
 /** v0.5 sacred treasures: the class's chain as the save had it, plus what this run added (config/treasures.ts, systems/treasures.ts). */
@@ -471,7 +474,7 @@ export interface Game {
   texts: FloatText[];
   effects: Effect[];
   hash: SpatialHash<Enemy>;
-  rng: Rng;
+  rng: SeededRng;
   input: { moveX: number; moveY: number; aimX: number; aimY: number; ability: boolean; utility: boolean; showAim: boolean; manualAim?: boolean }; // manualAim: basic attacks go toward (aimX, aimY) (v0.7.5, #81)
   wave: number;
   waveHpMult: number;
@@ -482,6 +485,7 @@ export interface Game {
   breather: number;
   kills: number;
   time: number;
+  tick: number; // v0.8: steps taken (step() in sim/commands.ts); commands carry it
   shake: number;
   pendingLevelUps: number;
   // --- v0.2 ---
@@ -511,6 +515,8 @@ export interface Game {
   bannedStats: StatKey[]; // v0.6: stat boons struck from this run's level-ups
   palette: number; // v0.4: the class sprite's colours (mastery unlocks; SPRITE_PALETTES)
   rerolls: number; // free rerolls per level-up screen
+  levelHand: LevelUpOption[] | null; // v0.8: the level-up cards on offer, dealt on first read (levelHand in sim/commands.ts)
+  levelRerolls: { free: number; paid: number } | null; // v0.8: this level-up screen's rerolls; null until the first
   gold: number;
   goldStart: number;
   wavesCleared: number;

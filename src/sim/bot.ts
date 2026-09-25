@@ -1,30 +1,21 @@
 import { ABILITY_TRACKS } from '../config/abilityUpgrades';
 import { UTILITY_TRACKS } from '../config/utility';
 import { branchPlan, canTakeTalent } from '../logic/talents';
-import { spendTalent } from '../systems/talents';
-import { chooseBlessing } from '../systems/regions';
-import { chooseUtilityUpgrade } from '../systems/utility';
 import type { ClassId } from '../config/classes';
-import { GAME } from '../config/game';
 import { UPGRADE_RARITIES } from '../config/upgrades';
 import type { Game, RelicOffer, StatKey } from '../core/types';
 import { FAMILY_IDS, isCursedRelic, preferredFamilies, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
 import { familySets } from '../logic/relics';
-import { createGame, summarizeRun, updateGame, type RunOptions } from '../game';
+import { createGame, summarizeRun, type RunOptions } from '../game';
 import type { RunSummary } from '../logic/save';
 import type { LevelUpOption } from '../logic/upgrades';
-import { chooseAbilityUpgrade } from '../systems/abilities';
-import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal } from '../systems/acts';
-import { chooseLevelUp, levelUpOptions } from '../systems/leveling';
-import { resolveRelicOffer } from '../systems/relics';
-import { takeQuests } from '../systems/quests';
 import { eventMarks, questMarks } from '../logic/quests';
-import { peddlerBuy, peddlerPrice } from '../systems/events';
+import { peddlerPrice } from '../systems/events';
 import { regionAt } from '../logic/regions';
 import { regionsOf } from '../systems/regions';
 import { QUEST_BOARD } from '../config/quests';
-import { goEndless } from '../systems/victory';
 import { featureSpot } from '../config/regions';
+import { applyChoice, intentCommand, levelHand, step, type Choice, type Intent } from './commands';
 
 /**
  * A deliberately basic player: kite (or, for melee, wade in until hurt), step out of telegraphs,
@@ -32,10 +23,10 @@ import { featureSpot } from '../config/regions';
  * and by the dev hook for smoke tests. It is a yardstick between classes, not a good player.
  */
 
-const DT = 1 / GAME.tickRate;
 const ORBIT = 3; // v0.6: how hard ranged circles while fleeing (tangent against straight away); 0-4 tried, BALANCE.md
 
-export function botInput(g: Game): void {
+/** v0.8: what the bot presses this tick, as an intent (step() applies it). */
+export function botInput(g: Game): Intent {
   const p = g.player;
   const melee = p.cls.attack.kind === 'melee';
   let nx = p.x;
@@ -130,13 +121,16 @@ export function botInput(g: Game): void {
     }
   }
   const len = Math.hypot(mx, my);
-  g.input.moveX = len > 4 ? mx / len : 0;
-  g.input.moveY = len > 4 ? my / len : 0;
-  g.input.aimX = nx;
-  g.input.aimY = ny;
-  g.input.ability = nd < ('castRange' in p.cls.ability ? p.cls.ability.castRange : 220) || p.cls.id === 'necromancer'; // v0.6: the Volley at its reach, as players do
-  // the utility: the Paladin when enemies are close, the Necromancer when corpses lie around, the rest when crowded or hurt
-  g.input.utility = p.cls.id === 'necromancer' ? g.corpses.length >= 3 && nd < 300 : p.cls.id === 'paladin' ? nd < 200 : crowded || p.hp < p.stats.hp * 0.4;
+  return {
+    moveX: len > 4 ? mx / len : 0,
+    moveY: len > 4 ? my / len : 0,
+    aimX: nx,
+    aimY: ny,
+    ability: nd < ('castRange' in p.cls.ability ? p.cls.ability.castRange : 220) || p.cls.id === 'necromancer', // v0.6: the Volley at its reach, as players do
+    // the utility: the Paladin when enemies are close, the Necromancer when corpses lie around, the rest when crowded or hurt
+    utility: p.cls.id === 'necromancer' ? g.corpses.length >= 3 && nd < 300 : p.cls.id === 'paladin' ? nd < 200 : crowded || p.hp < p.stats.hp * 0.4,
+    showAim: g.input.showAim,
+  };
 }
 
 /** Where to walk for `to`: in another region, the gate between first (wings hang off the core, the vault off the east wing), so it does not grind along a wall. */
@@ -200,24 +194,22 @@ function draftRelic(g: Game, o: RelicOffer): RelicId | DuoId | null {
   return o.options.reduce((a, b) => (score(b) > score(a) ? b : a));
 }
 
-/** Resolve every pending choice the way the UI would, without the UI. `variant` picks the ability upgrade branch (0 or 1) and the talent branch. */
+/**
+ * Resolve every pending choice the way the UI would, without the UI. `variant` picks the ability upgrade branch (0 or 1) and the talent
+ * branch. v0.8: each answer is a choice command, applied on the spot (the next one depends on it).
+ */
 export function botChoose(g: Game, variant = 0): void {
-  if (g.pendingShrine) chooseBlessing(g, g.pendingShrine[0]);
-  if (g.pendingBoard) takeQuests(g, [...Array(QUEST_BOARD.offered + 1).keys()]); // as many as it may, and the treasure trial (the free card after the board's)
+  const choose = (choice: Choice) => applyChoice(g, choice);
+  if (g.pendingShrine) choose({ c: 'blessing', id: g.pendingShrine[0] });
+  if (g.pendingBoard) choose({ c: 'quests', picks: [...Array(QUEST_BOARD.offered + 1).keys()] }); // as many as it may, and the treasure trial (the free card after the board's)
   if (g.pendingShop) {
     // the first ware, and only with plenty of gold to spare
-    if (g.gold > 3 * peddlerPrice(g) && g.player.hp < g.player.stats.hp * 0.6) peddlerBuy(g); // v0.7: his healing draught, when hurt and rich
-    g.pendingShop = false;
+    if (g.gold > 3 * peddlerPrice(g) && g.player.hp < g.player.stats.hp * 0.6) choose({ c: 'peddlerBuy' }); // v0.7: his healing draught, when hurt and rich
+    choose({ c: 'peddlerLeave' });
   }
-  while (g.player.relics.offers.length > 0) {
-    if (!resolveRelicOffer(g, draftRelic(g, g.player.relics.offers[0]))) g.player.relics.offers.shift(); // never stuck on a moment
-  }
-  while (g.pendingAbilityTiers.length > 0) {
-    if (!chooseAbilityUpgrade(g, ABILITY_TRACKS[g.player.cls.id][g.pendingAbilityTiers[0]][variant])) g.pendingAbilityTiers.shift();
-  }
-  while (g.pendingUtilityTiers.length > 0) {
-    if (!chooseUtilityUpgrade(g, UTILITY_TRACKS[g.player.cls.id][g.pendingUtilityTiers[0]][variant])) g.pendingUtilityTiers.shift();
-  }
+  while (g.player.relics.offers.length > 0) choose({ c: 'relicTake', id: draftRelic(g, g.player.relics.offers[0]) }); // a failed take drops the moment
+  while (g.pendingAbilityTiers.length > 0) choose({ c: 'abilityUpgrade', id: ABILITY_TRACKS[g.player.cls.id][g.pendingAbilityTiers[0]][variant] });
+  while (g.pendingUtilityTiers.length > 0) choose({ c: 'utilityUpgrade', id: UTILITY_TRACKS[g.player.cls.id][g.pendingUtilityTiers[0]][variant] });
   // talents: walk one branch (the variant picks which), spilling into the next when it is full
   let spent = true;
   while (g.talentPoints > 0 && spent) {
@@ -225,26 +217,25 @@ export function botChoose(g: Game, variant = 0): void {
     for (let b = 0; b < 3 && !spent; b++) {
       const plan = [`${g.player.cls.id}.treasure`, ...branchPlan(g.player.cls.id, variant + b)]; // the treasure's hidden node first, while it is equipped
       const next = plan.find((id) => canTakeTalent(g.player.talents, id, g.talentPoints, g.talentRowCap, g.treasure?.id));
-      if (next) spent = spendTalent(g, next);
+      if (next) spent = choose({ c: 'talent', id: next });
     }
   }
   if (g.pendingMerchant) {
     // patch up first, then a relic if there is room and money; never hoards for the Keep (it is a yardstick, not a saver)
-    if (g.player.hp < g.player.stats.hp * 0.6) merchantHeal(g);
-    if (!merchantBuy(g, 'rare')) merchantBuy(g, 'common');
-    leaveMerchant(g);
+    if (g.player.hp < g.player.stats.hp * 0.6) choose({ c: 'merchantHeal' });
+    if (!choose({ c: 'merchantBuy', rarity: 'rare' })) choose({ c: 'merchantBuy', rarity: 'common' });
+    choose({ c: 'merchantLeave' });
   }
-  if (g.pendingRoute) chooseRoute(g, 0); // the first fork: the rolls are seeded, so the sims stay reproducible
+  if (g.pendingRoute) choose({ c: 'route', index: 0 }); // the first fork: the rolls are seeded, so the sims stay reproducible
   while (g.pendingLevelUps > 0) {
-    const options = levelUpOptions(g);
-    chooseLevelUp(g, options.reduce((a, b) => (scoreOption(g, b) > scoreOption(g, a) ? b : a)));
+    const hand = levelHand(g);
+    choose({ c: 'levelUp', index: hand.reduce((best, o, i) => (scoreOption(g, o) > scoreOption(g, hand[best]) ? i : best), 0) });
   }
 }
 
 export function botStep(g: Game, variant = 0): void {
   botChoose(g, variant);
-  botInput(g);
-  updateGame(g, DT);
+  step(g, [intentCommand(g, botInput(g))]);
 }
 
 /** A whole run by the bot. A win is banked on the spot, unless `endless`: then it goes on past the Usurper until it dies or runs out of time. */
@@ -253,7 +244,7 @@ export function simulateRun(classId: ClassId, seed: number, opts: RunOptions = {
   while (!g.over && g.time < maxSeconds) {
     if (g.victory === 'pending') {
       if (!endless) break;
-      goEndless(g);
+      applyChoice(g, { c: 'endless' });
     }
     botStep(g, variant);
   }

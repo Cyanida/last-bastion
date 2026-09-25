@@ -1,6 +1,6 @@
 import { ENEMIES, type EnemyId } from '../config/enemies';
 import { BLESSING_IDS, BLESSINGS, FEATURES, featureSpot, REGIONS, WING_IDS, type BlessingId, type RegionDef, type RegionId, type WingId } from '../config/regions';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import { addListener, type GameEvents } from '../core/events';
 import { TAU } from '../core/math';
 import type { Game } from '../core/types';

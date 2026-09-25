@@ -5,7 +5,7 @@ import { routeChoices, type Route } from '../logic/routes';
 import { markRoute } from './runlog';
 import { ARENAS } from '../config/arenas';
 import { RELIC_DROPS, relicDef, type Rarity, type RelicId, RELIC_MOMENTS } from '../config/relics';
-import { sfx } from '../core/audio';
+import { sfx } from '../sim/view';
 import type { Game } from '../core/types';
 import { actName, arenaFor, isActEnd, merchantPrice, themeFor, type MerchantItem } from '../logic/acts';
 import { halfAttunement, relicTier, rollRelics } from '../logic/relics';

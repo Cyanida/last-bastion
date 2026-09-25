@@ -1,12 +1,12 @@
 import type { ClassId } from '../config/classes';
 import { ATTUNEMENT, DUO_IDS, DUOS, FAMILY_IDS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
-import type { Mods, RelicState, Rng } from '../core/types';
+import type { Mods, RelicState, Rng, SeededRng } from '../core/types';
 import { mulberry32 } from '../core/math';
 import { hashSeed } from './acts';
 
 /** v0.7: a player's own relic stream, split from the run seed (player 0, 1, ...). */
-export const relicStream = (seed: number, player: number): Rng => mulberry32(hashSeed(`relics:${seed}:${player}`));
+export const relicStream = (seed: number, player: number): SeededRng => mulberry32(hashSeed(`relics:${seed}:${player}`));
 
 /** An empty relic state; createGame fills in the pool and the stream. */
 export const emptyRelics = (): RelicState => ({
