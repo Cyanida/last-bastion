@@ -277,7 +277,7 @@ await check('relic offer: skip pays what it says', () =>
 await check('relic offer: the card shows the effect first, details on hover or tap', () =>
   inPage(async () => {
     const P = window.__play, rel = window.__lb.game.player.relics;
-    rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant'], rerolls: 0, duo: null });
+    rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant', 'thunderDrum', 'cinderCharm'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 0, duo: null }); // a held relic's tip names a later tier
     if (!P.toChoice()) return { ok: false, detail: 'no relic offer' };
     const card = document.querySelector('[data-pick="0"]');
     const effect = card.querySelector('p'), lines = card.querySelectorAll('.preview');
@@ -288,7 +288,7 @@ await check('relic offer: the card shows the effect first, details on hover or t
     const tip = document.getElementById('tooltip');
     const shown = tip?.style.display === 'block' && tip.innerText.includes('For this build') && tip.innerText.includes('Tier II');
     await P.click('[data-skip]'); // skipped, so the later checks still take Butcher's Hook fresh
-    return { ok: big && first && lines.length === 1 && !lines[0].innerText.includes('\n') && shown && rel.offers.length === 0, detail: `effect "${effect.innerText}", line "${lines[0]?.innerText}" (${lines.length}), bigger ${big}, tip shown ${shown}` };
+    return { ok: big && first && lines.length === 1 && !lines[0].innerText.includes('\n') && shown && rel.offers.length === 0, detail: `effect "${effect.innerText}", line "${lines[0]?.innerText}" (${lines.length}), bigger ${big}, tip shown ${shown}${shown ? '' : ` (${tip?.style.display}: ${(tip?.innerText ?? '').slice(0, 60)})`}` };
   }),
 );
 
@@ -580,12 +580,22 @@ await check('touch: joystick moves, release stops', () =>
   inPage(() => {
     const lb = window.__lb, g = lb.game, p = g.player, canvas = document.querySelector('canvas');
     const ev = (type, x, y) => canvas.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, pointerType: 'touch', pointerId: 7, isPrimary: true, bubbles: true }));
-    for (let i = 0; i < 20 && lb.state === 'choice'; i++) lb.run(1, false, 'input'); // a screen the frame loop opened since the last check hides the controls
-    const x0 = p.x;
-    ev('pointerdown', 200, 500);
-    ev('pointermove', 260, 500);
-    lb.run(20, false, 'input');
-    const moved = p.x - x0, moveX = g.input.moveX;
+    const press = () => (ev('pointerdown', 200, 500), ev('pointermove', 260, 500));
+    // a screen (the frame loop's, or a level-up while the thumb is down) hides the controls and drops the thumb: answer it, press again
+    for (let i = 0; i < 20 && lb.state === 'choice'; i++) lb.run(1, false, 'input');
+    press();
+    let moved = 0, moveX = 0;
+    for (let i = 0; i < 60 && moved <= 20; i++) {
+      if (lb.state === 'choice') {
+        lb.run(1, false, 'input');
+        press();
+        continue;
+      }
+      const x = p.x;
+      lb.run(1, false, 'input');
+      moved += p.x - x;
+      moveX = Math.max(moveX, g.input.moveX);
+    }
     ev('pointerup', 260, 500);
     lb.run(3, false, 'input');
     const x1 = p.x;
