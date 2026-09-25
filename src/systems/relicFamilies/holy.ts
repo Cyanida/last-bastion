@@ -5,7 +5,7 @@ import { fireProjectile } from '../../entities/hazards';
 import { TAU } from '../../core/math';
 import { rollPlayerHit } from '../combat';
 import { ring } from '../effects';
-import { awakened, bonus, credit, gainWard, nOf, nova, relicDamage, relicHeal, relicSkeletons, sOf, type RelicHooks } from '../relicCore';
+import { awakened, bonus, credit, gainWard, nOf, nova, relicDamage, relicHeal, sOf, type RelicHooks } from '../relicCore';
 
 /**
  * ✨ Holy (RELICS.md): healing, ward and blessing. Relics heal, grant ward (combat.damagePlayer lets ward take a hit first) or save you from
