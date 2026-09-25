@@ -7,7 +7,7 @@ import { addListener, dispatch, emit, type GameEvents, type Handlers } from '../
 import { TAU } from '../core/math';
 import type { Enemy, Game, Minion } from '../core/types';
 import { createMinion } from '../entities/actors';
-import { addField, addZone, after, fireProjectile } from '../entities/hazards';
+import { addField, addZone, fireProjectile, timer } from '../entities/hazards';
 import * as scale from '../logic/abilities';
 import type { BuildState } from '../logic/evolutions';
 import { attackDamage } from '../logic/formulas';
@@ -38,6 +38,35 @@ const near: Enemy[] = [];
 const sec = (g: Game) => g.player.stats.secondary;
 const per = (g: Game, n: Record<string, number>, key: string) => n[key] + (n[`${key}Per`] ?? 0) * sec(g); // "x + xPer * secondary"
 const N = <K extends EvolutionId>(id: K) => EVOLUTIONS[id].n as Record<string, number>;
+
+// v0.8 (#27): the delayed parts of evolutions, as timer kinds
+const judgementRing = timer('dayOfJudgement.ring', (g, a: { x: number; y: number; inner: number; outer: number; dmg: number; kb: number }) => {
+  const { x, y, inner, outer } = a;
+  for (const e of g.hash.query(x, y, outer, near)) {
+    const d = Math.hypot(e.x - x, e.y - y) || 1;
+    if (d < inner) continue;
+    damageEnemy(g, e, a.dmg, false, ((e.x - x) / d) * a.kb, ((e.y - y) / d) * a.kb, 'ability', 'holy');
+  }
+  ring(g, x, y, outer, '#f2e6a0', 0.5);
+  shake(g, 8);
+});
+const judgementSword = timer('dayOfJudgement.sword', (g, a: { target: Enemy; dmg: number }) => {
+  const { target } = a;
+  if (target.dead) return;
+  line(g, target.x, target.y - 320, target.x, target.y, '#f2e6a0');
+  damageEnemy(g, target, a.dmg * per(g, N('dayOfJudgement'), 'sword'), true, 0, 0, 'ability', 'holy');
+  burst(g, target.x, target.y, '#f2e6a0', 30, 300);
+  floatText(g, target.x, target.y - 40, 'JUDGED', '#f2e6a0', 18);
+  shake(g, 12);
+  sfx('boom');
+});
+const meteorLands = timer('meteorArrow.lands', (g, a: { x: number; y: number; r: number }) => {
+  ring(g, a.x, a.y, a.r, '#e07b28', 0.6);
+  burst(g, a.x, a.y, '#e07b28', 50, 420);
+  shake(g, 16);
+  sfx('boom');
+});
+const huntGoesOn = timer('huntersMark.volley', (g, a: { x: number; y: number }) => freeVolley(g, a.x, a.y));
 const raging = (g: Game) => g.player.abilityTime > 0;
 const until = (g: Game, key: string) => g.time < (g.vars[key] ?? 0);
 /** The player's plain attack damage, with its scaling stat and every damage mod: what "x% of an attack" means below. */
@@ -85,30 +114,11 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
       for (let k = 1; k < n.waves; k++) {
         const inner = c.burstRadius * (1 + (k - 1) * n.grow);
         const outer = c.burstRadius * (1 + k * n.grow);
-        after(g, k * n.gap, () => {
-          for (const e of g.hash.query(x, y, outer, near)) {
-            const d = Math.hypot(e.x - x, e.y - y) || 1;
-            if (d < inner) continue;
-            damageEnemy(g, e, dmg, false, ((e.x - x) / d) * c.burstKnockback, ((e.y - y) / d) * c.burstKnockback, 'ability', 'holy');
-          }
-          ring(g, x, y, outer, '#f2e6a0', 0.5);
-          shake(g, 8);
-        });
+        judgementRing(g, k * n.gap, { x, y, inner, outer, dmg, kb: c.burstKnockback });
       }
       let best: Enemy | null = null;
       for (const e of g.hash.query(x, y, c.burstRadius * (1 + n.grow * (n.waves - 1)), near)) if (!e.dead && (!best || e.maxHp > best.maxHp)) best = e;
-      const target = best;
-      if (target) {
-        after(g, n.waves * n.gap, () => {
-          if (target.dead) return;
-          line(g, target.x, target.y - 320, target.x, target.y, '#f2e6a0');
-          damageEnemy(g, target, dmg * per(g, n, 'sword'), true, 0, 0, 'ability', 'holy');
-          burst(g, target.x, target.y, '#f2e6a0', 30, 300);
-          floatText(g, target.x, target.y - 40, 'JUDGED', '#f2e6a0', 18);
-          shake(g, 12);
-          sfx('boom');
-        });
-      }
+      if (best) judgementSword(g, n.waves * n.gap, { target: best, dmg });
     },
   },
 
@@ -502,12 +512,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
       const burn = attackDamage(ABILITY_UPGRADES.burningRain.n.dps, p.stats.dex, p.mods.damage);
       addZone(g, { x, y, r, delay: n.delay, damage: hit.amount, crit: hit.crit, hostile: false, color: '#e07b28', dtype: 'fire', leaveField: { life: n.fire, dps: burn, color: '#e07b28', dtype: 'fire', apply: { id: 'burn', power: burn * 0.25 } } });
       line(g, p.x, p.y - 20, p.x + (x - p.x) * 0.3, p.y - 420, '#f2c94c'); // loosed high into the sky
-      after(g, n.delay, () => {
-        ring(g, x, y, r, '#e07b28', 0.6);
-        burst(g, x, y, '#e07b28', 50, 420);
-        shake(g, 16);
-        sfx('boom');
-      });
+      meteorLands(g, n.delay, { x, y, r });
       p.abilityTime = p.abilityDur = 0.3;
       return true;
     },
@@ -573,7 +578,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
         if (ev.enemy !== g.prey) return;
         g.prey = null;
         const { x, y } = ev.enemy;
-        after(g, 0.3, () => freeVolley(g, x, y)); // the hunt goes on: a volley where it fell
+        huntGoesOn(g, 0.3, { x, y }); // the hunt goes on: a volley where it fell
         floatText(g, x, y - 40, 'THE HUNT GOES ON', '#e0402f', 15);
       },
     },

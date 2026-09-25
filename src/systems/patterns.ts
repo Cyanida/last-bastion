@@ -3,7 +3,7 @@ import type { DamageType } from '../config/damage';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game, Telegraph } from '../core/types';
-import { addZone, after, fireProjectile } from '../entities/hazards';
+import { addZone, fireProjectile, timer } from '../entities/hazards';
 import { lineAngle } from '../logic/telegraph';
 import { angleTo, distTo, hitDamage } from './aiHelpers';
 
@@ -18,19 +18,22 @@ const COLORS: Record<DamageType, string> = { physical: '#c23a2e', fire: '#e07b28
  * A volley along marked lines: `count` shots `spread` radians wide (a full circle splits evenly), aimed where the target stands now,
  * fired after `windup`. The lines stay put, so stepping off them dodges it. Cancelled if the caster dies or is stunned mid-windup.
  */
-export function aimFan(g: Game, e: Enemy, o: { angle: number; count: number; spread: number; windup: number; damage: number; speed: number; range: number; dtype?: DamageType; color?: string }): void {
+type Fan = { angle: number; count: number; spread: number; windup: number; damage: number; speed: number; range: number; dtype?: DamageType; color?: string };
+export function aimFan(g: Game, e: Enemy, o: Fan): void {
   const tele: Telegraph = { angle: o.angle, length: o.range, width: 12, t: 0, dur: o.windup, count: o.count, spread: o.spread };
   e.telegraph = tele;
   e.windupT = Math.max(e.windupT, o.windup);
   sfx('warn');
-  after(g, o.windup, () => {
-    if (e.dead || e.telegraph !== tele) return; // slain, stunned or overridden: the volley never comes
-    e.telegraph = null;
-    for (let i = 0; i < o.count; i++) {
-      fireProjectile(g, e.x, e.y, lineAngle(tele, i), { damage: o.damage, crit: false, hostile: true, pierce: 0, shape: 'orb', color: o.color ?? COLORS[o.dtype ?? 'physical'], r: 7, speed: o.speed, range: o.range, dtype: o.dtype });
-    }
-  });
+  loose(g, o.windup, { e, tele, o });
 }
+
+const loose = timer('aimFan', (g, { e, tele, o }: { e: Enemy; tele: Telegraph; o: Fan }) => {
+  if (e.dead || e.telegraph !== tele) return; // slain, stunned or overridden: the volley never comes
+  e.telegraph = null;
+  for (let i = 0; i < o.count; i++) {
+    fireProjectile(g, e.x, e.y, lineAngle(tele, i), { damage: o.damage, crit: false, hostile: true, pierce: 0, shape: 'orb', color: o.color ?? COLORS[o.dtype ?? 'physical'], r: 7, speed: o.speed, range: o.range, dtype: o.dtype });
+  }
+});
 
 const blast = (g: Game, e: Enemy, p: Pattern, x: number, y: number, delay = p.windup) =>
   addZone(g, { x, y, r: p.radius, delay, damage: hitDamage(e) * p.damage, hostile: true, color: COLORS[p.dtype ?? 'physical'], owner: e, dtype: p.dtype ?? 'physical' });

@@ -1,6 +1,7 @@
 import { GAME } from '../../config/game';
 import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import type { Enemy, Game, Player } from '../../core/types';
+import { timer } from '../../entities/hazards';
 import { critChance } from '../../logic/formulas';
 import { rollPlayerHit } from '../combat';
 import { attackHit, awakened, bonus, chainFrom, nOf, nova, relicDamage, sOf, strength, strike, type RelicHooks } from '../relicCore';
@@ -56,7 +57,7 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   thunderDrum: {
     onAbilityUsed(g, _ev, p) {
       clap(g, p);
-      if (awakened(p, 'thunderDrum')) g.timers.push({ t: 1, fn: () => clap(g, p) }); // Rolling Thunder
+      if (awakened(p, 'thunderDrum')) rollingThunder(g, 1, { p }); // Rolling Thunder
     },
   },
 
@@ -117,6 +118,7 @@ function clap(g: Game, p: Player): void {
   const dmg = relicDamage(p, n.damage);
   nova(g, p.x, p.y, n.radius, dmg, 240, F.color, 'physical', (e) => chainFrom(g, p, e, dmg * n.mult, 1, n.range));
 }
+const rollingThunder = timer('thunderDrum.clap', (g, a: { p: Player }) => clap(g, a.p));
 
 export const STORM_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   2: {

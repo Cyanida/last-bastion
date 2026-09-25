@@ -15,7 +15,7 @@ import type { Game } from '../core/types';
  *
  * Encoded specially: config definitions by table and key (they stay the shared config objects), random streams by their state,
  * the spatial hash as empty (updateGame rebuilds it every tick), render caches as null, and numbers JSON can't hold.
- * Any other function throws: `g.timers` closures become data in step 3.3.
+ * Any other function throws: state must be data (`g.timers` are named kinds since step 3.3, entities/hazards.ts timer()).
  */
 export type Snapshot = { v: 1; game: unknown };
 
@@ -39,7 +39,7 @@ export function snapshot(g: Game): Snapshot {
     if (v === null || typeof v !== 'object') {
       if (typeof v !== 'function') return v;
       if (typeof (v as { s?: unknown }).s === 'number') return { $rng: (v as unknown as { s: number }).s };
-      throw new Error(`snapshot: a function at ${path} (timers become data in #27 step 3.3)`);
+      throw new Error(`snapshot: a function at ${path}; state must be data (see timer() in entities/hazards.ts)`);
     }
     const cfg = configKey(v);
     if (cfg) return { $c: cfg };

@@ -2,7 +2,7 @@ import { FINAL } from '../config/acts';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
-import { addZone, after } from '../entities/hazards';
+import { addZone, timer } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
 import { angleTo, distTo, hitDamage, keepRange, move, moveTo, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { hurtTarget } from './combat';
@@ -107,6 +107,7 @@ function seal(g: Game, x: number, y: number, radius: number, gaps: number, life:
   }
   ring(g, x, y, radius, SEAL, 0.7);
 }
+const closeSeal = timer('warden.seal', (g, a: { e: Enemy; x: number; y: number }) => !a.e.dead && seal(g, a.x, a.y, 175, 2, 5.5));
 
 registerBoss('warden', (g, e, dt) => {
   const t = pickTarget(g, e);
@@ -132,7 +133,7 @@ registerBoss('warden', (g, e, dt) => {
     }
   }
   if (e.phase === 3) {
-    after(g, 2.5, () => !e.dead && seal(g, x, y, 175, 2, 5.5)); // the circle closes
+    closeSeal(g, 2.5, { e, x, y }); // the circle closes
     summon(g, e);
   }
 });
