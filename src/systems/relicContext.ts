@@ -1,7 +1,7 @@
 import { ATTUNEMENT, keyColor, keyIcon, type RelicKey } from '../config/relics';
 import type { Game, Player } from '../core/types';
 import { addWork } from '../logic/relics';
-import { floatText } from './effects';
+import { cosmetic, floatText } from './effects';
 
 /**
  * v0.7: the relic whose hook is running right now. Relic damage and healing are credited to it (RELICS.md), its icon flashes over the player,
@@ -25,5 +25,5 @@ export function flash(g: Game, p: Player, id: RelicKey): void {
   const key = `flash.${id}`;
   if (g.time - (g.vars[key] ?? -99) < RELIC_FLASH) return;
   g.vars[key] = g.time;
-  floatText(g, p.x + (g.rng() - 0.5) * 30, p.y - p.r - 34, keyIcon(id), keyColor(id), 15);
+  floatText(g, p.x + (cosmetic() - 0.5) * 30, p.y - p.r - 34, keyIcon(id), keyColor(id), 15);
 }

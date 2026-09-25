@@ -24,7 +24,7 @@ export function aimFan(g: Game, e: Enemy, o: Fan): void {
   const tele: Telegraph = { angle: o.angle, length: o.range, width: 12, t: 0, dur: o.windup, count: o.count, spread: o.spread };
   e.telegraph = tele;
   e.windupT = Math.max(e.windupT, o.windup);
-  sfx('warn');
+  sfx(g, 'warn');
   loose(g, o.windup, { e, tele, o });
 }
 

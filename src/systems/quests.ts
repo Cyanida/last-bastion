@@ -113,7 +113,7 @@ const HOOKS: Record<QuestKind, QuestHooks> = {
       e.side = true;
       q.foes.push(e);
       g.banner = { text: `${q.name} has come for you`, t: 2.5 };
-      sfx('warn');
+      sfx(g, 'warn');
     },
     onKill(g, q, e) {
       if (q.foes[0] === e) end(g, q, true);
@@ -168,7 +168,7 @@ function end(g: Game, q: Quest, done: boolean): void {
   const p = g.player;
   floatText(g, p.x, p.y - 64, `${REWARDS[q.reward].icon} ${REWARDS[q.reward].name}`, '#9fe07b', 16);
   ring(g, p.x, p.y, 120, '#9fe07b', 0.6);
-  sfx('levelup');
+  sfx(g, 'levelup');
   openNextWing(g);
 }
 

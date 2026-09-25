@@ -32,8 +32,8 @@ import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from 
 import { buildArena } from './render/arena';
 import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
-import { view as simView } from './sim/view';
-import { applyChoice, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
+import { playCues, view as simView } from './sim/view';
+import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
 import { abilityAimRadius } from './systems/abilities';
 import { relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
@@ -61,7 +61,7 @@ const STINGERS: Partial<Record<EventName, Stinger>> = { onRelicTier: 'tier', onS
 addListener((g, name) => {
   if (g === game && STINGERS[name]) stinger(STINGERS[name]);
 });
-// v0.8 (#26): the simulation stays pure; this screen gives it sound, the perf timers and the particle budget
+// v0.8 (#26): the simulation stays pure; this screen gives it sound (its g.out cues, #114), the perf timers and the particle budget
 Object.assign(simView, { sfx, begin, end, particleBudget });
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -368,8 +368,8 @@ function resume(): void {
   play(); // the loop opens the next queued choice, if any
 }
 
-/** v0.8: a choice screen's answer, as a command for player 0. Applied now: the simulation is paused while a screen is open. */
-const choose = (g: Game, choice: Choice): boolean => applyChoice(g, choice);
+/** v0.8: a choice screen's answer, as a command for player 0, stepped now without advancing: the run is paused while a screen is open. */
+const choose = (g: Game, choice: Choice): boolean => step(g, [choiceCommand(g, choice)], false);
 
 function openLevelUp(g: Game): void {
   const p = g.player;
@@ -629,6 +629,7 @@ function chainToasts(g: Game): void {
 }
 
 function afterStep(g: Game): void {
+  playCues(g);
   if (g.over) endRun(g);
   else {
     checkToasts(g);
@@ -650,6 +651,7 @@ function viewsFor(g: Game): View[] {
 function tick(): void {
   if (state !== 'playing' || !game) return;
   const g = game;
+  playCues(g); // a pick made since the last frame: step clears the queue
   step(g, g.players.map((_, i) => intentCommand(g, sampleInput(g, i), i)));
   afterStep(game);
 }
@@ -659,6 +661,7 @@ let last = performance.now();
 let acc = 0;
 function draw(now: number): void {
   if (game) {
+    playCues(game); // a pick on a choice screen sounds while no step runs (paused, or the next screen is up)
     const views = viewsFor(game);
     if (views.length === 1) render(ctx, game, view, arenaCanvas(game.arena.id), abilityAimRadius(game.player));
     else {
@@ -877,6 +880,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       run(n: number, ability = false, mode: boolean | 'input' = false) {
         for (let i = 0; i < n && game && state !== 'results'; i++) {
           if (state === 'choice') (document.querySelector('[data-pick], [data-leave], [data-bank]') as HTMLElement).click(); // v0.6: a win is banked
+          playCues(game); // the pick's sound, before step clears the queue
           if (state !== 'playing') continue;
           const g = game;
           if (mode === 'input') step(g, g.players.map((_, s) => intentCommand(g, sampleInput(g, s), s))); // every local seat, as tick() does

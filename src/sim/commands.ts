@@ -69,7 +69,46 @@ export function levelRerolls(g: Game): { free: number; paid: number } {
   return (g.levelRerolls ??= { free: g.rerolls, paid: 0 });
 }
 
-/** Apply one choice now; false when it could not be made (the screens re-open or stay as they are). */
+/** v0.8 (#113): is this choice's screen up? A choice for a screen that is not (a stale or a forged command) changes nothing. */
+export function choiceOpen(g: Game, ch: Choice): boolean {
+  switch (ch.c) {
+    case 'levelUp':
+    case 'levelBanish':
+    case 'levelReroll':
+      return g.pendingLevelUps > 0;
+    case 'relicTake':
+    case 'relicSkip':
+    case 'relicReroll':
+      return g.player.relics.offers.length > 0;
+    case 'abilityUpgrade':
+      return g.pendingAbilityTiers.length > 0;
+    case 'utilityUpgrade':
+      return g.pendingUtilityTiers.length > 0;
+    case 'talent':
+      return g.talentPoints > 0;
+    case 'blessing':
+      return !!g.pendingShrine?.includes(ch.id);
+    case 'quests':
+      return g.pendingBoard;
+    case 'route':
+      return !!g.pendingRoute?.[ch.index];
+    case 'peddlerBuy':
+    case 'peddlerLeave':
+      return g.pendingShop;
+    case 'merchantHeal':
+    case 'merchantBuy':
+    case 'merchantReroll':
+    case 'merchantReforge':
+    case 'merchantSell':
+    case 'merchantSalvage':
+    case 'merchantLeave':
+      return g.pendingMerchant;
+    case 'endless':
+      return g.victory === 'pending';
+  }
+}
+
+/** Apply one choice now, unchecked (step() checks it first); false when it could not be made (the screens re-open or stay as they are). */
 export function applyChoice(g: Game, ch: Choice): boolean {
   switch (ch.c) {
     case 'levelUp': {
@@ -148,21 +187,38 @@ export function applyChoice(g: Game, ch: Choice): boolean {
 }
 
 export const intentCommand = (g: Game, intent: Intent, player = 0): Command => ({ tick: g.tick, player, kind: 'intent', intent });
+export const choiceCommand = (g: Game, choice: Choice, player = 0): Command => ({ tick: g.tick, player, kind: 'choice', choice });
+
+/** A command for this tick. */
+const due = (g: Game, cmd: Command) => cmd.tick === g.tick;
 
 /**
- * One tick: the choices first, then each player's intent, then the simulation. A player with no intent this tick keeps the last
- * one (what a dropped packet does online). A command for a player the run does not have is dropped. v0.8 (#28): a choice is made
- * with the focus on its player (logic/players.ts); the choice queues themselves are still the run's until co-op rules (#29).
+/**
+ * One tick: the choices first, in order, then each player's intent, then the simulation. A player with no intent this tick keeps
+ * the last one (what a dropped packet does online). A command for a player the run does not have is dropped. A choice is made only
+ * when it is due and its screen is up (choiceOpen), with the focus on its player (logic/players.ts), and then goes into g.replay,
+ * the run's replay log. `advance` false answers a screen while the run is paused: the choices, and no time.
+ * Returns false when a choice was refused or could not be made (the screens re-open or stay as they are).
  */
-export function step(g: Game, commands: readonly Command[]): void {
+export function step(g: Game, commands: readonly Command[], advance = true): boolean {
+  if (advance) g.out.length = 0; // the last tick's cues were played (or nobody listens: tests, the bot); a pick alone keeps them
+  let ok = true;
   for (const cmd of commands) {
+    if (cmd.kind !== 'choice') continue;
     const p = g.players[cmd.player];
-    if (p && cmd.kind === 'choice') withPlayer(g, p, () => applyChoice(g, cmd.choice));
+    if (!p || !due(g, cmd) || !withPlayer(g, p, () => choiceOpen(g, cmd.choice))) {
+      ok = false;
+      continue;
+    }
+    g.replay.push(cmd); // recorded even when it fails: a failed relic take or ability pick still drops its moment
+    ok = withPlayer(g, p, () => applyChoice(g, cmd.choice)) && ok;
   }
+  if (!advance) return ok;
   for (const cmd of commands) {
     const p = g.players[cmd.player];
-    if (p && cmd.kind === 'intent') withPlayer(g, p, () => (g.input = { ...cmd.intent }));
+    if (p && cmd.kind === 'intent' && due(g, cmd)) withPlayer(g, p, () => (g.input = { ...cmd.intent }));
   }
   g.tick++;
   updateGame(g, DT);
+  return ok;
 }

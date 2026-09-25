@@ -34,6 +34,7 @@
     "qrcode": "^1.5.4",
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
+    "vite-node": "^3.2.4",
     "vitest": "^3.2.7"
   },
   "dependencies": {

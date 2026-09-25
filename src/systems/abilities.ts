@@ -10,7 +10,7 @@ import * as scale from '../logic/abilities';
 import { pickAbilityUpgrade } from '../logic/abilityUpgrades';
 import { abilityCooldown, attackDamage, cooldownFloor } from '../logic/formulas';
 import { applyStatus, damageEnemy, healPlayer, rollPlayerHit } from './combat';
-import { burst, floatText, ring, shake } from './effects';
+import { burst, cosmetic, floatText, ring, shake } from './effects';
 import { feat, featAdd } from './feats';
 import { skeletonCount } from './minions';
 import { lastStandActive } from './dodge';
@@ -74,7 +74,7 @@ function ballistaShot(g: Game, c: Cfg<'arrowVolley'>, angle: number, status: Sta
   const hit = rollPlayerHit(g, c.damage * scale.arrowVolley(c, p.stats.secondary).arrows * n.mult, 'dex');
   fireProjectile(g, p.x, p.y - 6, angle, { damage: hit.amount, crit: hit.crit, hostile: false, pierce: 999, shape: 'arrow', color: '#f2c94c', r: n.radius, speed: n.speed, range: n.range, status, source: 'ability' });
   shake(g, 10);
-  sfx('boom');
+  sfx(g, 'boom');
 }
 
 type Volley = { ballista: boolean; c: Cfg<'arrowVolley'>; angle: number; tx: number; ty: number; status: Status };
@@ -129,7 +129,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       ring(g, p.x, p.y, radius, c.aura, 0.5);
       burst(g, p.x, p.y, c.aura, 40, 380);
       shake(g, 14);
-      sfx('boom');
+      sfx(g, 'boom');
     },
     on: {
       onBlocked(g, ev) {
@@ -176,7 +176,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
         range: has(p, 'whirlwind') ? U.whirlwind.n.range : 1,
       };
       p.deathless = has(p, 'undying');
-      if (g.rng() < 0.4) burst(g, p.x, p.y - 8, c.aura, 1, 90);
+      if (cosmetic() < 0.4) burst(g, p.x, p.y - 8, c.aura, 1, 90);
     },
     expire(g) {
       const p = g.player;
@@ -192,7 +192,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
         ring(g, p.x, p.y, n.radius, '#b8322a', 0.5);
         burst(g, p.x, p.y, '#5a3d25', 40, 340);
         shake(g, 16);
-        sfx('boom');
+        sfx(g, 'boom');
       }
     },
     on: {
@@ -376,7 +376,7 @@ export function updateAbility(g: Game, dt: number): void {
     const upgradeMult = has(p, 'secondWind') ? U.secondWind.n.cooldown : 1;
     const cooldown = abilityCooldown(cfg.cooldown, p.stats.int) * p.mods.cooldown * p.mods.abilityCd * upgradeMult * (1 - (g.vars.cdRefund ?? 0));
     p.abilityCd = p.abilityCdMax = cooldown;
-    sfx('ability');
+    sfx(g, 'ability');
     emit(g, 'onAbilityUsed', { cooldown });
   }
 }

@@ -8,6 +8,7 @@ import { emit } from '../src/core/events';
 import { createGame, summarizeRun } from '../src/game';
 import { earnedTier, earnedTitles, gateOf, newlyEarned, tierKey, tierOf, withAchievements } from '../src/logic/achievements';
 import { applyRun, defaultSave, migrate, type RunSummary, type Save } from '../src/logic/save';
+import { oldSave } from './fixtures/saves';
 
 const run = (over: Partial<RunSummary> = {}): RunSummary => ({
   classId: 'paladin', tier: 0, wave: 6, wavesCleared: 5, kills: 10, time: 200, level: 6, gold: 0,
@@ -120,14 +121,14 @@ describe('class feats', () => {
     const second = applyRun(first, run({ classId: 'necromancer', feats: { minions: 8 } })).save;
     expect(second.counters.minions).toBe(12); // a weaker run does not undo it
     expect(applyRun(second, run({ feats: { minions: 20 } })).save.counters.minions).toBe(20);
-    const old = { ...defaultSave(), version: 3, counters: { kills: 40 } } as unknown as Record<string, unknown>;
+    const old = { ...oldSave('v0.3.1'), counters: { kills: 40 } };
     for (const key of FEAT_KEYS) expect(migrate(old).counters[key]).toBe(0);
   });
 });
 
 describe('migration', () => {
   it('keeps old deed ids and maps the ones that became tiers', () => {
-    const v3 = { ...defaultSave(), version: 3, achievements: ['firstBlood', 'wave10', 'champion', 'legend'] } as unknown as Record<string, unknown>;
+    const v3 = { ...oldSave('v0.3.1'), achievements: ['firstBlood', 'wave10', 'champion', 'legend'] };
     const save = migrate(v3);
     expect(save.achievements).toEqual(['firstBlood', 'wave10', 'knight:2', 'knight:3']);
     expect(earnedTier(save, 'knight')).toBe(0); // bronze was never stored, so it is earned again on the next check

@@ -47,7 +47,7 @@ export function openRegion(g: Game, id: RegionId): void {
   const region = regionsOf(g).find((r) => r.id === id);
   const feature = g.features.find((f) => f.wing === id);
   if (!(g.banner.top && g.banner.t > 0)) g.banner = { text: `The gate to ${region?.name ?? id} opens${feature ? ` — ${FEATURES[feature.kind].name}` : ''}`, t: 3 };
-  sfx('wave');
+  sfx(g, 'wave');
   shake(g, 6);
 }
 
@@ -79,7 +79,7 @@ function wakeLair(g: Game, f: Game['features'][number]): void {
     guard.side = true;
   }
   g.banner = { text: `The lair wakes: ${boss.def.name}`, t: 2.5 };
-  sfx('warn');
+  sfx(g, 'warn');
 }
 
 /** Every tick: discovery, and the feature of whatever wing the player stands in. */
@@ -104,7 +104,7 @@ export function updateRegions(g: Game, dt: number): void {
       g.salvage += 1; // v0.7 A8 (Jesse, #13): gold and a Rune shard, no longer a relic moment (a full run met ~17 moments and 6-sets came in ~70% of wins)
       floatText(g, f.x, f.y - 30, `+${REGIONS.chestGold * g.act}g · ◆ shard`, '#c9a227', 15);
       ring(g, f.x, f.y, 70, '#c9a227', 0.5);
-      sfx('xp');
+      sfx(g, 'xp');
     } else if (f.kind === 'lair' && !f.used && inWing) {
       f.used = true;
       wakeLair(g, f);
@@ -113,7 +113,7 @@ export function updateRegions(g: Game, dt: number): void {
         f.used = true;
         g.gold += REGIONS.cacheGold * g.act;
         floatText(g, f.x, f.y - 30, `+${REGIONS.cacheGold * g.act}g`, '#c9a227', 15);
-        sfx('xp');
+        sfx(g, 'xp');
       }
       if (inWing && g.wave > 0 && (f.t -= dt) <= 0) {
         f.t = REGIONS.hazardEvery;
@@ -143,7 +143,7 @@ export function chooseBlessing(g: Game, id: BlessingId): void {
   combineMods(g.baseMods, BLESSINGS[id].mods);
   floatText(g, g.player.x, g.player.y - 50, BLESSINGS[id].name, '#e9c95a', 16);
   ring(g, g.player.x, g.player.y, 110, '#e9c95a', 0.6);
-  sfx('levelup');
+  sfx(g, 'levelup');
 }
 
 /** Is a point inside an open region (for spawning things that must be reachable)? */

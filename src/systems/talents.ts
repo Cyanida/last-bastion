@@ -28,7 +28,7 @@ export function spendTalent(g: Game, id: string): boolean {
   g.talentModsCache = null;
   floatText(g, p.x, p.y - 50, node.name, '#e9c95a', 16);
   ring(g, p.x, p.y, 100, '#e9c95a', 0.5);
-  sfx('levelup');
+  sfx(g, 'levelup');
   return true;
 }
 

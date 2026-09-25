@@ -14,6 +14,7 @@ import { masteryBonus, rewardText } from '../src/logic/economy';
 import { rollBoard } from '../src/logic/quests';
 import { regionAt } from '../src/logic/regions';
 import { applyRun, defaultSave, migrate } from '../src/logic/save';
+import { oldSave } from './fixtures/saves';
 import { talentBlocker } from '../src/logic/talents';
 import { advanceChain, chainStep, emptyTreasure, guardianDue, rankFor, type TreasureRecord } from '../src/logic/treasures';
 import { botChoose, botStep } from '../src/sim/bot';
@@ -358,8 +359,7 @@ describe('the hidden talent node', () => {
 
 describe('the save', () => {
   it('migrates treasureSteps into fragments, validates the record and round-trips', () => {
-    const old = { ...defaultSave(), version: 4, treasureSteps: { paladin: 1, viking: 0, angel: 5, necromancer: 0, archer: 0 } } as unknown as Record<string, unknown>;
-    delete old.treasures;
+    const old = { ...oldSave('v0.4.0'), treasureSteps: { paladin: 1, viking: 0, angel: 5, necromancer: 0, archer: 0 } };
     const save = migrate(old);
     expect(save.treasures.paladin).toEqual(rec({ fragments: 1 }));
     expect(save.treasures.angel.fragments).toBe(3);

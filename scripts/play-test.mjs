@@ -276,7 +276,8 @@ await check('relic offer: skip pays what it says', () =>
 await check('relic offer: take a relic', () =>
   inPage(async () => {
     const P = window.__play, rel = window.__lb.game.player.relics;
-    rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant'], rerolls: 0, duo: null });
+    const options = ['butchersHook', 'guardiansAegis', 'stormPennant', 'emberheart', 'wintersGrasp', 'wolfskin', 'hexDoll', 'soulLantern'].filter((id) => !rel.held.includes(id)).slice(0, 3); // a held relic can not be taken again
+    rel.offers.push({ from: 'lair', options, rerolls: 0, duo: null });
     if (!P.toChoice()) return { ok: false, detail: 'no relic offer' };
     await P.click('[data-pick="0"]');
     return { ok: rel.held.includes('butchersHook'), detail: rel.held.join(', ') };
@@ -393,6 +394,18 @@ await check('talent from the pause menu', async () => {
     return { ok: taken && lb.state === 'playing', detail: id };
   });
 });
+
+await check('every screen answered above is in the replay log, in tick order, for player 0', () =>
+  inPage(() => {
+    const g = window.__lb.game;
+    if (!g.replay) return { skip: true, detail: 'no replay log on this branch (before #113)' };
+    const kinds = new Set(g.replay.map((c) => c.choice.c));
+    const want = ['quests', 'levelReroll', 'levelBanish', 'levelUp', 'relicReroll', 'relicTake', 'relicSkip', 'abilityUpgrade', 'utilityUpgrade', 'merchantHeal', 'merchantBuy', 'merchantLeave', 'route', 'blessing', 'peddlerBuy', 'peddlerLeave', 'talent'];
+    const missing = want.filter((k) => !kinds.has(k));
+    const ordered = g.replay.every((c, i) => c.player === 0 && c.tick <= g.tick && (i === 0 || c.tick >= g.replay[i - 1].tick));
+    return { ok: !missing.length && ordered, detail: `${g.replay.length} choices${missing.length ? `, missing ${missing.join(', ')}` : ''}${ordered ? '' : ', out of order'}` };
+  }),
+);
 
 await check('Esc in a pause sub-screen goes back to the pause menu', async () => {
   await page.keyboard.press('Escape');
@@ -542,6 +555,22 @@ await check('sounds reach the audio', () =>
     const s = window.__play.sounds;
     const need = ['hit', 'kill', 'swing', 'ability', 'xp'];
     return { ok: need.every((k) => s[k] > 0), detail: Object.entries(s).map(([k, v]) => `${k} ${v}`).join(', ') };
+  }),
+);
+
+// v0.8 (#114): sounds leave the simulation as cues in g.out; the screen plays and empties them, a pick between steps included
+await check('sound cues: played and emptied, a relic pick is heard', () =>
+  inPage(async () => {
+    const P = window.__play, g = window.__lb.game, rel = g.player.relics;
+    if (!Array.isArray(g.out)) return { skip: true, detail: 'no cue queue on this branch (before #114)' };
+    P.play(60);
+    const drained = g.out.length === 0;
+    rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant'], rerolls: 0, duo: null });
+    if (!P.toChoice()) return { ok: false, detail: 'no relic offer' };
+    const before = P.sounds.levelup ?? 0;
+    await P.click('[data-pick="0"]'); // no step runs in between: the next frame plays it
+    const heard = (P.sounds.levelup ?? 0) - before;
+    return { ok: drained && heard >= 1 && g.out.length === 0, detail: `queue after steps ${drained ? 'empty' : 'NOT empty'}, pick played levelup ×${heard}, queue now ${g.out.length}` };
   }),
 );
 

@@ -23,11 +23,15 @@ describe('serializable random streams (#27)', () => {
     expect([b(), b(), b()]).toEqual([a(), a(), a()]);
   });
 
-  it("the game's streams (run, relics) serialize as plain numbers", () => {
+  it("the game's streams (run, relics) serialize as plain numbers and go on the same after JSON", () => {
     const g = createGame('paladin', 777);
-    expect(typeof g.rng.s).toBe('number');
-    expect(typeof g.player.relics.rng.s).toBe('number');
-    expect(JSON.parse(JSON.stringify({ s: g.rng.s })).s).toBe(g.rng.s);
+    for (const r of [g.rng, g.player.relics.rng]) {
+      expect(typeof r.s).toBe('number');
+      const copy = mulberry32(0);
+      copy.s = JSON.parse(JSON.stringify({ s: r.s })).s;
+      expect([copy(), copy()]).toEqual([r(), r()]);
+    }
+    expect(g.player.relics.rng.s).not.toBe(g.rng.s); // two streams, not one shared
   });
 });
 

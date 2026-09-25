@@ -1,0 +1,430 @@
+{
+  "version": 6,
+  "gold": 2,
+  "meta": {
+    "hp": 1,
+    "moveSpd": 1,
+    "traitSlot": 1,
+    "startRelic": 1,
+    "banish": 1,
+    "classXp": 1,
+    "utilityCd": 1,
+    "startLevel": 1,
+    "relicChance": 1,
+    "relicSlot": 1,
+    "salvage": 1,
+    "talentPoint": 1,
+    "rerolls": 1,
+    "xp": 1,
+    "startGold": 1,
+    "pickup": 1,
+    "goldIncome": 1,
+    "runeIncome": 1,
+    "dailyCap": 1,
+    "curseBonus": 1,
+    "eliteGold": 1,
+    "bossGold": 1
+  },
+  "classes": {
+    "paladin": {
+      "bestWave": 3,
+      "runs": 1,
+      "kills": 2,
+      "time": 3,
+      "xp": 1
+    },
+    "viking": {
+      "bestWave": 2,
+      "runs": 3,
+      "kills": 1,
+      "time": 2,
+      "xp": 3
+    },
+    "angel": {
+      "bestWave": 1,
+      "runs": 2,
+      "kills": 3,
+      "time": 1,
+      "xp": 2
+    },
+    "necromancer": {
+      "bestWave": 3,
+      "runs": 1,
+      "kills": 2,
+      "time": 3,
+      "xp": 1
+    },
+    "archer": {
+      "bestWave": 2,
+      "runs": 3,
+      "kills": 1,
+      "time": 2,
+      "xp": 3
+    }
+  },
+  "relicPicks": {
+    "brimstoneOil": 2,
+    "emberheart": 3,
+    "cinderCharm": 4,
+    "salamanderScale": 5
+  },
+  "runeShards": 1,
+  "runes": 2,
+  "buildings": {
+    "armory": 1,
+    "barracks": 1,
+    "chapel": 1,
+    "library": 1,
+    "treasury": 1,
+    "watchtower": 1
+  },
+  "dailyGold": {
+    "date": "2026-01-02",
+    "curse": 40,
+    "trial": 60
+  },
+  "achievements": [
+    "wave10",
+    "wave20",
+    "wave20all"
+  ],
+  "titles": [
+    "the Steadfast"
+  ],
+  "title": "the Steadfast",
+  "palettes": [
+    2,
+    3
+  ],
+  "talentPoints": 2,
+  "treasures": {
+    "paladin": {
+      "fragments": 3,
+      "trial": true,
+      "tier": 1,
+      "equipped": false
+    },
+    "viking": {
+      "fragments": 2,
+      "trial": true,
+      "tier": 3,
+      "equipped": false
+    },
+    "angel": {
+      "fragments": 1,
+      "trial": true,
+      "tier": 2,
+      "equipped": false
+    },
+    "necromancer": {
+      "fragments": 3,
+      "trial": true,
+      "tier": 1,
+      "equipped": false
+    },
+    "archer": {
+      "fragments": 2,
+      "trial": true,
+      "tier": 3,
+      "equipped": false
+    }
+  },
+  "tierUnlocked": 2,
+  "counters": {
+    "absorb": 2,
+    "taunted": 3,
+    "rageKills": 1,
+    "leapHits": 2,
+    "radiance": 3,
+    "blinks": 1,
+    "minions": 2,
+    "corpseHits": 3,
+    "volleyHits": 1,
+    "rolls": 2,
+    "kills": 3,
+    "bosses": 1,
+    "elites": 2,
+    "goldEarned": 3,
+    "flawlessBosses": 1,
+    "maxRelics": 2,
+    "sixSets": 3,
+    "maxDuos": 1,
+    "maxAwakened": 2,
+    "cursedWin": 3,
+    "maxAbilityUpgrades": 1,
+    "fastestWave10": 2,
+    "bossKinds": [
+      "blackKnight",
+      "warlord"
+    ],
+    "commanders": 3,
+    "actsCleared": 1,
+    "cursedActs": 2,
+    "dailies": 3,
+    "quests": 1,
+    "events": 2
+  },
+  "daily": {
+    "2026-01-02": 7
+  },
+  "runs": [
+    {
+      "at": "",
+      "classId": "viking",
+      "tier": 0,
+      "arena": "courtyard",
+      "seed": 11,
+      "daily": null,
+      "curses": [],
+      "oath": 0,
+      "trait": "none",
+      "time": 120,
+      "wave": 5,
+      "level": 5,
+      "kills": 94,
+      "end": "quit",
+      "won": false,
+      "cause": "",
+      "relics": {
+        "shockSigil": 1,
+        "thornMail": 1
+      },
+      "relicShares": {
+        "shockSigil": [
+          25.2,
+          0,
+          0
+        ],
+        "thornMail": [
+          0,
+          0,
+          0
+        ],
+        "steel": [
+          0,
+          0,
+          0
+        ]
+      },
+      "talents": [
+        "viking.berserk.0",
+        "viking.berserk.1"
+      ],
+      "upgrades": [
+        "dreadHowl"
+      ],
+      "waves": [
+        [
+          1.5,
+          21.7,
+          29,
+          9.9
+        ],
+        [
+          24.7,
+          50,
+          67,
+          11.6
+        ],
+        [
+          53,
+          73.4,
+          127,
+          8.8
+        ],
+        [
+          76.4,
+          101.7,
+          45,
+          6.4
+        ],
+        [
+          104.7,
+          0,
+          168,
+          0.9
+        ]
+      ],
+      "marks": [
+        [
+          0,
+          "board",
+          "Act I"
+        ],
+        [
+          22.2,
+          "level",
+          "2"
+        ],
+        [
+          25.3,
+          "quest",
+          "Hidden chest"
+        ],
+        [
+          25.3,
+          "talent",
+          "Frenzy"
+        ],
+        [
+          50,
+          "quest",
+          "Caravan"
+        ],
+        [
+          53,
+          "event",
+          "Lost knight"
+        ],
+        [
+          60.2,
+          "level",
+          "3"
+        ],
+        [
+          60.2,
+          "talent",
+          "Brawn"
+        ],
+        [
+          67.5,
+          "relic",
+          "Shockwave Sigil"
+        ],
+        [
+          73.4,
+          "level",
+          "4"
+        ],
+        [
+          101.7,
+          "level",
+          "5"
+        ],
+        [
+          101.7,
+          "upgrade",
+          "Dread Howl"
+        ],
+        [
+          110.2,
+          "phase",
+          "The Black Knight: phase 2"
+        ],
+        [
+          115.2,
+          "boss",
+          "The Black Knight"
+        ],
+        [
+          115.2,
+          "relic",
+          "Thorn Mail"
+        ]
+      ]
+    }
+  ],
+  "refund": {
+    "gold": 123,
+    "runes": 2,
+    "version": "v0.6"
+  },
+  "evolutions": [
+    "aegisOfDawn",
+    "dayOfJudgement"
+  ],
+  "duos": [
+    "thermalShock",
+    "wildfire"
+  ],
+  "newRelics": [
+    "brimstoneOil",
+    "emberheart",
+    "cinderCharm"
+  ],
+  "wins": {
+    "paladin": 3,
+    "viking": 1,
+    "angel": 2,
+    "necromancer": 3,
+    "archer": 1
+  },
+  "oaths": {
+    "paladin": 2,
+    "viking": 3,
+    "angel": 1,
+    "necromancer": 2,
+    "archer": 3
+  },
+  "contracts": {
+    "week": "2026-W01",
+    "progress": [
+      1,
+      2,
+      3
+    ]
+  },
+  "endless": {
+    "paladin": [
+      {
+        "score": 4200,
+        "wave": 44,
+        "kills": 2100,
+        "time": 3000,
+        "at": "2026-01-02T10:00:00.000Z"
+      }
+    ],
+    "viking": [
+      {
+        "score": 4200,
+        "wave": 44,
+        "kills": 2100,
+        "time": 3000,
+        "at": "2026-01-02T10:00:00.000Z"
+      }
+    ],
+    "angel": [
+      {
+        "score": 4200,
+        "wave": 44,
+        "kills": 2100,
+        "time": 3000,
+        "at": "2026-01-02T10:00:00.000Z"
+      }
+    ],
+    "necromancer": [
+      {
+        "score": 4200,
+        "wave": 44,
+        "kills": 2100,
+        "time": 3000,
+        "at": "2026-01-02T10:00:00.000Z"
+      }
+    ],
+    "archer": [
+      {
+        "score": 4200,
+        "wave": 44,
+        "kills": 2100,
+        "time": 3000,
+        "at": "2026-01-02T10:00:00.000Z"
+      }
+    ]
+  },
+  "settings": {
+    "arena": "graveyard",
+    "tier": 1,
+    "quality": "high",
+    "trait": "glassCannon",
+    "trait2": "stalwart",
+    "oath": 1,
+    "palettes": {
+      "paladin": 2
+    },
+    "prerelease": true,
+    "curses": [
+      "ironHorde",
+      "glassBones"
+    ]
+  }
+}

@@ -6,6 +6,9 @@ import type { Enemy, FloatText, Game, Particle } from '../core/types';
 // Cosmetic only, so Math.random instead of the seeded game rng.
 // Particles and texts are pooled: at 60 Hz with a horde on screen they were the bulk of the garbage.
 
+/** Randomness for looks only (a jitter, whether a spark shows). Never g.rng: a cosmetic draw would shift every gameplay roll after it (#114). */
+export const cosmetic = (): number => Math.random();
+
 const particlePool: Particle[] = [];
 const textPool: FloatText[] = [];
 

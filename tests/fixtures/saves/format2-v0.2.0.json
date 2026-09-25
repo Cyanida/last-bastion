@@ -1,0 +1,84 @@
+{
+  "version": 2,
+  "gold": 2,
+  "meta": {
+    "hp": 1,
+    "str": 1,
+    "dex": 1,
+    "int": 1,
+    "atkSpd": 1,
+    "moveSpd": 1,
+    "startGold": 1,
+    "rerolls": 1,
+    "xp": 1,
+    "pickup": 1,
+    "relicSlot": 1
+  },
+  "classes": {
+    "paladin": {
+      "bestWave": 3,
+      "runs": 1,
+      "kills": 2,
+      "time": 3,
+      "xp": 1
+    },
+    "viking": {
+      "bestWave": 2,
+      "runs": 3,
+      "kills": 1,
+      "time": 2,
+      "xp": 3
+    },
+    "angel": {
+      "bestWave": 1,
+      "runs": 2,
+      "kills": 3,
+      "time": 1,
+      "xp": 2
+    },
+    "necromancer": {
+      "bestWave": 3,
+      "runs": 1,
+      "kills": 2,
+      "time": 3,
+      "xp": 1
+    },
+    "archer": {
+      "bestWave": 2,
+      "runs": 3,
+      "kills": 1,
+      "time": 2,
+      "xp": 3
+    }
+  },
+  "relicPicks": {
+    "whetstone": 2,
+    "swiftBoots": 3,
+    "luckyCoin": 4,
+    "scholarTome": 5
+  },
+  "achievements": [
+    "firstBlood",
+    "slayer",
+    "wave10"
+  ],
+  "tierUnlocked": 2,
+  "counters": {
+    "kills": 2,
+    "bosses": 3,
+    "elites": 1,
+    "goldEarned": 2,
+    "flawlessBosses": 3,
+    "maxRelics": 1,
+    "maxAbilityUpgrades": 2,
+    "fastestWave10": 3,
+    "bossKinds": [
+      "blackKnight",
+      "warlord"
+    ]
+  },
+  "settings": {
+    "arena": "graveyard",
+    "tier": 1
+  }
+}

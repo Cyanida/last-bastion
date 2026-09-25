@@ -52,7 +52,7 @@ export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes
     if (e.secondWind) e.hpFloor = 1; // it holds at 1 HP until it rises (enemyAI secondWind)
     g.bossHit = false; // "flawless" is judged per boss
     g.banner = { text: e.def.name, t: 3 };
-    sfx('warn');
+    sfx(g, 'warn');
   }
   return e;
 }
@@ -103,7 +103,7 @@ function startWave(g: Game): void {
   if (g.wave === 10) g.wave10Time = g.time;
   const title = g.wave === 1 ? `${actName(1)} — ${themeFor(1, g.seed).name}` : plan.boss ? `Wave ${g.wave} — Boss` : `Wave ${g.wave}`;
   g.banner = { text: plan.modifier ? `${title} · ${MODIFIERS[plan.modifier].name}` : title, t: plan.modifier ? 3 : 2 };
-  sfx('wave');
+  sfx(g, 'wave');
   emit(g, 'onWaveStart', { wave: g.wave });
 }
 

@@ -116,7 +116,7 @@ export function takeFragment(g: Game): void {
   c.found++;
   g.banner = { text: `A fragment of ${inText(treasureOf(g).name)} (${c.fragments}/${TREASURE_RULES.fragments})`, t: 3 };
   ring(g, p.x, p.y, 110, '#7ec8d8', 0.6);
-  sfx('levelup');
+  sfx(g, 'levelup');
 }
 
 /** The trial is done: from now on (this run too) the vault opens after the mid-Act boss. */
@@ -144,7 +144,7 @@ function wakeGuardian(g: Game): void {
   g.chain!.guardian = e;
   g.banner = { text: `${t.name} wakes`, t: 3 };
   shake(g, 10);
-  sfx('warn');
+  sfx(g, 'warn');
 }
 
 /** Every tick after the talents: the vault's guardian wakes when you walk in; the equipped treasure's tick hook. */

@@ -22,7 +22,7 @@ addListener((g, name, ev) => {
   const u = (ev as GameEvents['onKill']).enemy;
   ring(g, u.x, u.y, 320, '#e9c95a', 1.2);
   shake(g, 18);
-  sfx('levelup');
+  sfx(g, 'levelup');
   g.banner = { text: 'The Usurper has fallen', t: 5 };
 });
 

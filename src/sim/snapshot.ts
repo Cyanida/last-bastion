@@ -22,8 +22,8 @@ export type Snapshot = { v: 1; game: unknown };
 
 const TABLES: Record<string, Record<string, object>> = { classes: CLASSES, enemies: ENEMIES, arenas: ARENAS };
 const CACHES = new Set(['spr', 'img']); // Enemy.spr, FloatText.img: the renderer fills them again
-// cosmetics drawn from Math.random (systems/effects.ts): in the snapshot for the renderer, but not in the hash
-const COSMETIC = new Set([...CACHES, 'particles', 'texts', 'lastText']);
+// cosmetics drawn from Math.random (systems/effects.ts) and the sound cues (g.out): in the snapshot for the view, but not in the hash
+const COSMETIC = new Set([...CACHES, 'particles', 'texts', 'lastText', 'out']);
 
 let configKeys: Map<object, string> | null = null;
 function configKey(o: object): string | undefined {

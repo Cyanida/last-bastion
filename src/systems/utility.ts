@@ -135,7 +135,7 @@ const HOOKS: Record<UtilityId, (g: Game) => boolean> = {
     if (has(p, 'harvest')) healPlayer(g, corpses.length * U.harvest.n.heal, false);
     g.corpses = g.corpses.filter((c) => !corpses.includes(c));
     shake(g, Math.min(12, 3 + corpses.length));
-    sfx('boom');
+    sfx(g, 'boom');
     return true;
   },
 
@@ -174,7 +174,7 @@ export function updateUtility(g: Game, dt: number): void {
   if (!(evo?.replaceUtility ? evo.replaceUtility(g, from) : HOOKS[def.id](g))) return;
   const upgradeCd = (has(p, 'longJump') ? U.longJump.n.cooldown : 1) * (has(p, 'quickBlink') ? U.quickBlink.n.cooldown : 1) * (has(p, 'quickRoll') ? U.quickRoll.n.cooldown : 1);
   p.utilityCd = p.utilityCdMax = abilityCooldown(def.cooldown, p.stats.int) * p.mods.utilityCd * upgradeCd;
-  sfx('ability');
+  sfx(g, 'ability');
   emit(g, 'onUtilityUsed', { id: def.id });
   evo?.utility?.(g, from); // after the cooldown is set: Valkyrie's Descent hands it straight back
 }

@@ -58,13 +58,13 @@ const judgementSword = timer('dayOfJudgement.sword', (g, a: { target: Enemy; dmg
   burst(g, target.x, target.y, '#f2e6a0', 30, 300);
   floatText(g, target.x, target.y - 40, 'JUDGED', '#f2e6a0', 18);
   shake(g, 12);
-  sfx('boom');
+  sfx(g, 'boom');
 });
 const meteorLands = timer('meteorArrow.lands', (g, a: { x: number; y: number; r: number }) => {
   ring(g, a.x, a.y, a.r, '#e07b28', 0.6);
   burst(g, a.x, a.y, '#e07b28', 50, 420);
   shake(g, 16);
-  sfx('boom');
+  sfx(g, 'boom');
 });
 const huntGoesOn = timer('huntersMark.volley', (g, a: { x: number; y: number }) => freeVolley(g, a.x, a.y));
 const raging = (g: Game) => g.player.abilityTime > 0;
@@ -626,7 +626,7 @@ export function evolve(g: Game, id: EvolutionId): void {
   ring(g, p.x, p.y, 180, '#f2c94c', 0.9);
   burst(g, p.x, p.y, '#f2c94c', 50, 360);
   shake(g, 10);
-  sfx('levelup');
+  sfx(g, 'levelup');
   markEvolution(g, EVOLUTIONS[id].name);
   emit(g, 'onEvolved', { id });
 }
