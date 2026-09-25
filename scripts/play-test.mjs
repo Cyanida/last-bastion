@@ -360,6 +360,8 @@ await check('route fork, then the shrine', () =>
     const P = window.__play, lb = window.__lb, g = lb.game;
     if (!P.toChoice() || !g.pendingRoute) return { ok: false, detail: `no route fork after the Merchant (${P.title()})` };
     const act = g.act;
+    const boss = [...document.querySelectorAll('.route [data-families]')].map((t) => t.textContent); // #100: each route names its arena's boss relics
+    if (boss.length !== g.pendingRoute.length || !boss.every((t) => /Boss relics: .+ · .+ · .+/.test(t))) return { ok: false, detail: `route cards without boss relic families: ${boss.join(' | ')}` };
     const i = [...document.querySelectorAll('[data-pick]')].findIndex((b) => /pilgrim/i.test(b.innerText));
     await P.click(`[data-pick="${Math.max(0, i)}"]`);
     // the new Act's quest board and the Pilgrim path's shrine can come in either order; a route without a shrine gets one directly
@@ -550,6 +552,29 @@ await check('boss: one enormous ability does not end the fight', async () => {
   const lost = (start.hp - end.hp) / start.max;
   return { ok: !end.dead && lost > 0 && end.hp > start.max * 0.5, detail: `${start.name}: a 1000x ability took ${(lost * 100).toFixed(0)}% of his HP in a second` };
 });
+
+// #100: a boss drops only its arena's families, the pick screen says which, and a reroll keeps to them
+await check("boss relics: only the arena's families, named on the pick screen, rerolls too", () =>
+  inPage(async () => {
+    const P = window.__play, lb = window.__lb, g = lb.game, rel = g.player.relics, b = P.boss;
+    if (!b || b.dead) return { ok: false, detail: 'no live boss' };
+    rel.offers = [];
+    b.hp = 1;
+    for (let i = 0; i < 600 && !b.dead; i++) lb.run(1, false, 'input');
+    if (!rel.offers.some((o) => o.from === 'boss')) return { ok: false, detail: `boss dead ${b.dead}, no boss relic moment` };
+    rel.offers.sort((a, c) => (a.from === 'boss' ? -1 : c.from === 'boss' ? 1 : 0)); // straight to the boss's pick
+    rel.offers[0].rerolls = Math.max(1, rel.offers[0].rerolls);
+    if (!P.toChoice()) return { ok: false, detail: 'no relic offer' };
+    const line = document.querySelector('[data-families]')?.textContent ?? '';
+    const fams = () => [...document.querySelectorAll('.relic-card .fam')].map((f) => f.textContent.trim()).filter((f) => !f.includes('Cursed'));
+    const before = fams();
+    await P.click('[data-reroll]');
+    const after = fams();
+    const allowed = [...before, ...after].every((f) => line.includes(f));
+    await P.click('[data-pick="0"]');
+    return { ok: !!line && before.length > 0 && allowed && !rel.offers.some((o) => o.from === 'boss'), detail: `"${line.trim()}"; ${before.join(', ')} → ${after.join(', ')}` };
+  }),
+);
 
 await check('touch: joystick moves, release stops', () =>
   inPage(() => {

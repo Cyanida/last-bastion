@@ -3,7 +3,7 @@ import { ACHIEVEMENTS, CATEGORIES, tierReward, type AchievementCategory, type Ac
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
 import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
-import { FAMILIES, FAMILY_IDS, preferredFamilies, type Rarity, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS } from '../config/relics';
+import { ARENA_FAMILIES, FAMILIES, FAMILY_IDS, preferredFamilies, type FamilyId, type Rarity, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS } from '../config/relics';
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
 import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
@@ -237,7 +237,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   const arenaBtn = (id: ArenaId) => {
     const a = ARENAS[id];
     const gate = locked.includes(id) ? gateOf({ arena: id }) : undefined;
-    return `<button class="chip ${save.settings.arena === id ? 'on' : ''}" data-arena="${id}" ${gate ? 'disabled' : ''} data-tip="${gate ? `Locked — ${gate.desc}` : `${a.desc} ${a.feature}`}">${gate ? '🔒 ' : ''}${a.name}</button>`;
+    return `<button class="chip ${save.settings.arena === id ? 'on' : ''}" data-arena="${id}" ${gate ? 'disabled' : ''} data-tip="${gate ? `Locked — ${gate.desc}` : `${a.desc} ${a.feature} Boss relics: ${familyList(ARENA_FAMILIES[id])}.`}">${gate ? '🔒 ' : ''}${a.name}</button>`;
   };
   const tierBtn = (i: number) => {
     const t = TIERS[i];
@@ -612,6 +612,8 @@ const REFUND_NOTES: Record<string, string> = {
   'v0.7': "<b>The Chapel changed with v0.7's relics:</b> Reliquary Guard now gives rerolls at relic moments (two ranks at most), the Reliquary Vault a fourth choice at wave bosses; a third Guard rank is handed back.",
 };
 const RELIC_SOURCE_NAMES: Record<RelicSource, string> = { boss: 'a boss', lair: 'a lair', strongbox: 'a strongbox', quest: 'a quest', merchant: 'the Merchant', start: 'the start', other: '-' };
+/** #100: the families an arena's bosses drop, e.g. "🔥 Flame · ✨ Holy · 🛡️ Steel". */
+const familyList = (ids: readonly FamilyId[]) => ids.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' · ');
 const MOMENT_TITLES: Record<RelicSource, string> = { boss: 'Spoils of the fallen', lair: "The lair's hoard", strongbox: 'A strongbox', quest: 'A reward for your quest', merchant: "The merchant's pick", start: "The Armorer's choice", other: 'A relic' };
 
 /**
@@ -629,6 +631,7 @@ export function showRelicOffer(
     <div class="levelup">
       <h1 class="small">${MOMENT_TITLES[offer.from]}</h1>
       <p class="sub">Choose a relic · ${held.length} carried</p>
+      ${offer.families ? `<p class="sub" data-families>This arena's bosses drop only ${familyList(offer.families)}</p>` : ''}
       <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div><div class="preview">${esc(info.line(id))}</div>`, ['', 'For this build:', ...info.preview(id)])).join('')}${offer.duo ? duoCard(offer.duo, `data-pick="${options.length}"`, `<div class="num">${options.length + 1}</div>`) : ''}</div>
       <div class="row">
         <button class="btn" data-reroll ${offer.rerolls > 0 ? '' : 'disabled'}>Reroll (R) · ${offer.rerolls} left</button>
@@ -934,7 +937,7 @@ export function showRoutes(act: number, routes: Route[], onPick: (i: number) => 
   const card = (r: Route, i: number) => {
     const f = ROUTE_FOCUS[r.focus];
     const theme = r.theme < 0 ? FINAL.theme : ACT_THEMES[r.theme];
-    return `<button class="card panel boon route ${r.focus}" data-pick="${i}"><div class="num">${i + 1}</div><h2>${f.icon} ${f.name}</h2><div class="tag">${ARENAS[r.arena].name}</div>
+    return `<button class="card panel boon route ${r.focus}" data-pick="${i}"><div class="num">${i + 1}</div><h2>${f.icon} ${f.name}</h2><div class="tag">${ARENAS[r.arena].name}</div><div class="tag" data-families>Boss relics: ${familyList(ARENA_FAMILIES[r.arena])}</div>
       <p><b>${theme.name}</b> — ${theme.desc}</p><p>${f.desc}</p></button>`;
   };
   const el = show(`

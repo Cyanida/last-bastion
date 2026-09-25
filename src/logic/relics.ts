@@ -122,6 +122,14 @@ export function rollOffer(
   return out;
 }
 
+/**
+ * #100: a boss moment's pool, only relics of `families`; the whole pool when fewer than `n` of them are left to offer (none held or excluded).
+ */
+export function familyPool(pool: RelicId[], held: RelicId[], families: readonly string[], n: number, exclude: RelicId[] = []): RelicId[] {
+  const narrow = pool.filter((id) => families.includes(relicDef(id).family ?? ''));
+  return narrow.filter((id) => !held.includes(id) && !exclude.includes(id)).length >= n ? narrow : pool;
+}
+
 /** v0.7 (RELICS.md): a family's count and set level. */
 export interface SetState { count: number; level: 0 | SetLevel }
 
