@@ -6,7 +6,7 @@ import { compact, pickWeighted, TAU } from '../core/math';
 import type { Game, Rng, WaveEvent } from '../core/types';
 import { createMinion } from '../entities/actors';
 import { addField } from '../entities/hazards';
-import { merchantPrice } from '../logic/acts';
+import { actPrice, merchantPrice } from '../logic/acts';
 import { squadOnTier, squadPlan, squadUnits } from '../logic/director';
 import { rollAffixes } from '../logic/elites';
 import { enemyDmgMult, enemyHpMult } from '../logic/formulas';
@@ -154,6 +154,22 @@ export function peddlerBuy(g: Game): boolean {
   ev.stock--;
   p.hp = Math.min(p.stats.hp, p.hp + p.stats.hp * EVENTS.peddler.heal); // like the Merchant's surgeon, not healPlayer: No Respite does not bind him
   floatText(g, p.x, p.y - 34, `+${Math.round(p.stats.hp * EVENTS.peddler.heal)}`, '#6f8f4e', 15);
+  sfx(g, 'xp');
+  return true;
+}
+
+export const peddlerTokenPrice = (g: Game): number => actPrice(EVENTS.peddler.token, g.act);
+
+/** #128: buy the peddler's reroll token, worth having at full health: one more free reroll on the next level-up screen. */
+export function peddlerToken(g: Game): boolean {
+  const ev = g.event;
+  const price = peddlerTokenPrice(g);
+  if (!ev || ev.stock <= 0 || g.gold < price) return false;
+  g.gold -= price;
+  g.merchantSpent += price;
+  ev.stock--;
+  (g.levelRerolls ??= { free: g.rerolls, paid: 0 }).free++; // no new state: the next screen's rerolls (sim/commands levelRerolls) are dealt now, one more than usual, and cleared when it is answered
+  floatText(g, g.player.x, g.player.y - 34, '+1 reroll', '#c9a227', 15);
   sfx(g, 'xp');
   return true;
 }

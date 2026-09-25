@@ -72,9 +72,12 @@ export const bossDef = (key: BossKey): BossDef => BOSSES[key] ?? { from: key as 
 // ---------- Merchant ----------
 export type MerchantItem = 'heal' | 'reroll' | 'reforge' | `buy:${Rarity}`;
 
+/** A base price in this Act: the Merchant's prices (and the peddler's) rise by priceGrowth per Act. */
+export const actPrice = (base: number, act: number): number => Math.round(base * (1 + MERCHANT.priceGrowth * (act - 1)));
+
 export function merchantPrice(item: MerchantItem, act: number): number {
   const base = item.startsWith('buy:') ? MERCHANT.buy[item.slice(4) as Rarity] : item === 'heal' ? MERCHANT.heal.cost : item === 'reforge' ? MERCHANT.reforge : MERCHANT.reroll;
-  return Math.round(base * (1 + MERCHANT.priceGrowth * (act - 1)));
+  return actPrice(base, act);
 }
 
 // ---------- seeds and the Daily Trial ----------

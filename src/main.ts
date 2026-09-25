@@ -54,7 +54,7 @@ import { markBored } from './systems/runlog';
 import { buildState } from './systems/evolutions';
 import { recipeLines, setRecipeBuild } from './ui/relicText';
 import { endlessScore } from './systems/victory';
-import { peddlerPrice } from './systems/events';
+import { peddlerPrice, peddlerTokenPrice } from './systems/events';
 import { utilityUpgradeOptions } from './systems/utility';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
@@ -451,9 +451,12 @@ function openChoice(g: Game): void {
 
 /** v0.5: the wandering merchant's wares; it re-opens after every purchase, like the Merchant. */
 function openPeddler(g: Game): void {
-  showPeddler({ stock: g.event?.stock ?? 0, price: peddlerPrice(g), gold: g.gold, hurt: g.player.hp < g.player.stats.hp }, {
+  showPeddler({ stock: g.event?.stock ?? 0, price: peddlerPrice(g), tokenPrice: peddlerTokenPrice(g), gold: g.gold, hurt: g.player.hp < g.player.stats.hp }, {
     buy() {
       if (choose(g, { c: 'peddlerBuy' })) openPeddler(g);
+    },
+    token() {
+      if (choose(g, { c: 'peddlerToken' })) openPeddler(g);
     },
     leave() {
       choose(g, { c: 'peddlerLeave' });

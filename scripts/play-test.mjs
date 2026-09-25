@@ -397,6 +397,27 @@ await check('peddler: buy a draught, leave', () =>
   }),
 );
 
+await check('peddler at full health: the draught is shut, a reroll token buys one more free reroll on the next level-up (#128)', () =>
+  inPage(async () => {
+    const P = window.__play, lb = window.__lb, g = lb.game, p = g.player;
+    g.gold = 300;
+    p.hp = p.stats.hp;
+    g.event = { kind: 'peddler', x: p.x, y: p.y, unit: null, foe: null, used: false, t: 0, stock: 1 };
+    if (!P.toChoice() || !document.querySelector('[data-buy="1"]')) return { ok: false, detail: `no reroll token (${P.title()})` };
+    const shut = document.querySelector('[data-buy="0"]').disabled;
+    const gold = g.gold;
+    await P.click('[data-buy="1"]');
+    const bought = g.gold < gold && g.event.stock === 0;
+    await P.click('[data-leave]');
+    g.pendingLevelUps++;
+    if (!P.toChoice() || !document.querySelector('[data-reroll]')) return { ok: false, detail: 'no level-up screen' };
+    const label = document.querySelector('[data-reroll]').textContent.trim();
+    const free = label.includes(`${g.rerolls + 1} free`);
+    await P.click('[data-pick="0"]');
+    return { ok: shut && bought && free && lb.state === 'playing', detail: `draught ${shut ? 'shut' : 'OPEN'}, gold ${gold} → ${g.gold}, "${label}"` };
+  }),
+);
+
 await check('monk escort: taken from the board, he keeps walking with an enemy beside him (#119)', () =>
   inPage(async () => {
     const P = window.__play, lb = window.__lb, g = lb.game;
@@ -449,7 +470,7 @@ await check('every screen answered above is in the replay log, in tick order, fo
     const g = window.__lb.game;
     if (!g.replay) return { skip: true, detail: 'no replay log on this branch (before #113)' };
     const kinds = new Set(g.replay.map((c) => c.choice.c));
-    const want = ['quests', 'levelReroll', 'levelBanish', 'levelUp', 'relicReroll', 'relicTake', 'relicSkip', 'abilityUpgrade', 'utilityUpgrade', 'merchantHeal', 'merchantBuy', 'merchantLeave', 'route', 'blessing', 'peddlerBuy', 'peddlerLeave', 'talent'];
+    const want = ['quests', 'levelReroll', 'levelBanish', 'levelUp', 'relicReroll', 'relicTake', 'relicSkip', 'abilityUpgrade', 'utilityUpgrade', 'merchantHeal', 'merchantBuy', 'merchantLeave', 'route', 'blessing', 'peddlerBuy', 'peddlerToken', 'peddlerLeave', 'talent'];
     const missing = want.filter((k) => !kinds.has(k));
     const ordered = g.replay.every((c, i) => c.player === 0 && c.tick <= g.tick && (i === 0 || c.tick >= g.replay[i - 1].tick));
     return { ok: !missing.length && ordered, detail: `${g.replay.length} choices${missing.length ? `, missing ${missing.join(', ')}` : ''}${ordered ? '' : ', out of order'}` };
