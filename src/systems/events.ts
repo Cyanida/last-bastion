@@ -7,7 +7,7 @@ import type { Game, Rng, WaveEvent } from '../core/types';
 import { createMinion } from '../entities/actors';
 import { addField } from '../entities/hazards';
 import { merchantPrice } from '../logic/acts';
-import { squadPlan, squadUnits } from '../logic/director';
+import { squadOnTier, squadPlan, squadUnits } from '../logic/director';
 import { rollAffixes } from '../logic/elites';
 import { enemyDmgMult, enemyHpMult } from '../logic/formulas';
 import { placeRng, rollEvent } from '../logic/quests';
@@ -69,7 +69,7 @@ function startEvent(g: Game): void {
 /** Two squads at once, from opposite sides of the player (the director's squad path, placed by hand). */
 function springAmbush(g: Game): void {
   const p = g.player;
-  const pool = SQUADS.filter((t) => t.from <= g.wave).map((t) => ({ value: t, weight: t.weight }));
+  const pool = SQUADS.filter((t) => t.from <= g.wave && squadOnTier(t, g.tierIndex)).map((t) => ({ value: t, weight: t.weight }));
   const a = g.rng() * TAU;
   for (const side of [1, -1]) {
     const t = pool.length ? pickWeighted(pool, g.rng) : SQUADS[0];
@@ -89,7 +89,7 @@ function openCursedChest(g: Game, ev: WaveEvent): void {
   g.gold += EVENTS.cursedChest.gold * g.act;
   g.salvage += 1;
   floatText(g, p.x, p.y - 44, `+${EVENTS.cursedChest.gold * g.act}g · ◆ shard`, '#c9a227', 16);
-  const pool = unlockedPool(g.wave, null);
+  const pool = unlockedPool(g.wave, null, g.tierIndex);
   for (let i = 0; i < EVENTS.cursedChest.elites; i++) {
     const a = (i / EVENTS.cursedChest.elites) * TAU + g.rng();
     const e = spawnEnemy(g, pickWeighted(pool, g.rng), p.x + Math.cos(a) * 170, p.y + Math.sin(a) * 170, rollAffixes(g.wave, g.rng));

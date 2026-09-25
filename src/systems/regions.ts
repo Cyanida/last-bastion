@@ -60,7 +60,7 @@ export function openNextWing(g: Game): WingId | null {
 
 /** The strongest regular enemy unlocked by now, as the lair's sleeper (and the quests' named elite). */
 export function lairKind(g: Game): EnemyId {
-  const pool = unlockedPool(Math.max(1, g.wave), null).map((p) => p.value).filter((id) => !ENEMIES[id].boss && !ENEMIES[id].structure);
+  const pool = unlockedPool(Math.max(1, g.wave), null, g.tierIndex).map((p) => p.value).filter((id) => !ENEMIES[id].boss && !ENEMIES[id].structure);
   return pool.reduce((a, b) => (ENEMIES[b].hp > ENEMIES[a].hp ? b : a), pool[0] ?? 'knight');
 }
 

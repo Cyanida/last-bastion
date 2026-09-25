@@ -65,6 +65,18 @@ export const WAVES = {
     { id: 'mirrorKnight', from: 12, weight: 1.5 },
     { id: 'siegeTower', from: 14, weight: 0.6 },
   ] as { id: EnemyId; from: number; weight: number }[],
+  /**
+   * v0.8 (#101): the types each difficulty adds, by tier index (Squire, Knight, Champion, Legend). A tier fields its own types and
+   * every lower tier's; a type in no list (commanders, summons, bosses) is on every tier. This gates the pool and the squads,
+   * never bosses. Squire keeps the basic mix; the late specialists come with the higher tiers. A first cut that also kept assassins,
+   * plague doctors and bone collectors off Squire made it far too easy past the Dragon (fresh bot runs won instead of dying in Act II).
+   */
+  tierRoster: [
+    ['peasant', 'wolf', 'crossbow', 'knight', 'cultist', 'shieldBearer', 'priest', 'cavalry', 'engineer', 'assassin', 'plagueDoctor', 'boneCollector'],
+    ['houndmaster', 'mirrorKnight'],
+    ['shieldwall'],
+    ['siegeTower'],
+  ] as EnemyId[][],
   // wave modifiers: rolled for non-boss waves, announced in the wave banner
   modifierFromWave: 6,
   modifierChance: 0.35,

@@ -13,6 +13,7 @@ import { QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/ques
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
 import { TRAIT_IDS, TRAITS, type TraitId } from '../config/traits';
 import { ENEMIES } from '../config/enemies';
+import { WAVES } from '../config/waves';
 import { TREASURE_RULES, TREASURES, treasureDesc, type TreasureId } from '../config/treasures';
 import { chainStep, followUpText, inText, nextFragmentBoss, rankFor } from '../logic/treasures';
 import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
@@ -242,7 +243,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   const tierBtn = (i: number) => {
     const t = TIERS[i];
     const lockedTier = i > save.tierUnlocked || i > buildingLevel(save.buildings, 'watchtower');
-    const tip = i > save.tierUnlocked ? `Locked — clear wave ${TIER_UNLOCK_WAVE} on ${TIERS[i - 1].name}` : lockedTier ? `Locked — raise the Watchtower to level ${i}` : `Enemy HP ×${t.enemyHp}, damage ×${t.enemyDmg}, elites ×${t.eliteMult} · gold ×${t.gold}, class XP ×${t.classXp}`;
+    const tip = i > save.tierUnlocked ? `Locked — clear wave ${TIER_UNLOCK_WAVE} on ${TIERS[i - 1].name}` : lockedTier ? `Locked — raise the Watchtower to level ${i}` : `Enemy HP ×${t.enemyHp}, damage ×${t.enemyDmg}, elites ×${t.eliteMult} · gold ×${t.gold}, class XP ×${t.classXp} · ${i ? `new foes: ${WAVES.tierRoster[i].map((id) => ENEMIES[id].name).join(', ')}` : 'the basic foes'}`;
     return `<button class="chip ${save.settings.tier === i ? 'on' : ''}" data-tier="${i}" ${lockedTier ? 'disabled' : ''} data-tip="${tip}">${lockedTier ? '🔒 ' : ''}${t.name}</button>`;
   };
   const lockedC = lockedCurses(save);

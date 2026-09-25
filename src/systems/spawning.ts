@@ -98,6 +98,7 @@ function startWave(g: Game): void {
     performance: g.perf,
     bosses: boss ? [boss] : g.arena.bosses, // #99: the boss drawn above (only boss waves have one)
     eliteMult: g.tier.eliteMult * (g.route?.focus === 'elite' ? ROUTES.elite.eliteMult : 1) * (g.vars['relic.eliteMult'] ?? 1), // v0.6 Elite path; v0.7.1 Tyrant's Banner
+    tier: g.tierIndex, // v0.8 (#101): the difficulty's roster
     themeBias: actTheme(g).bias, // v0.6: the route's theme
     budgetMult: curseValue(g.curses, 'swarm', 'budget') * pacingBudget(g.wave), // v0.5: breathers and heavy waves (WAVES.pacing)
     squadMult: curseValue(g.curses, 'eliteCommanders', 'squadWeight'),
