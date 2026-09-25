@@ -1,0 +1,181 @@
+{
+  "version": 4,
+  "gold": 2,
+  "meta": {
+    "hp": 1,
+    "str": 1,
+    "dex": 1,
+    "int": 1,
+    "atkSpd": 1,
+    "moveSpd": 1,
+    "classXp": 1,
+    "utilityCd": 1,
+    "startLevel": 1,
+    "relicChance": 1,
+    "relicSlot": 1,
+    "salvage": 1,
+    "talentPoint": 1,
+    "rerolls": 1,
+    "xp": 1,
+    "startGold": 1,
+    "pickup": 1,
+    "goldIncome": 1,
+    "runeIncome": 1,
+    "dailyCap": 1,
+    "curseBonus": 1,
+    "eliteGold": 1,
+    "bossGold": 1
+  },
+  "classes": {
+    "paladin": {
+      "bestWave": 3,
+      "runs": 1,
+      "kills": 2,
+      "time": 3,
+      "xp": 1
+    },
+    "viking": {
+      "bestWave": 2,
+      "runs": 3,
+      "kills": 1,
+      "time": 2,
+      "xp": 3
+    },
+    "angel": {
+      "bestWave": 1,
+      "runs": 2,
+      "kills": 3,
+      "time": 1,
+      "xp": 2
+    },
+    "necromancer": {
+      "bestWave": 3,
+      "runs": 1,
+      "kills": 2,
+      "time": 3,
+      "xp": 1
+    },
+    "archer": {
+      "bestWave": 2,
+      "runs": 3,
+      "kills": 1,
+      "time": 2,
+      "xp": 3
+    }
+  },
+  "relicPicks": {
+    "whetstone": 2,
+    "swiftBoots": 3,
+    "luckyCoin": 4,
+    "scholarTome": 5
+  },
+  "runeShards": 1,
+  "runes": 2,
+  "buildings": {
+    "armory": 1,
+    "barracks": 1,
+    "chapel": 1,
+    "library": 1,
+    "treasury": 1,
+    "watchtower": 1
+  },
+  "dailyGold": {
+    "date": "2026-01-02",
+    "curse": 40,
+    "trial": 60
+  },
+  "achievements": [
+    "wave10",
+    "wave20",
+    "wave20all"
+  ],
+  "titles": [
+    "the Steadfast"
+  ],
+  "title": "the Steadfast",
+  "palettes": [
+    2,
+    3
+  ],
+  "talentPoints": 2,
+  "treasures": {
+    "paladin": {
+      "fragments": 3,
+      "trial": true,
+      "tier": 1,
+      "equipped": false
+    },
+    "viking": {
+      "fragments": 2,
+      "trial": true,
+      "tier": 3,
+      "equipped": false
+    },
+    "angel": {
+      "fragments": 1,
+      "trial": true,
+      "tier": 2,
+      "equipped": false
+    },
+    "necromancer": {
+      "fragments": 3,
+      "trial": true,
+      "tier": 1,
+      "equipped": false
+    },
+    "archer": {
+      "fragments": 2,
+      "trial": true,
+      "tier": 3,
+      "equipped": false
+    }
+  },
+  "tierUnlocked": 2,
+  "counters": {
+    "absorb": 2,
+    "taunted": 3,
+    "rageKills": 1,
+    "leapHits": 2,
+    "radiance": 3,
+    "blinks": 1,
+    "minions": 2,
+    "corpseHits": 3,
+    "volleyHits": 1,
+    "rolls": 2,
+    "kills": 3,
+    "bosses": 1,
+    "elites": 2,
+    "goldEarned": 3,
+    "flawlessBosses": 1,
+    "maxRelics": 2,
+    "maxAbilityUpgrades": 3,
+    "fastestWave10": 1,
+    "bossKinds": [
+      "blackKnight",
+      "warlord"
+    ],
+    "commanders": 2,
+    "actsCleared": 3,
+    "cursedActs": 1,
+    "dailies": 2,
+    "quests": 3,
+    "events": 1
+  },
+  "daily": {
+    "2026-01-02": 7
+  },
+  "settings": {
+    "arena": "graveyard",
+    "tier": 1,
+    "quality": "high",
+    "trait": "glassCannon",
+    "palettes": {
+      "paladin": 2
+    },
+    "prerelease": true,
+    "curses": [
+      "ironHorde",
+      "glassBones"
+    ]
+  }
+}

@@ -5,6 +5,7 @@ import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, META_IDS, R
 import { createGame } from '../src/game';
 import { accountLevel, accountPerks, buildingLevel, masteryBonus, masteryRank, metaCost, rankCap, rewardText, runesForActBoss, totalKeepCost } from '../src/logic/economy';
 import { applyRun, buyBuilding, buyMeta, defaultSave, migrate, SAVE_VERSION, type RunSummary, type Save } from '../src/logic/save';
+import { oldSave } from './fixtures/saves';
 import { spendTalent } from '../src/systems/talents';
 import { branchPlan } from '../src/logic/talents';
 
@@ -131,10 +132,7 @@ describe('mastery: 25 named ranks, and the account level', () => {
 
 describe('save migration v3 -> v4', () => {
   it('a v0.3 save keeps everything and is granted a Rune per achievement; a v4 save keeps its Runes and buildings', () => {
-    const v3 = { ...defaultSave(), version: 3, gold: 500, achievements: ['firstBlood', 'wave10', 'bossSlayer'], meta: { hp: 2, relicSlot: 1 } } as unknown as Record<string, unknown>;
-    delete v3.runes;
-    delete v3.buildings;
-    delete v3.dailyGold;
+    const v3 = { ...oldSave('v0.3.1'), gold: 500, achievements: ['firstBlood', 'wave10', 'bossSlayer'], meta: { hp: 2, relicSlot: 1 } };
     const s = migrate(v3);
     expect(s.version).toBe(SAVE_VERSION);
     expect(s.gold).toBe(500);
