@@ -469,7 +469,7 @@ export interface Game {
   effects: Effect[];
   hash: SpatialHash<Enemy>;
   rng: Rng;
-  input: { moveX: number; moveY: number; aimX: number; aimY: number; ability: boolean; utility: boolean; showAim: boolean };
+  input: { moveX: number; moveY: number; aimX: number; aimY: number; ability: boolean; utility: boolean; showAim: boolean; manualAim?: boolean }; // manualAim: basic attacks go toward (aimX, aimY) (v0.7.5, #81)
   wave: number;
   waveHpMult: number;
   waveDmgMult: number;
