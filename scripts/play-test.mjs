@@ -463,6 +463,48 @@ await check('sounds reach the audio', () =>
   }),
 );
 
+// ---------- v0.7.5: a shared save with markup in its title, titles and a run's Daily label shows it as text, never as page (#105) ----------
+await check('import: a save with markup stays text', () =>
+  inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  }).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async () => {
+      const bad = '<b id="xss">x</b>', wait = (ms) => new Promise((r) => setTimeout(r, ms)); // the reload dropped window.__play
+      const P = { wait, click: async (sel) => (document.querySelector(sel).click(), wait(60)) };
+      const btn = (text) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim().startsWith(text));
+      btn('Settings').click();
+      await P.wait(150);
+      await P.click('[data-act="save"]');
+      const area = document.getElementById('save-text');
+      const raw = JSON.parse(area.value);
+      const run = { at: '', classId: 'paladin', tier: 0, arena: 'courtyard', seed: 1, daily: bad, curses: [], oath: 0, trait: 'none', time: 60, wave: 3, level: 2, kills: 5, end: 'slain', cause: bad, relics: {}, talents: [], upgrades: [], waves: [], marks: [] };
+      area.value = JSON.stringify({ ...raw, title: bad, titles: [bad, 'the Steadfast'], runs: [run] });
+      await P.click('[data-act="import"]');
+      const imported = document.body.innerText.includes('Save imported');
+      const seen = [];
+      await P.click('[data-act="back"]');
+      btn('Back').click(); // settings -> title
+      await P.wait(150);
+      seen.push(!!document.getElementById('xss'));
+      btn('Chronicle').click();
+      await P.wait(150);
+      seen.push(!!document.getElementById('xss'));
+      const titles = [...document.querySelectorAll('[data-equip]')].map((b) => b.textContent.trim());
+      btn('Back').click();
+      await P.wait(150);
+      btn('The Keep').click();
+      await P.wait(150);
+      await P.click('[data-history]');
+      const rows = document.querySelectorAll('.run').length;
+      seen.push(!!document.getElementById('xss'));
+      const ok = imported && rows === 1 && !seen.some(Boolean) && titles.join('|') === 'Bare name|the Steadfast' && window.__lb.save.title === null;
+      return { ok, detail: `imported ${imported}, markup on title/chronicle/history ${seen.join('/')}, titles ${titles.join(', ')}, ${rows} run` };
+    });
+  }),
+);
+
 // ---------- a real run (not a test run) is banked ----------
 await check('a real run is banked: gold, the day, the run log, the week', () =>
   inPage(async () => {
