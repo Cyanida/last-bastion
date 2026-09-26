@@ -108,7 +108,7 @@ export const BLOOD_SETS: Partial<Record<SetLevel, RelicHooks>> = {
       else g.vars['bloodMagic.lock'] = 0;
     },
     tick(g, _dt, p) {
-      if (!g.input.ability || p.abilityCd <= 0 || g.vars['bloodMagic.lock']) return;
+      if (!g.input.ability || p.abilityTime > 0 || p.abilityCd <= 0 || g.vars['bloodMagic.lock']) return; // still active: not cooling down yet
       p.hp -= p.hp * F.n.hpCost;
       p.abilityCd = 0;
       g.vars['bloodMagic.paid'] = 1;
