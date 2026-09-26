@@ -236,7 +236,7 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .card h2, .card .role { text-align: center; }
 .card .role { font-style: italic; margin-bottom: 8px; }
 .card p { margin: 2px 0 8px; line-height: 1.25; }
-.portrait { height: 92px; display: grid; place-items: center; }
+.portrait { height: 92px; display: grid; place-items: end center; } /* #156: the champions stand on one line */
 .portrait canvas { height: var(--sprite-h, auto); image-rendering: pixelated; filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.45)); }
 .stats { margin: 6px 0 10px; }
 .stats > div:nth-child(7) { color: #6b4a08; font-weight: bold; }
@@ -358,6 +358,7 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .titles { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .epithet { font-family: var(--heading); font-size: 22px; color: #f3ead0; margin-top: 4px; }
 /* v0.5 quest board */
+.select .card { display: flex; flex-direction: column; } /* #156: a button centres its content: cards of different lengths put their champions at different heights */
 .select .card.on, .board .card.on { outline: 3px solid var(--gold); outline-offset: -7px; transform: translateY(-6px); box-shadow: 0 0 16px var(--gold); }
 
 .stats-table { width: 100%; border-collapse: collapse; font-family: Georgia, serif; font-size: 14px; margin-bottom: 8px; }

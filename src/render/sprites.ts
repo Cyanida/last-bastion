@@ -1209,8 +1209,11 @@ export interface Sprite {
   ay?: number;
 }
 
-/** v0.4 mastery palettes: a canvas filter over the class sprite (0 = as drawn; Ashen, Gilded, Midnight). v0.5: Frost and Verdant tint treasure guardians only. */
-export const SPRITE_PALETTES = ['', 'saturate(0.35) brightness(1.1)', 'sepia(1) saturate(2.2) hue-rotate(-10deg) brightness(1.1)', 'hue-rotate(200deg) saturate(1.3) brightness(0.8)', 'sepia(1) hue-rotate(160deg) saturate(2.5) brightness(1.15)', 'sepia(1) hue-rotate(60deg) saturate(2.2) brightness(0.95)'];
+/**
+ * v0.4 mastery palettes: a canvas filter over the class sprite (0 = as drawn; Ashen, Gilded, Midnight). v0.5: Frost and Verdant tint treasure guardians only.
+ * #156: Midnight tints from sepia like Gilded, so every champion turns night-blue (a hue-rotate turned the Necromancer green and the Archer pink).
+ */
+export const SPRITE_PALETTES = ['', 'saturate(0.35) brightness(1.1)', 'sepia(1) saturate(2.2) hue-rotate(-10deg) brightness(1.1)', 'sepia(1) hue-rotate(185deg) saturate(1.7) brightness(0.72)', 'sepia(1) hue-rotate(160deg) saturate(2.5) brightness(1.15)', 'sepia(1) hue-rotate(60deg) saturate(2.2) brightness(0.95)'];
 
 /** `scale` is device pixels per grid pixel here: getSprite passes spriteSize's cell. */
 function rasterize(rows: string[], scale: number, white: boolean, flip: boolean, palette = 0): HTMLCanvasElement {

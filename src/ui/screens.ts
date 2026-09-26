@@ -212,6 +212,9 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
 /** #146: the champion picked on the class select; kept while its options re-render the screen. Starts as the last one played. */
 let selectedClass: ClassId | undefined;
 
+/** #156: the rigged champions' portrait scale on the class cards: the Paladin's figure (120 px at scale 6) shows at 84 px. */
+const PORTRAIT_K = 0.7;
+
 export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void; trait: (id: TraitId) => void; palette: (id: ClassId, n: number) => void; treasure: (id: ClassId) => void; oath: (level: number) => void }): void {
   const locked = lockedArenas(save);
   // v0.6 Oath ladder: open once any class has won; each class swears at most one above the highest it has kept
@@ -295,8 +298,9 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => {
     const id = slot.dataset.sprite as ClassDef['sprite'];
     const spr = portraitSprite(id, 6, Number(slot.dataset.paletteN ?? 0));
-    // #138: a finer-grid canvas is larger than it shows; #155: a rigged figure (taller) shows at the Paladin's old 84 px, to fit the card
-    spr.img.style.setProperty('--sprite-h', `${SHEETS[id] ? Math.min(spr.h, 84) : spr.h}px`);
+    // #138: a finer-grid canvas is larger than it shows; #155: a rigged figure (taller) shows the Paladin at his old 84 px, to fit the card;
+    // #156: every champion at the Paladin's scale, so a helm's horns or a halo don't shrink the one who wears them
+    spr.img.style.setProperty('--sprite-h', `${SHEETS[id] ? Math.round(spr.h * PORTRAIT_K) : spr.h}px`);
     slot.appendChild(spr.img);
   });
   el.querySelectorAll<HTMLElement>('[data-palette]').forEach((sw) => (sw.onclick = (e) => {

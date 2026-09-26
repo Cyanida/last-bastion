@@ -115,19 +115,23 @@ await check('title screen', () =>
 );
 
 // #138: the champions are drawn on a grid twice as fine, and show at the same size as before on the class select
-await check('class select: champions on the finer grid keep their size', () =>
+await check('class select: champions on the finer grid keep their size, at one scale, standing on one line (#156)', () =>
   inPage(async () => {
     const P = window.__play;
     await P.click('[data-go="start"]');
     const size = (id) => {
       const c = document.querySelector(`[data-class="${id}"] .portrait canvas`);
-      return c ? { box: Math.round(c.getBoundingClientRect().height), canvas: c.height } : null;
+      if (!c) return null;
+      const r = c.getBoundingClientRect(), card = c.closest('.card').getBoundingClientRect();
+      return { box: Math.round(r.height), canvas: c.height, feet: Math.round(r.bottom - card.top) };
     };
-    const pal = size('paladin'), vik = size('viking');
+    const all = ['paladin', 'viking', 'angel', 'necromancer', 'archer'].map(size);
     await P.click('[data-back]');
-    // the old grids were 14 and 16 rows at 6 px: 84 and 96 px on screen; #156: every champion is rigged now, all shown at the Paladin's 84 px
-    const ok = pal?.box === 84 && vik?.box === 84 && window.__lb.state === 'menu';
-    return { ok, detail: `paladin ${JSON.stringify(pal)}, viking ${JSON.stringify(vik)}` };
+    // the old grids were 14 and 16 rows at 6 px: 84 and 96 px on screen; #156: every champion is rigged, the Paladin at his old 84 px and the
+    // rest at his scale (a horned helm or a halo stands taller), all with their feet on the same line of the card
+    const k = all[0].box / all[0].canvas;
+    const ok = all[0].box === 84 && all.every((c) => c && Math.abs(c.box - c.canvas * k) <= 1 && c.feet === all[0].feet) && window.__lb.state === 'menu';
+    return { ok, detail: all.map((c) => JSON.stringify(c)).join(', ') };
   }),
 );
 
@@ -1778,6 +1782,28 @@ await check('Swing trail and walk pace: a crescent trail on the swing; the feet 
   }
   const ok = !!trail && trail.crescent > 20 && trail.inside < 8 && walk.every((w) => w.ratio > 0.7 && w.ratio < 1.3) && walk[0].dist > walk[1].dist * 3;
   return { ok, detail: `trail ${trail ? `changes ${trail.crescent} on the crescent, ${trail.inside} inside` : 'not seen'}; ${walk.map((w) => `${w.mult}x: ${w.dist} px, ${w.steps} frames (${w.ratio.toFixed(2)} of the ground)`).join('; ')}` };
+});
+
+// ---------- #156: the Midnight colours turn every champion night-blue on the class card (a hue shift used to turn the Necromancer green) ----------
+await check('Midnight colours: every champion turns night-blue on the class select (#156)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ['paladin', 'viking', 'angel', 'necromancer', 'archer'].every((c) => window.__lb.sheets().includes(c)));
+  await inPage(() => { window.__lb.save.palettes = [3]; document.querySelector('[data-go="start"]').click(); });
+  await page.waitForSelector('[data-start]');
+  const out = [];
+  for (const c of ['paladin', 'viking', 'angel', 'necromancer', 'archer']) {
+    const sw = page.locator(`[data-palette="${c}:3"]`);
+    await sw.scrollIntoViewIfNeeded();
+    await sw.click(); // the card is drawn again in its new colours
+    out.push(await inPage((id) => {
+      const cv = document.querySelector(`[data-class="${id}"] .portrait canvas`), px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+      let r = 0, g = 0, b = 0;
+      for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 128) (r += px[i]), (g += px[i + 1]), (b += px[i + 2]);
+      return { id, blue: b > r && b > g };
+    }, c));
+  }
+  await inPage(() => document.querySelector('[data-back]').click());
+  return { ok: out.every((o) => o.blue), detail: out.map((o) => `${o.id} ${o.blue ? 'blue' : 'not blue'}`).join(', ') };
 });
 
 // ---------- #156: the champions' allies: raised skeletons walk up and strike, the Angel's decoy and the Archer's shade are drawn from their sheets, the shade looses ----------
