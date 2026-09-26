@@ -1158,7 +1158,7 @@ await check('difficulty: Knight names its new foes, and its waves bring none fro
 );
 
 // ---------- v0.8 (#124): flash cards, in a real run (a test run shows none) ----------
-await check('flash card: a new foe shows one with its sprite and a spotlight on it, the run waits, Enter closes it, never twice, kept in the Glossary', () =>
+await check('flash card: a new foe shows one with its sprite and a spotlight on it, the run waits, Enter closes it, never twice, kept in the Glossary, redrawn foes at their old size', () =>
   inPage(() => {
     localStorage.removeItem('lastbastion.save');
     location.reload();
@@ -1212,13 +1212,19 @@ await check('flash card: a new foe shows one with its sprite and a spotlight on 
       document.querySelector('[data-glossary]')?.click();
       await new Promise((r) => setTimeout(r, 100));
       const met = document.querySelector('.cards-met');
-      return met ? { text: met.innerText, pics: met.querySelectorAll('.card-pic').length, rows: met.querySelectorAll('dt').length } : { text: '', pics: 0, rows: 0 };
+      // #138: the foes met so far, as their pictures show them (the arena sprite at its own scale, plus a 2 px margin each side)
+      const sizes = met ? [...met.querySelectorAll('img.card-pic')].map((i) => [i.dataset.spriteOf, i.naturalWidth, i.naturalHeight]) : [];
+      return met ? { text: met.innerText, pics: met.querySelectorAll('.card-pic').length, rows: met.querySelectorAll('dt').length, sizes } : { text: '', pics: 0, rows: 0, sizes };
     });
     const once = new Set(after.shown).size === after.shown.length;
     const dimmed = first.dim < after.lit * 0.7;
     const pictured = first.picture === 'sprite' && glossary.pics === glossary.rows;
-    const ok = first.state === 'choice' && first.held && first.saved && first.words <= 14 && after.closed && once && glossary.text.includes(first.name) && pictured && first.spotOn && dimmed && after.spotOff;
-    return { ok, detail: `"${first.name}" (${first.words} words), picture ${first.picture}, spotlight ${first.spotOn ? 'on it' : 'MISSING'}, arena ${Math.round(first.dim)} → ${Math.round(after.lit)} after closing${after.spotOff ? '' : ' (STILL LIT)'}, held ${first.held}, saved ${first.saved}, Enter closed ${after.closed}; cards ${after.shown.join(', ')}${once ? '' : ' (REPEATED)'}; Glossary ${glossary.text ? 'lists it' : 'MISSING'}, ${glossary.pics}/${glossary.rows} pictures` };
+    // #138: the regular foes and the commanders are drawn on a grid twice as fine, and keep the old grid's size: its columns and rows at 3 px each
+    const oldGrid = { peasant: [12, 14], wolf: [14, 8], crossbow: [12, 14], knight: [12, 14], cultist: [12, 14], shieldBearer: [12, 14], priest: [12, 14], cavalry: [16, 13], engineer: [12, 14], plagueDoctor: [12, 14], houndmaster: [12, 14], mirrorKnight: [12, 14], assassin: [12, 13], shieldwall: [12, 14], boneCollector: [12, 14], bannerman: [12, 14], drummer: [12, 14], chaplain: [12, 14] };
+    const redrawn = glossary.sizes.filter(([id]) => id in oldGrid);
+    const sized = redrawn.length > 0 && redrawn.every(([id, w, h]) => w === oldGrid[id][0] * 3 + 4 && h === oldGrid[id][1] * 3 + 4);
+    const ok = first.state === 'choice' && first.held && first.saved && first.words <= 14 && after.closed && once && glossary.text.includes(first.name) && pictured && first.spotOn && dimmed && after.spotOff && sized;
+    return { ok, detail: `foe pictures ${redrawn.map(([id, w, h]) => `${id} ${w}×${h}`).join(', ') || 'NONE'}${sized ? '' : ' (WRONG SIZE)'}; "${first.name}" (${first.words} words), picture ${first.picture}, spotlight ${first.spotOn ? 'on it' : 'MISSING'}, arena ${Math.round(first.dim)} → ${Math.round(after.lit)} after closing${after.spotOff ? '' : ' (STILL LIT)'}, held ${first.held}, saved ${first.saved}, Enter closed ${after.closed}; cards ${after.shown.join(', ')}${once ? '' : ' (REPEATED)'}; Glossary ${glossary.text ? 'lists it' : 'MISSING'}, ${glossary.pics}/${glossary.rows} pictures` };
   }),
 );
 
