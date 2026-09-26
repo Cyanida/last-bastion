@@ -93,8 +93,11 @@ structure:
   - every balance number lives in `src/config/`, and game logic never hard-codes one;
   - pure logic lives in `src/logic/` and has vitest tests in `tests/`;
   - `src/systems/` runs the game, `src/render/` draws it, and `src/ui/` holds the DOM screens and HUD.
-- **No asset files.** Sprites are pixel grids in `src/render/sprites.ts` (one character per pixel, colors from `PALETTE`, facing right).
-  Sound and music are WebAudio synthesis (`src/core/audio.ts`, `src/core/music.ts`). Don't add images, audio files or fonts.
+- **No hand-made asset files.** Sprites are drawn in code by the rig in `tools/art/` (one definition per sprite in
+  `tools/art/sprites/<id>.ts`, following `tools/art/STYLE.md`) and rendered with `npm run art` into `public/sprites/<id>.png` plus
+  `src/render/sheets/<id>.json`; commit both, and nobody edits a PNG by hand. Sprites not converted yet are pixel grids in
+  `src/render/sprites.ts` (one character per pixel, colors from `PALETTE`, facing right). Sound and music are WebAudio synthesis
+  (`src/core/audio.ts`, `src/core/music.ts`). Don't add other images, audio files or fonts.
 - **No new dependencies** unless the issue says so.
 - **Match the code around you**: its naming, its comment density (short comments that say why) and its idiom. TypeScript is strict.
   If you take a shortcut on purpose, say what it is in a comment.

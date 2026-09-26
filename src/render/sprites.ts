@@ -1329,6 +1329,35 @@ export function sheetSprite(id: string, scale: number, palette: number, anim: An
   return s;
 }
 
+/**
+ * A still for the menus and cards (class select, flash cards, glossary): a rigged sheet's first idle frame cropped to the figure,
+ * else, and until the sheet has loaded, the letter grid.
+ */
+export function portraitSprite(id: SpriteId, scale: number, palette = 0): Sprite {
+  const key = `${id}@${scale}@${palette}`;
+  let s = portraits.get(key);
+  if (s) return s;
+  const f = sheetSprite(id, scale, palette, 'idle', 0);
+  if (!f) return getSprite(id, scale, palette); // not cached: the sheet may still load
+  const px = f.img.getContext('2d')!.getImageData(0, 0, f.img.width, f.img.height).data;
+  let x0 = f.img.width, y0 = f.img.height, x1 = 0, y1 = 0;
+  for (let y = 0; y < f.img.height; y++)
+    for (let x = 0; x < f.img.width; x++)
+      if (px[(y * f.img.width + x) * 4 + 3]) (x0 = Math.min(x0, x)), (x1 = Math.max(x1, x + 1)), (y0 = Math.min(y0, y)), (y1 = Math.max(y1, y + 1));
+  const k = f.w / f.img.width; // world px per canvas px
+  const crop = (c: HTMLCanvasElement, flip: boolean): HTMLCanvasElement => {
+    const o = document.createElement('canvas');
+    o.width = x1 - x0;
+    o.height = y1 - y0;
+    o.getContext('2d')!.drawImage(c, flip ? c.width - x1 : x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+    return o;
+  };
+  s = { w: Math.round((x1 - x0) * k), h: Math.round((y1 - y0) * k), img: crop(f.img, false), flipped: crop(f.flipped, true), flash: crop(f.flash, false), flashFlipped: crop(f.flashFlipped, true) };
+  portraits.set(key, s);
+  return s;
+}
+const portraits = new Map<string, Sprite>();
+
 // ---------------------------------------------------------------- v0.4 render caches
 // Paths (ellipse, arc, text outlines) are the expensive canvas commands. Anything drawn hundreds of times a frame
 // is rendered once into a small canvas here and blitted with drawImage afterwards.

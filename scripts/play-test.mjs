@@ -1578,6 +1578,38 @@ await check('Paladin sheet: loads, then idle, walk and attack play as he moves a
   }),
 );
 
+// ---------- #155: the test-mode gallery plays every rigged sprite, and the class select shows the Paladin from his sheet ----------
+await check('Sprite gallery plays the Paladin; his class card shows his sheet (#155)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('paladin'));
+    return inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const frames = {};
+      for (let i = 0; i < 20; i++) {
+        for (const c of document.querySelectorAll('[data-sheet="paladin"]')) (frames[c.dataset.anim] ??= new Set()).add(c.dataset.frame);
+        await wait(80);
+      }
+      // every animation shows up, and each one with more than one frame moves
+      const moving = ['idle', 'walk', 'attack', 'hurt', 'death'].every((a) => frames[a]?.size > 1);
+      document.querySelector('.testmode [data-back]').click(); // to Settings
+      await wait(100);
+      document.querySelector('[data-act="back"]').click(); // to the title
+      await wait(100);
+      document.querySelector('[data-go="start"]').click();
+      await wait(100);
+      const c = document.querySelector('[data-class="paladin"] .portrait canvas');
+      // the sheet's idle frame cropped to the figure (about 55 art px tall, drawn at 2x), shown at the old portrait's 84 px
+      const box = Math.round(c.getBoundingClientRect().height);
+      const ok = moving && c.height >= 100 && box === 84;
+      return { ok, detail: `${Object.entries(frames).map(([a, f]) => `${a} ${f.size}`).join(', ')}; portrait canvas ${c.width}×${c.height}, shown ${box} px` };
+    });
+  }),
+);
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };

@@ -30,7 +30,7 @@ export interface AnimInput {
 export const WALK_STRIDE = 0.8;
 
 /** Index into a looping or held sequence of frame durations at `t` ms. */
-function frameAt(ms: number[], t: number, loop: boolean): number {
+export function frameAt(ms: number[], t: number, loop: boolean): number {
   const total = ms.reduce((a, b) => a + b, 0);
   if (loop) t = ((t % total) + total) % total;
   for (let i = 0; i < ms.length; i++) {
