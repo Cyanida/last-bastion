@@ -208,12 +208,16 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
+/** #146: the champion picked on the class select; kept while its options re-render the screen. Starts as the last one played. */
+let selectedClass: ClassId | undefined;
+
 export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void; trait: (id: TraitId) => void; palette: (id: ClassId, n: number) => void; treasure: (id: ClassId) => void; oath: (level: number) => void }): void {
   const locked = lockedArenas(save);
   // v0.6 Oath ladder: open once any class has won; each class swears at most one above the highest it has kept
   const oathMax = Math.max(...CLASS_ORDER.map((id) => oathCap(save.wins[id], save.oaths[id])));
   const oathOf = (id: ClassId) => Math.min(save.settings.oath, oathCap(save.wins[id], save.oaths[id]));
   const sworn = save.settings.oath > 0 && oathMax > 0;
+  selectedClass ??= save.runs.at(-1)?.classId ?? CLASS_ORDER[0];
   const card = (c: ClassDef) => {
     const rec = save.classes[c.id];
     const rank = masteryRank(rec.xp);
@@ -226,7 +230,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     const tr = save.treasures[c.id];
     const treasure = tr.tier ? `<span class="chip treasure-chip ${tr.equipped ? 'on' : ''}" data-treasure="${c.id}" data-tip="${esc(`${tr.equipped ? 'Equipped' : 'Left in the Keep'} — tap to switch.\n${treasureDesc(c.id, tr.tier)}`)}">${t.icon} ${t.name} ${TIER_NUMERALS[tr.tier]}</span>` : '';
     return `
-    <button class="card panel" data-class="${c.id}">
+    <button class="card panel ${selectedClass === c.id ? 'on' : ''}" data-class="${c.id}">
       <div class="portrait" data-sprite="${c.sprite}" data-palette-n="${palettes.includes(chosen) ? chosen : 0}"></div>${swatches}
       <h2${c.name.length > 9 ? ' class="long"' : ''}>${c.name}</h2>
       <div class="role">${c.role}</div>
@@ -285,7 +289,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
         <button class="chip" data-oath="${save.settings.oath + 1}" ${save.settings.oath >= oathMax ? 'disabled' : ''}>+</button>
         <span class="hint">${save.settings.oath ? `${OATHS[save.settings.oath - 1].desc} Every Oath below it holds too. A class that has not kept Oath ${save.settings.oath - 1} swears its highest.` : 'Win with a class to swear its first Oath. Every level adds one hardship; keeping one pays.'}</span></div></div>` : ''}
       <div class="cards">${CLASS_ORDER.map((id) => card(CLASSES[id])).join('')}</div>
-      <button class="btn" data-back>Back</button>
+      <div class="row"><button class="btn" data-back>Back</button><button class="btn big" data-start>Start as ${CLASSES[selectedClass].name}</button></div>
     </div>`);
   el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => {
     const spr = getSprite(slot.dataset.sprite as ClassDef['sprite'], 6, Number(slot.dataset.paletteN ?? 0));
@@ -293,15 +297,25 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     slot.appendChild(spr.img);
   });
   el.querySelectorAll<HTMLElement>('[data-palette]').forEach((sw) => (sw.onclick = (e) => {
-    e.stopPropagation(); // the card underneath would start the run
+    e.stopPropagation(); // the card underneath would take the click
     const [cls, n] = sw.dataset.palette!.split(':');
     on.palette(cls as ClassId, Number(n));
   }));
   el.querySelectorAll<HTMLElement>('[data-treasure]').forEach((chip) => (chip.onclick = (e) => {
-    e.stopPropagation(); // the card underneath would start the run
+    e.stopPropagation(); // the card underneath would take the click
     on.treasure(chip.dataset.treasure as ClassId);
   }));
-  click(el, '[data-class]', (b) => on.pick(b.dataset.class as ClassId, el.querySelector<HTMLInputElement>('#seed')!.value));
+  const start = () => on.pick(selectedClass!, el.querySelector<HTMLInputElement>('#seed')!.value);
+  // #146: a card selects its champion (no re-render, so the keyboard focus stays on it); a second click on it, or Start, begins the run
+  click(el, '[data-class]', (b) => {
+    if (b.dataset.class === selectedClass) return start();
+    selectedClass = b.dataset.class as ClassId;
+    el.querySelectorAll('[data-class]').forEach((c) => c.classList.toggle('on', c === b));
+    el.querySelector('[data-start]')!.textContent = `Start as ${CLASSES[selectedClass].name}`;
+  });
+  click(el, '[data-start]', start);
+  // Enter or the pad's confirm starts the run, unless a focused button takes the key itself
+  onActions((a) => a === 'confirm' && !(document.activeElement instanceof HTMLButtonElement) && start());
   click(el, '[data-curse]', (b) => on.curse(b.dataset.curse as CurseId));
   click(el, '[data-trait]', (b) => on.trait(b.dataset.trait as TraitId));
   click(el, '[data-oath]', (b) => on.oath(Number(b.dataset.oath)));

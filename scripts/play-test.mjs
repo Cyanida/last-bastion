@@ -1111,6 +1111,7 @@ await check('Gallows: a cursed run earns its bonus, the results show it', () =>
       await P.click('[data-curse="ironHorde"]');
       const shown = Number(document.querySelector('.select .mult').textContent.match(/×([\d.]+)/)[1]); // curses alone, without the Gallows
       await P.click('[data-class="viking"]');
+      document.querySelector('[data-start]')?.click(); // #146: the card selects (unless it already was), Start begins the run
       await P.wait(200);
       const g = lb.game, mult = g.vars.curseMult;
       g.player.invulnerable = true;
@@ -1172,6 +1173,7 @@ await check('difficulty: Knight names its new foes, and its waves bring none fro
       await wait();
       const tips = [tipOf(0), tipOf(1)];
       document.querySelector('[data-class="viking"]').click();
+      document.querySelector('[data-start]')?.click(); // #146: the card selects, Start begins the run
       await wait(200);
       const g = lb.game;
       g.player.invulnerable = true;
@@ -1201,6 +1203,7 @@ await check('flash card: a new foe shows one with its sprite and a spotlight on 
       document.querySelector('[data-go="start"]').click();
       await wait();
       document.querySelector('[data-class="viking"]').click();
+      document.querySelector('[data-start]')?.click(); // #146: the card selects, Start begins the run
       await wait(200);
       const g = lb.game;
       g.player.invulnerable = true;
@@ -1374,6 +1377,41 @@ await check('text size: Larger grows the HUD, no overlap at 1400x800 and 844x390
   return { ok, detail: `player panel ${Math.round(dn.tl)} -> ${Math.round(dl.tl)}px (1400x800), ${Math.round(pn.tl)} -> ${Math.round(pl.tl)}px (844x390), +N ${seen.map((s) => s.more).join('/')}${hits.length ? `; overlaps: ${hits.slice(0, 4).join(', ')}` : ''}` };
 });
 
+// #146: a class card only selects its champion; Start (or a second click on the chosen card) begins the run
+await check('class select: a card selects, a click beside a swatch starts nothing, Enter selects then starts, Start begins the run', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  const look = () => inPage(() => ({ state: window.__lb.state, on: [...document.querySelectorAll('.select .card.on')].map((c) => c.dataset.class), start: document.querySelector('[data-start]')?.textContent ?? '' }));
+  const box = (sel) => inPage((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; }, sel);
+  await inPage(() => { window.__lb.save.palettes = [1]; document.querySelector('[data-go="start"]').click(); }); // an earned colour shows the swatches
+  await page.waitForSelector('[data-start]');
+  const first = await look(); // pre-selected: Start works straight away
+  await page.locator('[data-class="viking"]').scrollIntoViewIfNeeded();
+  const sw = await box('[data-palette="viking:1"]');
+  await page.mouse.click(sw.x + sw.w + 4, sw.y + sw.h / 2); // just misses the swatch: lands on the card
+  await page.waitForTimeout(100);
+  const missed = await look();
+  await page.mouse.click(sw.x + sw.w / 2, sw.y + sw.h / 2); // on the swatch: the colour changes, the choice stays
+  await page.waitForTimeout(100);
+  const recoloured = { ...(await look()), palette: await inPage(() => window.__lb.save.settings.palettes.viking) };
+  await inPage(() => document.querySelector('[data-class="archer"]').focus());
+  await page.keyboard.press('Enter'); // selects the Archer
+  await page.waitForTimeout(100);
+  const keyed = await look();
+  await page.keyboard.press('Enter'); // the chosen card again: the run begins
+  await page.waitForFunction(() => window.__lb.state !== 'menu');
+  const run = await inPage(() => ({ state: window.__lb.state, cls: window.__lb.game?.player.cls.id }));
+  const ok = first.state === 'menu' && first.on.length === 1 && first.start.startsWith("Start as ")
+    && missed.state === 'menu' && missed.on.join() === 'viking' && missed.start === 'Start as Viking'
+    && recoloured.state === 'menu' && recoloured.on.join() === 'viking' && recoloured.palette === 1
+    && keyed.state === 'menu' && keyed.on.join() === 'archer' && keyed.start === 'Start as Archer'
+    && run.cls === 'archer' && run.state !== 'menu';
+  return { ok, detail: `first ${JSON.stringify(first)}, beside swatch ${JSON.stringify(missed)}, on swatch ${JSON.stringify(recoloured)}, Enter ${JSON.stringify(keyed)}, Enter again ${JSON.stringify(run)}` };
+});
+
 // #117: with Ballista Shot the reticle is the bolt's own size (it was drawn at 14 for a 16 bolt)
 await check('ballista: the aim reticle is the size of the bolt it fires', async () => {
   await inPage(() => {
@@ -1386,6 +1424,7 @@ await check('ballista: the aim reticle is the size of the bolt it fires', async 
     document.querySelector('[data-go="start"]').click();
     await wait();
     document.querySelector('[data-class="archer"]').click();
+    document.querySelector('[data-start]')?.click(); // #146: the card selects, Start begins the run
     await wait(200);
     const g = window.__lb.game;
     g.player.invulnerable = true;

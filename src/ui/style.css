@@ -357,7 +357,7 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .titles { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .epithet { font-family: var(--heading); font-size: 22px; color: #f3ead0; margin-top: 4px; }
 /* v0.5 quest board */
-.board .card.on { outline: 3px solid var(--gold); outline-offset: -7px; transform: translateY(-6px); box-shadow: 0 0 16px var(--gold); }
+.select .card.on, .board .card.on { outline: 3px solid var(--gold); outline-offset: -7px; transform: translateY(-6px); box-shadow: 0 0 16px var(--gold); }
 
 .stats-table { width: 100%; border-collapse: collapse; font-family: Georgia, serif; font-size: 14px; margin-bottom: 8px; }
 .stats-table th { text-align: left; font-family: var(--body); border-bottom: 1px solid #5a3d25; }
