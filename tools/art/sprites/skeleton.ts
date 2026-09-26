@@ -29,7 +29,7 @@ function skeleton(p: P): Figure {
   const ribs: [number, number, 'bone', number][] = [-11, -10, -9, -8, -7, -6].flatMap((y) => (y % 2 ? [] : [[-2.5, y + 0.5, 'bone', 0], [-1.5, y + 0.5, 'bone', 0]] as [number, number, 'bone', number][]));
   f.part(torso, [[-4.6, -13], [4.4, -13], [4.8, -8.5], [3, -5], [-3, -5], [-5, -8.5]], 'bone', 3.2, { details: [...ribs, ...ribs.map(([x, y]) => [x + 4.2, y, 'bone', 0] as [number, number, 'bone', number])] }); // ribcage
   const head = torso.child(0.6, -13.5, p.head);
-  f.part(head, [[-3.6, 0], [-4, -4], [-2.4, -7], [1.6, -7.4], [4, -5], [4, -1.4], [2.6, 0.4], [2.6, 1.8], [-1, 1.8]], 'bone', 5, { details: [[1.6, -3.4, 'soul', 5], [3.2, -3.4, 'soul', 5], [2.6, -1.2, 'bone', 0], [1.5, 1, 'bone', 1], [2.5, 1, 'bone', 1]] }); // skull
+  f.part(head, [[-3.6, 0], [-4, -4], [-2.4, -7], [1.6, -7.4], [4, -5], [4, -1.4], [2.6, 0.4], [2.6, 1.8], [-1, 1.8]], 'bone', 5, { details: [[1.6, -3.4, 'necro', 5], [3.2, -3.4, 'necro', 5], [2.6, -1.2, 'bone', 0], [1.5, 1, 'bone', 1], [2.5, 1, 'bone', 1]] }); // skull
   const sh = torso.at(3.5, -11.5), fsh = torso.at(-3.5, -11.5);
   const off: Pt = [fsh[0] + 1, fsh[1] + 9];
   f.part(limb(fsh, ik(fsh, off, 5, 5, -1)), [[-0.8, 0], [0.8, 0], [0.8, 5], [-0.8, 5]], 'bone', 2.5, { dim: 1 });

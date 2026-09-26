@@ -18,7 +18,7 @@ function angel(p: Pose): Figure {
 
   legs(hip, p.feet, (th, sh, ft, z, dim) => {
     f.part(sh, [[-2.6, 0], [2.6, 0], [2.3, 11], [-2.3, 11]], 'white', z, { dim, profile: 'flat', folds: [0.4, 3, 0] }); // robe over the shin
-    f.part(ft, [[-2.4, -1], [2.2, -1], [5, 1.5], [5.4, 3], [-2.6, 3]], 'skin', z + 0.15, { dim, details: [[1, 0.5, 'leather', 1], [3, 1.2, 'leather', 1]] }); // sandal
+    f.part(ft, [[-2.4, -1], [2.2, -1], [5, 1.5], [5.4, 3], [-2.6, 3]], 'tan', z + 0.15, { dim, details: [[1, 0.5, 'leather', 1], [3, 1.2, 'leather', 1]] }); // sandal
     void th;
   });
 
@@ -31,7 +31,7 @@ function angel(p: Pose): Figure {
 
   const head = torso.child(0.8, -19, p.head);
   f.part(head, [[-5, 1], [-5.5, -5], [-3, -9.6], [2, -10], [5, -7], [4, -3], [-1, -3], [-2, 3], [-3, 8], [-6, 6]], 'gold', 4.8, { folds: [0.6, 2, 1] }); // hair down her back
-  f.part(head, [[-3, 0.5], [-3.5, -6], [0, -8], [4.4, -6.5], [5, -3], [4.4, 0], [2, 1.5], [-1.5, 1.5]], 'skin', 5, { details: [[3.3, -3.6, 'blue', 1], [4, -0.6, 'red', 3]] }); // face
+  f.part(head, [[-3, 0.5], [-3.5, -6], [0, -8], [4.4, -6.5], [5, -3], [4.4, 0], [2, 1.5], [-1.5, 1.5]], 'tan', 5, { details: [[3.3, -3.6, 'blue', 1], [4, -0.6, 'red', 3]] }); // face
   f.part(head, [[-4.5, -4], [-4, -8.6], [-0.5, -10.4], [3.6, -9.6], [5.4, -6.8], [2, -7.2], [-1, -6], [-3, -2]], 'gold', 5.1, { folds: [0.5, 1.6, 0] }); // fringe
   f.part(head.child(0, -13.5, -p.plume), ell(0, 0, 5.5, 1.6, 24), 'glow', 5.2, { profile: 'flat', details: [[-3, -0.3, 'glow', 6], [2, -0.3, 'glow', 6]] }); // halo
 
@@ -39,13 +39,13 @@ function angel(p: Pose): Figure {
   const fsh = torso.at(-5, -15);
   const [fup, ffo] = arm(fsh, [fsh[0] + p.off[0], fsh[1] + p.off[1]]);
   f.part(fup, [[-2.4, -1], [2.4, -1], [2.2, 8], [-2.2, 8]], 'white', 2.5, { dim: 1, folds: [0.4, 2.5, 1] });
-  f.part(ffo, [[-2.2, -0.5], [2.2, -0.5], [1.8, 6.5], [-1.8, 6.5]], 'skin', 2.6, { dim: 1 });
+  f.part(ffo, [[-2.2, -0.5], [2.2, -0.5], [1.8, 6.5], [-1.8, 6.5]], 'tan', 2.6, { dim: 1 });
   const sh = torso.at(5, -15);
   const fist: Pt = [sh[0] + p.fist[0], sh[1] + p.fist[1]];
   const [up, fo] = arm(sh, fist);
   f.part(up, [[-2.6, -1], [2.6, -1], [2.4, 8], [-2.4, 8]], 'white', p.za, { folds: [0.4, 2.5, 1] }); // sleeve
   f.part(fo, [[-2.4, -0.5], [2.4, -0.5], [3, 5], [-3, 5]], 'white', p.za + 0.1, { trim: ['gold', 0] }); // wide cuff
-  f.part(fo, ell(0, 6.5, 1.8, 1.8), 'skin', p.za + 0.15);
+  f.part(fo, ell(0, 6.5, 1.8, 1.8), 'tan', p.za + 0.15);
   const r = 1.4 + 2.2 * p.fx; // the orb swells as it charges
   f.part(new Bone(...fo.at(0, 8.5 + r * 0.6)), ell(0, 0, r, r, 16), 'glow', p.za + 0.3, { profile: 'round', outline: false });
   return f;

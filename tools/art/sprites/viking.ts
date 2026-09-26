@@ -11,7 +11,7 @@ function viking(p: Pose): Figure {
   // the round shield on the far arm, behind the body
   const fsh = torso.at(-5.5, -15.5);
   const [fup, ffo] = arm(fsh, [fsh[0] + p.off[0], fsh[1] + p.off[1]]);
-  f.part(fup, [[-2.6, -1], [2.6, -1], [2.2, 8], [-2.2, 8]], 'skin', 0.5, { dim: 1 });
+  f.part(fup, [[-2.6, -1], [2.6, -1], [2.2, 8], [-2.2, 8]], 'tan', 0.5, { dim: 1 });
   f.part(ffo, [[-2.3, -0.5], [2.3, -0.5], [2.4, 6.5], [-2.4, 6.5]], 'leather', 0.6, { dim: 1 });
   const shield = new Bone(...ffo.at(0, 5), p.offA);
   f.part(shield, ell(-2, -1, 9, 9.5, 24), 'leather', 0.7, { trim: ['steel', 1], details: [0, 1, 2, 3, 4, 5].flatMap((k) => [[-9 + k * 3.5, -1, 'leather', 1]] as [number, number, 'leather', number][]) });
@@ -20,7 +20,7 @@ function viking(p: Pose): Figure {
 
   legs(hip, p.feet, (th, sh, ft, z, dim) => {
     f.part(th, [[-3.8, -1.5], [3.8, -1.5], [3.2, 11.5], [-3.2, 11.5]], 'leather', z, { dim, folds: [0.4, 3, 1] }); // trousers
-    f.part(sh, [[-2.8, 0], [2.8, 0], [2.4, 11], [-2.4, 11]], 'fur', z + 0.1, { dim, folds: [0.6, 2.4, 1] }); // leg wraps
+    f.part(sh, [[-2.8, 0], [2.8, 0], [2.4, 11], [-2.4, 11]], 'pelt', z + 0.1, { dim, folds: [0.6, 2.4, 1] }); // leg wraps
     f.part(ft, [[-2.8, -2], [2.6, -2], [5, 0.6], [6, 3], [-3, 3]], 'leather', z + 0.15, { dim }); // boot
   });
 
@@ -28,11 +28,11 @@ function viking(p: Pose): Figure {
   f.part(torso, [[-8.4, -17.5], [8, -17.5], [9, -11], [8, -3], [-7.6, -3], [-8.8, -11]], 'steel', 3.1, { mail: true }); // mail shirt
   f.part(torso, [[-8, -6], [8.2, -6], [8.2, -2], [-8, -2]], 'leather', 3.5); // belt
   f.part(torso, [[1, -6.4], [4, -6.4], [4, -1.6], [1, -1.6]], 'steel', 3.6); // buckle
-  f.part(torso.child(0, -17, p.cape - p.lean), [[-9.5, -2], [9.5, -2], [10, 3], [4, 5.5], [-4, 5], [-10.5, 3.5]], 'fur', 3.7, { folds: [0.7, 2, 0] }); // fur mantle
+  f.part(torso.child(0, -17, p.cape - p.lean), [[-9.5, -2], [9.5, -2], [10, 3], [4, 5.5], [-4, 5], [-10.5, 3.5]], 'pelt', 3.7, { folds: [0.7, 2, 0] }); // fur mantle
 
   const head = torso.child(1, -19, p.head);
   f.part(head, [[-4.4, -1], [4.8, -1], [5.2, 3.5], [3, 8.5], [0, 10], [-3, 8.5], [-4.5, 3]], 'hair', 4.8, { folds: [0.5, 1.8, 0] }); // beard
-  f.part(head, [[-4.4, 1], [-4.8, -5], [-2, -7], [4, -7], [5.4, -3.5], [5.4, 0.5], [2.5, 1.5]], 'skin', 5, { details: [[3.4, -3.3, 'darksteel', 0], [1.2, -3.3, 'darksteel', 0]] }); // face
+  f.part(head, [[-4.4, 1], [-4.8, -5], [-2, -7], [4, -7], [5.4, -3.5], [5.4, 0.5], [2.5, 1.5]], 'tan', 5, { details: [[3.4, -3.3, 'darksteel', 0], [1.2, -3.3, 'darksteel', 0]] }); // face
   f.part(head, [[-2, 1.5], [5.4, 0.5], [5, 3], [-1, 3.5]], 'hair', 5.05); // moustache
   f.part(head, [[-5.2, -4.3], [-4.8, -8.5], [-2, -11], [2, -11.2], [4.8, -9], [5.6, -4.3]], 'steel', 5.1, { trim: ['darksteel', 1] }); // helm
   f.part(head, [[0.3, -4.5], [1.8, -4.5], [1.8, -0.6], [0.3, -0.6]], 'steel', 5.2); // nasal
@@ -43,14 +43,14 @@ function viking(p: Pose): Figure {
   const fist: Pt = [sh[0] + p.fist[0], sh[1] + p.fist[1]];
   const [up, fo] = arm(sh, fist);
   const za = p.za;
-  f.part(up, [[-2.8, -1], [2.8, -1], [2.4, 8], [-2.4, 8]], 'skin', za);
-  f.part(fo, [[-2.5, -0.5], [2.5, -0.5], [2.6, 6.2], [-2.6, 6.2]], 'leather', za + 0.1, { trim: ['fur', 1] }); // bracer
+  f.part(up, [[-2.8, -1], [2.8, -1], [2.4, 8], [-2.4, 8]], 'tan', za);
+  f.part(fo, [[-2.5, -0.5], [2.5, -0.5], [2.6, 6.2], [-2.6, 6.2]], 'leather', za + 0.1, { trim: ['pelt', 1] }); // bracer
   const ax = new Bone(fist[0], fist[1], p.wpn);
   f.part(ax, [[-0.9, 4.5], [0.9, 4.5], [0.9, -24], [-0.9, -24]], 'leather', za + 0.3); // haft
   f.part(ax, [[0.6, -24.5], [4, -26], [8, -28.5], [9.8, -23], [9.6, -17], [8, -12.5], [5.5, -15], [2.5, -18.5], [0.6, -18.5]], 'steel', za + 0.35, { trim: ['steel', 0], details: [[8.6, -25, 'steel', 6], [9, -21, 'steel', 6], [8.7, -17, 'steel', 6]] }); // bearded head
   f.part(ax, [[-2.5, -23], [-0.6, -24], [-0.6, -19.5], [-2.5, -20.5]], 'darksteel', za + 0.32); // back spike
-  f.part(ax, ell(0.3, 0.5, 2.7, 2.6), 'skin', za + 0.4); // fist
-  f.part(new Bone(sh[0], sh[1], torso.a * 0.65 + up.a * 0.35), ell(0.3, 0.3, 4.6, 3.9), 'fur', za + 0.5); // near shoulder pelt
+  f.part(ax, ell(0.3, 0.5, 2.7, 2.6), 'tan', za + 0.4); // fist
+  f.part(new Bone(sh[0], sh[1], torso.a * 0.65 + up.a * 0.35), ell(0.3, 0.3, 4.6, 3.9), 'pelt', za + 0.5); // near shoulder pelt
 
   if (p.smear) smear(f, sh, p.smear, 27, 'smear', za - 0.3, 'white');
   return f;

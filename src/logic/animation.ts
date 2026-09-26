@@ -10,8 +10,8 @@ export interface SheetData {
   h: number;
   anchor: [number, number]; // ground point between the feet, in the cell
   tall: number; // figure height in art pixels
-  anims: Record<Exclude<AnimName, 'skill'>, number[]> & { skill?: number[] }; // ms per frame; the rows of the sheet in this order.
-  // skill: #156, the utility ability (Leap, Dodge Roll, Blink, Taunt, Corpse Explosion); only the champions have it
+  anims: Record<Exclude<AnimName, 'skill' | 'cast'>, number[]> & { cast?: number[]; skill?: number[] }; // ms per frame; the rows of the sheet in this order.
+  // cast and skill: #156, the signature ability, and the utility ability (Leap, Dodge Roll, Blink, Taunt, Corpse Explosion); only the champions have them
   impact: number; // attack frame where the weapon connects
 }
 
@@ -57,7 +57,7 @@ export function pickFrame(d: SheetData, s: AnimInput, baseSpeed: number): { anim
   if (s.dead < Infinity) return { anim: 'death', frame: frameAt(a.death, s.dead * 1000, false) };
   const sum = (ms: number[]) => ms.reduce((x, y) => x + y, 0);
   if (a.skill && s.skill * 1000 < sum(a.skill)) return { anim: 'skill', frame: frameAt(a.skill, s.skill * 1000, false) }; // #156: legs don't run through a leap or a roll
-  if (s.cast * 1000 < sum(a.cast)) return { anim: 'cast', frame: frameAt(a.cast, s.cast * 1000, false) }; // #156: the ability outranks a swing
+  if (a.cast && s.cast * 1000 < sum(a.cast)) return { anim: 'cast', frame: frameAt(a.cast, s.cast * 1000, false) }; // #156: the ability outranks a swing
   const post = a.attack.slice(d.impact), postMs = sum(post);
   let pre = a.attack.slice(0, d.impact);
   // #156: squeezed too hard, the wind-up frames only flicker: a fast attack keeps just the swing frame before the impact
@@ -69,4 +69,14 @@ export function pickFrame(d: SheetData, s: AnimInput, baseSpeed: number): { anim
   if (s.untilHit * 1000 < preMs * squeeze) return { anim: 'attack', frame: skip + frameAt(pre, preMs - (s.untilHit * 1000) / squeeze, false) };
   if (s.moving) return { anim: 'walk', frame: Math.floor((s.walked / (baseSpeed * WALK_STRIDE)) * a.walk.length) % a.walk.length };
   return { anim: 'idle', frame: frameAt(a.idle, s.time * 1000, true) };
+}
+
+/**
+ * #157: seconds until a foe's next blow lands, for its wind-up: a telegraphed attack's own wind-up first, else the sooner of a
+ * shot (`shot`: seconds to its next bolt, Infinity when it doesn't shoot or its target is out of range) and a melee swing (only
+ * while its target is in reach). Infinity: nothing coming.
+ */
+export function foeUntilHit(windup: number, attackTimer: number, inReach: boolean, shot: number): number {
+  if (windup > 0) return windup;
+  return Math.min(inReach && attackTimer > 0 ? attackTimer : Infinity, shot > 0 ? shot : Infinity);
 }

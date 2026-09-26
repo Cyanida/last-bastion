@@ -1257,7 +1257,9 @@ await check('flash card: a new foe shows one with its sprite and a spotlight on 
     // #138: the regular foes and the commanders are drawn on a grid twice as fine, and keep the old grid's size: its columns and rows at 3 px each
     const oldGrid = { peasant: [12, 14], wolf: [14, 8], crossbow: [12, 14], knight: [12, 14], cultist: [12, 14], shieldBearer: [12, 14], priest: [12, 14], cavalry: [16, 13], engineer: [12, 14], plagueDoctor: [12, 14], houndmaster: [12, 14], mirrorKnight: [12, 14], assassin: [12, 13], shieldwall: [12, 14], boneCollector: [12, 14], bannerman: [12, 14], drummer: [12, 14], chaplain: [12, 14] };
     const redrawn = glossary.sizes.filter(([id]) => id in oldGrid);
-    const sized = redrawn.length > 0 && redrawn.every(([id, w, h]) => w === oldGrid[id][0] * 3 + 4 && h === oldGrid[id][1] * 3 + 4);
+    // #157: a foe with a rigged sheet shows its figure instead, about 50 art px tall
+    const rigged = await inPage(() => window.__lb.sheets());
+    const sized = redrawn.length > 0 && redrawn.every(([id, w, h]) => (rigged.includes(id) ? h >= 40 && h <= 80 : w === oldGrid[id][0] * 3 + 4 && h === oldGrid[id][1] * 3 + 4));
     const ok = first.state === 'choice' && first.held && first.saved && first.words <= 14 && after.closed && once && glossary.text.includes(first.name) && pictured && first.spotOn && dimmed && after.spotOff && sized;
     return { ok, detail: `foe pictures ${redrawn.map(([id, w, h]) => `${id} ${w}×${h}`).join(', ') || 'NONE'}${sized ? '' : ' (WRONG SIZE)'}; "${first.name}" (${first.words} words), picture ${first.picture}, spotlight ${first.spotOn ? 'on it' : 'MISSING'}, arena ${Math.round(first.dim)} → ${Math.round(after.lit)} after closing${after.spotOff ? '' : ' (STILL LIT)'}, held ${first.held}, saved ${first.saved}, Enter closed ${after.closed}; cards ${after.shown.join(', ')}${once ? '' : ' (REPEATED)'}; Glossary ${glossary.text ? 'lists it' : 'MISSING'}, ${glossary.pics}/${glossary.rows} pictures` };
   }),
@@ -1284,7 +1286,8 @@ await check('card pictures: siege pieces and bosses redrawn at their old size, t
       document.querySelector('[data-back]')?.click();
       await wait();
       lb.save.cards.splice(0, lb.save.cards.length, ...had);
-      const wrong = want.filter(([id, , c, r, s]) => pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
+      const rigged = lb.sheets(); // #157: a redrawn piece shows its rigged figure instead, 1 art px to 1 world px
+      const wrong = want.filter(([id, , c, r, s]) => (rigged.includes(id) ? !(pics.get(id)?.[1] >= 30 && pics.get(id)?.[1] <= 120) : pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4)).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
       const own = ['siegeCamp', 'plagueCart'].every((id) => pics.has(id)) && pics.get('siegeCamp')[2] !== pics.get('siegeTower')?.[2] && pics.get('plagueCart')[2] !== pics.get('ballista')?.[2];
       const ok = wrong.length === 0 && own && lb.state === 'menu';
       return { ok, detail: `${want.map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×')}`).join(', ')}${wrong.length ? ` · WRONG ${wrong}` : ''} · camp ${pics.get('siegeCamp')?.slice(0, 2).join('×')}, cart ${pics.get('plagueCart')?.slice(0, 2).join('×')}${own ? '' : ' (NOT THEIR OWN)'}` };
@@ -1703,6 +1706,264 @@ await check('Fast attacks and Leap: the swing keeps up at the cap, E leaps witho
   const ok = attacking.length >= swing.length * 0.8 && windUp === 0 && leap.some((f) => f.anim === 'skill') && !leap.some((f) => f.anim === 'walk');
   return { ok, detail: `at the cap ${attacking.length}/${swing.length} frames attacking, ${windUp} wind-up; E: ${leap.map((f) => `${f.anim}${f.frame}`).join(' ')}` };
 });
+
+// ---------- #157: the foes' rigged sheets: a peasant walks up, jabs on his wind-up, and falls when slain ----------
+await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#157)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('peasant'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', 'paladin');
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      const peasants = g.enemies.filter((e) => e.def.id === 'peasant');
+      for (const [i, e] of g.enemies.entries()) Object.assign(e, { x: g.player.x + (e === peasants[0] ? 160 : 3000 + i * 40), y: g.player.y, hp: 1e6, maxHp: 1e6 });
+    });
+    const seen = [];
+    for (let t = 0; t < 5000 && !seen.includes('attack'); t += 50) {
+      if (seen.includes('walk')) {
+        await inPage(() => {
+          // he has walked: now he stands at the Paladin's side
+          const g = window.__lb.game, e = g.enemies.find((x) => x.def.id === 'peasant' && Math.abs(x.x - g.player.x) < 400);
+          if (e) Object.assign(e, { x: g.player.x + 22, y: g.player.y });
+        });
+      }
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('peasant')?.anim ?? 'none'))))));
+      if (seen[seen.length - 1] !== a) seen.push(a);
+    }
+    // slain: his death plays where he stood
+    const dying = await inPage(() => {
+      const g = window.__lb.game, e = g.enemies.find((x) => x.def.id === 'peasant' && Math.abs(x.x - g.player.x) < 200);
+      if (e) Object.assign(e, { hp: 1 });
+      return new Promise((r) => {
+        let n = 0;
+        const tick = () => {
+          window.__lb.run(2, false, 'input');
+          requestAnimationFrame(() => (window.__lb.foesDying().includes('peasant') || ++n > 60 ? r(window.__lb.foesDying()) : tick()));
+        };
+        tick();
+      });
+    });
+    const ok = seen.includes('walk') && seen.includes('attack') && dying.includes('peasant');
+    return { ok, detail: `${seen.join(' → ')}; dying [${dying.join(', ')}]` };
+  }),
+);
+
+// ---------- #157: every redrawn foe loads its sheet, and a ranged foe (the Crossbowman) levels and looses on his shot ----------
+await check('Foe sheets: every redrawn foe and commander loads; a crossbowman plays his shot (#157)', () =>
+  inPage(() => location.reload()).then(async () => {
+    const want = ['peasant', 'wolf', 'crossbow', 'cavalry', 'ballista', 'plagueCart', 'siegeTower', 'siegeCamp', 'knight', 'cultist', 'shieldBearer', 'priest', 'engineer', 'plagueDoctor', 'houndmaster', 'mirrorKnight', 'assassin', 'shieldwall', 'boneCollector', 'bannerman', 'drummer', 'chaplain'];
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('crossbow'));
+    const sheets = await inPage(() => window.__lb.sheets());
+    const missing = want.filter((id) => !sheets.includes(id));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      for (const [id, v] of [['tm-class', 'paladin'], ['tm-act', '1'], ['tm-wave', '1']]) {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      for (let i = 0; i < 200 && !g.enemies.length; i++) window.__lb.run(1, false, 'input'); // the wave's first foe
+      const [e] = g.enemies;
+      e.def = window.__lb.enemyDef('crossbow'); // the first foe becomes a crossbowman
+      for (const [i, x] of g.enemies.entries()) Object.assign(x, { x: g.player.x + (x === e ? 180 : 3000 + i * 40), y: g.player.y, hp: 1e6, maxHp: 1e6 });
+    });
+    const seen = [];
+    for (let t = 0; t < 6000 && !seen.includes('attack'); t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('crossbow')?.anim ?? 'none'))))));
+      if (seen[seen.length - 1] !== a) seen.push(a);
+    }
+    return { ok: missing.length === 0 && seen.includes('attack'), detail: `missing [${missing.join(', ')}]; crossbow ${seen.join(' → ')}` };
+  }),
+);
+// ---------- #159: every arena draws its ground props from the rig's atlas, and the keep's braziers flicker ----------
+await check('Arenas: every arena shows its rigged props; the braziers flicker; pickups are rigged (#159)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+    const out = [];
+    for (const arena of ['courtyard', 'graveyard', 'keep', 'bastion']) {
+      if (out.length) {
+        await inPage(() => location.reload());
+        await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+      }
+      out.push(
+        await inPage(async (arena) => {
+          const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+          [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+          await wait(150);
+          document.querySelector('[data-act="test"]').click();
+          await wait();
+          const el = document.getElementById('tm-arena');
+          el.value = arena;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          const g = window.__startTest();
+          g.player.invulnerable = true;
+          // the quest board comes up on the first frames: set out without a quest, and let the run go
+          for (let i = 0; i < 40 && !(lb.state === 'playing' && g.time > 0.3); i++) {
+            if (lb.state === 'choice') lb.run(1, false, 'input');
+            await wait(50);
+          }
+          // the atlas, read back, against the baked ground: each obstacle's prop is in the arena, pixel for pixel at its anchor column
+          const img = new Image();
+          img.src = 'sprites/props.png';
+          await img.decode();
+          const atlas = document.createElement('canvas');
+          [atlas.width, atlas.height] = [img.width, img.height];
+          atlas.getContext('2d').drawImage(img, 0, 0);
+          const a = atlas.getContext('2d'), ground = lb.arenaCanvas(g.arena.id).getContext('2d');
+          // kind: [atlas row y, anchor x, anchor y, a solid pixel's y in the cell, drawn for radius] (src/render/props.json)
+          const P = { pillar: [0, 38, 80, 50, 30], tomb: [172, 24, 48, 35, 18], tree: [236, 60, 98, 70, 26], throne: [356, 60, 100, 70, 44] };
+          let props = 0, wrong = 0;
+          for (const o of g.arena.obstacles) {
+            const m = P[o.kind];
+            if (!m) continue;
+            const k = o.r / m[4];
+            const want = a.getImageData(m[1], m[0] + m[3], 1, 1).data;
+            const got = ground.getImageData(Math.round(o.x), Math.round(o.y + (m[3] - m[2]) * k), 1, 1).data;
+            props++;
+            if (k === 1 && Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) > 8) wrong++;
+          }
+          // a brazier on screen: its flame changes from frame to frame
+          let flicker = null;
+          const b = g.arena.obstacles.find((o) => o.kind === 'brazier');
+          if (b) {
+            Object.assign(g.player, { x: b.x - 120, y: b.y });
+            await wait(200);
+            const cam = lb.camera(), c = document.getElementById('game').getContext('2d');
+            const seen = new Set();
+            for (let i = 0; i < 12; i++) {
+              g.enemies.length = 0;
+              const px = c.getImageData(Math.round((b.x - cam.x) * cam.zoom) - 12, Math.round((b.y - 40 - cam.y) * cam.zoom) - 12, 24, 24).data;
+              seen.add(px.join(',').length + ':' + px.reduce((s, v) => s + v, 0));
+              await wait(60);
+            }
+            flicker = seen.size;
+            if (flicker < 2) flicker = `${flicker} (${lb.state}, time ${g.time.toFixed(2)})`;
+          }
+          // the ground pickups: an xp gem, a big one and a coin next to the champion, drawn once (no tick, so none is picked up)
+          let pickups = null;
+          if (arena === 'keep') {
+            const drops = [['xp', 1, 508], ['xp', 10, 521], ['gold', 1, 534]].map(([kind, value, row], i) => ({ kind, value, row, x: Math.round(g.player.x) + 40 + i * 30, y: Math.round(g.player.y) - 60 }));
+            g.enemies.length = 0;
+            g.pickups.push(...drops.map(({ kind, value, x, y }) => ({ kind, value, x, y })));
+            lb.draw();
+            const cam = lb.camera(), c = document.getElementById('game').getContext('2d');
+            pickups = drops.filter((d) => {
+              const want = a.getImageData(6, d.row + 6, 1, 1).data;
+              const got = c.getImageData(Math.round((d.x - Math.round(cam.x)) * cam.zoom), Math.round((d.y - Math.round(cam.y)) * cam.zoom), 1, 1).data;
+              return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
+            }).length;
+          }
+          return { arena, props, wrong, flicker, pickups };
+        }, arena),
+      );
+    }
+    const ok = out.every((r) => r.wrong === 0) && out.find((r) => r.arena === 'graveyard').props > 0 && typeof out.find((r) => r.arena === 'keep').flicker === 'number' && out.find((r) => r.arena === 'keep').pickups === 3;
+    return { ok, detail: out.map((r) => `${r.arena}: ${r.props} props${r.wrong ? ` (${r.wrong} WRONG)` : ''}${r.flicker === null ? '' : `, flame ${r.flicker} looks`}${r.pickups === null ? '' : `, ${r.pickups}/3 pickups drawn from the atlas`}`).join('; ') };
+  }),
+);
+
+// ---------- #159: the wings' features are rigged props, and the Graveyard's hands claw up out of their circles ----------
+await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasping hands rise in their telegraphs (#159)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+    const out = [];
+    for (const arena of ['bastion', 'graveyard', 'keep']) {
+      if (out.length) {
+        await inPage(() => location.reload());
+        await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+      }
+      out.push(
+        await inPage(async (arena) => {
+          const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+          [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+          await wait(150);
+          document.querySelector('[data-act="test"]').click();
+          await wait();
+          const el = document.getElementById('tm-arena');
+          el.value = arena;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          const g = window.__startTest();
+          g.player.invulnerable = true;
+          for (let i = 0; i < 40 && !(lb.state === 'playing' && g.time > 0.3); i++) {
+            if (lb.state === 'choice') lb.run(1, false, 'input');
+            await wait(50);
+          }
+          const img = new Image();
+          img.src = 'sprites/props.png';
+          await img.decode();
+          const atlas = document.createElement('canvas');
+          [atlas.width, atlas.height] = [img.width, img.height];
+          atlas.getContext('2d').drawImage(img, 0, 0);
+          const a = atlas.getContext('2d'), c = document.getElementById('game').getContext('2d');
+          // does the canvas show the atlas pixel (col, row) of a prop whose anchor (ax, ay) sits on world (x, y)?
+          const shows = (x, y, ax, ay, col, row) => {
+            const cam = lb.camera();
+            const wx = Math.round(x - ax) + ax, wy = Math.round(y - ay) + ay;
+            const want = a.getImageData(col, row, 1, 1).data;
+            const got = c.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data;
+            return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
+          };
+          // src/render/props.json: atlas row and anchor of each feature's prop
+          const F = { shrine: [585, 30, 34], chest: [637, 20, 20], lair: [671, 32, 26], hazard: [711, 24, 24] };
+          let features = null;
+          const f = g.features[0];
+          if (f) {
+            // its wing opened, and the feature set down beside the champion so the camera has it (the wing's floor stays walled off)
+            g.regionOpen[f.wing] = true;
+            Object.assign(f, { x: Math.round(g.player.x) + 150, y: Math.round(g.player.y) });
+            features = [];
+            for (const kind of Object.keys(F)) {
+              f.kind = kind;
+              g.enemies.length = 0;
+              lb.draw();
+              const [row, ax, ay] = F[kind];
+              if (shows(f.x, f.y, ax, ay, ax, row + ay)) features.push(kind);
+            }
+          }
+          // the arena's hazard, now: a hand (the Graveyard) or a flame (the keep's braziers) in each telegraph
+          g.wave = Math.max(1, g.wave);
+          g.hazardT = 0.001;
+          for (let i = 0; i < 40 && !g.zones.some((z) => z.art); i++) await wait(25);
+          const arts = [...new Set(g.zones.filter((z) => z.art).map((z) => z.art))];
+          let hand = null;
+          const z = g.zones.find((z) => z.art === 'hands');
+          if (z) {
+            Object.assign(g.player, { x: z.x - 200, y: z.y });
+            g.enemies.length = 0;
+            lb.draw();
+            const frame = Math.min(2, Math.floor(Math.min(1, z.t / z.delay) * 3));
+            hand = shows(z.x, z.y + 8, 16, 38, frame * 32 + 16, 749 + 38); // the earth heaped round the wrist, at the anchor
+          }
+          return { arena, features, arts, hand };
+        }, arena),
+      );
+    }
+    const by = (id) => out.find((r) => r.arena === id);
+    const ok = by('bastion').features?.length === 4 && by('graveyard').arts.includes('hands') && by('graveyard').hand === true && by('keep').arts.includes('fire');
+    return { ok, detail: out.map((r) => `${r.arena}: ${r.features ? `features ${r.features.join('/') || 'none'}, ` : ''}telegraphs ${r.arts.join('/') || 'none'}${r.hand === null ? '' : `, hand ${r.hand ? 'drawn' : 'MISSING'}`}`).join('; ') };
+  }),
+);
+
 
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose

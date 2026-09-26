@@ -4,6 +4,8 @@ import { pickFrame, type AnimInput, type SheetData } from '../src/logic/animatio
 import { Bone, ik, limb } from '../tools/art/rig';
 import { buildSheet, loadDefs, sheetJson, sheetPaths } from '../tools/art/sheet';
 
+const defs = await loadDefs(); // #157: rendered per sprite below
+
 describe('#155 art rig', () => {
   it('ik reaches its target and bends the joint forward; limb() aims local +y; local() inverts at()', () => {
     const j = ik([0, 0], [0, 20], 10.5, 10.5, 1);
@@ -18,18 +20,16 @@ describe('#155 art rig', () => {
     expect(new Bone(1, 2).child(3, 4).at(0, 0)).toEqual([4, 6]);
   });
 
-  it('every committed sheet matches its definition (run `npm run art` when this fails)', async () => {
-    const defs = await loadDefs();
-    expect(defs.length).toBeGreaterThan(0);
-    for (const def of defs) {
-      const { png, data } = buildSheet(def);
-      const p = sheetPaths(def.id);
-      expect(existsSync(p.png), `${p.png} missing`).toBe(true);
-      expect(Buffer.compare(png, readFileSync(p.png)) === 0, `${p.png} is out of date`).toBe(true);
-      expect(readFileSync(p.json, 'utf8').replace(/\r\n/g, '\n')).toBe(sheetJson(data));
-      expect(buildSheet(def).png.equals(png)).toBe(true); // deterministic
-    }
-  }, 90_000); // #156: every champion's sheet is rendered twice
+  // #157: one test per sprite, each with room to render twice: two dozen sheets overrun one test's time on a busy machine
+  it('has sheets to check', () => expect(defs.length).toBeGreaterThan(0));
+  it.each(defs.map((d) => [d.id, d] as const))('the committed %s sheet matches its definition (run `npm run art` when this fails)', (_, def) => {
+    const { png, data } = buildSheet(def);
+    const p = sheetPaths(def.id);
+    expect(existsSync(p.png), `${p.png} missing`).toBe(true);
+    expect(Buffer.compare(png, readFileSync(p.png)) === 0, `${p.png} is out of date`).toBe(true);
+    expect(readFileSync(p.json, 'utf8').replace(/\r\n/g, '\n')).toBe(sheetJson(data));
+    expect(buildSheet(def).png.equals(png)).toBe(true); // deterministic
+  }, 60_000);
 });
 
 describe('#155 animation state', () => {

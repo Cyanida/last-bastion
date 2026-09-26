@@ -16,7 +16,7 @@ export interface SpriteDef {
   anchor: [number, number]; // the ground point between the feet, in the cell
   tall: number; // figure height in art pixels (1 art pixel = 1 world pixel)
   // rows in this order; `fade` (0..1, #156): that share of the frame's pixels left out in an ordered dither, for the Angel's Blink
-  anims: Record<Exclude<AnimName, 'skill'>, Frame[]> & { skill?: Frame[] };
+  anims: Record<Exclude<AnimName, 'skill' | 'cast'>, Frame[]> & { cast?: Frame[]; skill?: Frame[] };
   impact: number; // attack frame where the weapon connects
 }
 

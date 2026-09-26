@@ -15,19 +15,36 @@ export const RAMPS = {
   blue: ['#0b1331', '#142459', '#1e3a86', '#2b58b4', '#4480d9', '#77aaf0', '#c2dcff'],
   leather: ['#1e110a', '#3a2114', '#56321c', '#744627', '#935f37', '#b27b4c', '#d09d6d'],
   glow: ['#6b5516', '#a88a2b', '#d6bb50', '#f0dc82', '#fff2b0', '#fffadd', '#ffffff'],
+  // #157: the foes
+  skin: ['#2a1612', '#4e2b22', '#7a4636', '#a8664c', '#c98a66', '#e2ad86', '#f4d2ae'],
+  wool: ['#1c1712', '#342a1f', '#4f4030', '#6b5942', '#877356', '#a38f6d', '#c4b18c'],
+  straw: ['#2e2210', '#5a4318', '#86662a', '#b08d3e', '#cfae5a', '#e6cc80', '#f7e8b4'],
+  green: ['#0d1a12', '#18301f', '#25472c', '#35613a', '#4b7f4a', '#6e9e62', '#a3c58c'],
+  fur: ['#16161a', '#2a2a31', '#43434c', '#5f5f69', '#7e7e86', '#a2a1a4', '#cfccc6'],
+  black: ['#08090c', '#111318', '#1a1d24', '#252a33', '#343a45', '#4a5261', '#8a93a3'], // blackened steel: the foes' plate
+  purple: ['#150a1f', '#28123a', '#3e1d57', '#562a76', '#734096', '#935fb4', '#c49ad8'],
+  coal: ['#0c0b0e', '#17151b', '#221f27', '#2f2b35', '#403a48', '#57505f', '#7a7282'], // dark cloth: robes, hoods, coats
+  poison: ['#16300d', '#2c5a14', '#48861d', '#6cb02a', '#94d044', '#bfe67a', '#e8fbc0'], // the poison trail and clouds
+  ember: ['#4a1406', '#86260a', '#c2410f', '#ec6a17', '#fb9a2c', '#ffc95a', '#fff1b8'], // #157: the fire trail and sparks
   smear: ['#9fb4d0', '#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
   // #156: the other champions
-  skin: ['#2b150e', '#5a2f1f', '#8a4d33', '#b87354', '#d6966f', '#ecb993', '#f8dcc0'],
-  fur: ['#1a1410', '#33281f', '#4d3e30', '#6b5843', '#8a7459', '#a8927a', '#c9b79f'],
+  tan: ['#2b150e', '#5a2f1f', '#8a4d33', '#b87354', '#d6966f', '#ecb993', '#f8dcc0'],
+  pelt: ['#1a1410', '#33281f', '#4d3e30', '#6b5843', '#8a7459', '#a8927a', '#c9b79f'],
   bone: ['#2a2419', '#534833', '#807154', '#a99a78', '#cabd98', '#e4dbbd', '#fbf6e4'],
-  purple: ['#120a1c', '#241335', '#361d4f', '#4c2a6b', '#663d88', '#8657a6', '#a97cc4'],
-  green: ['#0c1a10', '#16301c', '#23472a', '#34623a', '#4a7f4c', '#6b9e62', '#9cc58a'],
-  soul: ['#0f3a26', '#1b6b43', '#2fa062', '#58c985', '#8fe3ad', '#c6f5d6', '#ffffff'],
+  violet: ['#120a1c', '#241335', '#361d4f', '#4c2a6b', '#663d88', '#8657a6', '#a97cc4'],
+  moss: ['#0c1a10', '#16301c', '#23472a', '#34623a', '#4a7f4c', '#6b9e62', '#9cc58a'],
+  necro: ['#0f3a26', '#1b6b43', '#2fa062', '#58c985', '#8fe3ad', '#c6f5d6', '#ffffff'],
   hair: ['#2a1206', '#4f220b', '#7a3a12', '#a85a1c', '#cf7f2e', '#e8a54c', '#f6cc7e'],
   shade: ['#1c0f2e', '#3a1d5c', '#5a2f8a', '#7d4fb3', '#a57ad6', '#cbaaf0', '#f0e2ff'],
+  // #159: the arenas' props
+  stone: ['#1b1a20', '#302f38', '#46454e', '#605e64', '#7e7b76', '#a19c90', '#c9c2b0'],
+  bark: ['#130d0a', '#231812', '#34241a', '#483325', '#5d4431', '#755940', '#927559'],
+  soul: ['#0c2a33', '#155066', '#2182a0', '#3eb1cc', '#7ed8e8', '#c2f1f8', '#ffffff'],
+  fire: ['#5a1a06', '#9a3208', '#d4560f', '#f08a1c', '#f8b73c', '#fde38a', '#fffbe0'],
+  rot: ['#10170f', '#1f2b1d', '#34452f', '#4f6547', '#6d8763', '#94ab86', '#c6d6b4'], // the Graveyard's grasping hands
 } as const;
 export type Material = keyof typeof RAMPS;
-const METALS = new Set<Material>(['steel', 'darksteel', 'gold']);
+const METALS = new Set<Material>(['steel', 'darksteel', 'gold', 'black']);
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
 
 export type Pt = readonly [number, number];

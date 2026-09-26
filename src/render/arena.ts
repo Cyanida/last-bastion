@@ -1,8 +1,61 @@
 import type { ArenaDef, Obstacle } from '../config/arenas';
+import type { FeatureKind } from '../config/regions';
 import { mulberry32 } from '../core/math';
 import type { Rng } from '../core/types';
 
+import PROPS from './props.json';
+
 type Ctx = CanvasRenderingContext2D;
+
+// #159: the props atlas drawn by the rig (tools/art/props.ts). Until it has loaded the old flat shapes stand in; main.ts rebuilds
+// the arenas once it has.
+let propImg: HTMLImageElement | null = null;
+export function loadProps(): Promise<boolean> {
+  return new Promise((done) => {
+    const img = new Image();
+    img.onload = () => done(!!(propImg = img));
+    img.onerror = () => done(false);
+    img.src = `${import.meta.env.BASE_URL}sprites/props.png`;
+  });
+}
+export const propsLoaded = (): boolean => propImg !== null;
+
+/** One prop frame with its anchor on (x, y), scaled from the radius it was drawn for to the obstacle's. False while not loaded. */
+export function drawProp(ctx: Ctx, kind: keyof typeof PROPS, x: number, y: number, r?: number, frame = 0): boolean {
+  const d = PROPS[kind];
+  if (!propImg || !d) return false;
+  const k = r ? r / d.r : 1;
+  ctx.drawImage(propImg, d.x + (frame % d.frames) * d.w, d.y, d.w, d.h, Math.round(x - d.anchor[0] * k), Math.round(y - d.anchor[1] * k), Math.round(d.w * k), Math.round(d.h * k));
+  return true;
+}
+/** #159: each wing feature's rigged prop (tools/art/props.ts). */
+export const FEATURE_PROPS: Record<FeatureKind, keyof typeof PROPS> = { shrine: 'shrine', chest: 'strongbox', lair: 'lair', hazard: 'cache' };
+/** Frame of an animated prop at `time` seconds: the brazier's flame licks at 8 frames a second. */
+export const propFrame = (kind: keyof typeof PROPS, time: number): number => Math.floor(time * 8) % PROPS[kind].frames;
+
+/** #159: a theme colour pushed towards warm light (t > 0) or cool shadow (t < 0), the way the rig's ramps lean. */
+function shade(hex: string, t: number): string {
+  const to = t > 0 ? [255, 236, 200] : [14, 16, 30];
+  const a = Math.min(1, Math.abs(t));
+  const c = [1, 3, 5].map((i, k) => Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - a) + to[k] * a));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+/** #159: one lit stone: the face, a highlight on its top and left edges, shadow on the bottom and right, a chip or two. */
+function stone(ctx: Ctx, x: number, y: number, w: number, h: number, base: string, rng: Rng, e = 2, lit = 1): void {
+  ctx.fillStyle = shade(base, -0.35 * lit);
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = shade(base, 0.18 * lit);
+  ctx.fillRect(x, y, w - e, h - e);
+  ctx.fillStyle = base;
+  ctx.fillRect(x + e, y + e, w - 2 * e, h - 2 * e);
+  ctx.fillStyle = shade(base, -0.15);
+  for (let i = 0, n = Math.floor(rng() * 3); i < n; i++) ctx.fillRect(x + e + rng() * (w - 3 * e), y + e + rng() * (h - 3 * e), 2, 2);
+  if (rng() < 0.3) {
+    ctx.fillStyle = shade(base, 0.1);
+    ctx.fillRect(x + e + rng() * (w - 4 * e), y + e + rng() * (h - 4 * e), 3, 1);
+  }
+}
 
 function tiles(ctx: Ctx, def: ArenaDef, rng: Rng): void {
   const { w, h, theme } = def;
@@ -10,29 +63,70 @@ function tiles(ctx: Ctx, def: ArenaDef, rng: Rng): void {
   ctx.fillStyle = theme.mortar;
   ctx.fillRect(0, 0, w, h);
   if (theme.tile === 'cobble') {
-    const cell = 40;
-    for (let y = 0, row = 0; y < h; y += cell / 2, row++) {
-      for (let x = row % 2 ? -cell / 2 : 0; x < w; x += cell) {
-        ctx.fillStyle = pick();
-        ctx.fillRect(x + 1, y + 1, cell - 2, cell / 2 - 2);
+    // uneven, rounded-off cobbles in staggered rows, softer lit than the wall's blocks so floor and wall don't read alike
+    for (let y = 0; y < h; y += 18) {
+      for (let x = -rng() * 20; x < w; ) {
+        const cw = 16 + Math.floor(rng() * 12);
+        stone(ctx, Math.round(x) + 1, y + 1, cw - 2, 16, pick(), rng, 2, 0.6);
+        ctx.fillStyle = theme.mortar;
+        for (const [cx, cy] of [[0, 0], [cw - 3, 0], [0, 15], [cw - 3, 15]]) ctx.fillRect(Math.round(x) + 1 + cx, y + 1 + cy, 2, 2);
+        x += cw;
       }
     }
   } else if (theme.tile === 'flagstone') {
     const cell = 80;
     for (let y = 0; y < h; y += cell) {
       for (let x = 0; x < w; x += cell) {
-        ctx.fillStyle = pick();
-        ctx.fillRect(x + 2, y + 2, cell - 4, cell - 4);
+        stone(ctx, x + 2, y + 2, cell - 4, cell - 4, pick(), rng, 3);
+        if (rng() < 0.25) {
+          // a crack across the slab
+          ctx.fillStyle = shade(theme.mortar, -0.2);
+          let px = x + 10 + rng() * 40, py = y + 8;
+          for (let i = 0; i < 20; i++, py += 3, px += Math.round(rng() * 4 - 2)) ctx.fillRect(px, py, 1, 3);
+        }
       }
     }
   } else {
-    // earth: blotchy ground with tufts
+    // earth: blotchy ground, lit pebbles and grass tufts with a light tip
     for (let i = 0; i < (w * h) / 900; i++) {
       ctx.fillStyle = pick();
       ctx.fillRect(rng() * w, rng() * h, 20 + rng() * 50, 12 + rng() * 30);
     }
-    ctx.fillStyle = '#46553c';
-    for (let i = 0; i < (w * h) / 2500; i++) ctx.fillRect(rng() * w, rng() * h, 2, 5);
+    for (let i = 0; i < (w * h) / 6000; i++) {
+      const px = rng() * w, py = rng() * h;
+      ctx.fillStyle = shade(theme.mortar, -0.3);
+      ctx.fillRect(px, py, 4, 3);
+      ctx.fillStyle = '#6b665c';
+      ctx.fillRect(px - 1, py - 1, 4, 3);
+      ctx.fillStyle = '#8e887a';
+      ctx.fillRect(px - 1, py - 1, 2, 1);
+    }
+    for (let i = 0; i < (w * h) / 2500; i++) {
+      const px = rng() * w, py = rng() * h;
+      ctx.fillStyle = '#2f3b28';
+      ctx.fillRect(px + 1, py + 1, 2, 5);
+      ctx.fillStyle = '#46553c';
+      ctx.fillRect(px, py, 2, 5);
+      ctx.fillRect(px - 2, py + 1, 1, 4);
+      ctx.fillStyle = '#6f8254';
+      ctx.fillRect(px, py, 1, 2);
+    }
+  }
+}
+
+/** #159: the walls stand to the top and left of the light: they cast a soft shadow down and right onto each floor. */
+function wallShadows(ctx: Ctx, floors: { x: number; y: number; w: number; h: number }[]): void {
+  for (const f of floors) {
+    const top = ctx.createLinearGradient(0, f.y, 0, f.y + 36);
+    top.addColorStop(0, 'rgba(8,8,16,0.55)');
+    top.addColorStop(1, 'rgba(8,8,16,0)');
+    ctx.fillStyle = top;
+    ctx.fillRect(f.x, f.y, f.w, 36);
+    const left = ctx.createLinearGradient(f.x, 0, f.x + 22, 0);
+    left.addColorStop(0, 'rgba(8,8,16,0.4)');
+    left.addColorStop(1, 'rgba(8,8,16,0)');
+    ctx.fillStyle = left;
+    ctx.fillRect(f.x, f.y, 22, f.h);
   }
 }
 
@@ -41,6 +135,8 @@ function drawObstacle(ctx: Ctx, o: Obstacle): void {
   ctx.beginPath();
   ctx.ellipse(o.x + 4, o.y + o.r * 0.6, o.r * 1.1, o.r * 0.5, 0, 0, Math.PI * 2);
   ctx.fill();
+  if (o.kind === 'brazier' && propImg) return; // #159: its flame moves, the renderer draws it every frame
+  if (drawProp(ctx, o.kind, o.x, o.y, o.r)) return;
   if (o.kind === 'tomb') {
     ctx.fillStyle = '#1a1614';
     ctx.fillRect(o.x - o.r - 2, o.y - o.r * 1.5 - 2, o.r * 2 + 4, o.r * 2.3 + 4);
@@ -136,10 +232,11 @@ export function wallPattern(def: ArenaDef): HTMLCanvasElement {
   c = document.createElement('canvas');
   c.width = c.height = 96;
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = def.theme.wall;
+  ctx.fillStyle = shade(def.theme.wall, -0.3);
   ctx.fillRect(0, 0, 96, 96);
-  ctx.fillStyle = def.theme.wallTop;
-  for (let y = 0; y < 96; y += 24) for (let x = (y / 24) % 2 ? -24 : 0; x < 96; x += 48) ctx.fillRect(x + 3, y + 3, 42, 18);
+  const rng = mulberry32(def.id.length * 97);
+  // #159: lit blocks, a highlight top-left and shadow bottom-right like the floor stones
+  for (let y = 0; y < 96; y += 24) for (let x = (y / 24) % 2 ? -24 : 0; x < 96; x += 48) stone(ctx, x + 2, y + 2, 44, 20, def.theme.wallTop, rng, 3);
   patterns.set(def.id, c);
   return c;
 }
@@ -184,6 +281,7 @@ export function buildArena(def: ArenaDef): HTMLCanvasElement {
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
     for (let y = top + 40; y < core.y + core.h; y += 80) ctx.fillRect(def.final.throne.x - cw / 2 + 10, y, cw - 20, 3);
   }
+  wallShadows(ctx, def.regions ? def.regions.flatMap((r) => (r.gate ? [r.floor, r.gate] : [r.floor])) : [{ x: wall, y: wall, w: w - 2 * wall, h: h - 2 * wall }]);
   for (const o of def.obstacles) drawObstacle(ctx, o);
 
   if (def.regions) {
