@@ -125,8 +125,8 @@ await check('class select: champions on the finer grid keep their size', () =>
     };
     const pal = size('paladin'), vik = size('viking');
     await P.click('[data-back]');
-    // the old grids were 14 and 16 rows at 6 px: 84 and 96 px on screen, whatever the finer canvas holds
-    const ok = pal?.box === 84 && vik?.box === 96 && window.__lb.state === 'menu';
+    // the old grids were 14 and 16 rows at 6 px: 84 and 96 px on screen; #156: every champion is rigged now, all shown at the Paladin's 84 px
+    const ok = pal?.box === 84 && vik?.box === 84 && window.__lb.state === 'menu';
     return { ok, detail: `paladin ${JSON.stringify(pal)}, viking ${JSON.stringify(vik)}` };
   }),
 );
@@ -1609,6 +1609,52 @@ await check('Sprite gallery plays the Paladin; his class card shows his sheet (#
     });
   }),
 );
+
+// ---------- #156: every champion draws from its rigged sheet: it attacks a foe in reach, and casts when Space uses its ability ----------
+await check('Champion sheets: each class loads its sheet, attacks and casts its ability (#156)', async () => {
+  const out = [];
+  for (const cls of ['paladin', 'viking', 'angel', 'necromancer', 'archer']) {
+    await inPage(() => location.reload());
+    await page.waitForFunction((c) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes(c), cls);
+    await inPage(async (c) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', c);
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+    }, cls);
+    const seen = new Set();
+    const sample = async (ms) => {
+      for (let t = 0; t < ms; t += 50) seen.add(await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim().anim)))))));
+    };
+    for (let i = 0; i < 12 && !seen.has('attack'); i++) {
+      await inPage(() => {
+        const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+        for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+        if (e) Object.assign(e, { x: p.x + 40, y: p.y, hp: 1e6, maxHp: 1e6 }); // one foe in reach, once the wave has spawned
+      });
+      await sample(250);
+    }
+    await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0 }));
+    await page.keyboard.down('Space');
+    await sample(150);
+    await page.keyboard.up('Space');
+    await sample(300);
+    out.push([cls, seen.has('attack') && seen.has('cast'), [...seen].join('/')]);
+  }
+  return { ok: out.every(([, ok]) => ok), detail: out.map(([c, , s]) => `${c}: ${s}`).join('; ') };
+});
 
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
