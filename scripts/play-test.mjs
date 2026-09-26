@@ -1286,7 +1286,8 @@ await check('card pictures: siege pieces and bosses redrawn at their old size, t
       document.querySelector('[data-back]')?.click();
       await wait();
       lb.save.cards.splice(0, lb.save.cards.length, ...had);
-      const wrong = want.filter(([id, , c, r, s]) => pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
+      const rigged = lb.sheets(); // #157: a redrawn piece shows its rigged figure instead, 1 art px to 1 world px
+      const wrong = want.filter(([id, , c, r, s]) => (rigged.includes(id) ? !(pics.get(id)?.[1] >= 30 && pics.get(id)?.[1] <= 120) : pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4)).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
       const own = ['siegeCamp', 'plagueCart'].every((id) => pics.has(id)) && pics.get('siegeCamp')[2] !== pics.get('siegeTower')?.[2] && pics.get('plagueCart')[2] !== pics.get('ballista')?.[2];
       const ok = wrong.length === 0 && own && lb.state === 'menu';
       return { ok, detail: `${want.map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×')}`).join(', ')}${wrong.length ? ` · WRONG ${wrong}` : ''} · camp ${pics.get('siegeCamp')?.slice(0, 2).join('×')}, cart ${pics.get('plagueCart')?.slice(0, 2).join('×')}${own ? '' : ' (NOT THEIR OWN)'}` };
@@ -1669,7 +1670,7 @@ await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#
 // ---------- #157: every redrawn foe loads its sheet, and a ranged foe (the Crossbowman) levels and looses on his shot ----------
 await check('Foe sheets: every redrawn foe and commander loads; a crossbowman plays his shot (#157)', () =>
   inPage(() => location.reload()).then(async () => {
-    const want = ['peasant', 'wolf', 'crossbow', 'cavalry', 'knight', 'cultist', 'shieldBearer', 'priest', 'engineer', 'plagueDoctor', 'houndmaster', 'mirrorKnight', 'assassin', 'shieldwall', 'boneCollector', 'bannerman', 'drummer', 'chaplain'];
+    const want = ['peasant', 'wolf', 'crossbow', 'cavalry', 'ballista', 'plagueCart', 'knight', 'cultist', 'shieldBearer', 'priest', 'engineer', 'plagueDoctor', 'houndmaster', 'mirrorKnight', 'assassin', 'shieldwall', 'boneCollector', 'bannerman', 'drummer', 'chaplain'];
     await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('crossbow'));
     const sheets = await inPage(() => window.__lb.sheets());
     const missing = want.filter((id) => !sheets.includes(id));
