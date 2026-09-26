@@ -7,9 +7,9 @@ import { Bone, ell, Figure, ik, limb, type Material, type Pt } from './rig';
 import { scaled, type Px } from './robed';
 import type { SpriteDef } from './sheet';
 
-const W = 120, H = 100;
-const GROUND = 94; // first empty row under the near foot
+const W = 120;
 const X0 = 48; // anchor x between the feet
+const cell = (c: Armoured) => ({ H: c.h ?? 100, GROUND: (c.h ?? 100) - 6 }); // GROUND: first empty row under the near foot
 
 export interface Armoured {
   id: string;
@@ -19,6 +19,8 @@ export interface Armoured {
   fx: Material; // the special's streak, trail and burst: its damage type (STYLE.md trails)
   mace?: boolean; // a flanged mace instead of the greatsword
   special: 'charge' | 'slam';
+  h?: number; // cell height, for a boss too tall for the default 100
+  regal?: boolean; // the Usurper: a broad ermine-collared cloak to the ground and heavier pauldrons
   head(f: Figure, head: Bone, p: Pose): void; // helm, crest, horns, crown
 }
 
@@ -37,7 +39,7 @@ const pose = (kw: Partial<Pose> = {}): Pose => ({
 });
 
 function armoured(c: Armoured, p: Pose): Figure {
-  const { S } = c, { sc, E, dt } = scaled(S), HIP_Y = GROUND - 3 * S - 22.2 * S;
+  const { S } = c, { sc, E, dt } = scaled(S), { H, GROUND } = cell(c), HIP_Y = GROUND - 3 * S - 22.2 * S;
   const f = new Figure(W, H);
   const hip = new Bone(X0 + p.hip[0] * S, HIP_Y + p.hip[1] * S);
   const torso = hip.child(0, 0, p.lean);
@@ -52,7 +54,8 @@ function armoured(c: Armoured, p: Pose): Figure {
   }
 
   const cape = torso.child(-2.8 * S, -16.5 * S, p.cape - p.lean);
-  f.part(cape, sc([[-1, 0], [4, 0], [4.5, 12], [5, 26], [2, 24], [0, 28], [-3, 25.5], [-6, 28.5], [-9, 25], [-12.5, 27], [-13, 17], [-8, 6]]), c.cape, 0, { folds: [0.9, 3.2, 0], dim: 1 });
+  if (c.regal) f.part(cape, sc([[-3, -1], [6, -1], [7.5, 12], [8.5, 29.5], [4, 28.5], [0, 30.5], [-5, 28.5], [-10, 30.5], [-15, 28], [-20, 29.5], [-19, 16], [-12, 4]]), c.cape, 0, { folds: [0.9, 4.2, 0], dim: 1, trim: ['gold', 1] });
+  else f.part(cape, sc([[-1, 0], [4, 0], [4.5, 12], [5, 26], [2, 24], [0, 28], [-3, 25.5], [-6, 28.5], [-9, 25], [-12.5, 27], [-13, 17], [-8, 6]]), c.cape, 0, { folds: [0.9, 3.2, 0], dim: 1 });
 
   p.feet.forEach(([dx, lift, fa], i) => {
     const root = i === 0 ? hip.at(-2.8 * S, -0.5) : hip.at(2.2 * S, 0.5);
@@ -74,7 +77,9 @@ function armoured(c: Armoured, p: Pose): Figure {
   f.part(torso, sc([[-7.8, -4.6], [8.2, -4.6], [8.2, -2.1], [-7.8, -2.1]]), 'leather', 3.5); // belt
   f.part(torso, sc([[1, -5], [3.8, -5], [3.8, -1.7], [1, -1.7]]), c.trim, 3.6); // buckle
   f.part(torso, sc([[-4.2, -21], [4.8, -21], [5.4, -17], [-4.8, -17]]), c.plate, 3.7); // gorget
-  f.part(torso, E(-6.8, -16, 4.2, 3.6), c.plate, 3.8, { trim: [c.trim, 1], dim: 1 }); // far pauldron
+  const pd = c.regal ? 1.35 : 1; // pauldron size
+  f.part(torso, E(-6.8, -16, 4.2 * pd, 3.6 * pd), c.plate, 3.8, { trim: [c.trim, 1], dim: 1 }); // far pauldron
+  if (c.regal) f.part(torso, sc([[-10, -22.5], [10, -22.5], [11, -18.5], [6, -16.8], [0, -18], [-6, -16.8], [-11, -18.5]]), 'white', 3.75, { details: dt([[-7, -19.5, 'white', 0], [-3, -20.5, 'white', 0], [1, -19.5, 'white', 0], [5, -20.5, 'white', 0], [8.5, -19.5, 'white', 0]]) }); // ermine collar
 
   c.head(f, torso.child(0.8 * S, -20 * S, p.head), p);
 
@@ -100,7 +105,7 @@ function armoured(c: Armoured, p: Pose): Figure {
     f.part(sw, sc([[-4, -17], [4, -17], [4.6, -21], [3.2, -25], [0, -26.4], [-3.2, -25], [-4.6, -21]]), c.blade, zs + 0.06, { details: dt([[-2.6, -21, c.blade, 1], [0, -21, c.blade, 1], [2.6, -21, c.blade, 1]]) }); // flanged head
   } else f.part(sw, sc([[-2.2, -3], [2.2, -3], [2, -24], [0, -28.5], [-2, -24]]), c.blade, zs + 0.05, { details: Array.from({ length: 18 }, (_, k) => [0.1, -(k + 4) * S - 0.5, c.blade, 2] as Px) }); // greatsword
   f.part(sw, E(0.3, 0.6, 3, 2.9), c.plate, za + 0.4, { details: [-0.6, 0.6, 1.8].map((y) => [1.8 * S, y * S, c.plate, 1] as Px) }); // gauntlet
-  f.part(new Bone(sh[0], sh[1], torso.a * 0.65 + up.a * 0.35), E(0.5, 0.2, 5, 4.2), c.plate, za + 0.5, { trim: [c.trim, 1] }); // pauldron
+  f.part(new Bone(sh[0], sh[1], torso.a * 0.65 + up.a * 0.35), E(0.5, 0.2, 5 * pd, 4.2 * pd), c.plate, za + 0.5, { trim: [c.trim, 1] }); // pauldron
 
   if (p.smear) {
     const [[f0, a0], [f1, a1]] = p.smear;
@@ -187,7 +192,7 @@ const DEATH: [number, Pose][] = [
 
 /** An armoured boss's sheet: the Black Knight's rig and moves, dressed by `c`. */
 export function armouredSprite(c: Armoured): SpriteDef {
-  const fig = (p: Pose) => armoured(c, p);
+  const fig = (p: Pose) => armoured(c, p), { H, GROUND } = cell(c);
   return {
     id: c.id, w: W, h: H, anchor: [X0, GROUND], tall: c.tall,
     anims: {
