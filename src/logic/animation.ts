@@ -58,3 +58,13 @@ export function pickFrame(d: SheetData, s: AnimInput, baseSpeed: number): { anim
   if (s.moving) return { anim: 'walk', frame: Math.floor((s.walked / (baseSpeed * WALK_STRIDE)) * a.walk.length) % a.walk.length };
   return { anim: 'idle', frame: frameAt(a.idle, s.time * 1000, true) };
 }
+
+/**
+ * #157: seconds until a foe's next blow lands, for its wind-up: a telegraphed attack's own wind-up first, else the sooner of a
+ * shot (`shot`: seconds to its next bolt, Infinity when it doesn't shoot or its target is out of range) and a melee swing (only
+ * while its target is in reach). Infinity: nothing coming.
+ */
+export function foeUntilHit(windup: number, attackTimer: number, inReach: boolean, shot: number): number {
+  if (windup > 0) return windup;
+  return Math.min(inReach && attackTimer > 0 ? attackTimer : Infinity, shot > 0 ? shot : Infinity);
+}

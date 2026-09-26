@@ -1257,7 +1257,9 @@ await check('flash card: a new foe shows one with its sprite and a spotlight on 
     // #138: the regular foes and the commanders are drawn on a grid twice as fine, and keep the old grid's size: its columns and rows at 3 px each
     const oldGrid = { peasant: [12, 14], wolf: [14, 8], crossbow: [12, 14], knight: [12, 14], cultist: [12, 14], shieldBearer: [12, 14], priest: [12, 14], cavalry: [16, 13], engineer: [12, 14], plagueDoctor: [12, 14], houndmaster: [12, 14], mirrorKnight: [12, 14], assassin: [12, 13], shieldwall: [12, 14], boneCollector: [12, 14], bannerman: [12, 14], drummer: [12, 14], chaplain: [12, 14] };
     const redrawn = glossary.sizes.filter(([id]) => id in oldGrid);
-    const sized = redrawn.length > 0 && redrawn.every(([id, w, h]) => w === oldGrid[id][0] * 3 + 4 && h === oldGrid[id][1] * 3 + 4);
+    // #157: a foe with a rigged sheet shows its figure instead, about 50 art px tall
+    const rigged = await inPage(() => window.__lb.sheets());
+    const sized = redrawn.length > 0 && redrawn.every(([id, w, h]) => (rigged.includes(id) ? h >= 40 && h <= 80 : w === oldGrid[id][0] * 3 + 4 && h === oldGrid[id][1] * 3 + 4));
     const ok = first.state === 'choice' && first.held && first.saved && first.words <= 14 && after.closed && once && glossary.text.includes(first.name) && pictured && first.spotOn && dimmed && after.spotOff && sized;
     return { ok, detail: `foe pictures ${redrawn.map(([id, w, h]) => `${id} ${w}×${h}`).join(', ') || 'NONE'}${sized ? '' : ' (WRONG SIZE)'}; "${first.name}" (${first.words} words), picture ${first.picture}, spotlight ${first.spotOn ? 'on it' : 'MISSING'}, arena ${Math.round(first.dim)} → ${Math.round(after.lit)} after closing${after.spotOff ? '' : ' (STILL LIT)'}, held ${first.held}, saved ${first.saved}, Enter closed ${after.closed}; cards ${after.shown.join(', ')}${once ? '' : ' (REPEATED)'}; Glossary ${glossary.text ? 'lists it' : 'MISSING'}, ${glossary.pics}/${glossary.rows} pictures` };
   }),
@@ -1284,7 +1286,8 @@ await check('card pictures: siege pieces and bosses redrawn at their old size, t
       document.querySelector('[data-back]')?.click();
       await wait();
       lb.save.cards.splice(0, lb.save.cards.length, ...had);
-      const wrong = want.filter(([id, , c, r, s]) => pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
+      const rigged = lb.sheets(); // #157: a redrawn piece shows its rigged figure instead, 1 art px to 1 world px
+      const wrong = want.filter(([id, , c, r, s]) => (rigged.includes(id) ? !(pics.get(id)?.[1] >= 30 && pics.get(id)?.[1] <= 120) : pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4)).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
       const own = ['siegeCamp', 'plagueCart'].every((id) => pics.has(id)) && pics.get('siegeCamp')[2] !== pics.get('siegeTower')?.[2] && pics.get('plagueCart')[2] !== pics.get('ballista')?.[2];
       const ok = wrong.length === 0 && own && lb.state === 'menu';
       return { ok, detail: `${want.map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×')}`).join(', ')}${wrong.length ? ` · WRONG ${wrong}` : ''} · camp ${pics.get('siegeCamp')?.slice(0, 2).join('×')}, cart ${pics.get('plagueCart')?.slice(0, 2).join('×')}${own ? '' : ' (NOT THEIR OWN)'}` };
@@ -1607,6 +1610,95 @@ await check('Sprite gallery plays the Paladin; his class card shows his sheet (#
       const ok = moving && c.height >= 100 && box === 84;
       return { ok, detail: `${Object.entries(frames).map(([a, f]) => `${a} ${f.size}`).join(', ')}; portrait canvas ${c.width}×${c.height}, shown ${box} px` };
     });
+  }),
+);
+
+// ---------- #157: the foes' rigged sheets: a peasant walks up, jabs on his wind-up, and falls when slain ----------
+await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#157)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('peasant'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', 'paladin');
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      const peasants = g.enemies.filter((e) => e.def.id === 'peasant');
+      for (const [i, e] of g.enemies.entries()) Object.assign(e, { x: g.player.x + (e === peasants[0] ? 160 : 3000 + i * 40), y: g.player.y, hp: 1e6, maxHp: 1e6 });
+    });
+    const seen = [];
+    for (let t = 0; t < 5000 && !seen.includes('attack'); t += 50) {
+      if (seen.includes('walk')) {
+        await inPage(() => {
+          // he has walked: now he stands at the Paladin's side
+          const g = window.__lb.game, e = g.enemies.find((x) => x.def.id === 'peasant' && Math.abs(x.x - g.player.x) < 400);
+          if (e) Object.assign(e, { x: g.player.x + 22, y: g.player.y });
+        });
+      }
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('peasant')?.anim ?? 'none'))))));
+      if (seen[seen.length - 1] !== a) seen.push(a);
+    }
+    // slain: his death plays where he stood
+    const dying = await inPage(() => {
+      const g = window.__lb.game, e = g.enemies.find((x) => x.def.id === 'peasant' && Math.abs(x.x - g.player.x) < 200);
+      if (e) Object.assign(e, { hp: 1 });
+      return new Promise((r) => {
+        let n = 0;
+        const tick = () => {
+          window.__lb.run(2, false, 'input');
+          requestAnimationFrame(() => (window.__lb.foesDying().includes('peasant') || ++n > 60 ? r(window.__lb.foesDying()) : tick()));
+        };
+        tick();
+      });
+    });
+    const ok = seen.includes('walk') && seen.includes('attack') && dying.includes('peasant');
+    return { ok, detail: `${seen.join(' → ')}; dying [${dying.join(', ')}]` };
+  }),
+);
+
+// ---------- #157: every redrawn foe loads its sheet, and a ranged foe (the Crossbowman) levels and looses on his shot ----------
+await check('Foe sheets: every redrawn foe and commander loads; a crossbowman plays his shot (#157)', () =>
+  inPage(() => location.reload()).then(async () => {
+    const want = ['peasant', 'wolf', 'crossbow', 'cavalry', 'ballista', 'plagueCart', 'siegeTower', 'siegeCamp', 'knight', 'cultist', 'shieldBearer', 'priest', 'engineer', 'plagueDoctor', 'houndmaster', 'mirrorKnight', 'assassin', 'shieldwall', 'boneCollector', 'bannerman', 'drummer', 'chaplain'];
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('crossbow'));
+    const sheets = await inPage(() => window.__lb.sheets());
+    const missing = want.filter((id) => !sheets.includes(id));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      for (const [id, v] of [['tm-class', 'paladin'], ['tm-act', '1'], ['tm-wave', '1']]) {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      for (let i = 0; i < 200 && !g.enemies.length; i++) window.__lb.run(1, false, 'input'); // the wave's first foe
+      const [e] = g.enemies;
+      e.def = window.__lb.enemyDef('crossbow'); // the first foe becomes a crossbowman
+      for (const [i, x] of g.enemies.entries()) Object.assign(x, { x: g.player.x + (x === e ? 180 : 3000 + i * 40), y: g.player.y, hp: 1e6, maxHp: 1e6 });
+    });
+    const seen = [];
+    for (let t = 0; t < 6000 && !seen.includes('attack'); t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('crossbow')?.anim ?? 'none'))))));
+      if (seen[seen.length - 1] !== a) seen.push(a);
+    }
+    return { ok: missing.length === 0 && seen.includes('attack'), detail: `missing [${missing.join(', ')}]; crossbow ${seen.join(' → ')}` };
   }),
 );
 
