@@ -12,7 +12,7 @@ import { BLESSINGS, type BlessingId } from '../config/regions';
 import { QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
 import { TRAIT_IDS, TRAITS, type TraitId } from '../config/traits';
-import { ENEMIES } from '../config/enemies';
+import { ENEMIES, type EnemyDef, type EnemyId } from '../config/enemies';
 import { WAVES } from '../config/waves';
 import { TREASURE_RULES, TREASURES, treasureDesc, type TreasureId } from '../config/treasures';
 import { chainStep, followUpText, inText, nextFragmentBoss, rankFor } from '../logic/treasures';
@@ -23,7 +23,7 @@ import { salvageValue, sellPrice } from '../systems/acts';
 import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
-import { TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
+import { SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { latchGamepad, onAction } from '../input';
@@ -40,14 +40,15 @@ import type { Route } from '../logic/routes';
 import { EVOLUTION_IDS, EVOLUTIONS, type EvolutionId } from '../config/evolutions';
 import { requirementText } from '../logic/evolutions';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
-import { getSprite, SPRITE_PALETTES } from '../render/sprites';
+import { getSprite, outlineSprite, SPRITE_PALETTES } from '../render/sprites';
 import { OATHS } from '../config/oaths';
 import { oathCap, oathReward } from '../logic/oaths';
 import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
 import { GLOSSARY } from '../config/glossary';
-import { cardInfo, type CardId } from '../config/cards';
+import { cardInfo, MECHANIC_CARDS, type CardId, type MechanicCard } from '../config/cards';
+import { AFFIXES, ELITES, type AffixId } from '../config/elites';
 import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
 import type { TestSetup } from '../systems/testMode';
 
@@ -1089,25 +1090,51 @@ export function showWhatsNew(w: WhatsNew, onBack: () => void): void {
 
 /** v0.7.1: every game term and what it means (config/glossary.ts), from the pause menu and the Keep. Tooltips underline the same words. */
 export function showGlossary(onBack: () => void, cards: CardId[] = []): void {
-  const met = cards.map(cardInfo).sort((a, b) => a.name.localeCompare(b.name));
+  const met = cards.map((id) => ({ id, ...cardInfo(id) })).sort((a, b) => a.name.localeCompare(b.name));
   const el = show(`
     <div class="panel dialog wide glossary">
       <h1 class="small">Glossary</h1>
       <p class="sub">The words the game uses, and what they mean. Tooltips underline them and explain them too.</p>
       <dl>${[...GLOSSARY].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<dt>${t.name}</dt><dd>${t.def}</dd>`).join('')}</dl>
-      ${met.length ? `<h2 class="small">Foes and marks met</h2><dl class="cards-met">${met.map((c) => `<dt>${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}
+      ${met.length ? `<h2 class="small">Foes and marks met</h2><dl class="cards-met">${met.map((c) => `<dt>${cardPicture(c.id)}${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
 
+/** #133: what a card's picture needs to know about the foe that brought it (a slice of Enemy). */
+export interface CardPictureFoe {
+  def: EnemyDef;
+  elite: boolean;
+  affixes: AffixId[];
+}
+
+/**
+ * #133: a card's picture. A foe is its own arena sprite from the same cache (so a sprite redesign reaches the card by itself); an elite
+ * wears its first affix's colour as an outline. A mechanic without a foe (the Glossary, a marked attack) shows its icon.
+ */
+function cardPicture(id: CardId, foe?: CardPictureFoe): string {
+  const def = id in ENEMIES ? ENEMIES[id as EnemyId] : id === 'elite' ? foe?.def : undefined;
+  if (!def) return `<span class="card-pic icon">${MECHANIC_CARDS[id as MechanicCard].icon}</span>`;
+  const elite = !!foe?.elite && foe.def === def;
+  const spr = getSprite(def.sprite, def.scale + (elite ? ELITES.scaleBonus : 0), def.palette);
+  const c = document.createElement('canvas');
+  c.width = spr.w + 4;
+  c.height = spr.h + 4;
+  const ctx = c.getContext('2d')!;
+  if (elite) ctx.drawImage(outlineSprite(spr, AFFIXES[foe!.affixes[0]]?.color ?? SKILL.colors.elite)[0], 0, 0);
+  ctx.drawImage(spr.img, 2, 2);
+  return `<img class="card-pic" src="${c.toDataURL()}" alt="" data-sprite-of="${def.id}">`;
+}
+
 /** v0.8 (#124): a flash card, the first time a foe, a boss or a mechanic is met. The run waits under it. `pause` (Esc) also opens the pause menu. */
-export function showFlashCard(id: CardId, onDone: (pause: boolean) => void): void {
+export function showFlashCard(id: CardId, foe: CardPictureFoe | undefined, onDone: (pause: boolean) => void): void {
   const c = cardInfo(id);
   const el = show(`
     <div class="panel dialog flash-card${c.boss ? ' boss' : ''}" data-card="${id}">
       <div class="tag">${c.boss ? 'Boss' : 'New'}</div>
+      ${cardPicture(id, foe)}
       <h2>${c.name}</h2>
       <p>${c.text}</p>
       <button class="btn big" data-leave>Got it</button>

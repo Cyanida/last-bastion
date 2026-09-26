@@ -9,9 +9,9 @@ const foe = (id: EnemyId, more: Partial<CardFoe> = {}): CardFoe => ({ x: 100, y:
 describe('v0.8 flash cards (#124)', () => {
   it('shows a foe once, then the mechanics it brings', () => {
     const foes = [foe('wolf', { elite: true, windupT: 0.2 })];
-    expect(nextCard(foes, 0, 0, [])).toBe('wolf');
-    expect(nextCard(foes, 0, 0, ['wolf'])).toBe('elite');
-    expect(nextCard(foes, 0, 0, ['wolf', 'elite'])).toBe('telegraph');
+    expect(nextCard(foes, 0, 0, [])?.id).toBe('wolf');
+    expect(nextCard(foes, 0, 0, ['wolf'])?.id).toBe('elite');
+    expect(nextCard(foes, 0, 0, ['wolf', 'elite'])?.id).toBe('telegraph');
     expect(nextCard(foes, 0, 0, ['wolf', 'elite', 'telegraph'])).toBeNull();
   });
 

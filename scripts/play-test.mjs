@@ -1090,7 +1090,7 @@ await check('difficulty: Knight names its new foes, and its waves bring none fro
 );
 
 // ---------- v0.8 (#124): flash cards, in a real run (a test run shows none) ----------
-await check('flash card: a new foe shows one, the run waits, Enter closes it, never twice, kept in the Glossary', () =>
+await check('flash card: a new foe shows one with its sprite and a spotlight on it, the run waits, Enter closes it, never twice, kept in the Glossary', () =>
   inPage(() => {
     localStorage.removeItem('lastbastion.save');
     location.reload();
@@ -1109,7 +1109,19 @@ await check('flash card: a new foe shows one, the run waits, Enter closes it, ne
       if (!card) return null;
       const tick = g.tick;
       await wait(300); // real frames: the loop must not step the run under the card
-      return { id: card.dataset.card, name: card.querySelector('h2').textContent, words: card.querySelector('p').textContent.split(' ').length, state: lb.state, held: g.tick === tick, saved: lb.save.cards.includes(card.dataset.card) };
+      // #133: the card shows the foe's own sprite (or a mechanic's icon), and the spotlight is on a met foe of that kind
+      const pic = card.querySelector('.card-pic');
+      const spot = lb.spotlight;
+      const side = spot && spot.x > g.player.x ? 0.15 : 0.85; // a patch of arena on the far side from the foe
+      const shade = () => {
+        const cv = document.getElementById('game'), d = cv.getContext('2d').getImageData(Math.round(cv.width * side) - 15, Math.round(cv.height / 2) - 15, 30, 30).data;
+        let sum = 0;
+        for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
+        return sum / (d.length / 4);
+      };
+      window.__shade = shade;
+      const picture = pic?.tagName === 'IMG' ? (pic.dataset.spriteOf === card.dataset.card && pic.complete && pic.naturalWidth > 0 ? 'sprite' : `wrong sprite ${pic.dataset.spriteOf}`) : pic ? 'icon' : 'none';
+      return { id: card.dataset.card, name: card.querySelector('h2').textContent, words: card.querySelector('p').textContent.split(' ').length, state: lb.state, held: g.tick === tick, saved: lb.save.cards.includes(card.dataset.card), picture, spotOn: !!spot && g.enemies.includes(spot) && (spot.def.id === card.dataset.card || card.dataset.card in { elite: 1, telegraph: 1 }), dim: shade() };
     });
     if (!first) return { ok: false, detail: 'no card in 3000 ticks' };
     await page.keyboard.press('Enter');
@@ -1117,24 +1129,28 @@ await check('flash card: a new foe shows one, the run waits, Enter closes it, ne
       const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
       await wait(100);
       const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+      const lit = window.__shade(), spotOff = lb.spotlight === null; // #133: the arena lights up again once the card closes
       const shown = [id];
       for (let i = 0; i < 1500 && lb.state !== 'results'; i++) {
         lb.run(1, false, true);
         const c = document.querySelector('[data-card]');
         if (c) (shown.push(c.dataset.card), c.querySelector('[data-leave]').click());
       }
-      return { closed, shown };
+      return { closed, shown, lit, spotOff };
     }, first.id);
     await page.keyboard.press('Escape');
     const glossary = await inPage(async () => {
       await new Promise((r) => setTimeout(r, 100));
       document.querySelector('[data-glossary]')?.click();
       await new Promise((r) => setTimeout(r, 100));
-      return document.querySelector('.cards-met')?.innerText ?? '';
+      const met = document.querySelector('.cards-met');
+      return met ? { text: met.innerText, pics: met.querySelectorAll('.card-pic').length, rows: met.querySelectorAll('dt').length } : { text: '', pics: 0, rows: 0 };
     });
     const once = new Set(after.shown).size === after.shown.length;
-    const ok = first.state === 'choice' && first.held && first.saved && first.words <= 14 && after.closed && once && glossary.includes(first.name);
-    return { ok, detail: `"${first.name}" (${first.words} words), held ${first.held}, saved ${first.saved}, Enter closed ${after.closed}; cards ${after.shown.join(', ')}${once ? '' : ' (REPEATED)'}; Glossary ${glossary ? 'lists it' : 'MISSING'}` };
+    const dimmed = first.dim < after.lit * 0.7;
+    const pictured = first.picture === 'sprite' && glossary.pics === glossary.rows;
+    const ok = first.state === 'choice' && first.held && first.saved && first.words <= 14 && after.closed && once && glossary.text.includes(first.name) && pictured && first.spotOn && dimmed && after.spotOff;
+    return { ok, detail: `"${first.name}" (${first.words} words), picture ${first.picture}, spotlight ${first.spotOn ? 'on it' : 'MISSING'}, arena ${Math.round(first.dim)} → ${Math.round(after.lit)} after closing${after.spotOff ? '' : ' (STILL LIT)'}, held ${first.held}, saved ${first.saved}, Enter closed ${after.closed}; cards ${after.shown.join(', ')}${once ? '' : ' (REPEATED)'}; Glossary ${glossary.text ? 'lists it' : 'MISSING'}, ${glossary.pics}/${glossary.rows} pictures` };
   }),
 );
 

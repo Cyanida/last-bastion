@@ -566,6 +566,13 @@ canvas#game { touch-action: none; }
 .flash-card .tag { color: var(--gold); font-weight: bold; text-transform: uppercase; letter-spacing: 1px; font-size: 0.8em; }
 .flash-card.boss .tag { color: var(--blood); }
 .flash-card p { font-size: 1.15em; margin: 8px 0 14px; }
+/* #133: the foe itself on its card, pixel-crisp, breathing gently; a mechanic's icon in its place; small in the Glossary */
+.flash-card .card-pic { display: block; margin: 10px auto 0; height: 96px; image-rendering: pixelated; animation: card-bob 0.9s ease-in-out infinite alternate; }
+.flash-card .card-pic.icon { height: auto; font-size: 64px; line-height: 96px; }
+@keyframes card-bob { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .flash-card .card-pic { animation: none; } }
+.cards-met .card-pic { height: 28px; margin-right: 8px; vertical-align: middle; image-rendering: pixelated; }
+.cards-met .card-pic.icon { display: inline-block; width: 28px; height: auto; text-align: center; }
 
 /* v0.7.1 test mode */
 .hud-test { align-self: center; padding: 2px 12px; font: bold 15px var(--hud-display); letter-spacing: 3px; color: #ff8a7a; }
