@@ -1,13 +1,13 @@
 import { ROUTES } from '../config/routes';
-import { ATTUNEMENT, BOSS_RELIC_CHOICES, CURSED, CURSED_IDS, duoOf, DUOS, FAMILIES, isCursedRelic, isDuo, isFamily, FAMILY_IDS, keyColor, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ARENA_FAMILIES, ATTUNEMENT, BOSS_RELIC_CHOICES, CURSED, CURSED_IDS, duoOf, DUOS, FAMILIES, isCursedRelic, isDuo, isFamily, FAMILY_IDS, keyColor, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { sfx } from '../sim/view';
 import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
-import { combineMods } from '../logic/mods';
-import { attuneAll, duoPartner, duoTier, foldRelicMods, joinTiers, looseRelics, readyDuos, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
+import { combineMods, isMultiplicative } from '../logic/mods';
+import { attuneAll, duoPartner, duoTier, familyPool, foldRelicMods, joinTiers, looseRelics, readyDuos, relicCardLine, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
 import { floatText, ring } from './effects';
 import { relicContext } from './relicContext';
-import { credit, familySets, rawBy, type RelicHooks } from './relicCore';
+import { credit, familySets, type RelicHooks } from './relicCore';
 import { BLOOD_RELICS, BLOOD_SETS } from './relicFamilies/blood';
 import { FLAME_RELICS, FLAME_SETS } from './relicFamilies/flame';
 import { FROST_RELICS, FROST_SETS } from './relicFamilies/frost';
@@ -25,7 +25,6 @@ import { CURSED_RELICS } from './relicFamilies/cursed';
  */
 export const HOOKS: Partial<Record<RelicId, RelicHooks>> = { ...FLAME_RELICS, ...FROST_RELICS, ...STORM_RELICS, ...BLOOD_RELICS, ...HOLY_RELICS, ...GRAVE_RELICS, ...STEEL_RELICS, ...CURSED_RELICS };
 const SETS: Record<FamilyId, Partial<Record<SetLevel, RelicHooks>>> = { flame: FLAME_SETS, frost: FROST_SETS, storm: STORM_SETS, blood: BLOOD_SETS, holy: HOLY_SETS, grave: GRAVE_SETS, steel: STEEL_SETS };
-const BONUS_KEYS = new Set<keyof Mods>(['damage', 'atkSpd', 'moveSpd', 'cooldown', 'pickup', 'xp', 'gold', 'minionAtkSpd', 'minionDamage']); // multiplicative mods (logic/relics.ts)
 
 /** Calls one hook of a relic or a set, telling it whose it is. */
 function run<K extends EventName>(hooks: RelicHooks | undefined, g: Game, name: K, ev: GameEvents[K], p: Player): void {
@@ -46,7 +45,7 @@ function reachedSets(p: Player): [FamilyId, RelicHooks][] {
 function shareOut(g: Game, p: Player, key: keyof Mods, amount: number, frac: number): void {
   const t = p.relics.totals[key];
   if (!t || t.raw <= 0 || frac <= 0) return;
-  for (const [id, keys] of Object.entries(rawBy.get(p) ?? {}) as [RelicKey, Partial<Record<keyof Mods, number>>][]) {
+  for (const [id, keys] of Object.entries(p.relics.raw) as [RelicKey, Partial<Record<keyof Mods, number>>][]) {
     const r = keys[key];
     if (r && r > 0) credit(g, p, id, 'damage', (amount * frac * r) / t.raw);
   }
@@ -147,9 +146,9 @@ export function updateRelics(g: Game, dt: number): void {
   const raw: Partial<Record<RelicKey, Partial<Record<keyof Mods, number>>>> = {};
   for (const id of r.held) {
     const mods = relicMods(id, relicTier(r.tiers, id));
-    if (mods) raw[id] = Object.fromEntries(Object.entries(mods).map(([k, v]) => [k, BONUS_KEYS.has(k as keyof Mods) ? (k === 'cooldown' ? 1 - v! : v! - 1) : v!]));
+    if (mods) raw[id] = Object.fromEntries(Object.entries(mods).map(([k, v]) => [k, isMultiplicative(k as keyof Mods) ? (k === 'cooldown' ? 1 - v! : v! - 1) : v!]));
   }
-  rawBy.set(p, raw);
+  r.raw = raw;
   for (const id of r.held) {
     relicContext.acting = id;
     HOOKS[id]?.tick?.(g, dt, p);
@@ -186,7 +185,7 @@ export function addRelic(g: Game, id: RelicId, from: RelicSource = 'other', tier
   r.from[id] ??= from;
   HOOKS[id]?.acquire?.(g, g.player);
   floatText(g, g.player.x, g.player.y - 50, relicDef(id).name, '#c9a227', 16);
-  sfx('levelup');
+  sfx(g, 'levelup');
   return true;
 }
 
@@ -209,7 +208,7 @@ function tierUp(g: Game, p: Player, id: RelicId): void {
   const color = duo ? keyColor(duo) : keyColor(id);
   floatText(g, p.x, p.y - 60, tier >= RELIC_MAX_TIER ? `${def.icon} ${def.name} awakens: ${def.awaken.name}` : `${def.icon} ${def.name} attuned: tier ${TIER_NUMERALS[tier]}`, color, 17);
   ring(g, p.x, p.y, 70, color, 0.6);
-  sfx('levelup');
+  sfx(g, 'levelup');
   emit(g, 'onRelicTier', { id, tier });
 }
 
@@ -263,6 +262,16 @@ export function relicPreview(p: Player, id: RelicId): string[] {
   return lines;
 }
 
+/** #98: the compact line on a relic offer card (logic/relics relicCardLine) for this player; `evolution` when it is one step from one. */
+export function relicOfferLine(p: Player, id: RelicId, evolution: boolean): string {
+  const r = p.relics;
+  const fam = familyOf(id);
+  const duo = duoOf(id);
+  const partner = duo && DUOS[duo].from.find((s) => s !== id)!;
+  const completes = !!duo && !!partner && r.held.includes(partner) && !r.duos.includes(duo) && !r.duos.some((d) => DUOS[d].from.includes(partner));
+  return relicCardLine(id, fam ? (r.sets[fam]?.count ?? 0) : 0, { upgrade: r.held.includes(id), duo: completes, evolution });
+}
+
 /**
  * v0.7: each held relic's share of this run, in % with one decimal, best first: of all damage dealt, all healing received, and all damage its
  * armor turned away (of damage taken plus turned away). What the results screen's Relics section and the run log show.
@@ -283,9 +292,10 @@ export function relicShares(g: Game, p: Player = g.player): { id: RelicKey; tier
 /** Rerolls a moment starts with: the base, the Cursed Luck trait, the Keep's Reliquary Guard, the Elite path's Act. */
 export const momentRerolls = (g: Game): number => RELIC_MOMENTS.rerolls + (g.vars['trait.rerolls'] ?? 0) + (g.vars['keep.relicRerolls'] ?? 0) + (g.route?.focus === 'elite' ? ROUTES.elite.rerolls : 0);
 
-function roll(p: Player, pool: RelicId[], n: number): RelicId[] {
+/** A moment's options; `families` (#100: a boss's arena) narrows the pool to them while they can fill it. */
+function roll(p: Player, pool: RelicId[], n: number, families?: FamilyId[], exclude = p.relics.offers.flatMap((o) => o.options)): RelicId[] {
   const r = p.relics;
-  return rollOffer(pool, r.held, r.rng, n, familyOf, RELIC_MOMENTS.heldFamilyWeight, r.offers.flatMap((o) => o.options));
+  return rollOffer(families ? familyPool(pool, r.held, families, n, exclude) : pool, r.held, r.rng, n, familyOf, RELIC_MOMENTS.heldFamilyWeight, exclude);
 }
 
 /**
@@ -294,12 +304,13 @@ function roll(p: Player, pool: RelicId[], n: number): RelicId[] {
  */
 export function offerRelics(g: Game, count = BOSS_RELIC_CHOICES, from: RelicSource = 'other', p: Player = g.player, pool = p.relics.pool): void {
   const cursed = cursedCard(g, p, from);
-  const options = roll(p, pool, cursed ? count - 1 : count);
+  const families = from === 'boss' ? ARENA_FAMILIES[g.arena.id] : undefined;
+  const options = roll(p, pool, cursed ? count - 1 : count, families);
   if (cursed) options.splice(2, 0, cursed); // the third card (the last, if the pool ran short)
   // v0.7 A5: the first completed duo not already on a queued moment comes along as a gold fourth card (one a moment), at a wave boss (A8)
   const duo = RELIC_MOMENTS.duoAt.includes(from) ? readyDuos(p.relics).find((d) => !p.relics.offers.some((o) => o.duo === d)) : undefined;
   if (!options.length && !duo) return;
-  p.relics.offers.push({ from, options, rerolls: momentRerolls(g), ...(duo ? { duo } : {}) });
+  p.relics.offers.push({ from, options, rerolls: momentRerolls(g), ...(duo ? { duo } : {}), ...(families ? { families } : {}) });
   g.vars[`moments.${from}`] = (g.vars[`moments.${from}`] ?? 0) + 1; // counted for the sims (RELICS.md: 12-16 a run)
 }
 
@@ -334,7 +345,7 @@ export function formDuo(g: Game, p: Player, id: DuoId): boolean {
   const d = DUOS[id];
   floatText(g, p.x, p.y - 60, `${d.icon} ${d.name}`, '#f2c94c', 18);
   ring(g, p.x, p.y, 80, '#f2c94c', 0.7);
-  sfx('levelup');
+  sfx(g, 'levelup');
   emit(g, 'onDuoFormed', { id });
   return true;
 }
@@ -359,7 +370,7 @@ export function rerollRelicOffer(g: Game, p: Player = g.player): boolean {
   const pool = offer.from === 'merchant' ? p.relics.pool.filter((id) => relicDef(id).rarity === relicDef(offer.options[0]).rarity) : p.relics.pool;
   const others = p.relics.offers.slice(1).flatMap((o) => o.options);
   const cursed = offer.options.filter(isCursedRelic); // B6: a cursed third card stays
-  const options = rollOffer(pool, p.relics.held, p.relics.rng, offer.options.length - cursed.length, familyOf, RELIC_MOMENTS.heldFamilyWeight, [...others, ...offer.options]);
+  const options = roll(p, pool, offer.options.length - cursed.length, offer.families, [...others, ...offer.options]);
   if (!options.length) return false;
   options.splice(2, 0, ...cursed);
   offer.options = options;

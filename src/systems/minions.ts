@@ -4,7 +4,6 @@ import { compact } from '../core/math';
 import type { Game, Minion } from '../core/types';
 import { applyStatus, damageEnemy, nearestEnemy } from './combat';
 import { credit } from './relicContext';
-import { relicSkeletons } from './relicCore';
 import { burst, ring } from './effects';
 import { fireProjectile } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
@@ -14,8 +13,8 @@ import { regionsOf } from './regions';
 const AGGRO = 280;
 const LEASH = 70; // idle minions hover this close to the player
 
-/** The Necromancer's own: skeletons and golems (v0.5 quest and event units have a kind and do not take up his slots). */
-export const skeletonCount = (g: Game): number => g.minions.reduce((n, m) => n + (m.kind ? 0 : 1), 0);
+/** The Necromancer's own: skeletons and golems (v0.5 quest and event units have a kind and do not take up his slots, nor does the Bone Colossus). */
+export const skeletonCount = (g: Game): number => g.minions.reduce((n, m) => n + (m.kind || m.cleave ? 0 : 1), 0);
 
 /** v0.5: a caravan or a monk walks its waypoints in a loop at its current speed (its quest sets it to 0 to make it wait). */
 function walkPath(g: Game, m: Minion, dt: number): void {
@@ -74,7 +73,7 @@ export function updateMinions(g: Game, dt: number): void {
       m.attackTimer = m.attackCd / p.mods.minionAtkSpd;
       const blessed = m.blessedT > 0 ? STATUS_TUNING.blessedDamage : 1;
       const dealt = damageEnemy(g, target, m.damage * p.mods.minionDamage * blessed, false, (dx / d) * 80, (dy / d) * 80, 'minion', 'shadow');
-      const by = relicSkeletons.get(m); // v0.7 A8: raised by a relic or a set: its hits are that one's work
+      const by = m.relicBy; // v0.7 A8: raised by a relic or a set: its hits are that one's work
       if (by) credit(g, p, by, 'damage', dealt);
       else if (blessed > 1 && p.relics.held.includes('gravePact')) credit(g, p, 'gravePact', 'damage', dealt * (1 - 1 / blessed)); // Grave Pact's blessing
       applyStatus(target, m.status, g);

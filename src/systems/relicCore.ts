@@ -23,6 +23,8 @@ export const tierOf = (p: Player, id: RelicId): number => p.relics.tiers[id] ?? 
 export const has = (p: Player, id: RelicId): boolean => tierOf(p, id) > 0;
 export const nOf = (p: Player, id: RelicId) => relicN(id, tierOf(p, id));
 export const awakened = (p: Player, id: RelicId): boolean => tierOf(p, id) >= RELIC_MAX_TIER;
+/** The awakening's own numbers (config/relics.ts `a`). */
+export const aOf = (id: RelicId): Record<string, number> => RELICS[id].awaken.n;
 export const hasDuo = (p: Player, id: DuoId): boolean => p.relics.duos.includes(id);
 /** The class's secondary stat: Faith, Rage, Grace, Soul Power, Focus. */
 export const sOf = (p: Player): number => p.stats.secondary;
@@ -97,7 +99,8 @@ export const isFrozen = (g: Game, e: Enemy): boolean => e.frozenT > g.time;
 
 /** A bleed from the player: Berserker Tooth's Last Blood doubles it below 25% HP (Blood's Open Wounds is in combat.applyStatus). */
 export function addBleed(g: Game, p: Player, e: Enemy, stacks: number, power: number): void {
-  const s = awakened(p, 'berserkerTooth') && p.hp < p.stats.hp * 0.25 ? stacks * 2 : stacks;
+  const a = aOf('berserkerTooth');
+  const s = awakened(p, 'berserkerTooth') && p.hp < p.stats.hp * a.below ? stacks * a.mult : stacks;
   applyStatus(e, { apply: [{ id: 'bleed', stacks: s, power }] }, g);
 }
 export const isBleeding = (e: Enemy): boolean => (e.statuses.bleed?.stacks ?? 0) > 0;
@@ -135,17 +138,16 @@ export const fullArmorStacks = (p: Player): boolean => p.armorStacks >= armorSta
 
 // ---------------------------------------------------------------- skeletons for any class
 
-/** Skeletons raised by relics and sets (tagged, so a family can count its own). */
-export const relicSkeletons = new WeakMap<Minion, RelicKey | FamilyId>();
+/** Skeletons raised by relics and sets (tagged in `relicBy`, so a family can count its own). */
 export function raiseSkeleton(g: Game, p: Player, x: number, y: number, by: RelicKey | FamilyId, o: { hp: number; damage: number; life: number }): Minion {
   const m = createMinion(x, y, { hp: o.hp, damage: relicDamage(p, o.damage), speed: 165, attackCd: 0.7, life: o.life });
-  relicSkeletons.set(m, by);
+  m.relicBy = by;
   g.minions.push(m);
   if (by in RELICS) addWork(p.relics, by as RelicId, ATTUNEMENT.summon);
   ring(g, x, y, 30, FAMILIES.grave.color);
   return m;
 }
-export const skeletonsBy = (g: Game, by: RelicKey | FamilyId): number => g.minions.filter((m) => relicSkeletons.get(m) === by).length;
+export const skeletonsBy = (g: Game, by: RelicKey | FamilyId): number => g.minions.filter((m) => m.relicBy === by).length;
 
 /** A cone in front of the player (Dragon's Tongue): every enemy within `range` and `arc` radians of `angle`. */
 export function cone(g: Game, p: Player, angle: number, range: number, arc: number): Enemy[] {
@@ -189,15 +191,13 @@ export function relicHeal(g: Game, p: Player, amount: number, show = false): num
   return healed;
 }
 
-/** Each held relic's raw bonus per mod key this tick (static mods plus conditional bonuses): the weights for sharing out a total. */
-export const rawBy = new WeakMap<Player, Partial<Record<RelicKey, Partial<Record<keyof Mods, number>>>>>();
 /** A tick hook's conditional bonus (a charge, a count, a missing-HP bonus): it joins the held relics' plain mods at face value. */
 export function bonus(p: Player, key: keyof Mods, amount: number): void {
   if (!amount) return;
   p.relics.dyn[key] = (p.relics.dyn[key] ?? 0) + amount;
   const id = relicContext.acting;
   if (id) {
-    const keys = ((rawBy.get(p) ?? {})[id] ??= {});
+    const keys = (p.relics.raw[id] ??= {});
     keys[key] = (keys[key] ?? 0) + amount;
   }
 }

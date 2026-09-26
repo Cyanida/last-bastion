@@ -39,6 +39,12 @@ export function raiseDead(c: Cfg<'raiseDead'>, soul: number) {
   };
 }
 
+/** v0.8 the Bone Colossus: a skeleton's HP and damage times the parts fused into it, up to a cap. Recomputed on every feed, never compounded (#126). */
+export function boneColossus(n: { hp: number; damage: number; maxParts: number }, each: { hp: number; damage: number }, fed: number) {
+  const parts = Math.min(fed, n.maxParts);
+  return { parts, hp: each.hp * parts * n.hp, damage: each.damage * parts * n.damage };
+}
+
 export function arrowVolley(c: Cfg<'arrowVolley'>, focus: number) {
   return {
     arrows: Math.floor(c.arrows + focus * c.arrowsPerFocus),

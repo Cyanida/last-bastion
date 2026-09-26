@@ -1,19 +1,17 @@
 import { ATTUNEMENT, FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import { cooldownFloor } from '../../logic/formulas';
 import { addWork } from '../../logic/relics';
-import type { Minion } from '../../core/types';
 import { fireProjectile } from '../../entities/hazards';
 import { TAU } from '../../core/math';
 import { rollPlayerHit } from '../combat';
 import { ring } from '../effects';
-import { awakened, bonus, credit, gainWard, nOf, nova, relicDamage, relicHeal, relicSkeletons, sOf, type RelicHooks } from '../relicCore';
+import { aOf, awakened, bonus, credit, gainWard, nOf, nova, relicDamage, relicHeal, sOf, type RelicHooks } from '../relicCore';
 
 /**
  * ✨ Holy (RELICS.md): healing, ward and blessing. Relics heal, grant ward (combat.damagePlayer lets ward take a hit first) or save you from
  * death; the sets turn healing into ward (Blessed), overhealing into a holy pulse (Radiance) and share it all with minions and allies (Communion).
  */
 const F = FAMILIES.holy;
-const bones = new WeakMap<object, Set<Minion>>(); // Hallowed Bones: the skeletons it has warded, to notice the ones that expire
 
 export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   rallyBanner: {
@@ -43,7 +41,7 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
         g.vars['aegis.t'] = 0;
         gainWard(g, p, p.stats.hp * n.ward);
       }
-      if (awakened(p, 'guardiansAegis') && p.ward > 0) bonus(p, 'damage', 0.15); // Faithful
+      if (awakened(p, 'guardiansAegis') && p.ward > 0) bonus(p, 'damage', aOf('guardiansAegis').damage); // Faithful
     },
   },
 
@@ -76,7 +74,7 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       addWork(p.relics, 'reliquary', ATTUNEMENT.proc);
     },
     onAbilityEnd(g, _ev, p) {
-      if (awakened(p, 'reliquary')) gainWard(g, p, p.stats.hp * 0.01 * sOf(p)); // Martyr's Relic
+      if (awakened(p, 'reliquary')) gainWard(g, p, p.stats.hp * aOf('reliquary').perFaith * sOf(p)); // Martyr's Relic
     },
   },
 
@@ -89,29 +87,28 @@ export const HOLY_RELICS: Partial<Record<RelicId, RelicHooks>> = {
         fireProjectile(g, p.x, p.y, (i / count) * TAU, { damage: hit.amount, crit: hit.crit, hostile: false, pierce: 2, shape: 'orb', color: '#f2e6a0', r: 6, speed: 420, range: 420, source: 'relic' });
       }
       // Choir of Light: the bolts heal as they land (one per enemy in their reach, at most one per bolt)
-      if (awakened(p, 'seraphHalo')) relicHeal(g, p, p.stats.hp * 0.01 * Math.min(count, g.hash.query(p.x, p.y, 420, []).length));
+      if (awakened(p, 'seraphHalo')) relicHeal(g, p, p.stats.hp * aOf('seraphHalo').heal * Math.min(count, g.hash.query(p.x, p.y, 420, []).length));
     },
   },
 
   hallowedBones: {
     tick(g, _dt, p) {
       const n = nOf(p, 'hallowedBones');
-      const seen = bones.get(p) ?? new Set<Minion>();
-      bones.set(p, seen);
+      const seen = p.relics.warded;
       for (const m of g.minions) {
-        if (m.kind || relicSkeletons.has(m) || seen.has(m)) continue;
-        seen.add(m);
+        if (m.kind || m.relicBy || seen.includes(m)) continue;
+        seen.push(m);
         m.maxHp *= 1 + n.ward; // the ward, as extra HP on a skeleton you raised
         m.hp *= 1 + n.ward;
       }
-      for (const m of seen) {
+      for (const m of [...seen]) {
         if (g.minions.includes(m) && m.hp > 0 && m.life > 0) continue;
-        seen.delete(m);
+        seen.splice(seen.indexOf(m), 1);
         relicHeal(g, p, p.stats.hp * (n.heal + n.perSoul * sOf(p)));
       }
     },
     onHit(g, ev, p) {
-      if (awakened(p, 'hallowedBones') && ev.source === 'minion') relicHeal(g, p, ev.amount * 0.005); // Sanctified Legion
+      if (awakened(p, 'hallowedBones') && ev.source === 'minion') relicHeal(g, p, ev.amount * aOf('hallowedBones').leech); // Sanctified Legion
     },
   },
 };

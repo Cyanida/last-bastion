@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newlyEarned } from '../src/logic/achievements';
+import { ARENAS } from '../src/config/arenas';
 import { CLASS_ORDER } from '../src/config/classes';
 import { CURSED, CURSED_IDS, FAMILY_IDS, isCursedRelic, RELIC_IDS, relicDef, relicMods, type RelicId } from '../src/config/relics';
 import type { Enemy, Game } from '../src/core/types';
@@ -50,6 +51,7 @@ describe('cursed relics (v0.7.1 B6): the model', () => {
 describe('cursed relics: the offer rule', () => {
   it('a wave boss or lair moment can put one on the third card, at most once an Act; never the other moments', () => {
     const g = game(['brimstoneOil'], 1, 0);
+    g.arena = ARENAS.keep; // #100: a boss drops its arena's families; the Keep's include Flame
     const p = g.player;
     for (const from of ['quest', 'merchant', 'start', 'other'] as const) offerRelics(g, 3, from);
     expect(p.relics.offers.flatMap((o) => o.options).filter(isCursedRelic)).toEqual([]);

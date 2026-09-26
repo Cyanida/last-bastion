@@ -6,7 +6,7 @@ import type { ArenaId } from './arenas';
 /** Runs are cut into Acts of `length` waves. The last wave of an Act is its boss; then the Merchant, then a new arena. */
 export const ACTS = {
   length: 10,
-  bosses: ['dragon', 'warden'] as EnemyId[], // Act-end bosses, in turn. Mid-Act bosses (wave x5) come from the arena's own rotation.
+  bosses: ['dragon', 'warden'] as EnemyId[], // the Act-end bosses' enemy ids; which one ends which Act, and the mid-Act draw, are in config/bosses.ts
 };
 
 /** Announced when the Act starts; tilts what the spawn director buys. Act I is always the first one, the rest rotate by seed. */
@@ -49,7 +49,9 @@ export const FINAL = {
     specialCd: [3.4, 3.4, 2.6], // seconds between attacks, per phase
     // the shortest a phase can last: until then his HP holds at the next threshold (and he cannot fall in phase 3), so even a
     // huge build sees his attacks. Phase 2 needs no minimum: the Royal Flames take their time.
-    minPhase: [20, 0, 25],
+    // #127: phase 3 holds 8 s, not 25: a long hold only taught players to walk away from him until it ran out. 8 s is a decree
+    // and a lunge chain or quake at his phase-3 pace, then every blow counts.
+    minPhase: [20, 0, 8],
   },
 };
 

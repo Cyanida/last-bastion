@@ -1,3 +1,4 @@
+import { AI_TUNING } from '../config/ai';
 /**
  * Enemy state machine, as a pure transition function. systems/enemyAI.ts gathers the context, asks for the next
  * state and then runs that state's movement / attack. Per-type differences are data: config/ai.ts.
@@ -31,20 +32,16 @@ export interface AiContext {
   flankRoll: number; // fixed 0..1 per enemy, compared with profile.flank
 }
 
-export const FLEE_MAX_TIME = 6;
-export const FLEE_RECOVER = 0.2; // comes back once HP is this far above fleeBelow
-export const FLANK_MAX_TIME = 4;
-export const FLANK_RANGE = 440;
-const SPAWN_IDLE = 0.35;
+const T = AI_TUNING;
 
 export function nextState(p: AiProfile, state: AiState, c: AiContext): AiState {
   if (state === 'special' && !c.specialDone) return 'special'; // a special always plays out
   if (c.feared) return 'flee';
-  if (c.timeAlive < SPAWN_IDLE) return 'idle';
+  if (c.timeAlive < T.spawnIdle) return 'idle';
 
   if (p.fleeBelow !== undefined) {
     const fleeing = state === 'flee';
-    if (fleeing && c.timeInState < FLEE_MAX_TIME && c.hpFrac < p.fleeBelow + FLEE_RECOVER) return 'flee';
+    if (fleeing && c.timeInState < T.fleeMaxTime && c.hpFrac < p.fleeBelow + T.fleeRecover) return 'flee';
     if (!fleeing && !c.fleeOnCooldown && c.hpFrac < p.fleeBelow) return 'flee';
   }
   // specials outrank the formation: a hound master whistles and a priest heals on the march
@@ -53,7 +50,7 @@ export function nextState(p: AiProfile, state: AiState, c: AiContext): AiState {
   if (c.squadMarching) return 'regroup';
 
   if (p.reach !== 'melee') {
-    const [near, far] = p.range ?? [160, 300];
+    const [near, far] = p.range ?? T.range;
     if (c.dist < near) return 'retreat';
     if (c.dist > far) return 'approach';
     return 'attack';
@@ -61,7 +58,7 @@ export function nextState(p: AiProfile, state: AiState, c: AiContext): AiState {
 
   if (c.retreating) return 'retreat';
   if (c.dist <= c.reach) return 'attack';
-  if (state === 'flank' && c.timeInState < FLANK_MAX_TIME) return 'flank'; // commit to the manoeuvre
-  if (c.crowded && c.dist < FLANK_RANGE && c.flankRoll < p.flank && state !== 'flank') return 'flank';
+  if (state === 'flank' && c.timeInState < T.flankMaxTime) return 'flank'; // commit to the manoeuvre
+  if (c.crowded && c.dist < T.flankRange && c.flankRoll < p.flank && state !== 'flank') return 'flank';
   return 'approach';
 }

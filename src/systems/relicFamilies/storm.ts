@@ -1,9 +1,10 @@
 import { GAME } from '../../config/game';
 import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import type { Enemy, Game, Player } from '../../core/types';
+import { timer } from '../../entities/hazards';
 import { critChance } from '../../logic/formulas';
 import { rollPlayerHit } from '../combat';
-import { attackHit, awakened, bonus, chainFrom, nOf, nova, relicDamage, sOf, strike, type RelicHooks } from '../relicCore';
+import { aOf, attackHit, awakened, bonus, chainFrom, nOf, nova, relicDamage, sOf, strike, type RelicHooks } from '../relicCore';
 
 /**
  * ⚡ Storm (RELICS.md): chains and speed. Relics chain hits to more enemies, turn chains and crits into speed, or call lightning; the sets
@@ -15,7 +16,6 @@ const yourHit = (g: Game, p: Player) => rollPlayerHit(g, p.cls.attack.damage, p.
 /** Eye of the Storm: a chain hit crits on the player's own crit chance. */
 const chainCrit = (g: Game, p: Player) => awakened(p, 'tempestEye') && g.rng() < critChance(p.stats.dex) + p.mods.crit;
 const hitCount = (g: Game, key: string) => (g.vars[key] = (g.vars[key] ?? 0) + 1);
-const streaks = new WeakMap<Player, number[]>();
 
 export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   stormPennant: {
@@ -23,7 +23,7 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const n = nOf(p, 'stormPennant');
       if (!attackHit(p, ev.source) || g.rng() >= n.chance) return;
       const crit = chainCrit(g, p);
-      chainFrom(g, p, ev.enemy, ev.amount * n.mult * (crit ? GAME.critMult : 1), awakened(p, 'stormPennant') ? 2 : 1, n.range, undefined, crit); // Thunderhead
+      chainFrom(g, p, ev.enemy, ev.amount * n.mult * (crit ? GAME.critMult : 1), awakened(p, 'stormPennant') ? aOf('stormPennant').jumps : 1, n.range, undefined, crit); // Thunderhead
     },
   },
 
@@ -40,7 +40,7 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const stacks = g.vars['spurs.stacks'] ?? 0;
       bonus(p, 'atkSpd', stacks * n.per);
       bonus(p, 'moveSpd', stacks * n.per);
-      if (awakened(p, 'quicksilverSpurs') && stacks >= n.max) p.utilityCd = Math.max(0, p.utilityCd - dt * 0.5); // Blur
+      if (awakened(p, 'quicksilverSpurs') && stacks >= n.max) p.utilityCd = Math.max(0, p.utilityCd - dt * aOf('quicksilverSpurs').faster); // Blur
     },
   },
 
@@ -56,7 +56,7 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   thunderDrum: {
     onAbilityUsed(g, _ev, p) {
       clap(g, p);
-      if (awakened(p, 'thunderDrum')) g.timers.push({ t: 1, fn: () => clap(g, p) }); // Rolling Thunder
+      if (awakened(p, 'thunderDrum')) rollingThunder(g, aOf('thunderDrum').delay, { p }); // Rolling Thunder
     },
   },
 
@@ -70,7 +70,8 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (!target) return;
       const dmg = yourHit(g, p) * n.mult;
       strike(g, target.x, target.y, dmg, n.radius);
-      if (awakened(p, 'stormcallersHorn')) chainFrom(g, p, target, dmg * 0.5, 3, 200); // Skyfury
+      const a = aOf('stormcallersHorn');
+      if (awakened(p, 'stormcallersHorn')) chainFrom(g, p, target, dmg * a.mult, a.jumps, a.range); // Skyfury
     },
   },
 
@@ -82,7 +83,8 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (ev.source !== 'attack') return;
       const n = nOf(p, 'galeforceQuiver');
       const count = hitCount(g, 'gale.hits');
-      if (awakened(p, 'galeforceQuiver') && count % 10 === 0) chainFrom(g, p, ev.enemy, ev.amount, 5, n.range); // Gale Shot
+      const a = aOf('galeforceQuiver');
+      if (awakened(p, 'galeforceQuiver') && count % a.every === 0) chainFrom(g, p, ev.enemy, ev.amount, a.jumps, n.range); // Gale Shot
       else if (count % 3 === 0) chainFrom(g, p, ev.enemy, ev.amount * n.mult, 1, n.range);
     },
   },
@@ -98,7 +100,7 @@ export const STORM_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     },
     onKill(g, _ev, p) {
       if (!awakened(p, 'stormbornPelt') || p.abilityTime <= 0) return;
-      const ext = 0.03 * sOf(p); // Thunder God
+      const ext = aOf('stormbornPelt').perRage * sOf(p); // Thunder God
       if ((g.vars['thunderGod'] ?? 0) + ext > p.abilityDur) return;
       g.vars['thunderGod'] = (g.vars['thunderGod'] ?? 0) + ext;
       p.abilityTime += ext;
@@ -117,6 +119,7 @@ function clap(g: Game, p: Player): void {
   const dmg = relicDamage(p, n.damage);
   nova(g, p.x, p.y, n.radius, dmg, 240, F.color, 'physical', (e) => chainFrom(g, p, e, dmg * n.mult, 1, n.range));
 }
+const rollingThunder = timer('thunderDrum.clap', (g, a: { p: Player }) => clap(g, a.p));
 
 export const STORM_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   2: {
@@ -134,13 +137,13 @@ export const STORM_SETS: Partial<Record<SetLevel, RelicHooks>> = {
   6: {
     // Tempest: chains reach 50% further (relicCore.chainFrom); 10 kills within 5 s reset the utility cooldown
     onKill(g, _ev, p) {
-      const times = (streaks.get(p) ?? []).filter((t) => g.time - t < F.n.streakWindow);
+      const times = p.relics.streak.filter((t) => g.time - t < F.n.streakWindow);
       times.push(g.time);
       if (times.length >= F.n.streakKills) {
         p.utilityCd = 0;
         times.length = 0;
       }
-      streaks.set(p, times);
+      p.relics.streak = times;
     },
   },
 };

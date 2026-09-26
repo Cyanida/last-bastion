@@ -1,3 +1,4 @@
+import { AI_TUNING } from '../config/ai';
 import { AFFIXES } from '../config/elites';
 import { TAU } from '../core/math';
 import type { Enemy, Game, Minion, Player } from '../core/types';
@@ -8,7 +9,6 @@ import { spawnEnemy } from './spawning';
 /** Shared by the state machine (enemyAI.ts), the specials (specials.ts) and the boss scripts. */
 export type Target = Player | Minion;
 export const POISON = '#6f8f4e';
-const MAX_SUMMONS = 60; // nobody calls reinforcements above this many enemies
 
 export const distTo = (e: Enemy, t: { x: number; y: number }) => Math.hypot(t.x - e.x, t.y - e.y);
 export const angleTo = (e: Enemy, t: { x: number; y: number }) => Math.atan2(t.y - e.y, t.x - e.x);
@@ -67,7 +67,7 @@ export function keepRange(e: Enemy, t: Target, dt: number): number {
 }
 
 export function summon(g: Game, e: Enemy): void {
-  if (g.enemies.length > MAX_SUMMONS) return;
+  if (g.enemies.length > AI_TUNING.maxSummons) return;
   for (let i = 0; i < e.def.summonCount!; i++) {
     const a = (i / e.def.summonCount!) * TAU;
     spawnEnemy(g, e.def.summon!, e.x + Math.cos(a) * 60, e.y + Math.sin(a) * 60);

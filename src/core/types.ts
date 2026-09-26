@@ -1,3 +1,4 @@
+import type { SfxName } from './audio';
 import type { OathStack } from '../logic/oaths';
 import type { LevelUpOption } from '../logic/upgrades';
 import type { AbilityUpgradeId } from '../config/abilityUpgrades';
@@ -13,6 +14,7 @@ import type { BlessingId, FeatureKind, Rect, RegionId, WingId } from '../config/
 import type { UtilityUpgradeId } from '../config/utility';
 import type { QuestKind, RewardKind } from '../config/quests';
 import type { RunLogDraft } from '../logic/runlog';
+import type { Command } from '../sim/commands';
 import type { EvolutionId } from '../config/evolutions';
 import type { Route } from '../logic/routes';
 import type { EventKind } from '../config/events';
@@ -49,6 +51,7 @@ export interface RelicOffer {
   options: RelicId[];
   rerolls: number;
   duo?: DuoId; // v0.7 A5: a ready duo, the gold fourth card
+  families?: FamilyId[]; // #100: a boss moment offers (and rerolls) only its arena's families
 }
 
 /**
@@ -74,6 +77,10 @@ export interface RelicState {
   sets: Partial<Record<FamilyId, { count: number; level: 0 | 2 | 4 | 6 }>>; // family counts and set levels, rebuilt with the mods
   duos: DuoId[]; // v0.7 A5: formed duos, in order (a duo counts toward both its families)
   cursedAct: number; // v0.7.1 B6: the last Act a cursed relic was offered to this player (0: none yet)
+  // v0.8 (#27): per-relic state that lived in module WeakMaps, here so a snapshot carries it
+  raw: Partial<Record<RelicKey, Partial<Record<keyof Mods, number>>>>; // each held relic's raw bonus per mod key this tick (the contribution weights)
+  warded: Minion[]; // Hallowed Bones: the skeletons it has warded, to notice the ones that expire
+  streak: number[]; // Tempest: the times of the recent kills
 }
 
 export interface Mods {
@@ -195,12 +202,8 @@ export interface Enemy extends Body {
   shield: number; // Shielded affix
   shieldMax: number;
   shieldT: number; // seconds until the shield starts regenerating
-  slowT: number;
-  slowMul: number;
   fearT: number;
   tauntT: number; // v0.4: the Paladin's Challenge; it can only go for the player while > 0
-  markT: number;
-  markMul: number;
   phase: number; // bosses: 1, then 2 below half HP
   combo: number;
   // v0.3: state machine (logic/fsm.ts), squads, commander auras
@@ -229,6 +232,7 @@ export interface Enemy extends Body {
   lastTele: Telegraph | null; // v0.6: the telegraph it had last tick (perfect dodge checks it when it fires)
   pulled: boolean; // v0.6: one of a wave's last stragglers, coming straight at the player (WAVES.stragglers)
   frozenT: number; // v0.7: frozen until this time (chill tipped over; Frost reads it)
+  rimeT?: number; // v0.8 (#27): Rimewalker can't freeze it again before this time
   resolve: number; // v0.7.5 (#95): a boss's recent damage taken, as of resolveT (logic/status throughResolve)
   resolveT: number;
   hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
@@ -291,11 +295,14 @@ export interface Minion extends Body {
   // v0.5 friendly units from quests and events; a skeleton has none of these
   kind?: 'caravan' | 'monk' | 'knight' | 'hound' | 'standard' | 'decoy' | 'shade'; // hound: the Bow of the Wild Hunt's (v0.5 treasures); standard, decoy, shade: v0.6 evolutions
   cleave?: number; // v0.6: its hits land on everything within this of its target (the Bone Colossus)
+  fused?: number; // v0.8: the parts fed into the Bone Colossus so far
   onEnd?: { radius: number; damage: number; color: string; dtype: DamageType }; // v0.6: bursts when it falls or fades
   shoot?: { every: number; damage: number; t: number }; // v0.6: a passive unit that shoots the nearest enemy (the Archer's shadow)
   passive?: boolean; // does not attack or chase: walks its path (if any) at `speed`
   path?: { x: number; y: number }[]; // waypoints, walked in a loop
   pathI?: number;
+  relicBy?: RelicKey | FamilyId; // raised by this relic or set (relicCore.raiseSkeleton)
+  frostLegion?: boolean; // Lich Lantern's Frost Legion has given it its burst
 }
 
 export interface Projectile extends Body {
@@ -423,6 +430,7 @@ export interface Corpse {
   x: number;
   y: number;
   t: number;
+  walked?: boolean; // Charnel: walked over already
 }
 
 export interface Particle {
@@ -472,6 +480,7 @@ export interface Game {
   corpses: Corpse[];
   particles: Particle[];
   texts: FloatText[];
+  out: SfxName[]; // v0.8 (#114): this tick's sound cues; the view plays and empties them (sim/view.ts playCues). Not hashed
   effects: Effect[];
   hash: SpatialHash<Enemy>;
   rng: SeededRng;
@@ -494,7 +503,7 @@ export interface Game {
   tierIndex: number;
   modifier: ModifierId | null;
   fields: Field[];
-  timers: { t: number; fn: () => void }[]; // delayed actions (second volley, twin pulse...)
+  timers: { t: number; kind: string; a: unknown }[]; // delayed actions (second volley, twin pulse...) as data: entities/hazards.ts timer()
   vars: Record<string, number>; // scratch for relics and ability upgrades
   baseMods: Mods; // meta upgrades + tradeoffs; relics are layered on top each tick
   salvage: number; // Rune shards from salvaged relics
@@ -550,6 +559,7 @@ export interface Game {
   pendingBoard: boolean;
   questsDone: number;
   questRunes: number;
+  bossesSeen: string[]; // #99: config/bosses.ts keys of the bosses met this run, in order (no boss comes back until the pool is spent)
   event: WaveEvent | null;
   eventsSeen: number;
   pendingShop: boolean; // the wandering merchant's screen is due (his wares: event.wares)
@@ -568,6 +578,7 @@ export interface Game {
   chain: Chain | null; // v0.5: the treasure chain, while mastery has opened it (never in a Daily Trial)
   banner: { text: string; t: number; top?: boolean }; // top: a wing opening in the same moment does not cover it (the vault)
   log: RunLogDraft; // v0.6 run log, recorded by systems/runlog.ts
+  replay: Command[]; // v0.8 (#113): every choice step() made, with its tick and player (sim/commands.ts)
   victory: 'none' | 'pending' | 'endless'; // v0.6: the Usurper fell (pending: the choice to bank or go on is up); endless: gone on past him
   victoryKills: number; // v0.6: kills when he fell (the Endless score counts from there)
   lastStand: 'ready' | 'used' | 'off'; // v0.6: once a run at 0 HP (SKILL.lastStand); an Oath can take it away

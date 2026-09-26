@@ -1,5 +1,48 @@
 # Balance notes
 
+## v0.8: the balance pass (#125)
+
+Measured on release/0.8.0 with every other v0.8 change in (the boss pool #99, arena families #100, enemy tiers #101, the capped Bone Colossus
+#126, the Usurper's 8 s last phase #127). Changed, in `src/config` only:
+- **Necromancer**: HP 85 -> 100, HP growth 5 -> 6, 3 skeletons a cast (was 2): the candidate values from B8 (v0.7.3). Capping the Colossus
+  (#126) took the maxed bot from wave 32 (v0.7.3) to about 18.
+- **Thorn Mail** 16× -> 20× (tier II 22× -> 28×), **Emberheart** +20% -> +30% per burning enemy (tier II 25% -> 40%), **Serrated Edge**
+  3 bleed stacks (tier II 4), **Frost Brand** 3 chill, **Winter's Grasp** 5 chill (tier II 7), **Berserker Tooth** +1% attack speed per 1% HP
+  missing up to 60% (tier II per 0.75%, up to 75%).
+
+**Classes.** `npm run sim` (6 runs a cell) and `npm run sim -- pacing` (4 runs a cell), maxed:
+
+| | `sim` maxed avg wave (range) | `sim` maxed wins | `pacing` maxed wave | `pacing` maxed wins | `relics 8` wins |
+|---|---|---|---|---|---|
+| Paladin, before | 35.8 (15-40) | 5/6 | 40.0 | 4/4 | 8/8 |
+| Viking, before | 40.0 (40-40) | 6/6 | 40.0 | 4/4 | 8/8 |
+| Angel, before | 40.0 (40-40) | 6/6 | 40.0 | 4/4 | 8/8 |
+| Archer, before | 40.0 (40-40) | 5/6 | 40.0 | 3/4 | 4/8 |
+| Necromancer, before | 20.8 (6-40) | 2/6 | 17.8 | 1/4 | 5/8 |
+| **Necromancer, after** | **34.3 (6-40)** | **4/6** | **31.5** | **2/4** | **7/8** |
+
+`npm run sim -- deep` (3 runs a cell) before: maxed Paladin 64.7, Viking 55.0, Angel 71.7, Archer 50.7, Necromancer 10.3. The Archer is
+left alone: maxed it reaches wave 40 like the top three, and the bot underrates it (README, Simulation). Fresh runs are seed noise at 6 runs
+(the fresh Necromancer read 20.7 before and 12.5 after, ranges 10-40 and 4-30).
+
+**Relics.** `npm run sim -- relics 8` (40 runs, maxed saves):
+
+| | Won | 6-set in winning runs | Duos a winning run | 3+ duos | Power index (Acts II-III) | Held relics under 3% (8+ runs) |
+|---|---|---|---|---|---|---|
+| Before | 33 | 12.1% | 1.39 | 9.1% | 1.81 (1.56 / 2.17) | Thorn Mail 2.8%, Emberheart 2.2%, Frost Brand 1.5%, Serrated Edge 1.5%, Winter's Grasp 0.4%, Berserker Tooth 0.3% |
+| After | 34 | 11.8% | 1.32 | 5.9% | 1.84 (1.57 / 2.23) | Emberheart 2.8%, Serrated Edge 1.7%, Frost Brand 1.2%, Berserker Tooth 0.3%, Winter's Grasp 0.3% |
+
+Every set target is met. Thorn Mail moved into the band (3.6%). Frost Brand, Winter's Grasp and Berserker Tooth hardly moved: their work is
+control (chill, attack speed while hurt) that the share cannot see, as in v0.7. Over 35%: Bone Chime (69%), Hallowed Bones (48%), both in
+1 run of 40, and Guardian's Aegis (35.4%, was 28.8%, unchanged numbers), whose ward is credited when gained; none is changed on this data.
+
+**Bosses.** No one-ability kills: the resolve (#95) holds. In `relics 8` the fastest boss fight was 7.2 s (before 7.3 s), 31 of 298 fights
+under 10 s (before 33 of 299), Act and mid-Act medians 16-28 s, and the Usurper 43.9 s at the fastest (median 60 s). Nothing changed.
+
+**Pacing.** `npm run sim -- pacing` before: 0 of 40 runs break the 90 s rule; maxed winning runs take 24-34 minutes.
+
+The golden runs (`tests/v8-golden.test.ts`) are re-recorded for these changes.
+
 ## v0.7.5: a duo combines its two relics (#96)
 
 A duo no longer counts as a third relic for both its families (RELICS.md), so 6-sets fell from 41-65% of winning runs to 7.7%. Jesse's
@@ -278,7 +321,7 @@ structure left alone gives up. Elites and bosses are never stragglers. Boss phas
 knob: late characters kill in bursts (a revived fresh Viking carries ~19 relics at tier II by wave 40, the Necromancer's skeletons took
 the Usurper from 20,000 to 0 in three seconds), so raising his HP from 3500 to 5500 changed the fight time by almost nothing, and only the
 weak-damage Paladin would have paid for it. Instead **every phase has a minimum length** (`FINAL.usurper.minPhase`: 20 s for the first; he
-cannot fall before 25 s of the last), enforced by an HP floor on the enemy (`Enemy.hpFloor`). Phase 2 needs none: the flames are spread
+cannot fall before 8 s of the last; 25 s until #127 in v0.8, which only taught players to walk away until it ran out), enforced by an HP floor on the enemy (`Enemy.hpFloor`). Phase 2 needs none: the flames are spread
 across the hall and take their time.
 
 Time from wave 40's start to his fall, with the minimums (2 seeds each; "fresh" = no Keep, revived on death like the wall probe):
@@ -582,7 +625,7 @@ headless simulation says they currently achieve.
 | **Wave 5, first boss** | **The first real check.** | A run that took random boons and ignores telegraphs ends here. Ability tier 1 arrives at level 5, right around this fight, and the boss pays out the first guaranteed relic choice. |
 | Waves 6-9 | Hard | Wave modifiers begin (35% of waves), knights and cultists join, then shield bearers and priests. A fresh character with one relic and one ability tier is expected to die somewhere in here. |
 | Wave 10, second boss | A good fresh run | Reaching it at all unlocks the Graveyard. Beating it is a strong fresh run. |
-| Waves 11-15 | Needs a build | Cavalry, two-affix elites, tier 2 (level 10). Clearing wave 15 unlocks the next difficulty: that is the goal a *developed* save is meant to reach, not a fresh one. |
+| Waves 11-15 | Needs a build | Cavalry, two-affix elites, tier 2 (level 10). Clearing wave 15 on Squire unlocks Knight: that is the goal a *developed* save is meant to reach, not a fresh one. |
 | 15+ | Borrowed time | Enemy HP and damage grow quadratically (`WAVES.hp.quad`, `WAVES.dmg.quad`), so every build eventually loses, including sustain builds. |
 
 ### What permanent upgrades should do

@@ -3,14 +3,15 @@ import { oathReward } from './oaths';
 import { advanceContracts, weekKey, type Contract, type ContractState } from './contracts';
 import { CONTRACTS_PER_WEEK } from '../config/contracts';
 import { EVOLUTION_IDS, type EvolutionId } from '../config/evolutions';
+import { CARD_IDS, type CardId } from '../config/cards';
 import { ACHIEVEMENTS, FEAT_KEYS, type FeatKey } from '../config/achievements';
 import { ARENA_IDS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
 import { CURSE_IDS, type CurseId } from '../config/curses';
 import { ACTS } from '../config/acts';
-import { BUILDING_IDS, BUILDINGS, MASTERY, META, META_IDS, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
+import { BUILDING_IDS, BUILDINGS, MASTERY, META, META_IDS, RUNES, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
 import type { EnemyId } from '../config/enemies';
-import type { QualitySetting } from '../config/game';
+import { TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
 import { DUO_IDS, isCursedRelic, RELIC_IDS, type DuoId, type RelicId } from '../config/relics';
 import { familySets } from './relics';
 import { TRAIT_IDS, type TraitId } from '../config/traits';
@@ -19,6 +20,7 @@ import { curseMultiplier } from './curses';
 import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, runesForActBoss, type BuildingLevels, type MetaRanks } from './economy';
 import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
 import { keepRuns, readRunLog, type RunLog } from './runlog';
+import { recordTierRun, tierUnlockedFor } from './difficulty';
 
 export const SAVE_VERSION = 6; // v0.7: the relic rework (compendium, Keep refund and new counters below)
 export const READABLE_VERSIONS = [2, 3, 4, 5, 6]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
@@ -89,7 +91,9 @@ export interface Save {
   palettes: number[]; // sprite palettes unlocked for every class
   talentPoints: number; // permanent extra talent points a run starts with
   treasures: Record<ClassId, TreasureRecord>; // v0.5 sacred treasure chain per class (logic/treasures.ts); was treasureSteps
-  tierUnlocked: number; // highest difficulty index available
+  tierUnlocked: number; // highest difficulty index available (never goes down)
+  tierWaves: number[]; // v0.8 (#79): per difficulty, the most waves cleared in one run (an entry, not a format change: backfilled from the run log)
+  tierWins: number[]; // v0.8 (#79): per difficulty, the runs won (likewise)
   counters: Record<FeatKey, number> & {
     kills: number;
     bosses: number;
@@ -122,8 +126,9 @@ export interface Save {
   newRelics: RelicId[]; // v0.7: relics that arrived with the rework, marked new in the compendium until found
   evolutions: EvolutionId[]; // v0.6: evolutions ever taken (the compendium shows their recipes in full)
   duos: DuoId[]; // v0.7: duos ever formed (the compendium shows them in full)
+  cards: CardId[]; // v0.8 (#124): flash cards seen (an entry, not a format change: an older save has seen none)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
-  settings: { arena: ArenaId; tier: number; quality: QualitySetting; prerelease: boolean; manualAim: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
+  settings: { arena: ArenaId; tier: number; quality: QualitySetting; textSize: TextSize; prerelease: boolean; manualAim: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
 }
 
 /** What a finished (or abandoned) run reports. The v0.3 fields are optional so older callers keep working. */
@@ -188,18 +193,21 @@ export function defaultSave(): Save {
     talentPoints: 0,
     treasures: Object.fromEntries(CLASS_ORDER.map((id) => [id, emptyTreasure()])) as Record<ClassId, TreasureRecord>,
     tierUnlocked: 0,
+    tierWaves: TIERS.map(() => 0),
+    tierWins: TIERS.map(() => 0),
     counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, sixSets: 0, maxDuos: 0, maxAwakened: 0, cursedWin: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
     daily: {},
     runs: [],
     refund: null,
     evolutions: [],
     duos: [],
+    cards: [],
     newRelics: [],
     wins: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     oaths: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     contracts: { week: '', progress: Array(CONTRACTS_PER_WEEK).fill(0) },
     endless: Object.fromEntries(CLASS_ORDER.map((id) => [id, []])) as unknown as Record<ClassId, EndlessEntry[]>,
-    settings: { arena: 'courtyard', tier: 0, quality: 'auto', prerelease: false, manualAim: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
+    settings: { arena: 'courtyard', tier: 0, quality: 'auto', textSize: 'normal', prerelease: false, manualAim: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
   };
 }
 
@@ -302,8 +310,15 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
       }
     }
     if (Array.isArray(raw.evolutions)) save.evolutions = EVOLUTION_IDS.filter((id) => (raw.evolutions as unknown[]).includes(id));
+    if (Array.isArray(raw.cards)) save.cards = CARD_IDS.filter((id) => (raw.cards as unknown[]).includes(id));
     if (Array.isArray(raw.duos)) save.duos = DUO_IDS.filter((id) => (raw.duos as unknown[]).includes(id));
     if (Array.isArray(raw.runs)) save.runs = keepRuns(raw.runs.map(readRunLog).filter((r): r is RunLog => r !== null));
+    // v0.8 (#79): the per-difficulty records; an older save derives them from its run log (a lost run cleared one wave less than it reached)
+    if (Array.isArray(raw.tierWaves) && Array.isArray(raw.tierWins)) {
+      save.tierWaves = TIERS.map((_, i) => Math.max(0, Math.floor(num((raw.tierWaves as unknown[])[i]))));
+      save.tierWins = TIERS.map((_, i) => Math.max(0, Math.floor(num((raw.tierWins as unknown[])[i]))));
+    } else for (const r of save.runs) if (r.tier < TIERS.length) Object.assign(save, recordTierRun(save, r.tier, r.won ? r.wave : r.wave - 1, r.won));
+    save.tierUnlocked = tierUnlockedFor(save.tierUnlocked, save);
     if (isObj(raw.daily)) for (const [day, wave] of Object.entries(raw.daily)) if (/^\d{4}-\d{2}-\d{2}$/.test(day) && num(wave) > 0) save.daily[day] = num(wave);
     if (isObj(raw.settings)) {
       const s = raw.settings;
@@ -311,6 +326,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
         arena: ARENA_IDS.includes(s.arena as ArenaId) ? (s.arena as ArenaId) : 'courtyard',
         tier: Math.min(save.tierUnlocked, Math.floor(num(s.tier))),
         quality: s.quality === 'low' || s.quality === 'high' ? s.quality : 'auto',
+        textSize: typeof s.textSize === 'string' && Object.hasOwn(TEXT_SIZES, s.textSize) ? (s.textSize as TextSize) : 'normal', // v0.8 (#123): older saves read Normal
         trait: TRAIT_IDS.includes(s.trait as TraitId) ? (s.trait as TraitId) : 'none',
         trait2: TRAIT_IDS.includes(s.trait2 as TraitId) ? (s.trait2 as TraitId) : 'none',
         oath: Math.max(0, Math.min(OATHS.length, Math.floor(num(s.oath)))),
@@ -404,7 +420,9 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   const entry: EndlessEntry | null = run.endlessScore ? { score: run.endlessScore, wave: run.wave, kills: run.kills, time: run.time, at } : null;
   const board = entry ? [...save.endless[run.classId], entry].sort((a, b) => b.score - a.score).slice(0, VICTORY.leaderboard) : save.endless[run.classId];
   const endlessRank = entry ? board.indexOf(entry) + 1 : 0;
-  const tierUnlocked = run.tier === save.tierUnlocked && run.wavesCleared >= TIER_UNLOCK_WAVE && save.tierUnlocked < TIERS.length - 1;
+  const tierRecords = recordTierRun(save, run.tier, run.wavesCleared, run.won === true);
+  const tierTop = tierUnlockedFor(save.tierUnlocked, tierRecords); // v0.8 (#79): TIER_UNLOCK, no longer only from the highest tier
+  const tierUnlocked = tierTop > save.tierUnlocked;
   const relicPicks = { ...save.relicPicks };
   for (const id of run.relicsFound ?? run.relics) relicPicks[id] = (relicPicks[id] ?? 0) + 1; // v0.4: every pickup and tier-up counts
   // class feats are kept as "the best a single run managed", so an achievement can ask for something within one run
@@ -432,7 +450,8 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
         ? { ...save.treasures, [run.classId]: advanceChain(run.classId, save.treasures[run.classId], run.treasure, { unlocked: masteryBonus(prev.xp).treasureStep, difficulty: run.tier, acts }) }
         : save.treasures,
       runeShards: Math.round(shards % RUNES.shardsPerRune),
-      tierUnlocked: save.tierUnlocked + (tierUnlocked ? 1 : 0),
+      tierUnlocked: tierTop,
+      ...tierRecords,
       daily: run.daily ? { ...save.daily, [run.daily]: Math.max(save.daily[run.daily] ?? 0, run.wave) } : save.daily,
       runs: keepRuns(save.runs, run.log && { ...run.log, at }),
       wins: run.won ? { ...save.wins, [run.classId]: save.wins[run.classId] + 1 } : save.wins,

@@ -1,7 +1,8 @@
 import type { ClassId } from '../config/classes';
-import { ATTUNEMENT, DUO_IDS, DUOS, FAMILY_IDS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, DUO_IDS, DUOS, FAMILIES, FAMILY_IDS, SET_LEVELS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng, SeededRng } from '../core/types';
+import { isMultiplicative } from './mods';
 import { mulberry32 } from '../core/math';
 import { hashSeed } from './acts';
 
@@ -11,7 +12,7 @@ export const relicStream = (seed: number, player: number): SeededRng => mulberry
 /** An empty relic state; createGame fills in the pool and the stream. */
 export const emptyRelics = (): RelicState => ({
   held: [], tiers: {}, attune: {}, work: {}, pool: [], offers: [], found: [], from: {}, stats: {}, rng: mulberry32(0),
-  static: {}, dyn: {}, totals: {}, dirty: true, sets: {}, duos: [], cursedAct: 0,
+  static: {}, dyn: {}, totals: {}, dirty: true, sets: {}, duos: [], cursedAct: 0, raw: {}, warded: [], streak: [],
 });
 
 export type RelicTiers = Partial<Record<RelicId, number>>;
@@ -122,6 +123,14 @@ export function rollOffer(
   return out;
 }
 
+/**
+ * #100: a boss moment's pool, only relics of `families`; the whole pool when fewer than `n` of them are left to offer (none held or excluded).
+ */
+export function familyPool(pool: RelicId[], held: RelicId[], families: readonly string[], n: number, exclude: RelicId[] = []): RelicId[] {
+  const narrow = pool.filter((id) => families.includes(relicDef(id).family ?? ''));
+  return narrow.filter((id) => !held.includes(id) && !exclude.includes(id)).length >= n ? narrow : pool;
+}
+
 /** v0.7 (RELICS.md): a family's count and set level. */
 export interface SetState { count: number; level: 0 | SetLevel }
 
@@ -143,8 +152,6 @@ export function softCap(sum: number, cap: number): number {
   return cap + tail * (1 - Math.exp(-(sum - cap) / tail));
 }
 
-const MULTIPLICATIVE = new Set<keyof Mods>(['damage', 'atkSpd', 'moveSpd', 'cooldown', 'pickup', 'xp', 'gold', 'minionAtkSpd', 'minionDamage']);
-
 export interface RelicModTotal {
   raw: number; // the additive sum of bonuses (a cooldown cut is positive here)
   eff: number; // after the soft cap
@@ -160,7 +167,7 @@ export function relicModTotals(held: RelicId[], tiers: RelicTiers): Partial<Reco
     if (!mods) continue;
     for (const key of Object.keys(mods) as (keyof Mods)[]) {
       const v = mods[key]!;
-      const bonus = MULTIPLICATIVE.has(key) ? (key === 'cooldown' ? 1 - v : v - 1) : v;
+      const bonus = isMultiplicative(key) ? (key === 'cooldown' ? 1 - v : v - 1) : v;
       const t = (out[key] ??= { raw: 0, eff: 0, cap: Infinity, count: 0 });
       t.raw += bonus;
       t.count++;
@@ -189,7 +196,7 @@ export function foldRelicMods(statics: RelicTotals, dyn: Partial<Record<keyof Mo
 export function totalsToMods(totals: RelicTotals): Partial<Mods> {
   const mods: Partial<Mods> = {};
   for (const [key, t] of Object.entries(totals) as [keyof Mods, RelicModTotal][]) {
-    mods[key] = MULTIPLICATIVE.has(key) ? (key === 'cooldown' ? 1 - t.eff : 1 + t.eff) : t.eff;
+    mods[key] = isMultiplicative(key) ? (key === 'cooldown' ? 1 - t.eff : 1 + t.eff) : t.eff;
   }
   return mods;
 }
@@ -197,3 +204,16 @@ export function totalsToMods(totals: RelicTotals): Partial<Mods> {
 /** The one Mods object that folds every held relic's plain mods together (additive within a key, soft-capped). */
 export const relicModsCombined = (held: RelicId[], tiers: RelicTiers): Partial<Mods> => totalsToMods(relicModTotals(held, tiers));
 
+/**
+ * #98: a relic offer card's one compact line under its effect: the family count it raises (★ set bonus when that reaches one), and ✦ marks
+ * for a duo it completes or an evolution it is one step from. The long form of each is in the card's tooltip. `count` is the family's
+ * count now; an upgrade of a held relic (`upgrade`) leaves it as it is.
+ */
+export function relicCardLine(id: RelicId, count: number, o: { upgrade: boolean; duo: boolean; evolution: boolean }): string {
+  const fam = relicDef(id).family;
+  const next = o.upgrade ? count : count + 1;
+  const parts = [fam ? `${FAMILIES[fam].icon} ${FAMILIES[fam].name} ${o.upgrade ? count : `${count} → ${next}`}${!o.upgrade && (SET_LEVELS as readonly number[]).includes(next) ? ' ★ set bonus' : ''}` : '☠ no family'];
+  if (o.duo) parts.push('✦ duo');
+  if (o.evolution) parts.push('✦ evolution');
+  return parts.join(' · ');
+}

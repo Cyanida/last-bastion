@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createGame } from '../src/game';
-import { applyChoice, intentCommand, levelHand, levelRerolls, step } from '../src/sim/commands';
+import { botStep } from '../src/sim/bot';
+import { applyChoice, choiceCommand, intentCommand, levelHand, levelRerolls, step, type Command } from '../src/sim/commands';
 
 const idle = { moveX: 0, moveY: 0, aimX: 0, aimY: 0, ability: false, utility: false, showAim: false };
 
@@ -48,5 +49,45 @@ describe('v0.8 command layer (#25)', () => {
     applyChoice(screen, { c: 'levelReroll' });
     applyChoice(replay, { c: 'levelReroll' });
     expect(levelHand(replay)).toEqual(levelHand(screen));
+  });
+});
+
+describe('v0.8 choice commands (#113)', () => {
+  it('a choice for a screen that is not up is refused, changes nothing and is not recorded', () => {
+    const g = createGame('paladin', 5);
+    g.gold = 500;
+    expect(step(g, [choiceCommand(g, { c: 'merchantHeal' })], false)).toBe(false);
+    expect(step(g, [choiceCommand(g, { c: 'endless' })], false)).toBe(false);
+    expect(step(g, [choiceCommand(g, { c: 'levelReroll' })], false)).toBe(false);
+    expect([g.gold, g.victory, g.levelHand, g.replay.length]).toEqual([500, 'none', null, 0]);
+  });
+
+  it('a choice is made only on its own tick and for a player in the run', () => {
+    const g = createGame('archer', 9);
+    g.pendingLevelUps = 1;
+    expect(step(g, [{ ...choiceCommand(g, { c: 'levelUp', index: 0 }), tick: g.tick + 1 }], false)).toBe(false);
+    expect(step(g, [choiceCommand(g, { c: 'levelUp', index: 0 }, 1)], false)).toBe(false);
+    expect(g.pendingLevelUps).toBe(1);
+    const cmd = choiceCommand(g, { c: 'levelUp', index: 0 });
+    expect(step(g, [cmd], false)).toBe(true);
+    expect(g.pendingLevelUps).toBe(0);
+    expect(g.tick).toBe(0); // a paused screen's answer takes no time
+    expect(g.replay).toEqual([cmd]);
+  });
+
+  it('an intent for another tick or player is ignored', () => {
+    const g = createGame('paladin', 5);
+    step(g, [{ ...intentCommand(g, { ...idle, moveX: 1 }), tick: 7 }, intentCommand(g, { ...idle, moveY: 1 }, 2)]);
+    expect([g.input.moveX, g.input.moveY]).toEqual([0, 0]);
+  });
+
+  it("the bot's choices land in the replay log with their ticks", () => {
+    const g = createGame('viking', 3);
+    const log: Command[] = [];
+    while (g.player.level < 3 && g.tick < 60 * 120) botStep(g, 0, log);
+    botStep(g, 0, log); // the level-up just earned is answered at the start of the next step
+    const choices = log.filter((c) => c.kind === 'choice');
+    expect(choices.length).toBeGreaterThan(0);
+    expect(g.replay).toEqual(choices);
   });
 });

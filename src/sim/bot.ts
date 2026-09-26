@@ -15,7 +15,7 @@ import { regionAt } from '../logic/regions';
 import { regionsOf } from '../systems/regions';
 import { QUEST_BOARD } from '../config/quests';
 import { featureSpot } from '../config/regions';
-import { applyChoice, intentCommand, levelHand, step, type Choice, type Intent } from './commands';
+import { choiceCommand, intentCommand, levelHand, step, type Choice, type Command, type Intent } from './commands';
 
 /**
  * A deliberately basic player: kite (or, for melee, wade in until hurt), step out of telegraphs,
@@ -196,10 +196,15 @@ function draftRelic(g: Game, o: RelicOffer): RelicId | DuoId | null {
 
 /**
  * Resolve every pending choice the way the UI would, without the UI. `variant` picks the ability upgrade branch (0 or 1) and the talent
- * branch. v0.8: each answer is a choice command, applied on the spot (the next one depends on it).
+ * branch. v0.8: each answer is a choice command, stepped on the spot without advancing (the next one depends on it), and written
+ * to `out` if given (a recording for the replay test: step() applies a tick's choices first, in order, as here).
  */
-export function botChoose(g: Game, variant = 0): void {
-  const choose = (choice: Choice) => applyChoice(g, choice);
+export function botChoose(g: Game, variant = 0, out?: Command[]): void {
+  const choose = (choice: Choice) => {
+    const cmd = choiceCommand(g, choice);
+    out?.push(cmd);
+    return step(g, [cmd], false);
+  };
   if (g.pendingShrine) choose({ c: 'blessing', id: g.pendingShrine[0] });
   if (g.pendingBoard) choose({ c: 'quests', picks: [...Array(QUEST_BOARD.offered + 1).keys()] }); // as many as it may, and the treasure trial (the free card after the board's)
   if (g.pendingShop) {
@@ -233,9 +238,11 @@ export function botChoose(g: Game, variant = 0): void {
   }
 }
 
-export function botStep(g: Game, variant = 0): void {
-  botChoose(g, variant);
-  step(g, [intentCommand(g, botInput(g))]);
+export function botStep(g: Game, variant = 0, out?: Command[]): void {
+  botChoose(g, variant, out);
+  const cmd = intentCommand(g, botInput(g));
+  out?.push(cmd);
+  step(g, [cmd]);
 }
 
 /** A whole run by the bot. A win is banked on the spot, unless `endless`: then it goes on past the Usurper until it dies or runs out of time. */
@@ -244,7 +251,7 @@ export function simulateRun(classId: ClassId, seed: number, opts: RunOptions = {
   while (!g.over && g.time < maxSeconds) {
     if (g.victory === 'pending') {
       if (!endless) break;
-      applyChoice(g, { c: 'endless' });
+      step(g, [choiceCommand(g, { c: 'endless' })], false);
     }
     botStep(g, variant);
   }

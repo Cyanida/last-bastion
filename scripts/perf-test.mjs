@@ -111,6 +111,7 @@ for (const modifier of SCENARIOS) {
     g.player.upgrades.push('dreadHowl', 'whirlwind', 'frenzy');
     g.baseMods.xp = 0; // no level-ups: a choice screen would pause the sim mid-measurement
     g.player.relics.pool = []; // no relic offers either
+    lb.save.cards?.push(...(lb.cardIds ?? [])); // v0.8 (#124): every flash card seen, or one would pause it too
     const final = modifier === 'usurper';
     if (final) lb.skipTo(4, 40);
     else {

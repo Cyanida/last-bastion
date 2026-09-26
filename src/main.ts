@@ -8,6 +8,8 @@ import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLev
 import { addListener, type EventName } from './core/events';
 import { moodOf, type Stinger } from './logic/runMusic';
 import { showWhatsNewNow } from './logic/whatsNew';
+import { nextCard } from './logic/cards';
+import { CARD_IDS, CARDS } from './config/cards';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
@@ -32,14 +34,15 @@ import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from 
 import { buildArena } from './render/arena';
 import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
-import { view as simView } from './sim/view';
-import { applyChoice, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
+import { playCues, view as simView } from './sim/view';
+import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
 import { abilityAimRadius } from './systems/abilities';
-import { relicPreview, relicShares, skipReward } from './systems/relics';
+import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showTestMode, showCrash, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
+import { textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
@@ -49,9 +52,9 @@ import { CLASS_ORDER } from './config/classes';
 import { MASTERY } from './config/economy';
 import { markBored } from './systems/runlog';
 import { buildState } from './systems/evolutions';
-import { setRecipeBuild } from './ui/relicText';
+import { recipeLines, setRecipeBuild } from './ui/relicText';
 import { endlessScore } from './systems/victory';
-import { peddlerPrice } from './systems/events';
+import { peddlerPrice, peddlerTokenPrice } from './systems/events';
 import { utilityUpgradeOptions } from './systems/utility';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
@@ -61,7 +64,7 @@ const STINGERS: Partial<Record<EventName, Stinger>> = { onRelicTier: 'tier', onS
 addListener((g, name) => {
   if (g === game && STINGERS[name]) stinger(STINGERS[name]);
 });
-// v0.8 (#26): the simulation stays pure; this screen gives it sound, the perf timers and the particle budget
+// v0.8 (#26): the simulation stays pure; this screen gives it sound (its g.out cues, #114), the perf timers and the particle budget
 Object.assign(simView, { sfx, begin, end, particleBudget });
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -172,7 +175,7 @@ function toSelect(): void {
       toSelect();
     },
     settings(arena, tier) {
-      if (lockedArenas(save).includes(arena) || tier > save.tierUnlocked || tier > buildingLevel(save.buildings, 'watchtower')) return;
+      if (lockedArenas(save).includes(arena) || tier > save.tierUnlocked) return;
       commit({ ...save, settings: { ...save.settings, arena, tier } });
       toSelect();
     },
@@ -214,7 +217,7 @@ function toKeep(): void {
     mastery: (id) => showMastery(save, id, toKeep),
     treasures: () => showTreasures(save, null, toKeep),
     history: () => showRunHistory(save.runs, toKeep),
-    glossary: () => showGlossary(toKeep),
+    glossary: () => showGlossary(toKeep, save.cards),
     buy(id: MetaId) {
       commit(buyMeta(save, id));
       toKeep();
@@ -231,7 +234,7 @@ function toSettings(): void {
   menu();
   const d = platform.desktop;
   showSettings(
-    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), manualAim: save.settings.manualAim, version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
+    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), manualAim: save.settings.manualAim, textSize: save.settings.textSize, version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
     {
       back: toTitle,
       saveData: toSaveDialog,
@@ -255,6 +258,11 @@ function toSettings(): void {
       },
       runMusic() {
         setRunMusic(!runMusicOn());
+        toSettings();
+      },
+      textSize(size) {
+        commit({ ...save, settings: { ...save.settings, textSize: size } });
+        resize();
         toSettings();
       },
       aim(manual) {
@@ -368,8 +376,8 @@ function resume(): void {
   play(); // the loop opens the next queued choice, if any
 }
 
-/** v0.8: a choice screen's answer, as a command for player 0. Applied now: the simulation is paused while a screen is open. */
-const choose = (g: Game, choice: Choice): boolean => applyChoice(g, choice);
+/** v0.8: a choice screen's answer, as a command for player 0, stepped now without advancing: the run is paused while a screen is open. */
+const choose = (g: Game, choice: Choice): boolean => step(g, [choiceCommand(g, choice)], false);
 
 function openLevelUp(g: Game): void {
   const p = g.player;
@@ -403,7 +411,7 @@ function openChoice(g: Game): void {
     });
   } else if (g.player.relics.offers.length > 0) {
     const p = g.player;
-    showRelicOffer(p.relics.offers[0], p.relics.held, p.relics.tiers, { skip: skipReward(g), preview: (id) => relicPreview(p, id) }, {
+    showRelicOffer(p.relics.offers[0], p.relics.held, p.relics.tiers, { skip: skipReward(g), preview: (id) => relicPreview(p, id), line: (id) => relicOfferLine(p, id, recipeLines({ relic: id }).length > 0) }, {
       take: (id) => void (choose(g, { c: 'relicTake', id }), resume()),
       skip: () => void (choose(g, { c: 'relicSkip' }), resume()),
       reroll: () => void (choose(g, { c: 'relicReroll' }), openChoice(g)),
@@ -443,9 +451,12 @@ function openChoice(g: Game): void {
 
 /** v0.5: the wandering merchant's wares; it re-opens after every purchase, like the Merchant. */
 function openPeddler(g: Game): void {
-  showPeddler({ stock: g.event?.stock ?? 0, price: peddlerPrice(g), gold: g.gold, hurt: g.player.hp < g.player.stats.hp }, {
+  showPeddler({ stock: g.event?.stock ?? 0, price: peddlerPrice(g), tokenPrice: peddlerTokenPrice(g), gold: g.gold, hurt: g.player.hp < g.player.stats.hp }, {
     buy() {
       if (choose(g, { c: 'peddlerBuy' })) openPeddler(g);
+    },
+    token() {
+      if (choose(g, { c: 'peddlerToken' })) openPeddler(g);
     },
     leave() {
       choose(g, { c: 'peddlerLeave' });
@@ -514,7 +525,7 @@ function pauseMenu(g: Game): void {
     quit: () => endRun(g),
     talents: () => { pauseSub = true; openTalents(g); },
     treasures: () => { pauseSub = true; showTreasures(banked(save, g, new Date())?.save ?? save, g.player.cls.id, () => pauseMenu(g)); }, // the log as it would stand if the run ended now
-    glossary: () => { pauseSub = true; showGlossary(() => pauseMenu(g)); },
+    glossary: () => { pauseSub = true; showGlossary(() => pauseMenu(g), save.cards); },
     bored: () => markBored(g),
   });
 }
@@ -628,16 +639,33 @@ function chainToasts(g: Game): void {
 }
 
 function afterStep(g: Game): void {
+  playCues(g);
   if (g.over) endRun(g);
   else {
     checkToasts(g);
     chainToasts(g);
     if (hasChoice(g)) openChoice(g);
+    else flashCard(g);
   }
+}
+
+/** v0.8 (#124): a card the first time a foe, a boss or a mechanic is met; the run waits under it. A test run leaves no trace, so it shows none. */
+function flashCard(g: Game): void {
+  if (g.tick % CARDS.checkEvery || isTestRun(g)) return;
+  const id = nextCard(g.enemies, g.player.x, g.player.y, save.cards);
+  if (!id) return;
+  commit({ ...save, cards: [...save.cards, id] }); // seen as soon as it shows: a reload never shows it twice
+  state = 'choice';
+  setTouchControls(false);
+  showFlashCard(id, (pause) => {
+    resume();
+    if (pause) togglePause(); // Esc is the pause key: it closes the card and pauses
+  });
 }
 
 function tick(): void {
   if (state !== 'playing' || !game) return;
+  playCues(game); // a pick made since the last frame: step clears the queue
   step(game, [intentCommand(game, sampleInput(game))]);
   afterStep(game);
 }
@@ -647,6 +675,7 @@ let last = performance.now();
 let acc = 0;
 function draw(now: number): void {
   if (game) {
+    playCues(game); // a pick on a choice screen sounds while no step runs (paused, or the next screen is up)
     render(ctx, game, view, arenaCanvas(game.arena.id), abilityAimRadius(game.player));
     const t = begin();
     updateHud(game);
@@ -721,7 +750,11 @@ function resize(): void {
   canvas.style.width = `${w}px`;
   canvas.style.height = `${h}px`;
   view.zoom = clamp(Math.min(w / VIEW.targetW, h / VIEW.targetH), VIEW.minZoom, VIEW.maxZoom) * view.dpr;
-  document.documentElement.classList.toggle('compact', h < 560); // v0.5: phones get a denser HUD layout at full text size, not a scaled-down one
+  // v0.8 (#123): Settings › Text size zooms the HUD and the screens (style.css --ui-scale); the layout then has w/scale × h/scale to fill
+  const scale = textScale(save.settings.textSize, w, h);
+  document.documentElement.style.setProperty('--ui-scale', String(scale));
+  document.documentElement.classList.toggle('scaled', scale !== 1);
+  document.documentElement.classList.toggle('compact', h / scale < 560); // v0.5: phones get a denser HUD layout at full text size, not a scaled-down one
 }
 window.addEventListener('resize', resize);
 window.visualViewport?.addEventListener('resize', resize);
@@ -781,6 +814,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
         return save;
       },
       quality,
+      cardIds: CARD_IDS, // v0.8 (#124): the perf test marks every flash card seen
       setQuality, // v0.8: the play test compares particle budgets
       view: simView, // v0.8: the play test wraps view.sfx to hear what the simulation plays
       perf,
@@ -850,6 +884,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       run(n: number, ability = false, mode: boolean | 'input' = false) {
         for (let i = 0; i < n && game && state !== 'results'; i++) {
           if (state === 'choice') (document.querySelector('[data-pick], [data-leave], [data-bank]') as HTMLElement).click(); // v0.6: a win is banked
+          playCues(game); // the pick's sound, before step clears the queue
           if (state !== 'playing') continue;
           const intent = mode === 'input' ? sampleInput(game) : mode ? botInput(game) : { ...game.input, ability }; // the bot moves and casts, but the real choice screens still open
           step(game, [intentCommand(game, intent)]);

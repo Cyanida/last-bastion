@@ -6,8 +6,8 @@ import { compact, pickWeighted, TAU } from '../core/math';
 import type { Game, Rng, WaveEvent } from '../core/types';
 import { createMinion } from '../entities/actors';
 import { addField } from '../entities/hazards';
-import { merchantPrice } from '../logic/acts';
-import { squadPlan, squadUnits } from '../logic/director';
+import { actPrice, merchantPrice } from '../logic/acts';
+import { squadOnTier, squadPlan, squadUnits } from '../logic/director';
 import { rollAffixes } from '../logic/elites';
 import { enemyDmgMult, enemyHpMult } from '../logic/formulas';
 import { placeRng, rollEvent } from '../logic/quests';
@@ -69,7 +69,7 @@ function startEvent(g: Game): void {
 /** Two squads at once, from opposite sides of the player (the director's squad path, placed by hand). */
 function springAmbush(g: Game): void {
   const p = g.player;
-  const pool = SQUADS.filter((t) => t.from <= g.wave).map((t) => ({ value: t, weight: t.weight }));
+  const pool = SQUADS.filter((t) => t.from <= g.wave && squadOnTier(t, g.tierIndex)).map((t) => ({ value: t, weight: t.weight }));
   const a = g.rng() * TAU;
   for (const side of [1, -1]) {
     const t = pool.length ? pickWeighted(pool, g.rng) : SQUADS[0];
@@ -79,7 +79,7 @@ function springAmbush(g: Game): void {
     spawnSquad(g, index, squadUnits(t, index), at);
   }
   g.banner = { text: 'Ambush!', t: 2 };
-  sfx('warn');
+  sfx(g, 'warn');
   shake(g, 8);
 }
 
@@ -89,7 +89,7 @@ function openCursedChest(g: Game, ev: WaveEvent): void {
   g.gold += EVENTS.cursedChest.gold * g.act;
   g.salvage += 1;
   floatText(g, p.x, p.y - 44, `+${EVENTS.cursedChest.gold * g.act}g · ◆ shard`, '#c9a227', 16);
-  const pool = unlockedPool(g.wave, null);
+  const pool = unlockedPool(g.wave, null, g.tierIndex);
   for (let i = 0; i < EVENTS.cursedChest.elites; i++) {
     const a = (i / EVENTS.cursedChest.elites) * TAU + g.rng();
     const e = spawnEnemy(g, pickWeighted(pool, g.rng), p.x + Math.cos(a) * 170, p.y + Math.sin(a) * 170, rollAffixes(g.wave, g.rng));
@@ -97,7 +97,7 @@ function openCursedChest(g: Game, ev: WaveEvent): void {
   }
   ring(g, ev.x, ev.y, 90, '#a77fd0', 0.6);
   g.banner = { text: 'The chest was cursed!', t: 2 };
-  sfx('warn');
+  sfx(g, 'warn');
   shake(g, 8);
 }
 
@@ -154,7 +154,23 @@ export function peddlerBuy(g: Game): boolean {
   ev.stock--;
   p.hp = Math.min(p.stats.hp, p.hp + p.stats.hp * EVENTS.peddler.heal); // like the Merchant's surgeon, not healPlayer: No Respite does not bind him
   floatText(g, p.x, p.y - 34, `+${Math.round(p.stats.hp * EVENTS.peddler.heal)}`, '#6f8f4e', 15);
-  sfx('xp');
+  sfx(g, 'xp');
+  return true;
+}
+
+export const peddlerTokenPrice = (g: Game): number => actPrice(EVENTS.peddler.token, g.act);
+
+/** #128: buy the peddler's reroll token, worth having at full health: one more free reroll on the next level-up screen. */
+export function peddlerToken(g: Game): boolean {
+  const ev = g.event;
+  const price = peddlerTokenPrice(g);
+  if (!ev || ev.stock <= 0 || g.gold < price) return false;
+  g.gold -= price;
+  g.merchantSpent += price;
+  ev.stock--;
+  (g.levelRerolls ??= { free: g.rerolls, paid: 0 }).free++; // no new state: the next screen's rerolls (sim/commands levelRerolls) are dealt now, one more than usual, and cleared when it is answered
+  floatText(g, g.player.x, g.player.y - 34, '+1 reroll', '#c9a227', 15);
+  sfx(g, 'xp');
   return true;
 }
 

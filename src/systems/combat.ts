@@ -61,7 +61,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   }
   g.corpses.push({ x: e.x, y: e.y, t: 0 });
   burst(g, e.x, e.y, BLOOD, boss ? 60 : e.elite ? 20 : 8, boss ? 320 : 150);
-  sfx(boss ? 'boom' : 'kill');
+  sfx(g, boss ? 'boom' : 'kill');
 
   if (g.modifier === 'plague' && !boss) {
     const n = MODIFIERS.plague.n;
@@ -188,7 +188,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   damageNumber(g, e, amount, crit ? '#f2c94c' : source === 'relic' && relicContext.acting ? RELIC_COLOR : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');
   burst(g, e.x, e.y, BLOOD, crit ? 6 : 2);
   if (crit) shake(g, 4);
-  sfx('hit');
+  sfx(g, 'hit');
   if (source === 'attack') {
     const leech = g.player.buff.lifesteal + g.player.mods.lifesteal;
     if (leech > 0) healPlayer(g, Math.min(dealt * leech, g.player.stats.hp * GAME.leechCapPerHit), false);
@@ -230,7 +230,7 @@ function revive(g: Game): boolean {
   burst(g, p.x, p.y, '#f2e6a0', 50, 360);
   floatText(g, p.x, p.y - 44, 'REVIVED', '#f2e6a0', 20);
   shake(g, 16);
-  sfx('levelup');
+  sfx(g, 'levelup');
   return true;
 }
 
@@ -270,7 +270,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
   g.bossHit = true;
   floatText(g, p.x, p.y - 34, `-${Math.round(taken)}`, '#c23a2e', 15);
   shake(g, Math.min(14, 4 + taken * 0.3));
-  sfx('hurt');
+  sfx(g, 'hurt');
   if (p.hp <= 0) {
     if (p.deathless) p.hp = 1;
     else if (!revive(g) && !lastStand(g)) {
@@ -337,7 +337,7 @@ export function updatePlayerAttack(g: Game, dt: number): void {
   if (atk.kind === 'melee') {
     const arc = p.buff.fullCircle ? TAU : atk.arc;
     swingArc(g, p.x, p.y, range, p.facing, arc, atk.color);
-    sfx('swing');
+    sfx(g, 'swing');
     for (const e of g.hash.query(p.x, p.y, range, near)) {
       const a = Math.atan2(e.y - p.y, e.x - p.x);
       if (e.dead || angleDiff(a, p.facing) > arc / 2) continue;
@@ -363,7 +363,7 @@ export function updatePlayerAttack(g: Game, dt: number): void {
         dtype: atk.type,
       });
     }
-    sfx('shoot');
+    sfx(g, 'shoot');
   }
 }
 
@@ -493,7 +493,7 @@ export function updateZones(g: Game, dt: number): void {
       ring(g, z.x, z.y, z.r, z.color);
       burst(g, z.x, z.y, z.color, 18, 240);
       shake(g, 8);
-      sfx('boom');
+      sfx(g, 'boom');
     } else {
       let hits = 0;
       for (const e of g.hash.query(z.x, z.y, z.r, near)) {

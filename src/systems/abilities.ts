@@ -5,12 +5,12 @@ import { addListener, dispatch, emit, type Handlers } from '../core/events';
 import { clamp, dist2, TAU } from '../core/math';
 import type { Enemy, Game, Player, Status } from '../core/types';
 import { createMinion, neutralBuff } from '../entities/actors';
-import { addField, addZone, after, fireProjectile } from '../entities/hazards';
+import { addField, addZone, fieldLater, fireProjectile, timer } from '../entities/hazards';
 import * as scale from '../logic/abilities';
 import { pickAbilityUpgrade } from '../logic/abilityUpgrades';
 import { abilityCooldown, attackDamage, cooldownFloor } from '../logic/formulas';
 import { applyStatus, damageEnemy, healPlayer, rollPlayerHit } from './combat';
-import { burst, floatText, ring, shake } from './effects';
+import { burst, cosmetic, floatText, ring, shake } from './effects';
 import { feat, featAdd } from './feats';
 import { skeletonCount } from './minions';
 import { lastStandActive } from './dodge';
@@ -74,8 +74,15 @@ function ballistaShot(g: Game, c: Cfg<'arrowVolley'>, angle: number, status: Sta
   const hit = rollPlayerHit(g, c.damage * scale.arrowVolley(c, p.stats.secondary).arrows * n.mult, 'dex');
   fireProjectile(g, p.x, p.y - 6, angle, { damage: hit.amount, crit: hit.crit, hostile: false, pierce: 999, shape: 'arrow', color: '#f2c94c', r: n.radius, speed: n.speed, range: n.range, status, source: 'ability' });
   shake(g, 10);
-  sfx('boom');
+  sfx(g, 'boom');
 }
+
+type Volley = { ballista: boolean; c: Cfg<'arrowVolley'>; angle: number; tx: number; ty: number; status: Status };
+/** Raise Dead's own cast, for the Bone Colossus, which raises the skeletons as usual before it fuses the rest (v0.8, #126). */
+export const raiseSkeletons = (g: Game): boolean => HOOKS.raiseDead.activate(g, g.player.cls.ability as Cfg<'raiseDead'>);
+
+const fireVolley = (g: Game, v: Volley): void => (v.ballista ? ballistaShot(g, v.c, v.angle, v.status) : volleyZones(g, v.c, v.tx, v.ty, v.status));
+const volleyAgain = timer('arrowVolley.again', fireVolley); // Double Volley
 
 const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
   divineShield: {
@@ -125,7 +132,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       ring(g, p.x, p.y, radius, c.aura, 0.5);
       burst(g, p.x, p.y, c.aura, 40, 380);
       shake(g, 14);
-      sfx('boom');
+      sfx(g, 'boom');
     },
     on: {
       onBlocked(g, ev) {
@@ -172,7 +179,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
         range: has(p, 'whirlwind') ? U.whirlwind.n.range : 1,
       };
       p.deathless = has(p, 'undying');
-      if (g.rng() < 0.4) burst(g, p.x, p.y - 8, c.aura, 1, 90);
+      if (cosmetic() < 0.4) burst(g, p.x, p.y - 8, c.aura, 1, 90);
     },
     expire(g) {
       const p = g.player;
@@ -188,7 +195,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
         ring(g, p.x, p.y, n.radius, '#b8322a', 0.5);
         burst(g, p.x, p.y, '#5a3d25', 40, 340);
         shake(g, 16);
-        sfx('boom');
+        sfx(g, 'boom');
       }
     },
     on: {
@@ -309,13 +316,13 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       if (has(p, 'markedForDeath')) Object.assign(status, { markMul: U.markedForDeath.n.mult, markT: U.markedForDeath.n.time });
 
       feat(g, 'volleyHits', g.hash.query(tx, ty, c.radius, near).length); // what the volley comes down on; the arrows land over the next second
-      const fire = has(p, 'ballista') ? () => ballistaShot(g, c, angle, status) : () => volleyZones(g, c, tx, ty, status);
-      fire();
-      if (has(p, 'doubleVolley')) after(g, U.doubleVolley.n.delay, fire);
+      const shot = { ballista: has(p, 'ballista'), c, angle, tx, ty, status };
+      fireVolley(g, shot);
+      if (has(p, 'doubleVolley')) volleyAgain(g, U.doubleVolley.n.delay, shot);
       if (has(p, 'burningRain')) {
         const n = U.burningRain.n;
         const dps = attackDamage(n.dps * (1 + p.stats.secondary * n.perFocus), p.stats.dex, p.mods.damage);
-        after(g, c.duration * 0.5, () => addField(g, { x: tx, y: ty, r: c.radius, life: n.time, dps, hostile: false, color: '#e07b28', dtype: 'fire', apply: { id: 'burn', power: dps * 0.25 } }));
+        fieldLater(g, c.duration * 0.5, { x: tx, y: ty, r: c.radius, life: n.time, dps, hostile: false, color: '#e07b28', dtype: 'fire', apply: { id: 'burn', power: dps * 0.25 } });
       }
       activeFor(p, has(p, 'quickDraw') ? U.quickDraw.n.time : 0.3);
       return true;
@@ -328,7 +335,7 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       const s = scale.arrowVolley(c, p.stats.secondary);
       return has(p, 'ballista') ? `1 bolt = ${Math.round(s.arrows * U.ballista.n.mult * 10) / 10} arrows · pierces all` : `${s.arrows} arrows · pierce ${s.pierce}`;
     },
-    aimRadius: (p, c) => (has(p, 'ballista') ? 14 : c.radius),
+    aimRadius: (p, c) => (has(p, 'ballista') ? U.ballista.n.radius : c.radius), // the bolt's own radius: the preview is the shot
   },
 };
 
@@ -372,7 +379,7 @@ export function updateAbility(g: Game, dt: number): void {
     const upgradeMult = has(p, 'secondWind') ? U.secondWind.n.cooldown : 1;
     const cooldown = abilityCooldown(cfg.cooldown, p.stats.int) * p.mods.cooldown * p.mods.abilityCd * upgradeMult * (1 - (g.vars.cdRefund ?? 0));
     p.abilityCd = p.abilityCdMax = cooldown;
-    sfx('ability');
+    sfx(g, 'ability');
     emit(g, 'onAbilityUsed', { cooldown });
   }
 }

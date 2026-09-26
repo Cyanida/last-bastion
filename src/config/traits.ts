@@ -28,4 +28,3 @@ const T = {
 export type TraitId = keyof typeof T;
 export const TRAITS: Record<TraitId, TraitDef> = T;
 export const TRAIT_IDS = Object.keys(TRAITS) as TraitId[];
-export const traitDef = (id: TraitId): TraitDef => TRAITS[id];

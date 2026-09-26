@@ -3,16 +3,17 @@ import { ACHIEVEMENTS, CATEGORIES, tierReward, type AchievementCategory, type Ac
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
 import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
-import { FAMILIES, FAMILY_IDS, preferredFamilies, type Rarity, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS } from '../config/relics';
+import { ARENA_FAMILIES, FAMILIES, FAMILY_IDS, preferredFamilies, type FamilyId, type Rarity, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS } from '../config/relics';
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
-import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIER_UNLOCK_WAVE, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
+import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
 import { CURSED, CURSED_IDS, DUO_IDS, DUOS, keyColor, keyIcon, keyName, relicDef, type DuoId, type RelicId, type RelicKey } from '../config/relics';
 import { BLESSINGS, type BlessingId } from '../config/regions';
 import { QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
 import { TRAIT_IDS, TRAITS, type TraitId } from '../config/traits';
 import { ENEMIES } from '../config/enemies';
+import { WAVES } from '../config/waves';
 import { TREASURE_RULES, TREASURES, treasureDesc, type TreasureId } from '../config/treasures';
 import { chainStep, followUpText, inText, nextFragmentBoss, rankFor } from '../logic/treasures';
 import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
@@ -22,12 +23,13 @@ import { salvageValue, sellPrice } from '../systems/acts';
 import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
-import type { QualitySetting } from '../config/game';
+import { TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { latchGamepad, onAction } from '../input';
 import type { Action } from '../input/mapping';
 import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
+import { nextTierRequirement } from '../logic/difficulty';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { exportSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
@@ -45,6 +47,7 @@ import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
 import { GLOSSARY } from '../config/glossary';
+import { cardInfo, type CardId } from '../config/cards';
 import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
 import type { TestSetup } from '../systems/testMode';
 
@@ -89,12 +92,15 @@ function numberKeys(el: HTMLElement, other?: (a: Action) => void): void {
 
 const fmtStat = (k: StatKey, v: number) => (k === 'atkSpd' ? v.toFixed(2) : String(Math.round(v * 10) / 10));
 const fmtTime = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`);
-/** A relic card: the tier it would be at after taking it (1 = new), its text at that tier, synergies with what is held. */
-const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, extra = '') => {
+/**
+ * A relic card: the tier it would be at after taking it (1 = new), its text at that tier, synergies with what is held. `more` goes to the end of
+ * its tooltip (#98: an offer card shows only its effect and one compact line; the details are on hover or tap).
+ */
+const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, extra = '', more: string[] = []) => {
   const r = relicDef(id);
   const fam = r.family ? `${FAMILIES[r.family].icon} ${FAMILIES[r.family].name}` : '☠ Cursed'; // v0.7.1 B6: a cursed card is purple and says so
   const upgrade = tier > 1;
-  return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip="${esc(relicTip(id, tier, held))}"><div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.cursed ? 'no family' : r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${relicDesc(id, tier)}</p>${extra}</button>`;
+  return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip="${esc([relicTip(id, tier, held), ...more].join('\n'))}"><div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.cursed ? 'no family' : r.rarity}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${relicDesc(id, tier)}</p>${extra}</button>`;
 };
 
 /** v0.7 A5: a duo as a gold card: it takes the moment's pick. v0.7.5 (#96): it combines its two relics into one; the families keep their counts. */
@@ -146,6 +152,7 @@ export function showTitle(info: TitleInfo, on: { start: () => void; daily: () =>
 
 export interface SettingsInfo {
   quality: QualitySetting;
+  textSize: TextSize;
   effective: string;
   muted: boolean;
   music: MusicLevel;
@@ -158,12 +165,13 @@ export interface SettingsInfo {
   desktop: { version: string; status: string; prerelease: boolean } | null;
 }
 
-export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; aim: (manual: boolean) => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
+export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; aim: (manual: boolean) => void; textSize: (size: TextSize) => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
   const chip = (q: QualitySetting) => `<button class="chip ${info.quality === q ? 'on' : ''}" data-quality="${q}">${q[0].toUpperCase()}${q.slice(1)}</button>`;
   const el = show(`
     <div class="panel dialog wide settings">
       <h1 class="small">Settings</h1>
       <div class="setting"><div><b>Graphics quality</b><span>Low cuts particles, screen shake and shadows. Auto measures the first waves and drops to low if needed. Now: ${info.effective}.</span></div><div>${(['auto', 'low', 'high'] as const).map(chip).join('')}</div></div>
+      <div class="setting"><div><b>Text size</b><span>The HUD and every screen. A small screen keeps what still fits.</span></div><div>${(Object.keys(TEXT_SIZES) as TextSize[]).map((t) => `<button class="chip ${info.textSize === t ? 'on' : ''}" data-text-size="${t}">${t[0].toUpperCase()}${t.slice(1)}</button>`).join('')}</div></div>
       <div class="setting"><div><b>Sound</b><span>Synthesised effects and music (M).</span></div><button class="chip on" data-act="mute">${info.muted ? 'Off' : 'On'}</button></div>
       <div class="setting"><div><b>Music</b><span>Composed live. In a run it plays quieter, under the effects.${info.muted ? ' Silent while Sound is off.' : ''}</span></div><div>${MUSIC_LEVELS.map((l) => `<button class="chip ${info.music === l ? 'on' : ''}" data-music="${l}">${l[0].toUpperCase()}${l.slice(1)}</button>`).join('')}</div></div>
       <div class="setting"><div><b>Music during runs</b><span>A quiet theme for every arena that builds a little in a fight.</span></div><button class="chip ${info.runMusic ? 'on' : ''}" data-act="runMusic">${info.runMusic ? 'On' : 'Off'}</button></div>
@@ -183,6 +191,7 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
   click(el, '[data-quality]', (b) => on.quality(b.dataset.quality as QualitySetting));
   click(el, '[data-music]', (b) => on.music(b.dataset.music as MusicLevel));
   click(el, '[data-effects]', (b) => on.effects(b.dataset.effects as MusicLevel));
+  click(el, '[data-text-size]', (b) => on.textSize(b.dataset.textSize as TextSize));
   click(el, '[data-aim]', (b) => on.aim(b.dataset.aim === 'manual'));
   click(el, '[data-act]', (b) => {
     const act = b.dataset.act;
@@ -234,12 +243,12 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   const arenaBtn = (id: ArenaId) => {
     const a = ARENAS[id];
     const gate = locked.includes(id) ? gateOf({ arena: id }) : undefined;
-    return `<button class="chip ${save.settings.arena === id ? 'on' : ''}" data-arena="${id}" ${gate ? 'disabled' : ''} data-tip="${gate ? `Locked — ${gate.desc}` : `${a.desc} ${a.feature}`}">${gate ? '🔒 ' : ''}${a.name}</button>`;
+    return `<button class="chip ${save.settings.arena === id ? 'on' : ''}" data-arena="${id}" ${gate ? 'disabled' : ''} data-tip="${gate ? `Locked — ${gate.desc}` : `${a.desc} ${a.feature} Boss relics: ${familyList(ARENA_FAMILIES[id])}.`}">${gate ? '🔒 ' : ''}${a.name}</button>`;
   };
   const tierBtn = (i: number) => {
     const t = TIERS[i];
-    const lockedTier = i > save.tierUnlocked || i > buildingLevel(save.buildings, 'watchtower');
-    const tip = i > save.tierUnlocked ? `Locked — clear wave ${TIER_UNLOCK_WAVE} on ${TIERS[i - 1].name}` : lockedTier ? `Locked — raise the Watchtower to level ${i}` : `Enemy HP ×${t.enemyHp}, damage ×${t.enemyDmg}, elites ×${t.eliteMult} · gold ×${t.gold}, class XP ×${t.classXp}`;
+    const lockedTier = i > save.tierUnlocked;
+    const tip = lockedTier ? `Locked — ${nextTierRequirement(i, save) || `unlock ${TIERS[i - 1].name} first`}` : `Enemy HP ×${t.enemyHp}, damage ×${t.enemyDmg}, elites ×${t.eliteMult} · gold ×${t.gold}, class XP ×${t.classXp} · ${i ? `new foes: ${WAVES.tierRoster[i].map((id) => ENEMIES[id].name).join(', ')}` : 'the basic foes'}`;
     return `<button class="chip ${save.settings.tier === i ? 'on' : ''}" data-tier="${i}" ${lockedTier ? 'disabled' : ''} data-tip="${tip}">${lockedTier ? '🔒 ' : ''}${t.name}</button>`;
   };
   const lockedC = lockedCurses(save);
@@ -366,7 +375,7 @@ function timeline(r: RunLog): string {
   const waves = r.waves.map(([start, end, dmg, quiet], i) => {
     const w = i + 1;
     const took = (end || r.time) - start;
-    return `<i class="tw act${Math.floor(i / ACTS.length) % 2} ${w % 5 === 0 ? 'boss' : ''}" style="left:${at(start)};width:${at(took)}" data-tip="${esc(`Wave ${w} · ${fmtTime(took)}${end ? '' : ' (not cleared)'} · ${dmg} damage taken · ${Math.round(quiet)} s with under 5 enemies`)}"></i>`;
+    return `<i class="tw act${Math.floor(i / ACTS.length) % 2} ${w % WAVES.bossEvery === 0 ? 'boss' : ''}" style="left:${at(start)};width:${at(took)}" data-tip="${esc(`Wave ${w} · ${fmtTime(took)}${end ? '' : ' (not cleared)'} · ${dmg} damage taken · ${Math.round(quiet)} s with under 5 enemies`)}"></i>`;
   }).join('');
   const ticks = r.marks.filter((m) => m[1] === 'level').map(([t]) => `<i class="tl" style="left:${at(t)}"></i>`).join('');
   const marks = r.marks.filter((m) => m[1] !== 'level').map(([t, kind, detail]) => `<i class="tm m-${kind}" style="left:${at(t)}" data-tip="${esc(`${fmtTime(t)} · ${MARK_NAMES[kind]}${detail ? `: ${detail}` : ''}`)}">${MARK_ICONS[kind]}</i>`).join('');
@@ -609,14 +618,18 @@ const REFUND_NOTES: Record<string, string> = {
   'v0.7': "<b>The Chapel changed with v0.7's relics:</b> Reliquary Guard now gives rerolls at relic moments (two ranks at most), the Reliquary Vault a fourth choice at wave bosses; a third Guard rank is handed back.",
 };
 const RELIC_SOURCE_NAMES: Record<RelicSource, string> = { boss: 'a boss', lair: 'a lair', strongbox: 'a strongbox', quest: 'a quest', merchant: 'the Merchant', start: 'the start', other: '-' };
+/** #100: the families an arena's bosses drop, e.g. "🔥 Flame · ✨ Holy · 🛡️ Steel". */
+const familyList = (ids: readonly FamilyId[]) => ids.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' · ');
 const MOMENT_TITLES: Record<RelicSource, string> = { boss: 'Spoils of the fallen', lair: "The lair's hoard", strongbox: 'A strongbox', quest: 'A reward for your quest', merchant: "The merchant's pick", start: "The Armorer's choice", other: 'A relic' };
 
 /**
  * v0.7: a relic moment: pick one of three, reroll the three (a moment's rerolls are few), or skip it for gold and a Rune shard. Each card says
- * what the relic would do for this build right now (`preview`) and which evolution recipes it belongs to.
+ * what the relic would do for this build right now (`preview`) and which evolution recipes it belongs to. #98: the card leads with the effect and
+ * one compact line (`line`); the rest is its tooltip.
  */
 export function showRelicOffer(
-  offer: RelicOffer, held: RelicId[], tiers: RelicTiers, info: { skip: { gold: number; shards: number }; preview: (id: RelicId) => string[] },
+  offer: RelicOffer, held: RelicId[], tiers: RelicTiers,
+  info: { skip: { gold: number; shards: number }; preview: (id: RelicId) => string[]; line: (id: RelicId) => string },
   on: { take: (id: RelicId | DuoId) => void; skip: () => void; reroll: () => void },
 ): void {
   const { options } = offer;
@@ -624,7 +637,8 @@ export function showRelicOffer(
     <div class="levelup">
       <h1 class="small">${MOMENT_TITLES[offer.from]}</h1>
       <p class="sub">Choose a relic · ${held.length} carried</p>
-      <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div>${[...info.preview(id), ...recipeLines({ relic: id })].map((l) => `<div class="preview">${esc(l)}</div>`).join('')}`)).join('')}${offer.duo ? duoCard(offer.duo, `data-pick="${options.length}"`, `<div class="num">${options.length + 1}</div>`) : ''}</div>
+      ${offer.families ? `<p class="sub" data-families>This arena's bosses drop only ${familyList(offer.families)}</p>` : ''}
+      <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div><div class="preview">${esc(info.line(id))}</div>`, ['', 'For this build:', ...info.preview(id)])).join('')}${offer.duo ? duoCard(offer.duo, `data-pick="${options.length}"`, `<div class="num">${options.length + 1}</div>`) : ''}</div>
       <div class="row">
         <button class="btn" data-reroll ${offer.rerolls > 0 ? '' : 'disabled'}>Reroll (R) · ${offer.rerolls} left</button>
         <button class="btn" data-skip data-tip="Take nothing from this moment: gold for this run and a Rune shard for the Keep">Skip · 🪙 ${info.skip.gold} · ◆ ${info.skip.shards} shard</button>
@@ -684,16 +698,16 @@ export function showBoard(act: number, quests: { kind: QuestKind; reward: Reward
   });
 }
 
-/** v0.5: the wandering merchant (a wave event): a couple of relics rolled by the drop rules, at the Merchant's prices. */
-export function showPeddler(info: { stock: number; price: number; gold: number; hurt: boolean }, on: { buy: () => void; leave: () => void }): void {
+/** v0.5: the wandering merchant (a wave event): a healing draught or (#128) a reroll token, one sale a visit. */
+export function showPeddler(info: { stock: number; price: number; tokenPrice: number; gold: number; hurt: boolean }, on: { buy: () => void; token: () => void; leave: () => void }): void {
   const el = show(`
     <div class="levelup">
       <h1 class="small">🧺 A wandering merchant</h1>
       <p class="sub">"Good things, fair prices, no questions." Purse: <b class="goldtext">🪙 ${info.gold}</b> — what you spend here never reaches the Keep.</p>
-      <div class="cards">${info.stock > 0 ? `<button class="card panel boon shop" data-buy="0" ${info.gold >= info.price && info.hurt ? '' : 'disabled'}><div class="num">1</div><h2>🧪 Healing draught</h2><p>${info.hurt ? 'Drink, and mend a good part of your wounds.' : 'You are not hurt.'}</p><div class="best">🪙 ${info.price}</div></button>` : '<p class="sub">Sold out.</p>'}</div>
+      <div class="cards">${info.stock > 0 ? `<button class="card panel boon shop" data-buy="0" ${info.gold >= info.price && info.hurt ? '' : 'disabled'}><div class="num">1</div><h2>🧪 Healing draught</h2><p>${info.hurt ? 'Drink, and mend a good part of your wounds.' : 'You are not hurt.'}</p><div class="best">🪙 ${info.price}</div></button><button class="card panel boon shop" data-buy="1" ${info.gold >= info.tokenPrice ? '' : 'disabled'}><div class="num">2</div><h2>🎲 Reroll token</h2><p>One more free reroll on your next level-up.</p><div class="best">🪙 ${info.tokenPrice}</div></button>` : '<p class="sub">Sold out.</p>'}</div>
       <button class="btn big" data-leave>Leave</button>
     </div>`);
-  click(el, '[data-buy]', () => on.buy());
+  click(el, '[data-buy]', (b) => (b.dataset.buy === '1' ? on.token() : on.buy()));
   click(el, '[data-leave]', on.leave);
   onActions((a) => {
     const m = /^pick(\d)$/.exec(a);
@@ -929,7 +943,7 @@ export function showRoutes(act: number, routes: Route[], onPick: (i: number) => 
   const card = (r: Route, i: number) => {
     const f = ROUTE_FOCUS[r.focus];
     const theme = r.theme < 0 ? FINAL.theme : ACT_THEMES[r.theme];
-    return `<button class="card panel boon route ${r.focus}" data-pick="${i}"><div class="num">${i + 1}</div><h2>${f.icon} ${f.name}</h2><div class="tag">${ARENAS[r.arena].name}</div>
+    return `<button class="card panel boon route ${r.focus}" data-pick="${i}"><div class="num">${i + 1}</div><h2>${f.icon} ${f.name}</h2><div class="tag">${ARENAS[r.arena].name}</div><div class="tag" data-families>Boss relics: ${familyList(ARENA_FAMILIES[r.arena])}</div>
       <p><b>${theme.name}</b> — ${theme.desc}</p><p>${f.desc}</p></button>`;
   };
   const el = show(`
@@ -1074,16 +1088,32 @@ export function showWhatsNew(w: WhatsNew, onBack: () => void): void {
 }
 
 /** v0.7.1: every game term and what it means (config/glossary.ts), from the pause menu and the Keep. Tooltips underline the same words. */
-export function showGlossary(onBack: () => void): void {
+export function showGlossary(onBack: () => void, cards: CardId[] = []): void {
+  const met = cards.map(cardInfo).sort((a, b) => a.name.localeCompare(b.name));
   const el = show(`
     <div class="panel dialog wide glossary">
       <h1 class="small">Glossary</h1>
       <p class="sub">The words the game uses, and what they mean. Tooltips underline them and explain them too.</p>
       <dl>${[...GLOSSARY].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<dt>${t.name}</dt><dd>${t.def}</dd>`).join('')}</dl>
+      ${met.length ? `<h2 class="small">Foes and marks met</h2><dl class="cards-met">${met.map((c) => `<dt>${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
+}
+
+/** v0.8 (#124): a flash card, the first time a foe, a boss or a mechanic is met. The run waits under it. `pause` (Esc) also opens the pause menu. */
+export function showFlashCard(id: CardId, onDone: (pause: boolean) => void): void {
+  const c = cardInfo(id);
+  const el = show(`
+    <div class="panel dialog flash-card${c.boss ? ' boss' : ''}" data-card="${id}">
+      <div class="tag">${c.boss ? 'Boss' : 'New'}</div>
+      <h2>${c.name}</h2>
+      <p>${c.text}</p>
+      <button class="btn big" data-leave>Got it</button>
+    </div>`);
+  click(el, '[data-leave]', () => onDone(false));
+  onActions((a) => (a === 'confirm' || a === 'cancel' || a === 'pause') && onDone(a === 'pause'));
 }
 
 const JUKEBOX_LAYERS = ['Sparse: a breather, the Merchant', 'Base: a wave', 'Second layer: a dense or dangerous fight', 'Boss: drums and a bass line'];

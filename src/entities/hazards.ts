@@ -45,7 +45,18 @@ export function addField(g: Game, f: Pick<Field, 'x' | 'y' | 'r' | 'life' | 'dps
   g.fields.push({ heal: 0, dtype: 'physical', apply: null, ...f, max: f.life, tickT: 0, by: relicContext.acting ?? undefined });
 }
 
-/** Run fn after `seconds` of game time (second volley, twin pulse...). */
-export function after(g: Game, seconds: number, fn: () => void): void {
-  g.timers.push({ t: seconds, fn });
+const TIMER_KINDS = new Map<string, (g: Game, a: any) => void>();
+
+/**
+ * v0.8 step 3.3 (#27): a delayed action (second volley, twin pulse...) as data, so a snapshot can write it down. Registers what a
+ * `kind` does and returns its scheduler: `later(g, seconds, args)`. The args are plain state (numbers, entities, plain objects).
+ */
+export function timer<A>(kind: string, fn: (g: Game, a: A) => void): (g: Game, seconds: number, a: A) => void {
+  TIMER_KINDS.set(kind, fn); // a second registration (a dev hot reload) replaces the first
+  return (g, seconds, a) => void g.timers.push({ t: seconds, kind, a });
 }
+
+/** addField after a delay (Burning Rain). */
+export const fieldLater = timer('field', addField);
+
+export const runTimer = (g: Game, t: Game['timers'][number]): void => TIMER_KINDS.get(t.kind)!(g, t.a);

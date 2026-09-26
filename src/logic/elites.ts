@@ -1,3 +1,4 @@
+import { ACTS } from '../config/acts';
 import { AFFIX_IDS, AFFIXES, ELITES, type AffixId } from '../config/elites';
 import type { Rng } from '../core/types';
 
@@ -5,7 +6,7 @@ import type { Rng } from '../core/types';
 export function eliteChance(wave: number, tierMult: number): number {
   if (wave < ELITES.fromWave) return 0;
   let chance = ELITES.baseChance;
-  for (let w = ELITES.fromWave + 1; w <= wave; w++) chance += ELITES.perWave * ELITES.actMult[Math.min(ELITES.actMult.length - 1, Math.ceil(w / 10) - 1)];
+  for (let w = ELITES.fromWave + 1; w <= wave; w++) chance += ELITES.perWave * ELITES.actMult[Math.min(ELITES.actMult.length - 1, Math.ceil(w / ACTS.length) - 1)];
   return Math.min(ELITES.maxChance, chance * tierMult);
 }
 
