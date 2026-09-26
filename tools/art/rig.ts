@@ -27,6 +27,15 @@ export const RAMPS = {
   poison: ['#16300d', '#2c5a14', '#48861d', '#6cb02a', '#94d044', '#bfe67a', '#e8fbc0'], // the poison trail and clouds
   ember: ['#4a1406', '#86260a', '#c2410f', '#ec6a17', '#fb9a2c', '#ffc95a', '#fff1b8'], // #157: the fire trail and sparks
   smear: ['#9fb4d0', '#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
+  // #156: the other champions
+  tan: ['#2b150e', '#5a2f1f', '#8a4d33', '#b87354', '#d6966f', '#ecb993', '#f8dcc0'],
+  pelt: ['#1a1410', '#33281f', '#4d3e30', '#6b5843', '#8a7459', '#a8927a', '#c9b79f'],
+  bone: ['#2a2419', '#534833', '#807154', '#a99a78', '#cabd98', '#e4dbbd', '#fbf6e4'],
+  violet: ['#120a1c', '#241335', '#361d4f', '#4c2a6b', '#663d88', '#8657a6', '#a97cc4'],
+  moss: ['#0c1a10', '#16301c', '#23472a', '#34623a', '#4a7f4c', '#6b9e62', '#9cc58a'],
+  necro: ['#0f3a26', '#1b6b43', '#2fa062', '#58c985', '#8fe3ad', '#c6f5d6', '#ffffff'],
+  hair: ['#2a1206', '#4f220b', '#7a3a12', '#a85a1c', '#cf7f2e', '#e8a54c', '#f6cc7e'],
+  shade: ['#1c0f2e', '#3a1d5c', '#5a2f8a', '#7d4fb3', '#a57ad6', '#cbaaf0', '#f0e2ff'],
   // #159: the arenas' props
   stone: ['#1b1a20', '#302f38', '#46454e', '#605e64', '#7e7b76', '#a19c90', '#c9c2b0'],
   bark: ['#130d0a', '#231812', '#34241a', '#483325', '#5d4431', '#755940', '#927559'],

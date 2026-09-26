@@ -33,7 +33,7 @@ import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, build
 import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from './logic/save';
 import { buildArena, loadProps, propsLoaded } from './render/arena';
 import { ENEMIES, type EnemyId } from './config/enemies';
-import { cameraFor, foeAnim, foesDying, playerAnim, render, renderBackdrop, setSpotlight, spotlightOn, type View } from './render/renderer';
+import { cameraFor, foeAnim, foesDying, minionAnim, playerAnim, render, renderBackdrop, setSpotlight, spotlightOn, type View } from './render/renderer';
 import { loadSheets, SHEETS, sheetLoaded } from './render/sprites';
 import { botInput, botStep } from './sim/bot';
 import { playCues, view as simView } from './sim/view';
@@ -832,6 +832,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       sheets: () => Object.keys(SHEETS).filter(sheetLoaded), // #155: the rigged sprite sheets that have loaded
       foeAnim, // #157: a foe kind's animation and frame, as last drawn
       foesDying, // #157: the slain foes whose death is playing
+      minionAnim, // #156: an ally kind's animation and frame, as last drawn
       enemyDef: (id: EnemyId) => ENEMIES[id], // #157: the play test turns a foe into a given kind
       props: propsLoaded, // #159: the arenas' rigged props have loaded
       arenaCanvas, // #159: the play test reads the baked ground under the props

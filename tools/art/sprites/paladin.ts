@@ -132,6 +132,13 @@ const ATTACK: [number, Pose][] = [
   [170, pose({ hip: [2, 1], lean: 0.18, fist: [12, 5], sword: 2.1, smear: [[[11, -5], 0.9], [[12, 5], 2.1]], feet: [[-5, 1, 0.3], [9, 0, 0]], shield: [-1.5, 0], cape: 0.3, plume: 0.2 })],
   [120, pose({ hip: [1, 0], lean: 0.08, fist: [9, 10], sword: 1.4, feet: [[-5, 0, 0], [8, 0, 0]], cape: 0.2 })],
 ];
+// #156: his ability: the sword raised straight up, the shield braced, then lowered
+const CAST: [number, Pose][] = [
+  [110, pose({ hip: [0, 1], fist: [4, 6], sword: -0.1, shield: [0.5, 0] })],
+  [140, pose({ hip: [0, -1], lean: -0.08, head: -0.12, fist: [3, -6], sword: -0.05, zs: 4.6, shield: [1, -1], plume: 0.12, cape: 0.2 })],
+  [220, pose({ hip: [0, -1], lean: -0.1, head: -0.15, fist: [3, -7], sword: 0, zs: 4.6, shield: [1, -1], plume: 0.16, cape: 0.25 })],
+  [160, pose({ hip: [0, 0], fist: [6, 6], sword: 0.2, shield: [0.5, 0] })],
+];
 // knocked back a step, head snapped back
 const HURT: [number, Pose][] = [
   [90, pose({ hip: [-2, 1], lean: -0.22, head: -0.2, cape: 0.02, plume: -0.15, fist: [4, 9], sword: 0.1, shield: [2, -1], feet: [[-6, 0, 0], [3, 0, 0]] })],
@@ -146,14 +153,23 @@ const DEATH: [number, Pose][] = [
   [400, pose({ hip: [7, 16], lean: -1.4, head: -0.1, fist: [14, 6], sword: 2.9, shield: [2, 3], shieldA: -1.2, cape: 1.45, plume: -0.3, feet: [[4, 0, 0.5], [12, 0, 0.4]] })],
 ];
 
+// #156: Taunt (Challenge): shield bashed forward, sword raised high, head up, feet planted wide
+const TAUNT: [number, Pose][] = [
+  [100, pose({ hip: [0, 1], lean: -0.05, fist: [4, 4], sword: -0.2, shield: [1, 0], feet: [[-5, 0, 0], [5, 0, 0]] })],
+  [300, pose({ hip: [1, 2], lean: 0.1, head: -0.2, fist: [2, -8], sword: -0.2, zs: 4.6, shield: [4, -2], shieldA: -0.2, feet: [[-7, 0, 0], [7, 0, 0]], cape: 0.3, plume: 0.2 })],
+  [150, pose({ hip: [0, 1], fist: [6, 8], sword: 0.2, shield: [1, 0], feet: [[-5, 0, 0], [5, 0, 0]] })],
+];
+
 export const sprite: SpriteDef = {
   id: 'paladin', w: W, h: H, anchor: [X0, GROUND], tall: 55,
   anims: {
     idle: IDLE.map((p) => [200, paladin(p)]),
     walk: WALK.map((p) => [100, paladin(p)]),
     attack: ATTACK.map(([ms, p]) => [ms, paladin(p)]),
+    cast: CAST.map(([ms, p]) => [ms, paladin(p)]),
     hurt: HURT.map(([ms, p]) => [ms, paladin(p)]),
     death: DEATH.map(([ms, p]) => [ms, paladin(p)]),
+    skill: TAUNT.map(([ms, p]) => [ms, paladin(p)]),
   },
   impact: 4,
 };

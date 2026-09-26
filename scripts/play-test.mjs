@@ -115,19 +115,23 @@ await check('title screen', () =>
 );
 
 // #138: the champions are drawn on a grid twice as fine, and show at the same size as before on the class select
-await check('class select: champions on the finer grid keep their size', () =>
+await check('class select: champions on the finer grid keep their size, at one scale, standing on one line (#156)', () =>
   inPage(async () => {
     const P = window.__play;
     await P.click('[data-go="start"]');
     const size = (id) => {
       const c = document.querySelector(`[data-class="${id}"] .portrait canvas`);
-      return c ? { box: Math.round(c.getBoundingClientRect().height), canvas: c.height } : null;
+      if (!c) return null;
+      const r = c.getBoundingClientRect(), card = c.closest('.card').getBoundingClientRect();
+      return { box: Math.round(r.height), canvas: c.height, feet: Math.round(r.bottom - card.top) };
     };
-    const pal = size('paladin'), vik = size('viking');
+    const all = ['paladin', 'viking', 'angel', 'necromancer', 'archer'].map(size);
     await P.click('[data-back]');
-    // the old grids were 14 and 16 rows at 6 px: 84 and 96 px on screen, whatever the finer canvas holds
-    const ok = pal?.box === 84 && vik?.box === 96 && window.__lb.state === 'menu';
-    return { ok, detail: `paladin ${JSON.stringify(pal)}, viking ${JSON.stringify(vik)}` };
+    // the old grids were 14 and 16 rows at 6 px: 84 and 96 px on screen; #156: every champion is rigged, the Paladin at his old 84 px and the
+    // rest at his scale (a horned helm or a halo stands taller), all with their feet on the same line of the card
+    const k = all[0].box / all[0].canvas;
+    const ok = all[0].box === 84 && all.every((c) => c && Math.abs(c.box - c.canvas * k) <= 1 && c.feet === all[0].feet) && window.__lb.state === 'menu';
+    return { ok, detail: all.map((c) => JSON.stringify(c)).join(', ') };
   }),
 );
 
@@ -1612,6 +1616,253 @@ await check('Sprite gallery plays the Paladin; his class card shows his sheet (#
     });
   }),
 );
+
+// ---------- #156: every champion draws from its rigged sheet: it attacks a foe in reach, and casts when Space uses its ability ----------
+await check('Champion sheets: each class loads its sheet, attacks and casts its ability (#156)', async () => {
+  const out = [];
+  for (const cls of ['paladin', 'viking', 'angel', 'necromancer', 'archer']) {
+    await inPage(() => location.reload());
+    await page.waitForFunction((c) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes(c), cls);
+    await inPage(async (c) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', c);
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+    }, cls);
+    const seen = new Set();
+    const sample = async (ms) => {
+      for (let t = 0; t < ms; t += 50) seen.add(await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim().anim)))))));
+    };
+    for (let i = 0; i < 12 && !seen.has('attack'); i++) {
+      await inPage(() => {
+        const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+        for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+        if (e) Object.assign(e, { x: p.x + 40, y: p.y, hp: 1e6, maxHp: 1e6 }); // one foe in reach, once the wave has spawned
+      });
+      await sample(250);
+    }
+    await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0 }));
+    await page.keyboard.down('Space');
+    await sample(150);
+    await page.keyboard.up('Space');
+    await sample(300);
+    out.push([cls, seen.has('attack') && seen.has('cast'), [...seen].join('/')]);
+  }
+  return { ok: out.every(([, ok]) => ok), detail: out.map(([c, , s]) => `${c}: ${s}`).join('; ') };
+});
+
+// ---------- #156: at the attack-speed cap the Viking swings a short swing that keeps up, and E plays his Leap, not a walk ----------
+await check('Fast attacks and Leap: the swing keeps up at the cap, E leaps without running legs (#156)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('viking'));
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '5'); // the utility ability unlocks at level 3
+    window.__startTest().player.invulnerable = true;
+  });
+  const frame = () => inPage(() => (window.__lb.run(1, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+  const pin = () => inPage(() => {
+    const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+    p.stats.atkSpd = 50; // far past the 4.5 a second cap
+    for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+    if (e) Object.assign(e, { x: p.x + 40, y: p.y, hp: 1e6, maxHp: 1e6 });
+    return !!e;
+  });
+  for (let i = 0; i < 40 && !(await pin()); i++) await inPage(() => window.__lb.run(10, false, 'input'));
+  const swing = [];
+  for (let i = 0; i < 40; i++) {
+    await pin();
+    swing.push(await frame());
+  }
+  const attacking = swing.filter((f) => f.anim === 'attack');
+  const windUp = attacking.filter((f) => f.frame < 3).length; // ready and wind-up frames are skipped at this speed
+  await pin();
+  await inPage(() => Object.assign(window.__lb.game.player, { utilityCd: 0 }));
+  await page.keyboard.down('KeyE');
+  const leap = [await frame()];
+  await page.keyboard.up('KeyE');
+  for (let i = 0; i < 4; i++) leap.push(await frame());
+  const ok = attacking.length >= swing.length * 0.8 && windUp === 0 && leap.some((f) => f.anim === 'skill') && !leap.some((f) => f.anim === 'walk');
+  return { ok, detail: `at the cap ${attacking.length}/${swing.length} frames attacking, ${windUp} wind-up; E: ${leap.map((f) => `${f.anim}${f.frame}`).join(' ')}` };
+});
+
+// ---------- #156: the Viking's swing leaves a tapered trail, not a flat wedge; the walk keeps pace with the ground at 1.5x and under a heavy slow ----------
+await check('Swing trail and walk pace: a crescent trail on the swing; the feet follow the ground fast and slowed (#156)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('viking'));
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    window.__startTest().player.invulnerable = true;
+  });
+  // the trail: drawn with and without the fresh swing's effect, the canvas changes on the crescent but not inside it, where the old wedge was
+  const trail = await inPage(async () => {
+    const lb = window.__lb, g = lb.game, p = g.player;
+    let fx = null;
+    for (let i = 0; i < 300 && !fx; i++) {
+      const [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 40, y: p.y, hp: 1e6, maxHp: 1e6 });
+      lb.run(1, false, 'input');
+      fx = g.effects.find((x) => x.kind === 'arc' && x.t < 0.05);
+    }
+    if (!fx) return null;
+    const c = document.getElementById('game').getContext('2d'), cam = lb.camera();
+    const probe = (k) => {
+      const a = fx.angle + 0.6, wx = fx.x + Math.cos(a) * fx.r * k, wy = fx.y + Math.sin(a) * fx.r * k;
+      return [...c.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data];
+    };
+    g.shake = 0; // no screen shake between the two draws
+    lb.draw();
+    const on = [probe(0.82), probe(0.4)];
+    g.effects = g.effects.filter((x) => x !== fx);
+    lb.draw();
+    const off = [probe(0.82), probe(0.4)];
+    const d = (i) => Math.round(Math.hypot(on[i][0] - off[i][0], on[i][1] - off[i][1], on[i][2] - off[i][2]));
+    return { crescent: d(0), inside: d(1) };
+  });
+  // the walk: D held for a second at 1.5x and at a heavy slow; walk frames stepped against the distance the feet should take
+  const walk = [];
+  for (const mult of [1.5, 0.35]) {
+    const r = await inPage(async (mult) => {
+      const lb = window.__lb, g = lb.game, p = g.player;
+      g.enemies.length = 0;
+      p.stats.baseMove ??= p.stats.moveSpd;
+      p.stats.moveSpd = p.stats.baseMove * mult; // a fast build (movement talents, Ghost Step) or a heavy slow
+      return { x: p.x, speed: p.cls.base.moveSpd }; // the walk's base: the class's own speed, as the renderer uses
+    }, mult);
+    await page.keyboard.down('KeyD');
+    let steps = 0, last = null;
+    for (let i = 0; i < 40; i++) {
+      const f = await inPage(() => (window.__lb.game.enemies.length = 0, window.__lb.run(1, false, 'input'), new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => res(window.__lb.anim()))))));
+      if (f.anim === 'walk' && last !== null && f.frame !== last) steps += (f.frame - last + 8) % 8;
+      last = f.anim === 'walk' ? f.frame : null;
+    }
+    await page.keyboard.up('KeyD');
+    const dist = await inPage((x0) => window.__lb.game.player.x - x0, r.x);
+    const want = dist / ((r.speed * 0.8) / 8); // WALK_STRIDE: 8 frames per 0.8 s of base-speed travel
+    walk.push({ mult, dist: Math.round(dist), steps, ratio: want > 0 ? steps / want : 0 });
+  }
+  const ok = !!trail && trail.crescent > 20 && trail.inside < 8 && walk.every((w) => w.ratio > 0.7 && w.ratio < 1.3) && walk[0].dist > walk[1].dist * 3;
+  return { ok, detail: `trail ${trail ? `changes ${trail.crescent} on the crescent, ${trail.inside} inside` : 'not seen'}; ${walk.map((w) => `${w.mult}x: ${w.dist} px, ${w.steps} frames (${w.ratio.toFixed(2)} of the ground)`).join('; ')}` };
+});
+
+// ---------- #156: the Midnight colours turn every champion night-blue on the class card (a hue shift used to turn the Necromancer green) ----------
+await check('Midnight colours: every champion turns night-blue on the class select (#156)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ['paladin', 'viking', 'angel', 'necromancer', 'archer'].every((c) => window.__lb.sheets().includes(c)));
+  await inPage(() => { window.__lb.save.palettes = [3]; document.querySelector('[data-go="start"]').click(); });
+  await page.waitForSelector('[data-start]');
+  const out = [];
+  for (const c of ['paladin', 'viking', 'angel', 'necromancer', 'archer']) {
+    const sw = page.locator(`[data-palette="${c}:3"]`);
+    await sw.scrollIntoViewIfNeeded();
+    await sw.click(); // the card is drawn again in its new colours
+    out.push(await inPage((id) => {
+      const cv = document.querySelector(`[data-class="${id}"] .portrait canvas`), px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+      let r = 0, g = 0, b = 0;
+      for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 128) (r += px[i]), (g += px[i + 1]), (b += px[i + 2]);
+      return { id, blue: b > r && b > g };
+    }, c));
+  }
+  await inPage(() => document.querySelector('[data-back]').click());
+  return { ok: out.every((o) => o.blue), detail: out.map((o) => `${o.id} ${o.blue ? 'blue' : 'not blue'}`).join(', ') };
+});
+
+// ---------- #156: the champions' allies: raised skeletons walk up and strike, the Angel's decoy and the Archer's shade are drawn from their sheets, the shade looses ----------
+await check("Allies: raised skeletons walk and strike, the Angel's decoy and the Archer's shade play from their sheets (#156)", async () => {
+  const start = async (cls, evo, key) => {
+    await inPage(() => location.reload());
+    await page.waitForFunction((c) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes(c), cls === 'necromancer' ? 'skeleton' : cls);
+    await inPage(async ([c, ev]) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', c);
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      set('tm-level', '5'); // the utility ability unlocks at level 3
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      if (ev) g.evolutions = [ev]; // test mode has no evolution picker
+    }, [cls, evo]);
+    const pin = () => inPage(() => {
+      const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 160, y: p.y, vx: 0, vy: 0, hp: 1e6, maxHp: 1e6, speed: 0 }); // one foe standing still, a walk away
+      return !!e;
+    });
+    for (let i = 0; i < 40 && !(await pin()); i++) await inPage(() => window.__lb.run(10, false, 'input'));
+    await inPage((k) => {
+      const g = window.__lb.game, p = g.player;
+      if (k === 'Space') for (let i = 0; i < 6; i++) g.corpses.push({ x: p.x - 60, y: p.y + 10 * i, t: 0 });
+      Object.assign(p, { abilityCd: 0, utilityCd: 0 });
+    }, key);
+    await page.keyboard.down(key);
+    await inPage(() => window.__lb.run(2, false, 'input'));
+    await page.keyboard.up(key);
+    return pin;
+  };
+  const watch = async (pin, kind, frames) => {
+    const seen = new Set();
+    for (let i = 0; i < frames; i++) {
+      await pin();
+      const a = await inPage((k) => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.minionAnim(k)))))), kind);
+      seen.add(a ? a.anim : 'none');
+    }
+    return seen;
+  };
+  const bones = await watch(await start('necromancer', null, 'Space'), 'skeleton', 90);
+  const decoy = await watch(await start('angel', 'phaseWalk', 'KeyE'), 'decoy', 10);
+  const shade = await watch(await start('archer', 'shadowStep', 'KeyE'), 'shade', 60);
+  const ok = bones.has('walk') && bones.has('attack') && !decoy.has('none') && decoy.has('idle') && shade.has('attack'); // the shade fades after a few seconds
+  return { ok, detail: `skeleton: ${[...bones].join('/')}; decoy: ${[...decoy].join('/')}; shade: ${[...shade].join('/')}` };
+});
 
 // ---------- #157: the foes' rigged sheets: a peasant walks up, jabs on his wind-up, and falls when slain ----------
 await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#157)', () =>

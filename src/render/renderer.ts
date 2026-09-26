@@ -7,8 +7,8 @@ import { STATUSES } from '../config/damage';
 import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
-import type { Enemy, Game, Player } from '../core/types';
-import { foeUntilHit, frameAt, pickFrame, type AnimInput, type AnimName } from '../logic/animation';
+import type { Enemy, Game, Minion, Player } from '../core/types';
+import { foeUntilHit, frameAt, pickFrame, swingTrail, type AnimInput, type AnimName } from '../logic/animation';
 import { nearestEnemy } from '../systems/combat';
 import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
@@ -71,18 +71,20 @@ function drawSprite(ctx: Ctx, s: Sprite, x: number, y: number, flip: boolean, fl
  * #155: the player's animation, read from what the game already knows (position, the attack timer, HP) and kept here, on the
  * render side: nothing is written back into the game, so runs play out exactly the same.
  */
-const anim = { game: null as Game | null, x: 0, y: 0, walked: 0, timer: 0, hitAt: -Infinity, cd: 1, hp: 0, hurtAt: -Infinity, deadAt: Infinity, now: { anim: 'idle' as AnimName, frame: 0 } };
+const anim = { game: null as Game | null, x: 0, y: 0, walked: 0, timer: 0, hitAt: -Infinity, cd: 1, hp: 0, hurtAt: -Infinity, deadAt: Infinity, abilityCd: 0, castAt: -Infinity, utilityCd: 0, skillAt: -Infinity, now: { anim: 'idle' as AnimName, frame: 0 } };
 export const playerAnim = (): { anim: string; frame: number } => anim.now; // for the play test and the gallery
 
 function playerSprite(g: Game, p: Player, scale: number): Sprite {
-  if (anim.game !== g) Object.assign(anim, { game: g, x: p.x, y: p.y, walked: 0, timer: p.attackTimer, hitAt: -Infinity, hp: p.hp, hurtAt: -Infinity, deadAt: Infinity });
+  if (anim.game !== g) Object.assign(anim, { game: g, x: p.x, y: p.y, walked: 0, timer: p.attackTimer, hitAt: -Infinity, hp: p.hp, hurtAt: -Infinity, deadAt: Infinity, abilityCd: p.abilityCd, castAt: -Infinity, utilityCd: p.utilityCd, skillAt: -Infinity });
   const step = Math.hypot(p.x - anim.x, p.y - anim.y);
   if (step < 64) anim.walked += step; // not a teleport
   if (p.attackTimer > anim.timer + 1e-6) (anim.hitAt = g.time), (anim.cd = p.attackTimer); // the timer was reset: an attack just landed
+  if (p.abilityCd > anim.abilityCd + 1e-6) anim.castAt = g.time; // #156: the cooldown was reset: the ability was just used
+  if (p.utilityCd > anim.utilityCd + 1e-6) anim.skillAt = g.time; // #156: and the utility ability (Leap, Dodge Roll, Blink...)
   if (p.hp < anim.hp) anim.hurtAt = g.time;
   if (p.hp <= 0 && anim.deadAt === Infinity) anim.deadAt = g.time;
   if (p.hp > 0) anim.deadAt = Infinity;
-  Object.assign(anim, { x: p.x, y: p.y, timer: p.attackTimer, hp: p.hp });
+  Object.assign(anim, { x: p.x, y: p.y, timer: p.attackTimer, hp: p.hp, abilityCd: p.abilityCd, utilityCd: p.utilityCd });
   const atk = p.cls.attack;
   const reach = atk.kind === 'melee' ? atk.range * p.buff.range : atk.range;
   const s: AnimInput = {
@@ -92,6 +94,8 @@ function playerSprite(g: Game, p: Player, scale: number): Sprite {
     sinceHit: g.time - anim.hitAt,
     untilHit: p.attackTimer > 0 && nearestEnemy(g, p.x, p.y, reach) ? p.attackTimer : Infinity,
     attackCd: anim.cd,
+    cast: g.time - anim.castAt,
+    skill: g.time - anim.skillAt,
     hurt: g.time - anim.hurtAt,
     dead: anim.deadAt === Infinity ? Infinity : g.time - anim.deadAt,
   };
@@ -137,6 +141,8 @@ function foeSprite(g: Game, e: Enemy): Sprite | null {
     sinceHit: g.time - a.hitAt,
     untilHit: foeUntilHit(e.windupT, e.attackTimer, dist < e.r + p.r + 12, shooter && dist < e.def.range! ? e.timer : Infinity),
     attackCd: a.cd,
+    cast: Infinity, // #156: only the champions cast
+    skill: Infinity,
     hurt: g.time - a.hurtAt,
     dead: Infinity,
   };
@@ -144,6 +150,45 @@ function foeSprite(g: Game, e: Enemy): Sprite | null {
   foes.drawn.push(e);
   a.now = pickFrame(d, s, e.baseSpeed);
   return sheetSprite(id, foeScale(e), e.def.palette ?? 0, a.now.anim, a.now.frame);
+}
+
+/** #156: the champions' allies (skeletons, the decoy, the shade) animate the same way, read from their position and timers. */
+interface AllyAnim { x: number; y: number; walked: number; timer: number; shot: number; hitAt: number; cd: number; hp: number; hurtAt: number; now: { anim: AnimName; frame: number } }
+const allyAnims = new WeakMap<Minion, AllyAnim>();
+let allyGame: Game | null = null;
+export const minionAnim = (kind: string): { anim: string; frame: number } | null => {
+  // for the play test: the first ally of this kind ('skeleton': the Necromancer's own) that has an animation
+  for (const m of allyGame?.minions ?? []) if ((m.kind ?? 'skeleton') === kind && allyAnims.has(m)) return allyAnims.get(m)!.now;
+  return null;
+};
+
+function allySprite(g: Game, m: Minion, id: string, pal: number): Sprite | null {
+  const d = SHEETS[id];
+  if (!d) return null;
+  allyGame = g;
+  let a = allyAnims.get(m);
+  if (!a) allyAnims.set(m, (a = { x: m.x, y: m.y, walked: 0, timer: m.attackTimer, shot: m.shoot?.t ?? 0, hitAt: -Infinity, cd: m.attackCd, hp: m.hp, hurtAt: -Infinity, now: { anim: 'idle', frame: 0 } }));
+  const step = Math.hypot(m.x - a.x, m.y - a.y);
+  if (step < 64) a.walked += step;
+  if (!m.passive && m.attackTimer > a.timer + 1e-6) (a.hitAt = g.time), (a.cd = m.attackTimer); // struck: the timer was just reset to its cooldown
+  if (m.shoot && m.shoot.t > a.shot + 1e-6) (a.hitAt = g.time), (a.cd = m.shoot.every); // the shade loosed
+  if (m.hp < a.hp) a.hurtAt = g.time;
+  const next = m.shoot ? m.shoot.t : m.attackTimer, fighting = next > 0 && g.time - a.hitAt < a.cd * 1.5; // ponytail: it struck lately, so it winds up for the next blow; no reach check per ally
+  const s: AnimInput = {
+    time: g.time + ((m.x * 0.013) % 1),
+    walked: a.walked,
+    moving: step > 0.05,
+    sinceHit: g.time - a.hitAt,
+    untilHit: fighting ? next : Infinity,
+    attackCd: a.cd,
+    cast: Infinity,
+    skill: Infinity,
+    hurt: g.time - a.hurtAt,
+    dead: Infinity,
+  };
+  Object.assign(a, { x: m.x, y: m.y, timer: m.attackTimer, shot: m.shoot?.t ?? 0, hp: m.hp });
+  a.now = pickFrame(d, s, m.speed || 90);
+  return sheetSprite(id, m.scale, pal, a.now.anim, a.now.frame);
 }
 
 /** Once a frame, before the foes: the ones drawn last frame that have since been slain start their death. */
@@ -724,7 +769,9 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   for (const m of g.minions) {
     ctx.globalAlpha = clamp(m.life, 0.2, 1);
     if (m.kind === 'decoy') ctx.globalAlpha = 0.55; // v0.6: the Angel's mirror image is half there
-    drawSprite(ctx, m.kind ? getSprite(FRIEND_SPRITES[m.kind], m.scale, m.kind === 'shade' ? SHADE_PALETTE : FRIEND_PALETTE) : getSprite('skeleton', m.scale), m.x, m.y, m.flip, m.flash > 0);
+    const id = m.kind ? FRIEND_SPRITES[m.kind] : 'skeleton', pal = !m.kind ? 0 : m.kind === 'shade' ? SHADE_PALETTE : FRIEND_PALETTE;
+    const spr = allySprite(g, m, id, pal) || getSprite(id, m.scale, pal); // #156: rigged sheets walk, strike and flinch
+    drawSprite(ctx, spr, m.x, m.y, m.flip, m.flash > 0);
     if (!m.kind) continue;
     // v0.5 allies from quests and events: a green health bar
     const w = m.r * 2 + 8;
@@ -832,6 +879,18 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.stroke();
       ctx.lineCap = 'butt';
     } else {
+      // #156: the champions' orbs get their own look: a fading tail in their damage colour behind them (STYLE.md trails)
+      const holy = !pr.hostile && pr.dtype === 'holy', shadow = !pr.hostile && pr.dtype === 'shadow';
+      if (holy || shadow) {
+        const v = Math.hypot(pr.vx, pr.vy) || 1, ux = pr.vx / v, uy = pr.vy / v;
+        ctx.fillStyle = holy ? '#fff3c4' : '#3a1f4f';
+        for (let i = 1; i <= 3; i++) {
+          ctx.globalAlpha = 0.5 - i * 0.13;
+          disc(ctx, pr.x - ux * pr.r * 1.1 * i, pr.y - uy * pr.r * 1.1 * i, pr.r * (1 - i * 0.2));
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
       // #157: a shaded orb: dark rim, the colour, a light cap and a glint towards the top-left light (STYLE.md)
       ctx.fillStyle = 'rgba(15,10,20,0.75)';
       disc(ctx, pr.x, pr.y, pr.r + 1);
@@ -844,6 +903,20 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.85)';
       ctx.fillRect(Math.round(pr.x - pr.r * 0.45) - 1, Math.round(pr.y - pr.r * 0.45) - 1, 2, 2);
+      if (holy) {
+        // the Angel's holy orb: a four-point sparkle of light, turning slowly
+        const s = pr.r + 4 + Math.sin(g.time * 14) * 1.5, x = Math.round(pr.x), y = Math.round(pr.y);
+        ctx.fillStyle = 'rgba(255,250,225,0.9)';
+        ctx.fillRect(x - s, y - 1, s * 2, 2);
+        ctx.fillRect(x - 1, y - s, 2, s * 2);
+      } else if (shadow) {
+        // the Necromancer's shadow orb: a dark core with the staff crystal's green eye
+        ctx.fillStyle = 'rgba(20,8,30,0.8)';
+        disc(ctx, pr.x + pr.r * 0.1, pr.y + pr.r * 0.1, pr.r * 0.5);
+        ctx.fill();
+        ctx.fillStyle = '#8fe07a';
+        ctx.fillRect(Math.round(pr.x) - 1, Math.round(pr.y) - 1, 2, 2);
+      }
     }
   }
 
@@ -867,12 +940,19 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.lineTo(e.x2, e.y2);
       ctx.stroke();
     } else {
-      ctx.globalAlpha = (1 - k) * 0.5;
+      // #156: a swing trail in the rig's smear style instead of a flat wedge: a tapered crescent, a bright leading rim
+      const pts = swingTrail(e.r, e.angle, e.arc, k);
+      ctx.globalAlpha = (1 - k) * 0.7;
       ctx.fillStyle = e.color;
       ctx.beginPath();
-      ctx.moveTo(e.x, e.y);
-      ctx.arc(e.x, e.y, e.r, e.angle - e.arc / 2, e.angle + e.arc / 2);
+      for (let i = 0; i < pts.length; i += 2) ctx.lineTo(e.x + pts[i], e.y + pts[i + 1]);
+      ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = '#ffffff'; // the edge that cut: the outer rim
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 2; i < pts.length / 2 - 2; i += 2) ctx.lineTo(e.x + pts[i], e.y + pts[i + 1]);
+      ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;
