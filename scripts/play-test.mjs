@@ -1459,6 +1459,75 @@ await check('ballista: the aim reticle is the size of the bolt it fires', async 
   return { ok: cls === 'archer' && drawn.length === 1 && shot > 0 && drawn[0] === shot, detail: `${cls}: reticle ${drawn.join('/') || 'none'}, bolt ${shot}` };
 });
 
+// #150: every relic compendium card holds all its text, at Normal and Larger text, on PC and at phone width
+await check('compendium: no card text falls off its card', async () => {
+  const seen = [];
+  for (const [w, h] of [[1280, 720], [844, 390]]) {
+    for (const size of ['normal', 'larger']) {
+      await page.setViewportSize({ width: w, height: h });
+      await inPage(() => {
+        localStorage.removeItem('lastbastion.save');
+        location.reload();
+      });
+      await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+      // a save that found every relic but one (all champions' lists in test mode): every name shows, and one unknown card
+      await inPage(async () => {
+        const s = window.__lb.save;
+        [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+        await new Promise((r) => setTimeout(r, 150));
+        document.querySelector('[data-act="test"]').click();
+        await new Promise((r) => setTimeout(r, 60));
+        const cls = document.getElementById('tm-class'), ids = new Set();
+        for (const o of cls.options) { // each champion lists its own class relics
+          cls.value = o.value;
+          cls.dispatchEvent(new Event('change'));
+          for (const x of document.querySelectorAll('#tm-relics select')) ids.add(x.dataset.relic);
+        }
+        localStorage.setItem('lastbastion.save', JSON.stringify({ ...s, relicPicks: Object.fromEntries([...ids].filter((_, i) => i > 0).map((id) => [id, 3])) }));
+        location.reload();
+      });
+      await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+      seen.push(await inPage(async (size) => {
+        const wait = (ms = 150) => new Promise((r) => setTimeout(r, ms));
+        const btn = (text) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === text);
+        btn('Settings').click();
+        await wait();
+        document.querySelector(`[data-text-size="${size}"]`).click();
+        await wait();
+        document.querySelector('[data-act="back"]').click();
+        await wait();
+        document.querySelector('[data-go="keep"]').click();
+        await wait();
+        document.querySelector('[data-compendium]').click();
+        await wait();
+        const cards = [...document.querySelectorAll('.compendium .relic-card')];
+        const bad = [];
+        for (const c of cards) {
+          const box = c.getBoundingClientRect();
+          const walk = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+          for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+            if (!t.textContent.trim()) continue;
+            const range = document.createRange();
+            range.selectNodeContents(t);
+            for (const r of range.getClientRects()) {
+              if (r.left < box.left - 1 || r.right > box.right + 1 || r.top < box.top - 1 || r.bottom > box.bottom + 1) {
+                bad.push(`${c.querySelector('h2')?.textContent}: "${t.textContent.trim().slice(0, 20)}"`);
+                break;
+              }
+            }
+          }
+        }
+        return { cards: cards.length, known: cards.filter((c) => !c.classList.contains('undiscovered')).length, bad };
+      }, size));
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const labels = ['desk N', 'desk L', 'phone N', 'phone L'];
+  const bad = seen.flatMap((s, i) => s.bad.map((x) => `${labels[i]} ${x}`));
+  const ok = seen.every((s) => s.cards > 20 && s.known > 40) && bad.length === 0;
+  return { ok, detail: `${seen[0].cards} cards (${seen[0].known} found) × 4 layouts${bad.length ? `; overflows ${bad.length}: ${bad.slice(0, 4).join(', ')}` : ', all text inside'}` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };

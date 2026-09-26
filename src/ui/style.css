@@ -283,6 +283,7 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .tierline b { color: #e9c95a; text-shadow: 0 0 2px #000; margin-right: 4px; }
 .relic-card.undiscovered { opacity: 0.55; filter: grayscale(1); }
 .cards.wrap .relic-card { width: 210px; cursor: default; }
+.cards.wrap .relic-card h2 { font-size: 22px; overflow-wrap: break-word; } /* #150: a long relic name (Stormcaller's Horn) fits the compendium card */
 .compendium .cards { justify-content: flex-start; }
 .build .syn { flex-direction: row; gap: 8px; }
 .build .syn span { color: inherit; }
