@@ -1699,6 +1699,8 @@ await check('Foe sheets: every redrawn foe and commander loads; a crossbowman pl
       if (seen[seen.length - 1] !== a) seen.push(a);
     }
     return { ok: missing.length === 0 && seen.includes('attack'), detail: `missing [${missing.join(', ')}]; crossbow ${seen.join(' → ')}` };
+  }),
+);
 // ---------- #159: every arena draws its ground props from the rig's atlas, and the keep's braziers flicker ----------
 await check('Arenas: every arena shows its rigged props; the braziers flicker; pickups are rigged (#159)', () =>
   inPage(() => location.reload()).then(async () => {
@@ -1867,6 +1869,7 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
     return { ok, detail: out.map((r) => `${r.arena}: ${r.features ? `features ${r.features.join('/') || 'none'}, ` : ''}telegraphs ${r.arts.join('/') || 'none'}${r.hand === null ? '' : `, hand ${r.hand ? 'drawn' : 'MISSING'}`}`).join('; ') };
   }),
 );
+
 
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
