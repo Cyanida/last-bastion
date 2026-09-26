@@ -8,7 +8,7 @@ import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
 import type { Enemy, Game, Player } from '../core/types';
-import { foeUntilHit, frameAt, pickFrame, type AnimInput, type AnimName } from '../logic/animation';
+import { foeUntilHit, frameAt, pickFrame, swingTrail, type AnimInput, type AnimName } from '../logic/animation';
 import { nearestEnemy } from '../systems/combat';
 import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
@@ -876,12 +876,19 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.lineTo(e.x2, e.y2);
       ctx.stroke();
     } else {
-      ctx.globalAlpha = (1 - k) * 0.5;
+      // #156: a swing trail in the rig's smear style instead of a flat wedge: a tapered crescent, a bright leading rim
+      const pts = swingTrail(e.r, e.angle, e.arc, k);
+      ctx.globalAlpha = (1 - k) * 0.7;
       ctx.fillStyle = e.color;
       ctx.beginPath();
-      ctx.moveTo(e.x, e.y);
-      ctx.arc(e.x, e.y, e.r, e.angle - e.arc / 2, e.angle + e.arc / 2);
+      for (let i = 0; i < pts.length; i += 2) ctx.lineTo(e.x + pts[i], e.y + pts[i + 1]);
+      ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = '#ffffff'; // the edge that cut: the outer rim
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 2; i < pts.length / 2 - 2; i += 2) ctx.lineTo(e.x + pts[i], e.y + pts[i + 1]);
+      ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;

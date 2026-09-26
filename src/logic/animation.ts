@@ -80,3 +80,24 @@ export function foeUntilHit(windup: number, attackTimer: number, inReach: boolea
   if (windup > 0) return windup;
   return Math.min(inReach && attackTimer > 0 ? attackTimer : Infinity, shot > 0 ? shot : Infinity);
 }
+
+/** #156: the melee swing trail's thickness at its widest, as a share of its reach. */
+export const TRAIL_WIDTH = 0.42;
+
+/**
+ * #156: a melee swing's trail in the rig's smear style (STYLE.md): a crescent along the swing's reach, thick in the middle and
+ * tapering to points, whose trailing end (the side the weapon came from) eats in towards the leading end as it fades (`k`, 0..1).
+ * Flat [x, y, ...] offsets from the swinger: the outer edge from the trailing to the leading end, then the inner edge back.
+ */
+export function swingTrail(r: number, angle: number, arc: number, k: number, n = 10): number[] {
+  const a1 = angle + arc / 2, a0 = a1 - arc * (1 - 0.7 * k);
+  const out: number[] = [], inner: number[] = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, a = a0 + (a1 - a0) * t, c = Math.cos(a), s = Math.sin(a);
+    const ri = r * (1 - TRAIL_WIDTH * Math.sin(Math.PI * t));
+    out.push(c * r, s * r);
+    inner.unshift(c * ri, s * ri);
+  }
+  for (let i = 0; i < inner.length; i += 2) out.push(inner[i], inner[i + 1]);
+  return out;
+}

@@ -1707,6 +1707,79 @@ await check('Fast attacks and Leap: the swing keeps up at the cap, E leaps witho
   return { ok, detail: `at the cap ${attacking.length}/${swing.length} frames attacking, ${windUp} wind-up; E: ${leap.map((f) => `${f.anim}${f.frame}`).join(' ')}` };
 });
 
+// ---------- #156: the Viking's swing leaves a tapered trail, not a flat wedge; the walk keeps pace with the ground at 1.5x and under a heavy slow ----------
+await check('Swing trail and walk pace: a crescent trail on the swing; the feet follow the ground fast and slowed (#156)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('viking'));
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    window.__startTest().player.invulnerable = true;
+  });
+  // the trail: drawn with and without the fresh swing's effect, the canvas changes on the crescent but not inside it, where the old wedge was
+  const trail = await inPage(async () => {
+    const lb = window.__lb, g = lb.game, p = g.player;
+    let fx = null;
+    for (let i = 0; i < 300 && !fx; i++) {
+      const [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 40, y: p.y, hp: 1e6, maxHp: 1e6 });
+      lb.run(1, false, 'input');
+      fx = g.effects.find((x) => x.kind === 'arc' && x.t < 0.05);
+    }
+    if (!fx) return null;
+    const c = document.getElementById('game').getContext('2d'), cam = lb.camera();
+    const probe = (k) => {
+      const a = fx.angle + 0.6, wx = fx.x + Math.cos(a) * fx.r * k, wy = fx.y + Math.sin(a) * fx.r * k;
+      return [...c.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data];
+    };
+    g.shake = 0; // no screen shake between the two draws
+    lb.draw();
+    const on = [probe(0.82), probe(0.4)];
+    g.effects = g.effects.filter((x) => x !== fx);
+    lb.draw();
+    const off = [probe(0.82), probe(0.4)];
+    const d = (i) => Math.round(Math.hypot(on[i][0] - off[i][0], on[i][1] - off[i][1], on[i][2] - off[i][2]));
+    return { crescent: d(0), inside: d(1) };
+  });
+  // the walk: D held for a second at 1.5x and at a heavy slow; walk frames stepped against the distance the feet should take
+  const walk = [];
+  for (const mult of [1.5, 0.35]) {
+    const r = await inPage(async (mult) => {
+      const lb = window.__lb, g = lb.game, p = g.player;
+      g.enemies.length = 0;
+      p.stats.baseMove ??= p.stats.moveSpd;
+      p.stats.moveSpd = p.stats.baseMove * mult; // a fast build (movement talents, Ghost Step) or a heavy slow
+      return { x: p.x, speed: p.cls.base.moveSpd }; // the walk's base: the class's own speed, as the renderer uses
+    }, mult);
+    await page.keyboard.down('KeyD');
+    let steps = 0, last = null;
+    for (let i = 0; i < 40; i++) {
+      const f = await inPage(() => (window.__lb.game.enemies.length = 0, window.__lb.run(1, false, 'input'), new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => res(window.__lb.anim()))))));
+      if (f.anim === 'walk' && last !== null && f.frame !== last) steps += (f.frame - last + 8) % 8;
+      last = f.anim === 'walk' ? f.frame : null;
+    }
+    await page.keyboard.up('KeyD');
+    const dist = await inPage((x0) => window.__lb.game.player.x - x0, r.x);
+    const want = dist / ((r.speed * 0.8) / 8); // WALK_STRIDE: 8 frames per 0.8 s of base-speed travel
+    walk.push({ mult, dist: Math.round(dist), steps, ratio: want > 0 ? steps / want : 0 });
+  }
+  const ok = !!trail && trail.crescent > 20 && trail.inside < 8 && walk.every((w) => w.ratio > 0.7 && w.ratio < 1.3) && walk[0].dist > walk[1].dist * 3;
+  return { ok, detail: `trail ${trail ? `changes ${trail.crescent} on the crescent, ${trail.inside} inside` : 'not seen'}; ${walk.map((w) => `${w.mult}x: ${w.dist} px, ${w.steps} frames (${w.ratio.toFixed(2)} of the ground)`).join('; ')}` };
+});
+
 // ---------- #157: the foes' rigged sheets: a peasant walks up, jabs on his wind-up, and falls when slain ----------
 await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#157)', () =>
   inPage(() => location.reload()).then(async () => {
