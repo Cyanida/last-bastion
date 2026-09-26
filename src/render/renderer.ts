@@ -7,7 +7,7 @@ import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
 import type { Enemy, Game, Player } from '../core/types';
-import { pickFrame, type AnimInput, type AnimName } from '../logic/animation';
+import { frameAt, pickFrame, type AnimInput, type AnimName } from '../logic/animation';
 import { nearestEnemy } from '../systems/combat';
 import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
@@ -637,7 +637,10 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   for (const m of g.minions) {
     ctx.globalAlpha = clamp(m.life, 0.2, 1);
     if (m.kind === 'decoy') ctx.globalAlpha = 0.55; // v0.6: the Angel's mirror image is half there
-    drawSprite(ctx, m.kind ? getSprite(FRIEND_SPRITES[m.kind], m.scale, m.kind === 'shade' ? SHADE_PALETTE : FRIEND_PALETTE) : getSprite('skeleton', m.scale), m.x, m.y, m.flip, m.flash > 0);
+    const id = m.kind ? FRIEND_SPRITES[m.kind] : 'skeleton', pal = !m.kind ? 0 : m.kind === 'shade' ? SHADE_PALETTE : FRIEND_PALETTE;
+    const d = SHEETS[id]; // #156: a rigged sheet (the decoy, the shade) idles on the game clock; ponytail: no walk cycle for minions yet
+    const spr = (d && sheetSprite(id, m.scale, pal, 'idle', frameAt(d.anims.idle, g.time * 1000, true))) || getSprite(id, m.scale, pal);
+    drawSprite(ctx, spr, m.x, m.y, m.flip, m.flash > 0);
     if (!m.kind) continue;
     // v0.5 allies from quests and events: a green health bar
     const w = m.r * 2 + 8;
