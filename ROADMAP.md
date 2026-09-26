@@ -14,6 +14,7 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 | v0.7.6 | Quest fixes | released 2026-09-25 |
 | v0.8.0 | Balance, relics & bosses | released 2026-09-26 |
 | v0.8.1 | Characters | released 2026-09-26 |
+| v0.8.2 | Art & animation | planned |
 | v0.9.0 | Classes & roster | planned |
 | v0.10.0 | Items, arenas & sound | planned |
 | v0.11.0 | The Keep & Master difficulty | planned |
@@ -182,6 +183,40 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 1. ([#138](https://github.com/Cyanida/last-bastion/issues/138)) Every champion and enemy redrawn at double resolution, so each design has room for detail. This merges #135 and #136.
 2. ([#133](https://github.com/Cyanida/last-bastion/issues/133)) Flash cards show the enemy itself on the card, and a spotlight picks it out in the arena.
 3. ([#134](https://github.com/Cyanida/last-bastion/issues/134)) The Viking's Dread Howl stuns nearby enemies instead of making them flee.
+
+## v0.8.2 – Art & animation
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/25) · a patch release, built on v0.8.1
+
+**Goal.** The game looks as good as it plays. Every character, enemy, boss and arena is redrawn as detailed, shaded pixel art that moves,
+in the style of the Paladin prototype Jesse approved ([preview](docs/art/paladin-prototype.gif)). It replaces the v0.8.1 redraw, which read
+as too cartoonish.
+
+**Scope.**
+1. ([#155](https://github.com/Cyanida/last-bastion/issues/155)) The art pipeline. It comes first, because the other four depend on it:
+   - a rig tool that draws shaded, animated sprites in code;
+   - animation states in the game: idle, walk, attack, hurt and death;
+   - the size check, with the camera zoomed out if the arena feels crowded;
+   - a style guide and a gallery;
+   - the Paladin, the first sprite converted.
+2. ([#156](https://github.com/Cyanida/last-bastion/issues/156)) The five champions, with their attacks, abilities, projectiles and the
+   Necromancer's skeletons.
+3. ([#157](https://github.com/Cyanida/last-bastion/issues/157)) Every foe, commander and siege engine.
+4. ([#158](https://github.com/Cyanida/last-bastion/issues/158)) Every boss, with an animation for each of its attacks.
+5. ([#159](https://github.com/Cyanida/last-bastion/issues/159)) The four arenas: floors, walls, obstacles, hazards and everything on the
+   ground. They grow if the size check asks for it.
+
+**Out of scope.** New content (classes, enemies, arenas), the HUD and menus, and sound. Later releases draw their new art with this pipeline:
+- the Wizard (#66);
+- skins (#137);
+- skeleton archers (#83);
+- the themed arenas (#141);
+- the Keep as a castle (#67).
+
+**Exit criteria.**
+- Nothing in the game is still drawn as a letter grid.
+- Every sprite plays its animations in the gallery and in the game, and each attack matches its wind-up or telegraph.
+- The golden runs are unchanged, the balance targets hold after any camera or arena change, and `npm run test:perf` holds.
 
 ## v0.9.0 – Classes & roster
 
