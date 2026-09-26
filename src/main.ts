@@ -32,7 +32,7 @@ import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
 import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from './logic/save';
 import { buildArena } from './render/arena';
-import { cameraFor, render, renderBackdrop, type View } from './render/renderer';
+import { cameraFor, render, renderBackdrop, setSpotlight, spotlightOn, type View } from './render/renderer';
 import { botInput, botStep } from './sim/bot';
 import { playCues, view as simView } from './sim/view';
 import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
@@ -652,12 +652,15 @@ function afterStep(g: Game): void {
 /** v0.8 (#124): a card the first time a foe, a boss or a mechanic is met; the run waits under it. A test run leaves no trace, so it shows none. */
 function flashCard(g: Game): void {
   if (g.tick % CARDS.checkEvery || isTestRun(g)) return;
-  const id = nextCard(g.enemies, g.player.x, g.player.y, save.cards);
-  if (!id) return;
+  const met = nextCard(g.enemies, g.player.x, g.player.y, save.cards);
+  if (!met) return;
+  const { id, foe } = met;
   commit({ ...save, cards: [...save.cards, id] }); // seen as soon as it shows: a reload never shows it twice
   state = 'choice';
   setTouchControls(false);
-  showFlashCard(id, (pause) => {
+  setSpotlight(foe); // #133: the arena dims round the foe while its card is open
+  showFlashCard(id, foe, (pause) => {
+    setSpotlight(null);
     resume();
     if (pause) togglePause(); // Esc is the pause key: it closes the card and pauses
   });
@@ -815,6 +818,9 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       },
       quality,
       cardIds: CARD_IDS, // v0.8 (#124): the perf test marks every flash card seen
+      get spotlight() {
+        return spotlightOn(); // #133: the play test checks the spotlight is on the card's foe
+      },
       setQuality, // v0.8: the play test compares particle budgets
       view: simView, // v0.8: the play test wraps view.sfx to hear what the simulation plays
       perf,

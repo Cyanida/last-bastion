@@ -8,14 +8,16 @@ import { ENEMIES, type EnemyId } from './enemies';
 export const CARDS = {
   checkEvery: 15, // ticks between looks at the field (a quarter second)
   meetRadius: 520, // how close a foe must be to count as met (about the screen's half width)
+  spotDim: 0.65, // #133: how dark the arena goes around the foe while its card is open
+  spotRadius: 70, // #133: the lit circle round the foe, in world pixels (plus its own size)
 };
 
 export type MechanicCard = 'elite' | 'telegraph';
 export type CardId = EnemyId | MechanicCard;
 
-export const MECHANIC_CARDS: Record<MechanicCard, { name: string; text: string }> = {
-  elite: { name: 'Elite', text: 'Orange outline: tougher, with extra powers. Worth more gold.' },
-  telegraph: { name: 'Marked attack', text: 'A glow shows where it lands. Step out late for a perfect dodge.' },
+export const MECHANIC_CARDS: Record<MechanicCard, { name: string; text: string; icon: string }> = {
+  elite: { name: 'Elite', icon: '★', text: 'Orange outline: tougher, with extra powers. Worth more gold.' },
+  telegraph: { name: 'Marked attack', icon: '⚠', text: 'A glow shows where it lands. Step out late for a perfect dodge.' },
 };
 
 export const ENEMY_CARDS: Record<EnemyId, string> = {
