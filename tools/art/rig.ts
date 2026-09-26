@@ -21,10 +21,12 @@ export const RAMPS = {
   straw: ['#2e2210', '#5a4318', '#86662a', '#b08d3e', '#cfae5a', '#e6cc80', '#f7e8b4'],
   green: ['#0d1a12', '#18301f', '#25472c', '#35613a', '#4b7f4a', '#6e9e62', '#a3c58c'],
   fur: ['#16161a', '#2a2a31', '#43434c', '#5f5f69', '#7e7e86', '#a2a1a4', '#cfccc6'],
+  black: ['#08090c', '#111318', '#1a1d24', '#252a33', '#343a45', '#4a5261', '#8a93a3'], // blackened steel: the foes' plate
+  purple: ['#150a1f', '#28123a', '#3e1d57', '#562a76', '#734096', '#935fb4', '#c49ad8'],
   smear: ['#9fb4d0','#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
 } as const;
 export type Material = keyof typeof RAMPS;
-const METALS = new Set<Material>(['steel', 'darksteel', 'gold']);
+const METALS = new Set<Material>(['steel', 'darksteel', 'gold', 'black']);
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
 
 export type Pt = readonly [number, number];

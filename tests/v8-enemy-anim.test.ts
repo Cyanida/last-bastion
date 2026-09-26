@@ -18,4 +18,16 @@ describe('#157 foe animation', () => {
     expect(pickFrame(d, { ...calm, untilHit: foeUntilHit(0, 0.01, true, Infinity) }, 72)).toEqual({ anim: 'attack', frame: d.impact - 1 });
     expect(pickFrame(d, { ...calm, moving: true, walked: 72 * 0.8 * 0.5 }, 72)).toEqual({ anim: 'walk', frame: 4 });
   });
+
+  it("a hasted foe (War Drummer) steps and swings faster, a slowed one slower, through the shared pickFrame", () => {
+    const d = JSON.parse(readFileSync('src/render/sheets/knight.json', 'utf8')) as SheetData;
+    const calm: AnimInput = { time: 0, walked: 0, moving: true, sinceHit: Infinity, untilHit: Infinity, attackCd: 1, hurt: Infinity, dead: Infinity };
+    const base = 60, t = 0.5; // seconds of walking
+    const walkAt = (mult: number) => pickFrame(d, { ...calm, walked: base * mult * t }, base).frame; // walked grows with the buffed speed
+    expect(walkAt(1.3)).toBeGreaterThan(walkAt(1));
+    expect(walkAt(0.5)).toBeLessThan(walkAt(1));
+    // a faster attack interval squeezes the swing: 120 ms after the hit, a short interval is further into the recovery
+    const post = (cd: number) => pickFrame(d, { ...calm, moving: false, sinceHit: 0.12, attackCd: cd }, base);
+    expect(post(0.4).frame).toBeGreaterThan(post(2).frame);
+  });
 });
