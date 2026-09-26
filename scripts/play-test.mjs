@@ -1697,6 +1697,88 @@ await check('Arenas: every arena shows its rigged props; the braziers flicker; p
   }),
 );
 
+// ---------- #159: the wings' features are rigged props, and the Graveyard's hands claw up out of their circles ----------
+await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasping hands rise in their telegraphs (#159)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+    const out = [];
+    for (const arena of ['bastion', 'graveyard', 'keep']) {
+      if (out.length) {
+        await inPage(() => location.reload());
+        await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+      }
+      out.push(
+        await inPage(async (arena) => {
+          const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+          [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+          await wait(150);
+          document.querySelector('[data-act="test"]').click();
+          await wait();
+          const el = document.getElementById('tm-arena');
+          el.value = arena;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          const g = window.__startTest();
+          g.player.invulnerable = true;
+          for (let i = 0; i < 40 && !(lb.state === 'playing' && g.time > 0.3); i++) {
+            if (lb.state === 'choice') lb.run(1, false, 'input');
+            await wait(50);
+          }
+          const img = new Image();
+          img.src = 'sprites/props.png';
+          await img.decode();
+          const atlas = document.createElement('canvas');
+          [atlas.width, atlas.height] = [img.width, img.height];
+          atlas.getContext('2d').drawImage(img, 0, 0);
+          const a = atlas.getContext('2d'), c = document.getElementById('game').getContext('2d');
+          // does the canvas show the atlas pixel (col, row) of a prop whose anchor (ax, ay) sits on world (x, y)?
+          const shows = (x, y, ax, ay, col, row) => {
+            const cam = lb.camera();
+            const wx = Math.round(x - ax) + ax, wy = Math.round(y - ay) + ay;
+            const want = a.getImageData(col, row, 1, 1).data;
+            const got = c.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data;
+            return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
+          };
+          // src/render/props.json: atlas row and anchor of each feature's prop
+          const F = { shrine: [585, 30, 34], chest: [637, 20, 20], lair: [671, 32, 26], hazard: [711, 24, 24] };
+          let features = null;
+          const f = g.features[0];
+          if (f) {
+            // its wing opened, and the feature set down beside the champion so the camera has it (the wing's floor stays walled off)
+            g.regionOpen[f.wing] = true;
+            Object.assign(f, { x: Math.round(g.player.x) + 150, y: Math.round(g.player.y) });
+            features = [];
+            for (const kind of Object.keys(F)) {
+              f.kind = kind;
+              g.enemies.length = 0;
+              lb.draw();
+              const [row, ax, ay] = F[kind];
+              if (shows(f.x, f.y, ax, ay, ax, row + ay)) features.push(kind);
+            }
+          }
+          // the arena's hazard, now: a hand (the Graveyard) or a flame (the keep's braziers) in each telegraph
+          g.wave = Math.max(1, g.wave);
+          g.hazardT = 0.001;
+          for (let i = 0; i < 40 && !g.zones.some((z) => z.art); i++) await wait(25);
+          const arts = [...new Set(g.zones.filter((z) => z.art).map((z) => z.art))];
+          let hand = null;
+          const z = g.zones.find((z) => z.art === 'hands');
+          if (z) {
+            Object.assign(g.player, { x: z.x - 200, y: z.y });
+            g.enemies.length = 0;
+            lb.draw();
+            const frame = Math.min(2, Math.floor(Math.min(1, z.t / z.delay) * 3));
+            hand = shows(z.x, z.y + 8, 16, 38, frame * 32 + 16, 749 + 38); // the earth heaped round the wrist, at the anchor
+          }
+          return { arena, features, arts, hand };
+        }, arena),
+      );
+    }
+    const by = (id) => out.find((r) => r.arena === id);
+    const ok = by('bastion').features?.length === 4 && by('graveyard').arts.includes('hands') && by('graveyard').hand === true && by('keep').arts.includes('fire');
+    return { ok, detail: out.map((r) => `${r.arena}: ${r.features ? `features ${r.features.join('/') || 'none'}, ` : ''}telegraphs ${r.arts.join('/') || 'none'}${r.hand === null ? '' : `, hand ${r.hand ? 'drawn' : 'MISSING'}`}`).join('; ') };
+  }),
+);
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
