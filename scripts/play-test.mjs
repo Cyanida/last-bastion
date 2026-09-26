@@ -1272,7 +1272,7 @@ await check('card pictures: siege pieces and bosses redrawn at their old size (r
     return inPage(async () => {
       const lb = window.__lb, wait = (ms = 100) => new Promise((r) => setTimeout(r, ms));
       // [id, sprite, old columns, old rows, arena scale]
-      const want = [['ballista', 'ballista', 14, 10, 3], ['siegeTower', 'siegeTower', 16, 18, 4], ['blackKnight', 'blackKnight', 16, 18, 4], ['warlord', 'warlord', 16, 18, 4], ['lich', 'lich', 16, 18, 4], ['inquisitor', 'inquisitor', 16, 18, 4], ['abbot', 'abbot', 16, 18, 4], ['dragon', 'dragon', 29, 18, 4], ['warden', 'warden', 16, 18, 4], ['usurper', 'usurper', 16, 18, 5], ['royalFlame', 'royalFlame', 12, 14, 4]];
+      const want = [['ballista', 'ballista', 14, 10, 3], ['siegeTower', 'siegeTower', 16, 18, 4], ['blackKnight', 'blackKnight', 16, 18, 4], ['warlord', 'warlord', 16, 18, 4], ['lich', 'lich', 16, 18, 4], ['inquisitor', 'inquisitor', 16, 18, 4], ['abbot', 'abbot', 16, 18, 4], ['dragon', 'dragon', 29, 18, 4], ['warden', 'warden', 16, 18, 4], ['usurper', 'usurper', 16, 18, 4], ['royalFlame', 'royalFlame', 12, 14, 4]];
       const had = [...lb.save.cards];
       lb.save.cards.push(...[...want.map(([id]) => id), 'siegeCamp', 'plagueCart'].filter((id) => !had.includes(id)));
       document.querySelector('[data-go="keep"]').click();
@@ -1609,6 +1609,43 @@ await check('Sprite gallery plays the Paladin; his class card shows his sheet (#
       const ok = moving && c.height >= 100 && box === 84;
       return { ok, detail: `${Object.entries(frames).map(([a, f]) => `${a} ${f.size}`).join(', ')}; portrait canvas ${c.width}×${c.height}, shown ${box} px` };
     });
+  }),
+);
+
+// ---------- #158: every boss loads its sheet, the gallery plays each one's special, and the Usurper stands tallest ----------
+await check('Boss sheets: all eight bosses and the Royal Flame load and play their special in the gallery; the Usurper is the tallest (#158)', () =>
+  inPage(() => location.reload()).then(async () => {
+    const bosses = ['blackKnight', 'warlord', 'lich', 'inquisitor', 'abbot', 'dragon', 'warden', 'usurper'];
+    await page.waitForFunction((ids) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ids.every((id) => window.__lb.sheets().includes(id)), {}, [...bosses, 'royalFlame']).catch(() => {});
+    return inPage(async (bosses) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const loaded = window.__lb.sheets();
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const frames = {};
+      for (let i = 0; i < 25; i++) {
+        for (const id of bosses) for (const c of document.querySelectorAll(`[data-sheet="${id}"][data-anim="special"]`)) (frames[id] ??= new Set()).add(c.dataset.frame);
+        await wait(80);
+      }
+      // the figure's height in the gallery (every boss is drawn at the same scale in the arena): opaque rows of the first idle frame
+      const tall = (id) => {
+        const c = document.querySelector(`[data-sheet="${id}"][data-anim="idle"]`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let top = -1, bot = -1;
+        for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3]) { if (top < 0) top = y; bot = y; break; }
+        return bot - top + 1;
+      };
+      const h = Object.fromEntries(bosses.filter((id) => id !== 'dragon').map((id) => [id, tall(id)]));
+      document.querySelector('.testmode [data-back]').click();
+      await wait(100);
+      document.querySelector('[data-act="back"]').click();
+      await wait(100);
+      const missing = [...bosses, 'royalFlame'].filter((id) => !loaded.includes(id));
+      const still = bosses.filter((id) => !(frames[id]?.size > 1));
+      const tallest = Object.entries(h).every(([id, v]) => id === 'usurper' || h.usurper > v * 1.1);
+      return { ok: !missing.length && !still.length && tallest, detail: `missing [${missing}]; special not playing [${still}]; heights ${Object.entries(h).map(([k, v]) => `${k} ${v}`).join(', ')}` };
+    }, bosses);
   }),
 );
 
