@@ -62,4 +62,11 @@ export const MERCHANT = {
   reroll: 45, // swap one of your relics for a random one of the same rarity (selling and salvage pay you instead: config/relics.ts RELIC_DROPS)
   reforge: 30, // v0.7.1 B7: swap one for a random other relic of its family, keeping half its attunement
   buy: { common: 70, rare: 150, legendary: 330 } as Record<Rarity, number>,
+  // v0.8.1 #144: the Merchant path's caravan sells these books in the relic slots (one of each a visit), unless it has a relic this visit
+  books: {
+    haste: { cost: 60, name: 'Tome of Haste', icon: '📕', desc: '+10% attack speed for the rest of the run.', atkSpd: 1.1 },
+    fortune: { cost: 80, name: 'Tome of Fortune', icon: '📗', desc: 'Your next level-up offers only epic upgrades.' },
+  },
 };
+export type BookId = keyof typeof MERCHANT.books;
+export const BOOK_IDS = Object.keys(MERCHANT.books) as BookId[];

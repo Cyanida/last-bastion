@@ -195,12 +195,12 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   // ---- v0.5 side content (quests and events): never in the wave pool ----
   // a quest's siege camp: stands where it was pitched and musters a peasant now and then (specials.ts muster)
   siegeCamp: {
-    ...base, id: 'siegeCamp', name: 'Siege Camp', sprite: 'siegeTower', behavior: 'support', structure: true, scale: 3,
+    ...base, id: 'siegeCamp', name: 'Siege Camp', sprite: 'siegeCamp', behavior: 'support', structure: true, scale: 3,
     hp: 280, damage: 0, speed: 0, radius: 26, xp: 8, knockbackResist: 1, specialCd: 4,
   },
   // an event's plague cart: rolls a straight line across the field leaking poison (systems/events.ts moves it)
   plagueCart: {
-    ...base, id: 'plagueCart', name: 'Plague Cart', sprite: 'ballista', behavior: 'support', structure: true,
+    ...base, id: 'plagueCart', name: 'Plague Cart', sprite: 'plagueCart', behavior: 'support', structure: true,
     hp: 360, damage: 0, speed: 0, radius: 20, xp: 6, knockbackResist: 1,
   },
   // ---- commanders: they do not fight, they make everyone around them worse to fight. Kill them first. ----
@@ -243,7 +243,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   },
   // ---- Act bosses: three phases, and they change the arena itself (systems/bosses.ts) ----
   dragon: {
-    ...boss, id: 'dragon', name: 'The Dragon', sprite: 'dragon', behavior: 'support', scale: 4, phases: 3, // #68: a bigger sprite (29×18) at 4×, about the old size on screen
+    ...boss, id: 'dragon', name: 'The Dragon', sprite: 'dragon', behavior: 'support', scale: 4, phases: 3, // #68: a bigger sprite (29×18, #138: 58×36 on the finer grid) at 4×, about the old size on screen
     hp: 850, damage: 17, speed: 78, radius: 40, xp: 120,
     range: 250, fireCd: 2.8, projSpeed: 300,
     specialCd: 7.5, windup: 1.3, specialMult: 1.5, zoneRadius: 62, lineZones: 12, lineSpacing: 92, poolLife: 7, poolDps: 6,

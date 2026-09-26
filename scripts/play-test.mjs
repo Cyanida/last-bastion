@@ -114,6 +114,23 @@ await check('title screen', () =>
   }),
 );
 
+// #138: the champions are drawn on a grid twice as fine, and show at the same size as before on the class select
+await check('class select: champions on the finer grid keep their size', () =>
+  inPage(async () => {
+    const P = window.__play;
+    await P.click('[data-go="start"]');
+    const size = (id) => {
+      const c = document.querySelector(`[data-class="${id}"] .portrait canvas`);
+      return c ? { box: Math.round(c.getBoundingClientRect().height), canvas: c.height } : null;
+    };
+    const pal = size('paladin'), vik = size('viking');
+    await P.click('[data-back]');
+    // the old grids were 14 and 16 rows at 6 px: 84 and 96 px on screen, whatever the finer canvas holds
+    const ok = pal?.box === 84 && vik?.box === 96 && window.__lb.state === 'menu';
+    return { ok, detail: `paladin ${JSON.stringify(pal)}, viking ${JSON.stringify(vik)}` };
+  }),
+);
+
 // ---------- a test run from the real Test mode screen ----------
 await check('test mode starts a run', () =>
   inPage(async () => {
@@ -330,6 +347,38 @@ await check('ability and utility upgrades', () =>
   }),
 );
 
+// #144: the Merchant path's caravan sells books in the relic slots, or on one visit in ten a relic, and never greys relics out
+await check("Merchant path caravan: Tome of Haste and Tome of Fortune, or now and then a relic", () =>
+  inPage(async () => {
+    const P = window.__play, lb = window.__lb, g = lb.game, p = g.player;
+    const log = [];
+    const visit = (relic) => {
+      g.gold = 600;
+      g.pendingMerchant = g.midMerchant = true;
+      g.vars.caravanRelic = relic;
+      return P.toChoice() && !!document.querySelector('[data-heal]');
+    };
+    if (!visit(0)) return { ok: false, detail: 'no caravan' };
+    log.push(document.querySelector('[data-buy]') || /one relic a visit/i.test(document.body.innerText) ? 'RELICS ON A BOOK VISIT' : 'no relics');
+    const spd = p.stats.atkSpd, gold = g.gold;
+    await P.click('[data-book="haste"]');
+    log.push(p.stats.atkSpd > spd * 1.09 && g.gold < gold ? 'haste' : 'HASTE FAILED');
+    log.push(document.querySelector('[data-book="haste"]')?.disabled ? 'one a visit' : 'HASTE STILL ON SALE');
+    await P.click('[data-book="fortune"]');
+    await P.click('[data-leave]');
+    g.pendingLevelUps++;
+    if (!P.toChoice()) return { ok: false, detail: 'no level-up screen' };
+    const tags = [...document.querySelectorAll('[data-pick] .tag')].map((t) => t.textContent);
+    log.push(tags.every((t) => /Epic|Evolution/.test(t)) ? 'all epic' : `NOT ALL EPIC: ${tags.join(', ')}`);
+    await P.click('[data-pick="0"]');
+    if (!visit(1)) return { ok: false, detail: 'no caravan with a relic' };
+    const buy = document.querySelector('[data-buy="common"]');
+    log.push(buy && !buy.disabled && !document.querySelector('[data-book]') ? 'a relic, no books' : 'NO RELIC ON A RELIC VISIT');
+    await P.click('[data-leave]');
+    return { ok: !log.some((l) => /[A-Z]{4}/.test(l)), detail: log.join(', ') };
+  }),
+);
+
 await check('Merchant: heal, reroll, reforge, sell, salvage, buy, march on', () =>
   inPage(async () => {
     const P = window.__play, lb = window.__lb, g = lb.game, p = g.player, rel = p.relics;
@@ -483,7 +532,7 @@ await check('every screen answered above is in the replay log, in tick order, fo
     const g = window.__lb.game;
     if (!g.replay) return { skip: true, detail: 'no replay log on this branch (before #113)' };
     const kinds = new Set(g.replay.map((c) => c.choice.c));
-    const want = ['quests', 'levelReroll', 'levelBanish', 'levelUp', 'relicReroll', 'relicTake', 'relicSkip', 'abilityUpgrade', 'utilityUpgrade', 'merchantHeal', 'merchantBuy', 'merchantLeave', 'route', 'blessing', 'peddlerBuy', 'peddlerToken', 'peddlerLeave', 'talent'];
+    const want = ['quests', 'levelReroll', 'levelBanish', 'levelUp', 'relicReroll', 'relicTake', 'relicSkip', 'abilityUpgrade', 'utilityUpgrade', 'merchantHeal', 'merchantBuy', 'merchantBook', 'merchantLeave', 'route', 'blessing', 'peddlerBuy', 'peddlerToken', 'peddlerLeave', 'talent'];
     const missing = want.filter((k) => !kinds.has(k));
     const ordered = g.replay.every((c, i) => c.player === 0 && c.tick <= g.tick && (i === 0 || c.tick >= g.replay[i - 1].tick));
     return { ok: !missing.length && ordered, detail: `${g.replay.length} choices${missing.length ? `, missing ${missing.join(', ')}` : ''}${ordered ? '' : ', out of order'}` };
@@ -930,6 +979,57 @@ await check('Bone Colossus: capped over many Raise Deads, skeletons stay beside 
   return { ok, detail: `after ${seen.length} casts: ${last.bones} skeletons, Colossus ×${last.fused}, ${Math.round(last.damage)} dmg (first ${Math.round(seen[0].damage)})` };
 });
 
+// ---------- #134: Dread Howl stuns the enemies around the Viking when rage starts, and none of them flee ----------
+await check('Dread Howl: raging stuns the enemies around you instead of scaring them off', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  const ready = await inPage(async () => {
+    const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '1');
+    set('tm-wave', '3');
+    set('tm-level', '20');
+    const g = window.__startTest();
+    const p = g.player;
+    p.invulnerable = true;
+    p.upgrades.push('dreadHowl'); // test mode has no upgrade picker
+    const foes = () => g.enemies.filter((e) => !e.dead && !e.def.boss);
+    for (let i = 0; i < 6000 && foes().length < 3 && lb.game === g; i++) {
+      p.attackTimer = 1e9;
+      lb.run(1, false, true);
+    }
+    const near = foes().slice(0, 3);
+    if (near.length < 3) return false;
+    near.forEach((e, i) => Object.assign(e, { x: p.x + 50 + i * 25, y: p.y, fearT: 0 }));
+    delete near[0].statuses.stun;
+    p.abilityCd = 0;
+    window.__howl = near;
+    return true;
+  });
+  if (!ready) return { ok: false, detail: 'no enemies reached' };
+  await page.keyboard.down('Space');
+  await inPage(() => window.__lb.run(2, false, 'input'));
+  await page.keyboard.up('Space');
+  return inPage(() => {
+    const near = window.__howl, raging = window.__lb.game.player.abilityTime > 0;
+    const stunned = near.filter((e) => e.statuses.stun).length, fleeing = near.filter((e) => e.fearT > 0).length;
+    return { ok: raging && stunned === near.length && fleeing === 0, detail: `raging ${raging}, ${stunned}/${near.length} stunned, ${fleeing} fleeing` };
+  });
+});
+
 // ---------- #127: the Usurper's last phase is a short hold he fights through, then your blows finish him ----------
 await check("Usurper: the last phase holds a few seconds, he attacks through it, then he falls", async () => {
   await inPage(() => {
@@ -1011,6 +1111,7 @@ await check('Gallows: a cursed run earns its bonus, the results show it', () =>
       await P.click('[data-curse="ironHorde"]');
       const shown = Number(document.querySelector('.select .mult').textContent.match(/×([\d.]+)/)[1]); // curses alone, without the Gallows
       await P.click('[data-class="viking"]');
+      document.querySelector('[data-start]')?.click(); // #146: the card selects (unless it already was), Start begins the run
       await P.wait(200);
       const g = lb.game, mult = g.vars.curseMult;
       g.player.invulnerable = true;
@@ -1072,6 +1173,7 @@ await check('difficulty: Knight names its new foes, and its waves bring none fro
       await wait();
       const tips = [tipOf(0), tipOf(1)];
       document.querySelector('[data-class="viking"]').click();
+      document.querySelector('[data-start]')?.click(); // #146: the card selects, Start begins the run
       await wait(200);
       const g = lb.game;
       g.player.invulnerable = true;
@@ -1090,7 +1192,7 @@ await check('difficulty: Knight names its new foes, and its waves bring none fro
 );
 
 // ---------- v0.8 (#124): flash cards, in a real run (a test run shows none) ----------
-await check('flash card: a new foe shows one, the run waits, Enter closes it, never twice, kept in the Glossary', () =>
+await check('flash card: a new foe shows one with its sprite and a spotlight on it, the run waits, Enter closes it, never twice, kept in the Glossary, redrawn foes at their old size', () =>
   inPage(() => {
     localStorage.removeItem('lastbastion.save');
     location.reload();
@@ -1101,6 +1203,7 @@ await check('flash card: a new foe shows one, the run waits, Enter closes it, ne
       document.querySelector('[data-go="start"]').click();
       await wait();
       document.querySelector('[data-class="viking"]').click();
+      document.querySelector('[data-start]')?.click(); // #146: the card selects, Start begins the run
       await wait(200);
       const g = lb.game;
       g.player.invulnerable = true;
@@ -1109,7 +1212,19 @@ await check('flash card: a new foe shows one, the run waits, Enter closes it, ne
       if (!card) return null;
       const tick = g.tick;
       await wait(300); // real frames: the loop must not step the run under the card
-      return { id: card.dataset.card, name: card.querySelector('h2').textContent, words: card.querySelector('p').textContent.split(' ').length, state: lb.state, held: g.tick === tick, saved: lb.save.cards.includes(card.dataset.card) };
+      // #133: the card shows the foe's own sprite (or a mechanic's icon), and the spotlight is on a met foe of that kind
+      const pic = card.querySelector('.card-pic');
+      const spot = lb.spotlight;
+      const side = spot && spot.x > g.player.x ? 0.15 : 0.85; // a patch of arena on the far side from the foe
+      const shade = () => {
+        const cv = document.getElementById('game'), d = cv.getContext('2d').getImageData(Math.round(cv.width * side) - 15, Math.round(cv.height / 2) - 15, 30, 30).data;
+        let sum = 0;
+        for (let i = 0; i < d.length; i += 4) sum += d[i] + d[i + 1] + d[i + 2];
+        return sum / (d.length / 4);
+      };
+      window.__shade = shade;
+      const picture = pic?.tagName === 'IMG' ? (pic.dataset.spriteOf === card.dataset.card && pic.complete && pic.naturalWidth > 0 ? 'sprite' : `wrong sprite ${pic.dataset.spriteOf}`) : pic ? 'icon' : 'none';
+      return { id: card.dataset.card, name: card.querySelector('h2').textContent, words: card.querySelector('p').textContent.split(' ').length, state: lb.state, held: g.tick === tick, saved: lb.save.cards.includes(card.dataset.card), picture, spotOn: !!spot && g.enemies.includes(spot) && (spot.def.id === card.dataset.card || card.dataset.card in { elite: 1, telegraph: 1 }), dim: shade() };
     });
     if (!first) return { ok: false, detail: 'no card in 3000 ticks' };
     await page.keyboard.press('Enter');
@@ -1117,24 +1232,63 @@ await check('flash card: a new foe shows one, the run waits, Enter closes it, ne
       const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
       await wait(100);
       const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+      const lit = window.__shade(), spotOff = lb.spotlight === null; // #133: the arena lights up again once the card closes
       const shown = [id];
       for (let i = 0; i < 1500 && lb.state !== 'results'; i++) {
         lb.run(1, false, true);
         const c = document.querySelector('[data-card]');
         if (c) (shown.push(c.dataset.card), c.querySelector('[data-leave]').click());
       }
-      return { closed, shown };
+      return { closed, shown, lit, spotOff };
     }, first.id);
     await page.keyboard.press('Escape');
     const glossary = await inPage(async () => {
       await new Promise((r) => setTimeout(r, 100));
       document.querySelector('[data-glossary]')?.click();
       await new Promise((r) => setTimeout(r, 100));
-      return document.querySelector('.cards-met')?.innerText ?? '';
+      const met = document.querySelector('.cards-met');
+      // #138: the foes met so far, as their pictures show them (the arena sprite at its own scale, plus a 2 px margin each side)
+      const sizes = met ? [...met.querySelectorAll('img.card-pic')].map((i) => [i.dataset.spriteOf, i.naturalWidth, i.naturalHeight]) : [];
+      return met ? { text: met.innerText, pics: met.querySelectorAll('.card-pic').length, rows: met.querySelectorAll('dt').length, sizes } : { text: '', pics: 0, rows: 0, sizes };
     });
     const once = new Set(after.shown).size === after.shown.length;
-    const ok = first.state === 'choice' && first.held && first.saved && first.words <= 14 && after.closed && once && glossary.includes(first.name);
-    return { ok, detail: `"${first.name}" (${first.words} words), held ${first.held}, saved ${first.saved}, Enter closed ${after.closed}; cards ${after.shown.join(', ')}${once ? '' : ' (REPEATED)'}; Glossary ${glossary ? 'lists it' : 'MISSING'}` };
+    const dimmed = first.dim < after.lit * 0.7;
+    const pictured = first.picture === 'sprite' && glossary.pics === glossary.rows;
+    // #138: the regular foes and the commanders are drawn on a grid twice as fine, and keep the old grid's size: its columns and rows at 3 px each
+    const oldGrid = { peasant: [12, 14], wolf: [14, 8], crossbow: [12, 14], knight: [12, 14], cultist: [12, 14], shieldBearer: [12, 14], priest: [12, 14], cavalry: [16, 13], engineer: [12, 14], plagueDoctor: [12, 14], houndmaster: [12, 14], mirrorKnight: [12, 14], assassin: [12, 13], shieldwall: [12, 14], boneCollector: [12, 14], bannerman: [12, 14], drummer: [12, 14], chaplain: [12, 14] };
+    const redrawn = glossary.sizes.filter(([id]) => id in oldGrid);
+    const sized = redrawn.length > 0 && redrawn.every(([id, w, h]) => w === oldGrid[id][0] * 3 + 4 && h === oldGrid[id][1] * 3 + 4);
+    const ok = first.state === 'choice' && first.held && first.saved && first.words <= 14 && after.closed && once && glossary.text.includes(first.name) && pictured && first.spotOn && dimmed && after.spotOff && sized;
+    return { ok, detail: `foe pictures ${redrawn.map(([id, w, h]) => `${id} ${w}×${h}`).join(', ') || 'NONE'}${sized ? '' : ' (WRONG SIZE)'}; "${first.name}" (${first.words} words), picture ${first.picture}, spotlight ${first.spotOn ? 'on it' : 'MISSING'}, arena ${Math.round(first.dim)} → ${Math.round(after.lit)} after closing${after.spotOff ? '' : ' (STILL LIT)'}, held ${first.held}, saved ${first.saved}, Enter closed ${after.closed}; cards ${after.shown.join(', ')}${once ? '' : ' (REPEATED)'}; Glossary ${glossary.text ? 'lists it' : 'MISSING'}, ${glossary.pics}/${glossary.rows} pictures` };
+  }),
+);
+
+// #138 part 3: the siege pieces and the bosses are on the finer grid too; their card pictures (the same ones a flash card shows) keep the
+// old grid's size at their own scale, and the Siege Camp and the Plague Cart show their own pictures
+await check('card pictures: siege pieces and bosses redrawn at their old size, the Siege Camp and the Plague Cart their own', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async () => {
+      const lb = window.__lb, wait = (ms = 100) => new Promise((r) => setTimeout(r, ms));
+      // [id, sprite, old columns, old rows, arena scale]
+      const want = [['ballista', 'ballista', 14, 10, 3], ['siegeTower', 'siegeTower', 16, 18, 4], ['blackKnight', 'blackKnight', 16, 18, 4], ['warlord', 'warlord', 16, 18, 4], ['lich', 'lich', 16, 18, 4], ['inquisitor', 'inquisitor', 16, 18, 4], ['abbot', 'abbot', 16, 18, 4], ['dragon', 'dragon', 29, 18, 4], ['warden', 'warden', 16, 18, 4], ['usurper', 'usurper', 16, 18, 5], ['royalFlame', 'royalFlame', 12, 14, 4]];
+      const had = [...lb.save.cards];
+      lb.save.cards.push(...[...want.map(([id]) => id), 'siegeCamp', 'plagueCart'].filter((id) => !had.includes(id)));
+      document.querySelector('[data-go="keep"]').click();
+      await wait();
+      document.querySelector('[data-glossary]').click();
+      await wait();
+      const pics = new Map([...document.querySelectorAll('.cards-met img.card-pic')].map((i) => [i.dataset.spriteOf, [i.naturalWidth, i.naturalHeight, i.src]]));
+      document.querySelector('[data-back]').click();
+      await wait();
+      document.querySelector('[data-back]')?.click();
+      await wait();
+      lb.save.cards.splice(0, lb.save.cards.length, ...had);
+      const wrong = want.filter(([id, , c, r, s]) => pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
+      const own = ['siegeCamp', 'plagueCart'].every((id) => pics.has(id)) && pics.get('siegeCamp')[2] !== pics.get('siegeTower')?.[2] && pics.get('plagueCart')[2] !== pics.get('ballista')?.[2];
+      const ok = wrong.length === 0 && own && lb.state === 'menu';
+      return { ok, detail: `${want.map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×')}`).join(', ')}${wrong.length ? ` · WRONG ${wrong}` : ''} · camp ${pics.get('siegeCamp')?.slice(0, 2).join('×')}, cart ${pics.get('plagueCart')?.slice(0, 2).join('×')}${own ? '' : ' (NOT THEIR OWN)'}` };
+    });
   }),
 );
 
@@ -1223,6 +1377,41 @@ await check('text size: Larger grows the HUD, no overlap at 1400x800 and 844x390
   return { ok, detail: `player panel ${Math.round(dn.tl)} -> ${Math.round(dl.tl)}px (1400x800), ${Math.round(pn.tl)} -> ${Math.round(pl.tl)}px (844x390), +N ${seen.map((s) => s.more).join('/')}${hits.length ? `; overlaps: ${hits.slice(0, 4).join(', ')}` : ''}` };
 });
 
+// #146: a class card only selects its champion; Start (or a second click on the chosen card) begins the run
+await check('class select: a card selects, a click beside a swatch starts nothing, Enter selects then starts, Start begins the run', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  const look = () => inPage(() => ({ state: window.__lb.state, on: [...document.querySelectorAll('.select .card.on')].map((c) => c.dataset.class), start: document.querySelector('[data-start]')?.textContent ?? '' }));
+  const box = (sel) => inPage((sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; }, sel);
+  await inPage(() => { window.__lb.save.palettes = [1]; document.querySelector('[data-go="start"]').click(); }); // an earned colour shows the swatches
+  await page.waitForSelector('[data-start]');
+  const first = await look(); // pre-selected: Start works straight away
+  await page.locator('[data-class="viking"]').scrollIntoViewIfNeeded();
+  const sw = await box('[data-palette="viking:1"]');
+  await page.mouse.click(sw.x + sw.w + 4, sw.y + sw.h / 2); // just misses the swatch: lands on the card
+  await page.waitForTimeout(100);
+  const missed = await look();
+  await page.mouse.click(sw.x + sw.w / 2, sw.y + sw.h / 2); // on the swatch: the colour changes, the choice stays
+  await page.waitForTimeout(100);
+  const recoloured = { ...(await look()), palette: await inPage(() => window.__lb.save.settings.palettes.viking) };
+  await inPage(() => document.querySelector('[data-class="archer"]').focus());
+  await page.keyboard.press('Enter'); // selects the Archer
+  await page.waitForTimeout(100);
+  const keyed = await look();
+  await page.keyboard.press('Enter'); // the chosen card again: the run begins
+  await page.waitForFunction(() => window.__lb.state !== 'menu');
+  const run = await inPage(() => ({ state: window.__lb.state, cls: window.__lb.game?.player.cls.id }));
+  const ok = first.state === 'menu' && first.on.length === 1 && first.start.startsWith("Start as ")
+    && missed.state === 'menu' && missed.on.join() === 'viking' && missed.start === 'Start as Viking'
+    && recoloured.state === 'menu' && recoloured.on.join() === 'viking' && recoloured.palette === 1
+    && keyed.state === 'menu' && keyed.on.join() === 'archer' && keyed.start === 'Start as Archer'
+    && run.cls === 'archer' && run.state !== 'menu';
+  return { ok, detail: `first ${JSON.stringify(first)}, beside swatch ${JSON.stringify(missed)}, on swatch ${JSON.stringify(recoloured)}, Enter ${JSON.stringify(keyed)}, Enter again ${JSON.stringify(run)}` };
+});
+
 // #117: with Ballista Shot the reticle is the bolt's own size (it was drawn at 14 for a 16 bolt)
 await check('ballista: the aim reticle is the size of the bolt it fires', async () => {
   await inPage(() => {
@@ -1235,6 +1424,7 @@ await check('ballista: the aim reticle is the size of the bolt it fires', async 
     document.querySelector('[data-go="start"]').click();
     await wait();
     document.querySelector('[data-class="archer"]').click();
+    document.querySelector('[data-start]')?.click(); // #146: the card selects, Start begins the run
     await wait(200);
     const g = window.__lb.game;
     g.player.invulnerable = true;
@@ -1267,6 +1457,75 @@ await check('ballista: the aim reticle is the size of the bolt it fires', async 
   await page.mouse.up({ button: 'right' });
   const cls = await inPage(() => window.__lb.game?.player.cls.id);
   return { ok: cls === 'archer' && drawn.length === 1 && shot > 0 && drawn[0] === shot, detail: `${cls}: reticle ${drawn.join('/') || 'none'}, bolt ${shot}` };
+});
+
+// #150: every relic compendium card holds all its text, at Normal and Larger text, on PC and at phone width
+await check('compendium: no card text falls off its card', async () => {
+  const seen = [];
+  for (const [w, h] of [[1280, 720], [844, 390]]) {
+    for (const size of ['normal', 'larger']) {
+      await page.setViewportSize({ width: w, height: h });
+      await inPage(() => {
+        localStorage.removeItem('lastbastion.save');
+        location.reload();
+      });
+      await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+      // a save that found every relic but one (all champions' lists in test mode): every name shows, and one unknown card
+      await inPage(async () => {
+        const s = window.__lb.save;
+        [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+        await new Promise((r) => setTimeout(r, 150));
+        document.querySelector('[data-act="test"]').click();
+        await new Promise((r) => setTimeout(r, 60));
+        const cls = document.getElementById('tm-class'), ids = new Set();
+        for (const o of cls.options) { // each champion lists its own class relics
+          cls.value = o.value;
+          cls.dispatchEvent(new Event('change'));
+          for (const x of document.querySelectorAll('#tm-relics select')) ids.add(x.dataset.relic);
+        }
+        localStorage.setItem('lastbastion.save', JSON.stringify({ ...s, relicPicks: Object.fromEntries([...ids].filter((_, i) => i > 0).map((id) => [id, 3])) }));
+        location.reload();
+      });
+      await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+      seen.push(await inPage(async (size) => {
+        const wait = (ms = 150) => new Promise((r) => setTimeout(r, ms));
+        const btn = (text) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === text);
+        btn('Settings').click();
+        await wait();
+        document.querySelector(`[data-text-size="${size}"]`).click();
+        await wait();
+        document.querySelector('[data-act="back"]').click();
+        await wait();
+        document.querySelector('[data-go="keep"]').click();
+        await wait();
+        document.querySelector('[data-compendium]').click();
+        await wait();
+        const cards = [...document.querySelectorAll('.compendium .relic-card')];
+        const bad = [];
+        for (const c of cards) {
+          const box = c.getBoundingClientRect();
+          const walk = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+          for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+            if (!t.textContent.trim()) continue;
+            const range = document.createRange();
+            range.selectNodeContents(t);
+            for (const r of range.getClientRects()) {
+              if (r.left < box.left - 1 || r.right > box.right + 1 || r.top < box.top - 1 || r.bottom > box.bottom + 1) {
+                bad.push(`${c.querySelector('h2')?.textContent}: "${t.textContent.trim().slice(0, 20)}"`);
+                break;
+              }
+            }
+          }
+        }
+        return { cards: cards.length, known: cards.filter((c) => !c.classList.contains('undiscovered')).length, bad };
+      }, size));
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const labels = ['desk N', 'desk L', 'phone N', 'phone L'];
+  const bad = seen.flatMap((s, i) => s.bad.map((x) => `${labels[i]} ${x}`));
+  const ok = seen.every((s) => s.cards > 20 && s.known > 40) && bad.length === 0;
+  return { ok, detail: `${seen[0].cards} cards (${seen[0].known} found) × 4 layouts${bad.length ? `; overflows ${bad.length}: ${bad.slice(0, 4).join(', ')}` : ', all text inside'}` };
 });
 
 await check('no console errors', async () => {

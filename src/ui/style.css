@@ -237,7 +237,7 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .card .role { font-style: italic; margin-bottom: 8px; }
 .card p { margin: 2px 0 8px; line-height: 1.25; }
 .portrait { height: 92px; display: grid; place-items: center; }
-.portrait canvas { image-rendering: pixelated; filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.45)); }
+.portrait canvas { height: var(--sprite-h, auto); image-rendering: pixelated; filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.45)); }
 .stats { margin: 6px 0 10px; }
 .stats > div:nth-child(7) { color: #6b4a08; font-weight: bold; }
 .stats.wide { font-size: 18px; margin: 10px 0 20px; min-width: 320px; }
@@ -283,6 +283,7 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .tierline b { color: #e9c95a; text-shadow: 0 0 2px #000; margin-right: 4px; }
 .relic-card.undiscovered { opacity: 0.55; filter: grayscale(1); }
 .cards.wrap .relic-card { width: 210px; cursor: default; }
+.cards.wrap .relic-card h2 { font-size: 22px; overflow-wrap: break-word; } /* #150: a long relic name (Stormcaller's Horn) fits the compendium card */
 .compendium .cards { justify-content: flex-start; }
 .build .syn { flex-direction: row; gap: 8px; }
 .build .syn span { color: inherit; }
@@ -357,7 +358,7 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .titles { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .epithet { font-family: var(--heading); font-size: 22px; color: #f3ead0; margin-top: 4px; }
 /* v0.5 quest board */
-.board .card.on { outline: 3px solid var(--gold); outline-offset: -7px; transform: translateY(-6px); box-shadow: 0 0 16px var(--gold); }
+.select .card.on, .board .card.on { outline: 3px solid var(--gold); outline-offset: -7px; transform: translateY(-6px); box-shadow: 0 0 16px var(--gold); }
 
 .stats-table { width: 100%; border-collapse: collapse; font-family: Georgia, serif; font-size: 14px; margin-bottom: 8px; }
 .stats-table th { text-align: left; font-family: var(--body); border-bottom: 1px solid #5a3d25; }
@@ -566,6 +567,13 @@ canvas#game { touch-action: none; }
 .flash-card .tag { color: var(--gold); font-weight: bold; text-transform: uppercase; letter-spacing: 1px; font-size: 0.8em; }
 .flash-card.boss .tag { color: var(--blood); }
 .flash-card p { font-size: 1.15em; margin: 8px 0 14px; }
+/* #133: the foe itself on its card, pixel-crisp, breathing gently; a mechanic's icon in its place; small in the Glossary */
+.flash-card .card-pic { display: block; margin: 10px auto 0; height: 96px; image-rendering: pixelated; animation: card-bob 0.9s ease-in-out infinite alternate; }
+.flash-card .card-pic.icon { height: auto; font-size: 64px; line-height: 96px; }
+@keyframes card-bob { from { transform: translateY(0); } to { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .flash-card .card-pic { animation: none; } }
+.cards-met .card-pic { height: 28px; margin-right: 8px; vertical-align: middle; image-rendering: pixelated; }
+.cards-met .card-pic.icon { display: inline-block; width: 28px; height: auto; text-align: center; }
 
 /* v0.7.1 test mode */
 .hud-test { align-self: center; padding: 2px 12px; font: bold 15px var(--hud-display); letter-spacing: 3px; color: #ff8a7a; }

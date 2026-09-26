@@ -12,7 +12,7 @@ import { BLESSINGS, type BlessingId } from '../config/regions';
 import { QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
 import { TRAIT_IDS, TRAITS, type TraitId } from '../config/traits';
-import { ENEMIES } from '../config/enemies';
+import { ENEMIES, type EnemyDef, type EnemyId } from '../config/enemies';
 import { WAVES } from '../config/waves';
 import { TREASURE_RULES, TREASURES, treasureDesc, type TreasureId } from '../config/treasures';
 import { chainStep, followUpText, inText, nextFragmentBoss, rankFor } from '../logic/treasures';
@@ -23,7 +23,7 @@ import { salvageValue, sellPrice } from '../systems/acts';
 import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
-import { TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
+import { SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { latchGamepad, onAction } from '../input';
@@ -34,20 +34,21 @@ import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, met
 import { exportSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
-import { ACT_THEMES, ACTS, FINAL } from '../config/acts';
+import { ACT_THEMES, ACTS, FINAL, MERCHANT, type BookId } from '../config/acts';
 import { ROUTE_FOCUS } from '../config/routes';
 import type { Route } from '../logic/routes';
 import { EVOLUTION_IDS, EVOLUTIONS, type EvolutionId } from '../config/evolutions';
 import { requirementText } from '../logic/evolutions';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
-import { getSprite, SPRITE_PALETTES } from '../render/sprites';
+import { getSprite, outlineSprite, SPRITE_PALETTES } from '../render/sprites';
 import { OATHS } from '../config/oaths';
 import { oathCap, oathReward } from '../logic/oaths';
 import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
 import { GLOSSARY } from '../config/glossary';
-import { cardInfo, type CardId } from '../config/cards';
+import { cardInfo, MECHANIC_CARDS, type CardId, type MechanicCard } from '../config/cards';
+import { AFFIXES, ELITES, type AffixId } from '../config/elites';
 import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
 import type { TestSetup } from '../systems/testMode';
 
@@ -207,12 +208,16 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
+/** #146: the champion picked on the class select; kept while its options re-render the screen. Starts as the last one played. */
+let selectedClass: ClassId | undefined;
+
 export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void; trait: (id: TraitId) => void; palette: (id: ClassId, n: number) => void; treasure: (id: ClassId) => void; oath: (level: number) => void }): void {
   const locked = lockedArenas(save);
   // v0.6 Oath ladder: open once any class has won; each class swears at most one above the highest it has kept
   const oathMax = Math.max(...CLASS_ORDER.map((id) => oathCap(save.wins[id], save.oaths[id])));
   const oathOf = (id: ClassId) => Math.min(save.settings.oath, oathCap(save.wins[id], save.oaths[id]));
   const sworn = save.settings.oath > 0 && oathMax > 0;
+  selectedClass ??= save.runs.at(-1)?.classId ?? CLASS_ORDER[0];
   const card = (c: ClassDef) => {
     const rec = save.classes[c.id];
     const rank = masteryRank(rec.xp);
@@ -225,7 +230,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     const tr = save.treasures[c.id];
     const treasure = tr.tier ? `<span class="chip treasure-chip ${tr.equipped ? 'on' : ''}" data-treasure="${c.id}" data-tip="${esc(`${tr.equipped ? 'Equipped' : 'Left in the Keep'} — tap to switch.\n${treasureDesc(c.id, tr.tier)}`)}">${t.icon} ${t.name} ${TIER_NUMERALS[tr.tier]}</span>` : '';
     return `
-    <button class="card panel" data-class="${c.id}">
+    <button class="card panel ${selectedClass === c.id ? 'on' : ''}" data-class="${c.id}">
       <div class="portrait" data-sprite="${c.sprite}" data-palette-n="${palettes.includes(chosen) ? chosen : 0}"></div>${swatches}
       <h2${c.name.length > 9 ? ' class="long"' : ''}>${c.name}</h2>
       <div class="role">${c.role}</div>
@@ -284,19 +289,33 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
         <button class="chip" data-oath="${save.settings.oath + 1}" ${save.settings.oath >= oathMax ? 'disabled' : ''}>+</button>
         <span class="hint">${save.settings.oath ? `${OATHS[save.settings.oath - 1].desc} Every Oath below it holds too. A class that has not kept Oath ${save.settings.oath - 1} swears its highest.` : 'Win with a class to swear its first Oath. Every level adds one hardship; keeping one pays.'}</span></div></div>` : ''}
       <div class="cards">${CLASS_ORDER.map((id) => card(CLASSES[id])).join('')}</div>
-      <button class="btn" data-back>Back</button>
+      <div class="row"><button class="btn" data-back>Back</button><button class="btn big" data-start>Start as ${CLASSES[selectedClass].name}</button></div>
     </div>`);
-  el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => slot.appendChild(getSprite(slot.dataset.sprite as ClassDef['sprite'], 6, Number(slot.dataset.paletteN ?? 0)).img));
+  el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => {
+    const spr = getSprite(slot.dataset.sprite as ClassDef['sprite'], 6, Number(slot.dataset.paletteN ?? 0));
+    spr.img.style.setProperty('--sprite-h', `${spr.h}px`); // #138: a finer-grid canvas is larger than it shows
+    slot.appendChild(spr.img);
+  });
   el.querySelectorAll<HTMLElement>('[data-palette]').forEach((sw) => (sw.onclick = (e) => {
-    e.stopPropagation(); // the card underneath would start the run
+    e.stopPropagation(); // the card underneath would take the click
     const [cls, n] = sw.dataset.palette!.split(':');
     on.palette(cls as ClassId, Number(n));
   }));
   el.querySelectorAll<HTMLElement>('[data-treasure]').forEach((chip) => (chip.onclick = (e) => {
-    e.stopPropagation(); // the card underneath would start the run
+    e.stopPropagation(); // the card underneath would take the click
     on.treasure(chip.dataset.treasure as ClassId);
   }));
-  click(el, '[data-class]', (b) => on.pick(b.dataset.class as ClassId, el.querySelector<HTMLInputElement>('#seed')!.value));
+  const start = () => on.pick(selectedClass!, el.querySelector<HTMLInputElement>('#seed')!.value);
+  // #146: a card selects its champion (no re-render, so the keyboard focus stays on it); a second click on it, or Start, begins the run
+  click(el, '[data-class]', (b) => {
+    if (b.dataset.class === selectedClass) return start();
+    selectedClass = b.dataset.class as ClassId;
+    el.querySelectorAll('[data-class]').forEach((c) => c.classList.toggle('on', c === b));
+    el.querySelector('[data-start]')!.textContent = `Start as ${CLASSES[selectedClass].name}`;
+  });
+  click(el, '[data-start]', start);
+  // Enter or the pad's confirm starts the run, unless a focused button takes the key itself
+  onActions((a) => a === 'confirm' && !(document.activeElement instanceof HTMLButtonElement) && start());
   click(el, '[data-curse]', (b) => on.curse(b.dataset.curse as CurseId));
   click(el, '[data-trait]', (b) => on.trait(b.dataset.trait as TraitId));
   click(el, '[data-oath]', (b) => on.oath(Number(b.dataset.oath)));
@@ -969,10 +988,12 @@ export interface MerchantInfo {
   salvage: number; // Rune shards so far
   relicsLeft: number; // v0.7: relic moments he still sells this visit
   mid?: boolean; // v0.6: the Merchant path's visit halfway through an Act
+  books: BookId[]; // v0.8.1 #144: the caravan's books in the relic slots (none when it sells a relic this visit, or at the end of an Act)
+  booksLeft: BookId[]; // one of each a visit
 }
 
 /** Between Acts. Everything here costs run gold, and run gold is what you would otherwise bank for the Keep. */
-export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r: Rarity) => void; reroll: (id: RelicId) => void; reforge: (id: RelicId) => void; sell: (id: RelicId) => void; salvage: (id: RelicId) => void; leave: () => void }): void {
+export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r: Rarity) => void; book: (b: BookId) => void; reroll: (id: RelicId) => void; reforge: (id: RelicId) => void; sell: (id: RelicId) => void; salvage: (id: RelicId) => void; leave: () => void }): void {
   const price = (item: MerchantItem) => merchantPrice(item, info.act);
   const offer = (item: MerchantItem, attrs: string, title: string, text: string, enabled: boolean) =>
     `<button class="card panel boon shop" ${attrs} ${enabled && info.gold >= price(item) ? '' : 'disabled'}><h2>${title}</h2><p>${text}</p><div class="best">🪙 ${price(item)}</div></button>`;
@@ -993,13 +1014,15 @@ export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r
       <p class="sub">${info.mid ? 'The Merchant path: his caravan has caught up with you.' : 'The Merchant waits by the gate.'} Purse: <b class="goldtext">🪙 ${info.gold}</b>${info.salvage > 0 ? ` · shards: <b>${info.salvage} ◆</b>` : ''} — what you spend here never reaches the Keep.</p>
       <div class="cards">
         ${offer('heal', 'data-heal', 'Field Surgeon', `Heal half your HP (${Math.ceil(info.hp)} / ${Math.round(info.maxHp)}).`, info.hp < info.maxHp)}
-        ${(Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, info.relicsLeft > 0 ? `Choose one of three ${r} relics you do not carry. One relic a visit.` : 'He sells one relic a visit.', info.relicsLeft > 0)).join('')}
+        ${info.books.length ? info.books.map((b) => offer(`book:${b}`, `data-book="${b}"`, `${MERCHANT.books[b].icon} ${MERCHANT.books[b].name}`, info.booksLeft.includes(b) ? MERCHANT.books[b].desc : 'Bought. One of each a visit.', info.booksLeft.includes(b))).join('')
+        : info.mid && info.relicsLeft <= 0 ? '' : (Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, info.relicsLeft > 0 ? `Choose one of three ${r} relics you do not carry. One relic a visit.` : 'He sells one relic a visit.', info.relicsLeft > 0)).join('')}
       </div>
       ${held ? `<div class="panel heldlist">${held}</div>` : ''}
       <button class="btn big" data-leave>March on</button>
     </div>`);
   click(el, '[data-heal]', on.heal);
   click(el, '[data-buy]', (b) => on.buy(b.dataset.buy as Rarity));
+  click(el, '[data-book]', (b) => on.book(b.dataset.book as BookId));
   click(el, '[data-reroll]', (b) => on.reroll(b.dataset.reroll as RelicId));
   click(el, '[data-reforge]', (b) => on.reforge(b.dataset.reforge as RelicId));
   click(el, '[data-sell]', (b) => on.sell(b.dataset.sell as RelicId));
@@ -1089,25 +1112,51 @@ export function showWhatsNew(w: WhatsNew, onBack: () => void): void {
 
 /** v0.7.1: every game term and what it means (config/glossary.ts), from the pause menu and the Keep. Tooltips underline the same words. */
 export function showGlossary(onBack: () => void, cards: CardId[] = []): void {
-  const met = cards.map(cardInfo).sort((a, b) => a.name.localeCompare(b.name));
+  const met = cards.map((id) => ({ id, ...cardInfo(id) })).sort((a, b) => a.name.localeCompare(b.name));
   const el = show(`
     <div class="panel dialog wide glossary">
       <h1 class="small">Glossary</h1>
       <p class="sub">The words the game uses, and what they mean. Tooltips underline them and explain them too.</p>
       <dl>${[...GLOSSARY].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<dt>${t.name}</dt><dd>${t.def}</dd>`).join('')}</dl>
-      ${met.length ? `<h2 class="small">Foes and marks met</h2><dl class="cards-met">${met.map((c) => `<dt>${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}
+      ${met.length ? `<h2 class="small">Foes and marks met</h2><dl class="cards-met">${met.map((c) => `<dt>${cardPicture(c.id)}${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
 
+/** #133: what a card's picture needs to know about the foe that brought it (a slice of Enemy). */
+export interface CardPictureFoe {
+  def: EnemyDef;
+  elite: boolean;
+  affixes: AffixId[];
+}
+
+/**
+ * #133: a card's picture. A foe is its own arena sprite from the same cache (so a sprite redesign reaches the card by itself); an elite
+ * wears its first affix's colour as an outline. A mechanic without a foe (the Glossary, a marked attack) shows its icon.
+ */
+function cardPicture(id: CardId, foe?: CardPictureFoe): string {
+  const def = id in ENEMIES ? ENEMIES[id as EnemyId] : id === 'elite' ? foe?.def : undefined;
+  if (!def) return `<span class="card-pic icon">${MECHANIC_CARDS[id as MechanicCard].icon}</span>`;
+  const elite = !!foe?.elite && foe.def === def;
+  const spr = getSprite(def.sprite, def.scale + (elite ? ELITES.scaleBonus : 0), def.palette);
+  const c = document.createElement('canvas');
+  c.width = spr.w + 4;
+  c.height = spr.h + 4;
+  const ctx = c.getContext('2d')!;
+  if (elite) ctx.drawImage(outlineSprite(spr, AFFIXES[foe!.affixes[0]]?.color ?? SKILL.colors.elite)[0], 0, 0);
+  ctx.drawImage(spr.img, 2, 2);
+  return `<img class="card-pic" src="${c.toDataURL()}" alt="" data-sprite-of="${def.id}">`;
+}
+
 /** v0.8 (#124): a flash card, the first time a foe, a boss or a mechanic is met. The run waits under it. `pause` (Esc) also opens the pause menu. */
-export function showFlashCard(id: CardId, onDone: (pause: boolean) => void): void {
+export function showFlashCard(id: CardId, foe: CardPictureFoe | undefined, onDone: (pause: boolean) => void): void {
   const c = cardInfo(id);
   const el = show(`
     <div class="panel dialog flash-card${c.boss ? ' boss' : ''}" data-card="${id}">
       <div class="tag">${c.boss ? 'Boss' : 'New'}</div>
+      ${cardPicture(id, foe)}
       <h2>${c.name}</h2>
       <p>${c.text}</p>
       <button class="btn big" data-leave>Got it</button>

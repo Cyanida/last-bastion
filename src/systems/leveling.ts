@@ -37,7 +37,7 @@ export function gainXp(g: Game, amount: number): void {
 const takenTradeoffs = (g: Game) => TRADEOFF_IDS.filter((id) => g.vars[`tradeoff.${id}`]) as TradeoffId[];
 
 export function levelUpOptions(g: Game): LevelUpOption[] {
-  const options = rollLevelUpOptions(g.rng, takenTradeoffs(g), null /* v0.7: no relic cards; relics come at fixed moments */, g.bannedStats, g.vars.banTalent === 1);
+  const options = rollLevelUpOptions(g.rng, takenTradeoffs(g), null /* v0.7: no relic cards; relics come at fixed moments */, g.bannedStats, g.vars.banTalent === 1, g.vars.epicLevelUp === 1); // v0.8.1 #144: the Tome of Fortune
   // v0.6: a complete evolution recipe is always the first card, until it is taken (rerolls keep it)
   const [ready] = readyEvolutions(buildState(g));
   if (ready) options[0] = { kind: 'evolution', id: ready };
@@ -70,5 +70,6 @@ export function chooseLevelUp(g: Game, o: LevelUpOption): void {
     if (o.key === 'hp') p.hp += upgradeAmount('hp', o.rarity);
   }
   p.hp = Math.min(p.hp, p.stats.hp);
+  g.vars.epicLevelUp = 0; // the Tome of Fortune is spent on one level-up
   g.pendingLevelUps--;
 }

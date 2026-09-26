@@ -6,7 +6,8 @@ import { STATUSES } from '../config/damage';
 import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
-import type { Game } from '../core/types';
+import type { Enemy, Game } from '../core/types';
+import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
 import { QUESTS } from '../config/quests';
 import { eventMarks, questMarks, type Mark } from '../logic/quests';
@@ -53,7 +54,7 @@ function blitArena(ctx: Ctx, arena: HTMLCanvasElement, cx: number, cy: number, v
 
 function drawSprite(ctx: Ctx, s: Sprite, x: number, y: number, flip: boolean, flash: boolean): void {
   const img = flash ? (flip ? s.flashFlipped : s.flash) : flip ? s.flipped : s.img;
-  ctx.drawImage(img, Math.round(x - s.w / 2), Math.round(y - s.h + s.h * 0.25));
+  ctx.drawImage(img, Math.round(x - s.w / 2), Math.round(y - s.h + s.h * 0.25), s.w, s.h); // #138: a finer-grid sprite is drawn down to its size
 }
 
 function shadow(ctx: Ctx, x: number, y: number, r: number): void {
@@ -287,6 +288,11 @@ export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, t
   ctx.setTransform(1, 0, 0, 1, -Math.round(cx), -Math.round(cy));
   blitArena(ctx, arena, cx, cy, view.w, view.h);
 }
+
+/** #133: the foe a flash card is about; while set, the arena dims around it. The run is paused under the card, so it stays put. */
+let spotlight: Enemy | null = null;
+export const setSpotlight = (e: Enemy | null): void => void (spotlight = e);
+export const spotlightOn = (): Enemy | null => spotlight;
 
 export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, aimRadius: number): void {
   const z = view.zoom;
@@ -798,6 +804,18 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.fillRect(0, 0, view.w, view.h);
   } else if (g.modifier === 'plague') {
     ctx.fillStyle = 'rgba(80,120,40,0.08)';
+    ctx.fillRect(0, 0, view.w, view.h);
+  }
+  if (spotlight) {
+    // one gradient over the screen, only while a card is open: clear round the foe, dark beyond
+    const e = spotlight;
+    const sx = (e.x - cx) * z;
+    const sy = (e.y - e.r - cy) * z;
+    const r = (CARDS.spotRadius + e.r) * z;
+    const grad = ctx.createRadialGradient(sx, sy, r * 0.7, sx, sy, r * 1.3);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, `rgba(0,0,0,${CARDS.spotDim})`);
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, view.w, view.h);
   }
   end('overlay', _t);

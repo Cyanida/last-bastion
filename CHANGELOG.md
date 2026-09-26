@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.8.1 — Characters
+
+Every character reads at a glance now, and a flash card shows you who it's about. Plus a handful of fixes from the latest playtest.
+
+- **Everyone redrawn**: the five champions, every regular foe, the commanders, the siege pieces and all nine bosses are drawn at double resolution, the same size on screen, with room for faces, rivets and emblems. The Siege Camp and the Plague Cart get their own pictures.
+- **Flash cards show the enemy**: the card now shows the enemy itself, and a spotlight picks it out in the arena.
+- **Dread Howl stuns**: the Viking's howl stuns the enemies around you instead of making them flee.
+- **Class select**: clicking a card picks your champion; Start (or a second click) begins the run, so a missed colour swatch no longer throws you into a game.
+- **The caravan on the Merchant path**: it sells the Tome of Haste and the Tome of Fortune, and on one visit in ten a relic, instead of greyed-out relics.
+- **Blood Magic**: pressing the ability during Berserker Rage no longer wipes its cooldown.
+- **Red Lightning**: the Storm + Blood duo's crit chain hits for 35% of the crit (was 50%), so it clears fewer waves on its own.
+- **Relic compendium**: long relic names stay inside their cards.
+
 ## v0.8.0 — Balance, relics & bosses
 
 Every fight reads clearly and is worth fighting: a HUD you can read at a glance, a card for everything new you meet, more bosses that are real fights, and classes and relics brought into balance.

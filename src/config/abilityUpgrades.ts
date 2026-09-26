@@ -28,7 +28,7 @@ export const ABILITY_UPGRADES = {
   secondWind: up('Second Wind', { heal: 0.15, cooldown: 0.7 }, (n) => `Casting heals ${pct(n.heal)} of max HP and the cooldown is ${pct(1 - n.cooldown)} shorter.`),
 
   // ----- Viking / Berserker Rage (Rage) -----
-  dreadHowl: up('Dread Howl', { radius: 220, time: 2, perRage: 0.08 }, (n) => `Raging makes nearby enemies flee for ${n.time}s +${n.perRage}s per Rage.`),
+  dreadHowl: up('Dread Howl', { radius: 220, time: 1.2, perRage: 0.04 }, (n) => `Raging stuns nearby enemies for ${n.time}s +${n.perRage}s per Rage. Bosses shrug it off.`), // #134: a stun, not a flee
   earthshaker: up('Earthshaker', { radius: 170, damage: 40, perRage: 0.1, knockback: 380 }, (n) => `Rage ends in a ground slam: ${n.damage} base damage, +${pct(n.perRage)} per Rage.`),
   bloodthirst: up('Bloodthirst', { mult: 2.5 }, (n) => `Rage leeches ${n.mult}× as much life.`),
   whirlwind: up('Whirlwind', { range: 1.25 }, (n) => `While raging your cleave hits all around you with +${pct(n.range - 1)} reach.`),

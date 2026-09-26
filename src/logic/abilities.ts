@@ -24,6 +24,9 @@ export function berserkerRage(c: Cfg<'berserkerRage'>, rage: number, hpFrac: num
   };
 }
 
+/** #134: how long Dread Howl stuns the enemies around the Viking when rage starts. */
+export const dreadHowlStun = (n: { time: number; perRage: number }, rage: number) => n.time + rage * n.perRage;
+
 export function heavenlyRadiance(c: Cfg<'heavenlyRadiance'>, grace: number) {
   return {
     radius: c.radius + grace * c.radiusPerGrace,

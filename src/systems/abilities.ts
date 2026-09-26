@@ -160,7 +160,8 @@ const HOOKS: { [K in AbilityId]: AbilityHook<K> } = {
       g.vars.rageKills = 0;
       if (has(p, 'dreadHowl')) {
         const n = U.dreadHowl.n;
-        for (const e of g.hash.query(p.x, p.y, n.radius, near)) if (!e.def.boss) e.fearT = n.time + rage * n.perRage;
+        const howl: Status = { apply: [{ id: 'stun', time: scale.dreadHowlStun(n, rage) }] }; // bosses are stun-immune
+        for (const e of g.hash.query(p.x, p.y, n.radius, near)) applyStatus(e, howl, g);
         ring(g, p.x, p.y, n.radius, '#1a1614', 0.5);
       }
       ring(g, p.x, p.y, 70, c.aura);
