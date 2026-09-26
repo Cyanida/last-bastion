@@ -19,6 +19,9 @@ export const RAMPS = {
   fur: ['#171210', '#2b221c', '#43362b', '#5e4c3b', '#7b6650', '#9a8469', '#b8a386'], // #158
   purple: ['#150a22', '#2a1242', '#43205f', '#5e3280', '#7c4a9f', '#9d6bbd', '#c79be0'], // #158
   soul: ['#2a0f45', '#4d1f7a', '#7a3fb0', '#a66ad8', '#c99bf0', '#e6cffb', '#ffffff'], // #158: shadow magic, the trail colour
+  fire: ['#5a1a06', '#8f2e08', '#c24d0c', '#e8761a', '#f6a23a', '#fcd070', '#fff4c4'], // #158: fire, the trail colour
+  poison: ['#10240c', '#1f4214', '#33651c', '#4d8a26', '#6fae34', '#9dd052', '#d4f08c'], // #158: poison, the trail colour
+  moss: ['#12160f', '#1f261a', '#303a28', '#434f38', '#59664a', '#737f5f', '#959f7d'], // #158: the Plague Abbot's habit
   smear: ['#9fb4d0', '#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
 } as const;
 export type Material = keyof typeof RAMPS;
