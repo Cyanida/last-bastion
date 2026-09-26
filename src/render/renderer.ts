@@ -7,7 +7,7 @@ import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
 import type { Enemy, Game, Player } from '../core/types';
-import { pickFrame, type AnimInput, type AnimName } from '../logic/animation';
+import { foeUntilHit, frameAt, pickFrame, type AnimInput, type AnimName } from '../logic/animation';
 import { nearestEnemy } from '../systems/combat';
 import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
@@ -99,6 +99,68 @@ function playerSprite(g: Game, p: Player, scale: number): Sprite {
   if (!d) return grid;
   anim.now = pickFrame(d, s, p.cls.base.moveSpd);
   return sheetSprite(p.cls.sprite, scale, g.palette, anim.now.anim, anim.now.frame) ?? grid;
+}
+
+/**
+ * #157: the foes' animations, the same way: read from each foe's position, timers and HP, kept here per foe (render side only).
+ * A slain foe leaves the game at once, so its death plays from `dying`, under the living.
+ */
+interface FoeAnim { x: number; y: number; walked: number; timer: number; shot: number; hitAt: number; cd: number; hp: number; hurtAt: number; gone: boolean; now: { anim: AnimName; frame: number } }
+const foeAnims = new WeakMap<Enemy, FoeAnim>();
+const foes = { game: null as Game | null, drawn: [] as Enemy[], dying: [] as { e: Enemy; at: number; scale: number }[] };
+export const foeAnim = (id: string): { anim: string; frame: number } | null => {
+  // for the play test: the first living foe of this kind that has an animation
+  for (const e of foes.game?.enemies ?? []) if (e.def.sprite === id && foeAnims.has(e)) return foeAnims.get(e)!.now;
+  return null;
+};
+export const foesDying = (): string[] => foes.dying.map((d) => d.e.def.sprite); // for the play test
+const foeScale = (e: Enemy): number => e.def.scale + (e.elite ? ELITES.scaleBonus : 0);
+
+function foeSprite(g: Game, e: Enemy): Sprite | null {
+  const id = e.def.sprite, d = SHEETS[id];
+  if (!d) return null;
+  let a = foeAnims.get(e);
+  if (!a) foeAnims.set(e, (a = { x: e.x, y: e.y, walked: 0, timer: e.attackTimer, shot: e.timer, hitAt: -Infinity, cd: e.def.attackCd, hp: e.hp, hurtAt: -Infinity, gone: false, now: { anim: 'idle', frame: 0 } }));
+  const step = Math.hypot(e.x - a.x, e.y - a.y);
+  if (step < 64) a.walked += step;
+  const shooter = e.def.fireCd !== undefined && e.def.range !== undefined;
+  if (e.attackTimer > a.timer + 1e-6) (a.hitAt = g.time), (a.cd = e.def.attackCd); // swung
+  if (shooter && e.timer > a.shot + e.def.fireCd! * 0.5) (a.hitAt = g.time), (a.cd = e.def.fireCd!); // loosed a bolt
+  if (e.hp < a.hp) a.hurtAt = g.time;
+  const p = g.player;
+  const dist = Math.hypot(p.x - e.x, p.y - e.y);
+  const s: AnimInput = {
+    time: g.time + (e.born % 1), // not every foe breathes in step
+    walked: a.walked,
+    moving: step > 0.05,
+    sinceHit: g.time - a.hitAt,
+    untilHit: foeUntilHit(e.windupT, e.attackTimer, dist < e.r + p.r + 12, shooter && dist < e.def.range! ? e.timer : Infinity),
+    attackCd: a.cd,
+    hurt: g.time - a.hurtAt,
+    dead: Infinity,
+  };
+  Object.assign(a, { x: e.x, y: e.y, timer: e.attackTimer, shot: e.timer, hp: e.hp });
+  foes.drawn.push(e);
+  a.now = pickFrame(d, s, e.baseSpeed);
+  return sheetSprite(id, foeScale(e), e.def.palette ?? 0, a.now.anim, a.now.frame);
+}
+
+/** Once a frame, before the foes: the ones drawn last frame that have since been slain start their death. */
+function foeDeaths(ctx: Ctx, g: Game, visible: (x: number, y: number, pad: number) => boolean): void {
+  if (foes.game !== g) Object.assign(foes, { game: g, drawn: [], dying: [] });
+  for (const e of foes.drawn) {
+    const a = foeAnims.get(e)!;
+    if (e.dead && !a.gone) (a.gone = true), foes.dying.push({ e, at: g.time, scale: foeScale(e) });
+  }
+  foes.drawn.length = 0;
+  foes.dying = foes.dying.filter(({ e, at, scale }) => {
+    const d = SHEETS[e.def.sprite], t = g.time - at;
+    const ms = d.anims.death;
+    if (t * 1000 > ms.reduce((x, y) => x + y, 0) + 600 || t < 0) return false;
+    const spr = sheetSprite(e.def.sprite, scale, e.def.palette ?? 0, 'death', frameAt(ms, t * 1000, false));
+    if (spr && visible(e.x, e.y, 80)) drawSprite(ctx, spr, e.x, e.y, e.flip, false);
+    return true;
+  });
 }
 
 function shadow(ctx: Ctx, x: number, y: number, r: number): void {
@@ -510,8 +572,10 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   end('shadows', _t);
   _t = begin();
   const attackType = p.cls.attack.type ?? 'physical'; // the resist marks read against the player's own attack
+  foeDeaths(ctx, g, visible);
   for (const e of g.enemies) {
     if (!visible(e.x, e.y, 80)) continue;
+    if (e.dead && SHEETS[e.def.sprite]) continue; // #157: its death plays from foeDeaths
     if (e.def.aura) {
       // commanders: their aura on the ground and a gold chevron overhead, so they read as the target to hunt
       const color = e.def.aura.kind === 'heal' ? 'rgba(111,220,111,0.35)' : e.def.aura.kind === 'speed' ? 'rgba(242,230,160,0.3)' : 'rgba(194,58,46,0.35)';
@@ -533,7 +597,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
     const fuse = e.def.behavior === 'exploder' && e.state === 1 && Math.floor(e.timer * 14) % 2 === 0;
     if (e.hidden) ctx.globalAlpha = 0.12; // a vanished assassin, a dragon overhead: barely a shimmer
-    const spr = (e.spr ??= getSprite(e.def.sprite, e.def.scale + (e.elite ? ELITES.scaleBonus : 0), e.def.palette));
+    const spr = foeSprite(g, e) ?? (e.spr ??= getSprite(e.def.sprite, foeScale(e), e.def.palette)); // #157: a rigged sheet, else the letter grid
     // v0.6 readability: a telegraphed attack winding up glows red; elites and commanders always wear their outline
     const winding = !e.hidden && (e.windupT > 0 || e.telegraph !== null);
     const outline = winding ? SKILL.colors.windup : e.hidden ? null : e.elite ? SKILL.colors.elite : e.def.aura || e.def.onDeath ? SKILL.colors.commander : null;
