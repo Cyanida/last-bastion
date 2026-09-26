@@ -15,7 +15,13 @@ export const RAMPS = {
   blue: ['#0b1331', '#142459', '#1e3a86', '#2b58b4', '#4480d9', '#77aaf0', '#c2dcff'],
   leather: ['#1e110a', '#3a2114', '#56321c', '#744627', '#935f37', '#b27b4c', '#d09d6d'],
   glow: ['#6b5516', '#a88a2b', '#d6bb50', '#f0dc82', '#fff2b0', '#fffadd', '#ffffff'],
-  smear: ['#9fb4d0', '#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
+  // #157: the foes
+  skin: ['#2a1612', '#4e2b22', '#7a4636', '#a8664c', '#c98a66', '#e2ad86', '#f4d2ae'],
+  wool: ['#1c1712', '#342a1f', '#4f4030', '#6b5942', '#877356', '#a38f6d', '#c4b18c'],
+  straw: ['#2e2210', '#5a4318', '#86662a', '#b08d3e', '#cfae5a', '#e6cc80', '#f7e8b4'],
+  green: ['#0d1a12', '#18301f', '#25472c', '#35613a', '#4b7f4a', '#6e9e62', '#a3c58c'],
+  fur: ['#16161a', '#2a2a31', '#43434c', '#5f5f69', '#7e7e86', '#a2a1a4', '#cfccc6'],
+  smear: ['#9fb4d0','#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
 } as const;
 export type Material = keyof typeof RAMPS;
 const METALS = new Set<Material>(['steel', 'darksteel', 'gold']);
