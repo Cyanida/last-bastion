@@ -369,7 +369,7 @@ export const DUOS = {
   hailstorm: duo('Hailstorm', '🌪️', ['frost', 'storm'], ['everfrostCrown', 'thunderDrum'], 'Chains chill; a chain that hits a frozen enemy jumps twice more.', { chill: 1, jumps: 2, range: 170 }),
   rimeDead: duo('Rime Dead', '🧟', ['frost', 'grave'], ['wintersGrasp', 'soulLantern'], (n) => `Skeletons' hits chill, and frozen enemies you kill rise as skeletons (up to ${n.max}).`, { chill: 1, max: 4, hp: 50, damage: 10, life: 15 }),
   glacierPlate: duo('Glacier Plate', '🏔️', ['frost', 'steel'], ['shatterglass', 'towerShield'], 'A block freezes the attacker.', { freeze: 1.5 }),
-  redLightning: duo('Red Lightning', '💢', ['storm', 'blood'], ['tempestEye', 'butchersHook'], 'Chains add a bleed stack, and a crit on a bleeding enemy chains to two more enemies.', { bleed: 1, power: 0.1, jumps: 2, mult: 0.5, range: 170 }),
+  redLightning: duo('Red Lightning', '💢', ['storm', 'blood'], ['tempestEye', 'butchersHook'], 'Chains add a bleed stack, and a crit on a bleeding enemy chains to two more enemies.', { bleed: 1, power: 0.1, jumps: 2, mult: 0.35, range: 170 }),
   lightningRod: duo('Lightning Rod', '🗼', ['storm', 'steel'], ['stormcallersHorn', 'shockSigil'], 'The shockwave calls a lightning strike on every enemy it hits.', { mult: 0.6, radius: 50 }),
   martyrsCovenant: duo("Martyr's Covenant", '📜', ['blood', 'holy'], ['bloodPact', 'guardiansAegis'], (n) => `${pct(n.share)} of the damage you take comes back as ward over ${n.over} s.`, { share: 0.3, over: 3 }),
   requiem: duo('Requiem', '🎼', ['holy', 'grave'], ['haloOfMercy', 'deathmask'], 'Cursed enemies always drop a mercy orb.'),
