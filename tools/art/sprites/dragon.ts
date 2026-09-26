@@ -172,6 +172,13 @@ const DEATH: [number, Pose][] = [
   [220, pose({ neck: -0.9, tilt: 0.12, jaw: 0.2, y: 16, legs: 1, fold: 0.8 })],
   [400, pose({ neck: -1.1, tilt: 0.05, jaw: 0.25, y: 15, legs: 1, fold: 1, tail: 1 })],
 ];
+// a new phase: it dips, then rears up with its wings flung high and roars a plume of fire at the sky, then levels out
+const PHASE: [number, Pose][] = [
+  [150, pose({ wing: -0.8, neck: -0.4, tilt: 0.1, y: 37, jaw: 0.2 })],
+  [200, pose({ wing: 1, neck: 1.3, tilt: -0.3, y: 43, jaw: 0.8, gather: 1 })],
+  [450, pose({ wing: 0.9, neck: 1.4, tilt: -0.34, y: 43, jaw: 0.9, breath: 22, tail: 1.5 })],
+  [250, pose({ wing: -0.2, neck: 0.2, tilt: -0.05, y: 42, jaw: 0.2 })],
+];
 
 export const sprite: SpriteDef = {
   id: 'dragon', w: W, h: H, anchor: [X0, GROUND], tall: 64,
@@ -182,6 +189,7 @@ export const sprite: SpriteDef = {
     hurt: HURT.map(([ms, p]) => [ms, dragon(p)]),
     death: DEATH.map(([ms, p]) => [ms, dragon(p)]),
     special: SPECIAL.map(([ms, p]) => [ms, dragon(p)]),
+    phase: PHASE.map(([ms, p]) => [ms, dragon(p)]),
   },
   impact: 4,
   specialImpact: 3,

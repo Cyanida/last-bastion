@@ -33,6 +33,13 @@ describe('#158 boss special animation', () => {
     expect(at({ sincePhase: 0, dead: 0 }).anim).toBe('death');
   });
 
+  it('every boss sheet has a phase row, the Warlord and the Dragon on their own rigs included', () => {
+    for (const id of ['blackKnight', 'warlord', 'lich', 'inquisitor', 'abbot', 'dragon', 'warden', 'usurper']) {
+      const s = JSON.parse(readFileSync(`src/render/sheets/${id}.json`, 'utf8')) as SheetData;
+      expect(s.anims.phase?.length, id).toBeGreaterThan(1);
+    }
+  });
+
   it('a sheet without a special row ignores the telegraph', () => {
     const p = JSON.parse(readFileSync('src/render/sheets/paladin.json', 'utf8')) as SheetData;
     expect(pickFrame(p, { ...calm, windup: 0.5 }, 100).anim).toBe('idle');

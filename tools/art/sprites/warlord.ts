@@ -25,10 +25,11 @@ interface Pose {
   far: Pt | null; // the far hand: on the haft (null: hanging free)
   smear: [[Pt, number], [Pt, number]] | null;
   quake: number; // slam: size of the dust and shock ring on the ground (0: none)
+  qx: number | null; // the ring's centre, from his hip (null: under the hammer head)
 }
 const pose = (kw: Partial<Pose> = {}): Pose => ({
   hip: [0, 0], lean: 0.04, head: 0, mantle: 0, feet: [[-5.5, 0, 0], [5.5, 0, 0]],
-  fist: [6, 12], hammer: 0.25, zh: 7.2, far: null, smear: null, quake: 0, ...kw,
+  fist: [6, 12], hammer: 0.25, zh: 7.2, far: null, smear: null, quake: 0, qx: null, ...kw,
 });
 
 function warlord(p: Pose): Figure {
@@ -91,7 +92,7 @@ function warlord(p: Pose): Figure {
   f.part(new Bone(sh[0], sh[1], torso.a * 0.6 + up.a * 0.4), E(0.3, 0, 4.8, 4.2), 'hide', za + 0.5, { folds: [0.5, 2, 0] }); // fur shoulder
 
   if (p.quake) {
-    const cx = hm.at(0, -32 * S)[0], q = p.quake; // under the hammer head
+    const cx = p.qx === null ? hm.at(0, -32 * S)[0] : hip.x + p.qx * S, q = p.quake; // under the hammer head
     f.part(world, ell(cx, GROUND - 1, q, q * 0.28, 28), 'smear', -2, { profile: 'flat', outline: false });
     f.part(world, ell(cx, GROUND - 1, q * 0.75, q * 0.2, 24), 'hide', -1.9, { profile: 'flat', outline: false, dim: 0 });
     for (const [dx, h] of [[-0.8, 6], [-0.35, 9], [0.3, 8], [0.75, 5]])
@@ -158,6 +159,14 @@ const DEATH: [number, Pose][] = [
   [180, pose({ hip: [-6, 16], lean: -1.1, head: -0.2, fist: [13, 8], hammer: 2.6, mantle: 1, feet: [[1, 0, 0.6], [11, 0, 0.5]] })],
   [400, pose({ hip: [-9, 18], lean: -1.45, head: -0.1, fist: [15, 5], hammer: 2.9, mantle: 1.3, feet: [[5, 0, 0.7], [14, 0, 0.6]] })],
 ];
+// a new phase: he hunches, then rears back and bellows with the hammer heaved up level over his head in both hands while the
+// ground bursts around him, then settles
+const PHASE: [number, Pose][] = [
+  [150, pose({ hip: [0, 3], lean: 0.18, head: 0.25, fist: [4, 8], far: [9, 8], hammer: 0.9, feet: [[-7, 0, 0], [6, 0, 0]], mantle: 0.1 })],
+  [200, pose({ hip: [-1, -1], lean: -0.18, head: -0.15, fist: [-2, -15], far: [-1, -15], hammer: -1.57, zh: 2.5, feet: [[-8, 0, 0], [7, 0, 0]], mantle: 0.3, quake: 18, qx: 0 })],
+  [450, pose({ hip: [-1, -1.5], lean: -0.22, head: -0.2, fist: [-2, -15.5], far: [-1, -15.5], hammer: -1.57, zh: 2.5, feet: [[-8, 0, 0], [7, 0, 0]], mantle: 0.4, quake: 28, qx: 0 })],
+  [250, pose({ hip: [0, 0], lean: 0.05, fist: [7, 10], hammer: 0.8, feet: [[-6, 0, 0], [6, 0, 0]], mantle: 0.2 })],
+];
 
 export const sprite: SpriteDef = {
   id: 'warlord', w: W, h: H, anchor: [X0, GROUND], tall: 69,
@@ -168,6 +177,7 @@ export const sprite: SpriteDef = {
     hurt: HURT.map(([ms, p]) => [ms, warlord(p)]),
     death: DEATH.map(([ms, p]) => [ms, warlord(p)]),
     special: SPECIAL.map(([ms, p]) => [ms, warlord(p)]),
+    phase: PHASE.map(([ms, p]) => [ms, warlord(p)]),
   },
   impact: 4,
   specialImpact: 3,

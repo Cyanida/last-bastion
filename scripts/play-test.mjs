@@ -1616,7 +1616,7 @@ await check('Sprite gallery plays the Paladin; his class card shows his sheet (#
 );
 
 // ---------- #158: every boss loads its sheet, the gallery plays each one's special, and the Usurper stands tallest ----------
-await check('Boss sheets: all eight bosses and the Royal Flame load and play their special in the gallery; the Usurper is the tallest (#158)', () =>
+await check('Boss sheets: all eight bosses and the Royal Flame load and play their special and phase pose in the gallery; the Usurper is the tallest (#158)', () =>
   inPage(() => location.reload()).then(async () => {
     const bosses = ['blackKnight', 'warlord', 'lich', 'inquisitor', 'abbot', 'dragon', 'warden', 'usurper'];
     await page.waitForFunction((ids) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ids.every((id) => window.__lb.sheets().includes(id)), {}, [...bosses, 'royalFlame']).catch(() => {});
@@ -1627,9 +1627,10 @@ await check('Boss sheets: all eight bosses and the Royal Flame load and play the
       await wait(150);
       document.querySelector('[data-act="test"]').click();
       await wait(60);
-      const frames = {};
+      const frames = {}, phase = {};
       for (let i = 0; i < 25; i++) {
         for (const id of bosses) for (const c of document.querySelectorAll(`[data-sheet="${id}"][data-anim="special"]`)) (frames[id] ??= new Set()).add(c.dataset.frame);
+        for (const id of bosses) for (const c of document.querySelectorAll(`[data-sheet="${id}"][data-anim="phase"]`)) (phase[id] ??= new Set()).add(c.dataset.frame);
         await wait(80);
       }
       // the figure's height in the gallery (every boss is drawn at the same scale in the arena): opaque rows of the first idle frame
@@ -1646,8 +1647,9 @@ await check('Boss sheets: all eight bosses and the Royal Flame load and play the
       await wait(100);
       const missing = [...bosses, 'royalFlame'].filter((id) => !loaded.includes(id));
       const still = bosses.filter((id) => !(frames[id]?.size > 1));
+      const noPhase = bosses.filter((id) => !(phase[id]?.size > 1));
       const tallest = Object.entries(h).every(([id, v]) => id === 'usurper' || h.usurper > v * 1.1);
-      return { ok: !missing.length && !still.length && tallest, detail: `missing [${missing}]; special not playing [${still}]; heights ${Object.entries(h).map(([k, v]) => `${k} ${v}`).join(', ')}` };
+      return { ok: !missing.length && !still.length && !noPhase.length && tallest, detail: `missing [${missing}]; special not playing [${still}]; phase not playing [${noPhase}]; heights ${Object.entries(h).map(([k, v]) => `${k} ${v}`).join(', ')}` };
     }, bosses);
   }),
 );
