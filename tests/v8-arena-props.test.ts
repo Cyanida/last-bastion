@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ARENAS } from '../src/config/arenas';
-import { propFrame } from '../src/render/arena';
+import { FEATURES } from '../src/config/regions';
+import { FEATURE_PROPS, propFrame } from '../src/render/arena';
 import PROPS from '../src/render/props.json';
 import { buildProps, propPaths } from '../tools/art/props';
 import { sheetJson } from '../tools/art/sheet';
@@ -22,5 +23,11 @@ describe('#159 arena props', () => {
     expect(seen.size).toBe(PROPS.brazier.frames);
     expect(propFrame('brazier', 0)).toBe(propFrame('brazier', PROPS.brazier.frames / 8));
     expect(propFrame('pillar', 3.7)).toBe(0);
+  });
+
+  it('every wing feature and every hazard telegraph has a prop', () => {
+    for (const k of Object.keys(FEATURES) as (keyof typeof FEATURES)[]) expect(PROPS[FEATURE_PROPS[k]], k).toBeDefined();
+    expect(PROPS.hand.frames).toBe(3); // the hand claws up in three steps
+    expect(PROPS.flare.frames).toBe(4);
   });
 });

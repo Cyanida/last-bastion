@@ -130,6 +130,92 @@ function shard(): Figure {
   return f;
 }
 
+/** The wings' features. A shrine's altar: a stone table under a gold-trimmed red cloth, two candles and a holy symbol. */
+function altar(): Figure {
+  const f = new Figure(60, 52);
+  f.part(O, rect(4, 38, 56, 48), 'stone', 0, { dim: 1 }); // step
+  f.part(O, rect(9, 20, 51, 42), 'stone', 1, { details: dots([[14, 36], [15, 37], [45, 26]], 'stone', 2) }); // table
+  f.part(O, rect(7, 16, 53, 22), 'stone', 1.5); // top slab
+  f.part(O, [[20, 16], [40, 16], [40, 36], [30, 39], [20, 36]], 'red', 2, { folds: [0.5, 4, 0], trim: ['gold', 1] }); // cloth
+  f.part(O, rect(28.5, 22, 31.5, 33), 'gold', 3);
+  f.part(O, rect(25, 25, 35, 28), 'gold', 3);
+  for (const x of [11, 46]) {
+    f.part(O, rect(x, 7, x + 3, 16), 'white', 2.5);
+    f.part(O, [[x + 1.5, 0], [x + 4, 5], [x + 1.5, 8], [x - 1, 5]], 'fire', 2.6);
+  }
+  return f;
+}
+/** A strongbox: an iron-banded oak chest with a heavy lock. */
+function strongbox(): Figure {
+  const f = new Figure(40, 34);
+  f.part(O, rect(4, 14, 36, 31), 'leather', 0, { folds: [0.4, 5, 1] });
+  f.part(O, [[4, 14], [6, 7], [11, 4], [29, 4], [34, 7], [36, 14]], 'leather', 1);
+  for (const x of [8, 29]) f.part(O, rect(x, 4, x + 3, 31), 'darksteel', 2, { details: dots([[x + 1, 9], [x + 1, 20], [x + 1, 27]], 'darksteel', 6) });
+  f.part(O, rect(4, 13, 36, 16), 'darksteel', 2);
+  f.part(O, rect(17, 12, 23, 20), 'gold', 3, { details: dots([[19, 16], [19, 17]], 'gold', 0) }); // lock and keyhole
+  return f;
+}
+/** A lair: a heap of old bones round a horned skull, where something big sleeps. */
+function lair(): Figure {
+  const f = new Figure(64, 40);
+  f.part(O, ell(32, 30, 28, 8), 'stone', 0, { dim: 2 }); // the trampled hollow
+  const bone = (a: Pt, b: Pt, z: number, dim = 0) => {
+    const bn = limb(a, b), len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    f.part(bn, [[-1.5, -1], [1.5, -1], [1.2, len + 1], [-1.2, len + 1]], 'white', z, { dim });
+    f.part(bn, ell(0, -1, 2.4, 2, 10), 'white', z + 0.01, { dim });
+    f.part(bn, ell(0, len + 1, 2.4, 2, 10), 'white', z + 0.01, { dim });
+  };
+  bone([10, 30], [26, 24], 1, 1);
+  bone([40, 23], [56, 31], 1, 1);
+  bone([18, 34], [34, 36], 2);
+  bone([44, 35], [54, 27], 2);
+  bone([30, 26], [22, 36], 1.5, 1);
+  f.part(O, [[22, 10], [16, 2], [24, 8]], 'white', 2.5, { dim: 1 }); // horns
+  f.part(O, [[42, 10], [48, 2], [40, 8]], 'white', 2.5, { dim: 1 });
+  f.part(O, [...ell(32, 16, 11, 9, 20).filter(([, y]) => y < 19), [38, 24], [34, 28], [30, 28], [26, 24]], 'white', 3, {
+    details: dots([[30, 25], [32, 25], [34, 25]], 'white', 1),
+  }); // skull, its teeth
+  f.part(O, ell(27.5, 17, 2.6, 2.2, 10), 'stone', 3.1, { dim: 3 }); // eye sockets and nose
+  f.part(O, ell(36.5, 17, 2.6, 2.2, 10), 'stone', 3.1, { dim: 3 });
+  f.part(O, [[32, 20], [33.5, 23], [30.5, 23]], 'stone', 3.1, { dim: 3 });
+  return f;
+}
+/** The vents' cache: a burst sack spilling gold on a scorched iron grate. */
+function cache(): Figure {
+  const f = new Figure(48, 38);
+  f.part(O, rect(4, 24, 44, 34), 'darksteel', 0, { details: dots([[10, 28], [16, 28], [22, 28], [28, 28], [34, 28], [40, 28]], 'fire', 3) }); // grate, embers below
+  f.part(O, [[10, 26], [8, 16], [13, 8], [18, 5], [16, 2], [24, 2], [22, 5], [28, 9], [31, 17], [29, 26]], 'leather', 1, { folds: [0.5, 4, 1] });
+  f.part(O, rect(16, 5, 24, 7), 'gold', 1.5); // the tie
+  for (const [x, y, z] of [[30, 25, 2], [35, 27, 2.1], [40, 24, 2.2], [26, 28, 2.3], [36, 21, 2.05], [13, 28, 2.4]] as const) f.part(O, ell(x, y, 3.2, 2.4, 12), 'gold', z);
+  return f;
+}
+/** The Graveyard's hazard: a rotting hand claws up out of the ground in three frames (fingertips, a wrist, the grasp). */
+function hand(k: number): Figure {
+  const f = new Figure(32, 44);
+  f.part(O, ell(16, 38, 13, 4), 'bark', 0, { dim: 1 }); // the broken earth
+  const up = [10, 20, 30][k]; // how far it has risen
+  const b = 38 - up;
+  f.part(O, rect(12, b + 8, 20, 38), 'rot', 1, { dim: 0 }); // wrist
+  f.part(O, [[9, b + 10], [10, b + 4], [22, b + 4], [23, b + 10], [16, b + 13]], 'rot', 1.5); // palm
+  const spread = [0, 1.5, 3][k];
+  [[-6, 0], [-2, -2], [2, -2], [6, 0]].forEach(([dx, dy], i) => {
+    const s: Pt = [16 + dx * 0.8, b + 5 + dy], t: Pt = [16 + dx * (1 + spread * 0.25), b - 6 + dy - (i === 1 || i === 2 ? 2 : 0)];
+    const bn = limb(s, t), len = Math.hypot(t[0] - s[0], t[1] - s[1]);
+    f.part(bn, [[-1.4, 0], [1.4, 0], [0.8, len], [-0.8, len]], 'rot', 2, { details: [[0, len - 1, 'white', 4]] });
+  });
+  f.part(limb([22, b + 8], [27 + spread, b + 2]), [[-1.4, 0], [1.4, 0], [0.8, 6], [-0.8, 6]], 'rot', 2.1); // thumb
+  f.part(O, ell(16, 38, 9, 2.5), 'bark', 3, { dim: 2 }); // earth heaped round the wrist
+  return f;
+}
+/** Hazard fire (the braziers' flare, the gatehouse's burning row): a column of flame, licking in four frames. */
+function flare(k: number): Figure {
+  const f = new Figure(40, 52);
+  const t = (i: number) => 30 + 8 * Math.sin((k * Math.PI) / 2 + i * 2.3);
+  f.part(O, [[3, 46], [8, 36], [9, 46 - t(0)], [15, 32], [20, 46 - t(1) - 8], [25, 32], [31, 46 - t(2)], [32, 36], [37, 46], [20, 50]], 'fire', 1);
+  f.part(O, [[10, 46], [15, 38], [20, 46 - (t(1) + 8) * 0.6], [25, 38], [30, 46], [20, 49]], 'glow', 1.1, { profile: 'flat', outline: false });
+  return f;
+}
+
 export const PROPS: PropDef[] = [
   { id: 'pillar', w: 76, h: 100, anchor: [38, 80], r: 30, frames: [pillar()] },
   { id: 'brazier', w: 56, h: 72, anchor: [28, 54], r: 20, frames: [0, 1, 2, 3].map(brazier) },
@@ -141,6 +227,12 @@ export const PROPS: PropDef[] = [
   { id: 'coin', w: 12, h: 12, anchor: [6, 6], r: 1, frames: [coin()] },
   { id: 'chest', w: 22, h: 19, anchor: [11, 10], r: 1, frames: [chest()] },
   { id: 'shard', w: 14, h: 20, anchor: [7, 10], r: 1, frames: [shard()] },
+  { id: 'shrine', w: 60, h: 52, anchor: [30, 34], r: 1, frames: [altar()] },
+  { id: 'strongbox', w: 40, h: 34, anchor: [20, 20], r: 1, frames: [strongbox()] },
+  { id: 'lair', w: 64, h: 40, anchor: [32, 26], r: 1, frames: [lair()] },
+  { id: 'cache', w: 48, h: 38, anchor: [24, 24], r: 1, frames: [cache()] },
+  { id: 'hand', w: 32, h: 44, anchor: [16, 38], r: 1, frames: [0, 1, 2].map(hand) },
+  { id: 'flare', w: 40, h: 52, anchor: [20, 46], r: 1, frames: [0, 1, 2, 3].map(flare) },
 ];
 
 export const propPaths = { png: 'public/sprites/props.png', json: 'src/render/props.json' };

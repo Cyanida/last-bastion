@@ -1,4 +1,5 @@
 import type { ArenaDef, Obstacle } from '../config/arenas';
+import type { FeatureKind } from '../config/regions';
 import { mulberry32 } from '../core/math';
 import type { Rng } from '../core/types';
 
@@ -27,6 +28,8 @@ export function drawProp(ctx: Ctx, kind: keyof typeof PROPS, x: number, y: numbe
   ctx.drawImage(propImg, d.x + (frame % d.frames) * d.w, d.y, d.w, d.h, Math.round(x - d.anchor[0] * k), Math.round(y - d.anchor[1] * k), Math.round(d.w * k), Math.round(d.h * k));
   return true;
 }
+/** #159: each wing feature's rigged prop (tools/art/props.ts). */
+export const FEATURE_PROPS: Record<FeatureKind, keyof typeof PROPS> = { shrine: 'shrine', chest: 'strongbox', lair: 'lair', hazard: 'cache' };
 /** Frame of an animated prop at `time` seconds: the brazier's flame licks at 8 frames a second. */
 export const propFrame = (kind: keyof typeof PROPS, time: number): number => Math.floor(time * 8) % PROPS[kind].frames;
 

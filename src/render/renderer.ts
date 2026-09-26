@@ -1,3 +1,4 @@
+import type { ArenaDef } from '../config/arenas';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GAME, RENDER } from '../config/game';
 import { MODIFIERS } from '../config/waves';
@@ -13,7 +14,7 @@ import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
 import { QUESTS } from '../config/quests';
 import { eventMarks, questMarks, type Mark } from '../logic/quests';
-import { drawProp, propFrame, wallPattern } from './arena';
+import { drawProp, FEATURE_PROPS, propFrame, wallPattern } from './arena';
 import { digitGlyphs, fogSprite, getSprite, SHEETS, sheetSprite, glyphIndex, isNumeric, outlineSprite, ringSprite, shadowSprite, textSprite, type Sprite } from './sprites';
 import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
@@ -139,22 +140,36 @@ function drawClosedRegions(ctx: Ctx, g: Game, cx: number, cy: number, vw: number
     // the portcullis sits in the wall part of the corridor: iron bars across it
     ctx.fillStyle = '#1b1715';
     ctx.fillRect(gt.x, gt.y, gt.w, gt.h);
-    ctx.fillStyle = '#5b5550';
     const inner = gt.along === 'y' ? { x: gt.x, y: gt.y + REGIONS.gateReach, w: gt.w, h: gt.h - 2 * REGIONS.gateReach } : { x: gt.x + REGIONS.gateReach, y: gt.y, w: gt.w - 2 * REGIONS.gateReach, h: gt.h };
-    if (gt.along === 'y') for (let x = inner.x + 10; x < inner.x + inner.w; x += 22) ctx.fillRect(x, inner.y, 5, inner.h);
-    else for (let y = inner.y + 10; y < inner.y + inner.h; y += 22) ctx.fillRect(inner.x, y, inner.w, 5);
-    ctx.fillRect(inner.x, inner.y + inner.h / 2 - 3, inner.w, 6);
-    ctx.fillRect(inner.x + inner.w / 2 - 3, inner.y, 6, inner.h);
+    if (gt.along === 'y') for (let x = inner.x + 10; x < inner.x + inner.w; x += 22) ironBar(ctx, x, inner.y, 6, inner.h);
+    else for (let y = inner.y + 10; y < inner.y + inner.h; y += 22) ironBar(ctx, inner.x, y, inner.w, 6);
+    ironBar(ctx, inner.x, Math.round(inner.y + inner.h / 2 - 4), inner.w, 8);
+    ironBar(ctx, Math.round(inner.x + inner.w / 2 - 4), inner.y, 8, inner.h);
   }
   // the features in open wings: an altar, a strongbox, a lair's bones, a cache among the vents
   for (const f of g.features) {
     if (!g.regionOpen[f.wing] || (f.used && f.kind !== 'lair')) continue;
     if (f.x < cx - 40 || f.x > cx + vw + 40 || f.y < cy - 40 || f.y > cy + vh + 40) continue;
-    const icon = textSprite(FEATURES[f.kind].icon, 34, '#ffffff', 64);
-    ctx.globalAlpha = f.used ? 0.35 : 0.8 + Math.sin(g.time * 3) * 0.2;
-    ctx.drawImage(icon, Math.round(f.x - icon.width / 2), Math.round(f.y - icon.height / 2));
+    ctx.globalAlpha = f.used ? 0.35 : 1;
+    if (!drawProp(ctx, FEATURE_PROPS[f.kind], f.x, f.y)) {
+      const icon = textSprite(FEATURES[f.kind].icon, 34, '#ffffff', 64); // until the props atlas has loaded
+      ctx.drawImage(icon, Math.round(f.x - icon.width / 2), Math.round(f.y - icon.height / 2));
+    }
     ctx.globalAlpha = 1;
   }
+}
+/** #159: a lit iron bar of the portcullis, in the rig's dark steel ramp: outline, body, a highlight on the top and left edges. */
+function ironBar(ctx: Ctx, x: number, y: number, w: number, h: number): void {
+  ctx.fillStyle = '#0f1118';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#3c4352';
+  ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+  ctx.fillStyle = '#788393';
+  ctx.fillRect(x + 1, y + 1, w - 2, 1);
+  ctx.fillRect(x + 1, y + 1, 1, h - 2);
+  ctx.fillStyle = '#2a303c';
+  ctx.fillRect(x + 2, y + h - 2, w - 3, 1);
+  ctx.fillRect(x + w - 2, y + 2, 1, h - 3);
 }
 let closedPattern: CanvasPattern | null = null;
 let closedArena = '';
@@ -323,7 +338,7 @@ const SHADE_PALETTE = 3; // v0.6: the Archer's shadow is drawn in the midnight p
 const FRIEND_PALETTE = 2; // the gilded palette: allies read apart from the enemies that share their sprites
 
 /** Slow pan over an empty arena behind the menus. */
-export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, time: number): void {
+export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, time: number, def: ArenaDef): void {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#14110f';
   ctx.fillRect(0, 0, view.w, view.h);
@@ -331,6 +346,7 @@ export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, t
   const cy = (arena.height - view.h) / 2 + Math.cos(time * 0.13) * 120;
   ctx.setTransform(1, 0, 0, 1, -Math.round(cx), -Math.round(cy));
   blitArena(ctx, arena, cx, cy, view.w, view.h);
+  for (const o of def.obstacles) if (o.kind === 'brazier') drawProp(ctx, 'brazier', o.x, o.y, o.r, propFrame('brazier', time)); // #159: the flames lick here too
 }
 
 /** #133: the foe a flash card is about; while set, the arena dims around it. The run is paused under the card, so it stays put. */
@@ -443,6 +459,9 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       disc(ctx, zn.x, zn.y, zn.r);
       ctx.stroke();
       ctx.globalAlpha = 1;
+      // #159: the hazard itself rises in the circle: a hand claws up, or the fire swells until it strikes
+      if (zn.art === 'hands') drawProp(ctx, 'hand', zn.x, zn.y + 8, 1, Math.min(2, Math.floor(k * 3)));
+      else if (zn.art === 'fire') drawProp(ctx, 'flare', zn.x, zn.y + 12, 1 + k, propFrame('flare', g.time));
     }
   }
 

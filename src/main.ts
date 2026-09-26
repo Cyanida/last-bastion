@@ -687,7 +687,7 @@ function draw(now: number): void {
     updateHud(game);
     inspect(game);
     end('hud', t);
-  } else renderBackdrop(ctx, view, arenaCanvas(save.settings.arena), now / 1000);
+  } else renderBackdrop(ctx, view, arenaCanvas(save.settings.arena), now / 1000, ARENAS[save.settings.arena]);
 }
 /** Hovering (or tapping) an enemy shows what it is, what it resists and what is on it. */
 function inspect(g: Game): void {
