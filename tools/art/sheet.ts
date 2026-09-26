@@ -1,5 +1,5 @@
 /** #155: a sprite definition becomes one PNG sheet (a row per animation, a column per frame) plus its frame data. */
-import type { AnimName, SheetData } from '../../src/logic/animation';
+import type { BaseAnim, SheetData } from '../../src/logic/animation';
 import { readdirSync } from 'node:fs';
 import { png } from './png';
 import type { Figure } from './rig';
@@ -10,8 +10,9 @@ export interface SpriteDef {
   h: number;
   anchor: [number, number]; // the ground point between the feet, in the cell
   tall: number; // figure height in art pixels (1 art pixel = 1 world pixel)
-  anims: Record<AnimName, [ms: number, frame: Figure][]>; // rows in this order
+  anims: Record<BaseAnim, [ms: number, frame: Figure][]> & { special?: [ms: number, frame: Figure][] }; // rows in this order
   impact: number; // attack frame where the weapon connects
+  specialImpact?: number; // #158 bosses: special frame shown when the telegraph fires
 }
 
 export function buildSheet(def: SpriteDef): { png: Buffer; data: SheetData } {
@@ -28,7 +29,7 @@ export function buildSheet(def: SpriteDef): { png: Buffer; data: SheetData } {
     }),
   );
   const anims = Object.fromEntries(Object.entries(def.anims).map(([k, r]) => [k, r.map(([ms]) => ms)])) as SheetData['anims'];
-  return { png: png(W, H, px), data: { w: def.w, h: def.h, anchor: def.anchor, tall: def.tall, anims, impact: def.impact } };
+  return { png: png(W, H, px), data: { w: def.w, h: def.h, anchor: def.anchor, tall: def.tall, anims, impact: def.impact, ...(def.specialImpact !== undefined && { specialImpact: def.specialImpact }) } };
 }
 
 export const SPRITE_DIR = 'tools/art/sprites';

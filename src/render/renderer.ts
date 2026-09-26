@@ -7,7 +7,7 @@ import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
 import type { Enemy, Game, Player } from '../core/types';
-import { pickFrame, type AnimInput, type AnimName } from '../logic/animation';
+import { FLINCH_EVERY, pickFrame, type AnimInput, type AnimName } from '../logic/animation';
 import { nearestEnemy } from '../systems/combat';
 import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
@@ -100,6 +100,82 @@ function playerSprite(g: Game, p: Player, scale: number): Sprite {
   anim.now = pickFrame(d, s, p.cls.base.moveSpd);
   return sheetSprite(p.cls.sprite, scale, g.palette, anim.now.anim, anim.now.frame) ?? grid;
 }
+
+/**
+ * #158: a foe with a rigged sheet (the bosses) animates the same way, read from its own state on the render side: its telegraph
+ * winds up the special, a touch attack swings, a hit makes it flinch (at most every FLINCH_EVERY s), and when it falls its body
+ * stays behind to play the death (the game has already let it go).
+ */
+interface FoeAnim { x: number; y: number; walked: number; movedAt: number; timer: number; hitAt: number; hp: number; hurtAt: number; wind: number; windMax: number; firedAt: number; now: { anim: AnimName; frame: number } }
+const foeAnims = new Map<Enemy, FoeAnim>();
+const fallen: { e: Enemy; at: number; now: FoeAnim['now'] }[] = [];
+let foeGame: Game | null = null;
+export const foeAnim = (id: string): { anim: string; frame: number } | null => {
+  for (const [e, a] of foeAnims) if (e.def.sprite === id) return a.now;
+  return null;
+}; // for the play test
+
+function foeSprite(g: Game, e: Enemy, scale: number): Sprite | null {
+  const d = SHEETS[e.def.sprite];
+  if (!d) return null;
+  let a = foeAnims.get(e);
+  if (!a) foeAnims.set(e, (a = { x: e.x, y: e.y, walked: 0, movedAt: -Infinity, timer: e.attackTimer, hitAt: -Infinity, hp: e.hp, hurtAt: -Infinity, wind: 0, windMax: 0, firedAt: -Infinity, now: { anim: 'idle', frame: 0 } }));
+  const step = Math.hypot(e.x - a.x, e.y - a.y);
+  if (step > 0.01) a.movedAt = g.time;
+  if (step < 64) a.walked += step;
+  if (e.attackTimer > a.timer + 1e-6) a.hitAt = g.time;
+  if (e.hp < a.hp && g.time - a.hurtAt > FLINCH_EVERY) a.hurtAt = g.time;
+  // the telegraph: its own clock when it has one (a line), else how much of the zone wind-up is left
+  const tele = e.telegraph, winding = e.windupT > 0 || tele !== null;
+  if (winding) {
+    a.windMax = Math.max(a.windMax, e.windupT);
+    a.wind = tele ? tele.t / Math.max(tele.dur, 1e-6) : 1 - e.windupT / Math.max(a.windMax, 1e-6);
+  } else if (a.windMax > 0 || a.wind > 0) (a.firedAt = g.time), (a.wind = 0), (a.windMax = 0);
+  Object.assign(a, { x: e.x, y: e.y, timer: e.attackTimer, hp: e.hp });
+  const p = g.player;
+  const s: AnimInput = {
+    time: g.time + e.born, // out of step with each other
+    walked: a.walked,
+    moving: g.time - a.movedAt < 0.1,
+    sinceHit: g.time - a.hitAt,
+    untilHit: e.attackTimer > 0 && Math.hypot(p.x - e.x, p.y - e.y) < e.r + p.r + 4 ? e.attackTimer : Infinity,
+    attackCd: e.def.attackCd,
+    hurt: g.time - a.hurtAt,
+    dead: Infinity,
+    windup: winding ? a.wind : undefined,
+    sinceSpecial: g.time - a.firedAt,
+  };
+  a.now = pickFrame(d, s, e.def.speed);
+  return sheetSprite(e.def.sprite, scale, e.def.palette ?? 0, a.now.anim, a.now.frame);
+}
+
+/** Once a frame: forget foes that are gone, and keep the fallen ones' bodies for their death animation. */
+function trackFoes(g: Game): void {
+  if (foeGame !== g) (foeGame = g), foeAnims.clear(), (fallen.length = 0);
+  for (const [e, a] of foeAnims) {
+    if (!e.dead && g.enemies.includes(e)) continue;
+    foeAnims.delete(e);
+    if (e.dead) fallen.push({ e, at: g.time, now: a.now });
+  }
+}
+
+function drawFallen(ctx: Ctx, g: Game): void {
+  for (let i = fallen.length - 1; i >= 0; i--) {
+    const f = fallen[i], d = SHEETS[f.e.def.sprite]!;
+    const t = g.time - f.at, hold = d.anims.death.reduce((x, y) => x + y, 0) / 1000 + 2; // the last frame lies a while, then fades
+    if (t > hold + 0.5) {
+      fallen.splice(i, 1);
+      continue;
+    }
+    f.now = pickFrame(d, { time: 0, walked: 0, moving: false, sinceHit: Infinity, untilHit: Infinity, attackCd: 1, hurt: Infinity, dead: t }, 1);
+    const spr = sheetSprite(f.e.def.sprite, f.e.def.scale + (f.e.elite ? ELITES.scaleBonus : 0), f.e.def.palette ?? 0, 'death', f.now.frame);
+    if (!spr) continue;
+    ctx.globalAlpha = clamp(1 - (t - hold) / 0.5, 0, 1);
+    drawSprite(ctx, spr, f.e.x, f.e.y, f.e.flip, false);
+    ctx.globalAlpha = 1;
+  }
+}
+export const fallenAnim = (): string[] => fallen.map((f) => `${f.e.def.sprite}:${f.now.anim}:${f.now.frame}`); // for the play test
 
 function shadow(ctx: Ctx, x: number, y: number, r: number): void {
   const s = shadowSprite(r);
@@ -510,6 +586,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   end('shadows', _t);
   _t = begin();
   const attackType = p.cls.attack.type ?? 'physical'; // the resist marks read against the player's own attack
+  trackFoes(g);
+  drawFallen(ctx, g);
   for (const e of g.enemies) {
     if (!visible(e.x, e.y, 80)) continue;
     if (e.def.aura) {
@@ -533,7 +611,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
     const fuse = e.def.behavior === 'exploder' && e.state === 1 && Math.floor(e.timer * 14) % 2 === 0;
     if (e.hidden) ctx.globalAlpha = 0.12; // a vanished assassin, a dragon overhead: barely a shimmer
-    const spr = (e.spr ??= getSprite(e.def.sprite, e.def.scale + (e.elite ? ELITES.scaleBonus : 0), e.def.palette));
+    const scale = e.def.scale + (e.elite ? ELITES.scaleBonus : 0);
+    const spr = foeSprite(g, e, scale) ?? (e.spr ??= getSprite(e.def.sprite, scale, e.def.palette)); // #158: a rigged sheet, else the letter grid
     // v0.6 readability: a telegraphed attack winding up glows red; elites and commanders always wear their outline
     const winding = !e.hidden && (e.windupT > 0 || e.telegraph !== null);
     const outline = winding ? SKILL.colors.windup : e.hidden ? null : e.elite ? SKILL.colors.elite : e.def.aura || e.def.onDeath ? SKILL.colors.commander : null;

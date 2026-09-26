@@ -1265,9 +1265,10 @@ await check('flash card: a new foe shows one with its sprite and a spotlight on 
 
 // #138 part 3: the siege pieces and the bosses are on the finer grid too; their card pictures (the same ones a flash card shows) keep the
 // old grid's size at their own scale, and the Siege Camp and the Plague Cart show their own pictures
-await check('card pictures: siege pieces and bosses redrawn at their old size, the Siege Camp and the Plague Cart their own', () =>
+// #158: a boss with a rigged sheet shows its rigged figure instead, bigger than the old grid (the flash card fits it to 96 px)
+await check('card pictures: siege pieces and bosses redrawn at their old size (rigged bosses bigger), the Siege Camp and the Plague Cart their own', () =>
   inPage(() => location.reload()).then(async () => {
-    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('blackKnight'));
     return inPage(async () => {
       const lb = window.__lb, wait = (ms = 100) => new Promise((r) => setTimeout(r, ms));
       // [id, sprite, old columns, old rows, arena scale]
@@ -1284,7 +1285,8 @@ await check('card pictures: siege pieces and bosses redrawn at their old size, t
       document.querySelector('[data-back]')?.click();
       await wait();
       lb.save.cards.splice(0, lb.save.cards.length, ...had);
-      const wrong = want.filter(([id, , c, r, s]) => pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
+      const rigged = lb.sheets();
+      const wrong = want.filter(([id, , c, r, s]) => (rigged.includes(id) ? !(pics.get(id)?.[1] > r * s + 4) : pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4)).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
       const own = ['siegeCamp', 'plagueCart'].every((id) => pics.has(id)) && pics.get('siegeCamp')[2] !== pics.get('siegeTower')?.[2] && pics.get('plagueCart')[2] !== pics.get('ballista')?.[2];
       const ok = wrong.length === 0 && own && lb.state === 'menu';
       return { ok, detail: `${want.map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×')}`).join(', ')}${wrong.length ? ` · WRONG ${wrong}` : ''} · camp ${pics.get('siegeCamp')?.slice(0, 2).join('×')}, cart ${pics.get('plagueCart')?.slice(0, 2).join('×')}${own ? '' : ' (NOT THEIR OWN)'}` };
@@ -1607,6 +1609,58 @@ await check('Sprite gallery plays the Paladin; his class card shows his sheet (#
       const ok = moving && c.height >= 100 && box === 84;
       return { ok, detail: `${Object.entries(frames).map(([a, f]) => `${a} ${f.size}`).join(', ')}; portrait canvas ${c.width}×${c.height}, shown ${box} px` };
     });
+  }),
+);
+
+// ---------- #158: a boss with a rigged sheet walks, winds up its special over the telegraph, releases it, and falls ----------
+await check('Black Knight sheet: walks, winds up and releases his charge on its telegraph, then falls (#158)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('blackKnight'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', 'paladin');
+      set('tm-arena', 'courtyard');
+      set('tm-act', '1');
+      set('tm-wave', '5'); // the courtyard's wave boss
+      window.__startTest().player.invulnerable = true;
+    });
+    const boss = () => inPage(() => {
+      const lb = window.__lb, g = lb.game;
+      for (let i = 0; i < 1200 && !g.enemies.some((e) => e.def.id === 'blackKnight'); i++) lb.run(1, false, 'input');
+      return g.enemies.some((e) => e.def.id === 'blackKnight');
+    });
+    if (!(await boss())) return { ok: false, detail: 'no Black Knight came' };
+    const seen = [];
+    const sample = async (ms) => {
+      for (let t = 0; t < ms; t += 50) {
+        const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('blackKnight')?.anim))))));
+        if (a && seen[seen.length - 1] !== a) seen.push(a);
+      }
+    };
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, e = g.enemies.find((x) => x.def.id === 'blackKnight');
+      for (const o of g.enemies) if (o !== e) o.hp = 0.01, o.x = p.x + 3000; // the escort out of the way
+      Object.assign(e, { x: p.x + 300, y: p.y, special: 0.6, hp: 1e6, maxHp: 1e6 }); // his charge comes soon
+    });
+    await sample(4000);
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, e = g.enemies.find((x) => x.def.id === 'blackKnight');
+      Object.assign(e, { x: p.x + 40, y: p.y, hp: 1, maxHp: 1e6, state: 0, special: 99, telegraph: null }); // into the Paladin's reach, one blow from death
+    });
+    let fell = [];
+    for (let i = 0; i < 60 && !fell.some((f) => f.includes(':death:')); i++) fell = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => r(window.__lb.fallenAnim())))));
+    const ok = ['walk', 'special'].every((a) => seen.includes(a)) && fell.some((f) => f.startsWith('blackKnight:death'));
+    return { ok, detail: `${seen.join(' → ')}; fallen [${fell.join(', ')}]` };
   }),
 );
 
