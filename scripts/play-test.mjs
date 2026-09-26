@@ -1627,20 +1627,22 @@ await check('Boss sheets: all eight bosses and the Royal Flame load and play the
       await wait(150);
       document.querySelector('[data-act="test"]').click();
       await wait(60);
-      const frames = {}, phase = {};
-      for (let i = 0; i < 25; i++) {
-        for (const id of bosses) for (const c of document.querySelectorAll(`[data-sheet="${id}"][data-anim="special"]`)) (frames[id] ??= new Set()).add(c.dataset.frame);
-        for (const id of bosses) for (const c of document.querySelectorAll(`[data-sheet="${id}"][data-anim="phase"]`)) (phase[id] ??= new Set()).add(c.dataset.frame);
-        await wait(80);
-      }
-      // the figure's height in the gallery (every boss is drawn at the same scale in the arena): opaque rows of the first idle frame
+      // the figure's height in the gallery (every boss is drawn at the same scale in the arena): opaque rows of its idle, at its
+      // tallest over the loop (the canvas shows whichever idle frame is up, and the bob moves the figure by a few pixels)
       const tall = (id) => {
         const c = document.querySelector(`[data-sheet="${id}"][data-anim="idle"]`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
         let top = -1, bot = -1;
         for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3]) { if (top < 0) top = y; bot = y; break; }
         return bot - top + 1;
       };
-      const h = Object.fromEntries(bosses.filter((id) => id !== 'dragon').map((id) => [id, tall(id)]));
+      const h = {};
+      const frames = {}, phase = {};
+      for (let i = 0; i < 25; i++) {
+        for (const id of bosses) if (id !== 'dragon') h[id] = Math.max(h[id] ?? 0, tall(id));
+        for (const id of bosses) for (const c of document.querySelectorAll(`[data-sheet="${id}"][data-anim="special"]`)) (frames[id] ??= new Set()).add(c.dataset.frame);
+        for (const id of bosses) for (const c of document.querySelectorAll(`[data-sheet="${id}"][data-anim="phase"]`)) (phase[id] ??= new Set()).add(c.dataset.frame);
+        await wait(80);
+      }
       document.querySelector('.testmode [data-back]').click();
       await wait(100);
       document.querySelector('[data-act="back"]').click();
@@ -1697,7 +1699,7 @@ await check('Black Knight sheet: walks, winds up and releases his charge on its 
     await sample(4000);
     await inPage(() => {
       const e = window.__lb.game.enemies.find((x) => x.def.id === 'blackKnight');
-      Object.assign(e, { hp: e.maxHp * 0.45, special: 99, telegraph: null }); // below half: his second phase
+      Object.assign(e, { hp: e.maxHp * 0.45, state: 0, special: 99, telegraph: null }); // below half: his second phase (out of any wind-up: it reads its telegraph)
     });
     await sample(800);
     await inPage(() => {
