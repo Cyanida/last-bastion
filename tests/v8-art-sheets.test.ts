@@ -34,7 +34,7 @@ describe('#155 art rig', () => {
 
 describe('#155 animation state', () => {
   const d = JSON.parse(readFileSync('src/render/sheets/paladin.json', 'utf8')) as SheetData;
-  const calm: AnimInput = { time: 0, walked: 0, moving: false, sinceHit: Infinity, untilHit: Infinity, attackCd: 1, cast: Infinity, hurt: Infinity, dead: Infinity };
+  const calm: AnimInput = { time: 0, walked: 0, moving: false, sinceHit: Infinity, untilHit: Infinity, attackCd: 1, cast: Infinity, skill: Infinity, hurt: Infinity, dead: Infinity };
   const at = (s: Partial<AnimInput>) => pickFrame(d, { ...calm, ...s }, 100);
 
   it('idles, and walks with the feet following the ground covered', () => {
@@ -51,7 +51,7 @@ describe('#155 animation state', () => {
     expect(at({ untilHit: 0.2 })).toEqual({ anim: 'attack', frame: 1 });
     // squeezed into a fast attack speed: still the impact frame on the hit
     expect(at({ attackCd: 0.25, sinceHit: 0 })).toEqual({ anim: 'attack', frame: d.impact });
-    expect(at({ attackCd: 0.25, sinceHit: 0.1 }).anim).toBe('idle');
+    expect(at({ attackCd: 0.25, sinceHit: 0.1 })).toEqual({ anim: 'attack', frame: d.impact }); // #156: the short swing holds it
   });
 
   it('hurt and death hold their last frame', () => {

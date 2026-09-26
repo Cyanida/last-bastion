@@ -94,6 +94,14 @@ const CAST: [number, Pose][] = [
   [150, P({ off: [10, 3], offA: 0.1, fist: [1, 9] })],
 ];
 
+// #156: Dodge Roll: drop into a crouch, tuck into a ball, uncurl and come up ready
+const ROLL: [number, Pose][] = [
+  [70, P({ hip: [2, 7], lean: 0.5, head: 0.3, fist: [3, 5], off: [8, 4], feet: [[-4, 0, 0], [6, 0, 0]], cape: 0.3 })],
+  [110, P({ hip: [4, 13], lean: 1.35, head: 0.6, fist: [2, 3], off: [5, 5], offA: 0.8, feet: [[0, 3, 0.5], [5, 5, 0.6]], cape: 0.6 })],
+  [110, P({ hip: [6, 13], lean: 1.1, head: 0.5, fist: [3, 4], off: [6, 4], offA: 0.6, feet: [[3, 2, 0.3], [9, 3, 0.4]], cape: 0.5 })],
+  [110, P({ hip: [4, 6], lean: 0.35, head: 0.1, feet: [[-2, 0, 0], [8, 0, 0]], cape: 0.3 })],
+];
+
 export const sprite: SpriteDef = {
   id: 'archer', w: W, h: H, anchor: [X0, 75], tall: 54,
   anims: {
@@ -103,6 +111,7 @@ export const sprite: SpriteDef = {
     cast: CAST.map(([ms, p]) => [ms, archer(p)]),
     hurt: C.hurt.map(([ms, p]) => [ms, archer({ ...p, fx: 0 })]),
     death: C.death.map(([ms, p]) => [ms, archer({ ...p, fx: 0 })]),
+    skill: ROLL.map(([ms, p]) => [ms, archer({ ...p, fx: 0 })]),
   },
   impact: 4,
 };

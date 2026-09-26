@@ -67,6 +67,13 @@ const ATTACK: [number, Pose][] = [
   [130, P({ hip: [1, 0], lean: 0.06, fist: [7, 9], wpn: 0.4, fx: 0.3, feet: [[-5, 0, 0], [6, 0, 0]] })],
 ];
 
+// #156: Corpse Explosion: the staff drawn up as the crystal flares, then swept down at the dead with the free hand clawed open
+const BLAST: [number, Pose][] = [
+  [100, P({ hip: [0, -1], lean: -0.12, head: -0.1, fist: [3, 2], wpn: -0.3, off: [-8, -3], fx: 0.8, cape: 0.2 })],
+  [240, P({ hip: [2, 2], lean: 0.22, head: 0.15, fist: [11, 7], wpn: 1.1, off: [-4, 5], offA: 0.5, fx: 1, feet: [[-6, 0, 0.2], [8, 0, 0]], cape: 0.35 })],
+  [150, P({ hip: [1, 0], lean: 0.08, fist: [7, 10], wpn: 0.4, fx: 0.4, feet: [[-5, 0, 0], [6, 0, 0]] })],
+];
+
 export const sprite: SpriteDef = {
   id: 'necromancer', w: W, h: H, anchor: [X0, 75], tall: 55,
   anims: {
@@ -76,6 +83,7 @@ export const sprite: SpriteDef = {
     cast: C.cast.map(([ms, p]) => [ms, necromancer({ ...p, fist: [p.fist[0] + 2, p.fist[1] + 9] })]), // the long staff stays in the cell
     hurt: C.hurt.map(([ms, p]) => [ms, necromancer(p)]),
     death: C.death.map(([ms, p]) => [ms, necromancer(p)]),
+    skill: BLAST.map(([ms, p]) => [ms, necromancer(p)]),
   },
   impact: 4,
 };

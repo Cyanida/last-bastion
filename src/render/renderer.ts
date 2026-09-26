@@ -70,19 +70,20 @@ function drawSprite(ctx: Ctx, s: Sprite, x: number, y: number, flip: boolean, fl
  * #155: the player's animation, read from what the game already knows (position, the attack timer, HP) and kept here, on the
  * render side: nothing is written back into the game, so runs play out exactly the same.
  */
-const anim = { game: null as Game | null, x: 0, y: 0, walked: 0, timer: 0, hitAt: -Infinity, cd: 1, hp: 0, hurtAt: -Infinity, deadAt: Infinity, abilityCd: 0, castAt: -Infinity, now: { anim: 'idle' as AnimName, frame: 0 } };
+const anim = { game: null as Game | null, x: 0, y: 0, walked: 0, timer: 0, hitAt: -Infinity, cd: 1, hp: 0, hurtAt: -Infinity, deadAt: Infinity, abilityCd: 0, castAt: -Infinity, utilityCd: 0, skillAt: -Infinity, now: { anim: 'idle' as AnimName, frame: 0 } };
 export const playerAnim = (): { anim: string; frame: number } => anim.now; // for the play test and the gallery
 
 function playerSprite(g: Game, p: Player, scale: number): Sprite {
-  if (anim.game !== g) Object.assign(anim, { game: g, x: p.x, y: p.y, walked: 0, timer: p.attackTimer, hitAt: -Infinity, hp: p.hp, hurtAt: -Infinity, deadAt: Infinity, abilityCd: p.abilityCd, castAt: -Infinity });
+  if (anim.game !== g) Object.assign(anim, { game: g, x: p.x, y: p.y, walked: 0, timer: p.attackTimer, hitAt: -Infinity, hp: p.hp, hurtAt: -Infinity, deadAt: Infinity, abilityCd: p.abilityCd, castAt: -Infinity, utilityCd: p.utilityCd, skillAt: -Infinity });
   const step = Math.hypot(p.x - anim.x, p.y - anim.y);
   if (step < 64) anim.walked += step; // not a teleport
   if (p.attackTimer > anim.timer + 1e-6) (anim.hitAt = g.time), (anim.cd = p.attackTimer); // the timer was reset: an attack just landed
   if (p.abilityCd > anim.abilityCd + 1e-6) anim.castAt = g.time; // #156: the cooldown was reset: the ability was just used
+  if (p.utilityCd > anim.utilityCd + 1e-6) anim.skillAt = g.time; // #156: and the utility ability (Leap, Dodge Roll, Blink...)
   if (p.hp < anim.hp) anim.hurtAt = g.time;
   if (p.hp <= 0 && anim.deadAt === Infinity) anim.deadAt = g.time;
   if (p.hp > 0) anim.deadAt = Infinity;
-  Object.assign(anim, { x: p.x, y: p.y, timer: p.attackTimer, hp: p.hp, abilityCd: p.abilityCd });
+  Object.assign(anim, { x: p.x, y: p.y, timer: p.attackTimer, hp: p.hp, abilityCd: p.abilityCd, utilityCd: p.utilityCd });
   const atk = p.cls.attack;
   const reach = atk.kind === 'melee' ? atk.range * p.buff.range : atk.range;
   const s: AnimInput = {
@@ -93,6 +94,7 @@ function playerSprite(g: Game, p: Player, scale: number): Sprite {
     untilHit: p.attackTimer > 0 && nearestEnemy(g, p.x, p.y, reach) ? p.attackTimer : Infinity,
     attackCd: anim.cd,
     cast: g.time - anim.castAt,
+    skill: g.time - anim.skillAt,
     hurt: g.time - anim.hurtAt,
     dead: anim.deadAt === Infinity ? Infinity : g.time - anim.deadAt,
   };

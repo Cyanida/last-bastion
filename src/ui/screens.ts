@@ -1248,7 +1248,7 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
     if (!el.isConnected) return;
     for (const c of cells) {
       const id = c.dataset.sheet!, anim = c.dataset.anim as AnimName;
-      const f = frameAt(SHEETS[id].anims[anim], now - t0, true);
+      const f = frameAt(SHEETS[id].anims[anim]!, now - t0, true);
       const spr = sheetSprite(id, GAME.spriteScale * 2, 0, anim, f);
       const ctx = c.getContext('2d')!;
       ctx.clearRect(0, 0, c.width, c.height);

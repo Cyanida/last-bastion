@@ -153,6 +153,13 @@ const DEATH: [number, Pose][] = [
   [400, pose({ hip: [7, 16], lean: -1.4, head: -0.1, fist: [14, 6], sword: 2.9, shield: [2, 3], shieldA: -1.2, cape: 1.45, plume: -0.3, feet: [[4, 0, 0.5], [12, 0, 0.4]] })],
 ];
 
+// #156: Taunt (Challenge): shield bashed forward, sword raised high, head up, feet planted wide
+const TAUNT: [number, Pose][] = [
+  [100, pose({ hip: [0, 1], lean: -0.05, fist: [4, 4], sword: -0.2, shield: [1, 0], feet: [[-5, 0, 0], [5, 0, 0]] })],
+  [300, pose({ hip: [1, 2], lean: 0.1, head: -0.2, fist: [2, -8], sword: -0.2, zs: 4.6, shield: [4, -2], shieldA: -0.2, feet: [[-7, 0, 0], [7, 0, 0]], cape: 0.3, plume: 0.2 })],
+  [150, pose({ hip: [0, 1], fist: [6, 8], sword: 0.2, shield: [1, 0], feet: [[-5, 0, 0], [5, 0, 0]] })],
+];
+
 export const sprite: SpriteDef = {
   id: 'paladin', w: W, h: H, anchor: [X0, GROUND], tall: 55,
   anims: {
@@ -162,6 +169,7 @@ export const sprite: SpriteDef = {
     cast: CAST.map(([ms, p]) => [ms, paladin(p)]),
     hurt: HURT.map(([ms, p]) => [ms, paladin(p)]),
     death: DEATH.map(([ms, p]) => [ms, paladin(p)]),
+    skill: TAUNT.map(([ms, p]) => [ms, paladin(p)]),
   },
   impact: 4,
 };

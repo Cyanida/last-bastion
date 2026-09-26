@@ -4,12 +4,12 @@ import { CLASSES } from '../src/config/classes';
 import { pickFrame, type AnimInput, type SheetData } from '../src/logic/animation';
 
 describe('#156 champion sheets', () => {
-  const calm: AnimInput = { time: 0, walked: 0, moving: false, sinceHit: Infinity, untilHit: Infinity, attackCd: 1, cast: Infinity, hurt: Infinity, dead: Infinity };
+  const calm: AnimInput = { time: 0, walked: 0, moving: false, sinceHit: Infinity, untilHit: Infinity, attackCd: 1, cast: Infinity, skill: Infinity, hurt: Infinity, dead: Infinity };
 
-  it('every champion has a rigged sheet with idle, walk, attack, cast, hurt and death, in that row order', () => {
+  it('every champion has a rigged sheet with idle, walk, attack, cast, hurt, death and skill, in that row order', () => {
     for (const c of Object.values(CLASSES)) {
       const d = JSON.parse(readFileSync(`src/render/sheets/${c.sprite}.json`, 'utf8')) as SheetData;
-      expect(Object.keys(d.anims), c.id).toEqual(['idle', 'walk', 'attack', 'cast', 'hurt', 'death']);
+      expect(Object.keys(d.anims), c.id).toEqual(['idle', 'walk', 'attack', 'cast', 'hurt', 'death', 'skill']);
       expect(d.impact, c.id).toBeGreaterThan(0);
       expect(d.impact, c.id).toBeLessThan(d.anims.attack.length);
     }

@@ -69,6 +69,14 @@ const ATTACK: [number, Pose][] = [
   [130, P({ hip: [1, 1], lean: 0.1, fist: [9, 11], wpn: 1.4, feet: [[-5, 0, 0], [8, 0, 0]], cape: 0.2 })],
 ];
 
+// #156: Leap: crouch with the axe drawn back, airborne with it overhead, land with it buried in the ground, rise
+const LEAP: [number, Pose][] = [
+  [90, P({ hip: [0, 6], lean: 0.25, head: 0.1, fist: [2, 3], wpn: -0.5, za: 2, feet: [[-6, 0, 0], [6, 0, 0]], cape: 0.2 })],
+  [170, P({ hip: [1, -5], lean: 0.05, head: -0.1, fist: [1, -5], wpn: -1.7, za: 2, feet: [[-6, 6, 0.4], [5, 4, 0.3]], off: [1, 6], cape: 0.55, plume: 0.2 })],
+  [200, P({ hip: [2, 5], lean: 0.35, fist: [12, 8], wpn: 2.0, feet: [[-8, 0, 0], [9, 0, 0]], off: [-3, 10], cape: 0.35 })],
+  [120, P({ hip: [1, 2], lean: 0.12, fist: [9, 11], wpn: 1.3, feet: [[-6, 0, 0], [7, 0, 0]], cape: 0.2 })],
+];
+
 export const sprite: SpriteDef = {
   id: 'viking', w: W, h: H, anchor: [X0, 75], tall: 56,
   anims: {
@@ -78,6 +86,7 @@ export const sprite: SpriteDef = {
     cast: C.cast.map(([ms, p]) => [ms, viking(p)]),
     hurt: C.hurt.map(([ms, p]) => [ms, viking(p)]),
     death: C.death.map(([ms, p]) => [ms, viking(p)]),
+    skill: LEAP.map(([ms, p]) => [ms, viking(p)]),
   },
   impact: 4,
 };

@@ -64,6 +64,15 @@ const ATTACK: [number, Pose][] = [
   [120, P({ hip: [1, 0], lean: 0.06, fist: [8, 8], fx: 0.2, plume: 0.02, feet: [[-5, 0, 0], [6, 0, 0]] })],
 ];
 
+// #156: Blink: wings raised, she fades out in a dither and back in where she lands
+const BLINK: [number, Pose, number][] = [
+  [70, P({ hip: [0, -2], lean: -0.05, fist: [2, 6], off: [3, 7], feet: [[-4, 2, 0.2], [4, 2, 0.2]], fx: 0.8, plume: 0.12 }), 0],
+  [70, P({ hip: [0, -3], fist: [1, 4], off: [2, 5], feet: [[-4, 3, 0.3], [4, 3, 0.3]], fx: 1, plume: 0.16 }), 0.5],
+  [60, P({ hip: [0, -3], feet: [[-4, 3, 0.3], [4, 3, 0.3]], fx: 1 }), 1],
+  [80, P({ hip: [0, -2], fist: [1, 4], off: [2, 5], feet: [[-4, 2, 0.2], [4, 2, 0.2]], fx: 1, plume: 0.1 }), 0.5],
+  [100, P({ hip: [0, 0], fist: [3, 8], off: [4, 10], fx: 0.6 }), 0],
+];
+
 export const sprite: SpriteDef = {
   id: 'angel', w: W, h: H, anchor: [X0, 75], tall: 54,
   anims: {
@@ -73,6 +82,7 @@ export const sprite: SpriteDef = {
     cast: C.cast.map(([ms, p]) => [ms, angel(p)]),
     hurt: C.hurt.map(([ms, p]) => [ms, angel(p)]),
     death: C.death.map(([ms, p]) => [ms, angel(p)]),
+    skill: BLINK.map(([ms, p, fade]) => [ms, angel(p), fade]),
   },
   impact: 4,
 };
