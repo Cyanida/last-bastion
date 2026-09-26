@@ -1,4 +1,6 @@
-/** Pixel-grid sprites. One char = one pixel, looked up in PALETTE. '.' is transparent. Sprites face right. */
+import { spriteSize } from '../logic/spriteRes';
+
+/** Pixel-grid sprites. One char = one pixel, looked up in PALETTE. '.' is transparent. Sprites face right. #138: the champions are drawn on a grid twice as fine (SPRITE_RES). */
 export const PALETTE: Record<string, string> = {
   k: '#1a1614', // outline
   s: '#c9a27a', // skin
@@ -22,95 +24,172 @@ export const PALETTE: Record<string, string> = {
   W: '#9a4a22', // wood (#80: the Viking's axe shaft)
   E: '#5fe07a', // bright emerald (#80: the Necromancer's crystal)
   e: '#2e9a4a', // dark emerald
+  // #138: shades for the finer grid's 1 px shading
+  a: '#9c7656', // shaded skin
+  d: '#2a3f25', // shaded green
+  q: '#33203f', // shaded purple
+  m: '#94761a', // shaded gold
 };
 
 export const SPRITES = {
   // #80: a steel kite shield with a gold sun, a Latin cross on the tabard, a straight longsword with a glowing tip; padded on the far side so the body stays centred on the player
   paladin: [
-    '.....kkkk.....',
-    '....kSSSSk....',
-    '....kSggSk..y.',
-    '....kDkkDk..w.',
-    '....kSSSSk..w.',
-    '...kkwwrwkk.w.',
-    '.kkkkkrrrkSkw.',
-    '.kgSgkwrwkSggg',
-    '.kSySkwrwkkSk.',
-    '.kgSgkwrwk..g.',
-    '.kSSSkwrwk....',
-    '..kSkSkkSk....',
-    '...kkSkkSk....',
-    '....kk..kk....',
+    '..........kkkkkkkk..........',
+    '..........kwwwwwDk..........',
+    '........kkSSSSSSSSkk........',
+    '........kwSSSSSSSSDk........',
+    '........kwSSggggSSDk....yy..',
+    '........kwSSggggSSDk....yy..',
+    '........kDDDkyykDDDk....ww..',
+    '........kDDDSSSSDDDk....ww..',
+    '........kwSSSSSSSSDk....ww..',
+    '........kwSSSSSSSSDk....ww..',
+    '......kkkkwwwwrrwwkkkk..ww..',
+    '......kkkkwwwwrrwwkSDk..ww..',
+    '..kkkkkkkkkkrrrrrrkSSSkwww..',
+    '..kkggkkkkkkrrrrrrkSSSwwww..',
+    '..kgggSSggkwwwrrwwkSSSgggggg',
+    '..kgggSSggkwwwrrwwkSSSgggggg',
+    '..kwSSyySSkwwwrrwwkSDDSSDk..',
+    '..kwSSyySSkwwwrrwwkkkkSSSg..',
+    '..kgggSSggkwwwrrwwnk....gg..',
+    '..kgggSSggkwwwrrwwnk....gg..',
+    '..kDSSSSSSkwwwrrwwnk........',
+    '..kkSSSSSSkwwwrrwwnk........',
+    '....kDSSkSSSkkkkSSDk........',
+    '....kkSSkSSSSkkSSSDk........',
+    '......kDkSSSDkDDSSDk........',
+    '......kkkkSSkkkkSSDk........',
+    '........kkDk....kDkk........',
+    '........kkkk....kkkk........',
   ],
   // #80: short horns, a big beard and a two-handed Dane axe (W: the shaft); padded on the far side so the body stays centred on the player
   viking: [
-    '..........................',
-    '.........k......k.........',
-    '........knk.kk.knk........',
-    '........knkSSSSknk........',
-    '.........kSSSSSSk.........',
-    '.........kskSSksk.........',
-    '........kBoooooBk.........',
-    '.......kBsoooooosBk.......',
-    '.......kskooooooskkkkk....',
-    '.......ksWWWWWWWsWWWWk....',
-    '........k.kbgbbk..kSSk....',
-    '..........kbkkbk.kSSSSk...',
-    '..........kBkkBkkSSSSSSwk.',
-    '..........kk..kk.kwSSSwk..',
-    '..................kwwwk...',
-    '...................kkk....',
+    '....................................................',
+    '....................................................',
+    '..................kk............kk..................',
+    '..................kk............kk..................',
+    '................kknnkk..kkkk..kknnkk................',
+    '................knnnBk..kwDk..knnnBk................',
+    '................kBnnkSSSSSSSSSknnnBk................',
+    '................kknnSSSSSSSSSSkSnnkk................',
+    '..................kwSSSSSSSSSSSSDk..................',
+    '..................kwSSSSSSSSSSSSDk..................',
+    '..................kssskSSSSSksssak..................',
+    '..................ksssooSSSSoossak..................',
+    '................kkBBooooooooooBBbk..................',
+    '................kBBBooooooooooBBbk..................',
+    '..............kkBBssoooooooooooossBBkk..............',
+    '..............kBBBssoooooooooooossBBbk..............',
+    '..............kssskooooooooooooosskkkkkkkkkk........',
+    '..............ksssWWoooooooooooossWWWkWWWWkk........',
+    '..............kassWWWWWWWWWWWWWWssWWWWWWWWWk........',
+    '..............kkssWWWWWWWWWWWWWWssWWWWWWWWWk........',
+    '................kk..kbbbggbbbbbk....kwSSSSDk........',
+    '................kk..kbbbggbbbbbk....SSSSSSDk........',
+    '....................kbbbkkkkbbbk..kkSSSSSSSSkk......',
+    '....................kbbbBkkBbbbk..kwSSSSSSSSDk......',
+    '....................kBBBbkbbBBkkkkSSSSSSSSSSSSwwkk..',
+    '....................kBBBkkkkBBkkkkSSSSSSSSSSSSwwkk..',
+    '....................kkbk....kbkk..knwwSSSSSSwwnk....',
+    '....................kkkk....kkkk..kkwwSSSSSSwwkk....',
+    '....................................knwwwwwwnk......',
+    '....................................kkwwwwwwkk......',
+    '......................................knnnnk........',
+    '......................................kkkkkk........',
   ],
   // #80: a gold collar between face and robe, blond hair, the halo above, outlined wings, a glowing orb; padded on the far side so the body stays centred on the player
   angel: [
-    '...gggggg...',
-    'k..........k',
-    'nk.kyyyyk.kn',
-    'nnkyyyyyyknn',
-    'nnkyksskyknn',
-    'nnkyssssyknn',
-    'nnnkksskknnn',
-    'nnkggggggknn',
-    'knkwwwwwwknk',
-    '.kkwsyyswkk.',
-    '..kwwggwwk..',
-    '..kwwwwwwk..',
-    '.kwwwwwwwwk.',
-    '.kkkkkkkkkk.',
+    '......gggggggggggg......',
+    '......g..........g......',
+    'kk....................kk',
+    'kk....................kk',
+    'nnkk..kkyyyyyyyykk..kknn',
+    'nnBk..kyyyyyyyyygk..knnn',
+    'nnnnkyyyyyyyyyyyyyknnnnn',
+    'nnnnnyyyyyyyyyyyyyynnnnn',
+    'nnnnkyyykssssskyyyknnnnn',
+    'nnnnkyyyssssssssyyknnnnn',
+    'nnnnkyyyssssssssyyknnnnn',
+    'nnnnkyyyssssssssyyknnnnn',
+    'nnnnnnkkkksssskkkknnnnnn',
+    'nnnnnnggggssssggggnnnnnn',
+    'nnnnkgggggggggggggknnnnn',
+    'nnnnkgggggggggggggknnnnn',
+    'kBnnkwwwwwwwwwwwwwknnnBk',
+    'kknnkwwwwwwwwwwwwwknnnkk',
+    '..kBkwwwssyyyysswwknBk..',
+    '..kkkkwwssyyyysswwkkkk..',
+    '....kwwwwwggggwwwwnk....',
+    '....kwwwwwggggwwwwnk....',
+    '....kwwwwwwwwwwwwwnk....',
+    '....kwwwwwwwwwwwwwnk....',
+    '..kkwwwwwwwwwwwwwwwwkk..',
+    '..kwwwwwwwwwwwwwwwwwnk..',
+    '..kknnnnnnnnnnnnnnnnkk..',
+    '..kkkkkkkkkkkkkkkkkkkk..',
   ],
   // #80: a tall pointed hood, a soul flame over a raised hand, a torn hem, a staff with an emerald (E, e) crystal; padded on the far side so the body stays centred on the player
   necromancer: [
-    '.......kk...kEk.',
-    '......kppk.kEEek',
-    '.....kppppk.kek.',
-    '...ckphnnhpkkbk.',
-    '..cckpcnncpkkbk.',
-    '...nkppnnppkkbk.',
-    '...kkkPppPkkknk.',
-    '....kpPppPpkkbk.',
-    '....kpPppPpkkbk.',
-    '...kppPppPppkbk.',
-    '...kppPppPppkbk.',
-    '..kpppPppPpppbk.',
-    '..kpkpPkpPkpkbk.',
-    '..k.k.k.k.k.kkk.',
+    '..............kkkk......kkEEkk..',
+    '..............kpqk......kEEEEk..',
+    '............kkppppkk..kkEEEEeekk',
+    '............kpppppqk..kkEEEEeekk',
+    '..........kkppppppppkk..keeeek..',
+    '..........kpppppppppqk..keeeek..',
+    '......cckppphhnnnnhhppkkkkbbbk..',
+    '......cccppphhnnnnhhpppkkkbbbk..',
+    '....cccckpppccnnnnccppkkkkbbbk..',
+    '....cccckpppccnnnnccppkkkkbbbk..',
+    '......nnkpppppnnnnppppkkkkbbbk..',
+    '......nnkpppppnnnnppppkkkkbbbk..',
+    '......kBkkkkPPppppPPkkkkkknnBk..',
+    '......kkkkppPPppppPPppkkkknnBk..',
+    '........kpppPPppppPPppkkkkbbbk..',
+    '........kpppPPppppPPppkkkkbbbk..',
+    '........kpppPPppppPPppkkkkbbbk..',
+    '........kpppPPppppPPppkkkkbbbk..',
+    '......kkppppPPppppPPppppkbbbbk..',
+    '......kpppppPPppppPPppppkbbbbk..',
+    '......kpppppPPppppPPppppkbbbbk..',
+    '......kpppppPPppppPPppppkbbbbk..',
+    '....kkppppppPPppppPPppppppbbbk..',
+    '....kpppppppPPppppPPppppppbbbk..',
+    '....kpppkpppPPppppPPkpppkbbbbk..',
+    '....kpppkpppPPkpppPPkpppkbbbbk..',
+    '....kk..kk..kk..kk..kk..kkbbkk..',
+    '....kk..kk..kk..kk..kk..kkkkkk..',
   ],
   // #80: a longbowman: steel kettle hat, quilted green gambeson, a curved bow held close; padded on the far side so the body stays centred on the player
   archer: [
-    '......kkkk......',
-    '.....kSSSSk..k..',
-    '...kSSSSSSSSkBk.',
-    '....kskssksk.kBk',
-    '.....kssssk..kBk',
-    '....kGGGGGGk.kBk',
-    '...kGkLGGLkGkkBk',
-    '...kskGLLGkGssBk',
-    '....kkbgbbk..kBk',
-    '.....kGLLGk..kBk',
-    '.....kGGGGk..Bk.',
-    '.....kbkkbk..k..',
-    '.....kbkkbk.....',
-    '.....kk..kk.....',
+    '............kkkkkkkk............',
+    '............kwwwwwDk............',
+    '..........kkSSSSSSSSkk....kk....',
+    '..........kwSSSSSSSSDk....kk....',
+    '......kkSSSSSSSSSSSSSSSSkBBBkk..',
+    '......kkSSSSSSSSSSSSSSSSkBBBbk..',
+    '........kassksssssksssak..kBBBkk',
+    '........kksssssssssssskk..kBBBbk',
+    '..........ksssaassssak....kBBBbk',
+    '..........kssssssssssk....kBBBbk',
+    '........kkGGGGGGGGGGGGkk..kBBBbk',
+    '........kGGGGGGGGGGGGGdk..kBBBbk',
+    '......kkGGkLLLGGGGLLkGGGkkkkBBbk',
+    '......kGGGkLLLGGGGLLkGGGGsksBBbk',
+    '......kasskGGGLLLLGGkGGGssssBBbk',
+    '......kksskGGGLLLLGGkGGGssssBBbk',
+    '........kakbbbggbbbbbk....kBBBbk',
+    '........kkkkbbggbbbbbk....kBBBbk',
+    '..........kGGGLLLLGGdk....kBBBbk',
+    '..........kGGGLLLLGGdk....kBBBkk',
+    '..........kGGGGGGGGGdk....BBbk..',
+    '..........kGGGGGGGGGdk....BBkk..',
+    '..........kbbbkkkkbbbk....kk....',
+    '..........kbbbbkkbbbbk....kk....',
+    '..........kbbbbkbbbbbk..........',
+    '..........kbbbkkkkbbbk..........',
+    '..........kkbk....kbkk..........',
+    '..........kkkk....kkkk..........',
   ],
   skeleton: [
     '....kkkk....',
@@ -623,8 +702,11 @@ export const SPRITES = {
 
 export type SpriteId = keyof typeof SPRITES;
 
+/** #138: sprites redrawn on the finer grid, by their resolution; anything not listed is the old 1x grid. Same on-screen size either way. */
+export const SPRITE_RES: Partial<Record<SpriteId, number>> = { paladin: 2, viking: 2, angel: 2, necromancer: 2, archer: 2 };
+
 export interface Sprite {
-  w: number;
+  w: number; // on-screen size: draw the canvases at w × h (a finer grid rasterizes larger and is drawn down)
   h: number;
   img: HTMLCanvasElement;
   flipped: HTMLCanvasElement;
@@ -635,6 +717,7 @@ export interface Sprite {
 /** v0.4 mastery palettes: a canvas filter over the class sprite (0 = as drawn; Ashen, Gilded, Midnight). v0.5: Frost and Verdant tint treasure guardians only. */
 export const SPRITE_PALETTES = ['', 'saturate(0.35) brightness(1.1)', 'sepia(1) saturate(2.2) hue-rotate(-10deg) brightness(1.1)', 'hue-rotate(200deg) saturate(1.3) brightness(0.8)', 'sepia(1) hue-rotate(160deg) saturate(2.5) brightness(1.15)', 'sepia(1) hue-rotate(60deg) saturate(2.2) brightness(0.95)'];
 
+/** `scale` is device pixels per grid pixel here: getSprite passes spriteSize's cell. */
 function rasterize(rows: string[], scale: number, white: boolean, flip: boolean, palette = 0): HTMLCanvasElement {
   const w = rows[0].length;
   const c = document.createElement('canvas');
@@ -664,18 +747,20 @@ function rasterize(rows: string[], scale: number, white: boolean, flip: boolean,
 
 const cache = new Map<string, Sprite>();
 
+/** `scale` is the old grid's pixels per grid pixel: a sprite's own resolution (SPRITE_RES) keeps it the same size on screen. */
 export function getSprite(id: SpriteId, scale: number, palette = 0): Sprite {
   const key = `${id}@${scale}@${palette}`;
   let s = cache.get(key);
   if (!s) {
     const rows = SPRITES[id];
+    const { w, h, cell } = spriteSize(rows[0].length, rows.length, scale, SPRITE_RES[id]);
     s = {
-      w: rows[0].length * scale,
-      h: rows.length * scale,
-      img: rasterize(rows, scale, false, false, palette),
-      flipped: rasterize(rows, scale, false, true, palette),
-      flash: rasterize(rows, scale, true, false),
-      flashFlipped: rasterize(rows, scale, true, true),
+      w,
+      h,
+      img: rasterize(rows, cell, false, false, palette),
+      flipped: rasterize(rows, cell, false, true, palette),
+      flash: rasterize(rows, cell, true, false),
+      flashFlipped: rasterize(rows, cell, true, true),
     };
     cache.set(key, s);
   }
@@ -762,7 +847,7 @@ export function outlineSprite(s: Sprite, color: string): [HTMLCanvasElement, HTM
     c.width = s.w + 4;
     c.height = s.h + 4;
     const ctx = c.getContext('2d')!;
-    for (const [dx, dy] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-2, -2], [2, -2], [-2, 2], [2, 2]]) ctx.drawImage(silhouette, 2 + dx, 2 + dy);
+    for (const [dx, dy] of [[-2, 0], [2, 0], [0, -2], [0, 2], [-2, -2], [2, -2], [-2, 2], [2, 2]]) ctx.drawImage(silhouette, 2 + dx, 2 + dy, s.w, s.h);
     ctx.globalCompositeOperation = 'source-in';
     ctx.fillStyle = color;
     ctx.fillRect(0, 0, c.width, c.height);

@@ -287,7 +287,11 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       <div class="cards">${CLASS_ORDER.map((id) => card(CLASSES[id])).join('')}</div>
       <button class="btn" data-back>Back</button>
     </div>`);
-  el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => slot.appendChild(getSprite(slot.dataset.sprite as ClassDef['sprite'], 6, Number(slot.dataset.paletteN ?? 0)).img));
+  el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => {
+    const spr = getSprite(slot.dataset.sprite as ClassDef['sprite'], 6, Number(slot.dataset.paletteN ?? 0));
+    spr.img.style.setProperty('--sprite-h', `${spr.h}px`); // #138: a finer-grid canvas is larger than it shows
+    slot.appendChild(spr.img);
+  });
   el.querySelectorAll<HTMLElement>('[data-palette]').forEach((sw) => (sw.onclick = (e) => {
     e.stopPropagation(); // the card underneath would start the run
     const [cls, n] = sw.dataset.palette!.split(':');
