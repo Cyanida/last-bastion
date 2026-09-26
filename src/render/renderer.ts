@@ -775,20 +775,50 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.globalAlpha = 1;
     }
     if (pr.shape === 'arrow') {
+      // #157: in the rig's style: a dark-outlined shaft, a steel head at the tip and pale fletching at the tail
       const v = Math.hypot(pr.vx, pr.vy) || 1;
-      const len = pr.r > 8 ? 46 : 16; // ballista bolts
-      ctx.strokeStyle = pr.color;
-      ctx.lineWidth = pr.r > 8 ? 5 : 2;
+      const big = pr.r > 8; // ballista bolts
+      const len = big ? 46 : 16, w = big ? 5 : 2;
+      const ux = pr.vx / v, uy = pr.vy / v, tx = pr.x - ux * len, ty = pr.y - uy * len;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#1e110a';
+      ctx.lineWidth = w + 2;
       ctx.beginPath();
       ctx.moveTo(pr.x, pr.y);
-      ctx.lineTo(pr.x - (pr.vx / v) * len, pr.y - (pr.vy / v) * len);
+      ctx.lineTo(tx, ty);
       ctx.stroke();
+      ctx.strokeStyle = pr.color;
+      ctx.lineWidth = w;
+      ctx.stroke();
+      const hl = big ? 10 : 5, hw = big ? 6 : 3; // the head
+      ctx.fillStyle = '#c7ced6';
+      ctx.beginPath();
+      ctx.moveTo(pr.x + ux * hl * 0.6, pr.y + uy * hl * 0.6);
+      ctx.lineTo(pr.x - ux * hl * 0.4 - uy * hw, pr.y - uy * hl * 0.4 + ux * hw);
+      ctx.lineTo(pr.x - ux * hl * 0.4 + uy * hw, pr.y - uy * hl * 0.4 - ux * hw);
+      ctx.fill();
+      ctx.strokeStyle = '#f2eddf'; // fletching
+      ctx.lineWidth = big ? 2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(tx + ux * hl, ty + uy * hl);
+      ctx.lineTo(tx - uy * hw, ty + ux * hw);
+      ctx.moveTo(tx + ux * hl, ty + uy * hl);
+      ctx.lineTo(tx + uy * hw, ty - ux * hw);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
     } else {
+      // #157: a shaded orb: dark rim, the colour, a light cap and a glint towards the top-left light (STYLE.md)
+      ctx.fillStyle = 'rgba(15,10,20,0.75)';
+      disc(ctx, pr.x, pr.y, pr.r + 1);
+      ctx.fill();
       ctx.fillStyle = pr.color;
       disc(ctx, pr.x, pr.y, pr.r);
       ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.fillRect(pr.x - 1.5, pr.y - 1.5, 3, 3);
+      ctx.fillStyle = 'rgba(255,245,220,0.35)';
+      disc(ctx, pr.x - pr.r * 0.25, pr.y - pr.r * 0.25, pr.r * 0.6);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillRect(Math.round(pr.x - pr.r * 0.45) - 1, Math.round(pr.y - pr.r * 0.45) - 1, 2, 2);
     }
   }
 

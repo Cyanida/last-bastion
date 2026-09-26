@@ -1669,7 +1669,7 @@ await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#
 // ---------- #157: every redrawn foe loads its sheet, and a ranged foe (the Crossbowman) levels and looses on his shot ----------
 await check('Foe sheets: every redrawn foe and commander loads; a crossbowman plays his shot (#157)', () =>
   inPage(() => location.reload()).then(async () => {
-    const want = ['peasant', 'crossbow', 'knight', 'cultist', 'shieldBearer', 'priest', 'engineer', 'plagueDoctor', 'houndmaster', 'mirrorKnight', 'assassin', 'shieldwall', 'boneCollector', 'bannerman', 'drummer', 'chaplain'];
+    const want = ['peasant', 'wolf', 'crossbow', 'cavalry', 'knight', 'cultist', 'shieldBearer', 'priest', 'engineer', 'plagueDoctor', 'houndmaster', 'mirrorKnight', 'assassin', 'shieldwall', 'boneCollector', 'bannerman', 'drummer', 'chaplain'];
     await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('crossbow'));
     const sheets = await inPage(() => window.__lb.sheets());
     const missing = want.filter((id) => !sheets.includes(id));
@@ -1679,8 +1679,15 @@ await check('Foe sheets: every redrawn foe and commander loads; a crossbowman pl
       await wait(150);
       document.querySelector('[data-act="test"]').click();
       await wait(60);
+      for (const [id, v] of [['tm-class', 'paladin'], ['tm-act', '1'], ['tm-wave', '1']]) {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       const g = window.__startTest();
       g.player.invulnerable = true;
+      for (let i = 0; i < 200 && !g.enemies.length; i++) window.__lb.run(1, false, 'input'); // the wave's first foe
       const [e] = g.enemies;
       e.def = window.__lb.enemyDef('crossbow'); // the first foe becomes a crossbowman
       for (const [i, x] of g.enemies.entries()) Object.assign(x, { x: g.player.x + (x === e ? 180 : 3000 + i * 40), y: g.player.y, hp: 1e6, maxHp: 1e6 });
