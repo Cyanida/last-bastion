@@ -17,6 +17,8 @@ export const RAMPS = {
   glow: ['#6b5516', '#a88a2b', '#d6bb50', '#f0dc82', '#fff2b0', '#fffadd', '#ffffff'],
   skin: ['#2b140e', '#4f2618', '#7a3f27', '#a35e3b', '#c47f55', '#dea276', '#f2c79d'], // #158
   fur: ['#171210', '#2b221c', '#43362b', '#5e4c3b', '#7b6650', '#9a8469', '#b8a386'], // #158
+  purple: ['#150a22', '#2a1242', '#43205f', '#5e3280', '#7c4a9f', '#9d6bbd', '#c79be0'], // #158
+  soul: ['#2a0f45', '#4d1f7a', '#7a3fb0', '#a66ad8', '#c99bf0', '#e6cffb', '#ffffff'], // #158: shadow magic, the trail colour
   smear: ['#9fb4d0', '#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
 } as const;
 export type Material = keyof typeof RAMPS;
