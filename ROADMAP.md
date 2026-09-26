@@ -15,7 +15,7 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 | v0.8.0 | Balance, relics & bosses | released 2026-09-26 |
 | v0.8.1 | Characters | next |
 | v0.9.0 | Classes & roster | planned |
-| v0.10.0 | Items & arena | planned |
+| v0.10.0 | Items, arenas & sound | planned |
 | v0.11.0 | The Keep & Master difficulty | planned |
 | v0.12.0 | Polished PC game | planned |
 | v1.0.0 | Phone & launch | planned |
@@ -195,7 +195,7 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 - ([#58](https://github.com/Cyanida/last-bastion/issues/58)) Hidden subclasses.
 - ([#137](https://github.com/Cyanida/last-bastion/issues/137)) Real skins: a different design per class, drawn on v0.8.1's new art.
 
-## v0.10.0 – Items & arena
+## v0.10.0 – Items, arenas & sound
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/22)
 
@@ -203,6 +203,8 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 - ([#62](https://github.com/Cyanida/last-bastion/issues/62)) Potions: carry up to 3 and drink them when you need them.
 - ([#86](https://github.com/Cyanida/last-bastion/issues/86)) A relic that puts a shield in front of you.
 - ([#89](https://github.com/Cyanida/last-bastion/issues/89)) Breakable objects in the arena, with small rewards inside.
+- ([#141](https://github.com/Cyanida/last-bastion/issues/141)) 3 or 4 new themed arenas, each with its own look, hazard, relic families and music.
+- ([#142](https://github.com/Cyanida/last-bastion/issues/142)) A sound overhaul: distinct sounds per class, enemy, boss and relic, stereo and a proper mixer.
 
 ## v0.11.0 – The Keep & Master difficulty
 
