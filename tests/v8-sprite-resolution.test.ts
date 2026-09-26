@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ENEMIES } from '../src/config/enemies';
 import { spriteSize } from '../src/logic/spriteRes';
 import { PALETTE, SPRITE_RES, SPRITES, type SpriteId } from '../src/render/sprites';
 
@@ -23,6 +24,30 @@ describe('v0.8.1 sprite resolution (#138)', () => {
       const fine = spriteSize(SPRITES[id][0].length, SPRITES[id].length, 3, 2), was = spriteSize(cols, rows, 3);
       expect([fine.w, fine.h], id).toEqual([was.w, was.h]);
     }
+  });
+
+  it('the siege pieces and the bosses are on the finer grid and keep their old on-screen size, elite or not', () => {
+    const old: Partial<Record<SpriteId, [number, number]>> = { ballista: [14, 10], siegeTower: [16, 18], dragon: [29, 18], usurper: [16, 18], royalFlame: [12, 14] };
+    const bosses: SpriteId[] = ['ballista', 'siegeTower', 'blackKnight', 'warlord', 'lich', 'inquisitor', 'abbot', 'dragon', 'warden', 'usurper', 'royalFlame'];
+    for (const id of bosses) {
+      const [cols, rows] = old[id] ?? [16, 18];
+      expect(SPRITE_RES[id], id).toBe(2);
+      // the arena scales (a boss at 4, the Usurper at 5) and an elite's +1 on a flash card
+      for (const scale of [3, 4, 5, 6]) {
+        const fine = spriteSize(SPRITES[id][0].length, SPRITES[id].length, scale, 2), was = spriteSize(cols, rows, scale);
+        expect([fine.w, fine.h], `${id}@${scale}`).toEqual([was.w, was.h]);
+      }
+    }
+  });
+
+  it('the Siege Camp and the Plague Cart have their own pictures; the skeleton minion stays on the old grid on purpose', () => {
+    expect(ENEMIES.siegeCamp.sprite).toBe('siegeCamp');
+    expect(ENEMIES.plagueCart.sprite).toBe('plagueCart');
+    expect(SPRITE_RES.siegeCamp).toBe(2);
+    expect(SPRITE_RES.plagueCart).toBe(2);
+    expect(SPRITE_RES.skeleton).toBeUndefined();
+    // every foe but the minion is on the finer grid
+    for (const def of Object.values(ENEMIES)) expect(SPRITE_RES[def.sprite], def.id).toBe(2);
   });
 
   it('every sprite is a clean grid: rows of one width, known colours, a finer grid in whole old pixels', () => {
