@@ -22,7 +22,10 @@ describe('#155 art rig', () => {
 
   // #157: one test per sprite, each with room to render twice: two dozen sheets overrun one test's time on a busy machine
   it('has sheets to check', () => expect(defs.length).toBeGreaterThan(0));
-  it.each(defs.map((d) => [d.id, d] as const))('the committed %s sheet matches its definition (run `npm run art` when this fails)', (_, def) => {
+  // #158: each test first yields to the event loop: back-to-back synchronous renders otherwise starve the worker's RPC for the
+  // whole file (a minute and more on a busy machine) and vitest fails the run with "Timeout calling onTaskUpdate"
+  it.each(defs.map((d) => [d.id, d] as const))('the committed %s sheet matches its definition (run `npm run art` when this fails)', async (_, def) => {
+    await new Promise((r) => setTimeout(r));
     const { png, data } = buildSheet(def);
     const p = sheetPaths(def.id);
     expect(existsSync(p.png), `${p.png} missing`).toBe(true);

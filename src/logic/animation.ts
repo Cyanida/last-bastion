@@ -3,16 +3,20 @@
  * feeds back into the simulation. The sheets are written by `npm run art` (tools/art) as public/sprites/<id>.png plus
  * src/render/sheets/<id>.json (this frame data).
  */
-export type AnimName = 'idle' | 'walk' | 'attack' | 'cast' | 'hurt' | 'death' | 'skill';
+export type BaseAnim = 'idle' | 'walk' | 'attack' | 'hurt' | 'death';
+/** #156: champions add `cast` (the signature ability) and `skill` (the utility ability). #158: bosses add a `special` row, their big attack: wound up across its telegraph, released when it fires, and `phase`: a boss's pose as it enters a new phase. */
+export type AnimName = BaseAnim | 'cast' | 'skill' | 'special' | 'phase';
 
 export interface SheetData {
   w: number; // cell size in art pixels
   h: number;
   anchor: [number, number]; // ground point between the feet, in the cell
   tall: number; // figure height in art pixels
-  anims: Record<Exclude<AnimName, 'skill' | 'cast'>, number[]> & { cast?: number[]; skill?: number[] }; // ms per frame; the rows of the sheet in this order.
+  anims: Record<BaseAnim, number[]> & { cast?: number[]; skill?: number[]; special?: number[]; phase?: number[] }; // ms per frame; the rows of the sheet in this order.
   // cast and skill: #156, the signature ability, and the utility ability (Leap, Dodge Roll, Blink, Taunt, Corpse Explosion); only the champions have them
+  // special and phase: #158, only the bosses have them
   impact: number; // attack frame where the weapon connects
+  specialImpact?: number; // #158: special frame shown the moment the telegraph fires
 }
 
 /** What the renderer tracks per animated body (render-side state only). */
@@ -27,7 +31,13 @@ export interface AnimInput {
   skill: number; // #156: seconds since the utility ability was used (Infinity: not yet)
   hurt: number; // seconds since last hurt (Infinity: not hurt)
   dead: number; // seconds since death (Infinity: alive)
+  windup?: number; // #158: 0..1 through a telegraph winding up (undefined: none)
+  sinceSpecial?: number; // #158: seconds since the telegraph fired (Infinity: none)
+  sincePhase?: number; // #158: seconds since a boss entered a new phase (Infinity: none)
 }
+
+/** #158: a boss flinches from a hit at most this often (seconds), or it would never stop flinching. */
+export const FLINCH_EVERY = 1.5;
 
 /** Distance a full walk cycle covers at art scale 1: 8 frames at 100 ms at the base walk speed. */
 export const WALK_STRIDE = 0.8;
@@ -56,6 +66,15 @@ export function pickFrame(d: SheetData, s: AnimInput, baseSpeed: number): { anim
   const a = d.anims;
   if (s.dead < Infinity) return { anim: 'death', frame: frameAt(a.death, s.dead * 1000, false) };
   const sum = (ms: number[]) => ms.reduce((x, y) => x + y, 0);
+  // #158: entering a new phase, a boss rallies: the pose plays through once, over everything but death
+  if (a.phase && (s.sincePhase ?? Infinity) * 1000 < sum(a.phase)) return { anim: 'phase', frame: frameAt(a.phase, s.sincePhase! * 1000, false) };
+  if (a.special) {
+    // #158: the special winds up over the whole telegraph, however long, and holds its last wind-up frame until it fires
+    const imp = d.specialImpact ?? 0, pre = a.special.slice(0, imp), post = a.special.slice(imp);
+    const preMs = pre.reduce((x, y) => x + y, 0), postMs = post.reduce((x, y) => x + y, 0);
+    if (s.windup !== undefined && imp > 0) return { anim: 'special', frame: frameAt(pre, Math.min(s.windup, 0.999) * preMs, false) };
+    if ((s.sinceSpecial ?? Infinity) * 1000 < postMs) return { anim: 'special', frame: imp + frameAt(post, s.sinceSpecial! * 1000, false) };
+  }
   if (a.skill && s.skill * 1000 < sum(a.skill)) return { anim: 'skill', frame: frameAt(a.skill, s.skill * 1000, false) }; // #156: legs don't run through a leap or a roll
   if (a.cast && s.cast * 1000 < sum(a.cast)) return { anim: 'cast', frame: frameAt(a.cast, s.cast * 1000, false) }; // #156: the ability outranks a swing
   const post = a.attack.slice(d.impact), postMs = sum(post);

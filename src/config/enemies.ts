@@ -255,7 +255,7 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   },
   // ---- v0.6: the end of the run (config/acts.ts FINAL, systems/bosses.ts) ----
   usurper: {
-    ...boss, id: 'usurper', name: 'The Usurper', sprite: 'usurper', behavior: 'chaser', scale: 5, phases: 3,
+    ...boss, id: 'usurper', name: 'The Usurper', sprite: 'usurper', behavior: 'chaser', phases: 3, // #158: the boss scale (4); his sheet is drawn the tallest of all
     hp: 3000, damage: 26, speed: 86, radius: 34, xp: 250, specialCd: 3.4, specialMult: 1.6, p2SpeedMult: 1.15, // v0.6 balance pass: 4000 -> 3000, as Act IV scaling rose ~35% (BALANCE.md). specialCd: his first attack; then FINAL.usurper.specialCd per phase
   },
   // his ward's anchors: three braziers on stands; while one burns he cannot be hurt

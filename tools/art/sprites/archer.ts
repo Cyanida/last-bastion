@@ -20,8 +20,8 @@ function archer(p: Pose): Figure {
   });
 
   const skirt = torso.child(0, -3, p.skirt);
-  f.part(skirt, [[-6.6, 0], [6.8, 0], [7.6, 8], [-7.2, 8]], 'moss', 3.0, { folds: [0.5, 3, 0] }); // gambeson skirt
-  f.part(torso, [[-7.2, -17.5], [6.8, -17.5], [7.6, -10], [7, -3], [-6.6, -3], [-7.6, -10]], 'moss', 3.1, { folds: [0.6, 2.5, 1] }); // quilted gambeson
+  f.part(skirt, [[-6.6, 0], [6.8, 0], [7.6, 8], [-7.2, 8]], 'fern', 3.0, { folds: [0.5, 3, 0] }); // gambeson skirt
+  f.part(torso, [[-7.2, -17.5], [6.8, -17.5], [7.6, -10], [7, -3], [-6.6, -3], [-7.6, -10]], 'fern', 3.1, { folds: [0.6, 2.5, 1] }); // quilted gambeson
   f.part(torso, [[-7, -5], [7.4, -5], [7.4, -2.6], [-7, -2.6]], 'leather', 3.5); // belt
   f.part(torso, [[1, -5.4], [3.4, -5.4], [3.4, -2.2], [1, -2.2]], 'steel', 3.6);
   f.part(torso, [[-5, -17], [-3, -17], [6, -4.5], [4, -4.5]], 'leather', 3.55, { profile: 'flat' }); // quiver strap
@@ -35,7 +35,7 @@ function archer(p: Pose): Figure {
   const fsh = torso.at(-4, -15);
   const off: Pt = [fsh[0] + p.off[0], fsh[1] + p.off[1]];
   const [fup, ffo] = arm(fsh, off);
-  f.part(fup, [[-2.5, -1], [2.5, -1], [2.2, 8], [-2.2, 8]], 'moss', 2.5, { dim: 1 });
+  f.part(fup, [[-2.5, -1], [2.5, -1], [2.2, 8], [-2.2, 8]], 'fern', 2.5, { dim: 1 });
   f.part(ffo, [[-2.2, -0.5], [2.2, -0.5], [2, 6.5], [-2, 6.5]], 'leather', 2.6, { dim: 1 });
   const bow = new Bone(off[0], off[1], p.offA);
   const bowPts: [number, number][] = [];
@@ -65,7 +65,7 @@ function archer(p: Pose): Figure {
     f.part(world, line(nock, bow.at(8, 0)), 'leather', 7.7, { profile: 'flat', outline: false }); // the arrow on the string
     f.part(new Bone(...bow.at(8, 0), -Math.PI / 2), [[-1.6, -0.5], [1.6, -0.5], [0, 3.2]], 'steel', 7.75); // arrowhead
   }
-  f.part(up, [[-2.6, -1], [2.6, -1], [2.3, 8], [-2.3, 8]], 'moss', 7.8);
+  f.part(up, [[-2.6, -1], [2.6, -1], [2.3, 8], [-2.3, 8]], 'fern', 7.8);
   f.part(fo, [[-2.3, -0.5], [2.3, -0.5], [2.1, 6.4], [-2.1, 6.4]], 'leather', 7.9); // bracer
   f.part(new Bone(fist[0], fist[1]), ell(0, 0, 1.8, 1.8), 'tan', 8);
   return f;

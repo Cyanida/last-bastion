@@ -26,13 +26,21 @@ export const RAMPS = {
   coal: ['#0c0b0e', '#17151b', '#221f27', '#2f2b35', '#403a48', '#57505f', '#7a7282'], // dark cloth: robes, hoods, coats
   poison: ['#16300d', '#2c5a14', '#48861d', '#6cb02a', '#94d044', '#bfe67a', '#e8fbc0'], // the poison trail and clouds
   ember: ['#4a1406', '#86260a', '#c2410f', '#ec6a17', '#fb9a2c', '#ffc95a', '#fff1b8'], // #157: the fire trail and sparks
+  // #158: the bosses
+  flesh: ['#2b140e', '#4f2618', '#7a3f27', '#a35e3b', '#c47f55', '#dea276', '#f2c79d'], // #158
+  hide: ['#171210', '#2b221c', '#43362b', '#5e4c3b', '#7b6650', '#9a8469', '#b8a386'], // #158
+  violet: ['#150a22', '#2a1242', '#43205f', '#5e3280', '#7c4a9f', '#9d6bbd', '#c79be0'], // #158
+  soulfire: ['#2a0f45', '#4d1f7a', '#7a3fb0', '#a66ad8', '#c99bf0', '#e6cffb', '#ffffff'], // #158: shadow magic, the trail colour
+  flame: ['#5a1a06', '#8f2e08', '#c24d0c', '#e8761a', '#f6a23a', '#fcd070', '#fff4c4'], // #158: fire, the trail colour
+  venom: ['#10240c', '#1f4214', '#33651c', '#4d8a26', '#6fae34', '#9dd052', '#d4f08c'], // #158: poison, the trail colour
+  moss: ['#12160f', '#1f261a', '#303a28', '#434f38', '#59664a', '#737f5f', '#959f7d'], // #158: the Plague Abbot's habit
   smear: ['#9fb4d0', '#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
   // #156: the other champions
   tan: ['#2b150e', '#5a2f1f', '#8a4d33', '#b87354', '#d6966f', '#ecb993', '#f8dcc0'],
   pelt: ['#1a1410', '#33281f', '#4d3e30', '#6b5843', '#8a7459', '#a8927a', '#c9b79f'],
   bone: ['#2a2419', '#534833', '#807154', '#a99a78', '#cabd98', '#e4dbbd', '#fbf6e4'],
-  violet: ['#120a1c', '#241335', '#361d4f', '#4c2a6b', '#663d88', '#8657a6', '#a97cc4'],
-  moss: ['#0c1a10', '#16301c', '#23472a', '#34623a', '#4a7f4c', '#6b9e62', '#9cc58a'],
+  amethyst: ['#120a1c', '#241335', '#361d4f', '#4c2a6b', '#663d88', '#8657a6', '#a97cc4'],
+  fern: ['#0c1a10', '#16301c', '#23472a', '#34623a', '#4a7f4c', '#6b9e62', '#9cc58a'],
   necro: ['#0f3a26', '#1b6b43', '#2fa062', '#58c985', '#8fe3ad', '#c6f5d6', '#ffffff'],
   hair: ['#2a1206', '#4f220b', '#7a3a12', '#a85a1c', '#cf7f2e', '#e8a54c', '#f6cc7e'],
   shade: ['#1c0f2e', '#3a1d5c', '#5a2f8a', '#7d4fb3', '#a57ad6', '#cbaaf0', '#f0e2ff'],

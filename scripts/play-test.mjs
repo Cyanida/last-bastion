@@ -1271,13 +1271,14 @@ await check('flash card: a new foe shows one with its sprite and a spotlight on 
 
 // #138 part 3: the siege pieces and the bosses are on the finer grid too; their card pictures (the same ones a flash card shows) keep the
 // old grid's size at their own scale, and the Siege Camp and the Plague Cart show their own pictures
-await check('card pictures: siege pieces and bosses redrawn at their old size, the Siege Camp and the Plague Cart their own', () =>
+// #158: a boss with a rigged sheet shows its rigged figure instead, bigger than the old grid (the flash card fits it to 96 px)
+await check('card pictures: siege pieces and bosses redrawn at their old size (rigged bosses bigger), the Siege Camp and the Plague Cart their own', () =>
   inPage(() => location.reload()).then(async () => {
-    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('blackKnight'));
     return inPage(async () => {
       const lb = window.__lb, wait = (ms = 100) => new Promise((r) => setTimeout(r, ms));
       // [id, sprite, old columns, old rows, arena scale]
-      const want = [['ballista', 'ballista', 14, 10, 3], ['siegeTower', 'siegeTower', 16, 18, 4], ['blackKnight', 'blackKnight', 16, 18, 4], ['warlord', 'warlord', 16, 18, 4], ['lich', 'lich', 16, 18, 4], ['inquisitor', 'inquisitor', 16, 18, 4], ['abbot', 'abbot', 16, 18, 4], ['dragon', 'dragon', 29, 18, 4], ['warden', 'warden', 16, 18, 4], ['usurper', 'usurper', 16, 18, 5], ['royalFlame', 'royalFlame', 12, 14, 4]];
+      const want = [['ballista', 'ballista', 14, 10, 3], ['siegeTower', 'siegeTower', 16, 18, 4], ['blackKnight', 'blackKnight', 16, 18, 4], ['warlord', 'warlord', 16, 18, 4], ['lich', 'lich', 16, 18, 4], ['inquisitor', 'inquisitor', 16, 18, 4], ['abbot', 'abbot', 16, 18, 4], ['dragon', 'dragon', 29, 18, 4], ['warden', 'warden', 16, 18, 4], ['usurper', 'usurper', 16, 18, 4], ['royalFlame', 'royalFlame', 12, 14, 4]];
       const had = [...lb.save.cards];
       lb.save.cards.push(...[...want.map(([id]) => id), 'siegeCamp', 'plagueCart'].filter((id) => !had.includes(id)));
       document.querySelector('[data-go="keep"]').click();
@@ -1290,8 +1291,9 @@ await check('card pictures: siege pieces and bosses redrawn at their old size, t
       document.querySelector('[data-back]')?.click();
       await wait();
       lb.save.cards.splice(0, lb.save.cards.length, ...had);
-      const rigged = lb.sheets(); // #157: a redrawn piece shows its rigged figure instead, 1 art px to 1 world px
-      const wrong = want.filter(([id, , c, r, s]) => (rigged.includes(id) ? !(pics.get(id)?.[1] >= 30 && pics.get(id)?.[1] <= 120) : pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4)).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
+      const rigged = lb.sheets(); // #157: a redrawn siege piece shows its rigged figure, 1 art px to 1 world px; #158: a rigged boss, bigger than the old grid
+      const boss = (id) => !['ballista', 'siegeTower'].includes(id);
+      const wrong = want.filter(([id, , c, r, s]) => (rigged.includes(id) ? !(boss(id) ? pics.get(id)?.[1] > r * s + 4 : pics.get(id)?.[1] >= 30 && pics.get(id)?.[1] <= 120) : pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4)).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
       const own = ['siegeCamp', 'plagueCart'].every((id) => pics.has(id)) && pics.get('siegeCamp')[2] !== pics.get('siegeTower')?.[2] && pics.get('plagueCart')[2] !== pics.get('ballista')?.[2];
       const ok = wrong.length === 0 && own && lb.state === 'menu';
       return { ok, detail: `${want.map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×')}`).join(', ')}${wrong.length ? ` · WRONG ${wrong}` : ''} · camp ${pics.get('siegeCamp')?.slice(0, 2).join('×')}, cart ${pics.get('plagueCart')?.slice(0, 2).join('×')}${own ? '' : ' (NOT THEIR OWN)'}` };
@@ -1863,6 +1865,104 @@ await check("Allies: raised skeletons walk and strike, the Angel's decoy and the
   const ok = bones.has('walk') && bones.has('attack') && !decoy.has('none') && decoy.has('idle') && shade.has('attack'); // the shade fades after a few seconds
   return { ok, detail: `skeleton: ${[...bones].join('/')}; decoy: ${[...decoy].join('/')}; shade: ${[...shade].join('/')}` };
 });
+
+// ---------- #158: every boss loads its sheet, the gallery plays each one's special, and the Usurper stands tallest ----------
+await check('Boss sheets: all eight bosses and the Royal Flame load and play their special and phase pose in the gallery; the Usurper is the tallest (#158)', () =>
+  inPage(() => location.reload()).then(async () => {
+    const bosses = ['blackKnight', 'warlord', 'lich', 'inquisitor', 'abbot', 'dragon', 'warden', 'usurper'];
+    await page.waitForFunction((ids) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ids.every((id) => window.__lb.sheets().includes(id)), {}, [...bosses, 'royalFlame']).catch(() => {});
+    return inPage(async (bosses) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const loaded = window.__lb.sheets();
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      // the figure's height in the gallery (every boss is drawn at the same scale in the arena): opaque rows of its idle, at its
+      // tallest over the loop (the canvas shows whichever idle frame is up, and the bob moves the figure by a few pixels)
+      const tall = (id) => {
+        const c = document.querySelector(`[data-sheet="${id}"][data-anim="idle"]`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let top = -1, bot = -1;
+        for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3]) { if (top < 0) top = y; bot = y; break; }
+        return bot - top + 1;
+      };
+      const h = {};
+      const frames = {}, phase = {};
+      for (let i = 0; i < 25; i++) {
+        for (const id of bosses) if (id !== 'dragon') h[id] = Math.max(h[id] ?? 0, tall(id));
+        for (const id of bosses) for (const c of document.querySelectorAll(`[data-sheet="${id}"][data-anim="special"]`)) (frames[id] ??= new Set()).add(c.dataset.frame);
+        for (const id of bosses) for (const c of document.querySelectorAll(`[data-sheet="${id}"][data-anim="phase"]`)) (phase[id] ??= new Set()).add(c.dataset.frame);
+        await wait(80);
+      }
+      document.querySelector('.testmode [data-back]').click();
+      await wait(100);
+      document.querySelector('[data-act="back"]').click();
+      await wait(100);
+      const missing = [...bosses, 'royalFlame'].filter((id) => !loaded.includes(id));
+      const still = bosses.filter((id) => !(frames[id]?.size > 1));
+      const noPhase = bosses.filter((id) => !(phase[id]?.size > 1));
+      const tallest = Object.entries(h).every(([id, v]) => id === 'usurper' || h.usurper > v * 1.1);
+      return { ok: !missing.length && !still.length && !noPhase.length && tallest, detail: `missing [${missing}]; special not playing [${still}]; phase not playing [${noPhase}]; heights ${Object.entries(h).map(([k, v]) => `${k} ${v}`).join(', ')}` };
+    }, bosses);
+  }),
+);
+
+// ---------- #158: a boss with a rigged sheet walks, winds up its special over the telegraph, releases it, and falls ----------
+await check('Black Knight sheet: walks, winds up and releases his charge on its telegraph, rallies into his second phase, then falls (#158)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('blackKnight'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', 'paladin');
+      set('tm-arena', 'courtyard');
+      set('tm-act', '1');
+      set('tm-wave', '5'); // the courtyard's wave boss
+      window.__startTest().player.invulnerable = true;
+    });
+    const boss = () => inPage(() => {
+      const lb = window.__lb, g = lb.game;
+      for (let i = 0; i < 1200 && !g.enemies.some((e) => e.def.id === 'blackKnight'); i++) lb.run(1, false, 'input');
+      return g.enemies.some((e) => e.def.id === 'blackKnight');
+    });
+    if (!(await boss())) return { ok: false, detail: 'no Black Knight came' };
+    const seen = [];
+    const sample = async (ms) => {
+      for (let t = 0; t < ms; t += 50) {
+        const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('blackKnight')?.anim))))));
+        if (a && seen[seen.length - 1] !== a) seen.push(a);
+      }
+    };
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, e = g.enemies.find((x) => x.def.id === 'blackKnight');
+      for (const o of g.enemies) if (o !== e) o.hp = 0.01, o.x = p.x + 3000; // the escort out of the way
+      Object.assign(e, { x: p.x + 300, y: p.y, special: 0.6, hp: 1e6, maxHp: 1e6 }); // his charge comes soon
+    });
+    await sample(4000);
+    await inPage(() => {
+      const e = window.__lb.game.enemies.find((x) => x.def.id === 'blackKnight');
+      Object.assign(e, { hp: e.maxHp * 0.45, state: 0, special: 99, telegraph: null }); // below half: his second phase (out of any wind-up: it reads its telegraph)
+    });
+    await sample(800);
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, e = g.enemies.find((x) => x.def.id === 'blackKnight');
+      Object.assign(e, { x: p.x + 40, y: p.y, hp: 1, maxHp: 1e6, state: 0, special: 99, telegraph: null }); // into the Paladin's reach, one blow from death
+    });
+    let fell = [];
+    for (let i = 0; i < 60 && !fell.includes('blackKnight'); i++) fell = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => r(window.__lb.foesDying())))));
+    const ok = ['walk', 'special', 'phase'].every((a) => seen.includes(a)) && fell.includes('blackKnight');
+    return { ok, detail: `${seen.join(' → ')}; fallen [${fell.join(', ')}]` };
+  }),
+);
 
 // ---------- #157: the foes' rigged sheets: a peasant walks up, jabs on his wind-up, and falls when slain ----------
 await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#157)', () =>

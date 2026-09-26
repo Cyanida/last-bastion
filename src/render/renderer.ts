@@ -8,7 +8,7 @@ import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
 import type { Enemy, Game, Minion, Player } from '../core/types';
-import { foeUntilHit, frameAt, pickFrame, swingTrail, type AnimInput, type AnimName } from '../logic/animation';
+import { FLINCH_EVERY, foeUntilHit, frameAt, pickFrame, swingTrail, type AnimInput, type AnimName } from '../logic/animation';
 import { nearestEnemy } from '../systems/combat';
 import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
@@ -110,7 +110,7 @@ function playerSprite(g: Game, p: Player, scale: number): Sprite {
  * #157: the foes' animations, the same way: read from each foe's position, timers and HP, kept here per foe (render side only).
  * A slain foe leaves the game at once, so its death plays from `dying`, under the living.
  */
-interface FoeAnim { x: number; y: number; walked: number; timer: number; shot: number; hitAt: number; cd: number; hp: number; hurtAt: number; gone: boolean; now: { anim: AnimName; frame: number } }
+interface FoeAnim { x: number; y: number; walked: number; timer: number; shot: number; hitAt: number; cd: number; hp: number; hurtAt: number; gone: boolean; wind: number; windMax: number; firedAt: number; phase: number; phaseAt: number; now: { anim: AnimName; frame: number } }
 const foeAnims = new WeakMap<Enemy, FoeAnim>();
 const foes = { game: null as Game | null, drawn: [] as Enemy[], dying: [] as { e: Enemy; at: number; scale: number }[] };
 export const foeAnim = (id: string): { anim: string; frame: number } | null => {
@@ -125,13 +125,22 @@ function foeSprite(g: Game, e: Enemy): Sprite | null {
   const id = e.def.sprite, d = SHEETS[id];
   if (!d) return null;
   let a = foeAnims.get(e);
-  if (!a) foeAnims.set(e, (a = { x: e.x, y: e.y, walked: 0, timer: e.attackTimer, shot: e.timer, hitAt: -Infinity, cd: e.def.attackCd, hp: e.hp, hurtAt: -Infinity, gone: false, now: { anim: 'idle', frame: 0 } }));
+  if (!a) foeAnims.set(e, (a = { x: e.x, y: e.y, walked: 0, timer: e.attackTimer, shot: e.timer, hitAt: -Infinity, cd: e.def.attackCd, hp: e.hp, hurtAt: -Infinity, gone: false, wind: 0, windMax: 0, firedAt: -Infinity, phase: e.phase, phaseAt: -Infinity, now: { anim: 'idle', frame: 0 } }));
   const step = Math.hypot(e.x - a.x, e.y - a.y);
   if (step < 64) a.walked += step;
   const shooter = e.def.fireCd !== undefined && e.def.range !== undefined;
   if (e.attackTimer > a.timer + 1e-6) (a.hitAt = g.time), (a.cd = e.def.attackCd); // swung
   if (shooter && e.timer > a.shot + e.def.fireCd! * 0.5) (a.hitAt = g.time), (a.cd = e.def.fireCd!); // loosed a bolt
-  if (e.hp < a.hp) a.hurtAt = g.time;
+  // #158: a boss (a sheet with a special) flinches at most every FLINCH_EVERY s, and winds its special up over the telegraph:
+  // its own clock when it has one (a line), else how much of the zone wind-up is left
+  const special = d.anims.special !== undefined;
+  if (e.hp < a.hp && (!special || g.time - a.hurtAt > FLINCH_EVERY)) a.hurtAt = g.time;
+  const tele = e.telegraph, winding = special && (e.windupT > 0 || tele !== null);
+  if (winding) {
+    a.windMax = Math.max(a.windMax, e.windupT);
+    a.wind = tele ? tele.t / Math.max(tele.dur, 1e-6) : 1 - e.windupT / Math.max(a.windMax, 1e-6);
+  } else if (a.windMax > 0 || a.wind > 0) (a.firedAt = g.time), (a.wind = 0), (a.windMax = 0);
+  if (e.phase > a.phase) (a.phase = e.phase), (a.phaseAt = g.time); // #158: a boss enters a new phase: its rally pose
   const p = g.player;
   const dist = Math.hypot(p.x - e.x, p.y - e.y);
   const s: AnimInput = {
@@ -145,6 +154,9 @@ function foeSprite(g: Game, e: Enemy): Sprite | null {
     skill: Infinity,
     hurt: g.time - a.hurtAt,
     dead: Infinity,
+    windup: winding ? a.wind : undefined,
+    sinceSpecial: g.time - a.firedAt,
+    sincePhase: g.time - a.phaseAt,
   };
   Object.assign(a, { x: e.x, y: e.y, timer: e.attackTimer, shot: e.timer, hp: e.hp });
   foes.drawn.push(e);
