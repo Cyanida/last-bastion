@@ -116,9 +116,9 @@ function dragon(p: Pose): Figure {
   // the jaw hangs from the back of the head and opens down
   const jaw = head.child(-2, 2, p.jaw);
   f.part(jaw, [[-2, -1], [14, 0], [15, 2], [12, 3.5], [-1, 3]], 'red', 4.9, { dim: 1, details: [[4, -0.5, 'white', 5], [8, -0.5, 'white', 5], [12, 0, 'white', 5]] });
-  if (p.gather) f.part(jaw, ell(6, 0, 3 * p.gather + 1, 1.5 * p.gather + 0.5, 12), 'fire', 4.95, { outline: false }); // fire in the throat
+  if (p.gather) f.part(jaw, ell(6, 0, 3 * p.gather + 1, 1.5 * p.gather + 0.5, 12), 'flame', 4.95, { outline: false }); // fire in the throat
   f.part(head, [[-5, -4], [0, -6], [8, -5], [16, -2.5], [17, 0], [14, 2], [2, 3], [-5, 2]], 'red', 5, {
-    details: [[5, -3, 'fire', 6], [6, -3, 'fire', 5], [15, -1.5, 'red', 1], [4, 1.5, 'white', 5], [9, 1.5, 'white', 5]],
+    details: [[5, -3, 'flame', 6], [6, -3, 'flame', 5], [15, -1.5, 'red', 1], [4, 1.5, 'white', 5], [9, 1.5, 'white', 5]],
   }); // skull and snout: a burning eye, a nostril, teeth
   f.part(head, [[3, -5], [8, -5.5], [7, -6.8], [3.5, -6.2]], 'red', 5.05, { dim: 1 }); // brow ridge
   f.part(head.child(-3, -4, -0.9), [[-1.5, 0], [1.5, 0], [0, -9]], 'white', 4.8, { dim: 1 }); // far horn
@@ -129,7 +129,7 @@ function dragon(p: Pose): Figure {
     const m = jaw.at(15, -1), a = ha + p.jaw * 0.5, L = p.breath;
     const cone = new Bone(m[0], m[1], a - Math.PI / 2);
     const s = L * 0.28;
-    f.part(cone, [[0, -1.5], [s * 0.5, L * 0.3], [s * 0.8, L * 0.6], [s * 1.2, L * 0.85], [s * 0.4, L], [-s * 0.3, L * 0.9], [-s * 1.1, L * 0.75], [-s * 0.7, L * 0.4], [-2, 0]], 'fire', 12, { profile: 'flat', outline: false });
+    f.part(cone, [[0, -1.5], [s * 0.5, L * 0.3], [s * 0.8, L * 0.6], [s * 1.2, L * 0.85], [s * 0.4, L], [-s * 0.3, L * 0.9], [-s * 1.1, L * 0.75], [-s * 0.7, L * 0.4], [-2, 0]], 'flame', 12, { profile: 'flat', outline: false });
     f.part(cone, [[0, 0], [s * 0.35, L * 0.4], [0, L * 0.7], [-s * 0.4, L * 0.45]], 'glow', 12.1, { profile: 'flat', outline: false }); // white-hot core
   }
 

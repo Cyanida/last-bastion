@@ -15,17 +15,35 @@ export const RAMPS = {
   blue: ['#0b1331', '#142459', '#1e3a86', '#2b58b4', '#4480d9', '#77aaf0', '#c2dcff'],
   leather: ['#1e110a', '#3a2114', '#56321c', '#744627', '#935f37', '#b27b4c', '#d09d6d'],
   glow: ['#6b5516', '#a88a2b', '#d6bb50', '#f0dc82', '#fff2b0', '#fffadd', '#ffffff'],
-  skin: ['#2b140e', '#4f2618', '#7a3f27', '#a35e3b', '#c47f55', '#dea276', '#f2c79d'], // #158
-  fur: ['#171210', '#2b221c', '#43362b', '#5e4c3b', '#7b6650', '#9a8469', '#b8a386'], // #158
-  purple: ['#150a22', '#2a1242', '#43205f', '#5e3280', '#7c4a9f', '#9d6bbd', '#c79be0'], // #158
-  soul: ['#2a0f45', '#4d1f7a', '#7a3fb0', '#a66ad8', '#c99bf0', '#e6cffb', '#ffffff'], // #158: shadow magic, the trail colour
-  fire: ['#5a1a06', '#8f2e08', '#c24d0c', '#e8761a', '#f6a23a', '#fcd070', '#fff4c4'], // #158: fire, the trail colour
-  poison: ['#10240c', '#1f4214', '#33651c', '#4d8a26', '#6fae34', '#9dd052', '#d4f08c'], // #158: poison, the trail colour
+  // #157: the foes
+  skin: ['#2a1612', '#4e2b22', '#7a4636', '#a8664c', '#c98a66', '#e2ad86', '#f4d2ae'],
+  wool: ['#1c1712', '#342a1f', '#4f4030', '#6b5942', '#877356', '#a38f6d', '#c4b18c'],
+  straw: ['#2e2210', '#5a4318', '#86662a', '#b08d3e', '#cfae5a', '#e6cc80', '#f7e8b4'],
+  green: ['#0d1a12', '#18301f', '#25472c', '#35613a', '#4b7f4a', '#6e9e62', '#a3c58c'],
+  fur: ['#16161a', '#2a2a31', '#43434c', '#5f5f69', '#7e7e86', '#a2a1a4', '#cfccc6'],
+  black: ['#08090c', '#111318', '#1a1d24', '#252a33', '#343a45', '#4a5261', '#8a93a3'], // blackened steel: the foes' plate
+  purple: ['#150a1f', '#28123a', '#3e1d57', '#562a76', '#734096', '#935fb4', '#c49ad8'],
+  coal: ['#0c0b0e', '#17151b', '#221f27', '#2f2b35', '#403a48', '#57505f', '#7a7282'], // dark cloth: robes, hoods, coats
+  poison: ['#16300d', '#2c5a14', '#48861d', '#6cb02a', '#94d044', '#bfe67a', '#e8fbc0'], // the poison trail and clouds
+  ember: ['#4a1406', '#86260a', '#c2410f', '#ec6a17', '#fb9a2c', '#ffc95a', '#fff1b8'], // #157: the fire trail and sparks
+  // #158: the bosses
+  flesh: ['#2b140e', '#4f2618', '#7a3f27', '#a35e3b', '#c47f55', '#dea276', '#f2c79d'], // #158
+  hide: ['#171210', '#2b221c', '#43362b', '#5e4c3b', '#7b6650', '#9a8469', '#b8a386'], // #158
+  violet: ['#150a22', '#2a1242', '#43205f', '#5e3280', '#7c4a9f', '#9d6bbd', '#c79be0'], // #158
+  soulfire: ['#2a0f45', '#4d1f7a', '#7a3fb0', '#a66ad8', '#c99bf0', '#e6cffb', '#ffffff'], // #158: shadow magic, the trail colour
+  flame: ['#5a1a06', '#8f2e08', '#c24d0c', '#e8761a', '#f6a23a', '#fcd070', '#fff4c4'], // #158: fire, the trail colour
+  venom: ['#10240c', '#1f4214', '#33651c', '#4d8a26', '#6fae34', '#9dd052', '#d4f08c'], // #158: poison, the trail colour
   moss: ['#12160f', '#1f261a', '#303a28', '#434f38', '#59664a', '#737f5f', '#959f7d'], // #158: the Plague Abbot's habit
   smear: ['#9fb4d0', '#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
+  // #159: the arenas' props
+  stone: ['#1b1a20', '#302f38', '#46454e', '#605e64', '#7e7b76', '#a19c90', '#c9c2b0'],
+  bark: ['#130d0a', '#231812', '#34241a', '#483325', '#5d4431', '#755940', '#927559'],
+  soul: ['#0c2a33', '#155066', '#2182a0', '#3eb1cc', '#7ed8e8', '#c2f1f8', '#ffffff'],
+  fire: ['#5a1a06', '#9a3208', '#d4560f', '#f08a1c', '#f8b73c', '#fde38a', '#fffbe0'],
+  rot: ['#10170f', '#1f2b1d', '#34452f', '#4f6547', '#6d8763', '#94ab86', '#c6d6b4'], // the Graveyard's grasping hands
 } as const;
 export type Material = keyof typeof RAMPS;
-const METALS = new Set<Material>(['steel', 'darksteel', 'gold']);
+const METALS = new Set<Material>(['steel', 'darksteel', 'gold', 'black']);
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
 
 export type Pt = readonly [number, number];

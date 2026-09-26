@@ -23,10 +23,10 @@ function brazier(p: Pose): Figure {
   if (p.fire > 0) {
     const h = 24 * p.fire, s = p.sway;
     const flame: Pt[] = [[-9, -27], [9, -27], [8, -27 - h * 0.35], [4 + s, -27 - h * 0.6], [5 + s * 1.5, -27 - h * 0.8], [1 + s * 2, -27 - h], [-1 + s, -27 - h * 0.7], [-4 + s * 1.5, -27 - h * 0.85], [-5 + s, -27 - h * 0.5], [-8, -27 - h * 0.3]];
-    f.part(base, flame, 'fire', 4, { profile: 'flat' });
+    f.part(base, flame, 'flame', 4, { profile: 'flat' });
     f.part(base, [[-5, -27], [5, -27], [3 + s, -27 - h * 0.45], [0 + s * 1.5, -27 - h * 0.65], [-3 + s, -27 - h * 0.4]], 'glow', 4.1, { profile: 'flat', outline: false }); // white-hot heart
   }
-  for (let k = 0; k < p.embers; k++) f.part(new Bone(0, 0), ell(X0 - 6 + k * 5 + p.sway, GROUND - 48 + ((k * 7) % 5), 0.9, 0.9, 6), 'fire', 5, { outline: false });
+  for (let k = 0; k < p.embers; k++) f.part(new Bone(0, 0), ell(X0 - 6 + k * 5 + p.sway, GROUND - 48 + ((k * 7) % 5), 0.9, 0.9, 6), 'flame', 5, { outline: false });
   return f;
 }
 

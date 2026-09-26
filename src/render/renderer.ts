@@ -1,3 +1,4 @@
+import type { ArenaDef } from '../config/arenas';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GAME, RENDER } from '../config/game';
 import { MODIFIERS } from '../config/waves';
@@ -7,13 +8,13 @@ import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
 import type { Enemy, Game, Player } from '../core/types';
-import { FLINCH_EVERY, pickFrame, type AnimInput, type AnimName } from '../logic/animation';
+import { FLINCH_EVERY, foeUntilHit, frameAt, pickFrame, type AnimInput, type AnimName } from '../logic/animation';
 import { nearestEnemy } from '../systems/combat';
 import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
 import { QUESTS } from '../config/quests';
 import { eventMarks, questMarks, type Mark } from '../logic/quests';
-import { wallPattern } from './arena';
+import { drawProp, FEATURE_PROPS, propFrame, wallPattern } from './arena';
 import { digitGlyphs, fogSprite, getSprite, SHEETS, sheetSprite, glyphIndex, isNumeric, outlineSprite, ringSprite, shadowSprite, textSprite, type Sprite } from './sprites';
 import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
@@ -102,80 +103,76 @@ function playerSprite(g: Game, p: Player, scale: number): Sprite {
 }
 
 /**
- * #158: a foe with a rigged sheet (the bosses) animates the same way, read from its own state on the render side: its telegraph
- * winds up the special, a touch attack swings, a hit makes it flinch (at most every FLINCH_EVERY s), and when it falls its body
- * stays behind to play the death (the game has already let it go).
+ * #157: the foes' animations, the same way: read from each foe's position, timers and HP, kept here per foe (render side only).
+ * A slain foe leaves the game at once, so its death plays from `dying`, under the living.
  */
-interface FoeAnim { x: number; y: number; walked: number; movedAt: number; timer: number; hitAt: number; hp: number; hurtAt: number; wind: number; windMax: number; firedAt: number; now: { anim: AnimName; frame: number } }
-const foeAnims = new Map<Enemy, FoeAnim>();
-const fallen: { e: Enemy; at: number; now: FoeAnim['now'] }[] = [];
-let foeGame: Game | null = null;
+interface FoeAnim { x: number; y: number; walked: number; timer: number; shot: number; hitAt: number; cd: number; hp: number; hurtAt: number; gone: boolean; wind: number; windMax: number; firedAt: number; now: { anim: AnimName; frame: number } }
+const foeAnims = new WeakMap<Enemy, FoeAnim>();
+const foes = { game: null as Game | null, drawn: [] as Enemy[], dying: [] as { e: Enemy; at: number; scale: number }[] };
 export const foeAnim = (id: string): { anim: string; frame: number } | null => {
-  for (const [e, a] of foeAnims) if (e.def.sprite === id) return a.now;
+  // for the play test: the first living foe of this kind that has an animation
+  for (const e of foes.game?.enemies ?? []) if (e.def.sprite === id && foeAnims.has(e)) return foeAnims.get(e)!.now;
   return null;
-}; // for the play test
+};
+export const foesDying = (): string[] => foes.dying.map((d) => d.e.def.sprite); // for the play test
+const foeScale = (e: Enemy): number => e.def.scale + (e.elite ? ELITES.scaleBonus : 0);
 
-function foeSprite(g: Game, e: Enemy, scale: number): Sprite | null {
-  const d = SHEETS[e.def.sprite];
+function foeSprite(g: Game, e: Enemy): Sprite | null {
+  const id = e.def.sprite, d = SHEETS[id];
   if (!d) return null;
   let a = foeAnims.get(e);
-  if (!a) foeAnims.set(e, (a = { x: e.x, y: e.y, walked: 0, movedAt: -Infinity, timer: e.attackTimer, hitAt: -Infinity, hp: e.hp, hurtAt: -Infinity, wind: 0, windMax: 0, firedAt: -Infinity, now: { anim: 'idle', frame: 0 } }));
+  if (!a) foeAnims.set(e, (a = { x: e.x, y: e.y, walked: 0, timer: e.attackTimer, shot: e.timer, hitAt: -Infinity, cd: e.def.attackCd, hp: e.hp, hurtAt: -Infinity, gone: false, wind: 0, windMax: 0, firedAt: -Infinity, now: { anim: 'idle', frame: 0 } }));
   const step = Math.hypot(e.x - a.x, e.y - a.y);
-  if (step > 0.01) a.movedAt = g.time;
   if (step < 64) a.walked += step;
-  if (e.attackTimer > a.timer + 1e-6) a.hitAt = g.time;
-  if (e.hp < a.hp && g.time - a.hurtAt > FLINCH_EVERY) a.hurtAt = g.time;
-  // the telegraph: its own clock when it has one (a line), else how much of the zone wind-up is left
-  const tele = e.telegraph, winding = e.windupT > 0 || tele !== null;
+  const shooter = e.def.fireCd !== undefined && e.def.range !== undefined;
+  if (e.attackTimer > a.timer + 1e-6) (a.hitAt = g.time), (a.cd = e.def.attackCd); // swung
+  if (shooter && e.timer > a.shot + e.def.fireCd! * 0.5) (a.hitAt = g.time), (a.cd = e.def.fireCd!); // loosed a bolt
+  // #158: a boss (a sheet with a special) flinches at most every FLINCH_EVERY s, and winds its special up over the telegraph:
+  // its own clock when it has one (a line), else how much of the zone wind-up is left
+  const special = d.anims.special !== undefined;
+  if (e.hp < a.hp && (!special || g.time - a.hurtAt > FLINCH_EVERY)) a.hurtAt = g.time;
+  const tele = e.telegraph, winding = special && (e.windupT > 0 || tele !== null);
   if (winding) {
     a.windMax = Math.max(a.windMax, e.windupT);
     a.wind = tele ? tele.t / Math.max(tele.dur, 1e-6) : 1 - e.windupT / Math.max(a.windMax, 1e-6);
   } else if (a.windMax > 0 || a.wind > 0) (a.firedAt = g.time), (a.wind = 0), (a.windMax = 0);
-  Object.assign(a, { x: e.x, y: e.y, timer: e.attackTimer, hp: e.hp });
   const p = g.player;
+  const dist = Math.hypot(p.x - e.x, p.y - e.y);
   const s: AnimInput = {
-    time: g.time + e.born, // out of step with each other
+    time: g.time + (e.born % 1), // not every foe breathes in step
     walked: a.walked,
-    moving: g.time - a.movedAt < 0.1,
+    moving: step > 0.05,
     sinceHit: g.time - a.hitAt,
-    untilHit: e.attackTimer > 0 && Math.hypot(p.x - e.x, p.y - e.y) < e.r + p.r + 4 ? e.attackTimer : Infinity,
-    attackCd: e.def.attackCd,
+    untilHit: foeUntilHit(e.windupT, e.attackTimer, dist < e.r + p.r + 12, shooter && dist < e.def.range! ? e.timer : Infinity),
+    attackCd: a.cd,
     hurt: g.time - a.hurtAt,
     dead: Infinity,
     windup: winding ? a.wind : undefined,
     sinceSpecial: g.time - a.firedAt,
   };
-  a.now = pickFrame(d, s, e.def.speed);
-  return sheetSprite(e.def.sprite, scale, e.def.palette ?? 0, a.now.anim, a.now.frame);
+  Object.assign(a, { x: e.x, y: e.y, timer: e.attackTimer, shot: e.timer, hp: e.hp });
+  foes.drawn.push(e);
+  a.now = pickFrame(d, s, e.baseSpeed);
+  return sheetSprite(id, foeScale(e), e.def.palette ?? 0, a.now.anim, a.now.frame);
 }
 
-/** Once a frame: forget foes that are gone, and keep the fallen ones' bodies for their death animation. */
-function trackFoes(g: Game): void {
-  if (foeGame !== g) (foeGame = g), foeAnims.clear(), (fallen.length = 0);
-  for (const [e, a] of foeAnims) {
-    if (!e.dead && g.enemies.includes(e)) continue;
-    foeAnims.delete(e);
-    if (e.dead) fallen.push({ e, at: g.time, now: a.now });
+/** Once a frame, before the foes: the ones drawn last frame that have since been slain start their death. */
+function foeDeaths(ctx: Ctx, g: Game, visible: (x: number, y: number, pad: number) => boolean): void {
+  if (foes.game !== g) Object.assign(foes, { game: g, drawn: [], dying: [] });
+  for (const e of foes.drawn) {
+    const a = foeAnims.get(e)!;
+    if (e.dead && !a.gone) (a.gone = true), foes.dying.push({ e, at: g.time, scale: foeScale(e) });
   }
+  foes.drawn.length = 0;
+  foes.dying = foes.dying.filter(({ e, at, scale }) => {
+    const d = SHEETS[e.def.sprite], t = g.time - at;
+    const ms = d.anims.death;
+    if (t * 1000 > ms.reduce((x, y) => x + y, 0) + 600 || t < 0) return false;
+    const spr = sheetSprite(e.def.sprite, scale, e.def.palette ?? 0, 'death', frameAt(ms, t * 1000, false));
+    if (spr && visible(e.x, e.y, 80)) drawSprite(ctx, spr, e.x, e.y, e.flip, false);
+    return true;
+  });
 }
-
-function drawFallen(ctx: Ctx, g: Game): void {
-  for (let i = fallen.length - 1; i >= 0; i--) {
-    const f = fallen[i], d = SHEETS[f.e.def.sprite]!;
-    const t = g.time - f.at, hold = d.anims.death.reduce((x, y) => x + y, 0) / 1000 + 2; // the last frame lies a while, then fades
-    if (t > hold + 0.5) {
-      fallen.splice(i, 1);
-      continue;
-    }
-    f.now = pickFrame(d, { time: 0, walked: 0, moving: false, sinceHit: Infinity, untilHit: Infinity, attackCd: 1, hurt: Infinity, dead: t }, 1);
-    const spr = sheetSprite(f.e.def.sprite, f.e.def.scale + (f.e.elite ? ELITES.scaleBonus : 0), f.e.def.palette ?? 0, 'death', f.now.frame);
-    if (!spr) continue;
-    ctx.globalAlpha = clamp(1 - (t - hold) / 0.5, 0, 1);
-    drawSprite(ctx, spr, f.e.x, f.e.y, f.e.flip, false);
-    ctx.globalAlpha = 1;
-  }
-}
-export const fallenAnim = (): string[] => fallen.map((f) => `${f.e.def.sprite}:${f.now.anim}:${f.now.frame}`); // for the play test
 
 function shadow(ctx: Ctx, x: number, y: number, r: number): void {
   const s = shadowSprite(r);
@@ -215,22 +212,36 @@ function drawClosedRegions(ctx: Ctx, g: Game, cx: number, cy: number, vw: number
     // the portcullis sits in the wall part of the corridor: iron bars across it
     ctx.fillStyle = '#1b1715';
     ctx.fillRect(gt.x, gt.y, gt.w, gt.h);
-    ctx.fillStyle = '#5b5550';
     const inner = gt.along === 'y' ? { x: gt.x, y: gt.y + REGIONS.gateReach, w: gt.w, h: gt.h - 2 * REGIONS.gateReach } : { x: gt.x + REGIONS.gateReach, y: gt.y, w: gt.w - 2 * REGIONS.gateReach, h: gt.h };
-    if (gt.along === 'y') for (let x = inner.x + 10; x < inner.x + inner.w; x += 22) ctx.fillRect(x, inner.y, 5, inner.h);
-    else for (let y = inner.y + 10; y < inner.y + inner.h; y += 22) ctx.fillRect(inner.x, y, inner.w, 5);
-    ctx.fillRect(inner.x, inner.y + inner.h / 2 - 3, inner.w, 6);
-    ctx.fillRect(inner.x + inner.w / 2 - 3, inner.y, 6, inner.h);
+    if (gt.along === 'y') for (let x = inner.x + 10; x < inner.x + inner.w; x += 22) ironBar(ctx, x, inner.y, 6, inner.h);
+    else for (let y = inner.y + 10; y < inner.y + inner.h; y += 22) ironBar(ctx, inner.x, y, inner.w, 6);
+    ironBar(ctx, inner.x, Math.round(inner.y + inner.h / 2 - 4), inner.w, 8);
+    ironBar(ctx, Math.round(inner.x + inner.w / 2 - 4), inner.y, 8, inner.h);
   }
   // the features in open wings: an altar, a strongbox, a lair's bones, a cache among the vents
   for (const f of g.features) {
     if (!g.regionOpen[f.wing] || (f.used && f.kind !== 'lair')) continue;
     if (f.x < cx - 40 || f.x > cx + vw + 40 || f.y < cy - 40 || f.y > cy + vh + 40) continue;
-    const icon = textSprite(FEATURES[f.kind].icon, 34, '#ffffff', 64);
-    ctx.globalAlpha = f.used ? 0.35 : 0.8 + Math.sin(g.time * 3) * 0.2;
-    ctx.drawImage(icon, Math.round(f.x - icon.width / 2), Math.round(f.y - icon.height / 2));
+    ctx.globalAlpha = f.used ? 0.35 : 1;
+    if (!drawProp(ctx, FEATURE_PROPS[f.kind], f.x, f.y)) {
+      const icon = textSprite(FEATURES[f.kind].icon, 34, '#ffffff', 64); // until the props atlas has loaded
+      ctx.drawImage(icon, Math.round(f.x - icon.width / 2), Math.round(f.y - icon.height / 2));
+    }
     ctx.globalAlpha = 1;
   }
+}
+/** #159: a lit iron bar of the portcullis, in the rig's dark steel ramp: outline, body, a highlight on the top and left edges. */
+function ironBar(ctx: Ctx, x: number, y: number, w: number, h: number): void {
+  ctx.fillStyle = '#0f1118';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#3c4352';
+  ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+  ctx.fillStyle = '#788393';
+  ctx.fillRect(x + 1, y + 1, w - 2, 1);
+  ctx.fillRect(x + 1, y + 1, 1, h - 2);
+  ctx.fillStyle = '#2a303c';
+  ctx.fillRect(x + 2, y + h - 2, w - 3, 1);
+  ctx.fillRect(x + w - 2, y + 2, 1, h - 3);
 }
 let closedPattern: CanvasPattern | null = null;
 let closedArena = '';
@@ -399,7 +410,7 @@ const SHADE_PALETTE = 3; // v0.6: the Archer's shadow is drawn in the midnight p
 const FRIEND_PALETTE = 2; // the gilded palette: allies read apart from the enemies that share their sprites
 
 /** Slow pan over an empty arena behind the menus. */
-export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, time: number): void {
+export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, time: number, def: ArenaDef): void {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#14110f';
   ctx.fillRect(0, 0, view.w, view.h);
@@ -407,6 +418,7 @@ export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, t
   const cy = (arena.height - view.h) / 2 + Math.cos(time * 0.13) * 120;
   ctx.setTransform(1, 0, 0, 1, -Math.round(cx), -Math.round(cy));
   blitArena(ctx, arena, cx, cy, view.w, view.h);
+  for (const o of def.obstacles) if (o.kind === 'brazier') drawProp(ctx, 'brazier', o.x, o.y, o.r, propFrame('brazier', time)); // #159: the flames lick here too
 }
 
 /** #133: the foe a flash card is about; while set, the arena dims around it. The run is paused under the card, so it stays put. */
@@ -433,6 +445,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(z, 0, 0, z, -Math.round(cx * z), -Math.round(cy * z));
   blitArena(ctx, arena, cx, cy, vw, vh);
+  // #159: the braziers' flames lick; everything else on the ground is baked into the arena
+  for (const o of g.arena.obstacles) if (o.kind === 'brazier' && visible(o.x, o.y, 60)) drawProp(ctx, 'brazier', o.x, o.y, o.r, propFrame('brazier', g.time));
   drawClosedRegions(ctx, g, cx, cy, vw, vh);
   end('arena', _t);
   _t = begin();
@@ -517,6 +531,9 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       disc(ctx, zn.x, zn.y, zn.r);
       ctx.stroke();
       ctx.globalAlpha = 1;
+      // #159: the hazard itself rises in the circle: a hand claws up, or the fire swells until it strikes
+      if (zn.art === 'hands') drawProp(ctx, 'hand', zn.x, zn.y + 8, 1, Math.min(2, Math.floor(k * 3)));
+      else if (zn.art === 'fire') drawProp(ctx, 'flare', zn.x, zn.y + 12, 1 + k, propFrame('flare', g.time));
     }
   }
 
@@ -544,6 +561,10 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   // pickups: xp gems, gold coins, relic chests
   for (const k of g.pickups) {
     if (!visible(k.x, k.y, 12)) continue;
+    // #159: drawn by the rig; the fragment and the relic chest bob as before
+    const prop = k.kind === 'fragment' ? 'shard' : k.kind === 'relic' ? 'chest' : k.kind === 'gold' ? 'coin' : k.value >= 10 ? 'gemBig' : 'gem';
+    const bob = k.kind === 'fragment' ? Math.sin(g.time * 4) * 3 - 2 : k.kind === 'relic' ? Math.sin(g.time * 5) * 2 : 0;
+    if (drawProp(ctx, prop, k.x, k.y + bob)) continue;
     ctx.fillStyle = '#1a1614';
     if (k.kind === 'fragment') {
       // v0.5: a sacred treasure's fragment, a pale shard that bobs higher than a relic chest
@@ -586,10 +607,10 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   end('shadows', _t);
   _t = begin();
   const attackType = p.cls.attack.type ?? 'physical'; // the resist marks read against the player's own attack
-  trackFoes(g);
-  drawFallen(ctx, g);
+  foeDeaths(ctx, g, visible);
   for (const e of g.enemies) {
     if (!visible(e.x, e.y, 80)) continue;
+    if (e.dead && SHEETS[e.def.sprite]) continue; // #157: its death plays from foeDeaths
     if (e.def.aura) {
       // commanders: their aura on the ground and a gold chevron overhead, so they read as the target to hunt
       const color = e.def.aura.kind === 'heal' ? 'rgba(111,220,111,0.35)' : e.def.aura.kind === 'speed' ? 'rgba(242,230,160,0.3)' : 'rgba(194,58,46,0.35)';
@@ -611,8 +632,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
     const fuse = e.def.behavior === 'exploder' && e.state === 1 && Math.floor(e.timer * 14) % 2 === 0;
     if (e.hidden) ctx.globalAlpha = 0.12; // a vanished assassin, a dragon overhead: barely a shimmer
-    const scale = e.def.scale + (e.elite ? ELITES.scaleBonus : 0);
-    const spr = foeSprite(g, e, scale) ?? (e.spr ??= getSprite(e.def.sprite, scale, e.def.palette)); // #158: a rigged sheet, else the letter grid
+    const spr = foeSprite(g, e) ?? (e.spr ??= getSprite(e.def.sprite, foeScale(e), e.def.palette)); // #157: a rigged sheet, else the letter grid
     // v0.6 readability: a telegraphed attack winding up glows red; elites and commanders always wear their outline
     const winding = !e.hidden && (e.windupT > 0 || e.telegraph !== null);
     const outline = winding ? SKILL.colors.windup : e.hidden ? null : e.elite ? SKILL.colors.elite : e.def.aura || e.def.onDeath ? SKILL.colors.commander : null;
@@ -790,20 +810,50 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.globalAlpha = 1;
     }
     if (pr.shape === 'arrow') {
+      // #157: in the rig's style: a dark-outlined shaft, a steel head at the tip and pale fletching at the tail
       const v = Math.hypot(pr.vx, pr.vy) || 1;
-      const len = pr.r > 8 ? 46 : 16; // ballista bolts
-      ctx.strokeStyle = pr.color;
-      ctx.lineWidth = pr.r > 8 ? 5 : 2;
+      const big = pr.r > 8; // ballista bolts
+      const len = big ? 46 : 16, w = big ? 5 : 2;
+      const ux = pr.vx / v, uy = pr.vy / v, tx = pr.x - ux * len, ty = pr.y - uy * len;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#1e110a';
+      ctx.lineWidth = w + 2;
       ctx.beginPath();
       ctx.moveTo(pr.x, pr.y);
-      ctx.lineTo(pr.x - (pr.vx / v) * len, pr.y - (pr.vy / v) * len);
+      ctx.lineTo(tx, ty);
       ctx.stroke();
+      ctx.strokeStyle = pr.color;
+      ctx.lineWidth = w;
+      ctx.stroke();
+      const hl = big ? 10 : 5, hw = big ? 6 : 3; // the head
+      ctx.fillStyle = '#c7ced6';
+      ctx.beginPath();
+      ctx.moveTo(pr.x + ux * hl * 0.6, pr.y + uy * hl * 0.6);
+      ctx.lineTo(pr.x - ux * hl * 0.4 - uy * hw, pr.y - uy * hl * 0.4 + ux * hw);
+      ctx.lineTo(pr.x - ux * hl * 0.4 + uy * hw, pr.y - uy * hl * 0.4 - ux * hw);
+      ctx.fill();
+      ctx.strokeStyle = '#f2eddf'; // fletching
+      ctx.lineWidth = big ? 2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(tx + ux * hl, ty + uy * hl);
+      ctx.lineTo(tx - uy * hw, ty + ux * hw);
+      ctx.moveTo(tx + ux * hl, ty + uy * hl);
+      ctx.lineTo(tx + uy * hw, ty - ux * hw);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
     } else {
+      // #157: a shaded orb: dark rim, the colour, a light cap and a glint towards the top-left light (STYLE.md)
+      ctx.fillStyle = 'rgba(15,10,20,0.75)';
+      disc(ctx, pr.x, pr.y, pr.r + 1);
+      ctx.fill();
       ctx.fillStyle = pr.color;
       disc(ctx, pr.x, pr.y, pr.r);
       ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.fillRect(pr.x - 1.5, pr.y - 1.5, 3, 3);
+      ctx.fillStyle = 'rgba(255,245,220,0.35)';
+      disc(ctx, pr.x - pr.r * 0.25, pr.y - pr.r * 0.25, pr.r * 0.6);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillRect(Math.round(pr.x - pr.r * 0.45) - 1, Math.round(pr.y - pr.r * 0.45) - 1, 2, 2);
     }
   }
 

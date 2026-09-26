@@ -6,6 +6,7 @@
  * fails when a committed sheet is out of date.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { buildProps, propPaths } from './props';
 import { buildSheet, loadDefs, sheetJson, sheetPaths } from './sheet';
 
 mkdirSync('public/sprites', { recursive: true });
@@ -17,3 +18,7 @@ for (const def of await loadDefs()) {
   writeFileSync(p.json, sheetJson(data));
   console.log(`${def.id}: ${p.png} (${png.length} bytes), ${p.json}`);
 }
+const props = buildProps(); // #159: the arenas' props, one atlas
+writeFileSync(propPaths.png, props.png);
+writeFileSync(propPaths.json, sheetJson(props.data));
+console.log(`props: ${propPaths.png} (${props.png.length} bytes), ${propPaths.json}`);

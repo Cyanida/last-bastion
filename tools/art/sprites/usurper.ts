@@ -12,9 +12,9 @@ const { sc, dt } = scaled(S);
 
 export const sprite = armouredSprite({
   id: 'usurper', S, tall: 84, h: 124, regal: true,
-  plate: 'gold', accent: 'red', trim: 'steel', cape: 'red', blade: 'steel', fx: 'fire', special: 'charge',
+  plate: 'gold', accent: 'red', trim: 'steel', cape: 'red', blade: 'steel', fx: 'flame', special: 'charge',
   head(f, head, p) {
-    const slit: Px[] = [-3, -2, -1, 0, 1, 2, 3, 4].map((x) => [x + 0.5, -4.5, 'fire', x > 1 ? 6 : 4]);
+    const slit: Px[] = [-3, -2, -1, 0, 1, 2, 3, 4].map((x) => [x + 0.5, -4.5, 'flame', x > 1 ? 6 : 4]);
     f.part(head, sc([[-5, 0.8], [-5.4, -5.4], [-4.6, -9.4], [-1.8, -11], [2.4, -11], [5, -9.4], [5.9, -5.4], [5.7, 0.8], [2.8, 1.8], [-2.8, 1.6]]), 'gold', 5, {
       details: dt([...slit, [4.6, -1.5, 'gold', 0], [4.6, 0, 'gold', 0]]),
     }); // gilded helm

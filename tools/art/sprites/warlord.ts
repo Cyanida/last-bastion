@@ -42,9 +42,9 @@ function warlord(p: Pose): Figure {
   const farFist: Pt = p.far ? [shF[0] + p.far[0] * S, shF[1] + p.far[1] * S] : [shF[0] - 1 * S, shF[1] + 14 * S];
   const upF = limb(shF, ik(shF, farFist, 8 * S, 7.5 * S, -1));
   const foF = limb(upF.at(0, 8 * S), farFist);
-  f.part(upF, sc([[-2.8, -1], [2.8, -1], [2.5, 8], [-2.5, 8]]), 'skin', 0.5, { dim: 1 });
-  f.part(foF, sc([[-2.6, -0.5], [2.6, -0.5], [2.6, 6.5], [-2.6, 6.5]]), 'fur', 0.6, { dim: 1 }); // fur bracer
-  f.part(foF, E(0, 7.4, 2.5, 2.4), 'skin', 0.7, { dim: 1 });
+  f.part(upF, sc([[-2.8, -1], [2.8, -1], [2.5, 8], [-2.5, 8]]), 'flesh', 0.5, { dim: 1 });
+  f.part(foF, sc([[-2.6, -0.5], [2.6, -0.5], [2.6, 6.5], [-2.6, 6.5]]), 'hide', 0.6, { dim: 1 }); // fur bracer
+  f.part(foF, E(0, 7.4, 2.5, 2.4), 'flesh', 0.7, { dim: 1 });
 
   p.feet.forEach(([dx, lift, fa], i) => {
     const root = i === 0 ? hip.at(-3 * S, -0.5) : hip.at(2.6 * S, 0.5);
@@ -53,7 +53,7 @@ function warlord(p: Pose): Figure {
     const th = limb(root, knee), sh = limb(knee, ankle);
     const z = 1 + i, dim = 1 - i;
     f.part(th, sc([[-4, -1.5], [4, -1.5], [3.4, 11], [-3.4, 11]]), 'leather', z, { dim, folds: [0.4, 3, 1] }); // breeches
-    f.part(sh, sc([[-3.2, 0], [3.2, 0], [2.8, 11], [-2.8, 11]]), 'fur', z + 0.1, { dim, folds: [0.5, 2.5, 1] }); // fur wraps
+    f.part(sh, sc([[-3.2, 0], [3.2, 0], [2.8, 11], [-2.8, 11]]), 'hide', z + 0.1, { dim, folds: [0.5, 2.5, 1] }); // fur wraps
     f.part(new Bone(ankle[0], ankle[1], fa), sc([[-3, -1], [2.6, -1], [5, 0.6], [6.4, 2.2], [6.4, 3], [-3.2, 3]]), 'leather', z + 0.15, { dim });
     f.part(sh, sc([[-3.4, 0], [3.4, 0], [3.4, 2.4], [-3.4, 2.4]]), 'steel', z + 0.2, { dim }); // knee band
   });
@@ -64,12 +64,12 @@ function warlord(p: Pose): Figure {
   }); // studded hauberk
   f.part(torso, sc([[-9, -7], [9.4, -7], [9.4, -3.4], [-9, -3.4]]), 'red', 3.5, { folds: [0.4, 2.5, 0] }); // sash
   f.part(torso, sc([[-1, -7.6], [3.8, -7.6], [3.8, -2.8], [-1, -2.8]]), 'gold', 3.6); // clasp
-  f.part(torso, sc([[-11.5, -22], [9.5, -22], [12, -17], [10, -12.5], [4, -14.5], [-2, -12.5], [-8, -14], [-12.5, -12]]), 'fur', 3.8, { folds: [0.7, 2.2, 0] }); // fur mantle
-  f.part(torso.child(-9 * S, -21 * S, p.mantle), sc([[-1, 0], [3, 0], [3, 14], [0, 22], [-4, 20], [-5, 10]]), 'fur', 0.2, { folds: [0.8, 2.6, 1], dim: 1 }); // mantle tail behind
+  f.part(torso, sc([[-11.5, -22], [9.5, -22], [12, -17], [10, -12.5], [4, -14.5], [-2, -12.5], [-8, -14], [-12.5, -12]]), 'hide', 3.8, { folds: [0.7, 2.2, 0] }); // fur mantle
+  f.part(torso.child(-9 * S, -21 * S, p.mantle), sc([[-1, 0], [3, 0], [3, 14], [0, 22], [-4, 20], [-5, 10]]), 'hide', 0.2, { folds: [0.8, 2.6, 1], dim: 1 }); // mantle tail behind
 
   const head = torso.child(1.2 * S, -21 * S, p.head);
-  f.part(head, sc([[-4.4, 0.8], [-4.8, -4], [4.8, -4], [5.4, 0.2], [3.6, 3.6], [-1, 4], [-3.8, 2.8]]), 'fur', 4.9, { folds: [0.5, 1.8, 1] }); // beard
-  f.part(head, sc([[-4.6, -3], [-4.6, -6], [5, -6], [5.2, -3], [3.8, -1.2], [-2, -1.2]]), 'skin', 5, { details: dt([[2.6, -4.2, 'white', 6], [3.6, -4.2, 'darksteel', 0], [4.8, -3, 'skin', 1]]) }); // face
+  f.part(head, sc([[-4.4, 0.8], [-4.8, -4], [4.8, -4], [5.4, 0.2], [3.6, 3.6], [-1, 4], [-3.8, 2.8]]), 'hide', 4.9, { folds: [0.5, 1.8, 1] }); // beard
+  f.part(head, sc([[-4.6, -3], [-4.6, -6], [5, -6], [5.2, -3], [3.8, -1.2], [-2, -1.2]]), 'flesh', 5, { details: dt([[2.6, -4.2, 'white', 6], [3.6, -4.2, 'darksteel', 0], [4.8, -3, 'flesh', 1]]) }); // face
   f.part(head, sc([[-5.2, -5.4], [-5.2, -9.2], [-2.6, -11.4], [2.8, -11.4], [5.4, -9.2], [5.8, -5.4]]), 'steel', 5.1, { trim: ['darksteel', 1], details: dt([[0.5, -10, 'steel', 6]]) }); // iron cap
   f.part(head, sc([[1.6, -5.8], [3, -5.8], [3, -2.2], [1.6, -2.2]]), 'steel', 5.2); // nasal
   f.part(head.child(-4.6 * S, -8 * S, -0.3), sc([[0, -1.6], [0, 1.6], [-4, 0.6], [-8, -3], [-9, -7], [-5.6, -3.6]]), 'white', 5.15); // horn
@@ -80,22 +80,22 @@ function warlord(p: Pose): Figure {
   const up = limb(sh, ik(sh, fist, 8 * S, 7.5 * S, -1));
   const fo = limb(up.at(0, 8 * S), fist);
   const za = 7, zh = p.zh;
-  f.part(up, sc([[-3, -1], [3, -1], [2.7, 8], [-2.7, 8]]), 'skin', za); // bare arm
-  f.part(fo, sc([[-2.8, -0.5], [2.8, -0.5], [2.8, 6.5], [-2.8, 6.5]]), 'fur', za + 0.1, { folds: [0.4, 2, 1] });
+  f.part(up, sc([[-3, -1], [3, -1], [2.7, 8], [-2.7, 8]]), 'flesh', za); // bare arm
+  f.part(fo, sc([[-2.8, -0.5], [2.8, -0.5], [2.8, 6.5], [-2.8, 6.5]]), 'hide', za + 0.1, { folds: [0.4, 2, 1] });
   const hm = new Bone(fist[0], fist[1], p.hammer);
   f.part(hm, sc([[-1, 5], [1, 5], [1, -30], [-1, -30]]), 'leather', zh, { details: dt([...[1, -3, -7].map((y): Px => [0, y, 'leather', 1])]) }); // haft
   f.part(hm, sc([[-6.5, -36], [6.5, -36], [7, -29], [-7, -29]]), 'darksteel', zh + 0.1, { trim: ['steel', 1] }); // hammer head
   f.part(hm, sc([[-1.8, -38.5], [1.8, -38.5], [1.8, -35.5], [-1.8, -35.5]]), 'steel', zh + 0.15); // spike
-  f.part(hm, E(0, 0.2, 3, 2.8), 'skin', za + 0.4); // fist
-  if (p.far) f.part(new Bone(farFist[0], farFist[1], p.hammer), E(0, 0, 2.8, 2.6), 'skin', zh + 0.2); // the far hand, on the haft
-  f.part(new Bone(sh[0], sh[1], torso.a * 0.6 + up.a * 0.4), E(0.3, 0, 4.8, 4.2), 'fur', za + 0.5, { folds: [0.5, 2, 0] }); // fur shoulder
+  f.part(hm, E(0, 0.2, 3, 2.8), 'flesh', za + 0.4); // fist
+  if (p.far) f.part(new Bone(farFist[0], farFist[1], p.hammer), E(0, 0, 2.8, 2.6), 'flesh', zh + 0.2); // the far hand, on the haft
+  f.part(new Bone(sh[0], sh[1], torso.a * 0.6 + up.a * 0.4), E(0.3, 0, 4.8, 4.2), 'hide', za + 0.5, { folds: [0.5, 2, 0] }); // fur shoulder
 
   if (p.quake) {
     const cx = hm.at(0, -32 * S)[0], q = p.quake; // under the hammer head
     f.part(world, ell(cx, GROUND - 1, q, q * 0.28, 28), 'smear', -2, { profile: 'flat', outline: false });
-    f.part(world, ell(cx, GROUND - 1, q * 0.75, q * 0.2, 24), 'fur', -1.9, { profile: 'flat', outline: false, dim: 0 });
+    f.part(world, ell(cx, GROUND - 1, q * 0.75, q * 0.2, 24), 'hide', -1.9, { profile: 'flat', outline: false, dim: 0 });
     for (const [dx, h] of [[-0.8, 6], [-0.35, 9], [0.3, 8], [0.75, 5]])
-      f.part(world, [[cx + dx * q - 2, GROUND - 1], [cx + dx * q + 2, GROUND - 1], [cx + dx * q * 1.1 + 1, GROUND - 1 - h * S], [cx + dx * q * 1.1 - 1, GROUND - 1 - h * S]], 'fur', 8, { dim: 1 }); // flung earth
+      f.part(world, [[cx + dx * q - 2, GROUND - 1], [cx + dx * q + 2, GROUND - 1], [cx + dx * q * 1.1 + 1, GROUND - 1 - h * S], [cx + dx * q * 1.1 - 1, GROUND - 1 - h * S]], 'hide', 8, { dim: 1 }); // flung earth
   }
 
   if (p.smear) {
