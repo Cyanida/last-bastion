@@ -53,7 +53,7 @@ function blitArena(ctx: Ctx, arena: HTMLCanvasElement, cx: number, cy: number, v
 
 function drawSprite(ctx: Ctx, s: Sprite, x: number, y: number, flip: boolean, flash: boolean): void {
   const img = flash ? (flip ? s.flashFlipped : s.flash) : flip ? s.flipped : s.img;
-  ctx.drawImage(img, Math.round(x - s.w / 2), Math.round(y - s.h + s.h * 0.25));
+  ctx.drawImage(img, Math.round(x - s.w / 2), Math.round(y - s.h + s.h * 0.25), s.w, s.h); // #138: a finer-grid sprite is drawn down to its size
 }
 
 function shadow(ctx: Ctx, x: number, y: number, r: number): void {

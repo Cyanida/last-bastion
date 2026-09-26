@@ -114,6 +114,23 @@ await check('title screen', () =>
   }),
 );
 
+// #138: the champions are drawn on a grid twice as fine, and show at the same size as before on the class select
+await check('class select: champions on the finer grid keep their size', () =>
+  inPage(async () => {
+    const P = window.__play;
+    await P.click('[data-go="start"]');
+    const size = (id) => {
+      const c = document.querySelector(`[data-class="${id}"] .portrait canvas`);
+      return c ? { box: Math.round(c.getBoundingClientRect().height), canvas: c.height } : null;
+    };
+    const pal = size('paladin'), vik = size('viking');
+    await P.click('[data-back]');
+    // the old grids were 14 and 16 rows at 6 px: 84 and 96 px on screen, whatever the finer canvas holds
+    const ok = pal?.box === 84 && vik?.box === 96 && window.__lb.state === 'menu';
+    return { ok, detail: `paladin ${JSON.stringify(pal)}, viking ${JSON.stringify(vik)}` };
+  }),
+);
+
 // ---------- a test run from the real Test mode screen ----------
 await check('test mode starts a run', () =>
   inPage(async () => {
