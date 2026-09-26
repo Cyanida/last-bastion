@@ -1,8 +1,8 @@
 /**
  * #158: The Plague Abbot. A hunched monk in a moss-grey habit, 1.15× the Paladin (63 art px; about 1.5× on screen): a beaked plague
  * mask under a deep cowl, gloved hands, a rope girdle, and a crook hung with a smoking censer. His special is the flask volley
- * (robed.ts): a poison flask brews in his far hand over the telegraph, then he flings it down and the ground spatters (poison:
- * green).
+ * (robed.ts): a poison flask brews in his far hand, he draws it back over his head on the telegraph, then flings it: it arcs
+ * ahead and shatters, and the ground spatters (poison: green).
  */
 import { robedSprite, scaled } from '../robed';
 
@@ -11,7 +11,7 @@ const { sc, E, dt } = scaled(S);
 
 export const sprite = robedSprite({
   id: 'abbot', S, tall: 63,
-  robe: 'moss', panel: 'leather', trim: 'leather', hand: 'leather', fx: 'venom',
+  robe: 'moss', panel: 'leather', trim: 'leather', hand: 'leather', fx: 'venom', throw: true,
   head(f, head) {
     f.part(head, sc([[-5.4, 1], [-6, -5], [-4.6, -10], [0, -11.6], [4.4, -10], [6, -6], [5.8, 1], [0, 2.4]]), 'moss', 4.9, { folds: [0.4, 2.4, 1] }); // cowl
     f.part(head, sc([[-1.2, -8.2], [3.6, -8.2], [4.6, -5], [4.2, -1], [0.4, 0.6], [-1.6, -2]]), 'white', 5, { details: dt([[2.4, -5.8, 'venom', 5], [2.4, -5, 'darksteel', 0]]) }); // mask, a glass eye

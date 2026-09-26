@@ -24,6 +24,7 @@ export interface Robed {
   tall: number;
   robe: Material; panel: Material; trim: Material; hand: Material; // hand: bone or skin
   fx: Material; // the magic's colour: its damage type (STYLE.md trails)
+  throw?: boolean; // the Plague Abbot: his special throws a flask instead of casting
   head(f: Figure, head: Bone, p: Pose): void; // face and headgear
   top(f: Figure, staff: Bone, p: Pose): void; // what crowns the staff
 }
@@ -33,8 +34,11 @@ export interface Pose {
   fist: Pt; staff: number; far: Pt; // hand offsets from the shoulders
   magic: number; // magic gathering in the far hand (0: none)
   burst: number; // the cast: a flare at the staff's foot (0: none)
+  flask: boolean; // a flask held in the far hand
+  fly: Pt | null; // a flask in flight, offset from the hip
+  splashX: number | null; // where the burst lands, offset from the hip (null: at the staff's foot)
 }
-const pose = (kw: Partial<Pose> = {}): Pose => ({ hip: [0, 0], lean: 0, head: 0, robe: 0, hem: 0, fist: [5, 12], staff: 0.08, far: [-2, 13], magic: 0, burst: 0, ...kw });
+const pose = (kw: Partial<Pose> = {}): Pose => ({ hip: [0, 0], lean: 0, head: 0, robe: 0, hem: 0, fist: [5, 12], staff: 0.08, far: [-2, 13], magic: 0, burst: 0, flask: false, fly: null, splashX: null, ...kw });
 
 function robed(c: Robed, p: Pose): Figure {
   const { S } = c, { sc, E, dt } = scaled(S), HIP_Y = GROUND - 26 * S;
@@ -84,8 +88,15 @@ function robed(c: Robed, p: Pose): Figure {
       f.part(world, ell(farH[0] + r * Math.cos(a), farH[1] + 1 + r * Math.sin(a), 1.2, 1.2, 8), c.fx, 9.1, { profile: 'flat', outline: false });
     }
   }
+  const flask = (x: number, y: number, z: number, a = 0) => {
+    const b = new Bone(x, y, a);
+    f.part(b, E(0, 0, 2.4, 2.6), c.fx, z, { details: dt([[-0.8, -0.8, c.fx, 6]]) }); // the glass, glowing
+    f.part(b, sc([[-0.8, -4.6], [0.8, -4.6], [0.8, -2.2], [-0.8, -2.2]]), 'leather', z + 0.01); // neck and cork
+  };
+  if (p.flask) flask(farH[0], farH[1] - 1.5 * S, 9.2);
+  if (p.fly) flask(hip.x + p.fly[0] * S, hip.y + p.fly[1] * S, 9.2, p.fly[0] * 0.15);
   if (p.burst) {
-    const [bx] = st.at(0, 16 * S), b = p.burst;
+    const bx = p.splashX === null ? st.at(0, 16 * S)[0] : hip.x + p.splashX * S, b = p.burst;
     f.part(world, ell(bx, GROUND - 1, b, b * 0.3, 28), c.fx, -1, { profile: 'flat', outline: false, dim: 1 });
     for (const [dx, h] of [[-0.7, 10], [-0.25, 16], [0.3, 13], [0.75, 8]])
       f.part(world, [[bx + dx * b - 1.8, GROUND - 1], [bx + dx * b + 1.8, GROUND - 1], [bx + dx * b * 1.15, GROUND - 1 - h * S]], c.fx, 8, { profile: 'flat', outline: false }); // tongues of magic
@@ -129,6 +140,19 @@ const DEATH: [number, Pose][] = [
   [400, pose({ hip: [3, 18], lean: 1.3, head: 0.8, fist: [14, 6], staff: 2.2, robe: -0.4, hem: 8 })],
 ];
 
+// the Plague Abbot's throw: a flask brews in his far hand, he draws it back over his head (held to the end of the telegraph) |
+// flings it, it arcs ahead and shatters, the ground spatters
+const THROW: [number, Pose][] = [
+  [220, pose({ hip: [0, -1], lean: -0.04, far: [6, 6], flask: true })],
+  [260, pose({ hip: [-1, -1], lean: -0.14, head: -0.1, far: [-6, -4], flask: true, robe: 0.05 })],
+  [320, pose({ hip: [-2, -2], lean: -0.22, head: -0.2, far: [-4, -14], flask: true, robe: 0.08, hem: 1 })],
+  [110, pose({ hip: [2, -1], lean: 0.22, head: 0.1, far: [20, -2], fly: [30, -24], robe: -0.12, hem: -2 })],
+  [130, pose({ hip: [2, -0.5], lean: 0.2, far: [18, 4], fly: [38, -10], robe: -0.1, hem: -1.5 })],
+  [220, pose({ hip: [2, -0.5], lean: 0.16, far: [14, 8], splashX: 34, burst: 14, robe: -0.08 })],
+  [260, pose({ hip: [1, 0], lean: 0.08, far: [6, 12], splashX: 34, burst: 20 })],
+  [220, pose({ hip: [0, 0], lean: 0.02 })],
+];
+
 /** A robed caster's sheet: the Lich's rig and moves, dressed by `c`. */
 export function robedSprite(c: Robed): SpriteDef {
   const fig = (p: Pose) => robed(c, p);
@@ -140,7 +164,7 @@ export function robedSprite(c: Robed): SpriteDef {
       attack: ATTACK.map(([ms, p]) => [ms, fig(p)]),
       hurt: HURT.map(([ms, p]) => [ms, fig(p)]),
       death: DEATH.map(([ms, p]) => [ms, fig(p)]),
-      special: SPECIAL.map(([ms, p]) => [ms, fig(p)]),
+      special: (c.throw ? THROW : SPECIAL).map(([ms, p]) => [ms, fig(p)]),
     },
     impact: 4,
     specialImpact: 3,
