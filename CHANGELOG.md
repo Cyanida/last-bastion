@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.2 — Art & animation
+
+The game looks as good as it plays: every champion, foe, boss and arena is redrawn as shaded pixel art that moves.
+
+- **Champions animated**: all five idle, walk, swing or cast, flinch and fall, with their own pose for each ability and each utility skill (Leap, Dodge Roll, Blink, Taunt, Corpse Explosion). Melee swings leave a crescent trail, and fast attacks keep up without flicker.
+- **Their magic and allies**: the Angel's holy orb sparkles and the Necromancer's shadow orb trails smoke; raised skeletons walk up and strike, and the Angel's decoy and the Archer's shade move like the real thing.
+- **Every foe redrawn**: all foes, commanders and siege engines walk, wind up, strike and fall. The Armored Knight no longer looks like the Paladin.
+- **Bosses with presence**: all eight bosses are bigger than the crowd, wind up each special attack over its telegraph, and rally with a pose when they enter a new phase. The Usurper towers over them all, the Dragon beats its wings and breathes a cone of fire, and the Plague Abbot hurls his flask.
+- **Arenas redrawn**: floors, walls, pillars, tombstones, trees, the throne, braziers and pickups; the altar, strongbox, lair and gold cache are real objects, and hazards show what's coming.
+- **Class select**: every champion stands at one scale on one line, and the Midnight colours turn every champion night-blue.
+- **Sprite gallery**: test mode plays every sheet's animations side by side.
+
 ## v0.8.1 — Characters
 
 Every character reads at a glance now, and a flash card shows you who it's about. Plus a handful of fixes from the latest playtest.
