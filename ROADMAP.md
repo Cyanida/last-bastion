@@ -13,6 +13,7 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 | v0.7.5 | Aiming & fixes | released 2026-09-25 |
 | v0.7.6 | Quest fixes | released 2026-09-25 |
 | v0.8.0 | Balance, relics & bosses | released 2026-09-26 |
+| v0.8.1 | Characters | released 2026-09-26 |
 | v0.9.0 | Phone | planned |
 | v0.10.0 | Classes & roster | planned |
 | v0.11.0 | Items & arena | planned |
