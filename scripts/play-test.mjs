@@ -347,6 +347,38 @@ await check('ability and utility upgrades', () =>
   }),
 );
 
+// #144: the Merchant path's caravan sells books in the relic slots, or on one visit in ten a relic, and never greys relics out
+await check("Merchant path caravan: Tome of Haste and Tome of Fortune, or now and then a relic", () =>
+  inPage(async () => {
+    const P = window.__play, lb = window.__lb, g = lb.game, p = g.player;
+    const log = [];
+    const visit = (relic) => {
+      g.gold = 600;
+      g.pendingMerchant = g.midMerchant = true;
+      g.vars.caravanRelic = relic;
+      return P.toChoice() && !!document.querySelector('[data-heal]');
+    };
+    if (!visit(0)) return { ok: false, detail: 'no caravan' };
+    log.push(document.querySelector('[data-buy]') || /one relic a visit/i.test(document.body.innerText) ? 'RELICS ON A BOOK VISIT' : 'no relics');
+    const spd = p.stats.atkSpd, gold = g.gold;
+    await P.click('[data-book="haste"]');
+    log.push(p.stats.atkSpd > spd * 1.09 && g.gold < gold ? 'haste' : 'HASTE FAILED');
+    log.push(document.querySelector('[data-book="haste"]')?.disabled ? 'one a visit' : 'HASTE STILL ON SALE');
+    await P.click('[data-book="fortune"]');
+    await P.click('[data-leave]');
+    g.pendingLevelUps++;
+    if (!P.toChoice()) return { ok: false, detail: 'no level-up screen' };
+    const tags = [...document.querySelectorAll('[data-pick] .tag')].map((t) => t.textContent);
+    log.push(tags.every((t) => /Epic|Evolution/.test(t)) ? 'all epic' : `NOT ALL EPIC: ${tags.join(', ')}`);
+    await P.click('[data-pick="0"]');
+    if (!visit(1)) return { ok: false, detail: 'no caravan with a relic' };
+    const buy = document.querySelector('[data-buy="common"]');
+    log.push(buy && !buy.disabled && !document.querySelector('[data-book]') ? 'a relic, no books' : 'NO RELIC ON A RELIC VISIT');
+    await P.click('[data-leave]');
+    return { ok: !log.some((l) => /[A-Z]{4}/.test(l)), detail: log.join(', ') };
+  }),
+);
+
 await check('Merchant: heal, reroll, reforge, sell, salvage, buy, march on', () =>
   inPage(async () => {
     const P = window.__play, lb = window.__lb, g = lb.game, p = g.player, rel = p.relics;
@@ -500,7 +532,7 @@ await check('every screen answered above is in the replay log, in tick order, fo
     const g = window.__lb.game;
     if (!g.replay) return { skip: true, detail: 'no replay log on this branch (before #113)' };
     const kinds = new Set(g.replay.map((c) => c.choice.c));
-    const want = ['quests', 'levelReroll', 'levelBanish', 'levelUp', 'relicReroll', 'relicTake', 'relicSkip', 'abilityUpgrade', 'utilityUpgrade', 'merchantHeal', 'merchantBuy', 'merchantLeave', 'route', 'blessing', 'peddlerBuy', 'peddlerToken', 'peddlerLeave', 'talent'];
+    const want = ['quests', 'levelReroll', 'levelBanish', 'levelUp', 'relicReroll', 'relicTake', 'relicSkip', 'abilityUpgrade', 'utilityUpgrade', 'merchantHeal', 'merchantBuy', 'merchantBook', 'merchantLeave', 'route', 'blessing', 'peddlerBuy', 'peddlerToken', 'peddlerLeave', 'talent'];
     const missing = want.filter((k) => !kinds.has(k));
     const ordered = g.replay.every((c, i) => c.player === 0 && c.tick <= g.tick && (i === 0 || c.tick >= g.replay[i - 1].tick));
     return { ok: !missing.length && ordered, detail: `${g.replay.length} choices${missing.length ? `, missing ${missing.join(', ')}` : ''}${ordered ? '' : ', out of order'}` };

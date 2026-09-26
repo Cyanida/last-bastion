@@ -1,4 +1,4 @@
-import { ACT_THEMES, ACTS, FINAL, MERCHANT } from '../config/acts';
+import { ACT_THEMES, ACTS, FINAL, MERCHANT, type BookId } from '../config/acts';
 import { ROUTES } from '../config/routes';
 import { addListener, type GameEvents } from '../core/events';
 import { routeChoices, type Route } from '../logic/routes';
@@ -34,11 +34,20 @@ export function merchantHeal(g: Game): boolean {
 
 /** v0.7: a relic moment of that rarity: pay, then pick one of three relics you do not hold. */
 export function merchantBuy(g: Game, rarity: Rarity): boolean {
-  if (g.midMerchant || (g.vars.merchantRelics ?? 0) >= RELIC_MOMENTS.merchantPerVisit) return false; // v0.7: one relic moment a visit, none at the caravan
+  if ((g.midMerchant && !g.vars.caravanRelic) || (g.vars.merchantRelics ?? 0) >= RELIC_MOMENTS.merchantPerVisit) return false; // v0.7: one relic moment a visit; the caravan only on its relic visits (v0.8.1 #144)
   const pool = g.player.relics.pool.filter((id) => relicDef(id).rarity === rarity);
   if (!pool.some((id) => !g.player.relics.held.includes(id)) || !pay(g, `buy:${rarity}`)) return false;
   offerRelics(g, RELIC_MOMENTS.choices, 'merchant', g.player, pool);
   g.vars.merchantRelics = (g.vars.merchantRelics ?? 0) + 1;
+  return true;
+}
+
+/** v0.8.1 #144: a book from the caravan (not on its relic visits), one of each a visit, taking effect at once. */
+export function merchantBook(g: Game, book: BookId): boolean {
+  if (!g.midMerchant || g.vars.caravanRelic || g.vars[`book.${book}`] || !pay(g, `book:${book}`)) return false;
+  g.vars[`book.${book}`] = 1;
+  if (book === 'haste') g.player.stats = { ...g.player.stats, atkSpd: g.player.stats.atkSpd * MERCHANT.books.haste.atkSpd };
+  else g.vars.epicLevelUp = 1; // logic/upgrades.ts: the next level-up's cards are all epic, until one is picked
   return true;
 }
 
@@ -108,6 +117,7 @@ export function actTheme(g: Game): (typeof ACT_THEMES)[number] {
 export function leaveMerchant(g: Game): void {
   g.pendingMerchant = false;
   g.vars.merchantRelics = 0; // v0.7: one relic moment a visit
+  g.vars.caravanRelic = g.vars['book.haste'] = g.vars['book.fortune'] = 0; // v0.8.1 #144: the caravan's stock is per visit
   if (g.midMerchant) g.midMerchant = false;
   else g.pendingRoute = routeChoices(g.seed, g.act, g.arena.id);
 }

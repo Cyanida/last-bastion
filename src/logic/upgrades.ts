@@ -57,7 +57,9 @@ function rollRarity(rng: Rng): UpgradeRarity {
  * Three distinct boons, each with a rolled rarity; sometimes the last one is a tradeoff not taken yet this run, a talent point,
  * or a relic rolled by the drop rules (`relic` supplies one, or null when the pool is empty).
  */
-export function rollLevelUpOptions(rng: Rng, taken: TradeoffId[] = [], relic: (() => RelicId | null) | null = null, banned: readonly StatKey[] = [], noTalent = false): LevelUpOption[] {
+export function rollLevelUpOptions(rng: Rng, taken: TradeoffId[] = [], relic: (() => RelicId | null) | null = null, banned: readonly StatKey[] = [], noTalent = false, epic = false): LevelUpOption[] {
+  // v0.8.1 #144 Tome of Fortune (`epic`): every card an epic stat boon, no talent, relic or tradeoff card
+  if (epic) return rollUpgrades(rng, UPGRADE_CHOICES, banned).map((key) => ({ kind: 'stat', key, rarity: 'epic' }));
   const options: LevelUpOption[] = rollUpgrades(rng, UPGRADE_CHOICES, banned).map((key) => ({ kind: 'stat', key, rarity: rollRarity(rng) }));
   const tradeoffs = TRADEOFF_IDS.filter((id) => !taken.includes(id));
   const roll = rng();

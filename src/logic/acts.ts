@@ -1,4 +1,4 @@
-import { ACT_THEMES, ACTS, FINAL, MERCHANT } from '../config/acts';
+import { ACT_THEMES, ACTS, FINAL, MERCHANT, type BookId } from '../config/acts';
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { BOSS_RULES, BOSSES, type BossDef, type BossKey } from '../config/bosses';
 import { CLASS_ORDER, type ClassId } from '../config/classes';
@@ -6,6 +6,7 @@ import { CURSE_IDS, type CurseId } from '../config/curses';
 import type { EnemyId } from '../config/enemies';
 import type { QuestKind } from '../config/quests';
 import type { Rarity } from '../config/relics';
+import { ROUTES } from '../config/routes';
 import { WAVES } from '../config/waves';
 import { mulberry32, pickWeighted } from '../core/math';
 import type { Rng } from '../core/types';
@@ -70,15 +71,18 @@ export function pickMidBoss(act: number, draw: BossDraw, rng: Rng): BossKey {
 export const bossDef = (key: BossKey): BossDef => BOSSES[key] ?? { from: key as EnemyId, slot: 'act', weight: 0 };
 
 // ---------- Merchant ----------
-export type MerchantItem = 'heal' | 'reroll' | 'reforge' | `buy:${Rarity}`;
+export type MerchantItem = 'heal' | 'reroll' | 'reforge' | `buy:${Rarity}` | `book:${BookId}`;
 
 /** A base price in this Act: the Merchant's prices (and the peddler's) rise by priceGrowth per Act. */
 export const actPrice = (base: number, act: number): number => Math.round(base * (1 + MERCHANT.priceGrowth * (act - 1)));
 
 export function merchantPrice(item: MerchantItem, act: number): number {
-  const base = item.startsWith('buy:') ? MERCHANT.buy[item.slice(4) as Rarity] : item === 'heal' ? MERCHANT.heal.cost : item === 'reforge' ? MERCHANT.reforge : MERCHANT.reroll;
+  const base = item.startsWith('book:') ? MERCHANT.books[item.slice(5) as BookId].cost : item.startsWith('buy:') ? MERCHANT.buy[item.slice(4) as Rarity] : item === 'heal' ? MERCHANT.heal.cost : item === 'reforge' ? MERCHANT.reforge : MERCHANT.reroll;
   return actPrice(base, act);
 }
+
+/** v0.8.1 #144: does the Merchant path's caravan sell a relic this visit (else books)? One roll a visit, on the run's relic stream. */
+export const caravanSellsRelic = (rng: Rng): boolean => rng() < ROUTES.merchant.relicChance;
 
 // ---------- seeds and the Daily Trial ----------
 export function hashSeed(text: string): number {
