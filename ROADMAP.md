@@ -13,11 +13,12 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 | v0.7.5 | Aiming & fixes | released 2026-09-25 |
 | v0.7.6 | Quest fixes | released 2026-09-25 |
 | v0.8.0 | Balance, relics & bosses | released 2026-09-26 |
-| v0.9.0 | Phone | planned |
-| v0.10.0 | Classes & roster | planned |
-| v0.11.0 | Items & arena | planned |
-| v0.12.0 | The Keep | planned |
-| v1.0.0 | Polished release | planned |
+| v0.8.1 | Characters | next |
+| v0.9.0 | Classes & roster | planned |
+| v0.10.0 | Items, arenas & sound | planned |
+| v0.11.0 | The Keep & Master difficulty | planned |
+| v0.12.0 | Polished PC game | planned |
+| v1.0.0 | Phone & launch | planned |
 | Ideas | not planned yet (the inbox) | – |
 
 **Co-op is dropped** (25-09-2026): see [the last section](#co-op-dropped).
@@ -171,21 +172,18 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 - Every enemy, boss and mechanic has a card.
 - The HUD reads at phone width at every text size (checked by the play test).
 
-## v0.9.0 – Phone
+## v0.8.1 – Characters
 
-[Milestone](https://github.com/Cyanida/last-bastion/milestone/4)
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/24) · a patch release, built from the v0.8.0 tag
 
-**Goal.** Last Bastion reads and plays naturally on a phone.
+**Goal.** Every character reads at a glance, and a flash card shows you who it's about.
 
-**Scope.** ([#120](https://github.com/Cyanida/last-bastion/issues/120)):
-- a phone layout on top of 0.8's HUD;
-- save and resume a run (built on #27), and a pause when the app goes to the background;
-- light haptics, and a battery option;
-- the iPhone app through TestFlight, once the Apple Developer account exists.
+**Scope.**
+1. ([#138](https://github.com/Cyanida/last-bastion/issues/138)) Every champion and enemy redrawn at double resolution, so each design has room for detail. This merges #135 and #136.
+2. ([#133](https://github.com/Cyanida/last-bastion/issues/133)) Flash cards show the enemy itself on the card, and a spotlight picks it out in the arena.
+3. ([#134](https://github.com/Cyanida/last-bastion/issues/134)) The Viking's Dread Howl stuns nearby enemies instead of making them flee.
 
-**Exit criteria.** A full run on an iPhone reads without zooming, survives closing the app, and installs from TestFlight.
-
-## v0.10.0 – Classes & roster
+## v0.9.0 – Classes & roster
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/5)
 
@@ -193,11 +191,11 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 - ([#64](https://github.com/Cyanida/last-bastion/issues/64)) Unlockable classes.
 - ([#65](https://github.com/Cyanida/last-bastion/issues/65)) The character select, improved.
 - ([#66](https://github.com/Cyanida/last-bastion/issues/66)) A new class: the Wizard.
-- ([#80](https://github.com/Cyanida/last-bastion/issues/80)) Class sprites: an overhaul of the five base characters.
 - ([#83](https://github.com/Cyanida/last-bastion/issues/83)) The Necromancer's Raise Dead upgrade: skeleton archers.
 - ([#58](https://github.com/Cyanida/last-bastion/issues/58)) Hidden subclasses.
+- ([#137](https://github.com/Cyanida/last-bastion/issues/137)) Real skins: a different design per class, drawn on v0.8.1's new art.
 
-## v0.11.0 – Items & arena
+## v0.10.0 – Items, arenas & sound
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/22)
 
@@ -205,28 +203,40 @@ Shipped first, on 2026-09-23: [#55](https://github.com/Cyanida/last-bastion/issu
 - ([#62](https://github.com/Cyanida/last-bastion/issues/62)) Potions: carry up to 3 and drink them when you need them.
 - ([#86](https://github.com/Cyanida/last-bastion/issues/86)) A relic that puts a shield in front of you.
 - ([#89](https://github.com/Cyanida/last-bastion/issues/89)) Breakable objects in the arena, with small rewards inside.
+- ([#141](https://github.com/Cyanida/last-bastion/issues/141)) 3 or 4 new themed arenas, each with its own look, hazard, relic families and music.
+- ([#142](https://github.com/Cyanida/last-bastion/issues/142)) A sound overhaul: distinct sounds per class, enemy, boss and relic, stereo and a proper mixer.
 
-## v0.12.0 – The Keep
+## v0.11.0 – The Keep & Master difficulty
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/23)
 
 **Scope.**
 - ([#67](https://github.com/Cyanida/last-bastion/issues/67)) The Keep drawn as a castle of buildings that grow with its upgrades.
+- ([#131](https://github.com/Cyanida/last-bastion/issues/131)) A hidden Master difficulty above Legend. Its unlock rule and reward wait for Jesse's answers.
 
-## v1.0.0 – Polished release
+## v0.12.0 – Polished PC game
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/6)
 
-**Goal.** A polished single-player game on PC and phone.
+**Goal.** The PC game is polished before it goes to the phone.
 
 **Scope.**
-1. ([#60](https://github.com/Cyanida/last-bastion/issues/60)) A tutorial that introduces the mechanics one at a time, built on the flash cards (#124).
-2. ([#45](https://github.com/Cyanida/last-bastion/issues/45)) The save format frozen, with a migration test suite from every earlier version.
-3. ([#46](https://github.com/Cyanida/last-bastion/issues/46)) The perf budget holds on a recent phone and on a PC.
-4. ([#47](https://github.com/Cyanida/last-bastion/issues/47)) A crash sweep: full runs to victory on PC and phone, without a crash or an error.
+1. ([#60](https://github.com/Cyanida/last-bastion/issues/60)) A tutorial that introduces the mechanics one at a time, built on the flash cards.
+2. ([#45](https://github.com/Cyanida/last-bastion/issues/45)) The save format frozen, with a migration test from every earlier version.
+3. ([#46](https://github.com/Cyanida/last-bastion/issues/46)) The perf budget holds on a PC, with a 30 fps option.
+4. ([#47](https://github.com/Cyanida/last-bastion/issues/47)) A crash sweep: full runs to victory on PC, without a crash or an error.
 5. ([#48](https://github.com/Cyanida/last-bastion/issues/48)) The 1.0 scope written down, with every release before it checked against it.
 
-If the Apple Developer account exists by then, the App Store release comes from 0.9's TestFlight pipeline.
+## v1.0.0 – Phone & launch
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/4)
+
+**Goal.** The polished game comes to the phone, and launches.
+
+**Scope.** ([#120](https://github.com/Cyanida/last-bastion/issues/120)):
+- the phone layout, and save and resume a run;
+- the iPhone app through TestFlight and the App Store, once the Apple Developer account exists;
+- the perf budget and crash-free full runs on a recent phone.
 
 **Exit criteria.** Everything in [RELEASES.md](RELEASES.md) under "1.0.0 is released only when".
 
