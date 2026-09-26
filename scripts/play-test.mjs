@@ -947,6 +947,57 @@ await check('Bone Colossus: capped over many Raise Deads, skeletons stay beside 
   return { ok, detail: `after ${seen.length} casts: ${last.bones} skeletons, Colossus ×${last.fused}, ${Math.round(last.damage)} dmg (first ${Math.round(seen[0].damage)})` };
 });
 
+// ---------- #134: Dread Howl stuns the enemies around the Viking when rage starts, and none of them flee ----------
+await check('Dread Howl: raging stuns the enemies around you instead of scaring them off', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  const ready = await inPage(async () => {
+    const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '1');
+    set('tm-wave', '3');
+    set('tm-level', '20');
+    const g = window.__startTest();
+    const p = g.player;
+    p.invulnerable = true;
+    p.upgrades.push('dreadHowl'); // test mode has no upgrade picker
+    const foes = () => g.enemies.filter((e) => !e.dead && !e.def.boss);
+    for (let i = 0; i < 6000 && foes().length < 3 && lb.game === g; i++) {
+      p.attackTimer = 1e9;
+      lb.run(1, false, true);
+    }
+    const near = foes().slice(0, 3);
+    if (near.length < 3) return false;
+    near.forEach((e, i) => Object.assign(e, { x: p.x + 50 + i * 25, y: p.y, fearT: 0 }));
+    delete near[0].statuses.stun;
+    p.abilityCd = 0;
+    window.__howl = near;
+    return true;
+  });
+  if (!ready) return { ok: false, detail: 'no enemies reached' };
+  await page.keyboard.down('Space');
+  await inPage(() => window.__lb.run(2, false, 'input'));
+  await page.keyboard.up('Space');
+  return inPage(() => {
+    const near = window.__howl, raging = window.__lb.game.player.abilityTime > 0;
+    const stunned = near.filter((e) => e.statuses.stun).length, fleeing = near.filter((e) => e.fearT > 0).length;
+    return { ok: raging && stunned === near.length && fleeing === 0, detail: `raging ${raging}, ${stunned}/${near.length} stunned, ${fleeing} fleeing` };
+  });
+});
+
 // ---------- #127: the Usurper's last phase is a short hold he fights through, then your blows finish him ----------
 await check("Usurper: the last phase holds a few seconds, he attacks through it, then he falls", async () => {
   await inPage(() => {
