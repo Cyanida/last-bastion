@@ -25,8 +25,14 @@ export const RAMPS = {
   purple: ['#150a1f', '#28123a', '#3e1d57', '#562a76', '#734096', '#935fb4', '#c49ad8'],
   coal: ['#0c0b0e', '#17151b', '#221f27', '#2f2b35', '#403a48', '#57505f', '#7a7282'], // dark cloth: robes, hoods, coats
   poison: ['#16300d', '#2c5a14', '#48861d', '#6cb02a', '#94d044', '#bfe67a', '#e8fbc0'], // the poison trail and clouds
-  fire: ['#4a1406', '#86260a', '#c2410f', '#ec6a17', '#fb9a2c', '#ffc95a', '#fff1b8'], // the fire trail and sparks
-  smear: ['#9fb4d0','#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
+  ember: ['#4a1406', '#86260a', '#c2410f', '#ec6a17', '#fb9a2c', '#ffc95a', '#fff1b8'], // #157: the fire trail and sparks
+  smear: ['#9fb4d0', '#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
+  // #159: the arenas' props
+  stone: ['#1b1a20', '#302f38', '#46454e', '#605e64', '#7e7b76', '#a19c90', '#c9c2b0'],
+  bark: ['#130d0a', '#231812', '#34241a', '#483325', '#5d4431', '#755940', '#927559'],
+  soul: ['#0c2a33', '#155066', '#2182a0', '#3eb1cc', '#7ed8e8', '#c2f1f8', '#ffffff'],
+  fire: ['#5a1a06', '#9a3208', '#d4560f', '#f08a1c', '#f8b73c', '#fde38a', '#fffbe0'],
+  rot: ['#10170f', '#1f2b1d', '#34452f', '#4f6547', '#6d8763', '#94ab86', '#c6d6b4'], // the Graveyard's grasping hands
 } as const;
 export type Material = keyof typeof RAMPS;
 const METALS = new Set<Material>(['steel', 'darksteel', 'gold', 'black']);
