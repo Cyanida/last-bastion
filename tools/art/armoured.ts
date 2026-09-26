@@ -46,10 +46,11 @@ function armoured(c: Armoured, p: Pose): Figure {
 
   if (p.streak) {
     const world = new Bone(0, 0);
-    const y0 = hip.y - 30, x1 = hip.x - 10;
-    for (const [dy, len, th] of [[4, 1, 2], [14, 0.8, 1.5], [24, 1, 2.2], [34, 0.65, 1.5]]) {
-      const x0 = x1 - p.streak * len;
-      f.part(world, [[x0, y0 + dy], [x1, y0 + dy - th / 2], [x1, y0 + dy + th], [x0, y0 + dy + 0.6]], c.fx, -1, { profile: 'flat', outline: false });
+    // the Usurper's broad cloak would hide it: his streak runs over the cloak, longer, from just behind his back
+    const y0 = hip.y - 30, x1 = hip.x - (c.regal ? 4 : 10), z = c.regal ? 0.5 : -1, k = c.regal ? 1.5 : 1;
+    for (const [dy, len, t0] of [[4, 1, 2], [14, 0.8, 1.5], [24, 1, 2.2], [34, 0.65, 1.5]]) {
+      const x0 = x1 - p.streak * len * k, th = t0 * (c.regal ? 1.8 : 1);
+      f.part(world, [[x0, y0 + dy], [x1, y0 + dy - th / 2], [x1, y0 + dy + th], [x0, y0 + dy + 0.6]], c.fx, z, { profile: 'flat', outline: false });
     }
   }
 
