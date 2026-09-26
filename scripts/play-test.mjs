@@ -1780,6 +1780,64 @@ await check('Swing trail and walk pace: a crescent trail on the swing; the feet 
   return { ok, detail: `trail ${trail ? `changes ${trail.crescent} on the crescent, ${trail.inside} inside` : 'not seen'}; ${walk.map((w) => `${w.mult}x: ${w.dist} px, ${w.steps} frames (${w.ratio.toFixed(2)} of the ground)`).join('; ')}` };
 });
 
+// ---------- #156: the champions' allies: raised skeletons walk up and strike, the Angel's decoy and the Archer's shade are drawn from their sheets, the shade looses ----------
+await check("Allies: raised skeletons walk and strike, the Angel's decoy and the Archer's shade play from their sheets (#156)", async () => {
+  const start = async (cls, evo, key) => {
+    await inPage(() => location.reload());
+    await page.waitForFunction((c) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes(c), cls === 'necromancer' ? 'skeleton' : cls);
+    await inPage(async ([c, ev]) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', c);
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      set('tm-level', '5'); // the utility ability unlocks at level 3
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      if (ev) g.evolutions = [ev]; // test mode has no evolution picker
+    }, [cls, evo]);
+    const pin = () => inPage(() => {
+      const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 160, y: p.y, vx: 0, vy: 0, hp: 1e6, maxHp: 1e6, speed: 0 }); // one foe standing still, a walk away
+      return !!e;
+    });
+    for (let i = 0; i < 40 && !(await pin()); i++) await inPage(() => window.__lb.run(10, false, 'input'));
+    await inPage((k) => {
+      const g = window.__lb.game, p = g.player;
+      if (k === 'Space') for (let i = 0; i < 6; i++) g.corpses.push({ x: p.x - 60, y: p.y + 10 * i, t: 0 });
+      Object.assign(p, { abilityCd: 0, utilityCd: 0 });
+    }, key);
+    await page.keyboard.down(key);
+    await inPage(() => window.__lb.run(2, false, 'input'));
+    await page.keyboard.up(key);
+    return pin;
+  };
+  const watch = async (pin, kind, frames) => {
+    const seen = new Set();
+    for (let i = 0; i < frames; i++) {
+      await pin();
+      const a = await inPage((k) => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.minionAnim(k)))))), kind);
+      seen.add(a ? a.anim : 'none');
+    }
+    return seen;
+  };
+  const bones = await watch(await start('necromancer', null, 'Space'), 'skeleton', 90);
+  const decoy = await watch(await start('angel', 'phaseWalk', 'KeyE'), 'decoy', 10);
+  const shade = await watch(await start('archer', 'shadowStep', 'KeyE'), 'shade', 60);
+  const ok = bones.has('walk') && bones.has('attack') && !decoy.has('none') && decoy.has('idle') && shade.has('attack'); // the shade fades after a few seconds
+  return { ok, detail: `skeleton: ${[...bones].join('/')}; decoy: ${[...decoy].join('/')}; shade: ${[...shade].join('/')}` };
+});
+
 // ---------- #157: the foes' rigged sheets: a peasant walks up, jabs on his wind-up, and falls when slain ----------
 await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#157)', () =>
   inPage(() => location.reload()).then(async () => {
