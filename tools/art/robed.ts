@@ -153,6 +153,14 @@ const THROW: [number, Pose][] = [
   [220, pose({ hip: [0, 0], lean: 0.02 })],
 ];
 
+// a new phase: he hunches, then rises with the staff held high and magic flaring in his hand and around his feet, then settles
+const PHASE: [number, Pose][] = [
+  [150, pose({ hip: [0, 2], lean: 0.15, head: 0.25, fist: [5, 13], staff: 0.15 })],
+  [200, pose({ hip: [0, -3], lean: -0.15, head: -0.3, fist: [3, -8], staff: -0.1, far: [-4, -8], magic: 2, burst: 14, robe: 0.06, hem: 1 })],
+  [450, pose({ hip: [0, -4], lean: -0.18, head: -0.35, fist: [3, -9], staff: -0.12, far: [-4, -10], magic: 3, burst: 22, robe: 0.08, hem: 1.5 })],
+  [250, pose({ hip: [0, 0], lean: 0.04, fist: [5, 11], staff: 0.1 })],
+];
+
 /** A robed caster's sheet: the Lich's rig and moves, dressed by `c`. */
 export function robedSprite(c: Robed): SpriteDef {
   const fig = (p: Pose) => robed(c, p);
@@ -165,6 +173,7 @@ export function robedSprite(c: Robed): SpriteDef {
       hurt: HURT.map(([ms, p]) => [ms, fig(p)]),
       death: DEATH.map(([ms, p]) => [ms, fig(p)]),
       special: (c.throw ? THROW : SPECIAL).map(([ms, p]) => [ms, fig(p)]),
+      phase: PHASE.map(([ms, p]) => [ms, fig(p)]),
     },
     impact: 4,
     specialImpact: 3,

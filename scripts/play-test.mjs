@@ -1653,7 +1653,7 @@ await check('Boss sheets: all eight bosses and the Royal Flame load and play the
 );
 
 // ---------- #158: a boss with a rigged sheet walks, winds up its special over the telegraph, releases it, and falls ----------
-await check('Black Knight sheet: walks, winds up and releases his charge on its telegraph, then falls (#158)', () =>
+await check('Black Knight sheet: walks, winds up and releases his charge on its telegraph, rallies into his second phase, then falls (#158)', () =>
   inPage(() => location.reload()).then(async () => {
     await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('blackKnight'));
     await inPage(async () => {
@@ -1694,12 +1694,17 @@ await check('Black Knight sheet: walks, winds up and releases his charge on its 
     });
     await sample(4000);
     await inPage(() => {
+      const e = window.__lb.game.enemies.find((x) => x.def.id === 'blackKnight');
+      Object.assign(e, { hp: e.maxHp * 0.45, special: 99, telegraph: null }); // below half: his second phase
+    });
+    await sample(800);
+    await inPage(() => {
       const g = window.__lb.game, p = g.player, e = g.enemies.find((x) => x.def.id === 'blackKnight');
       Object.assign(e, { x: p.x + 40, y: p.y, hp: 1, maxHp: 1e6, state: 0, special: 99, telegraph: null }); // into the Paladin's reach, one blow from death
     });
     let fell = [];
     for (let i = 0; i < 60 && !fell.includes('blackKnight'); i++) fell = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => r(window.__lb.foesDying())))));
-    const ok = ['walk', 'special'].every((a) => seen.includes(a)) && fell.includes('blackKnight');
+    const ok = ['walk', 'special', 'phase'].every((a) => seen.includes(a)) && fell.includes('blackKnight');
     return { ok, detail: `${seen.join(' → ')}; fallen [${fell.join(', ')}]` };
   }),
 );

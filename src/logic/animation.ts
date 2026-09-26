@@ -5,14 +5,14 @@
  */
 export type BaseAnim = 'idle' | 'walk' | 'attack' | 'hurt' | 'death';
 /** #158: bosses add a `special` row, their big attack: wound up across its telegraph, released when it fires. */
-export type AnimName = BaseAnim | 'special';
+export type AnimName = BaseAnim | 'special' | 'phase'; // #158: 'phase': a boss's pose as it enters a new phase
 
 export interface SheetData {
   w: number; // cell size in art pixels
   h: number;
   anchor: [number, number]; // ground point between the feet, in the cell
   tall: number; // figure height in art pixels
-  anims: Record<BaseAnim, number[]> & { special?: number[] }; // ms per frame; the rows of the sheet in this order
+  anims: Record<BaseAnim, number[]> & { special?: number[]; phase?: number[] }; // ms per frame; the rows of the sheet in this order
   impact: number; // attack frame where the weapon connects
   specialImpact?: number; // #158: special frame shown the moment the telegraph fires
 }
@@ -29,6 +29,7 @@ export interface AnimInput {
   dead: number; // seconds since death (Infinity: alive)
   windup?: number; // #158: 0..1 through a telegraph winding up (undefined: none)
   sinceSpecial?: number; // #158: seconds since the telegraph fired (Infinity: none)
+  sincePhase?: number; // #158: seconds since a boss entered a new phase (Infinity: none)
 }
 
 /** #158: a boss flinches from a hit at most this often (seconds), or it would never stop flinching. */
@@ -56,6 +57,8 @@ export function frameAt(ms: number[], t: number, loop: boolean): number {
 export function pickFrame(d: SheetData, s: AnimInput, baseSpeed: number): { anim: AnimName; frame: number } {
   const a = d.anims;
   if (s.dead < Infinity) return { anim: 'death', frame: frameAt(a.death, s.dead * 1000, false) };
+  // #158: entering a new phase, a boss rallies: the pose plays through once, over everything but death
+  if (a.phase && (s.sincePhase ?? Infinity) * 1000 < a.phase.reduce((x, y) => x + y, 0)) return { anim: 'phase', frame: frameAt(a.phase, s.sincePhase! * 1000, false) };
   if (a.special) {
     // #158: the special winds up over the whole telegraph, however long, and holds its last wind-up frame until it fires
     const imp = d.specialImpact ?? 0, pre = a.special.slice(0, imp), post = a.special.slice(imp);

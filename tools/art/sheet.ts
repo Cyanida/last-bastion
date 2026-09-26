@@ -10,7 +10,7 @@ export interface SpriteDef {
   h: number;
   anchor: [number, number]; // the ground point between the feet, in the cell
   tall: number; // figure height in art pixels (1 art pixel = 1 world pixel)
-  anims: Record<BaseAnim, [ms: number, frame: Figure][]> & { special?: [ms: number, frame: Figure][] }; // rows in this order
+  anims: Record<BaseAnim, [ms: number, frame: Figure][]> & { special?: [ms: number, frame: Figure][]; phase?: [ms: number, frame: Figure][] }; // rows in this order
   impact: number; // attack frame where the weapon connects
   specialImpact?: number; // #158 bosses: special frame shown when the telegraph fires
 }

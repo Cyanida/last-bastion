@@ -191,6 +191,14 @@ const DEATH: [number, Pose][] = [
   [400, pose({ hip: [6, 17], lean: 1.4, head: 0.2, fist: [14, 8], sword: 2.2, shield: [0, 4], shieldA: 1.1, cape: 1.4, crest: 0.6, feet: [[-4, 0, 1.2], [10, 0, 0.5]] })],
 ];
 
+// a new phase: he hunches, then rears up with his weapon raised high over his head and the ground flares around him, then settles
+const PHASE: [number, Pose][] = [
+  [150, pose({ hip: [0, 3], lean: 0.15, head: 0.2, fist: [4, 6], sword: 0.2, feet: [[-7, 0, 0], [6, 0, 0]], cape: 0.1 })],
+  [200, pose({ hip: [-1, -1], lean: -0.2, head: -0.35, fist: [5, -9], sword: 0.3, zs: 7.2, shield: [2, -1], feet: [[-7, 0, 0], [7, 0, 0]], cape: 0.4, crest: 0.4, quake: 16 })],
+  [450, pose({ hip: [-1, -1.5], lean: -0.22, head: -0.4, fist: [5, -10], sword: 0.35, zs: 7.2, shield: [2, -1], feet: [[-7, 0, 0], [7, 0, 0]], cape: 0.5, crest: 0.5, quake: 24 })],
+  [250, pose({ hip: [0, 0], lean: 0.05, fist: [7, 8], sword: 0.6, feet: [[-6, 0, 0], [6, 0, 0]], cape: 0.25, crest: 0.2 })],
+];
+
 /** An armoured boss's sheet: the Black Knight's rig and moves, dressed by `c`. */
 export function armouredSprite(c: Armoured): SpriteDef {
   const fig = (p: Pose) => armoured(c, p), { H, GROUND } = cell(c);
@@ -203,6 +211,7 @@ export function armouredSprite(c: Armoured): SpriteDef {
       hurt: HURT.map(([ms, p]) => [ms, fig(p)]),
       death: DEATH.map(([ms, p]) => [ms, fig(p)]),
       special: (c.special === 'charge' ? CHARGE : SLAM).map(([ms, p]) => [ms, fig(p)]),
+      phase: PHASE.map(([ms, p]) => [ms, fig(p)]),
     },
     impact: 4,
     specialImpact: 3,
