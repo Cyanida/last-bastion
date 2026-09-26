@@ -582,6 +582,10 @@ canvas#game { touch-action: none; }
 .testmode input[type='number'] { width: 4.5em; }
 .testmode .tm-talents { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-top: 10px; font-size: 14px; }
 .testmode .tm-talents label { display: flex; }
+.testmode .tm-gallery { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 6px 0 12px; } /* #155 */
+.testmode .tm-gallery > b { flex-basis: 100%; }
+.testmode .tm-gallery figure { margin: 0; text-align: center; font-size: 13px; }
+.testmode .tm-gallery canvas { display: block; max-width: 100%; background: #2b3428; border: 1px solid #5a3d25; image-rendering: pixelated; }
 
 /* v0.7.5 (#106): the error overlay, above every screen and the tooltip */
 #crash { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(10, 8, 6, 0.8); }

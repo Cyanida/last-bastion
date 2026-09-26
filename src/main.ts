@@ -32,7 +32,8 @@ import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
 import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from './logic/save';
 import { buildArena } from './render/arena';
-import { cameraFor, render, renderBackdrop, setSpotlight, spotlightOn, type View } from './render/renderer';
+import { cameraFor, playerAnim, render, renderBackdrop, setSpotlight, spotlightOn, type View } from './render/renderer';
+import { loadSheets, SHEETS, sheetLoaded } from './render/sprites';
 import { botInput, botStep } from './sim/bot';
 import { playCues, view as simView } from './sim/view';
 import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
@@ -771,6 +772,7 @@ matchMedia('(orientation: portrait)').addEventListener('change', (e) => {
 });
 
 setQuality(save.settings.quality);
+void loadSheets(); // #155: the rigged sprite sheets, long loaded before a run starts; until then the letter grids stand in
 resize();
 initInput(canvas);
 document.documentElement.classList.toggle('touch', platform.touch);
@@ -824,6 +826,8 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
         return spotlightOn(); // #133: the play test checks the spotlight is on the card's foe
       },
       setQuality, // v0.8: the play test compares particle budgets
+      anim: playerAnim, // #155: the champion's animation and frame, as last drawn
+      sheets: () => Object.keys(SHEETS).filter(sheetLoaded), // #155: the rigged sprite sheets that have loaded
       view: simView, // v0.8: the play test wraps view.sfx to hear what the simulation plays
       perf,
       music: musicStats, // v0.7.1

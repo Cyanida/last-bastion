@@ -23,7 +23,7 @@ import { salvageValue, sellPrice } from '../systems/acts';
 import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
-import { SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
+import { GAME, SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { latchGamepad, onAction } from '../input';
@@ -40,7 +40,8 @@ import type { Route } from '../logic/routes';
 import { EVOLUTION_IDS, EVOLUTIONS, type EvolutionId } from '../config/evolutions';
 import { requirementText } from '../logic/evolutions';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
-import { getSprite, outlineSprite, SPRITE_PALETTES } from '../render/sprites';
+import { outlineSprite, portraitSprite, SHEETS, sheetSprite, SPRITE_PALETTES } from '../render/sprites';
+import { frameAt, type AnimName } from '../logic/animation';
 import { OATHS } from '../config/oaths';
 import { oathCap, oathReward } from '../logic/oaths';
 import type { Goal } from '../logic/goals';
@@ -292,8 +293,10 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       <div class="row"><button class="btn" data-back>Back</button><button class="btn big" data-start>Start as ${CLASSES[selectedClass].name}</button></div>
     </div>`);
   el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => {
-    const spr = getSprite(slot.dataset.sprite as ClassDef['sprite'], 6, Number(slot.dataset.paletteN ?? 0));
-    spr.img.style.setProperty('--sprite-h', `${spr.h}px`); // #138: a finer-grid canvas is larger than it shows
+    const id = slot.dataset.sprite as ClassDef['sprite'];
+    const spr = portraitSprite(id, 6, Number(slot.dataset.paletteN ?? 0));
+    // #138: a finer-grid canvas is larger than it shows; #155: a rigged figure (taller) shows at the Paladin's old 84 px, to fit the card
+    spr.img.style.setProperty('--sprite-h', `${SHEETS[id] ? Math.min(spr.h, 84) : spr.h}px`);
     slot.appendChild(spr.img);
   });
   el.querySelectorAll<HTMLElement>('[data-palette]').forEach((sw) => (sw.onclick = (e) => {
@@ -1140,7 +1143,7 @@ function cardPicture(id: CardId, foe?: CardPictureFoe): string {
   const def = id in ENEMIES ? ENEMIES[id as EnemyId] : id === 'elite' ? foe?.def : undefined;
   if (!def) return `<span class="card-pic icon">${MECHANIC_CARDS[id as MechanicCard].icon}</span>`;
   const elite = !!foe?.elite && foe.def === def;
-  const spr = getSprite(def.sprite, def.scale + (elite ? ELITES.scaleBonus : 0), def.palette);
+  const spr = portraitSprite(def.sprite, def.scale + (elite ? ELITES.scaleBonus : 0), def.palette);
   const c = document.createElement('canvas');
   c.width = spr.w + 4;
   c.height = spr.h + 4;
@@ -1192,6 +1195,9 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
       <p class="sub">Held from the start, at the attunement tier chosen (III is awakened).</p>
       <div class="tm-talents" id="tm-relics">${relics(setup.classId)}</div>
       <button class="btn big" data-start>Start test run</button>
+      <h2>Sprite gallery</h2>
+      <p class="sub">Every rigged sprite's animations, side by side at 2×, each on its own clock (#155).</p>
+      ${Object.entries(SHEETS).map(([id, d]) => `<div class="tm-gallery"><b>${id}</b>${Object.keys(d.anims).map((a) => `<figure><canvas data-sheet="${id}" data-anim="${a}" width="${d.w * 2}" height="${d.h * 2}"></canvas><figcaption>${a}</figcaption></figure>`).join('')}</div>`).join('')}
       <h2>Music jukebox</h2>
       <div class="tm-grid">
         <label>Theme <select id="jb-arena">${arenas(setup.arena)}</select></label>
@@ -1235,6 +1241,23 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
   });
   click(el, '[data-back]', on.back);
   onActions((a) => a === 'cancel' && on.back());
+  // the gallery plays until the screen goes; a frame that hasn't loaded yet leaves its cell empty
+  const cells = [...el.querySelectorAll<HTMLCanvasElement>('[data-sheet]')];
+  const t0 = performance.now();
+  const tick = (now: number) => {
+    if (!el.isConnected) return;
+    for (const c of cells) {
+      const id = c.dataset.sheet!, anim = c.dataset.anim as AnimName;
+      const f = frameAt(SHEETS[id].anims[anim], now - t0, true);
+      const spr = sheetSprite(id, GAME.spriteScale * 2, 0, anim, f);
+      const ctx = c.getContext('2d')!;
+      ctx.clearRect(0, 0, c.width, c.height);
+      if (spr) ctx.drawImage(spr.img, 0, 0);
+      c.dataset.frame = String(f); // for the play test
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 
 /**

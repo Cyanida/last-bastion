@@ -225,6 +225,7 @@ public/        manifest + generated icons     build/  installer icon     docs/  
 - **Oath level**: a row in `config/oaths.ts` (a curse, or numbers for a knob in `OathKnob`); a new knob is read from `g.oath.n` where it matters.
 - **Evolution**: a row in `config/evolutions.ts` (two requirements) and its hooks in `systems/evolutions.ts` `HOOKS`.
 - **Weekly contract**: a row in `config/contracts.ts` and, for a new measure, a field in `ContractRun` (`logic/contracts.ts`).
+- **Sprite** (#155): drawn in code by the rig, never by hand. One definition per sprite in `tools/art/sprites/<id>.ts` (parts on bones, poses for idle, walk, attack, hurt and death), following [tools/art/STYLE.md](tools/art/STYLE.md). `npm run art` renders it into `public/sprites/<id>.png` and `src/render/sheets/<id>.json`; commit both, and never edit the PNG. The game finds the sheet by itself and draws it in place of that sprite's letter grid in `render/sprites.ts` (which stays as the fallback). Test mode's **Sprite gallery** plays every sheet.
 - **Talent node**: a row in a class's branch in `config/talents.ts` (`mods`, `stats`, or a number another system reads). **Trait**: a row in `config/traits.ts`. **Utility upgrade**: a row in `config/utility.ts` plus a `has()` branch in that utility's hook in `systems/utility.ts`.
 
 ## Known simplifications

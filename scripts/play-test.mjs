@@ -1528,6 +1528,88 @@ await check('compendium: no card text falls off its card', async () => {
   return { ok, detail: `${seen[0].cards} cards (${seen[0].known} found) × 4 layouts${bad.length ? `; overflows ${bad.length}: ${bad.slice(0, 4).join(', ')}` : ', all text inside'}` };
 });
 
+// ---------- #155: the rigged sprite sheets load, and the Paladin animates idle -> walk -> attack as he moves and fights ----------
+await check('Paladin sheet: loads, then idle, walk and attack play as he moves and swings (#155)', () =>
+  inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  }).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', 'paladin');
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      for (const e of g.enemies) Object.assign(e, { x: g.player.x + 2000, y: g.player.y }); // nobody in reach yet
+    });
+    const seen = [];
+    const sample = async (ms) => {
+      for (let t = 0; t < ms; t += 50) {
+        // three ticks through the real input, then let a frame draw him
+        const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim().anim))))));
+        if (seen[seen.length - 1] !== a) seen.push(a);
+      }
+    };
+    await sample(500); // standing
+    await page.keyboard.down('KeyD');
+    await sample(600);
+    await page.keyboard.up('KeyD');
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, e = g.enemies.find((x) => !x.dead);
+      if (e) Object.assign(e, { x: p.x + 40, y: p.y, hp: 1e6, maxHp: 1e6 }); // a foe steps into his reach
+    });
+    await sample(1500);
+    const sheets = await inPage(() => window.__lb.sheets());
+    const order = ['idle', 'walk', 'attack'].map((a) => seen.indexOf(a));
+    const ok = sheets.includes('paladin') && order.every((i) => i >= 0) && order[0] < order[1] && order[1] < order[2];
+    return { ok, detail: `sheets [${sheets.join(', ')}]; ${seen.join(' → ')}; ${await inPage(() => window.__lb.state)}` };
+  }),
+);
+
+// ---------- #155: the test-mode gallery plays every rigged sprite, and the class select shows the Paladin from his sheet ----------
+await check('Sprite gallery plays the Paladin; his class card shows his sheet (#155)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('paladin'));
+    return inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const frames = {};
+      for (let i = 0; i < 20; i++) {
+        for (const c of document.querySelectorAll('[data-sheet="paladin"]')) (frames[c.dataset.anim] ??= new Set()).add(c.dataset.frame);
+        await wait(80);
+      }
+      // every animation shows up, and each one with more than one frame moves
+      const moving = ['idle', 'walk', 'attack', 'hurt', 'death'].every((a) => frames[a]?.size > 1);
+      document.querySelector('.testmode [data-back]').click(); // to Settings
+      await wait(100);
+      document.querySelector('[data-act="back"]').click(); // to the title
+      await wait(100);
+      document.querySelector('[data-go="start"]').click();
+      await wait(100);
+      const c = document.querySelector('[data-class="paladin"] .portrait canvas');
+      // the sheet's idle frame cropped to the figure (about 55 art px tall, drawn at 2x), shown at the old portrait's 84 px
+      const box = Math.round(c.getBoundingClientRect().height);
+      const ok = moving && c.height >= 100 && box === 84;
+      return { ok, detail: `${Object.entries(frames).map(([a, f]) => `${a} ${f.size}`).join(', ')}; portrait canvas ${c.width}×${c.height}, shown ${box} px` };
+    });
+  }),
+);
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };

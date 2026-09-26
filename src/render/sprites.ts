@@ -1,3 +1,5 @@
+import { GAME } from '../config/game';
+import type { AnimName, SheetData } from '../logic/animation';
 import { spriteSize } from '../logic/spriteRes';
 
 /** Pixel-grid sprites. One char = one pixel, looked up in PALETTE. '.' is transparent. Sprites face right. #138: every champion, foe, commander, siege piece and boss is drawn on a grid twice as fine (SPRITE_RES); the skeleton minion keeps the old grid on purpose, its gaps between the bones read better there. */
@@ -1203,6 +1205,8 @@ export interface Sprite {
   flipped: HTMLCanvasElement;
   flash: HTMLCanvasElement; // white silhouette for hit flashes
   flashFlipped: HTMLCanvasElement;
+  ax?: number; // #155: where the body's position sits in the w × h box (a rigged sheet's feet); default the centre, 3/4 down
+  ay?: number;
 }
 
 /** v0.4 mastery palettes: a canvas filter over the class sprite (0 = as drawn; Ashen, Gilded, Midnight). v0.5: Frost and Verdant tint treasure guardians only. */
@@ -1257,6 +1261,102 @@ export function getSprite(id: SpriteId, scale: number, palette = 0): Sprite {
   }
   return s;
 }
+
+// ---------------------------------------------------------------- #155 rigged sprite sheets
+// Drawn by the rig (tools/art, `npm run art`): public/sprites/<id>.png plus its frame data in ./sheets/<id>.json. Globbed, so a new
+// sheet needs no index. Until a sheet has loaded, and for every sprite without one, the letter grid above is drawn instead.
+
+export const SHEETS: Record<string, SheetData> = Object.fromEntries(
+  Object.entries(import.meta.glob<SheetData>('./sheets/*.json', { eager: true, import: 'default' })).map(([path, d]) => [path.slice(9, -5), d]),
+);
+const sheetImages = new Map<string, HTMLImageElement>();
+let sheetsLoading: Promise<void> | null = null;
+
+/** Starts (once) loading every sheet; resolves when all have loaded or failed. A failed sheet just keeps its letter grid. */
+export function loadSheets(): Promise<void> {
+  return (sheetsLoading ??= Promise.all(
+    Object.keys(SHEETS).map(
+      (id) =>
+        new Promise<void>((done) => {
+          const img = new Image();
+          img.onload = () => {
+            sheetImages.set(id, img);
+            done();
+          };
+          img.onerror = () => done();
+          img.src = `${import.meta.env.BASE_URL}sprites/${id}.png`;
+        }),
+    ),
+  ).then(() => undefined));
+}
+export const sheetLoaded = (id: string): boolean => sheetImages.has(id);
+
+const frames = new Map<string, Sprite>();
+/**
+ * One frame of a rigged sheet as a Sprite (with flips, hit-flash silhouettes and the palette filter), or null while its sheet
+ * isn't loaded. 1 art pixel = 1 world pixel at GAME.spriteScale; the feet sit where a letter-grid sprite's feet would.
+ */
+export function sheetSprite(id: string, scale: number, palette: number, anim: AnimName, frame: number): Sprite | null {
+  const d = SHEETS[id], img = sheetImages.get(id);
+  if (!d || !img) return null;
+  const key = `${id}@${scale}@${palette}@${anim}@${frame}`;
+  let s = frames.get(key);
+  if (!s) {
+    const k = scale / GAME.spriteScale;
+    const cell = Math.max(1, Math.ceil(k));
+    const row = Object.keys(d.anims).indexOf(anim);
+    const make = (white: boolean, flip: boolean): HTMLCanvasElement => {
+      const c = document.createElement('canvas');
+      c.width = d.w * cell;
+      c.height = d.h * cell;
+      const ctx = c.getContext('2d')!;
+      ctx.imageSmoothingEnabled = false;
+      if (flip) ctx.setTransform(-1, 0, 0, 1, c.width, 0);
+      if (palette > 0 && !white && SPRITE_PALETTES[palette] && 'filter' in ctx) ctx.filter = SPRITE_PALETTES[palette];
+      ctx.drawImage(img, frame * d.w, row * d.h, d.w, d.h, 0, 0, c.width, c.height);
+      if (white) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalCompositeOperation = 'source-in';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, c.width, c.height);
+      }
+      return c;
+    };
+    const w = Math.round(d.w * k), h = Math.round(d.h * k);
+    s = { w, h, img: make(false, false), flipped: make(false, true), flash: make(true, false), flashFlipped: make(true, true), ax: d.anchor[0] * k, ay: (d.anchor[1] - d.tall * 0.25) * k };
+    frames.set(key, s);
+  }
+  return s;
+}
+
+/**
+ * A still for the menus and cards (class select, flash cards, glossary): a rigged sheet's first idle frame cropped to the figure,
+ * else, and until the sheet has loaded, the letter grid.
+ */
+export function portraitSprite(id: SpriteId, scale: number, palette = 0): Sprite {
+  const key = `${id}@${scale}@${palette}`;
+  let s = portraits.get(key);
+  if (s) return s;
+  const f = sheetSprite(id, scale, palette, 'idle', 0);
+  if (!f) return getSprite(id, scale, palette); // not cached: the sheet may still load
+  const px = f.img.getContext('2d')!.getImageData(0, 0, f.img.width, f.img.height).data;
+  let x0 = f.img.width, y0 = f.img.height, x1 = 0, y1 = 0;
+  for (let y = 0; y < f.img.height; y++)
+    for (let x = 0; x < f.img.width; x++)
+      if (px[(y * f.img.width + x) * 4 + 3]) (x0 = Math.min(x0, x)), (x1 = Math.max(x1, x + 1)), (y0 = Math.min(y0, y)), (y1 = Math.max(y1, y + 1));
+  const k = f.w / f.img.width; // world px per canvas px
+  const crop = (c: HTMLCanvasElement, flip: boolean): HTMLCanvasElement => {
+    const o = document.createElement('canvas');
+    o.width = x1 - x0;
+    o.height = y1 - y0;
+    o.getContext('2d')!.drawImage(c, flip ? c.width - x1 : x0, y0, o.width, o.height, 0, 0, o.width, o.height);
+    return o;
+  };
+  s = { w: Math.round((x1 - x0) * k), h: Math.round((y1 - y0) * k), img: crop(f.img, false), flipped: crop(f.flipped, true), flash: crop(f.flash, false), flashFlipped: crop(f.flashFlipped, true) };
+  portraits.set(key, s);
+  return s;
+}
+const portraits = new Map<string, Sprite>();
 
 // ---------------------------------------------------------------- v0.4 render caches
 // Paths (ellipse, arc, text outlines) are the expensive canvas commands. Anything drawn hundreds of times a frame
