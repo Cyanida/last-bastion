@@ -1228,6 +1228,35 @@ await check('flash card: a new foe shows one with its sprite and a spotlight on 
   }),
 );
 
+// #138 part 3: the siege pieces and the bosses are on the finer grid too; their card pictures (the same ones a flash card shows) keep the
+// old grid's size at their own scale, and the Siege Camp and the Plague Cart show their own pictures
+await check('card pictures: siege pieces and bosses redrawn at their old size, the Siege Camp and the Plague Cart their own', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async () => {
+      const lb = window.__lb, wait = (ms = 100) => new Promise((r) => setTimeout(r, ms));
+      // [id, sprite, old columns, old rows, arena scale]
+      const want = [['ballista', 'ballista', 14, 10, 3], ['siegeTower', 'siegeTower', 16, 18, 4], ['blackKnight', 'blackKnight', 16, 18, 4], ['warlord', 'warlord', 16, 18, 4], ['lich', 'lich', 16, 18, 4], ['inquisitor', 'inquisitor', 16, 18, 4], ['abbot', 'abbot', 16, 18, 4], ['dragon', 'dragon', 29, 18, 4], ['warden', 'warden', 16, 18, 4], ['usurper', 'usurper', 16, 18, 5], ['royalFlame', 'royalFlame', 12, 14, 4]];
+      const had = [...lb.save.cards];
+      lb.save.cards.push(...[...want.map(([id]) => id), 'siegeCamp', 'plagueCart'].filter((id) => !had.includes(id)));
+      document.querySelector('[data-go="keep"]').click();
+      await wait();
+      document.querySelector('[data-glossary]').click();
+      await wait();
+      const pics = new Map([...document.querySelectorAll('.cards-met img.card-pic')].map((i) => [i.dataset.spriteOf, [i.naturalWidth, i.naturalHeight, i.src]]));
+      document.querySelector('[data-back]').click();
+      await wait();
+      document.querySelector('[data-back]')?.click();
+      await wait();
+      lb.save.cards.splice(0, lb.save.cards.length, ...had);
+      const wrong = want.filter(([id, , c, r, s]) => pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
+      const own = ['siegeCamp', 'plagueCart'].every((id) => pics.has(id)) && pics.get('siegeCamp')[2] !== pics.get('siegeTower')?.[2] && pics.get('plagueCart')[2] !== pics.get('ballista')?.[2];
+      const ok = wrong.length === 0 && own && lb.state === 'menu';
+      return { ok, detail: `${want.map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×')}`).join(', ')}${wrong.length ? ` · WRONG ${wrong}` : ''} · camp ${pics.get('siegeCamp')?.slice(0, 2).join('×')}, cart ${pics.get('plagueCart')?.slice(0, 2).join('×')}${own ? '' : ' (NOT THEIR OWN)'}` };
+    });
+  }),
+);
+
 // ---------- a real run (not a test run) is banked ----------
 await check('a real run is banked: gold, the local day, the run log, the week', () =>
   inPage(async () => {
