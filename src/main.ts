@@ -46,6 +46,7 @@ import { textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
+import { BOOK_IDS } from './config/acts';
 import { looseRelics } from './logic/relics';
 import { TRAITS } from './config/traits';
 import { CLASS_ORDER } from './config/classes';
@@ -470,9 +471,10 @@ function openMerchant(g: Game): void {
   const act = g.act;
   const again = (ok: boolean) => ok && openMerchant(g);
   showMerchant(
-    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: looseRelics(g.player.relics.held, g.player.relics.duos), tiers: g.player.relics.tiers, attune: g.player.relics.attune, reforgeable: g.player.relics.held.filter((id) => reforgeChoices(g, id).length > 0), salvage: g.salvage, relicsLeft: g.midMerchant ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant },
+    { act, gold: g.gold, hp: g.player.hp, maxHp: g.player.stats.hp, relics: looseRelics(g.player.relics.held, g.player.relics.duos), tiers: g.player.relics.tiers, attune: g.player.relics.attune, reforgeable: g.player.relics.held.filter((id) => reforgeChoices(g, id).length > 0), salvage: g.salvage, relicsLeft: g.midMerchant && !g.vars.caravanRelic ? 0 : RELIC_MOMENTS.merchantPerVisit - (g.vars.merchantRelics ?? 0), mid: g.midMerchant, books: g.midMerchant && !g.vars.caravanRelic ? BOOK_IDS : [], booksLeft: BOOK_IDS.filter((b) => !g.vars[`book.${b}`]) },
     {
       heal: () => again(choose(g, { c: 'merchantHeal' })),
+      book: (book) => again(choose(g, { c: 'merchantBook', book })), // v0.8.1 #144: the caravan's books
       buy: (rarity) => void (choose(g, { c: 'merchantBuy', rarity }) && openChoice(g)), // v0.7: the pick of three opens, then the Merchant again
       reroll: (id) => again(choose(g, { c: 'merchantReroll', id })),
       reforge: (id) => again(choose(g, { c: 'merchantReforge', id })), // v0.7.1 B7

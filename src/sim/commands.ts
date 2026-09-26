@@ -3,13 +3,14 @@ import { GAME } from '../config/game';
 import type { BlessingId } from '../config/regions';
 import type { DuoId, RelicId } from '../config/relics';
 import type { Rarity } from '../config/relics';
+import type { BookId } from '../config/acts';
 import type { UtilityUpgradeId } from '../config/utility';
 import type { Game } from '../core/types';
 import { updateGame } from '../game';
 import { rerollCost } from '../logic/economy';
 import type { LevelUpOption } from '../logic/upgrades';
 import { chooseAbilityUpgrade } from '../systems/abilities';
-import { chooseRoute, leaveMerchant, merchantBuy, merchantHeal, merchantReforge, merchantReroll, merchantSalvage, merchantSell } from '../systems/acts';
+import { chooseRoute, leaveMerchant, merchantBook, merchantBuy, merchantHeal, merchantReforge, merchantReroll, merchantSalvage, merchantSell } from '../systems/acts';
 import { peddlerBuy, peddlerToken } from '../systems/events';
 import { banishOption, chooseLevelUp, levelUpOptions } from '../systems/leveling';
 import { takeQuests } from '../systems/quests';
@@ -47,6 +48,7 @@ export type Choice =
   | { c: 'peddlerLeave' }
   | { c: 'merchantHeal' }
   | { c: 'merchantBuy'; rarity: Rarity }
+  | { c: 'merchantBook'; book: BookId }
   | { c: 'merchantReroll'; id: RelicId }
   | { c: 'merchantReforge'; id: RelicId }
   | { c: 'merchantSell'; id: RelicId }
@@ -98,6 +100,7 @@ export function choiceOpen(g: Game, ch: Choice): boolean {
       return g.pendingShop;
     case 'merchantHeal':
     case 'merchantBuy':
+    case 'merchantBook':
     case 'merchantReroll':
     case 'merchantReforge':
     case 'merchantSell':
@@ -172,6 +175,8 @@ export function applyChoice(g: Game, ch: Choice): boolean {
       return merchantHeal(g);
     case 'merchantBuy':
       return merchantBuy(g, ch.rarity);
+    case 'merchantBook':
+      return merchantBook(g, ch.book);
     case 'merchantReroll':
       return merchantReroll(g, ch.id);
     case 'merchantReforge':

@@ -7,7 +7,7 @@ import { sfx } from '../sim/view';
 import { emit } from '../core/events';
 import type { Enemy, Game } from '../core/types';
 import { createEnemy } from '../entities/actors';
-import { actName, bossDef, bossForWave, isActEnd, themeFor } from '../logic/acts';
+import { actName, bossDef, bossForWave, caravanSellsRelic, isActEnd, themeFor } from '../logic/acts';
 import { curseValue } from '../logic/curses';
 import { enemyXpMult, waveClearXp } from '../logic/formulas';
 import { gainXp } from './leveling';
@@ -190,7 +190,7 @@ export function updateSpawning(g: Game, dt: number): void {
     if (isActEnd(g.wave)) {
       if (noMerchant) g.pendingRoute = routeChoices(g.seed, g.act, g.arena.id);
       else g.pendingMerchant = true; // the UI (or the bot) visits the Merchant, then picks a route
-    } else if (g.route?.focus === 'merchant' && g.wave % ACTS.length === ROUTES.merchant.midWave && !noMerchant) (g.pendingMerchant = true), (g.midMerchant = true); // v0.6 Merchant path
+    } else if (g.route?.focus === 'merchant' && g.wave % ACTS.length === ROUTES.merchant.midWave && !noMerchant) (g.pendingMerchant = true), (g.midMerchant = true), (g.vars.caravanRelic = caravanSellsRelic(g.player.relics.rng) ? 1 : 0); // v0.6 Merchant path; v0.8.1 #144: a relic or books
     g.wavesCleared = g.wave;
     emit(g, 'onWaveCleared', { wave: g.wave });
     g.modifier = null;

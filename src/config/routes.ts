@@ -15,7 +15,7 @@ export const ROUTE_FOCUS: Record<RouteFocus, { name: string; icon: string; desc:
 export const ROUTES = {
   choices: 3,
   elite: { eliteMult: 1.8, rerolls: 1 }, // elite chance times this, and extra rerolls at the Act's relic moments (v0.7: was elites' relic drop chance)
-  merchant: { gold: 1.25, midWave: 5 }, // gold drops times this; the Merchant visits after the Act's wave `midWave`
+  merchant: { gold: 1.25, midWave: 5, relicChance: 0.1 }, // gold drops times this; the Merchant visits after the Act's wave `midWave`; his caravan sells a relic that visit at relicChance (v0.8.1 #144), else books
   pilgrim: { extraQuests: 1 },
   siege: { hp: 1.15, damage: 1.15, runes: 2 }, // enemy HP and damage times these; Runes when the Act boss falls, outside the cap
 };

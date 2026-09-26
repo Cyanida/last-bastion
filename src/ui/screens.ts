@@ -34,7 +34,7 @@ import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, met
 import { exportSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
-import { ACT_THEMES, ACTS, FINAL } from '../config/acts';
+import { ACT_THEMES, ACTS, FINAL, MERCHANT, type BookId } from '../config/acts';
 import { ROUTE_FOCUS } from '../config/routes';
 import type { Route } from '../logic/routes';
 import { EVOLUTION_IDS, EVOLUTIONS, type EvolutionId } from '../config/evolutions';
@@ -974,10 +974,12 @@ export interface MerchantInfo {
   salvage: number; // Rune shards so far
   relicsLeft: number; // v0.7: relic moments he still sells this visit
   mid?: boolean; // v0.6: the Merchant path's visit halfway through an Act
+  books: BookId[]; // v0.8.1 #144: the caravan's books in the relic slots (none when it sells a relic this visit, or at the end of an Act)
+  booksLeft: BookId[]; // one of each a visit
 }
 
 /** Between Acts. Everything here costs run gold, and run gold is what you would otherwise bank for the Keep. */
-export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r: Rarity) => void; reroll: (id: RelicId) => void; reforge: (id: RelicId) => void; sell: (id: RelicId) => void; salvage: (id: RelicId) => void; leave: () => void }): void {
+export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r: Rarity) => void; book: (b: BookId) => void; reroll: (id: RelicId) => void; reforge: (id: RelicId) => void; sell: (id: RelicId) => void; salvage: (id: RelicId) => void; leave: () => void }): void {
   const price = (item: MerchantItem) => merchantPrice(item, info.act);
   const offer = (item: MerchantItem, attrs: string, title: string, text: string, enabled: boolean) =>
     `<button class="card panel boon shop" ${attrs} ${enabled && info.gold >= price(item) ? '' : 'disabled'}><h2>${title}</h2><p>${text}</p><div class="best">🪙 ${price(item)}</div></button>`;
@@ -998,13 +1000,15 @@ export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r
       <p class="sub">${info.mid ? 'The Merchant path: his caravan has caught up with you.' : 'The Merchant waits by the gate.'} Purse: <b class="goldtext">🪙 ${info.gold}</b>${info.salvage > 0 ? ` · shards: <b>${info.salvage} ◆</b>` : ''} — what you spend here never reaches the Keep.</p>
       <div class="cards">
         ${offer('heal', 'data-heal', 'Field Surgeon', `Heal half your HP (${Math.ceil(info.hp)} / ${Math.round(info.maxHp)}).`, info.hp < info.maxHp)}
-        ${(Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, info.relicsLeft > 0 ? `Choose one of three ${r} relics you do not carry. One relic a visit.` : 'He sells one relic a visit.', info.relicsLeft > 0)).join('')}
+        ${info.books.length ? info.books.map((b) => offer(`book:${b}`, `data-book="${b}"`, `${MERCHANT.books[b].icon} ${MERCHANT.books[b].name}`, info.booksLeft.includes(b) ? MERCHANT.books[b].desc : 'Bought. One of each a visit.', info.booksLeft.includes(b))).join('')
+        : info.mid && info.relicsLeft <= 0 ? '' : (Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, info.relicsLeft > 0 ? `Choose one of three ${r} relics you do not carry. One relic a visit.` : 'He sells one relic a visit.', info.relicsLeft > 0)).join('')}
       </div>
       ${held ? `<div class="panel heldlist">${held}</div>` : ''}
       <button class="btn big" data-leave>March on</button>
     </div>`);
   click(el, '[data-heal]', on.heal);
   click(el, '[data-buy]', (b) => on.buy(b.dataset.buy as Rarity));
+  click(el, '[data-book]', (b) => on.book(b.dataset.book as BookId));
   click(el, '[data-reroll]', (b) => on.reroll(b.dataset.reroll as RelicId));
   click(el, '[data-reforge]', (b) => on.reforge(b.dataset.reforge as RelicId));
   click(el, '[data-sell]', (b) => on.sell(b.dataset.sell as RelicId));
