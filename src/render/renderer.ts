@@ -13,7 +13,7 @@ import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
 import { QUESTS } from '../config/quests';
 import { eventMarks, questMarks, type Mark } from '../logic/quests';
-import { wallPattern } from './arena';
+import { drawProp, propFrame, wallPattern } from './arena';
 import { digitGlyphs, fogSprite, getSprite, SHEETS, sheetSprite, glyphIndex, isNumeric, outlineSprite, ringSprite, shadowSprite, textSprite, type Sprite } from './sprites';
 import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
@@ -357,6 +357,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(z, 0, 0, z, -Math.round(cx * z), -Math.round(cy * z));
   blitArena(ctx, arena, cx, cy, vw, vh);
+  // #159: the braziers' flames lick; everything else on the ground is baked into the arena
+  for (const o of g.arena.obstacles) if (o.kind === 'brazier' && visible(o.x, o.y, 60)) drawProp(ctx, 'brazier', o.x, o.y, o.r, propFrame('brazier', g.time));
   drawClosedRegions(ctx, g, cx, cy, vw, vh);
   end('arena', _t);
   _t = begin();

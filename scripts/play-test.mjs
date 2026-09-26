@@ -1610,6 +1610,79 @@ await check('Sprite gallery plays the Paladin; his class card shows his sheet (#
   }),
 );
 
+// ---------- #159: every arena draws its ground props from the rig's atlas, and the keep's braziers flicker ----------
+await check('Arenas: every arena shows its rigged props; the braziers flicker (#159)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+    const out = [];
+    for (const arena of ['courtyard', 'graveyard', 'keep', 'bastion']) {
+      if (out.length) {
+        await inPage(() => location.reload());
+        await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+      }
+      out.push(
+        await inPage(async (arena) => {
+          const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+          [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+          await wait(150);
+          document.querySelector('[data-act="test"]').click();
+          await wait();
+          const el = document.getElementById('tm-arena');
+          el.value = arena;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          const g = window.__startTest();
+          g.player.invulnerable = true;
+          // the quest board comes up on the first frames: set out without a quest, and let the run go
+          for (let i = 0; i < 40 && !(lb.state === 'playing' && g.time > 0.3); i++) {
+            if (lb.state === 'choice') lb.run(1, false, 'input');
+            await wait(50);
+          }
+          // the atlas, read back, against the baked ground: each obstacle's prop is in the arena, pixel for pixel at its anchor column
+          const img = new Image();
+          img.src = 'sprites/props.png';
+          await img.decode();
+          const atlas = document.createElement('canvas');
+          [atlas.width, atlas.height] = [img.width, img.height];
+          atlas.getContext('2d').drawImage(img, 0, 0);
+          const a = atlas.getContext('2d'), ground = lb.arenaCanvas(g.arena.id).getContext('2d');
+          // kind: [atlas row y, anchor x, anchor y, a solid pixel's y in the cell, drawn for radius] (src/render/props.json)
+          const P = { pillar: [0, 38, 80, 50, 30], tomb: [172, 24, 48, 35, 18], tree: [236, 60, 98, 70, 26], throne: [356, 60, 100, 70, 44] };
+          let props = 0, wrong = 0;
+          for (const o of g.arena.obstacles) {
+            const m = P[o.kind];
+            if (!m) continue;
+            const k = o.r / m[4];
+            const want = a.getImageData(m[1], m[0] + m[3], 1, 1).data;
+            const got = ground.getImageData(Math.round(o.x), Math.round(o.y + (m[3] - m[2]) * k), 1, 1).data;
+            props++;
+            if (k === 1 && Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) > 8) wrong++;
+          }
+          // a brazier on screen: its flame changes from frame to frame
+          let flicker = null;
+          const b = g.arena.obstacles.find((o) => o.kind === 'brazier');
+          if (b) {
+            Object.assign(g.player, { x: b.x - 120, y: b.y });
+            await wait(200);
+            const cam = lb.camera(), c = document.getElementById('game').getContext('2d');
+            const seen = new Set();
+            for (let i = 0; i < 12; i++) {
+              g.enemies.length = 0;
+              const px = c.getImageData(Math.round((b.x - cam.x) * cam.zoom) - 12, Math.round((b.y - 40 - cam.y) * cam.zoom) - 12, 24, 24).data;
+              seen.add(px.join(',').length + ':' + px.reduce((s, v) => s + v, 0));
+              await wait(60);
+            }
+            flicker = seen.size;
+            if (flicker < 2) flicker = `${flicker} (${lb.state}, time ${g.time.toFixed(2)})`;
+          }
+          return { arena, props, wrong, flicker };
+        }, arena),
+      );
+    }
+    const ok = out.every((r) => r.wrong === 0) && out.find((r) => r.arena === 'graveyard').props > 0 && typeof out.find((r) => r.arena === 'keep').flicker === 'number';
+    return { ok, detail: out.map((r) => `${r.arena}: ${r.props} props${r.wrong ? ` (${r.wrong} WRONG)` : ''}${r.flicker === null ? '' : `, flame ${r.flicker} looks`}`).join('; ') };
+  }),
+);
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };

@@ -31,7 +31,7 @@ import { questTake } from './systems/quests';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
 import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from './logic/save';
-import { buildArena } from './render/arena';
+import { buildArena, loadProps, propsLoaded } from './render/arena';
 import { cameraFor, playerAnim, render, renderBackdrop, setSpotlight, spotlightOn, type View } from './render/renderer';
 import { loadSheets, SHEETS, sheetLoaded } from './render/sprites';
 import { botInput, botStep } from './sim/bot';
@@ -772,6 +772,7 @@ matchMedia('(orientation: portrait)').addEventListener('change', (e) => {
 });
 
 setQuality(save.settings.quality);
+void loadProps().then((ok) => ok && arenaCache.clear()); // #159: the arenas are rebuilt with the rigged props
 void loadSheets(); // #155: the rigged sprite sheets, long loaded before a run starts; until then the letter grids stand in
 resize();
 initInput(canvas);
@@ -828,6 +829,9 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       setQuality, // v0.8: the play test compares particle budgets
       anim: playerAnim, // #155: the champion's animation and frame, as last drawn
       sheets: () => Object.keys(SHEETS).filter(sheetLoaded), // #155: the rigged sprite sheets that have loaded
+      props: propsLoaded, // #159: the arenas' rigged props have loaded
+      arenaCanvas, // #159: the play test reads the baked ground under the props
+      camera: () => game && { ...cameraFor(game, view), zoom: view.zoom }, // #159: where a world point lands on the canvas
       view: simView, // v0.8: the play test wraps view.sfx to hear what the simulation plays
       perf,
       music: musicStats, // v0.7.1

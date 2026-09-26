@@ -16,6 +16,10 @@ export const RAMPS = {
   leather: ['#1e110a', '#3a2114', '#56321c', '#744627', '#935f37', '#b27b4c', '#d09d6d'],
   glow: ['#6b5516', '#a88a2b', '#d6bb50', '#f0dc82', '#fff2b0', '#fffadd', '#ffffff'],
   smear: ['#9fb4d0', '#c4d4ea', '#dce6f4', '#eaf1fa', '#f4f8fd', '#fbfcff', '#ffffff'],
+  // #159: the arenas' props
+  stone: ['#1b1a20', '#302f38', '#46454e', '#605e64', '#7e7b76', '#a19c90', '#c9c2b0'],
+  bark: ['#130d0a', '#231812', '#34241a', '#483325', '#5d4431', '#755940', '#927559'],
+  fire: ['#5a1a06', '#9a3208', '#d4560f', '#f08a1c', '#f8b73c', '#fde38a', '#fffbe0'],
 } as const;
 export type Material = keyof typeof RAMPS;
 const METALS = new Set<Material>(['steel', 'darksteel', 'gold']);
