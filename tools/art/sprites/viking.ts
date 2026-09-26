@@ -75,6 +75,7 @@ export const sprite: SpriteDef = {
     idle: C.idle.map((p) => [200, viking(p)]),
     walk: C.walk.map((p) => [100, viking(p)]),
     attack: ATTACK.map(([ms, p]) => [ms, viking(p)]),
+    cast: C.cast.map(([ms, p]) => [ms, viking(p)]),
     hurt: C.hurt.map(([ms, p]) => [ms, viking(p)]),
     death: C.death.map(([ms, p]) => [ms, viking(p)]),
   },

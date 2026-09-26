@@ -29,12 +29,12 @@ describe('#155 art rig', () => {
       expect(readFileSync(p.json, 'utf8').replace(/\r\n/g, '\n')).toBe(sheetJson(data));
       expect(buildSheet(def).png.equals(png)).toBe(true); // deterministic
     }
-  });
+  }, 90_000); // #156: every champion's sheet is rendered twice
 });
 
 describe('#155 animation state', () => {
   const d = JSON.parse(readFileSync('src/render/sheets/paladin.json', 'utf8')) as SheetData;
-  const calm: AnimInput = { time: 0, walked: 0, moving: false, sinceHit: Infinity, untilHit: Infinity, attackCd: 1, hurt: Infinity, dead: Infinity };
+  const calm: AnimInput = { time: 0, walked: 0, moving: false, sinceHit: Infinity, untilHit: Infinity, attackCd: 1, cast: Infinity, hurt: Infinity, dead: Infinity };
   const at = (s: Partial<AnimInput>) => pickFrame(d, { ...calm, ...s }, 100);
 
   it('idles, and walks with the feet following the ground covered', () => {

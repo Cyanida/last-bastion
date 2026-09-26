@@ -3,7 +3,7 @@
  * feeds back into the simulation. The sheets are written by `npm run art` (tools/art) as public/sprites/<id>.png plus
  * src/render/sheets/<id>.json (this frame data).
  */
-export type AnimName = 'idle' | 'walk' | 'attack' | 'hurt' | 'death';
+export type AnimName = 'idle' | 'walk' | 'attack' | 'cast' | 'hurt' | 'death';
 
 export interface SheetData {
   w: number; // cell size in art pixels
@@ -22,6 +22,7 @@ export interface AnimInput {
   sinceHit: number; // seconds since the last attack landed (Infinity: none)
   untilHit: number; // seconds until the next attack lands if a target stays in reach (Infinity: none coming)
   attackCd: number; // seconds between attacks: the whole swing is squeezed into it
+  cast: number; // #156: seconds since the signature ability was used (Infinity: not yet)
   hurt: number; // seconds since last hurt (Infinity: not hurt)
   dead: number; // seconds since death (Infinity: alive)
 }
@@ -48,6 +49,8 @@ export function frameAt(ms: number[], t: number, loop: boolean): number {
 export function pickFrame(d: SheetData, s: AnimInput, baseSpeed: number): { anim: AnimName; frame: number } {
   const a = d.anims;
   if (s.dead < Infinity) return { anim: 'death', frame: frameAt(a.death, s.dead * 1000, false) };
+  const castMs = a.cast.reduce((x, y) => x + y, 0);
+  if (s.cast * 1000 < castMs) return { anim: 'cast', frame: frameAt(a.cast, s.cast * 1000, false) }; // #156: the ability outranks a swing
   const pre = a.attack.slice(0, d.impact), post = a.attack.slice(d.impact);
   const preMs = pre.reduce((x, y) => x + y, 0), postMs = post.reduce((x, y) => x + y, 0);
   const squeeze = Math.min(1, (s.attackCd * 1000) / (preMs + postMs));

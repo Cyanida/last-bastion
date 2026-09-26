@@ -70,6 +70,7 @@ export const sprite: SpriteDef = {
     idle: C.idle.map((p) => [200, angel(p)]),
     walk: C.walk.map((p) => [100, angel(p)]),
     attack: ATTACK.map(([ms, p]) => [ms, angel(p)]),
+    cast: C.cast.map(([ms, p]) => [ms, angel(p)]),
     hurt: C.hurt.map(([ms, p]) => [ms, angel(p)]),
     death: C.death.map(([ms, p]) => [ms, angel(p)]),
   },

@@ -39,7 +39,7 @@ export function foot(ph: number, S = 6.5): Foot {
 }
 
 /** Idle, walk, hurt and death around a champion's rest pose `b` (its hands and weapon at rest). */
-export function common(b: Partial<Pose>): { idle: Pose[]; walk: Pose[]; hurt: [number, Pose][]; death: [number, Pose][] } {
+export function common(b: Partial<Pose>): { idle: Pose[]; walk: Pose[]; cast: [number, Pose][]; hurt: [number, Pose][]; death: [number, Pose][] } {
   const P = (kw: Partial<Pose>) => pose(b, kw);
   const [fx, fy] = b.fist ?? [7, 11.5];
   const [ox, oy] = b.off ?? [-2, 11];
@@ -55,6 +55,13 @@ export function common(b: Partial<Pose>): { idle: Pose[]; walk: Pose[]; hurt: [n
         fist: [fx - 1.5 * swing, fy - 0.6 * Math.abs(swing)], off: [ox + 1.5 * swing, oy], skirt: 0.08 * swing, fx: 0.5,
       });
     }),
+    // the signature ability: gather, raise the hand high, release with a flare, hold, settle
+    cast: [
+      [110, P({ hip: [0, 1], lean: -0.05, fist: [fx - 3, fy - 3], off: [ox + 2, oy - 2], fx: 0.6 })],
+      [130, P({ hip: [0, -1], lean: -0.12, head: -0.15, fist: [3, -6], wpn: w0 - 0.4, off: [ox - 2, oy - 8], fx: 1, cape: 0.2, plume: 0.1 })],
+      [220, P({ hip: [0, 0], lean: -0.08, head: -0.1, fist: [5, -5], wpn: w0 - 0.2, off: [ox - 3, oy - 10], fx: 1, cape: 0.25, plume: 0.14 })],
+      [160, P({ hip: [0, 1], lean: 0, fist: [fx, fy - 2], off: [ox, oy - 1], fx: 0.4 })],
+    ],
     hurt: [
       [90, P({ hip: [-2, 1], lean: -0.22, head: -0.2, cape: 0.02, plume: -0.15, fist: [fx - 3, fy - 2], wpn: w0 - 0.2, off: [ox + 2, oy - 1], feet: [[-6, 0, 0], [3, 0, 0]] })],
       [140, P({ hip: [-1, 1], lean: -0.12, head: -0.1, cape: 0.06, plume: -0.05, fist: [fx - 2, fy - 1], wpn: w0 - 0.1, off: [ox + 1, oy], feet: [[-5, 0, 0], [3, 0, 0]] })],

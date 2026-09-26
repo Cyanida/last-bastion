@@ -85,12 +85,22 @@ const ATTACK: [number, Pose][] = [
   [130, P({ off: [10, 4], offA: 0.05, fist: [0, 8] })],
 ];
 
+// Arrow Volley: the bow raised high and drawn for a shot into the sky
+const UP: Partial<Pose> = { off: [9, -9], offA: -0.55, lean: -0.1, head: -0.15 };
+const CAST: [number, Pose][] = [
+  [110, P({ ...UP, fx: 0.3 })],
+  [150, P({ ...UP, fx: 1 })],
+  [200, P({ ...UP, fist: [-3, -8], cape: 0.2 })],
+  [150, P({ off: [10, 3], offA: 0.1, fist: [1, 9] })],
+];
+
 export const sprite: SpriteDef = {
   id: 'archer', w: W, h: H, anchor: [X0, 75], tall: 54,
   anims: {
     idle: C.idle.map((p) => [200, archer({ ...p, fx: 0 })]),
     walk: C.walk.map((p) => [100, archer({ ...p, fx: 0 })]),
     attack: ATTACK.map(([ms, p]) => [ms, archer(p)]),
+    cast: CAST.map(([ms, p]) => [ms, archer(p)]),
     hurt: C.hurt.map(([ms, p]) => [ms, archer({ ...p, fx: 0 })]),
     death: C.death.map(([ms, p]) => [ms, archer({ ...p, fx: 0 })]),
   },

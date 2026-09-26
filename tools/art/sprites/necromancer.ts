@@ -73,6 +73,7 @@ export const sprite: SpriteDef = {
     idle: C.idle.map((p) => [200, necromancer(p)]),
     walk: C.walk.map((p) => [100, necromancer(p)]),
     attack: ATTACK.map(([ms, p]) => [ms, necromancer(p)]),
+    cast: C.cast.map(([ms, p]) => [ms, necromancer({ ...p, fist: [p.fist[0] + 2, p.fist[1] + 9] })]), // the long staff stays in the cell
     hurt: C.hurt.map(([ms, p]) => [ms, necromancer(p)]),
     death: C.death.map(([ms, p]) => [ms, necromancer(p)]),
   },
