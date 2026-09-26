@@ -29,7 +29,7 @@ describe('#155 art rig', () => {
       expect(readFileSync(p.json, 'utf8').replace(/\r\n/g, '\n')).toBe(sheetJson(data));
       expect(buildSheet(def).png.equals(png)).toBe(true); // deterministic
     }
-  });
+  }, 180_000); // #158: every sheet is rasterized twice, and the bosses are big
 });
 
 describe('#155 animation state', () => {
