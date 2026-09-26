@@ -32,6 +32,7 @@ import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
 import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from './logic/save';
 import { buildArena } from './render/arena';
+import { ENEMIES, type EnemyId } from './config/enemies';
 import { cameraFor, foeAnim, foesDying, playerAnim, render, renderBackdrop, setSpotlight, spotlightOn, type View } from './render/renderer';
 import { loadSheets, SHEETS, sheetLoaded } from './render/sprites';
 import { botInput, botStep } from './sim/bot';
@@ -830,6 +831,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       sheets: () => Object.keys(SHEETS).filter(sheetLoaded), // #155: the rigged sprite sheets that have loaded
       foeAnim, // #157: a foe kind's animation and frame, as last drawn
       foesDying, // #157: the slain foes whose death is playing
+      enemyDef: (id: EnemyId) => ENEMIES[id], // #157: the play test turns a foe into a given kind
       view: simView, // v0.8: the play test wraps view.sfx to hear what the simulation plays
       perf,
       music: musicStats, // v0.7.1

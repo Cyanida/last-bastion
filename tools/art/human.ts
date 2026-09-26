@@ -85,6 +85,60 @@ function foot(ph: number, S = 6): Foot {
 
 const add = (a: Pt, b: Pt): Pt => [a[0] + b[0], a[1] + b[1]];
 
+// ---- shared pieces for the rest of the foes: one attack per kind of blow, a face, a tunic and a swing trail ----
+
+/** Overhead chop (swords, maces, hammers): ready, raise, overhead, down with the trail, impact (held), recovery. Impact 4. */
+export const CHOP: [number, Partial<Pose>][] = [
+  [250, {}],
+  [110, { hip: [-1, 0], lean: -0.1, fist: [4, -7], weapon: -0.4, zw: 4.6 }],
+  [130, { hip: [-1, -1], lean: -0.14, fist: [2, -11], weapon: -1, zw: 4.6 }],
+  [60, { hip: [1, 0], lean: 0.06, fist: [10, -4], weapon: 0.9, smear: 0.8, feet: [[-4, 0, 0], [7, 1.5, -0.1]] }],
+  [180, { hip: [2, 1], lean: 0.18, fist: [11, 5], weapon: 2, smear: 1, feet: [[-5, 1, 0.3], [9, 0, 0]] }],
+  [130, { hip: [1, 0], lean: 0.08, fist: [9, 9], weapon: 1.4, feet: [[-5, 0, 0], [8, 0, 0]] }],
+];
+/** Forward thrust (spears, daggers): ready, draw back, lunge with the trail, impact (held), recovery. Impact 4. */
+export const THRUST: [number, Partial<Pose>][] = [
+  [200, {}],
+  [120, { hip: [-1, 0], lean: -0.12, fist: [-1, 8], far: [-1, 6], weapon: 1.2 }],
+  [140, { hip: [-2, 0], lean: -0.18, fist: [-3, 7], far: [-2, 5], weapon: 1.35, feet: [[-5, 0, 0], [4, 0, 0]] }],
+  [70, { hip: [1, 0], lean: 0.1, fist: [7, 5], far: [5, 3], weapon: 1.45, smear: 0.6, feet: [[-4, 0, 0], [6, 1.5, -0.1]] }],
+  [170, { hip: [2, 1], lean: 0.2, fist: [11, 4], far: [9, 2], weapon: 1.5, smear: 1, feet: [[-5, 1, 0.3], [8, 0, 0]] }],
+  [120, { hip: [1, 0], lean: 0.08, fist: [8, 7], far: [6, 5], weapon: 1, feet: [[-5, 0, 0], [7, 0, 0]] }],
+];
+/** Both arms up and brought forward (spells, banners, drums, bombs): ready, raise, high, cast with the trail, release (held), lower. Impact 4. */
+export const RAISE: [number, Partial<Pose>][] = [
+  [200, {}],
+  [140, { hip: [-1, 0], lean: -0.1, fist: [3, -8], far: [1, -6], weapon: -0.1 }],
+  [150, { hip: [-1, -1], lean: -0.16, head: -0.1, fist: [2, -12], far: [0, -10], weapon: -0.25 }],
+  [70, { hip: [1, 0], lean: 0.08, fist: [9, -6], far: [7, -4], weapon: 0.5, smear: 0.8, feet: [[-4, 0, 0], [6, 1, -0.1]] }],
+  [200, { hip: [2, 1], lean: 0.16, fist: [11, 0], far: [9, 1], weapon: 1, smear: 1, feet: [[-5, 1, 0.2], [8, 0, 0]] }],
+  [140, { hip: [1, 0], lean: 0.06, fist: [8, 6], far: [5, 7], weapon: 0.6 }],
+];
+
+const arc = (t0: number, t1: number, r: number, n = 9): Pt[] => Array.from({ length: n }, (_, i) => {
+  const t = t0 + ((t1 - t0) * i) / (n - 1);
+  return [r * Math.sin(t), -r * Math.cos(t)];
+});
+/** The swing trail behind a weapon `r` long, in the damage type's colour (STYLE.md). */
+export function trail(f: Figure, grip: Bone, p: Pose, r: number, mat: Material = 'smear'): void {
+  if (!p.smear) return;
+  const t = -1.1 * p.smear;
+  f.part(grip, [...arc(t, 0, r + 2), ...arc(0, t * 0.5, r * 0.7), ...arc(t * 0.5, t, r * 0.9, 5)], mat, p.zw - 0.3, { profile: 'flat', outline: false });
+}
+
+/** A bare face in profile, looking right; `eye` false hides the eye (hoods, masks draw their own). */
+export function face(f: Figure, head: Bone, skin: Material = 'skin', eye = true): void {
+  f.part(head, [[-3.8, 0.4], [-4.2, -5], [-3, -8.6], [1, -9.4], [4.4, -7.4], [5.2, -4], [5.6, -2.2], [4.4, -1.4], [4.4, 0.6], [1.2, 1.6]], skin, 5, { details: eye ? [[3.2, -5, skin, 0]] : [] });
+}
+
+/** A knee-length tunic or robe with a belt; `long` drops the hem to the shins. */
+export function tunic(f: Figure, torso: Bone, p: Pose, mat: Material, belt: Material, long = false): void {
+  const hem = long ? 13 : 4;
+  f.part(torso, [[-6.2, -15], [6, -15], [7, -4], [7.4 + hem / 8, hem], [-6.8 - hem / 8, hem], [-6.8, -4]], mat, 3, { folds: [0.5, 3, 0] });
+  f.part(torso.child(0, hem, 0.04 * p.sway), [[-6.9 - hem / 8, -0.5], [7.5 + hem / 8, -0.5], [7.9 + hem / 8, 4], [2, 4.6], [-7.2 - hem / 8, 4.2]], mat, 3.1, { profile: 'flat', folds: [0.4, 2.6, 0] });
+  f.part(torso, [[-6.9, -4.8], [7.1, -4.8], [7.1, -2.8], [-6.9, -2.8]], belt, 3.3);
+}
+
 /** The shared idle, walk, hurt and death around a sprite's own rest pose, plus its attack; `impact` indexes the attack. */
 export function humanSprite(id: string, tall: number, k: Kit, rest: Partial<Pose>, attack: [number, Partial<Pose>][], impact: number): SpriteDef {
   const r = pose(rest);

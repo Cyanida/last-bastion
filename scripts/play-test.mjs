@@ -1666,6 +1666,34 @@ await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#
   }),
 );
 
+// ---------- #157: every redrawn foe loads its sheet, and a ranged foe (the Crossbowman) levels and looses on his shot ----------
+await check('Foe sheets: every redrawn foe and commander loads; a crossbowman plays his shot (#157)', () =>
+  inPage(() => location.reload()).then(async () => {
+    const want = ['peasant', 'crossbow', 'knight', 'cultist', 'shieldBearer', 'priest', 'engineer', 'plagueDoctor', 'houndmaster', 'mirrorKnight', 'assassin', 'shieldwall', 'boneCollector', 'bannerman', 'drummer', 'chaplain'];
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('crossbow'));
+    const sheets = await inPage(() => window.__lb.sheets());
+    const missing = want.filter((id) => !sheets.includes(id));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      const [e] = g.enemies;
+      e.def = window.__lb.enemyDef('crossbow'); // the first foe becomes a crossbowman
+      for (const [i, x] of g.enemies.entries()) Object.assign(x, { x: g.player.x + (x === e ? 180 : 3000 + i * 40), y: g.player.y, hp: 1e6, maxHp: 1e6 });
+    });
+    const seen = [];
+    for (let t = 0; t < 6000 && !seen.includes('attack'); t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('crossbow')?.anim ?? 'none'))))));
+      if (seen[seen.length - 1] !== a) seen.push(a);
+    }
+    return { ok: missing.length === 0 && seen.includes('attack'), detail: `missing [${missing.join(', ')}]; crossbow ${seen.join(' → ')}` };
+  }),
+);
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
