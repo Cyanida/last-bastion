@@ -470,6 +470,10 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   // pickups: xp gems, gold coins, relic chests
   for (const k of g.pickups) {
     if (!visible(k.x, k.y, 12)) continue;
+    // #159: drawn by the rig; the fragment and the relic chest bob as before
+    const prop = k.kind === 'fragment' ? 'shard' : k.kind === 'relic' ? 'chest' : k.kind === 'gold' ? 'coin' : k.value >= 10 ? 'gemBig' : 'gem';
+    const bob = k.kind === 'fragment' ? Math.sin(g.time * 4) * 3 - 2 : k.kind === 'relic' ? Math.sin(g.time * 5) * 2 : 0;
+    if (drawProp(ctx, prop, k.x, k.y + bob)) continue;
     ctx.fillStyle = '#1a1614';
     if (k.kind === 'fragment') {
       // v0.5: a sacred treasure's fragment, a pale shard that bobs higher than a relic chest

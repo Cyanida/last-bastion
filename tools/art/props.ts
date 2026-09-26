@@ -106,12 +106,41 @@ function throne(): Figure {
   return f;
 }
 
+/** Ground pickups, small and bright so they read among the foes: an xp gem (a gold one for big values), a coin, a relic chest, a treasure's shard. */
+function gem(mat: Material): Figure {
+  const f = new Figure(12, 13);
+  f.part(O, [[6, 1], [11, 6], [6, 12], [1, 6]], mat, 0, { details: dots([[4, 4]], mat, 6) });
+  return f;
+}
+function coin(): Figure {
+  const f = new Figure(12, 12);
+  f.part(O, ell(6, 6, 4.6, 4.6, 16), 'gold', 0, { details: dots([[4, 4]], 'gold', 6) });
+  return f;
+}
+function chest(): Figure {
+  const f = new Figure(22, 19);
+  f.part(O, rect(3, 8, 19, 17), 'leather', 0, { trim: ['gold', 1] }); // box
+  f.part(O, [[3, 8], [4, 4], [7, 2], [15, 2], [18, 4], [19, 8]], 'leather', 1, { trim: ['gold', 1] }); // lid
+  f.part(O, rect(9.5, 6.5, 12.5, 11), 'gold', 2); // lock
+  return f;
+}
+function shard(): Figure {
+  const f = new Figure(14, 20);
+  f.part(O, [[7, 1], [11, 7], [10, 15], [7, 19], [3, 13], [3, 6]], 'soul', 0, { details: dots([[6, 5], [6, 6], [6, 7], [6, 8]], 'soul', 6) });
+  return f;
+}
+
 export const PROPS: PropDef[] = [
   { id: 'pillar', w: 76, h: 100, anchor: [38, 80], r: 30, frames: [pillar()] },
   { id: 'brazier', w: 56, h: 72, anchor: [28, 54], r: 20, frames: [0, 1, 2, 3].map(brazier) },
   { id: 'tomb', w: 48, h: 64, anchor: [24, 48], r: 18, frames: [tomb()] },
   { id: 'tree', w: 120, h: 120, anchor: [60, 98], r: 26, frames: [tree()] },
   { id: 'throne', w: 120, h: 152, anchor: [60, 100], r: 44, frames: [throne()] },
+  { id: 'gem', w: 12, h: 13, anchor: [6, 6], r: 1, frames: [gem('soul')] },
+  { id: 'gemBig', w: 12, h: 13, anchor: [6, 6], r: 1, frames: [gem('gold')] },
+  { id: 'coin', w: 12, h: 12, anchor: [6, 6], r: 1, frames: [coin()] },
+  { id: 'chest', w: 22, h: 19, anchor: [11, 10], r: 1, frames: [chest()] },
+  { id: 'shard', w: 14, h: 20, anchor: [7, 10], r: 1, frames: [shard()] },
 ];
 
 export const propPaths = { png: 'public/sprites/props.png', json: 'src/render/props.json' };

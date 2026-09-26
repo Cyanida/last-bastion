@@ -20,10 +20,10 @@ export function loadProps(): Promise<boolean> {
 export const propsLoaded = (): boolean => propImg !== null;
 
 /** One prop frame with its anchor on (x, y), scaled from the radius it was drawn for to the obstacle's. False while not loaded. */
-export function drawProp(ctx: Ctx, kind: keyof typeof PROPS, x: number, y: number, r: number, frame = 0): boolean {
+export function drawProp(ctx: Ctx, kind: keyof typeof PROPS, x: number, y: number, r?: number, frame = 0): boolean {
   const d = PROPS[kind];
   if (!propImg || !d) return false;
-  const k = r / d.r;
+  const k = r ? r / d.r : 1;
   ctx.drawImage(propImg, d.x + (frame % d.frames) * d.w, d.y, d.w, d.h, Math.round(x - d.anchor[0] * k), Math.round(y - d.anchor[1] * k), Math.round(d.w * k), Math.round(d.h * k));
   return true;
 }

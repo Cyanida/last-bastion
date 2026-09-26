@@ -1611,7 +1611,7 @@ await check('Sprite gallery plays the Paladin; his class card shows his sheet (#
 );
 
 // ---------- #159: every arena draws its ground props from the rig's atlas, and the keep's braziers flicker ----------
-await check('Arenas: every arena shows its rigged props; the braziers flicker (#159)', () =>
+await check('Arenas: every arena shows its rigged props; the braziers flicker; pickups are rigged (#159)', () =>
   inPage(() => location.reload()).then(async () => {
     await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
     const out = [];
@@ -1674,12 +1674,26 @@ await check('Arenas: every arena shows its rigged props; the braziers flicker (#
             flicker = seen.size;
             if (flicker < 2) flicker = `${flicker} (${lb.state}, time ${g.time.toFixed(2)})`;
           }
-          return { arena, props, wrong, flicker };
+          // the ground pickups: an xp gem, a big one and a coin next to the champion, drawn once (no tick, so none is picked up)
+          let pickups = null;
+          if (arena === 'keep') {
+            const drops = [['xp', 1, 508], ['xp', 10, 521], ['gold', 1, 534]].map(([kind, value, row], i) => ({ kind, value, row, x: Math.round(g.player.x) + 40 + i * 30, y: Math.round(g.player.y) - 60 }));
+            g.enemies.length = 0;
+            g.pickups.push(...drops.map(({ kind, value, x, y }) => ({ kind, value, x, y })));
+            lb.draw();
+            const cam = lb.camera(), c = document.getElementById('game').getContext('2d');
+            pickups = drops.filter((d) => {
+              const want = a.getImageData(6, d.row + 6, 1, 1).data;
+              const got = c.getImageData(Math.round((d.x - Math.round(cam.x)) * cam.zoom), Math.round((d.y - Math.round(cam.y)) * cam.zoom), 1, 1).data;
+              return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
+            }).length;
+          }
+          return { arena, props, wrong, flicker, pickups };
         }, arena),
       );
     }
-    const ok = out.every((r) => r.wrong === 0) && out.find((r) => r.arena === 'graveyard').props > 0 && typeof out.find((r) => r.arena === 'keep').flicker === 'number';
-    return { ok, detail: out.map((r) => `${r.arena}: ${r.props} props${r.wrong ? ` (${r.wrong} WRONG)` : ''}${r.flicker === null ? '' : `, flame ${r.flicker} looks`}`).join('; ') };
+    const ok = out.every((r) => r.wrong === 0) && out.find((r) => r.arena === 'graveyard').props > 0 && typeof out.find((r) => r.arena === 'keep').flicker === 'number' && out.find((r) => r.arena === 'keep').pickups === 3;
+    return { ok, detail: out.map((r) => `${r.arena}: ${r.props} props${r.wrong ? ` (${r.wrong} WRONG)` : ''}${r.flicker === null ? '' : `, flame ${r.flicker} looks`}${r.pickups === null ? '' : `, ${r.pickups}/3 pickups drawn from the atlas`}`).join('; ') };
   }),
 );
 

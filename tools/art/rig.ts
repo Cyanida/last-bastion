@@ -19,6 +19,7 @@ export const RAMPS = {
   // #159: the arenas' props
   stone: ['#1b1a20', '#302f38', '#46454e', '#605e64', '#7e7b76', '#a19c90', '#c9c2b0'],
   bark: ['#130d0a', '#231812', '#34241a', '#483325', '#5d4431', '#755940', '#927559'],
+  soul: ['#0c2a33', '#155066', '#2182a0', '#3eb1cc', '#7ed8e8', '#c2f1f8', '#ffffff'],
   fire: ['#5a1a06', '#9a3208', '#d4560f', '#f08a1c', '#f8b73c', '#fde38a', '#fffbe0'],
 } as const;
 export type Material = keyof typeof RAMPS;
