@@ -8,7 +8,7 @@ sprites are pixel grids in code, sound effects and the music (menus, and a quiet
 | **Browser / phone** | https://cyanida.github.io/last-bastion/ |
 | **Windows** | [Latest release](https://github.com/Cyanida/last-bastion/releases/latest): `last-bastion-Setup-<version>.exe` |
 | Roadmap and progress | [ROADMAP.md](ROADMAP.md) · [Project board](https://github.com/users/Cyanida/projects/2) · the pinned **🔨 Now building** issue · release rules: [RELEASES.md](RELEASES.md) · how to contribute (issues, pull requests, AI agents, reviews): [CONTRIBUTING.md](CONTRIBUTING.md) |
-| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.8.1: every character redrawn at double resolution, flash cards show the enemy, Dread Howl stuns · v0.8: a readable HUD with text size, flash cards, more bosses, arena relic families, balance pass · v0.7.6: the monk escort is winnable · v0.7.5: aim setting, bosses last a real fight, duos combine, many fixes · v0.7.4: detonate Divine Shield early, the Dragon redrawn · v0.7.3: the Archer's aim, the Paladin's shield, fixes · v0.7.2: music in every arena, What's new, glossary, test mode, cursed relics, Reforge · v0.7: relics rebuilt, save backups) · the relic design: [RELICS.md](RELICS.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) · how the code is built and the co-op migration plan: [ARCHITECTURE.md](ARCHITECTURE.md) |
+| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.8.2: every champion, foe, boss and arena redrawn as animated, shaded pixel art · v0.8.1: every character redrawn at double resolution, flash cards show the enemy, Dread Howl stuns · v0.8: a readable HUD with text size, flash cards, more bosses, arena relic families, balance pass · v0.7.6: the monk escort is winnable · v0.7.5: aim setting, bosses last a real fight, duos combine, many fixes · v0.7.4: detonate Divine Shield early, the Dragon redrawn · v0.7.3: the Archer's aim, the Paladin's shield, fixes · v0.7.2: music in every arena, What's new, glossary, test mode, cursed relics, Reforge · v0.7: relics rebuilt, save backups) · the relic design: [RELICS.md](RELICS.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) · how the code is built and the co-op migration plan: [ARCHITECTURE.md](ARCHITECTURE.md) |
 
 ## Play on iPhone (or any phone)
 
@@ -58,7 +58,7 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
-| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (561 tests) |
+| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (621 tests) |
 | `npm run test:perf` | headless Chromium frame-time test of Fog, Blood Moon and the Usurper's last phase against the built game, with the run music playing, plus a check that the music plays in every arena (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
 | `npm run icons` | redraw all icons and the README QR code from code |
@@ -225,6 +225,7 @@ public/        manifest + generated icons     build/  installer icon     docs/  
 - **Oath level**: a row in `config/oaths.ts` (a curse, or numbers for a knob in `OathKnob`); a new knob is read from `g.oath.n` where it matters.
 - **Evolution**: a row in `config/evolutions.ts` (two requirements) and its hooks in `systems/evolutions.ts` `HOOKS`.
 - **Weekly contract**: a row in `config/contracts.ts` and, for a new measure, a field in `ContractRun` (`logic/contracts.ts`).
+- **Sprite** (#155): drawn in code by the rig, never by hand. One definition per sprite in `tools/art/sprites/<id>.ts` (parts on bones, poses for idle, walk, attack, hurt and death), following [tools/art/STYLE.md](tools/art/STYLE.md). `npm run art` renders it into `public/sprites/<id>.png` and `src/render/sheets/<id>.json`; commit both, and never edit the PNG. The game finds the sheet by itself and draws it in place of that sprite's letter grid in `render/sprites.ts` (which stays as the fallback). Test mode's **Sprite gallery** plays every sheet.
 - **Talent node**: a row in a class's branch in `config/talents.ts` (`mods`, `stats`, or a number another system reads). **Trait**: a row in `config/traits.ts`. **Utility upgrade**: a row in `config/utility.ts` plus a `has()` branch in that utility's hook in `systems/utility.ts`.
 
 ## Known simplifications

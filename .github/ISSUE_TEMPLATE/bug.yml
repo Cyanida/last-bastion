@@ -14,7 +14,7 @@ body:
     attributes:
       label: Version
       description: Shown on the title screen and at the bottom of Settings.
-      placeholder: v0.8.1
+      placeholder: v0.8.2
     validations:
       required: true
   - type: dropdown

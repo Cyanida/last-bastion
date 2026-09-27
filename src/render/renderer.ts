@@ -1,3 +1,4 @@
+import type { ArenaDef } from '../config/arenas';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GAME, RENDER } from '../config/game';
 import { MODIFIERS } from '../config/waves';
@@ -6,13 +7,15 @@ import { STATUSES } from '../config/damage';
 import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
-import type { Enemy, Game } from '../core/types';
+import type { Enemy, Game, Minion, Player } from '../core/types';
+import { FLINCH_EVERY, foeUntilHit, frameAt, pickFrame, swingTrail, type AnimInput, type AnimName } from '../logic/animation';
+import { nearestEnemy } from '../systems/combat';
 import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
 import { QUESTS } from '../config/quests';
 import { eventMarks, questMarks, type Mark } from '../logic/quests';
-import { wallPattern } from './arena';
-import { digitGlyphs, fogSprite, getSprite, glyphIndex, isNumeric, outlineSprite, ringSprite, shadowSprite, textSprite, type Sprite } from './sprites';
+import { drawProp, FEATURE_PROPS, propFrame, wallPattern } from './arena';
+import { digitGlyphs, fogSprite, getSprite, SHEETS, sheetSprite, glyphIndex, isNumeric, outlineSprite, ringSprite, shadowSprite, textSprite, type Sprite } from './sprites';
 import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
 import { typeMultiplier } from '../logic/status';
@@ -52,9 +55,170 @@ function blitArena(ctx: Ctx, arena: HTMLCanvasElement, cx: number, cy: number, v
   if (sw > 0 && sh > 0) ctx.drawImage(arena, sx, sy, sw, sh, sx, sy, sw, sh);
 }
 
+/** Top-left corner of a sprite drawn for a body at (x, y): letter grids centre it 3/4 down, a rigged sheet puts its feet there (#155). */
+function spriteAt(s: Sprite, x: number, y: number, flip: boolean): [number, number] {
+  const ax = s.ax ?? s.w / 2;
+  return [Math.round(x - (flip ? s.w - ax : ax)), Math.round(y - (s.ay ?? s.h * 0.75))];
+}
+
 function drawSprite(ctx: Ctx, s: Sprite, x: number, y: number, flip: boolean, flash: boolean): void {
   const img = flash ? (flip ? s.flashFlipped : s.flash) : flip ? s.flipped : s.img;
-  ctx.drawImage(img, Math.round(x - s.w / 2), Math.round(y - s.h + s.h * 0.25), s.w, s.h); // #138: a finer-grid sprite is drawn down to its size
+  const [dx, dy] = spriteAt(s, x, y, flip);
+  ctx.drawImage(img, dx, dy, s.w, s.h); // #138: a finer-grid sprite is drawn down to its size
+}
+
+/**
+ * #155: the player's animation, read from what the game already knows (position, the attack timer, HP) and kept here, on the
+ * render side: nothing is written back into the game, so runs play out exactly the same.
+ */
+const anim = { game: null as Game | null, x: 0, y: 0, walked: 0, timer: 0, hitAt: -Infinity, cd: 1, hp: 0, hurtAt: -Infinity, deadAt: Infinity, abilityCd: 0, castAt: -Infinity, utilityCd: 0, skillAt: -Infinity, now: { anim: 'idle' as AnimName, frame: 0 } };
+export const playerAnim = (): { anim: string; frame: number } => anim.now; // for the play test and the gallery
+
+function playerSprite(g: Game, p: Player, scale: number): Sprite {
+  if (anim.game !== g) Object.assign(anim, { game: g, x: p.x, y: p.y, walked: 0, timer: p.attackTimer, hitAt: -Infinity, hp: p.hp, hurtAt: -Infinity, deadAt: Infinity, abilityCd: p.abilityCd, castAt: -Infinity, utilityCd: p.utilityCd, skillAt: -Infinity });
+  const step = Math.hypot(p.x - anim.x, p.y - anim.y);
+  if (step < 64) anim.walked += step; // not a teleport
+  if (p.attackTimer > anim.timer + 1e-6) (anim.hitAt = g.time), (anim.cd = p.attackTimer); // the timer was reset: an attack just landed
+  if (p.abilityCd > anim.abilityCd + 1e-6) anim.castAt = g.time; // #156: the cooldown was reset: the ability was just used
+  if (p.utilityCd > anim.utilityCd + 1e-6) anim.skillAt = g.time; // #156: and the utility ability (Leap, Dodge Roll, Blink...)
+  if (p.hp < anim.hp) anim.hurtAt = g.time;
+  if (p.hp <= 0 && anim.deadAt === Infinity) anim.deadAt = g.time;
+  if (p.hp > 0) anim.deadAt = Infinity;
+  Object.assign(anim, { x: p.x, y: p.y, timer: p.attackTimer, hp: p.hp, abilityCd: p.abilityCd, utilityCd: p.utilityCd });
+  const atk = p.cls.attack;
+  const reach = atk.kind === 'melee' ? atk.range * p.buff.range : atk.range;
+  const s: AnimInput = {
+    time: g.time,
+    walked: anim.walked,
+    moving: p.still === 0,
+    sinceHit: g.time - anim.hitAt,
+    untilHit: p.attackTimer > 0 && nearestEnemy(g, p.x, p.y, reach) ? p.attackTimer : Infinity,
+    attackCd: anim.cd,
+    cast: g.time - anim.castAt,
+    skill: g.time - anim.skillAt,
+    hurt: g.time - anim.hurtAt,
+    dead: anim.deadAt === Infinity ? Infinity : g.time - anim.deadAt,
+  };
+  const grid = getSprite(p.cls.sprite, scale, g.palette);
+  const d = SHEETS[p.cls.sprite];
+  if (!d) return grid;
+  anim.now = pickFrame(d, s, p.cls.base.moveSpd);
+  return sheetSprite(p.cls.sprite, scale, g.palette, anim.now.anim, anim.now.frame) ?? grid;
+}
+
+/**
+ * #157: the foes' animations, the same way: read from each foe's position, timers and HP, kept here per foe (render side only).
+ * A slain foe leaves the game at once, so its death plays from `dying`, under the living.
+ */
+interface FoeAnim { x: number; y: number; walked: number; timer: number; shot: number; hitAt: number; cd: number; hp: number; hurtAt: number; gone: boolean; wind: number; windMax: number; firedAt: number; phase: number; phaseAt: number; now: { anim: AnimName; frame: number } }
+const foeAnims = new WeakMap<Enemy, FoeAnim>();
+const foes = { game: null as Game | null, drawn: [] as Enemy[], dying: [] as { e: Enemy; at: number; scale: number }[] };
+export const foeAnim = (id: string): { anim: string; frame: number } | null => {
+  // for the play test: the first living foe of this kind that has an animation
+  for (const e of foes.game?.enemies ?? []) if (e.def.sprite === id && foeAnims.has(e)) return foeAnims.get(e)!.now;
+  return null;
+};
+export const foesDying = (): string[] => foes.dying.map((d) => d.e.def.sprite); // for the play test
+const foeScale = (e: Enemy): number => e.def.scale + (e.elite ? ELITES.scaleBonus : 0);
+
+function foeSprite(g: Game, e: Enemy): Sprite | null {
+  const id = e.def.sprite, d = SHEETS[id];
+  if (!d) return null;
+  let a = foeAnims.get(e);
+  if (!a) foeAnims.set(e, (a = { x: e.x, y: e.y, walked: 0, timer: e.attackTimer, shot: e.timer, hitAt: -Infinity, cd: e.def.attackCd, hp: e.hp, hurtAt: -Infinity, gone: false, wind: 0, windMax: 0, firedAt: -Infinity, phase: e.phase, phaseAt: -Infinity, now: { anim: 'idle', frame: 0 } }));
+  const step = Math.hypot(e.x - a.x, e.y - a.y);
+  if (step < 64) a.walked += step;
+  const shooter = e.def.fireCd !== undefined && e.def.range !== undefined;
+  if (e.attackTimer > a.timer + 1e-6) (a.hitAt = g.time), (a.cd = e.def.attackCd); // swung
+  if (shooter && e.timer > a.shot + e.def.fireCd! * 0.5) (a.hitAt = g.time), (a.cd = e.def.fireCd!); // loosed a bolt
+  // #158: a boss (a sheet with a special) flinches at most every FLINCH_EVERY s, and winds its special up over the telegraph:
+  // its own clock when it has one (a line), else how much of the zone wind-up is left
+  const special = d.anims.special !== undefined;
+  if (e.hp < a.hp && (!special || g.time - a.hurtAt > FLINCH_EVERY)) a.hurtAt = g.time;
+  const tele = e.telegraph, winding = special && (e.windupT > 0 || tele !== null);
+  if (winding) {
+    a.windMax = Math.max(a.windMax, e.windupT);
+    a.wind = tele ? tele.t / Math.max(tele.dur, 1e-6) : 1 - e.windupT / Math.max(a.windMax, 1e-6);
+  } else if (a.windMax > 0 || a.wind > 0) (a.firedAt = g.time), (a.wind = 0), (a.windMax = 0);
+  if (e.phase > a.phase) (a.phase = e.phase), (a.phaseAt = g.time); // #158: a boss enters a new phase: its rally pose
+  const p = g.player;
+  const dist = Math.hypot(p.x - e.x, p.y - e.y);
+  const s: AnimInput = {
+    time: g.time + (e.born % 1), // not every foe breathes in step
+    walked: a.walked,
+    moving: step > 0.05,
+    sinceHit: g.time - a.hitAt,
+    untilHit: foeUntilHit(e.windupT, e.attackTimer, dist < e.r + p.r + 12, shooter && dist < e.def.range! ? e.timer : Infinity),
+    attackCd: a.cd,
+    cast: Infinity, // #156: only the champions cast
+    skill: Infinity,
+    hurt: g.time - a.hurtAt,
+    dead: Infinity,
+    windup: winding ? a.wind : undefined,
+    sinceSpecial: g.time - a.firedAt,
+    sincePhase: g.time - a.phaseAt,
+  };
+  Object.assign(a, { x: e.x, y: e.y, timer: e.attackTimer, shot: e.timer, hp: e.hp });
+  foes.drawn.push(e);
+  a.now = pickFrame(d, s, e.baseSpeed);
+  return sheetSprite(id, foeScale(e), e.def.palette ?? 0, a.now.anim, a.now.frame);
+}
+
+/** #156: the champions' allies (skeletons, the decoy, the shade) animate the same way, read from their position and timers. */
+interface AllyAnim { x: number; y: number; walked: number; timer: number; shot: number; hitAt: number; cd: number; hp: number; hurtAt: number; now: { anim: AnimName; frame: number } }
+const allyAnims = new WeakMap<Minion, AllyAnim>();
+let allyGame: Game | null = null;
+export const minionAnim = (kind: string): { anim: string; frame: number } | null => {
+  // for the play test: the first ally of this kind ('skeleton': the Necromancer's own) that has an animation
+  for (const m of allyGame?.minions ?? []) if ((m.kind ?? 'skeleton') === kind && allyAnims.has(m)) return allyAnims.get(m)!.now;
+  return null;
+};
+
+function allySprite(g: Game, m: Minion, id: string, pal: number): Sprite | null {
+  const d = SHEETS[id];
+  if (!d) return null;
+  allyGame = g;
+  let a = allyAnims.get(m);
+  if (!a) allyAnims.set(m, (a = { x: m.x, y: m.y, walked: 0, timer: m.attackTimer, shot: m.shoot?.t ?? 0, hitAt: -Infinity, cd: m.attackCd, hp: m.hp, hurtAt: -Infinity, now: { anim: 'idle', frame: 0 } }));
+  const step = Math.hypot(m.x - a.x, m.y - a.y);
+  if (step < 64) a.walked += step;
+  if (!m.passive && m.attackTimer > a.timer + 1e-6) (a.hitAt = g.time), (a.cd = m.attackTimer); // struck: the timer was just reset to its cooldown
+  if (m.shoot && m.shoot.t > a.shot + 1e-6) (a.hitAt = g.time), (a.cd = m.shoot.every); // the shade loosed
+  if (m.hp < a.hp) a.hurtAt = g.time;
+  const next = m.shoot ? m.shoot.t : m.attackTimer, fighting = next > 0 && g.time - a.hitAt < a.cd * 1.5; // ponytail: it struck lately, so it winds up for the next blow; no reach check per ally
+  const s: AnimInput = {
+    time: g.time + ((m.x * 0.013) % 1),
+    walked: a.walked,
+    moving: step > 0.05,
+    sinceHit: g.time - a.hitAt,
+    untilHit: fighting ? next : Infinity,
+    attackCd: a.cd,
+    cast: Infinity,
+    skill: Infinity,
+    hurt: g.time - a.hurtAt,
+    dead: Infinity,
+  };
+  Object.assign(a, { x: m.x, y: m.y, timer: m.attackTimer, shot: m.shoot?.t ?? 0, hp: m.hp });
+  a.now = pickFrame(d, s, m.speed || 90);
+  return sheetSprite(id, m.scale, pal, a.now.anim, a.now.frame);
+}
+
+/** Once a frame, before the foes: the ones drawn last frame that have since been slain start their death. */
+function foeDeaths(ctx: Ctx, g: Game, visible: (x: number, y: number, pad: number) => boolean): void {
+  if (foes.game !== g) Object.assign(foes, { game: g, drawn: [], dying: [] });
+  for (const e of foes.drawn) {
+    const a = foeAnims.get(e)!;
+    if (e.dead && !a.gone) (a.gone = true), foes.dying.push({ e, at: g.time, scale: foeScale(e) });
+  }
+  foes.drawn.length = 0;
+  foes.dying = foes.dying.filter(({ e, at, scale }) => {
+    const d = SHEETS[e.def.sprite], t = g.time - at;
+    const ms = d.anims.death;
+    if (t * 1000 > ms.reduce((x, y) => x + y, 0) + 600 || t < 0) return false;
+    const spr = sheetSprite(e.def.sprite, scale, e.def.palette ?? 0, 'death', frameAt(ms, t * 1000, false));
+    if (spr && visible(e.x, e.y, 80)) drawSprite(ctx, spr, e.x, e.y, e.flip, false);
+    return true;
+  });
 }
 
 function shadow(ctx: Ctx, x: number, y: number, r: number): void {
@@ -95,22 +259,36 @@ function drawClosedRegions(ctx: Ctx, g: Game, cx: number, cy: number, vw: number
     // the portcullis sits in the wall part of the corridor: iron bars across it
     ctx.fillStyle = '#1b1715';
     ctx.fillRect(gt.x, gt.y, gt.w, gt.h);
-    ctx.fillStyle = '#5b5550';
     const inner = gt.along === 'y' ? { x: gt.x, y: gt.y + REGIONS.gateReach, w: gt.w, h: gt.h - 2 * REGIONS.gateReach } : { x: gt.x + REGIONS.gateReach, y: gt.y, w: gt.w - 2 * REGIONS.gateReach, h: gt.h };
-    if (gt.along === 'y') for (let x = inner.x + 10; x < inner.x + inner.w; x += 22) ctx.fillRect(x, inner.y, 5, inner.h);
-    else for (let y = inner.y + 10; y < inner.y + inner.h; y += 22) ctx.fillRect(inner.x, y, inner.w, 5);
-    ctx.fillRect(inner.x, inner.y + inner.h / 2 - 3, inner.w, 6);
-    ctx.fillRect(inner.x + inner.w / 2 - 3, inner.y, 6, inner.h);
+    if (gt.along === 'y') for (let x = inner.x + 10; x < inner.x + inner.w; x += 22) ironBar(ctx, x, inner.y, 6, inner.h);
+    else for (let y = inner.y + 10; y < inner.y + inner.h; y += 22) ironBar(ctx, inner.x, y, inner.w, 6);
+    ironBar(ctx, inner.x, Math.round(inner.y + inner.h / 2 - 4), inner.w, 8);
+    ironBar(ctx, Math.round(inner.x + inner.w / 2 - 4), inner.y, 8, inner.h);
   }
   // the features in open wings: an altar, a strongbox, a lair's bones, a cache among the vents
   for (const f of g.features) {
     if (!g.regionOpen[f.wing] || (f.used && f.kind !== 'lair')) continue;
     if (f.x < cx - 40 || f.x > cx + vw + 40 || f.y < cy - 40 || f.y > cy + vh + 40) continue;
-    const icon = textSprite(FEATURES[f.kind].icon, 34, '#ffffff', 64);
-    ctx.globalAlpha = f.used ? 0.35 : 0.8 + Math.sin(g.time * 3) * 0.2;
-    ctx.drawImage(icon, Math.round(f.x - icon.width / 2), Math.round(f.y - icon.height / 2));
+    ctx.globalAlpha = f.used ? 0.35 : 1;
+    if (!drawProp(ctx, FEATURE_PROPS[f.kind], f.x, f.y)) {
+      const icon = textSprite(FEATURES[f.kind].icon, 34, '#ffffff', 64); // until the props atlas has loaded
+      ctx.drawImage(icon, Math.round(f.x - icon.width / 2), Math.round(f.y - icon.height / 2));
+    }
     ctx.globalAlpha = 1;
   }
+}
+/** #159: a lit iron bar of the portcullis, in the rig's dark steel ramp: outline, body, a highlight on the top and left edges. */
+function ironBar(ctx: Ctx, x: number, y: number, w: number, h: number): void {
+  ctx.fillStyle = '#0f1118';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#3c4352';
+  ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
+  ctx.fillStyle = '#788393';
+  ctx.fillRect(x + 1, y + 1, w - 2, 1);
+  ctx.fillRect(x + 1, y + 1, 1, h - 2);
+  ctx.fillStyle = '#2a303c';
+  ctx.fillRect(x + 2, y + h - 2, w - 3, 1);
+  ctx.fillRect(x + w - 2, y + 2, 1, h - 3);
 }
 let closedPattern: CanvasPattern | null = null;
 let closedArena = '';
@@ -279,7 +457,7 @@ const SHADE_PALETTE = 3; // v0.6: the Archer's shadow is drawn in the midnight p
 const FRIEND_PALETTE = 2; // the gilded palette: allies read apart from the enemies that share their sprites
 
 /** Slow pan over an empty arena behind the menus. */
-export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, time: number): void {
+export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, time: number, def: ArenaDef): void {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#14110f';
   ctx.fillRect(0, 0, view.w, view.h);
@@ -287,6 +465,7 @@ export function renderBackdrop(ctx: Ctx, view: View, arena: HTMLCanvasElement, t
   const cy = (arena.height - view.h) / 2 + Math.cos(time * 0.13) * 120;
   ctx.setTransform(1, 0, 0, 1, -Math.round(cx), -Math.round(cy));
   blitArena(ctx, arena, cx, cy, view.w, view.h);
+  for (const o of def.obstacles) if (o.kind === 'brazier') drawProp(ctx, 'brazier', o.x, o.y, o.r, propFrame('brazier', time)); // #159: the flames lick here too
 }
 
 /** #133: the foe a flash card is about; while set, the arena dims around it. The run is paused under the card, so it stays put. */
@@ -313,6 +492,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(z, 0, 0, z, -Math.round(cx * z), -Math.round(cy * z));
   blitArena(ctx, arena, cx, cy, vw, vh);
+  // #159: the braziers' flames lick; everything else on the ground is baked into the arena
+  for (const o of g.arena.obstacles) if (o.kind === 'brazier' && visible(o.x, o.y, 60)) drawProp(ctx, 'brazier', o.x, o.y, o.r, propFrame('brazier', g.time));
   drawClosedRegions(ctx, g, cx, cy, vw, vh);
   end('arena', _t);
   _t = begin();
@@ -397,6 +578,9 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       disc(ctx, zn.x, zn.y, zn.r);
       ctx.stroke();
       ctx.globalAlpha = 1;
+      // #159: the hazard itself rises in the circle: a hand claws up, or the fire swells until it strikes
+      if (zn.art === 'hands') drawProp(ctx, 'hand', zn.x, zn.y + 8, 1, Math.min(2, Math.floor(k * 3)));
+      else if (zn.art === 'fire') drawProp(ctx, 'flare', zn.x, zn.y + 12, 1 + k, propFrame('flare', g.time));
     }
   }
 
@@ -424,6 +608,10 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   // pickups: xp gems, gold coins, relic chests
   for (const k of g.pickups) {
     if (!visible(k.x, k.y, 12)) continue;
+    // #159: drawn by the rig; the fragment and the relic chest bob as before
+    const prop = k.kind === 'fragment' ? 'shard' : k.kind === 'relic' ? 'chest' : k.kind === 'gold' ? 'coin' : k.value >= 10 ? 'gemBig' : 'gem';
+    const bob = k.kind === 'fragment' ? Math.sin(g.time * 4) * 3 - 2 : k.kind === 'relic' ? Math.sin(g.time * 5) * 2 : 0;
+    if (drawProp(ctx, prop, k.x, k.y + bob)) continue;
     ctx.fillStyle = '#1a1614';
     if (k.kind === 'fragment') {
       // v0.5: a sacred treasure's fragment, a pale shard that bobs higher than a relic chest
@@ -466,8 +654,10 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   end('shadows', _t);
   _t = begin();
   const attackType = p.cls.attack.type ?? 'physical'; // the resist marks read against the player's own attack
+  foeDeaths(ctx, g, visible);
   for (const e of g.enemies) {
     if (!visible(e.x, e.y, 80)) continue;
+    if (e.dead && SHEETS[e.def.sprite]) continue; // #157: its death plays from foeDeaths
     if (e.def.aura) {
       // commanders: their aura on the ground and a gold chevron overhead, so they read as the target to hunt
       const color = e.def.aura.kind === 'heal' ? 'rgba(111,220,111,0.35)' : e.def.aura.kind === 'speed' ? 'rgba(242,230,160,0.3)' : 'rgba(194,58,46,0.35)';
@@ -489,13 +679,14 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
     const fuse = e.def.behavior === 'exploder' && e.state === 1 && Math.floor(e.timer * 14) % 2 === 0;
     if (e.hidden) ctx.globalAlpha = 0.12; // a vanished assassin, a dragon overhead: barely a shimmer
-    const spr = (e.spr ??= getSprite(e.def.sprite, e.def.scale + (e.elite ? ELITES.scaleBonus : 0), e.def.palette));
+    const spr = foeSprite(g, e) ?? (e.spr ??= getSprite(e.def.sprite, foeScale(e), e.def.palette)); // #157: a rigged sheet, else the letter grid
     // v0.6 readability: a telegraphed attack winding up glows red; elites and commanders always wear their outline
     const winding = !e.hidden && (e.windupT > 0 || e.telegraph !== null);
     const outline = winding ? SKILL.colors.windup : e.hidden ? null : e.elite ? SKILL.colors.elite : e.def.aura || e.def.onDeath ? SKILL.colors.commander : null;
     if (outline) {
       if (winding) ctx.globalAlpha = 0.55 + 0.45 * Math.sin(g.time * 18);
-      ctx.drawImage(outlineSprite(spr, outline)[e.flip ? 1 : 0], Math.round(e.x - spr.w / 2) - 2, Math.round(e.y - spr.h + spr.h * 0.25) - 2);
+      const [ox, oy] = spriteAt(spr, e.x, e.y, e.flip);
+      ctx.drawImage(outlineSprite(spr, outline)[e.flip ? 1 : 0], ox - 2, oy - 2);
       ctx.globalAlpha = 1;
     }
     drawSprite(ctx, spr, e.x, e.y, e.flip, e.flash > 0 || fuse);
@@ -590,7 +781,9 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   for (const m of g.minions) {
     ctx.globalAlpha = clamp(m.life, 0.2, 1);
     if (m.kind === 'decoy') ctx.globalAlpha = 0.55; // v0.6: the Angel's mirror image is half there
-    drawSprite(ctx, m.kind ? getSprite(FRIEND_SPRITES[m.kind], m.scale, m.kind === 'shade' ? SHADE_PALETTE : FRIEND_PALETTE) : getSprite('skeleton', m.scale), m.x, m.y, m.flip, m.flash > 0);
+    const id = m.kind ? FRIEND_SPRITES[m.kind] : 'skeleton', pal = !m.kind ? 0 : m.kind === 'shade' ? SHADE_PALETTE : FRIEND_PALETTE;
+    const spr = allySprite(g, m, id, pal) || getSprite(id, m.scale, pal); // #156: rigged sheets walk, strike and flinch
+    drawSprite(ctx, spr, m.x, m.y, m.flip, m.flash > 0);
     if (!m.kind) continue;
     // v0.5 allies from quests and events: a green health bar
     const w = m.r * 2 + 8;
@@ -628,7 +821,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.globalAlpha = 1;
   }
   if (p.invulnT <= 0 || Math.floor(g.time * 16) % 2 === 0) {
-    drawSprite(ctx, getSprite(p.cls.sprite, GAME.spriteScale + (g.vars.avatar ? 2 : 0), g.palette), p.x, p.y, p.flip, p.flash > 0); // v0.6: the Avatar of Wrath is a giant
+    drawSprite(ctx, playerSprite(g, p, GAME.spriteScale + (g.vars.avatar ? 2 : 0)), p.x, p.y, p.flip, p.flash > 0); // v0.6: the Avatar of Wrath is a giant
   }
   if (p.chillT > 0) {
     ctx.fillStyle = 'rgba(169,216,239,0.3)';
@@ -666,20 +859,76 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.globalAlpha = 1;
     }
     if (pr.shape === 'arrow') {
+      // #157: in the rig's style: a dark-outlined shaft, a steel head at the tip and pale fletching at the tail
       const v = Math.hypot(pr.vx, pr.vy) || 1;
-      const len = pr.r > 8 ? 46 : 16; // ballista bolts
-      ctx.strokeStyle = pr.color;
-      ctx.lineWidth = pr.r > 8 ? 5 : 2;
+      const big = pr.r > 8; // ballista bolts
+      const len = big ? 46 : 16, w = big ? 5 : 2;
+      const ux = pr.vx / v, uy = pr.vy / v, tx = pr.x - ux * len, ty = pr.y - uy * len;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#1e110a';
+      ctx.lineWidth = w + 2;
       ctx.beginPath();
       ctx.moveTo(pr.x, pr.y);
-      ctx.lineTo(pr.x - (pr.vx / v) * len, pr.y - (pr.vy / v) * len);
+      ctx.lineTo(tx, ty);
       ctx.stroke();
+      ctx.strokeStyle = pr.color;
+      ctx.lineWidth = w;
+      ctx.stroke();
+      const hl = big ? 10 : 5, hw = big ? 6 : 3; // the head
+      ctx.fillStyle = '#c7ced6';
+      ctx.beginPath();
+      ctx.moveTo(pr.x + ux * hl * 0.6, pr.y + uy * hl * 0.6);
+      ctx.lineTo(pr.x - ux * hl * 0.4 - uy * hw, pr.y - uy * hl * 0.4 + ux * hw);
+      ctx.lineTo(pr.x - ux * hl * 0.4 + uy * hw, pr.y - uy * hl * 0.4 - ux * hw);
+      ctx.fill();
+      ctx.strokeStyle = '#f2eddf'; // fletching
+      ctx.lineWidth = big ? 2 : 1;
+      ctx.beginPath();
+      ctx.moveTo(tx + ux * hl, ty + uy * hl);
+      ctx.lineTo(tx - uy * hw, ty + ux * hw);
+      ctx.moveTo(tx + ux * hl, ty + uy * hl);
+      ctx.lineTo(tx + uy * hw, ty - ux * hw);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
     } else {
+      // #156: the champions' orbs get their own look: a fading tail in their damage colour behind them (STYLE.md trails)
+      const holy = !pr.hostile && pr.dtype === 'holy', shadow = !pr.hostile && pr.dtype === 'shadow';
+      if (holy || shadow) {
+        const v = Math.hypot(pr.vx, pr.vy) || 1, ux = pr.vx / v, uy = pr.vy / v;
+        ctx.fillStyle = holy ? '#fff3c4' : '#3a1f4f';
+        for (let i = 1; i <= 3; i++) {
+          ctx.globalAlpha = 0.5 - i * 0.13;
+          disc(ctx, pr.x - ux * pr.r * 1.1 * i, pr.y - uy * pr.r * 1.1 * i, pr.r * (1 - i * 0.2));
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+      // #157: a shaded orb: dark rim, the colour, a light cap and a glint towards the top-left light (STYLE.md)
+      ctx.fillStyle = 'rgba(15,10,20,0.75)';
+      disc(ctx, pr.x, pr.y, pr.r + 1);
+      ctx.fill();
       ctx.fillStyle = pr.color;
       disc(ctx, pr.x, pr.y, pr.r);
       ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.fillRect(pr.x - 1.5, pr.y - 1.5, 3, 3);
+      ctx.fillStyle = 'rgba(255,245,220,0.35)';
+      disc(ctx, pr.x - pr.r * 0.25, pr.y - pr.r * 0.25, pr.r * 0.6);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.fillRect(Math.round(pr.x - pr.r * 0.45) - 1, Math.round(pr.y - pr.r * 0.45) - 1, 2, 2);
+      if (holy) {
+        // the Angel's holy orb: a four-point sparkle of light, turning slowly
+        const s = pr.r + 4 + Math.sin(g.time * 14) * 1.5, x = Math.round(pr.x), y = Math.round(pr.y);
+        ctx.fillStyle = 'rgba(255,250,225,0.9)';
+        ctx.fillRect(x - s, y - 1, s * 2, 2);
+        ctx.fillRect(x - 1, y - s, 2, s * 2);
+      } else if (shadow) {
+        // the Necromancer's shadow orb: a dark core with the staff crystal's green eye
+        ctx.fillStyle = 'rgba(20,8,30,0.8)';
+        disc(ctx, pr.x + pr.r * 0.1, pr.y + pr.r * 0.1, pr.r * 0.5);
+        ctx.fill();
+        ctx.fillStyle = '#8fe07a';
+        ctx.fillRect(Math.round(pr.x) - 1, Math.round(pr.y) - 1, 2, 2);
+      }
     }
   }
 
@@ -703,12 +952,19 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.lineTo(e.x2, e.y2);
       ctx.stroke();
     } else {
-      ctx.globalAlpha = (1 - k) * 0.5;
+      // #156: a swing trail in the rig's smear style instead of a flat wedge: a tapered crescent, a bright leading rim
+      const pts = swingTrail(e.r, e.angle, e.arc, k);
+      ctx.globalAlpha = (1 - k) * 0.7;
       ctx.fillStyle = e.color;
       ctx.beginPath();
-      ctx.moveTo(e.x, e.y);
-      ctx.arc(e.x, e.y, e.r, e.angle - e.arc / 2, e.angle + e.arc / 2);
+      for (let i = 0; i < pts.length; i += 2) ctx.lineTo(e.x + pts[i], e.y + pts[i + 1]);
+      ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = '#ffffff'; // the edge that cut: the outer rim
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 2; i < pts.length / 2 - 2; i += 2) ctx.lineTo(e.x + pts[i], e.y + pts[i + 1]);
+      ctx.stroke();
     }
   }
   ctx.globalAlpha = 1;

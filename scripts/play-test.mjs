@@ -115,19 +115,23 @@ await check('title screen', () =>
 );
 
 // #138: the champions are drawn on a grid twice as fine, and show at the same size as before on the class select
-await check('class select: champions on the finer grid keep their size', () =>
+await check('class select: champions on the finer grid keep their size, at one scale, standing on one line (#156)', () =>
   inPage(async () => {
     const P = window.__play;
     await P.click('[data-go="start"]');
     const size = (id) => {
       const c = document.querySelector(`[data-class="${id}"] .portrait canvas`);
-      return c ? { box: Math.round(c.getBoundingClientRect().height), canvas: c.height } : null;
+      if (!c) return null;
+      const r = c.getBoundingClientRect(), card = c.closest('.card').getBoundingClientRect();
+      return { box: Math.round(r.height), canvas: c.height, feet: Math.round(r.bottom - card.top) };
     };
-    const pal = size('paladin'), vik = size('viking');
+    const all = ['paladin', 'viking', 'angel', 'necromancer', 'archer'].map(size);
     await P.click('[data-back]');
-    // the old grids were 14 and 16 rows at 6 px: 84 and 96 px on screen, whatever the finer canvas holds
-    const ok = pal?.box === 84 && vik?.box === 96 && window.__lb.state === 'menu';
-    return { ok, detail: `paladin ${JSON.stringify(pal)}, viking ${JSON.stringify(vik)}` };
+    // the old grids were 14 and 16 rows at 6 px: 84 and 96 px on screen; #156: every champion is rigged, the Paladin at his old 84 px and the
+    // rest at his scale (a horned helm or a halo stands taller), all with their feet on the same line of the card
+    const k = all[0].box / all[0].canvas;
+    const ok = all[0].box === 84 && all.every((c) => c && Math.abs(c.box - c.canvas * k) <= 1 && c.feet === all[0].feet) && window.__lb.state === 'menu';
+    return { ok, detail: all.map((c) => JSON.stringify(c)).join(', ') };
   }),
 );
 
@@ -1257,7 +1261,9 @@ await check('flash card: a new foe shows one with its sprite and a spotlight on 
     // #138: the regular foes and the commanders are drawn on a grid twice as fine, and keep the old grid's size: its columns and rows at 3 px each
     const oldGrid = { peasant: [12, 14], wolf: [14, 8], crossbow: [12, 14], knight: [12, 14], cultist: [12, 14], shieldBearer: [12, 14], priest: [12, 14], cavalry: [16, 13], engineer: [12, 14], plagueDoctor: [12, 14], houndmaster: [12, 14], mirrorKnight: [12, 14], assassin: [12, 13], shieldwall: [12, 14], boneCollector: [12, 14], bannerman: [12, 14], drummer: [12, 14], chaplain: [12, 14] };
     const redrawn = glossary.sizes.filter(([id]) => id in oldGrid);
-    const sized = redrawn.length > 0 && redrawn.every(([id, w, h]) => w === oldGrid[id][0] * 3 + 4 && h === oldGrid[id][1] * 3 + 4);
+    // #157: a foe with a rigged sheet shows its figure instead, about 50 art px tall
+    const rigged = await inPage(() => window.__lb.sheets());
+    const sized = redrawn.length > 0 && redrawn.every(([id, w, h]) => (rigged.includes(id) ? h >= 40 && h <= 80 : w === oldGrid[id][0] * 3 + 4 && h === oldGrid[id][1] * 3 + 4));
     const ok = first.state === 'choice' && first.held && first.saved && first.words <= 14 && after.closed && once && glossary.text.includes(first.name) && pictured && first.spotOn && dimmed && after.spotOff && sized;
     return { ok, detail: `foe pictures ${redrawn.map(([id, w, h]) => `${id} ${w}×${h}`).join(', ') || 'NONE'}${sized ? '' : ' (WRONG SIZE)'}; "${first.name}" (${first.words} words), picture ${first.picture}, spotlight ${first.spotOn ? 'on it' : 'MISSING'}, arena ${Math.round(first.dim)} → ${Math.round(after.lit)} after closing${after.spotOff ? '' : ' (STILL LIT)'}, held ${first.held}, saved ${first.saved}, Enter closed ${after.closed}; cards ${after.shown.join(', ')}${once ? '' : ' (REPEATED)'}; Glossary ${glossary.text ? 'lists it' : 'MISSING'}, ${glossary.pics}/${glossary.rows} pictures` };
   }),
@@ -1265,13 +1271,14 @@ await check('flash card: a new foe shows one with its sprite and a spotlight on 
 
 // #138 part 3: the siege pieces and the bosses are on the finer grid too; their card pictures (the same ones a flash card shows) keep the
 // old grid's size at their own scale, and the Siege Camp and the Plague Cart show their own pictures
-await check('card pictures: siege pieces and bosses redrawn at their old size, the Siege Camp and the Plague Cart their own', () =>
+// #158: a boss with a rigged sheet shows its rigged figure instead, bigger than the old grid (the flash card fits it to 96 px)
+await check('card pictures: siege pieces and bosses redrawn at their old size (rigged bosses bigger), the Siege Camp and the Plague Cart their own', () =>
   inPage(() => location.reload()).then(async () => {
-    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('blackKnight'));
     return inPage(async () => {
       const lb = window.__lb, wait = (ms = 100) => new Promise((r) => setTimeout(r, ms));
       // [id, sprite, old columns, old rows, arena scale]
-      const want = [['ballista', 'ballista', 14, 10, 3], ['siegeTower', 'siegeTower', 16, 18, 4], ['blackKnight', 'blackKnight', 16, 18, 4], ['warlord', 'warlord', 16, 18, 4], ['lich', 'lich', 16, 18, 4], ['inquisitor', 'inquisitor', 16, 18, 4], ['abbot', 'abbot', 16, 18, 4], ['dragon', 'dragon', 29, 18, 4], ['warden', 'warden', 16, 18, 4], ['usurper', 'usurper', 16, 18, 5], ['royalFlame', 'royalFlame', 12, 14, 4]];
+      const want = [['ballista', 'ballista', 14, 10, 3], ['siegeTower', 'siegeTower', 16, 18, 4], ['blackKnight', 'blackKnight', 16, 18, 4], ['warlord', 'warlord', 16, 18, 4], ['lich', 'lich', 16, 18, 4], ['inquisitor', 'inquisitor', 16, 18, 4], ['abbot', 'abbot', 16, 18, 4], ['dragon', 'dragon', 29, 18, 4], ['warden', 'warden', 16, 18, 4], ['usurper', 'usurper', 16, 18, 4], ['royalFlame', 'royalFlame', 12, 14, 4]];
       const had = [...lb.save.cards];
       lb.save.cards.push(...[...want.map(([id]) => id), 'siegeCamp', 'plagueCart'].filter((id) => !had.includes(id)));
       document.querySelector('[data-go="keep"]').click();
@@ -1284,7 +1291,9 @@ await check('card pictures: siege pieces and bosses redrawn at their old size, t
       document.querySelector('[data-back]')?.click();
       await wait();
       lb.save.cards.splice(0, lb.save.cards.length, ...had);
-      const wrong = want.filter(([id, , c, r, s]) => pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
+      const rigged = lb.sheets(); // #157: a redrawn siege piece shows its rigged figure, 1 art px to 1 world px; #158: a rigged boss, bigger than the old grid
+      const boss = (id) => !['ballista', 'siegeTower'].includes(id);
+      const wrong = want.filter(([id, , c, r, s]) => (rigged.includes(id) ? !(boss(id) ? pics.get(id)?.[1] > r * s + 4 : pics.get(id)?.[1] >= 30 && pics.get(id)?.[1] <= 120) : pics.get(id)?.[0] !== c * s + 4 || pics.get(id)?.[1] !== r * s + 4)).map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×') ?? 'none'}`);
       const own = ['siegeCamp', 'plagueCart'].every((id) => pics.has(id)) && pics.get('siegeCamp')[2] !== pics.get('siegeTower')?.[2] && pics.get('plagueCart')[2] !== pics.get('ballista')?.[2];
       const ok = wrong.length === 0 && own && lb.state === 'menu';
       return { ok, detail: `${want.map(([id]) => `${id} ${pics.get(id)?.slice(0, 2).join('×')}`).join(', ')}${wrong.length ? ` · WRONG ${wrong}` : ''} · camp ${pics.get('siegeCamp')?.slice(0, 2).join('×')}, cart ${pics.get('plagueCart')?.slice(0, 2).join('×')}${own ? '' : ' (NOT THEIR OWN)'}` };
@@ -1527,6 +1536,691 @@ await check('compendium: no card text falls off its card', async () => {
   const ok = seen.every((s) => s.cards > 20 && s.known > 40) && bad.length === 0;
   return { ok, detail: `${seen[0].cards} cards (${seen[0].known} found) × 4 layouts${bad.length ? `; overflows ${bad.length}: ${bad.slice(0, 4).join(', ')}` : ', all text inside'}` };
 });
+
+// ---------- #155: the rigged sprite sheets load, and the Paladin animates idle -> walk -> attack as he moves and fights ----------
+await check('Paladin sheet: loads, then idle, walk and attack play as he moves and swings (#155)', () =>
+  inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  }).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', 'paladin');
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      for (const e of g.enemies) Object.assign(e, { x: g.player.x + 2000, y: g.player.y }); // nobody in reach yet
+    });
+    const seen = [];
+    const sample = async (ms) => {
+      for (let t = 0; t < ms; t += 50) {
+        // three ticks through the real input, then let a frame draw him
+        const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim().anim))))));
+        if (seen[seen.length - 1] !== a) seen.push(a);
+      }
+    };
+    await sample(500); // standing
+    await page.keyboard.down('KeyD');
+    await sample(600);
+    await page.keyboard.up('KeyD');
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, e = g.enemies.find((x) => !x.dead);
+      if (e) Object.assign(e, { x: p.x + 40, y: p.y, hp: 1e6, maxHp: 1e6 }); // a foe steps into his reach
+    });
+    await sample(1500);
+    const sheets = await inPage(() => window.__lb.sheets());
+    const order = ['idle', 'walk', 'attack'].map((a) => seen.indexOf(a));
+    const ok = sheets.includes('paladin') && order.every((i) => i >= 0) && order[0] < order[1] && order[1] < order[2];
+    return { ok, detail: `sheets [${sheets.join(', ')}]; ${seen.join(' → ')}; ${await inPage(() => window.__lb.state)}` };
+  }),
+);
+
+// ---------- #155: the test-mode gallery plays every rigged sprite, and the class select shows the Paladin from his sheet ----------
+await check('Sprite gallery plays the Paladin; his class card shows his sheet (#155)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('paladin'));
+    return inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const frames = {};
+      for (let i = 0; i < 20; i++) {
+        for (const c of document.querySelectorAll('[data-sheet="paladin"]')) (frames[c.dataset.anim] ??= new Set()).add(c.dataset.frame);
+        await wait(80);
+      }
+      // every animation shows up, and each one with more than one frame moves
+      const moving = ['idle', 'walk', 'attack', 'hurt', 'death'].every((a) => frames[a]?.size > 1);
+      document.querySelector('.testmode [data-back]').click(); // to Settings
+      await wait(100);
+      document.querySelector('[data-act="back"]').click(); // to the title
+      await wait(100);
+      document.querySelector('[data-go="start"]').click();
+      await wait(100);
+      const c = document.querySelector('[data-class="paladin"] .portrait canvas');
+      // the sheet's idle frame cropped to the figure (about 55 art px tall, drawn at 2x), shown at the old portrait's 84 px
+      const box = Math.round(c.getBoundingClientRect().height);
+      const ok = moving && c.height >= 100 && box === 84;
+      return { ok, detail: `${Object.entries(frames).map(([a, f]) => `${a} ${f.size}`).join(', ')}; portrait canvas ${c.width}×${c.height}, shown ${box} px` };
+    });
+  }),
+);
+
+// ---------- #156: every champion draws from its rigged sheet: it attacks a foe in reach, and casts when Space uses its ability ----------
+await check('Champion sheets: each class loads its sheet, attacks and casts its ability (#156)', async () => {
+  const out = [];
+  for (const cls of ['paladin', 'viking', 'angel', 'necromancer', 'archer']) {
+    await inPage(() => location.reload());
+    await page.waitForFunction((c) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes(c), cls);
+    await inPage(async (c) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', c);
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+    }, cls);
+    const seen = new Set();
+    const sample = async (ms) => {
+      for (let t = 0; t < ms; t += 50) seen.add(await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim().anim)))))));
+    };
+    for (let i = 0; i < 12 && !seen.has('attack'); i++) {
+      await inPage(() => {
+        const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+        for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+        if (e) Object.assign(e, { x: p.x + 40, y: p.y, hp: 1e6, maxHp: 1e6 }); // one foe in reach, once the wave has spawned
+      });
+      await sample(250);
+    }
+    await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0 }));
+    await page.keyboard.down('Space');
+    await sample(150);
+    await page.keyboard.up('Space');
+    await sample(300);
+    out.push([cls, seen.has('attack') && seen.has('cast'), [...seen].join('/')]);
+  }
+  return { ok: out.every(([, ok]) => ok), detail: out.map(([c, , s]) => `${c}: ${s}`).join('; ') };
+});
+
+// ---------- #156: at the attack-speed cap the Viking swings a short swing that keeps up, and E plays his Leap, not a walk ----------
+await check('Fast attacks and Leap: the swing keeps up at the cap, E leaps without running legs (#156)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('viking'));
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '5'); // the utility ability unlocks at level 3
+    window.__startTest().player.invulnerable = true;
+  });
+  const frame = () => inPage(() => (window.__lb.run(1, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+  const pin = () => inPage(() => {
+    const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+    p.stats.atkSpd = 50; // far past the 4.5 a second cap
+    for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+    if (e) Object.assign(e, { x: p.x + 40, y: p.y, hp: 1e6, maxHp: 1e6 });
+    return !!e;
+  });
+  for (let i = 0; i < 40 && !(await pin()); i++) await inPage(() => window.__lb.run(10, false, 'input'));
+  const swing = [];
+  for (let i = 0; i < 40; i++) {
+    await pin();
+    swing.push(await frame());
+  }
+  const attacking = swing.filter((f) => f.anim === 'attack');
+  const windUp = attacking.filter((f) => f.frame < 3).length; // ready and wind-up frames are skipped at this speed
+  await pin();
+  await inPage(() => Object.assign(window.__lb.game.player, { utilityCd: 0 }));
+  await page.keyboard.down('KeyE');
+  const leap = [await frame()];
+  await page.keyboard.up('KeyE');
+  for (let i = 0; i < 4; i++) leap.push(await frame());
+  const ok = attacking.length >= swing.length * 0.8 && windUp === 0 && leap.some((f) => f.anim === 'skill') && !leap.some((f) => f.anim === 'walk');
+  return { ok, detail: `at the cap ${attacking.length}/${swing.length} frames attacking, ${windUp} wind-up; E: ${leap.map((f) => `${f.anim}${f.frame}`).join(' ')}` };
+});
+
+// ---------- #156: the Viking's swing leaves a tapered trail, not a flat wedge; the walk keeps pace with the ground at 1.5x and under a heavy slow ----------
+await check('Swing trail and walk pace: a crescent trail on the swing; the feet follow the ground fast and slowed (#156)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('viking'));
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    window.__startTest().player.invulnerable = true;
+  });
+  // the trail: drawn with and without the fresh swing's effect, the canvas changes on the crescent but not inside it, where the old wedge was
+  const trail = await inPage(async () => {
+    const lb = window.__lb, g = lb.game, p = g.player;
+    let fx = null;
+    for (let i = 0; i < 300 && !fx; i++) {
+      const [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 40, y: p.y, hp: 1e6, maxHp: 1e6 });
+      lb.run(1, false, 'input');
+      fx = g.effects.find((x) => x.kind === 'arc' && x.t < 0.05);
+    }
+    if (!fx) return null;
+    const c = document.getElementById('game').getContext('2d'), cam = lb.camera();
+    const probe = (k) => {
+      const a = fx.angle + 0.6, wx = fx.x + Math.cos(a) * fx.r * k, wy = fx.y + Math.sin(a) * fx.r * k;
+      return [...c.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data];
+    };
+    g.shake = 0; // no screen shake between the two draws
+    lb.draw();
+    const on = [probe(0.82), probe(0.4)];
+    g.effects = g.effects.filter((x) => x !== fx);
+    lb.draw();
+    const off = [probe(0.82), probe(0.4)];
+    const d = (i) => Math.round(Math.hypot(on[i][0] - off[i][0], on[i][1] - off[i][1], on[i][2] - off[i][2]));
+    return { crescent: d(0), inside: d(1) };
+  });
+  // the walk: D held for a second at 1.5x and at a heavy slow; walk frames stepped against the distance the feet should take
+  const walk = [];
+  for (const mult of [1.5, 0.35]) {
+    const r = await inPage(async (mult) => {
+      const lb = window.__lb, g = lb.game, p = g.player;
+      g.enemies.length = 0;
+      p.stats.baseMove ??= p.stats.moveSpd;
+      p.stats.moveSpd = p.stats.baseMove * mult; // a fast build (movement talents, Ghost Step) or a heavy slow
+      return { x: p.x, speed: p.cls.base.moveSpd }; // the walk's base: the class's own speed, as the renderer uses
+    }, mult);
+    await page.keyboard.down('KeyD');
+    let steps = 0, last = null;
+    for (let i = 0; i < 40; i++) {
+      const f = await inPage(() => (window.__lb.game.enemies.length = 0, window.__lb.run(1, false, 'input'), new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => res(window.__lb.anim()))))));
+      if (f.anim === 'walk' && last !== null && f.frame !== last) steps += (f.frame - last + 8) % 8;
+      last = f.anim === 'walk' ? f.frame : null;
+    }
+    await page.keyboard.up('KeyD');
+    const dist = await inPage((x0) => window.__lb.game.player.x - x0, r.x);
+    const want = dist / ((r.speed * 0.8) / 8); // WALK_STRIDE: 8 frames per 0.8 s of base-speed travel
+    walk.push({ mult, dist: Math.round(dist), steps, ratio: want > 0 ? steps / want : 0 });
+  }
+  const ok = !!trail && trail.crescent > 20 && trail.inside < 8 && walk.every((w) => w.ratio > 0.7 && w.ratio < 1.3) && walk[0].dist > walk[1].dist * 3;
+  return { ok, detail: `trail ${trail ? `changes ${trail.crescent} on the crescent, ${trail.inside} inside` : 'not seen'}; ${walk.map((w) => `${w.mult}x: ${w.dist} px, ${w.steps} frames (${w.ratio.toFixed(2)} of the ground)`).join('; ')}` };
+});
+
+// ---------- #156: the Midnight colours turn every champion night-blue on the class card (a hue shift used to turn the Necromancer green) ----------
+await check('Midnight colours: every champion turns night-blue on the class select (#156)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ['paladin', 'viking', 'angel', 'necromancer', 'archer'].every((c) => window.__lb.sheets().includes(c)));
+  await inPage(() => { window.__lb.save.palettes = [3]; document.querySelector('[data-go="start"]').click(); });
+  await page.waitForSelector('[data-start]');
+  const out = [];
+  for (const c of ['paladin', 'viking', 'angel', 'necromancer', 'archer']) {
+    const sw = page.locator(`[data-palette="${c}:3"]`);
+    await sw.scrollIntoViewIfNeeded();
+    await sw.click(); // the card is drawn again in its new colours
+    out.push(await inPage((id) => {
+      const cv = document.querySelector(`[data-class="${id}"] .portrait canvas`), px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+      let r = 0, g = 0, b = 0;
+      for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 128) (r += px[i]), (g += px[i + 1]), (b += px[i + 2]);
+      return { id, blue: b > r && b > g };
+    }, c));
+  }
+  await inPage(() => document.querySelector('[data-back]').click());
+  return { ok: out.every((o) => o.blue), detail: out.map((o) => `${o.id} ${o.blue ? 'blue' : 'not blue'}`).join(', ') };
+});
+
+// ---------- #156: the champions' allies: raised skeletons walk up and strike, the Angel's decoy and the Archer's shade are drawn from their sheets, the shade looses ----------
+await check("Allies: raised skeletons walk and strike, the Angel's decoy and the Archer's shade play from their sheets (#156)", async () => {
+  const start = async (cls, evo, key) => {
+    await inPage(() => location.reload());
+    await page.waitForFunction((c) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes(c), cls === 'necromancer' ? 'skeleton' : cls);
+    await inPage(async ([c, ev]) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', c);
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      set('tm-level', '5'); // the utility ability unlocks at level 3
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      if (ev) g.evolutions = [ev]; // test mode has no evolution picker
+    }, [cls, evo]);
+    const pin = () => inPage(() => {
+      const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 160, y: p.y, vx: 0, vy: 0, hp: 1e6, maxHp: 1e6, speed: 0 }); // one foe standing still, a walk away
+      return !!e;
+    });
+    for (let i = 0; i < 40 && !(await pin()); i++) await inPage(() => window.__lb.run(10, false, 'input'));
+    await inPage((k) => {
+      const g = window.__lb.game, p = g.player;
+      if (k === 'Space') for (let i = 0; i < 6; i++) g.corpses.push({ x: p.x - 60, y: p.y + 10 * i, t: 0 });
+      Object.assign(p, { abilityCd: 0, utilityCd: 0 });
+    }, key);
+    await page.keyboard.down(key);
+    await inPage(() => window.__lb.run(2, false, 'input'));
+    await page.keyboard.up(key);
+    return pin;
+  };
+  const watch = async (pin, kind, frames) => {
+    const seen = new Set();
+    for (let i = 0; i < frames; i++) {
+      await pin();
+      const a = await inPage((k) => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.minionAnim(k)))))), kind);
+      seen.add(a ? a.anim : 'none');
+    }
+    return seen;
+  };
+  const bones = await watch(await start('necromancer', null, 'Space'), 'skeleton', 90);
+  const decoy = await watch(await start('angel', 'phaseWalk', 'KeyE'), 'decoy', 10);
+  const shade = await watch(await start('archer', 'shadowStep', 'KeyE'), 'shade', 60);
+  const ok = bones.has('walk') && bones.has('attack') && !decoy.has('none') && decoy.has('idle') && shade.has('attack'); // the shade fades after a few seconds
+  return { ok, detail: `skeleton: ${[...bones].join('/')}; decoy: ${[...decoy].join('/')}; shade: ${[...shade].join('/')}` };
+});
+
+// ---------- #158: every boss loads its sheet, the gallery plays each one's special, and the Usurper stands tallest ----------
+await check('Boss sheets: all eight bosses and the Royal Flame load and play their special and phase pose in the gallery; the Usurper is the tallest (#158)', () =>
+  inPage(() => location.reload()).then(async () => {
+    const bosses = ['blackKnight', 'warlord', 'lich', 'inquisitor', 'abbot', 'dragon', 'warden', 'usurper'];
+    await page.waitForFunction((ids) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ids.every((id) => window.__lb.sheets().includes(id)), {}, [...bosses, 'royalFlame']).catch(() => {});
+    return inPage(async (bosses) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const loaded = window.__lb.sheets();
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      // the figure's height in the gallery (every boss is drawn at the same scale in the arena): opaque rows of its idle, at its
+      // tallest over the loop (the canvas shows whichever idle frame is up, and the bob moves the figure by a few pixels)
+      const tall = (id) => {
+        const c = document.querySelector(`[data-sheet="${id}"][data-anim="idle"]`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let top = -1, bot = -1;
+        for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3]) { if (top < 0) top = y; bot = y; break; }
+        return bot - top + 1;
+      };
+      const h = {};
+      const frames = {}, phase = {};
+      for (let i = 0; i < 25; i++) {
+        for (const id of bosses) if (id !== 'dragon') h[id] = Math.max(h[id] ?? 0, tall(id));
+        for (const id of bosses) for (const c of document.querySelectorAll(`[data-sheet="${id}"][data-anim="special"]`)) (frames[id] ??= new Set()).add(c.dataset.frame);
+        for (const id of bosses) for (const c of document.querySelectorAll(`[data-sheet="${id}"][data-anim="phase"]`)) (phase[id] ??= new Set()).add(c.dataset.frame);
+        await wait(80);
+      }
+      document.querySelector('.testmode [data-back]').click();
+      await wait(100);
+      document.querySelector('[data-act="back"]').click();
+      await wait(100);
+      const missing = [...bosses, 'royalFlame'].filter((id) => !loaded.includes(id));
+      const still = bosses.filter((id) => !(frames[id]?.size > 1));
+      const noPhase = bosses.filter((id) => !(phase[id]?.size > 1));
+      const tallest = Object.entries(h).every(([id, v]) => id === 'usurper' || h.usurper > v * 1.1);
+      return { ok: !missing.length && !still.length && !noPhase.length && tallest, detail: `missing [${missing}]; special not playing [${still}]; phase not playing [${noPhase}]; heights ${Object.entries(h).map(([k, v]) => `${k} ${v}`).join(', ')}` };
+    }, bosses);
+  }),
+);
+
+// ---------- #158: a boss with a rigged sheet walks, winds up its special over the telegraph, releases it, and falls ----------
+await check('Black Knight sheet: walks, winds up and releases his charge on its telegraph, rallies into his second phase, then falls (#158)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('blackKnight'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', 'paladin');
+      set('tm-arena', 'courtyard');
+      set('tm-act', '1');
+      set('tm-wave', '5'); // the courtyard's wave boss
+      window.__startTest().player.invulnerable = true;
+    });
+    const boss = () => inPage(() => {
+      const lb = window.__lb, g = lb.game;
+      for (let i = 0; i < 1200 && !g.enemies.some((e) => e.def.id === 'blackKnight'); i++) lb.run(1, false, 'input');
+      return g.enemies.some((e) => e.def.id === 'blackKnight');
+    });
+    if (!(await boss())) return { ok: false, detail: 'no Black Knight came' };
+    const seen = [];
+    const sample = async (ms) => {
+      for (let t = 0; t < ms; t += 50) {
+        const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('blackKnight')?.anim))))));
+        if (a && seen[seen.length - 1] !== a) seen.push(a);
+      }
+    };
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, e = g.enemies.find((x) => x.def.id === 'blackKnight');
+      for (const o of g.enemies) if (o !== e) o.hp = 0.01, o.x = p.x + 3000; // the escort out of the way
+      Object.assign(e, { x: p.x + 300, y: p.y, special: 0.6, hp: 1e6, maxHp: 1e6 }); // his charge comes soon
+    });
+    await sample(4000);
+    await inPage(() => {
+      const e = window.__lb.game.enemies.find((x) => x.def.id === 'blackKnight');
+      Object.assign(e, { hp: e.maxHp * 0.45, state: 0, special: 99, telegraph: null }); // below half: his second phase (out of any wind-up: it reads its telegraph)
+    });
+    await sample(800);
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, e = g.enemies.find((x) => x.def.id === 'blackKnight');
+      Object.assign(e, { x: p.x + 40, y: p.y, hp: 1, maxHp: 1e6, state: 0, special: 99, telegraph: null }); // into the Paladin's reach, one blow from death
+    });
+    let fell = [];
+    for (let i = 0; i < 60 && !fell.includes('blackKnight'); i++) fell = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => r(window.__lb.foesDying())))));
+    const ok = ['walk', 'special', 'phase'].every((a) => seen.includes(a)) && fell.includes('blackKnight');
+    return { ok, detail: `${seen.join(' → ')}; fallen [${fell.join(', ')}]` };
+  }),
+);
+
+// ---------- #157: the foes' rigged sheets: a peasant walks up, jabs on his wind-up, and falls when slain ----------
+await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#157)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('peasant'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', 'paladin');
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      const peasants = g.enemies.filter((e) => e.def.id === 'peasant');
+      for (const [i, e] of g.enemies.entries()) Object.assign(e, { x: g.player.x + (e === peasants[0] ? 160 : 3000 + i * 40), y: g.player.y, hp: 1e6, maxHp: 1e6 });
+    });
+    const seen = [];
+    for (let t = 0; t < 5000 && !seen.includes('attack'); t += 50) {
+      if (seen.includes('walk')) {
+        await inPage(() => {
+          // he has walked: now he stands at the Paladin's side
+          const g = window.__lb.game, e = g.enemies.find((x) => x.def.id === 'peasant' && Math.abs(x.x - g.player.x) < 400);
+          if (e) Object.assign(e, { x: g.player.x + 22, y: g.player.y });
+        });
+      }
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('peasant')?.anim ?? 'none'))))));
+      if (seen[seen.length - 1] !== a) seen.push(a);
+    }
+    // slain: his death plays where he stood
+    const dying = await inPage(() => {
+      const g = window.__lb.game, e = g.enemies.find((x) => x.def.id === 'peasant' && Math.abs(x.x - g.player.x) < 200);
+      if (e) Object.assign(e, { hp: 1 });
+      return new Promise((r) => {
+        let n = 0;
+        const tick = () => {
+          window.__lb.run(2, false, 'input');
+          requestAnimationFrame(() => (window.__lb.foesDying().includes('peasant') || ++n > 60 ? r(window.__lb.foesDying()) : tick()));
+        };
+        tick();
+      });
+    });
+    const ok = seen.includes('walk') && seen.includes('attack') && dying.includes('peasant');
+    return { ok, detail: `${seen.join(' → ')}; dying [${dying.join(', ')}]` };
+  }),
+);
+
+// ---------- #157: every redrawn foe loads its sheet, and a ranged foe (the Crossbowman) levels and looses on his shot ----------
+await check('Foe sheets: every redrawn foe and commander loads; a crossbowman plays his shot (#157)', () =>
+  inPage(() => location.reload()).then(async () => {
+    const want = ['peasant', 'wolf', 'crossbow', 'cavalry', 'ballista', 'plagueCart', 'siegeTower', 'siegeCamp', 'knight', 'cultist', 'shieldBearer', 'priest', 'engineer', 'plagueDoctor', 'houndmaster', 'mirrorKnight', 'assassin', 'shieldwall', 'boneCollector', 'bannerman', 'drummer', 'chaplain'];
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('crossbow'));
+    const sheets = await inPage(() => window.__lb.sheets());
+    const missing = want.filter((id) => !sheets.includes(id));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      for (const [id, v] of [['tm-class', 'paladin'], ['tm-act', '1'], ['tm-wave', '1']]) {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      for (let i = 0; i < 200 && !g.enemies.length; i++) window.__lb.run(1, false, 'input'); // the wave's first foe
+      const [e] = g.enemies;
+      e.def = window.__lb.enemyDef('crossbow'); // the first foe becomes a crossbowman
+      for (const [i, x] of g.enemies.entries()) Object.assign(x, { x: g.player.x + (x === e ? 180 : 3000 + i * 40), y: g.player.y, hp: 1e6, maxHp: 1e6 });
+    });
+    const seen = [];
+    for (let t = 0; t < 6000 && !seen.includes('attack'); t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('crossbow')?.anim ?? 'none'))))));
+      if (seen[seen.length - 1] !== a) seen.push(a);
+    }
+    return { ok: missing.length === 0 && seen.includes('attack'), detail: `missing [${missing.join(', ')}]; crossbow ${seen.join(' → ')}` };
+  }),
+);
+// ---------- #159: every arena draws its ground props from the rig's atlas, and the keep's braziers flicker ----------
+await check('Arenas: every arena shows its rigged props; the braziers flicker; pickups are rigged (#159)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+    const out = [];
+    for (const arena of ['courtyard', 'graveyard', 'keep', 'bastion']) {
+      if (out.length) {
+        await inPage(() => location.reload());
+        await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+      }
+      out.push(
+        await inPage(async (arena) => {
+          const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+          [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+          await wait(150);
+          document.querySelector('[data-act="test"]').click();
+          await wait();
+          const el = document.getElementById('tm-arena');
+          el.value = arena;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          const g = window.__startTest();
+          g.player.invulnerable = true;
+          // the quest board comes up on the first frames: set out without a quest, and let the run go
+          for (let i = 0; i < 40 && !(lb.state === 'playing' && g.time > 0.3); i++) {
+            if (lb.state === 'choice') lb.run(1, false, 'input');
+            await wait(50);
+          }
+          // the atlas, read back, against the baked ground: each obstacle's prop is in the arena, pixel for pixel at its anchor column
+          const img = new Image();
+          img.src = 'sprites/props.png';
+          await img.decode();
+          const atlas = document.createElement('canvas');
+          [atlas.width, atlas.height] = [img.width, img.height];
+          atlas.getContext('2d').drawImage(img, 0, 0);
+          const a = atlas.getContext('2d'), ground = lb.arenaCanvas(g.arena.id).getContext('2d');
+          // kind: [atlas row y, anchor x, anchor y, a solid pixel's y in the cell, drawn for radius] (src/render/props.json)
+          const P = { pillar: [0, 38, 80, 50, 30], tomb: [172, 24, 48, 35, 18], tree: [236, 60, 98, 70, 26], throne: [356, 60, 100, 70, 44] };
+          let props = 0, wrong = 0;
+          for (const o of g.arena.obstacles) {
+            const m = P[o.kind];
+            if (!m) continue;
+            const k = o.r / m[4];
+            const want = a.getImageData(m[1], m[0] + m[3], 1, 1).data;
+            const got = ground.getImageData(Math.round(o.x), Math.round(o.y + (m[3] - m[2]) * k), 1, 1).data;
+            props++;
+            if (k === 1 && Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) > 8) wrong++;
+          }
+          // a brazier on screen: its flame changes from frame to frame
+          let flicker = null;
+          const b = g.arena.obstacles.find((o) => o.kind === 'brazier');
+          if (b) {
+            Object.assign(g.player, { x: b.x - 120, y: b.y });
+            await wait(200);
+            const cam = lb.camera(), c = document.getElementById('game').getContext('2d');
+            const seen = new Set();
+            for (let i = 0; i < 12; i++) {
+              g.enemies.length = 0;
+              const px = c.getImageData(Math.round((b.x - cam.x) * cam.zoom) - 12, Math.round((b.y - 40 - cam.y) * cam.zoom) - 12, 24, 24).data;
+              seen.add(px.join(',').length + ':' + px.reduce((s, v) => s + v, 0));
+              await wait(60);
+            }
+            flicker = seen.size;
+            if (flicker < 2) flicker = `${flicker} (${lb.state}, time ${g.time.toFixed(2)})`;
+          }
+          // the ground pickups: an xp gem, a big one and a coin next to the champion, drawn once (no tick, so none is picked up)
+          let pickups = null;
+          if (arena === 'keep') {
+            const drops = [['xp', 1, 508], ['xp', 10, 521], ['gold', 1, 534]].map(([kind, value, row], i) => ({ kind, value, row, x: Math.round(g.player.x) + 40 + i * 30, y: Math.round(g.player.y) - 60 }));
+            g.enemies.length = 0;
+            g.pickups.push(...drops.map(({ kind, value, x, y }) => ({ kind, value, x, y })));
+            lb.draw();
+            const cam = lb.camera(), c = document.getElementById('game').getContext('2d');
+            pickups = drops.filter((d) => {
+              const want = a.getImageData(6, d.row + 6, 1, 1).data;
+              const got = c.getImageData(Math.round((d.x - Math.round(cam.x)) * cam.zoom), Math.round((d.y - Math.round(cam.y)) * cam.zoom), 1, 1).data;
+              return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
+            }).length;
+          }
+          return { arena, props, wrong, flicker, pickups };
+        }, arena),
+      );
+    }
+    const ok = out.every((r) => r.wrong === 0) && out.find((r) => r.arena === 'graveyard').props > 0 && typeof out.find((r) => r.arena === 'keep').flicker === 'number' && out.find((r) => r.arena === 'keep').pickups === 3;
+    return { ok, detail: out.map((r) => `${r.arena}: ${r.props} props${r.wrong ? ` (${r.wrong} WRONG)` : ''}${r.flicker === null ? '' : `, flame ${r.flicker} looks`}${r.pickups === null ? '' : `, ${r.pickups}/3 pickups drawn from the atlas`}`).join('; ') };
+  }),
+);
+
+// ---------- #159: the wings' features are rigged props, and the Graveyard's hands claw up out of their circles ----------
+await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasping hands rise in their telegraphs (#159)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+    const out = [];
+    for (const arena of ['bastion', 'graveyard', 'keep']) {
+      if (out.length) {
+        await inPage(() => location.reload());
+        await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+      }
+      out.push(
+        await inPage(async (arena) => {
+          const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+          [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+          await wait(150);
+          document.querySelector('[data-act="test"]').click();
+          await wait();
+          const el = document.getElementById('tm-arena');
+          el.value = arena;
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+          const g = window.__startTest();
+          g.player.invulnerable = true;
+          for (let i = 0; i < 40 && !(lb.state === 'playing' && g.time > 0.3); i++) {
+            if (lb.state === 'choice') lb.run(1, false, 'input');
+            await wait(50);
+          }
+          const img = new Image();
+          img.src = 'sprites/props.png';
+          await img.decode();
+          const atlas = document.createElement('canvas');
+          [atlas.width, atlas.height] = [img.width, img.height];
+          atlas.getContext('2d').drawImage(img, 0, 0);
+          const a = atlas.getContext('2d'), c = document.getElementById('game').getContext('2d');
+          // does the canvas show the atlas pixel (col, row) of a prop whose anchor (ax, ay) sits on world (x, y)?
+          const shows = (x, y, ax, ay, col, row) => {
+            const cam = lb.camera();
+            const wx = Math.round(x - ax) + ax, wy = Math.round(y - ay) + ay;
+            const want = a.getImageData(col, row, 1, 1).data;
+            const got = c.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data;
+            return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
+          };
+          // src/render/props.json: atlas row and anchor of each feature's prop
+          const F = { shrine: [585, 30, 34], chest: [637, 20, 20], lair: [671, 32, 26], hazard: [711, 24, 24] };
+          let features = null;
+          const f = g.features[0];
+          if (f) {
+            // its wing opened, and the feature set down beside the champion so the camera has it (the wing's floor stays walled off)
+            g.regionOpen[f.wing] = true;
+            Object.assign(f, { x: Math.round(g.player.x) + 150, y: Math.round(g.player.y) });
+            features = [];
+            for (const kind of Object.keys(F)) {
+              f.kind = kind;
+              g.enemies.length = 0;
+              lb.draw();
+              const [row, ax, ay] = F[kind];
+              if (shows(f.x, f.y, ax, ay, ax, row + ay)) features.push(kind);
+            }
+          }
+          // the arena's hazard, now: a hand (the Graveyard) or a flame (the keep's braziers) in each telegraph
+          g.wave = Math.max(1, g.wave);
+          g.hazardT = 0.001;
+          for (let i = 0; i < 40 && !g.zones.some((z) => z.art); i++) await wait(25);
+          const arts = [...new Set(g.zones.filter((z) => z.art).map((z) => z.art))];
+          let hand = null;
+          const z = g.zones.find((z) => z.art === 'hands');
+          if (z) {
+            Object.assign(g.player, { x: z.x - 200, y: z.y });
+            g.enemies.length = 0;
+            lb.draw();
+            const frame = Math.min(2, Math.floor(Math.min(1, z.t / z.delay) * 3));
+            hand = shows(z.x, z.y + 8, 16, 38, frame * 32 + 16, 749 + 38); // the earth heaped round the wrist, at the anchor
+          }
+          return { arena, features, arts, hand };
+        }, arena),
+      );
+    }
+    const by = (id) => out.find((r) => r.arena === id);
+    const ok = by('bastion').features?.length === 4 && by('graveyard').arts.includes('hands') && by('graveyard').hand === true && by('keep').arts.includes('fire');
+    return { ok, detail: out.map((r) => `${r.arena}: ${r.features ? `features ${r.features.join('/') || 'none'}, ` : ''}telegraphs ${r.arts.join('/') || 'none'}${r.hand === null ? '' : `, hand ${r.hand ? 'drawn' : 'MISSING'}`}`).join('; ') };
+  }),
+);
+
 
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
