@@ -17,6 +17,7 @@
     "sim": "vite-node scripts/simulate.ts",
     "icons": "vite-node scripts/make-icons.ts",
     "art": "vite-node tools/art/art.ts",
+    "art:map": "vite-node tools/art/map-preview.ts",
     "dist": "npm run build && electron-builder --win --publish never",
     "release": "node scripts/release.mjs",
     "cap:sync": "npm run build && cap sync",
