@@ -1,7 +1,7 @@
 import { GAME } from '../../config/game';
 import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import type { Enemy } from '../../core/types';
-import { applyStatus, damageEnemy, nearestEnemy } from '../combat';
+import { damageEnemy, nearestEnemy } from '../combat';
 import { addBleed, aOf, attackHit, awakened, bonus, cutMaxHp, flash, isBleeding, nOf, relicHeal, type RelicHooks, sOf } from '../relicCore';
 
 /**
@@ -33,13 +33,13 @@ export const BLOOD_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onKill(g, ev, p) {
       const b = ev.enemy.statuses.bleed;
       if (!awakened(p, 'butchersHook') || !b) return;
-      // Gutting: its bleed passes to the two enemies nearest it
+      // Gutting: its bleed passes to the two enemies nearest it, as a bleed you apply (so Last Blood doubles it)
       const a = aOf('butchersHook');
       const hit: Enemy[] = [ev.enemy];
       for (let i = 0; i < a.count; i++) {
         const to = nearestEnemy(g, ev.enemy.x, ev.enemy.y, a.range, hit);
         if (!to) break;
-        applyStatus(to, { apply: [{ id: 'bleed', stacks: b.stacks, power: b.power }] }, g);
+        addBleed(g, p, to, b.stacks, b.power);
         hit.push(to);
       }
     },
