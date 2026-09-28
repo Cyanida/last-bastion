@@ -10,6 +10,7 @@ import { buildProps, propPaths } from './props';
 import { buildSheet, loadDefs, sheetJson, sheetPaths } from './sheet';
 import { buildIcons, iconPaths } from './ui/icons';
 import { buildKeep, keepPaths } from './ui/keep';
+import { buildWorld, worldPaths } from './ui/world';
 
 mkdirSync('public/sprites', { recursive: true });
 mkdirSync('src/render/sheets', { recursive: true });
@@ -33,3 +34,8 @@ writeFileSync(keepPaths.castle, keep.castle);
 writeFileSync(keepPaths.yard, keep.yard);
 writeFileSync(keepPaths.css, keep.css);
 console.log(`keep: ${keepPaths.castle} (${keep.castle.length} bytes), ${keepPaths.yard} (${keep.yard.length} bytes), ${keepPaths.css}`);
+const world = buildWorld(); // #198: the world map and the clouds over each realm, and their CSS
+writeFileSync(worldPaths.map, world.map);
+writeFileSync(worldPaths.clouds, world.clouds);
+writeFileSync(worldPaths.css, world.css);
+console.log(`world: ${worldPaths.map} (${world.map.length} bytes), ${worldPaths.clouds} (${world.clouds.length} bytes), ${worldPaths.css}`);
