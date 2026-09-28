@@ -4,15 +4,18 @@
 > ([ROADMAP.md](ROADMAP.md)).
 > - **What stays:** the steps that are done (the golden runs, commands, the pure simulation, save/restore/replay, and #113/#114). They
 >   give single-player save-and-resume (the phone, v0.9) and exact replays.
-> - **What's cancelled:** the multi-player steps (#28-#31, and the networking after them). The text below keeps them for the record.
+> - **What's cancelled:** the multi-player steps (#28-#31, and the networking after them). None of them were built (see section 3's
+>   status column). The text below keeps them for the record.
 >   "The plan" now ends where the groundwork ends.
 
-How Last Bastion is built today, and the step-by-step plan that turns the single-player simulation into one that runs 1-4 players
-from commands (v0.8.0, [ROADMAP.md](ROADMAP.md)). Written for [#24](https://github.com/Cyanida/last-bastion/issues/24) and brought up to date
-for [#116](https://github.com/Cyanida/last-bastion/issues/116). It names files and functions rather than line numbers; sections 3
+How Last Bastion is built today: section 2. It was also written as the step-by-step plan that would have turned the single-player
+simulation into one that runs 1-4 players from commands (v0.8.0), for [#24](https://github.com/Cyanida/last-bastion/issues/24) and
+brought up to date for [#116](https://github.com/Cyanida/last-bastion/issues/116). Co-op was dropped on 25-09-2026
+([ROADMAP.md](ROADMAP.md)), so sections 1 and 3-5 below now describe that cancelled plan, kept for the record because steps 0-3 of
+it shipped and single-player still uses them (see the note above). It names files and functions rather than line numbers; sections 3
 and 5 say which steps are done.
 
-## 1. The model we are moving to
+## 1. The model we were moving to (cancelled plan, kept for the record)
 
 - **One simulation, many views.** A run is a `Game` that only changes through `step(g, commands)`. Screens, cameras, particles, sound
   and music are views that read the `Game` and never write it.
@@ -21,9 +24,10 @@ and 5 say which steps are done.
   produce the same commands.
 - **Deterministic on one engine.** The same seed and the same commands give the same state hash. This is what replays, the Daily
   Trial, the tests and the balance sims rely on.
-- **Host-authoritative online (0.9).** Floating-point results (`Math.hypot`, `Math.sin`, `**`) are not guaranteed to match across JS
-  engines, so online play does not use lockstep. The host runs the simulation from everyone's commands and sends snapshots; clients
-  predict their own movement (#35). The loopback transport in 0.8 (#31) already works this way, with full snapshots and no deltas.
+- **Host-authoritative online (0.9), never built.** Floating-point results (`Math.hypot`, `Math.sin`, `**`) are not guaranteed to
+  match across JS engines, so online play would not have used lockstep: the plan was a host running the simulation from everyone's
+  commands and sending snapshots, with clients predicting their own movement (#35), over a loopback transport (#31). Co-op was
+  dropped before any of it was written; there is no `Transport` and no multi-player state in the code.
 - **Single-player stays the same, bit for bit.** A 1-player run with the same seed draws the same random numbers in the same order
   as today. Every step below ends with the golden-run test (step 0) still green.
 
@@ -132,7 +136,7 @@ zones, fields, pickups → arena, regions, quests, events, effects → compactio
   tests/v8-state.test.ts (#27: streams, snapshot and restore, timers, relic state, and a full Act replayed from recorded commands
   to the same hash, also after a mid-Act restore).
 
-## 3. What stands in the way
+## 3. What stood in the way (cancelled plan, kept for the record)
 
 | Blocker | Where | Fixed in | Status |
 |---|---|---|---|
@@ -140,15 +144,15 @@ zones, fields, pickups → arena, regions, quests, events, effects → compactio
 | Sound and particles are triggered from inside systems | `sfx()` in 22 files, effects.ts | #26 | done: sounds leave through the `g.out` cue list (#114); stingers still on the event bus |
 | Cosmetic `Math.random` and quality-dependent particle counts live in `Game` | effects.ts | #26 | done: still in `Game`, left out of the hash |
 | Closures in `g.timers`, RNG closures, WeakMaps keyed by `Player`, entity references without ids | hazards.ts, math.ts, relic families, types.ts | #27 | done: timers and streams are data, relic WeakMaps moved to `RelicState`, the snapshot relinks references (`chargeHits` in aiHelpers.ts is still a WeakMap) |
-| One `g.player`, and player state spread over `Game` and `g.vars` | about 365 `g.player` sites | #28 | open |
-| Events carry no player | events.ts, abilities.ts `addListener` | #28 | open |
-| One camera following `g.player`; aim resolved through that camera | renderer.ts `cameraFor`, main.ts | #28 | open |
-| Player-scoped rolls (crits, level-up offers) draw from the shared `g.rng` | combat, level-ups | #28 | open |
-| Enemy count, XP, relic drops, death and rewards assume one player | spawning, director, pickups, relics, game over | #29 | open |
+| One `g.player`, and player state spread over `Game` and `g.vars` | about 365 `g.player` sites | #28 | cancelled |
+| Events carry no player | events.ts, abilities.ts `addListener` | #28 | cancelled |
+| One camera following `g.player`; aim resolved through that camera | renderer.ts `cameraFor`, main.ts | #28 | cancelled |
+| Player-scoped rolls (crits, level-up offers) draw from the shared `g.rng` | combat, level-ups | #28 | cancelled |
+| Enemy count, XP, relic drops, death and rewards assume one player | spawning, director, pickups, relics, game over | #29 | cancelled |
 
-## 4. The target shape
+## 4. The target shape (cancelled plan, kept for the record)
 
-The plan as written for #24. Step 3 landed in a different shape (no `g.nextId`); section 5 says how.
+The plan as written for #24, never reached. Step 3 landed in a different shape (no `g.nextId`); section 5 says how.
 
 ```
 devices / bot / network ──► Command[] ──► step(g, commands) ──► Game ──► views (one per local viewpoint)
@@ -173,7 +177,8 @@ devices / bot / network ──► Command[] ──► step(g, commands) ──�
 
 ## 5. Migration steps
 
-Each step is one PR, lands on the release branch (`release/0.8.0`), and keeps single-player identical. The order follows the
+Steps 0-3 shipped and are what section 2 describes today. Steps 4-7 are the cancelled plan, kept for the record: each step was to
+be one PR, landing on the release branch (`release/0.8.0`) and keeping single-player identical. The order followed the
 dependencies; it matches the issue numbers except that the golden test comes first.
 
 ### Step 0: golden runs (first commit of #25)
@@ -231,7 +236,7 @@ is in tests/v8-state.test.ts.
 
 ### Step 4: multi-player state (#28)
 
-**Status: open.**
+**Status: cancelled — not built.**
 
 1. `g.players` with `g.player` kept as a getter for `g.players[0]` while the sites move over, file by file, heaviest first
    (evolutions, abilities, combat, relics, treasures, bosses, acts, utility, enemy AI). The getter goes when the count reaches 0.
@@ -245,7 +250,7 @@ is in tests/v8-state.test.ts.
 
 ### Step 5: co-op rules (#29)
 
-**Status: open.**
+**Status: cancelled — not built.**
 
 Pure rules in `src/logic/coop.ts` with numbers in `src/config/coop.ts`, each unit tested: enemy HP and count scaling per player;
 shared XP with a level-up pick per player, slow motion and a timer that picks for you; relic offers per player from their own stream
@@ -254,14 +259,14 @@ player every rule is a no-op, so the golden runs stay unchanged. The pause scree
 
 ### Step 6: bot ally (#30)
 
-**Status: open.**
+**Status: cancelled — not built.**
 
 The bot becomes a player type: `botCommands(g, p)` issues the same commands a human does, for any slot. A 1 human + 1 bot run
 completes an Act (a test with two bot slots stands in for the human).
 
 ### Step 7: loopback transport (#31)
 
-**Status: open.**
+**Status: cancelled — not built.**
 
 1. A `Transport` interface (`send`, `onMessage`, `close`) and a `LoopbackTransport` over `BroadcastChannel`, with simulated latency
    and loss.
