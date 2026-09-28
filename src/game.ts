@@ -168,6 +168,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     blessings: [],
     pendingShrine: null,
     quests: [],
+    actQuestsDone: [],
     pendingBoard: false,
     questsDone: 0,
     questRunes: 0,

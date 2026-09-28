@@ -557,6 +557,7 @@ export interface Game {
   pendingShrine: BlessingId[] | null; // a shrine's choice waiting for the UI (or the bot)
   // --- v0.5 side quests and wave events (config/quests.ts, config/events.ts) ---
   quests: Quest[]; // the board while pendingBoard, then the ones taken (finished ones linger for the tracker)
+  actQuestsDone: QuestKind[]; // #169: kinds finished this Act, kept once the done quest itself lingers out of `quests`
   pendingBoard: boolean;
   questsDone: number;
   questRunes: number;

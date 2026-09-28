@@ -163,6 +163,7 @@ function end(g: Game, q: Quest, done: boolean): void {
   q.t = QUEST_BOARD.linger;
   if (q.unit) compact(g.minions, (m) => m !== q.unit); // the caravan rolls on, the monk goes in (or they are already dead)
   if (!done) return;
+  g.actQuestsDone.push(q.kind); // #169: outlives the quest's own linger, so a boss gated on it still draws
   g.questsDone++;
   payReward(g, q.reward);
   const p = g.player;
@@ -180,6 +181,7 @@ export function initQuests(g: Game): void {
   for (const q of g.quests) if (q.state === 'active') end(g, q, false);
   compact(g.quests, (q) => q.state !== 'offered');
   g.actFeats = {};
+  g.actQuestsDone = [];
   const step = g.chain && chainStep(g.chain, g.chain.unlocked);
   const offer = (kind: QuestKind, reward: RewardKind, i: number) =>
     g.quests.push({ kind, reward, state: 'offered', name: QUESTS[kind].short, x: 0, y: 0, unit: null, foes: [], progress: 0, since: 0, t: 0, rng: placeRng(g.seed, 1000 * g.act + i) });
