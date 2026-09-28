@@ -76,15 +76,15 @@ await shot('kit-sheet.png', { width: 1280, height: 800 }, false, () => {
   o.classList.remove('hidden');
 });}
 
-// #189: every screen of the screen tour (lib/screen-tour.mjs), played through its buttons: 189-<screen>-<before|after>-<size>.png
+// #189: every screen of the screen tour (lib/screen-tour.mjs), played through its buttons: 189-<screen>-<before|after>-<size>.jpg
 for (const [size, viewport, touch] of [['1280x720', { width: 1280, height: 720 }, false], ['phone', { width: 844, height: 390 }, true]]) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
   await page.goto(`http://localhost:${PORT}/?debug&dev=1`);
   await page.getByText('Take up arms').first().waitFor();
   await page.evaluate(() => document.fonts.ready);
   const { skipped } = await tour(page, async (name) => {
-    await page.screenshot({ path: `${OUT}/189-${name}-${TAG}-${size}.png` });
-    console.log(`${OUT}/189-${name}-${TAG}-${size}.png`);
+    await page.screenshot({ path: `${OUT}/189-${name}-${TAG}-${size}.jpg`, type: 'jpeg', quality: 80 }); // 80 pictures: JPEG keeps the repo light
+    console.log(`${OUT}/189-${name}-${TAG}-${size}.jpg`);
   }, { touch });
   if (skipped.length) console.log(`${size}: skipped ${skipped.join(', ')}`);
   await page.close();

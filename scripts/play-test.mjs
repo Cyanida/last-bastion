@@ -1497,7 +1497,7 @@ await check('import: a save with markup stays text', () =>
       await P.wait(150);
       seen.push(!!document.getElementById('xss'));
       const titles = [...document.querySelectorAll('[data-equip]')].map((b) => b.textContent.trim());
-      btn('Back').click();
+      document.querySelector('[data-back]').click(); // #189: the Chronicle's back disc
       await P.wait(150);
       btn('The Keep').click();
       await P.wait(150);
