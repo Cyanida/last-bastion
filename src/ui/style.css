@@ -425,6 +425,10 @@ canvas#game { touch-action: none; }
 .compact .dialog { padding: 14px 20px; }
 .compact .stats.wide { font-size: 15px; margin: 4px 0 10px; }
 .compact .btn.big { font-size: 22px; padding: 6px 28px; }
+/* #177: mid-run at phone width the cards can fit one row wide, so a choice screen stays short and centering lands its heading on
+   the HUD's Act/Wave plate (always up during a run). Anchor it below the plate instead, so it never lands there regardless of
+   how tall the screen's own content is. */
+.compact #hud:not(.hidden) ~ #overlay { align-items: flex-start; padding-top: max(165px, calc(16px + env(safe-area-inset-top))); }
 
 /* landscape only */
 #rotate { display: none; position: fixed; inset: 0; z-index: 10; background: #14110f; color: #e9c95a; font: 28px var(--heading); text-align: center; align-items: center; justify-content: center; }

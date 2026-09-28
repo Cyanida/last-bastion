@@ -250,13 +250,25 @@ await check('level-up: free reroll, paid reroll, banish, pick', () =>
   }),
 );
 
-await check('level-up: pick with the 1 key', async () => {
+await check('level-up: pick with the 1 key, its heading clear of the HUD banner at phone width (#177)', async () => {
   const opened = await inPage(() => {
     window.__lb.game.pendingLevelUps++;
+    window.__lb.game.banner = { ...window.__lb.game.banner, text: 'Wave 12', t: 1 }; // the HUD banner, up at the same moment as a level-up
     return window.__play.toChoice();
   });
+  // #177: at phone width the heading must clear the HUD's Act/Wave plate and its banner underneath, both always up mid-run
+  await page.setViewportSize({ width: 844, height: 390 });
+  const overlap = await inPage(() => {
+    const box = (sel) => document.querySelector(sel)?.getBoundingClientRect();
+    const h1 = box('.levelup h1');
+    const overlaps = (a, b) => !!a && !!b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const hits = ['.hud-wave', '#h-banner'].filter((sel) => overlaps(h1, box(sel)));
+    return { compact: document.documentElement.classList.contains('compact'), top: Math.round(h1?.top ?? -1), hits };
+  });
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.keyboard.press('Digit1');
-  return inPage((opened) => ({ ok: opened && window.__lb.state === 'playing' && window.__lb.game.pendingLevelUps === 0, detail: opened ? '' : 'no screen' }), opened);
+  const r = await inPage((opened) => ({ ok: opened && window.__lb.state === 'playing' && window.__lb.game.pendingLevelUps === 0, detail: opened ? '' : 'no screen' }), opened);
+  return { ok: r.ok && overlap.hits.length === 0, detail: `${r.detail}; compact ${overlap.compact}, h1 top ${overlap.top}${overlap.hits.length ? `, overlaps: ${overlap.hits.join(', ')}` : ''}` };
 });
 
 // v0.7.5 (#111): X picks the first level-up card and is also the utility button; held past the screen, it must not cast
