@@ -4,6 +4,8 @@
  */
 export class LRUCache<K, V> {
   private readonly map = new Map<K, V>();
+  hits = 0; // for the play test: a run's hit rate shows whether the cap thrashes
+  misses = 0;
   constructor(private readonly cap: number) {}
 
   get size(): number {
@@ -12,7 +14,9 @@ export class LRUCache<K, V> {
 
   get(key: K): V | undefined {
     const v = this.map.get(key);
-    if (v !== undefined) {
+    if (v === undefined) this.misses++;
+    else {
+      this.hits++;
       this.map.delete(key); // re-insert so it's last (most recently used)
       this.map.set(key, v);
     }

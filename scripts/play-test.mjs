@@ -2331,6 +2331,26 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
 );
 
 
+// ---------- #168: the sprite frame cache stays bounded without thrashing, and the gallery leaves it alone ----------
+await check('Frame cache: a whole play test hits it almost always, under its cap; the sprite gallery adds nothing to it (#168)', async () => {
+  const run = await inPage(() => window.__lb.frameCache());
+  const rate = run.hits / Math.max(1, run.hits + run.misses);
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('paladin'));
+  const gallery = await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    const before = window.__lb.frameCache().size;
+    document.querySelector('[data-act="test"]').click();
+    await wait(1500); // every sheet cycles several frames
+    const played = new Set([...document.querySelectorAll('[data-sheet]')].map((c) => c.dataset.frame)).size > 1;
+    return { before, after: window.__lb.frameCache().size, played };
+  });
+  const ok = run.size <= run.cap && run.misses === run.size && rate > 0.99 && gallery.played && gallery.after === gallery.before;
+  return { ok, detail: `run: ${run.size}/${run.cap} frames, ${run.misses} misses, hit rate ${(rate * 100).toFixed(2)}%; gallery: ${gallery.before} → ${gallery.after} frames` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };

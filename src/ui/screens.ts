@@ -23,7 +23,7 @@ import { salvageValue, sellPrice } from '../systems/acts';
 import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
-import { GAME, SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
+import { SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { latchGamepad, onAction } from '../input';
@@ -40,7 +40,7 @@ import type { Route } from '../logic/routes';
 import { EVOLUTION_IDS, EVOLUTIONS, type EvolutionId } from '../config/evolutions';
 import { requirementText } from '../logic/evolutions';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
-import { outlineSprite, portraitSprite, SHEETS, sheetSprite, SPRITE_PALETTES } from '../render/sprites';
+import { drawSheetFrame, outlineSprite, portraitSprite, SHEETS, SPRITE_PALETTES } from '../render/sprites';
 import { frameAt, type AnimName } from '../logic/animation';
 import { OATHS } from '../config/oaths';
 import { oathCap, oathReward } from '../logic/oaths';
@@ -1253,10 +1253,9 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
     for (const c of cells) {
       const id = c.dataset.sheet!, anim = c.dataset.anim as AnimName;
       const f = frameAt(SHEETS[id].anims[anim]!, now - t0, true);
-      const spr = sheetSprite(id, GAME.spriteScale * 2, 0, anim, f);
       const ctx = c.getContext('2d')!;
       ctx.clearRect(0, 0, c.width, c.height);
-      if (spr) ctx.drawImage(spr.img, 0, 0);
+      drawSheetFrame(ctx, id, anim, f, 2); // #168: uncached, so browsing every sheet doesn't fill the frame cache
       c.dataset.frame = String(f); // for the play test
     }
     requestAnimationFrame(tick);

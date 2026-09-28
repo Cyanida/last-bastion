@@ -30,9 +30,12 @@ describe('v0.8.3 sprite frame cache is bounded (#168)', () => {
     expect(c.get('a')).toBe(2);
   });
 
-  it("GAME's cap keeps the sprite gallery (well over a thousand distinct frames) far below its old half-gigabyte", () => {
-    // 37 sheets, ~6 anims and ~4 frames each: comfortably more distinct frames than the cap holds at once.
-    expect(GAME.spriteFrameCacheCap).toBeGreaterThan(0);
-    expect(GAME.spriteFrameCacheCap).toBeLessThan(1000);
+  it('counts hits and misses, so the play test can check a run never thrashes', () => {
+    const c = new LRUCache<string, number>(2);
+    c.get('a');
+    c.set('a', 1);
+    c.get('a');
+    c.get('a');
+    expect([c.hits, c.misses]).toEqual([2, 1]);
   });
 });
