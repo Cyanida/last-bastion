@@ -1,5 +1,6 @@
 import { GAME } from '../config/game';
 import type { AnimName, SheetData } from '../logic/animation';
+import { LRUCache } from '../logic/lruCache';
 import { spriteSize } from '../logic/spriteRes';
 
 /** Pixel-grid sprites. One char = one pixel, looked up in PALETTE. '.' is transparent. Sprites face right. #138: every champion, foe, commander, siege piece and boss is drawn on a grid twice as fine (SPRITE_RES); the skeleton minion keeps the old grid on purpose, its gaps between the bones read better there. */
@@ -1294,10 +1295,12 @@ export function loadSheets(): Promise<void> {
 }
 export const sheetLoaded = (id: string): boolean => sheetImages.has(id);
 
-const frames = new Map<string, Sprite>();
+const frames = new LRUCache<string, Sprite>(GAME.spriteFrameCacheCap);
 /**
  * One frame of a rigged sheet as a Sprite (with flips, hit-flash silhouettes and the palette filter), or null while its sheet
  * isn't loaded. 1 art pixel = 1 world pixel at GAME.spriteScale; the feet sit where a letter-grid sprite's feet would.
+ * #168: bounded (LRU), with a cap well above what a run draws, so play never thrashes; the sprite gallery draws straight from the
+ * sheets (drawSheetFrame) and never fills it, where it used to grow past half a gigabyte of off-screen canvases.
  */
 export function sheetSprite(id: string, scale: number, palette: number, anim: AnimName, frame: number): Sprite | null {
   const d = SHEETS[id], img = sheetImages.get(id);
@@ -1330,6 +1333,17 @@ export function sheetSprite(id: string, scale: number, palette: number, anim: An
     frames.set(key, s);
   }
   return s;
+}
+
+export const frameCacheStats = (): { size: number; cap: number; hits: number; misses: number } => ({ size: frames.size, cap: GAME.spriteFrameCacheCap, hits: frames.hits, misses: frames.misses });
+
+/** #168: one frame of a sheet drawn straight onto a canvas at `k` canvas px per art px, uncached (the sprite gallery). False while it isn't loaded. */
+export function drawSheetFrame(ctx: CanvasRenderingContext2D, id: string, anim: AnimName, frame: number, k: number): boolean {
+  const d = SHEETS[id], img = sheetImages.get(id);
+  if (!d || !img) return false;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(img, frame * d.w, Object.keys(d.anims).indexOf(anim) * d.h, d.w, d.h, 0, 0, d.w * k, d.h * k);
+  return true;
 }
 
 /**

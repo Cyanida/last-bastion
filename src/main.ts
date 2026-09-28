@@ -34,7 +34,7 @@ import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from 
 import { buildArena, loadProps, propsLoaded } from './render/arena';
 import { ENEMIES, type EnemyId } from './config/enemies';
 import { cameraFor, foeAnim, foesDying, minionAnim, playerAnim, render, renderBackdrop, setSpotlight, spotlightOn, type View } from './render/renderer';
-import { loadSheets, SHEETS, sheetLoaded } from './render/sprites';
+import { frameCacheStats, loadSheets, SHEETS, sheetLoaded } from './render/sprites';
 import { botInput, botStep } from './sim/bot';
 import { playCues, view as simView } from './sim/view';
 import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
@@ -830,6 +830,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       setQuality, // v0.8: the play test compares particle budgets
       anim: playerAnim, // #155: the champion's animation and frame, as last drawn
       sheets: () => Object.keys(SHEETS).filter(sheetLoaded), // #155: the rigged sprite sheets that have loaded
+      frameCache: frameCacheStats, // #168: the play test checks a run's hit rate and that the gallery leaves the cache alone
       foeAnim, // #157: a foe kind's animation and frame, as last drawn
       foesDying, // #157: the slain foes whose death is playing
       minionAnim, // #156: an ally kind's animation and frame, as last drawn

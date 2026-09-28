@@ -4,6 +4,7 @@ export const GAME = {
   tickRate: 60,
   spriteScale: 3,
   spatialCell: 64,
+  spriteFrameCacheCap: 512, // #168: rigged sheet frames (4 canvases each, id@scale@palette@anim@frame) kept at once; the whole play test peaks near 210 in one page and an Act I + III run near 50, so play never evicts, while memory stays bounded (the sprite gallery draws uncached)
 
   // stat scaling
   statDamageScale: 0.04, // +4% damage per point of the attack's scaling stat
