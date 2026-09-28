@@ -864,6 +864,25 @@ await check('starts with site data blocked: title, Settings, sound toggle', asyn
   return { ok: before !== after && crash === 0 && errs.length === 0, detail: `title up, sound ${before} -> ${after}${errs.length ? `, errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- v0.8.3 (#171): offline, a failed background update check shows no error overlay ----------
+await check('offline: a failed update check shows no error overlay', async () => {
+  const off = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  off.on('pageerror', (e) => errs.push(e.message));
+  off.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await off.goto(`http://localhost:${PORT}/`);
+  await off.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await off.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration('./'))); // registered
+  await off.waitForTimeout(200); // its own .then() has attached the visibilitychange listener (src/core/pwa.ts)
+  await off.context().setOffline(true);
+  await off.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); // "back in the foreground": looks for an update
+  await off.waitForTimeout(500); // the failed fetch has time to reject
+  const crash = await off.locator('#crash').count();
+  await off.context().setOffline(false);
+  await off.close();
+  return { ok: crash === 0 && errs.length === 0, detail: `overlay ${crash}${errs.length ? `, errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- v0.7.5: a shared save with markup in its title, titles and a run's Daily label shows it as text, never as page (#105) ----------
 await check('import: a save with markup stays text', () =>
   inPage(() => {
