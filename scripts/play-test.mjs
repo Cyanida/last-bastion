@@ -203,6 +203,104 @@ await check('menus: the UI kit helpers build the title and every component works
   return { ok, detail: `title from helpers ${same.join('/')}, tab ${r.on} (picked ${r.picked}), switch ${r.toggled}, rarity colours ${r.rarity}, close ${r.close}, frame ${r.frame}` };
 });
 
+// #186: Settings and the results in the kit, on PC and phone landscape, played through their controls: the framed screen with its
+// ribbon, choices as pressed wood buttons, the Sound switch, the Effects slider by keyboard, the back disc; then a real run ended from
+// the pause menu, its results framed with the one gold main button, the atlas's gold icon, everything in the window, and the wood
+// button on to the class select. Mouse on PC, touch taps on the phone.
+await check('Settings and results: the UI kit, their controls work, all in the window at 1280x720 and 844x390 (#186)', async () => {
+  const seen = [];
+  for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    // all of the frame in the window; the parchment scrolls if it must, and its last line comes into view
+    const inside = (sel) =>
+      p.evaluate((sel) => {
+        const f = document.querySelector(sel).getBoundingClientRect();
+        const btns = [...document.querySelectorAll(`${sel} footer .kit-btn, ${sel} .kit-close`)].every((b) => {
+          const r = b.getBoundingClientRect();
+          return r.top >= f.top && r.bottom <= f.bottom + 6; // the lip may sit on the frame's edge
+        });
+        const scroll = document.querySelector(`${sel} .kit-scroll`);
+        const last = scroll.lastElementChild;
+        last.scrollIntoView({ block: 'nearest' });
+        const lr = last.getBoundingClientRect(), sr = scroll.getBoundingClientRect();
+        return f.top >= 0 && f.left >= 0 && f.bottom <= innerHeight && f.right <= innerWidth && btns && lr.bottom <= sr.bottom + 1;
+      }, sel);
+    await press('[data-go="settings"]');
+    const set = await p.evaluate(() => {
+      const root = document.querySelector('.kit-screen.settings');
+      return {
+        frame: !!root && root.classList.contains('kit-frame') && !!root.querySelector('.kit-parch.kit-scroll .setting'),
+        ribbon: root?.querySelector('.kit-head .kit-ribbon')?.textContent.trim(),
+        choices: [...document.querySelectorAll('[data-quality], [data-text-size], [data-aim]')].every((b) => b.classList.contains('kit-btn')) && document.querySelectorAll('.kit-choice .kit-btn.on.pressed').length === 3,
+        switches: document.querySelectorAll('.settings .kit-toggle').length,
+        sliders: document.querySelectorAll('.settings .kit-slider input[type=range]').length,
+      };
+    });
+    const fitsSet = await inside('.kit-screen.settings');
+    await press('[data-text-size="large"]');
+    const large = await p.evaluate(() => {
+      const b = document.querySelector('[data-text-size="large"]');
+      return b.classList.contains('on') && b.getAttribute('aria-pressed') === 'true' && window.__lb.save.settings.textSize === 'large';
+    });
+    await press('[data-text-size="normal"]');
+    const sound = p.locator('.kit-toggle:has([data-set="mute"])');
+    const soundBefore = (await sound.textContent()).trim();
+    await sound.click(); // a label: a click or a tap flips it alike
+    const soundAfter = (await sound.textContent()).trim();
+    const checked = await p.locator('[data-set="mute"]').isChecked();
+    await sound.click();
+    const fx = p.locator('[data-set="effects"]');
+    const fxBefore = (await p.locator('.kit-slider:has([data-set="effects"]) [data-level]').textContent()).trim();
+    await fx.focus();
+    await p.keyboard.press('ArrowLeft');
+    await p.waitForTimeout(60);
+    const fxAfter = (await p.locator('.kit-slider:has([data-set="effects"]) [data-level]').textContent()).trim();
+    await p.locator('[data-set="effects"]').focus();
+    await p.keyboard.press('ArrowRight');
+    await press('.settings [data-act="back"]');
+    const title = await p.locator('[data-go="start"]').count();
+    // a real run, ended from the pause menu
+    await press('[data-go="start"]');
+    await p.evaluate(() => document.querySelector('[data-class="viking"]').click());
+    await p.evaluate(() => document.querySelector('[data-start]')?.click());
+    await p.waitForFunction(() => window.__lb.state !== 'menu'); // the quest board comes first
+    await p.evaluate(() => { // the bot answers the screens; stop mid-fight, where Esc pauses
+      const lb = window.__lb;
+      for (let i = 0; i < 400 && !(i > 60 && lb.state === 'playing'); i++) lb.run(1, false, true);
+    });
+    await p.keyboard.press('Escape');
+    await press('[data-quit]');
+    await p.locator('.kit-screen.results').waitFor({ timeout: 3000 });
+    const res = await p.evaluate(() => {
+      const root = document.querySelector('.kit-screen.results');
+      const gold = [...root.querySelectorAll('.kit-btn.gold')];
+      const banked = [...root.querySelectorAll('.stats > div')].find((d) => d.firstElementChild?.textContent === 'Gold banked');
+      return {
+        ribbon: root.querySelector('.kit-head .kit-ribbon')?.textContent.trim(),
+        main: gold.length === 1 && gold[0].matches('[data-retry].big') && gold[0].textContent.startsWith('Quick restart'),
+        menu: root.querySelector('[data-menu]')?.classList.contains('wood'),
+        icon: !!banked?.querySelector('.kit-icon.i-gold') && getComputedStyle(banked.querySelector('.kit-icon')).backgroundImage.includes('ui-icons.png'),
+        seed: !!root.querySelector('.stats .seed')?.textContent.trim(),
+      };
+    });
+    const fitsRes = await inside('.kit-screen.results');
+    await press('[data-menu]');
+    const select = await p.evaluate(() => !!document.querySelector('[data-class="viking"]') && !document.querySelector('.kit-screen.results'));
+    await p.close();
+    const ok = set.frame && set.ribbon === 'Settings' && set.choices && set.switches >= 3 && set.sliders === 2 && fitsSet && large &&
+      soundBefore === 'On' && soundAfter === 'Off' && !checked && fxBefore !== fxAfter && title > 0 &&
+      res.ribbon === 'The run ends' && res.main && res.menu && res.icon && res.seed && fitsRes && select && errs.length === 0;
+    seen.push({ ok, detail: `${w}x${h}: settings ${set.frame}/${set.ribbon}, choices ${set.choices}, ${set.switches} switches, ${set.sliders} sliders, fits ${fitsSet}, Large ${large}, sound ${soundBefore}->${soundAfter}, effects ${fxBefore}->${fxAfter}, back ${title > 0}; results "${res.ribbon}", gold main ${res.main}, wood ${res.menu}, icon ${res.icon}, fits ${fitsRes}, to select ${select}${errs.length ? `, errors: ${errs[0]}` : ''}` });
+  }
+  return { ok: seen.every((x) => x.ok), detail: seen.map((x) => x.detail).join(' | ') };
+});
+
 // #138: the champions are drawn on a grid twice as fine, and show at the same size as before on the class select
 await check('class select: champions on the finer grid keep their size, at one scale, standing on one line (#156)', () =>
   inPage(async () => {
@@ -1087,10 +1185,10 @@ await check('starts with site data blocked: title, Settings, sound toggle', asyn
   await blocked.goto(`http://localhost:${PORT}/`);
   await blocked.getByText('Take up arms').first().waitFor({ timeout: 5000 });
   await blocked.getByRole('button', { name: 'Settings' }).click();
-  const mute = blocked.locator('[data-act="mute"]');
+  const mute = blocked.locator('.kit-toggle:has([data-set="mute"])'); // #186: a switch
   const before = await mute.textContent();
   await mute.click();
-  const after = await blocked.locator('[data-act="mute"]').textContent();
+  const after = await blocked.locator('.kit-toggle:has([data-set="mute"])').textContent();
   const crash = await blocked.locator('#crash').count();
   await blocked.close();
   return { ok: before !== after && crash === 0 && errs.length === 0, detail: `title up, sound ${before} -> ${after}${errs.length ? `, errors: ${errs[0]}` : ''}` };
@@ -1256,7 +1354,7 @@ await check('import: a save with markup stays text', () =>
       const imported = document.body.innerText.includes('Save imported');
       const seen = [];
       await P.click('[data-act="back"]');
-      btn('Back').click(); // settings -> title
+      await P.click('[data-act="back"]'); // settings -> title (#186: the back disc)
       await P.wait(150);
       seen.push(!!document.getElementById('xss'));
       btn('Chronicle').click();

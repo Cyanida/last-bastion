@@ -314,6 +314,32 @@
 .kit-title .contract span:last-child { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; }
 .kit-title .contract .kit-icon { --s: 0.8; }
 .kit-title .hint { margin-top: 18px; text-shadow: 0 1px 3px #000; }
+/* ---------- #186: Settings and the results in the kit ----------
+   .kit-screen  a framed screen: the heading on a ribbon (the close disc in its corner), parchment that scrolls, a footer that stays */
+.kit-screen { display: flex; flex-direction: column; gap: 10px; width: min(880px, calc(96 * var(--vw))); max-height: calc(94 * var(--vh)); padding: 16px 18px 20px; }
+.kit-screen.victory { box-shadow: inset 0 2px 0 rgba(255, 214, 160, 0.25), 0 0 40px rgba(246, 217, 122, 0.4), 0 8px 22px rgba(0, 0, 0, 0.65); }
+.kit-head { position: relative; z-index: 1; display: flex; justify-content: center; padding: 2px 46px 0; }
+.kit-head .kit-ribbon { display: inline-flex; align-items: center; gap: 8px; }
+.kit-head .kit-close { position: absolute; top: 0; right: 0; }
+.kit-screen .sub { margin: 0; text-align: center; color: var(--kit-light); text-shadow: 0 2px 3px #000; }
+.kit-screen .sub .record { color: var(--kit-brass-light); font-weight: bold; font-style: normal; }
+.kit-scroll { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.kit-scroll h2 { font: 800 18px var(--kit-num); letter-spacing: 0.04em; border-bottom: 1px solid rgba(90, 61, 37, 0.5); margin: 12px 0 6px; }
+.kit-scroll .kit-icon { vertical-align: -4px; }
+.kit-screen > footer { position: relative; z-index: 1; gap: 12px; align-items: center; padding-bottom: 5px; } /* room for the buttons' lip */
+.kit-choice { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.kit-choice .kit-btn.on { color: var(--kit-brass-light); border-color: var(--kit-brass); }
+.settings .setting > :last-child { flex: none; }
+.settings .kit-toggle, .settings .kit-slider { font-size: 14px; }
+.settings .kit-slider input { width: 150px; }
+.settings .kit-slider em { min-width: 4.6em; text-align: right; font-style: normal; }
+.settings [data-version] { margin: 10px 0 0; text-align: center; }
+.compact .kit-screen { gap: 6px; padding: 10px 12px 12px; max-height: calc(100 * var(--vh) - 32px); } /* the overlay pads 16 px each side */
+.compact .kit-head .kit-ribbon { font-size: 14px; padding: 4px 18px 3px; }
+.compact .kit-screen .sub { font-size: 14px; }
+.compact .settings .setting { padding: 5px 0; }
+.compact .settings .setting b { font-size: 16px; }
+
 @media (pointer: coarse) { .kit-btn, .kit-close { min-height: 44px; min-width: 44px; } }
 .compact .kit-btn.big { padding: 9px 34px 8px; font-size: 22px; }
 .compact .kit-btn:not(.big, .small) { padding: 6px 14px 5px; font-size: 14px; }
