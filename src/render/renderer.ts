@@ -118,6 +118,8 @@ export const foeAnim = (id: string): { anim: string; frame: number } | null => {
   for (const e of foes.game?.enemies ?? []) if (e.def.sprite === id && foeAnims.has(e)) return foeAnims.get(e)!.now;
   return null;
 };
+const peddler = { now: null as { anim: string; frame: number } | null };
+export const peddlerAnim = (): { anim: string; frame: number } | null => peddler.now; // for the play test: the peddler's sheet frame, null when drawn as a letter grid or absent
 export const foesDying = (): string[] => foes.dying.map((d) => d.e.def.sprite); // for the play test
 const foeScale = (e: Enemy): number => e.def.scale + (e.elite ? ELITES.scaleBonus : 0);
 
@@ -797,7 +799,14 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.fillRect(m.x - w / 2, m.y - m.r - 30, w * clamp(m.hp / m.maxHp, 0, 1), 4);
   }
   ctx.globalAlpha = 1;
-  if (g.event?.kind === 'peddler') drawSprite(ctx, getSprite('engineer', GAME.spriteScale, FRIEND_PALETTE), g.event.x, g.event.y, false, false);
+  peddler.now = null;
+  if (g.event?.kind === 'peddler') {
+    // #178: the Siege Engineer's rigged sheet, breathing through its idle; the letter grid only until the sheet has loaded
+    const frame = frameAt(SHEETS.engineer.anims.idle, g.time * 1000, true);
+    const sheet = sheetSprite('engineer', GAME.spriteScale, FRIEND_PALETTE, 'idle', frame);
+    peddler.now = sheet ? { anim: 'idle', frame } : null;
+    drawSprite(ctx, sheet ?? getSprite('engineer', GAME.spriteScale, FRIEND_PALETTE), g.event.x, g.event.y, false, false);
+  }
 
   end('minions', _t);
   _t = begin();
