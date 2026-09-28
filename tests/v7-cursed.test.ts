@@ -197,7 +197,7 @@ describe('cursed relics: the deed, and no save format change', () => {
   });
 
   it('the save format stays 6: an older save reads the new counter as 0, and it survives a round trip', () => {
-    expect(SAVE_VERSION).toBe(6);
+    expect(SAVE_VERSION).toBeGreaterThanOrEqual(6); // v0.10 moved on to 7 (#193); the counter still came without a format change
     const old = JSON.parse(JSON.stringify(defaultSave()));
     delete old.counters.cursedWin;
     expect(migrate(old).counters.cursedWin).toBe(0);
