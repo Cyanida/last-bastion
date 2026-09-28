@@ -23,6 +23,8 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #182: a burning or poisoned field no longer sets its status on you when a shield, ward, block or dodge stops its damage.
  * Re-recorded for #182: a side elite's split copies no longer hold the wave open (paladin:98765 and angel:1234 meet one).
  * Re-recorded for #182: the Aegis of Dawn's dome now lasts exactly as long as the shield (paladin:7 meta evolves it).
+ * Re-recorded for #182 (merge of its three parts): with enemy bolts carrying their shooter and delayed actions dropped at a new Act,
+ * archer:5 plays out a little differently on purpose; each part alone left it unchanged.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -68,7 +70,7 @@ const GOLDEN: Record<string, string> = {
   'necromancer:1234': 'wave 9 kills 290 level 10 gold 864 relics 4 hash 709acac7',
   'necromancer:5': 'wave 19 kills 724 level 19 gold 3196 relics 7 hash 1ae406b6',
   'archer:2027': 'wave 9 kills 301 level 10 gold 883 relics 4 hash 48aea908',
-  'archer:5': 'wave 21 kills 928 level 20 gold 5612 relics 9 hash 97accca6',
+  'archer:5': 'wave 21 kills 933 level 20 gold 5641 relics 9 hash 4a88a4f7',
   'paladin:7 meta': 'wave 15 kills 610 level 18 gold 2340 relics 7 hash c8be6d59',
   'viking:98765 curse': 'wave 18 kills 808 level 18 gold 3899 relics 7 hash 2ec27a7e',
   'angel:98765 oath 3': 'wave 13 kills 527 level 14 gold 2529 relics 5 hash b4058e85',
