@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { HAZARD_GRACE } from '../src/config/arenas';
 import type { Game } from '../src/core/types';
+import { fieldLater } from '../src/entities/hazards';
 import { emit } from '../src/core/events';
 import { createGame, updateGame } from '../src/game';
-import { merchantReroll } from '../src/systems/acts';
+import { merchantReroll, nextAct } from '../src/systems/acts';
 import { killEnemy } from '../src/systems/combat';
 import { addRelic } from '../src/systems/relics';
 import { spawnEnemy } from '../src/systems/spawning';
@@ -63,5 +65,16 @@ describe('relic crediting of delayed damage (#182)', () => {
     for (let i = 0; i < 120 && g.timers.length; i++) updateGame(g, 1 / 60);
     expect(g.timers).toHaveLength(0);
     expect(g.player.relics.stats.thunderDrum!.damage).toBeGreaterThan(first * 1.5);
+  });
+});
+
+describe('timers across Acts (#182)', () => {
+  it("a delayed blast set on the old field stays behind, and the new arena's hazard starts on its own clock", () => {
+    const g = createGame('viking', 1);
+    fieldLater(g, 0.5, { x: 100, y: 100, r: 80, life: 3, dps: 50, hostile: false, color: '#fff' });
+    g.hazardT = 0.1;
+    nextAct(g);
+    expect(g.timers).toHaveLength(0);
+    expect(g.hazardT).toBe(HAZARD_GRACE);
   });
 });
