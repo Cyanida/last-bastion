@@ -320,6 +320,7 @@ export interface Projectile extends Body {
   status: Status | null;
   source: DamageSource;
   by?: RelicKey; // v0.7: fired by this relic or duo (its damage is credited to it)
+  owner: Enemy | null; // #182: the enemy whose shot it is (its hit bleeds, curses, feeds vampiric and draws thorns like a blow)
   dtype: DamageType;
 }
 

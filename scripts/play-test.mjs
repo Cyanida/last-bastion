@@ -1166,6 +1166,47 @@ await check('Bone Colossus: capped over many Raise Deads, skeletons stay beside 
   return { ok, detail: `after ${seen.length} casts: ${last.bones} skeletons, Colossus ×${last.fused}, ${Math.round(last.damage)} dmg (first ${Math.round(seen[0].damage)})` };
 });
 
+// ---------- #182: the Aegis of Dawn's dome goes when Divine Shield is detonated early ----------
+await check('Aegis of Dawn: the dome rises with the shield and goes with an early detonation', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  await inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'paladin');
+    set('tm-level', '10');
+    const g = window.__startTest();
+    g.evolutions = ['aegisOfDawn']; // test mode has no evolution picker
+    g.breather = 1e9;
+    g.player.abilityCd = 0;
+  });
+  const press = async () => {
+    await page.keyboard.down('Space');
+    await inPage(() => window.__lb.run(2, false, 'input'));
+    await page.keyboard.up('Space');
+    await inPage(() => window.__lb.run(2, false, 'input'));
+  };
+  const dome = () => inPage(() => ({ dome: window.__lb.game.fields.some((f) => f.follow), up: window.__lb.game.player.abilityTime > 0 }));
+  await press();
+  const raised = await dome();
+  await press(); // again: detonate early
+  const after = await dome();
+  const ok = raised.up && raised.dome && !after.up && !after.dome;
+  return { ok, detail: `raised: shield ${raised.up}, dome ${raised.dome}; detonated: shield ${after.up}, dome ${after.dome}` };
+});
+
 // ---------- #134: Dread Howl stuns the enemies around the Viking when rage starts, and none of them flee ----------
 await check('Dread Howl: raging stuns the enemies around you instead of scaring them off', async () => {
   await inPage(() => {

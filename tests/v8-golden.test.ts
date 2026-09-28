@@ -18,11 +18,16 @@ import { simulateRun } from '../src/sim/bot';
  * lingered off the tracker; seed 98765's Act I board (monk, elite, camps) is all quest-gated kinds, so its five runs changed on purpose.
  * Re-recorded for #173 (v0.8.3): Anvil Heart and Adamant now count talent armor too, so paladin's seed 98765 run (Bulwark branch,
  * +armor talents) plays out differently on purpose.
+ * Re-recorded for #182 (v0.8.3): an enemy's bolt now carries its shooter, so its hit poisons, curses and draws thorns like a blow;
+ * every run with ranged enemies changed on purpose, and paladin:1234 (now short of the boss) became paladin:5.
+ * Re-recorded for #182: a burning or poisoned field no longer sets its status on you when a shield, ward, block or dodge stops its damage.
+ * Re-recorded for #182: a side elite's split copies no longer hold the wave open (paladin:98765 and angel:1234 meet one).
+ * Re-recorded for #182: the Aegis of Dawn's dome now lasts exactly as long as the shield (paladin:7 meta evolves it).
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
 const RUNS: Record<string, GoldenRun> = {
-  'paladin:1234': { cls: 'paladin', seed: 1234 },
+  'paladin:5': { cls: 'paladin', seed: 5 }, // #182: 1234 now dies before the Act boss
   'paladin:98765': { cls: 'paladin', seed: 98765 },
   'viking:98765': { cls: 'viking', seed: 98765 },
   'viking:5': { cls: 'viking', seed: 5 },
@@ -54,20 +59,20 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 
 // v0.8 #99 + #100 + #101: re-recorded on release/0.8.0 because boss draws, boss relic families and the Squire enemy roster changed on purpose
 const GOLDEN: Record<string, string> = {
-  'paladin:1234': 'wave 13 kills 456 level 14 gold 1657 relics 4 hash 794bec69',
-  'paladin:98765': 'wave 15 kills 647 level 16 gold 2508 relics 7 hash bd675d23',
-  'viking:98765': 'wave 16 kills 639 level 16 gold 2836 relics 7 hash 7008c325',
-  'viking:5': 'wave 18 kills 655 level 17 gold 2872 relics 7 hash 2bb36549',
-  'angel:1234': 'wave 16 kills 670 level 17 gold 2627 relics 5 hash 807696a7',
-  'angel:98765': 'wave 16 kills 716 level 18 gold 3462 relics 7 hash 33d41895',
+  'paladin:5': 'wave 15 kills 489 level 15 gold 1776 relics 6 hash ae9285a2',
+  'paladin:98765': 'wave 15 kills 624 level 16 gold 2572 relics 7 hash f3d3f678',
+  'viking:98765': 'wave 18 kills 768 level 18 gold 3312 relics 7 hash c53f8959',
+  'viking:5': 'wave 18 kills 676 level 18 gold 3636 relics 7 hash bb2efac8',
+  'angel:1234': 'wave 19 kills 813 level 19 gold 3527 relics 5 hash fc083d36',
+  'angel:98765': 'wave 16 kills 727 level 18 gold 3513 relics 7 hash 7a7f8010',
   'necromancer:1234': 'wave 9 kills 290 level 10 gold 864 relics 4 hash 709acac7',
-  'necromancer:5': 'wave 19 kills 729 level 19 gold 3143 relics 7 hash 554228eb',
-  'archer:2027': 'wave 9 kills 301 level 10 gold 883 relics 4 hash 8fc7b0c2',
-  'archer:5': 'wave 19 kills 762 level 19 gold 4059 relics 6 hash e542ff2c',
-  'paladin:7 meta': 'wave 14 kills 545 level 17 gold 1772 relics 6 hash d77a11a5',
-  'viking:98765 curse': 'wave 18 kills 838 level 18 gold 4032 relics 7 hash 23b8564f',
-  'angel:98765 oath 3': 'wave 15 kills 652 level 16 gold 3369 relics 7 hash 8f7a2a79',
-  'archer:5 variant 1': 'wave 9 kills 261 level 11 gold 1115 relics 4 hash c584dc99',
+  'necromancer:5': 'wave 19 kills 724 level 19 gold 3196 relics 7 hash 1ae406b6',
+  'archer:2027': 'wave 9 kills 301 level 10 gold 883 relics 4 hash 48aea908',
+  'archer:5': 'wave 21 kills 928 level 20 gold 5612 relics 9 hash 97accca6',
+  'paladin:7 meta': 'wave 15 kills 610 level 18 gold 2340 relics 7 hash c8be6d59',
+  'viking:98765 curse': 'wave 18 kills 808 level 18 gold 3899 relics 7 hash 2ec27a7e',
+  'angel:98765 oath 3': 'wave 13 kills 527 level 14 gold 2529 relics 5 hash b4058e85',
+  'archer:5 variant 1': 'wave 14 kills 452 level 14 gold 2356 relics 5 hash 6a889c6',
 };
 
 describe('v0.8 golden runs', () => {

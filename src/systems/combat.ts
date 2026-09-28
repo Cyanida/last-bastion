@@ -77,6 +77,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
         const a = (i / n.count) * TAU + 0.5;
         const c = spawnEnemy(g, e.def.id, e.x + Math.cos(a) * 24, e.y + Math.sin(a) * 24);
         c.hp = c.maxHp = Math.max(1, Math.round(e.maxHp * n.hpFrac));
+        c.side = e.side; // #182: a lair's, a quest's or a cursed chest's elite splits into side content too, not into the wave
       }
     }
   }
@@ -439,8 +440,8 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
   for (const o of obstacles) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
   for (const o of g.barriers) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
   if (pr.hostile) {
-    if (dist2(pr.x, pr.y, p.x, p.y) <= (pr.r + p.r) ** 2) return (hurtTarget(g, p, pr.damage, true, null, pr.dtype === 'physical' ? 'an arrow' : `a bolt of ${DAMAGE_TYPES[pr.dtype].name.toLowerCase()}`), false);
-    for (const m of g.minions) if (dist2(pr.x, pr.y, m.x, m.y) <= (pr.r + m.r) ** 2) return (hurtTarget(g, m, pr.damage, true), false);
+    if (dist2(pr.x, pr.y, p.x, p.y) <= (pr.r + p.r) ** 2) return (hurtTarget(g, p, pr.damage, true, pr.owner, pr.dtype === 'physical' ? 'an arrow' : `a bolt of ${DAMAGE_TYPES[pr.dtype].name.toLowerCase()}`), false);
+    for (const m of g.minions) if (dist2(pr.x, pr.y, m.x, m.y) <= (pr.r + m.r) ** 2) return (hurtTarget(g, m, pr.damage, true, pr.owner), false);
     return true;
   }
   for (const e of g.hash.query(pr.x, pr.y, pr.r, near)) {
@@ -451,6 +452,7 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
       pr.vx = -pr.vx;
       pr.vy = -pr.vy;
       pr.hostile = true;
+      pr.owner = e; // his now
       pr.damage = e.damage;
       pr.color = '#7ec8d8';
       pr.life = 1.2;
@@ -522,8 +524,9 @@ export function updateFields(g: Game, dt: number): void {
       const inside = dist2(f.x, f.y, p.x, p.y) <= f.r * f.r;
       if (f.hostile) {
         if (inside) {
+          const before = p.hp;
           damagePlayer(g, f.dps * GAME.fieldTick, true, null, `${DAMAGE_TYPES[f.dtype].name.toLowerCase()} on the ground`);
-          if (f.apply) applyStatusTo(p.statuses, f.apply);
+          if (f.apply && p.hp < before) applyStatusTo(p.statuses, f.apply); // #182: a shield, ward, block or dodge keeps the burn off too, as with a blow
         }
         for (const m of g.minions) if (dist2(f.x, f.y, m.x, m.y) <= f.r * f.r) damageMinion(g, m, f.dps * GAME.fieldTick);
       } else {
