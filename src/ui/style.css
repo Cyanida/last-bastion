@@ -281,10 +281,6 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .syn em { opacity: 0.8; }
 .tierline { font-size: 13px; text-align: left; margin-top: 3px; }
 .tierline b { color: #e9c95a; text-shadow: 0 0 2px #000; margin-right: 4px; }
-.relic-card.undiscovered { opacity: 0.55; filter: grayscale(1); }
-.cards.wrap .relic-card { width: 210px; cursor: default; }
-.cards.wrap .relic-card h2 { font-size: 22px; overflow-wrap: break-word; } /* #150: a long relic name (Stormcaller's Horn) fits the compendium card */
-.compendium .cards { justify-content: flex-start; }
 .build .syn { flex-direction: row; gap: 8px; }
 .build .syn span { color: inherit; }
 
@@ -500,13 +496,6 @@ canvas#game { touch-action: none; }
 .boon.evolution { border-color: #c9a227; outline: 2px solid #f2c94c; outline-offset: -6px; background: radial-gradient(ellipse at 50% 0%, rgba(242, 201, 76, 0.75), transparent 72%), linear-gradient(#f4e2a6, #d9b85a); box-shadow: 0 0 26px rgba(242, 201, 76, 0.65), 0 3px 10px rgba(0, 0, 0, 0.5); }
 .boon.evolution .tag { color: #6b4a08; font-weight: 700; }
 .build .evolved span { color: #8a6a10; font-weight: 700; }
-.recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; text-align: left; margin: 8px 0 14px; }
-.recipe-class > b { font: 700 17px var(--heading); display: block; margin-bottom: 4px; }
-.recipe { border-top: 1px dotted rgba(90, 61, 37, 0.5); padding: 4px 0; font-size: 14px; opacity: 0.7; }
-.recipe.known { opacity: 1; }
-.recipe span em { font-size: 12px; opacity: 0.75; }
-.recipe p { margin: 2px 0; font-size: 13px; }
-.recipe i { display: block; font-size: 13px; color: #6b4a08; }
 .talent.recipe { box-shadow: 0 0 0 2px #f2c94c inset, 0 0 12px rgba(242, 201, 76, 0.6); } /* v0.6: completes an evolution recipe */
 
 /* v0.6 the fork in the road between Acts */
@@ -557,22 +546,15 @@ canvas#game { touch-action: none; }
 .relic .att { position: absolute; left: 4px; right: 4px; bottom: 3px; height: 3px; border-radius: 2px; background: rgba(42, 29, 16, 0.35); overflow: hidden; }
 .relic .att::after { content: ''; position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--att, 0)); background: var(--gold); transition: transform 0.4s; }
 .relic.duo { border-color: #c9a227; box-shadow: 0 0 0 2px #f2c94c inset, 0 0 10px rgba(242, 201, 76, 0.6); } /* v0.7 A5 */
-.relic-card .tag .new { color: #8a5a00; font-style: normal; } /* v0.7 A7: new in the compendium */
 
 /* v0.7.1 What's new */
 .btn.small.whatsnew-link { margin: 8px auto 0; }
 .whatsnew ul { padding-left: 20px; }
 .whatsnew li { margin: 6px 0; }
 
-/* v0.7.1 glossary: underlined terms in tooltips, their definitions under a rule, and the Glossary page */
+/* v0.7.1 glossary: underlined terms in tooltips, their definitions under a rule (the Glossary page is in kit.css, #187) */
 #tooltip u { text-decoration: underline dotted; text-underline-offset: 2px; }
 #tooltip .gloss { margin-top: 6px; padding-top: 5px; border-top: 1px dotted currentColor; font-size: 13px; line-height: 1.3; white-space: normal; }
-.glossary dt { font-weight: bold; margin-top: 10px; }
-.glossary dd { margin: 2px 0 0; }
-.flash-card { max-width: 340px; text-align: center; }
-.flash-card .tag { color: var(--gold); font-weight: bold; text-transform: uppercase; letter-spacing: 1px; font-size: 0.8em; }
-.flash-card.boss .tag { color: var(--blood); }
-.flash-card p { font-size: 1.15em; margin: 8px 0 14px; }
 /* #133: the foe itself on its card, pixel-crisp, breathing gently; a mechanic's icon in its place; small in the Glossary */
 .flash-card .card-pic { display: block; margin: 10px auto 0; height: 96px; image-rendering: pixelated; animation: card-bob 0.9s ease-in-out infinite alternate; }
 .flash-card .card-pic.icon { height: auto; font-size: 64px; line-height: 96px; }

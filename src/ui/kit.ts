@@ -42,8 +42,14 @@ export const parch = (html: string, o: Extra = {}): string => `<div class="${cls
 export const frame = (html: string, o: Extra = {}): string => `<div class="${cls('kit-frame', o.cls)}"${at(o.attrs)}>${html}</div>`;
 
 /** An icon in the frame of its rarity. */
-export const rarityIcon = (rarity: KitRarity, id: IconId, o: Extra & { title?: string } = {}): string =>
-  `<span class="${cls('kit-rarity', rarity, o.cls)}"${o.title ? ` title="${o.title}"` : ''}${at(o.attrs)}>${icon(id)}</span>`;
+export const rarityIcon = (rarity: KitRarity, id: IconId, o: Extra & { title?: string } = {}): string => rarityFrame(rarity, icon(id), o);
+
+/** #187: a glyph (a relic's own emoji, or ? for one not found yet) in the frame of its rarity. */
+export const rarityGlyph = (rarity: KitRarity, glyph: string, o: Extra & { title?: string } = {}): string =>
+  rarityFrame(rarity, `<b class="kit-glyph">${glyph}</b>`, o);
+
+const rarityFrame = (rarity: KitRarity, inner: string, o: Extra & { title?: string }): string =>
+  `<span class="${cls('kit-rarity', rarity, o.cls)}"${o.title ? ` title="${o.title}"` : ''}${at(o.attrs)}>${inner}</span>`;
 
 /** A currency: its icon and amount. */
 export const pill = (id: IconId, amount: number | string, o: Extra & { title?: string } = {}): string =>

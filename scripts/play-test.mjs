@@ -1970,7 +1970,7 @@ await check('compendium: no card text falls off its card', async () => {
         await wait();
         document.querySelector('[data-compendium]').click();
         await wait();
-        const cards = [...document.querySelectorAll('.compendium .relic-card')];
+        const cards = [...document.querySelectorAll('.compendium .comp-card')]; // #187: each relic a kit row
         const bad = [];
         for (const c of cards) {
           const box = c.getBoundingClientRect();
@@ -1981,7 +1981,7 @@ await check('compendium: no card text falls off its card', async () => {
             range.selectNodeContents(t);
             for (const r of range.getClientRects()) {
               if (r.left < box.left - 1 || r.right > box.right + 1 || r.top < box.top - 1 || r.bottom > box.bottom + 1) {
-                bad.push(`${c.querySelector('h2')?.textContent}: "${t.textContent.trim().slice(0, 20)}"`);
+                bad.push(`${c.querySelector('.kit-row-body > b')?.textContent}: "${t.textContent.trim().slice(0, 20)}"`);
                 break;
               }
             }
