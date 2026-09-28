@@ -86,8 +86,21 @@ export function pickFrame(d: SheetData, s: AnimInput, baseSpeed: number): { anim
   if (s.sinceHit * 1000 < postMs * squeeze) return { anim: 'attack', frame: d.impact + frameAt(post, (s.sinceHit * 1000) / squeeze, false) };
   if (s.hurt * 1000 < sum(a.hurt)) return { anim: 'hurt', frame: frameAt(a.hurt, s.hurt * 1000, false) };
   if (s.untilHit * 1000 < preMs * squeeze) return { anim: 'attack', frame: skip + frameAt(pre, preMs - (s.untilHit * 1000) / squeeze, false) };
-  if (s.moving) return { anim: 'walk', frame: Math.floor((s.walked / (baseSpeed * WALK_STRIDE)) * a.walk.length) % a.walk.length };
+  // #165: a mover with no base speed of its own (the Plague Cart: moved by the event, not by its config speed) would divide by
+  // zero here and land on a NaN frame; hold the first walk frame instead.
+  const cycle = baseSpeed * WALK_STRIDE;
+  if (s.moving) return { anim: 'walk', frame: cycle > 0 ? Math.floor((s.walked / cycle) * a.walk.length) % a.walk.length : 0 };
   return { anim: 'idle', frame: frameAt(a.idle, s.time * 1000, true) };
+}
+
+/**
+ * #166: the sim steps at a fixed rate but the renderer draws every frame, so several draws can land between two sim ticks. A foe
+ * or ally's position doesn't change on those frames, so re-reading `moving` from its render-frame position delta would read as
+ * idle even mid-stride. True when this frame's `tick` is the one the animation was last picked for: the caller should keep that
+ * frame instead of recomputing.
+ */
+export function noNewTick(tick: number, lastTick: number): boolean {
+  return tick === lastTick;
 }
 
 /**

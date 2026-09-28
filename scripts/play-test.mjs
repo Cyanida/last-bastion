@@ -267,6 +267,33 @@ await check('gamepad: the button that answers a screen does not also cast', () =
   }),
 );
 
+// #170: once the mouse has moved, it used to keep aiming forever; the right stick must be able to take aim back
+await check('gamepad: the right stick aims again after the mouse moved', () =>
+  inPage(async () => {
+    const lb = window.__lb, g = lb.game, p = g.player;
+    const buttons = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
+    const axes = [0, 0, 0, 0];
+    const real = navigator.getGamepads;
+    navigator.getGamepads = () => [{ connected: true, buttons, axes }];
+    const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))));
+    try {
+      await frames();
+      window.dispatchEvent(new PointerEvent('pointermove', { clientX: 1250, clientY: 690, pointerType: 'mouse', bubbles: true })); // the mouse moves, near a screen corner
+      lb.run(1, false, 'input');
+      const mouseAngle = Math.atan2(g.input.aimY - p.y, g.input.aimX - p.x);
+      axes[2] = -1; // right stick hard left
+      axes[3] = 0;
+      await frames(); // pumpGamepad() runs in the real frame loop
+      lb.run(1, false, 'input');
+      const stickAngle = Math.atan2(g.input.aimY - p.y, g.input.aimX - p.x);
+      const followsStick = Math.abs(stickAngle - Math.PI) < 0.2;
+      return { ok: followsStick, detail: `mouse aim ${mouseAngle.toFixed(2)} rad, stick aim ${stickAngle.toFixed(2)} rad (want ~${Math.PI.toFixed(2)})` };
+    } finally {
+      navigator.getGamepads = real;
+    }
+  }),
+);
+
 await check('relic offer: reroll, then take the duo', () =>
   inPage(async () => {
     const P = window.__play, g = window.__lb.game, rel = g.player.relics;
@@ -2018,6 +2045,48 @@ await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#
   }),
 );
 
+// ---------- #166: rendering runs every frame but the sim only every tick; a walking foe holds its pose across the extra draws ----------
+await check('Foe sheets: a walking peasant keeps its walk frame across render frames with no new sim tick (#166)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('peasant'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', 'paladin');
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      const peasants = g.enemies.filter((e) => e.def.id === 'peasant');
+      // far from the player, so he walks and never comes into swinging reach
+      for (const [i, e] of g.enemies.entries()) Object.assign(e, { x: g.player.x + (e === peasants[0] ? 400 : 3000 + i * 40), y: g.player.y, hp: 1e6, maxHp: 1e6 });
+    });
+    let walking = false;
+    for (let t = 0; t < 5000 && !walking; t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('peasant')?.anim ?? 'none'))))));
+      walking = a === 'walk';
+    }
+    // several renders in a row with no `run()` between them: same sim tick, so the flicker (a stale bug would drop to idle here) must not show
+    const frames = await inPage(() => {
+      const out = [];
+      for (let i = 0; i < 8; i++) (window.__lb.draw(), out.push(window.__lb.foeAnim('peasant')));
+      return out;
+    });
+    const held = frames.every((f) => f && f.anim === frames[0].anim && f.frame === frames[0].frame);
+    const ok = walking && held && frames[0]?.anim === 'walk';
+    return { ok, detail: `walking before hold: ${walking}; held frames [${frames.map((f) => `${f?.anim}:${f?.frame}`).join(', ')}]` };
+  }),
+);
+
 // ---------- #157: every redrawn foe loads its sheet, and a ranged foe (the Crossbowman) levels and looses on his shot ----------
 await check('Foe sheets: every redrawn foe and commander loads; a crossbowman plays his shot (#157)', () =>
   inPage(() => location.reload()).then(async () => {
@@ -2050,6 +2119,46 @@ await check('Foe sheets: every redrawn foe and commander loads; a crossbowman pl
       if (seen[seen.length - 1] !== a) seen.push(a);
     }
     return { ok: missing.length === 0 && seen.includes('attack'), detail: `missing [${missing.join(', ')}]; crossbow ${seen.join(' → ')}` };
+  }),
+);
+
+// ---------- #165: the Plague Cart is rolled by the event, not its own (zero) config speed; it must keep a valid walk frame, not vanish ----------
+await check('Plague Cart: keeps a valid walk frame while it crosses, though its base speed is 0 (#165)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('plagueCart'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      for (const [id, v] of [['tm-class', 'paladin'], ['tm-act', '1'], ['tm-wave', '1']]) {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      for (let i = 0; i < 200 && !g.enemies.length; i++) window.__lb.run(1, false, 'input'); // the wave's first foe
+      const [e] = g.enemies;
+      e.def = window.__lb.enemyDef('plagueCart'); // the first foe becomes the cart
+      Object.assign(e, { baseSpeed: 0, x: g.player.x + 150, y: g.player.y, hp: 1e6, maxHp: 1e6 }); // its own speed is 0: the event moves it by hand (systems/events.ts)
+      for (const x of g.enemies) if (x !== e) Object.assign(x, { x: g.player.x + 3000, y: g.player.y }); // everyone else out of the way
+    });
+    const frames = [];
+    for (let i = 0; i < 20; i++) {
+      frames.push(
+        await inPage(() => {
+          window.__lb.game.enemies[0].x += 5; // rolls across, same as the event's moveTo
+          window.__lb.run(1, false, 'input');
+          return window.__lb.foeAnim('plagueCart');
+        }),
+      );
+    }
+    const walking = frames.filter((f) => f?.anim === 'walk');
+    const ok = walking.length > 0 && walking.every((f) => Number.isFinite(f.frame) && f.frame >= 0);
+    return { ok, detail: frames.map((f) => `${f?.anim ?? 'none'}${f?.frame ?? ''}`).join(' ') };
   }),
 );
 // ---------- #159: every arena draws its ground props from the rig's atlas, and the keep's braziers flicker ----------
