@@ -571,6 +571,25 @@ await check('Phoenix Feather taken at tier II holds its revive', () =>
   }),
 );
 
+// #191: test mode starts through the levels' head start: the ability and utility tiers of the levels it skipped wait as picks
+await check('test mode head start: the skipped ability and utility tiers come as picks on their screens (#191)', () =>
+  inPage(async () => {
+    const P = window.__play, g = window.__lb.game, p = g.player;
+    const queued = `${g.pendingAbilityTiers.join()} / ${g.pendingUtilityTiers.join()}`;
+    const picked = [];
+    for (let i = 0; i < 6 && (g.pendingAbilityTiers.length || g.pendingUtilityTiers.length) && P.toChoice(5); i++) {
+      const pick = document.querySelector('[data-pick]')?.dataset.pick;
+      if (!pick) break;
+      await P.click(`[data-pick="${pick}"]`);
+      picked.push(pick);
+    }
+    const ok = queued === '0,1,2 / 0' && p.upgrades.length === 3 && p.utilityUpgrades.length === 1 && g.pendingAbilityTiers.length + g.pendingUtilityTiers.length === 0;
+    p.upgrades = [];
+    p.utilityUpgrades = []; // the upgrade check further down picks tier 0 again, from none
+    return { ok, detail: `queued ${queued} (ability / utility), picked ${picked.join(', ')}` };
+  }),
+);
+
 await check('quest board: take two', () =>
   inPage(async () => {
     const P = window.__play, g = window.__lb.game;
