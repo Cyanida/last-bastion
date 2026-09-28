@@ -401,6 +401,7 @@ You are the main AI for Last Bastion (github.com/Cyanida/last-bastion). This pla
 - ◆ **The Marches' featured families** (#190), levels 1-7: Steel, Flame, Blood, Storm, Frost, Holy, Grave. Levels 1-6 end on a pool boss; level 7 is the Warden as crown boss.
 - ◆ **Unnamed bosses** (#190): the Barrowvale's level-1 boss is the Plague Abbot and its level-3 boss "the Gravedigger"; first bosses where the plan names none: Frozen Pass the Frost Lich, Stormspire the Warlord, Hallowed Reach the Heretic, Crimson Fields the Headsman.
 - ◆ **Small rules** (#190): a crown boss phase lasts at least 12 s; a level cleared with no family relic held pays 2 Runes in place of a locked relic; "the family you held" means every family among the relics held at the end; the Last Bastion's opening pick draws from any family.
+- ◆ **Save v7** (#193): a v6 save counts relic picks for the whole account, so every class it played becomes a champion holding every relic the account picked (less other classes' class relics and the cursed ones); its last logged run's talents become its talent plan; a class with a win gets the Last Bastion open by a flag, not a crown. Loadouts are kept per realm (a level with fewer slots takes the first ones). The Keep ranks stay bought and change meaning (no refund); the Seasoned mastery rank adds a head-start level like Veteran Levies. Relics found in a run don't enter the inventory; rewards do.
 - ✓ **28-09:** no approval gates that stop the build; releases stacked on each other's branches up to v1.0.0 (see the top).
 
 ---

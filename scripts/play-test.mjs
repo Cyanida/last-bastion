@@ -1501,6 +1501,34 @@ await check('import: asks first and keeps the replaced save as a backup, once', 
   return { ok, detail: `asked ${asked.length}×, gold ${before.gold} -> ${kept} (no) -> ${gold} (yes), backup is the old save ${top === before.text}, restore rows ${rows1} -> ${rows2}, ${texts.length} backups, ${new Set(texts).size} distinct` };
 });
 
+// ---------- v0.10 (#193): a v0.7-v0.9 save (format 6) loads as format 7 with its champions, its relics kept, the old text under Restore ----------
+await check('save v7: a format-6 save migrates with champions, and the Keep, Chronicle and Settings still open (#193)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const v6 = readFileSync(new URL('../tests/fixtures/saves/format6-v0.7.4.json', import.meta.url), 'utf8');
+  const errs = errors.length;
+  await page.evaluate((text) => (localStorage.removeItem('lastbastion.save.backups'), localStorage.setItem('lastbastion.save', text)), v6);
+  await page.reload();
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  const s = await page.evaluate(() => ({ version: window.__lb.save.version, champions: window.__lb.save.champions, picks: Object.keys(window.__lb.save.relicPicks) }));
+  const champs = Object.values(s.champions);
+  const kept = champs.length > 0 && champs.every((c) => s.picks.every((id) => c.inventory.includes(id)));
+  const opened = [];
+  for (const name of ['The Keep', 'Chronicle']) {
+    await page.getByRole('button', { name }).first().click();
+    await page.waitForTimeout(150);
+    opened.push(await page.evaluate(() => document.querySelectorAll('button').length > 1));
+    await page.getByRole('button', { name: 'Back' }).first().click().catch(() => page.click('[data-act="back"]'));
+    await page.waitForTimeout(150);
+  }
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  await page.click('[data-act="save"]');
+  const label = await page.locator('[data-restore]').first().textContent();
+  await page.click('[data-act="back"]');
+  await page.click('[data-act="back"]');
+  const ok = s.version === 7 && kept && opened.every(Boolean) && label.includes('v0.7-v0.9') && errors.length === errs;
+  return { ok, detail: `format ${s.version}, ${champs.length} champions holding all ${s.picks.length} picked relics ${kept}, Keep/Chronicle ${opened.join('/')}, restore row "${label?.trim()}", ${errors.length - errs} errors` };
+});
+
 // ---------- v0.8.3 (#174): Blood Pact and Crimson Chalice both cut max HP onto the same pool; a tier-up on one must stay right ----------
 // beside the other's cut. Tiering Blood Pact up while Crimson Chalice was still held used to recompute against a stale share of the
 // pool (Crimson Chalice's cut baked in from when it was taken); the HUD's max HP must move by exactly Blood Pact's own tier I -> II
