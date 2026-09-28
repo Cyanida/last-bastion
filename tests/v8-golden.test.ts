@@ -16,6 +16,8 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #125 (v0.8 balance pass): the Necromancer's HP and skeletons and six relics' numbers changed on purpose.
  * Re-recorded for #169 (v0.8.3): a quest-gated boss now still draws once its quest is done, even if the quest itself has since
  * lingered off the tracker; seed 98765's Act I board (monk, elite, camps) is all quest-gated kinds, so its five runs changed on purpose.
+ * Re-recorded for #173 (v0.8.3): Anvil Heart and Adamant now count talent armor too, so paladin's seed 98765 run (Bulwark branch,
+ * +armor talents) plays out differently on purpose.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -53,7 +55,7 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 // v0.8 #99 + #100 + #101: re-recorded on release/0.8.0 because boss draws, boss relic families and the Squire enemy roster changed on purpose
 const GOLDEN: Record<string, string> = {
   'paladin:1234': 'wave 13 kills 456 level 14 gold 1657 relics 4 hash 794bec69',
-  'paladin:98765': 'wave 15 kills 601 level 16 gold 2211 relics 6 hash 1df5943a',
+  'paladin:98765': 'wave 15 kills 647 level 16 gold 2508 relics 7 hash bd675d23',
   'viking:98765': 'wave 16 kills 639 level 16 gold 2836 relics 7 hash 7008c325',
   'viking:5': 'wave 18 kills 655 level 17 gold 2872 relics 7 hash 2bb36549',
   'angel:1234': 'wave 16 kills 670 level 17 gold 2627 relics 5 hash 807696a7',
