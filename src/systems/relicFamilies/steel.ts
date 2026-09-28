@@ -1,5 +1,6 @@
 import { DUOS, FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
-import type { Enemy } from '../../core/types';
+import type { Enemy, Game, Player } from '../../core/types';
+import { talentMods } from '../../logic/talents';
 import { relicContext } from '../relicContext';
 import { applyStatus, damageEnemy } from '../combat';
 import { aOf, awakened, bonus, credit, fullArmorStacks, gainArmorStacks, hasDuo, nOf, nova, relicDamage, relicHeal, sOf, strike, type RelicHooks } from '../relicCore';
@@ -11,6 +12,12 @@ import { aOf, awakened, bonus, credit, fullArmorStacks, gainArmorStacks, hasDuo,
  */
 const F = FAMILIES.steel;
 const armorOf = (p: { cls: { armor: number }; mods: { armor: number }; armorStacks: number }) => p.cls.armor + p.mods.armor + p.armorStacks * F.n.stackArmor;
+/**
+ * Talent armor lands in p.mods only after relics' tick() phase runs (talentPassives, systems/talents.ts, folds it in later the same frame).
+ * Anvil Heart and Adamant read armor from inside their own tick and so never saw it (#173); pull it from the talent mods cache directly.
+ * Hooks that fire later in the frame (onDamageTaken, onHit...) already see it in p.mods.armor and don't need this.
+ */
+const talentArmor = (g: Game, p: Player) => (g.talentModsCache ??= talentMods(p.talents)).armor;
 
 export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   towerShield: {
@@ -41,8 +48,8 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   },
 
   anvilHeart: {
-    tick(_g, _dt, p) {
-      bonus(p, 'damage', (armorOf(p) * 100) / nOf(p, 'anvilHeart').per / 100);
+    tick(g, _dt, p) {
+      bonus(p, 'damage', ((armorOf(p) + talentArmor(g, p)) * 100) / nOf(p, 'anvilHeart').per / 100);
     },
     onHit(g, ev, p) {
       if (awakened(p, 'anvilHeart') && ev.source === 'attack' && fullArmorStacks(p)) applyStatus(ev.enemy, { apply: [{ id: 'slow', stacks: aOf('anvilHeart').stacks, time: aOf('anvilHeart').time }] }, g); // Forgefire
@@ -75,7 +82,7 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (awakened(p, 'unbreakable')) g.vars['adamant.until'] = g.time + aOf('unbreakable').time; // Adamant
     },
     tick(g, _dt, p) {
-      if (g.time < (g.vars['adamant.until'] ?? 0)) bonus(p, 'armor', (p.cls.armor + p.mods.armor) * aOf('unbreakable').armor);
+      if (g.time < (g.vars['adamant.until'] ?? 0)) bonus(p, 'armor', (p.cls.armor + p.mods.armor + talentArmor(g, p)) * aOf('unbreakable').armor);
     },
   },
 
