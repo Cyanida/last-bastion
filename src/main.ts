@@ -1,4 +1,5 @@
 import './ui/style.css';
+import './ui/kit.css'; // #184: the new look's UI kit
 import { ARENAS, type ArenaId } from './config/arenas';
 import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';

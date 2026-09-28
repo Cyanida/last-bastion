@@ -1,7 +1,7 @@
 /**
  * #184: the menus' icon atlas, drawn by the rig like the sprites and props, and rendered by `npm run art` into
  * public/sprites/ui-icons.png (one row, a 20 px cell per icon) plus src/ui/icons.css (a class per icon: `kit-icon i-<id>`).
- * Same light, ramps and outlines as the Paladin. The CSS scales them in whole steps with --s, pixelated.
+ * Same light, ramps and outlines as the Paladin. The CSS scales them with --s, pixelated.
  */
 import { Bone, ell, Figure, limb, type Material, type Pt } from '../rig';
 import { png } from '../png';
@@ -74,11 +74,26 @@ function skull(): Figure {
   f.part(O, ell(12.5, 10, 1.9, 1.9, 10), 'stone', 1, { dim: 3 });
   return f;
 }
+/** The tab bar's Map and Keep. */
+function flag(): Figure {
+  const f = new Figure(S, S);
+  f.part(O, [[4, 2], [6, 2], [6, 18], [4, 18]], 'bark', 0);
+  f.part(O, [[6, 3], [17, 4], [14, 7.5], [17, 11], [6, 11]], 'red', 1, { folds: [0.6, 4, 0], details: dots([[9, 6]], 'gold', 5) });
+  return f;
+}
+function tower(): Figure {
+  const f = new Figure(S, S);
+  f.part(O, [[3, 3], [6, 3], [6, 5], [8.5, 5], [8.5, 3], [11.5, 3], [11.5, 5], [14, 5], [14, 3], [17, 3], [17, 8], [3, 8]], 'stone', 0); // battlements
+  f.part(O, [[4, 8], [16, 8], [16, 18], [4, 18]], 'stone', 0.5, { details: dots([[7, 11], [8, 11], [13, 14], [12, 14]], 'stone', 2) });
+  f.part(O, [[8, 18], [8, 13], [10, 11], [12, 13], [12, 18]], 'bark', 1); // the gate
+  return f;
+}
 
 /** Atlas order: the CSS indexes by it. */
 export const ICONS: [id: string, draw: () => Figure][] = [
   ['gold', coin], ['runes', rune], ['crown', crown],
   ['steel', sword], ['flame', flame], ['frost', frost], ['storm', storm], ['holy', holy], ['blood', blood], ['grave', skull],
+  ['map', flag], ['keep', tower],
 ];
 
 export const iconPaths = { png: 'public/sprites/ui-icons.png', css: 'src/ui/icons.css' };

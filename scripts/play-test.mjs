@@ -116,6 +116,48 @@ await check('title screen', () =>
   }),
 );
 
+// #184: the title screen wears the new look's kit: a bevelled gold main button that sinks when pressed, the ribbon, a framed
+// parchment, the currency pill with the rig's icon atlas loaded
+await check('title screen: the UI kit (gold bevelled button that presses, ribbon, frame, currency pill) (#184)', async () => {
+  const btn = page.locator('[data-go="start"]');
+  const look = () =>
+    inPage(() => {
+      const b = document.querySelector('[data-go="start"]');
+      const cs = getComputedStyle(b);
+      const lip = / 0px (\d+)px 0px 0px$/.exec(cs.boxShadow.split(/,(?![^(]*\))/).find((sh) => !sh.includes('inset')) ?? '')?.[1]; // the solid lip under the bevel
+      const ribbon = document.querySelector('.kit-title .kit-ribbon');
+      const tail = ribbon && getComputedStyle(ribbon, '::before');
+      const frame = document.querySelector('.kit-title .kit-frame');
+      const pill = document.querySelector('.kit-purse .kit-pill .kit-icon.i-gold');
+      return {
+        kit: b.classList.contains('kit-btn') && b.classList.contains('gold'),
+        bevel: cs.boxShadow.includes('inset'),
+        lip: Number(lip ?? 0),
+        font: `${cs.fontFamily.split(',')[0]} ${cs.fontWeight}`,
+        ribbon: !!ribbon && ribbon.getBoundingClientRect().height > 20 && tail.content !== 'none' && tail.width !== 'auto',
+        frame: !!frame && getComputedStyle(frame, '::before').borderTopWidth === '2px' && !!frame.querySelector('.kit-parch .contract'),
+        pill: !!pill && getComputedStyle(pill).backgroundImage.includes('ui-icons.png'),
+        y: b.getBoundingClientRect().y,
+      };
+    });
+  const up = await look();
+  const atlas = await inPage(async () => {
+    const img = new Image();
+    img.src = 'sprites/ui-icons.png';
+    return img.decode().then(() => img.naturalWidth, () => 0);
+  });
+  const box = await btn.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(120);
+  const down = await look();
+  await page.mouse.move(0, 0); // let go off the button: no click, the title stays
+  await page.mouse.up();
+  const still = await inPage(() => window.__lb.state === 'menu' && !!document.querySelector('[data-go="start"]'));
+  const ok = up.kit && up.bevel && up.lip >= 4 && down.lip < up.lip && down.y > up.y && /Cinzel/.test(up.font) && up.ribbon && up.frame && up.pill && atlas > 0 && still;
+  return { ok, detail: `kit ${up.kit}, bevel ${up.bevel}, lip ${up.lip} -> ${down.lip} pressed (sinks ${Math.round(down.y - up.y)} px), ${up.font}, ribbon ${up.ribbon}, frame ${up.frame}, pill ${up.pill}, atlas ${atlas} px wide` };
+});
+
 // #138: the champions are drawn on a grid twice as fine, and show at the same size as before on the class select
 await check('class select: champions on the finer grid keep their size, at one scale, standing on one line (#156)', () =>
   inPage(async () => {

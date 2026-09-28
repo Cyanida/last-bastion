@@ -127,23 +127,26 @@ export interface TitleInfo {
 }
 
 export function showTitle(info: TitleInfo, on: { start: () => void; daily: () => void; keep: () => void; chronicle: () => void; settings: () => void; whatsNew: () => void }): void {
+  // #184: the title screen is the new look's prototype: the UI kit (kit.css) and the rig's icon atlas
+  const rune = '<i class="kit-icon i-runes"></i>';
   const el = show(`
-    <div class="title">
+    <div class="title kit-title">
+      <div class="kit-purse"><span class="kit-pill" title="Gold"><i class="kit-icon i-gold"></i>${info.gold.toLocaleString('en')}</span>${info.runes ? `<span class="kit-pill" title="Runes">${rune}${info.runes.toLocaleString('en')}</span>` : ''}</div>
       <h1>Last Bastion</h1>
-      <div class="version">${info.label}${info.mobile ? ' <span class="badge">Mobile</span>' : ''}</div>
-      ${info.whatsNew ? '<button class="btn small whatsnew-link" data-go="whatsNew">What’s new</button>' : ''}
+      <div class="kit-ribbon">${info.label}${info.mobile ? ' <span class="badge">Mobile</span>' : ''}</div>
+      ${info.whatsNew ? '<button class="kit-btn wood small whatsnew-link" data-go="whatsNew">What’s new</button>' : ''}
       ${info.title ? `<div class="epithet">${esc(info.title)}</div>` : ''}
       <p class="sub">The walls have fallen silent. The courtyard has not.</p>
-      ${info.notice ? `<div class="notice panel"><span>${info.notice.text}</span><button class="btn small" data-notice>${info.notice.button}</button></div>` : ''}
-      <button class="btn big" data-go="start">Take up arms</button>
+      ${info.notice ? `<div class="notice kit-parch"><span>${info.notice.text}</span><button class="kit-btn wood small" data-notice>${info.notice.button}</button></div>` : ''}
+      <button class="kit-btn gold big" data-go="start">Take up arms</button>
       <div class="row">
-        ${info.daily.date ? `<button class="btn" data-go="daily">Daily Trial${info.daily.best ? ` · best ${info.daily.best}` : ''}</button>` : ''}
-        <button class="btn" data-go="keep">The Keep · 🪙 ${info.gold}${info.runes ? ` · ◆ ${info.runes}` : ''}</button>
-        <button class="btn" data-go="chronicle">Chronicle</button>
-        <button class="btn" data-go="settings">Settings</button>
+        ${info.daily.date ? `<button class="kit-btn go" data-go="daily">Daily Trial${info.daily.best ? ` · best ${info.daily.best}` : ''}</button>` : ''}
+        <button class="kit-btn wood" data-go="keep"><i class="kit-icon i-keep"></i>The Keep</button>
+        <button class="kit-btn wood" data-go="chronicle"><i class="kit-icon i-crown"></i>Chronicle</button>
+        <button class="kit-btn wood" data-go="settings">Settings</button>
       </div>
-      <div class="contracts panel"><b>This week's contracts</b> <span class="dim">· new ones every Monday · Runes when a run completes one</span>
-        ${info.contracts.map((c) => `<div class="contract ${c.progress >= c.target ? 'done' : ''}"><span>${c.progress >= c.target ? '✔ ' : ''}${c.text}</span><span>${c.progress.toLocaleString('en')}/${c.target.toLocaleString('en')} · ◆ ${c.runes}</span></div>`).join('')}</div>
+      <div class="kit-frame"><div class="contracts kit-parch"><b>This week's contracts</b> <span class="dim">· new ones every Monday · Runes when a run completes one</span>
+        ${info.contracts.map((c) => `<div class="contract ${c.progress >= c.target ? 'done' : ''}"><span>${c.progress >= c.target ? '✔ ' : ''}${c.text}</span><span>${c.progress.toLocaleString('en')}/${c.target.toLocaleString('en')} · ${rune}${c.runes}</span></div>`).join('')}</div></div>
       <p class="hint">${info.mobile ? 'Left thumb moves · right thumb casts your signature ability (hold and drag to aim) · attacks are automatic' : 'WASD / arrows or gamepad to move · attacks are automatic · Space or right mouse for your signature ability · Esc / P to pause · M to mute'}</p>
       <p class="hint build">build ${info.buildDate}</p>
     </div>`);
