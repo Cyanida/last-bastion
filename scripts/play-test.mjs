@@ -2018,6 +2018,48 @@ await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#
   }),
 );
 
+// ---------- #166: rendering runs every frame but the sim only every tick; a walking foe holds its pose across the extra draws ----------
+await check('Foe sheets: a walking peasant keeps its walk frame across render frames with no new sim tick (#166)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('peasant'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', 'paladin');
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      const peasants = g.enemies.filter((e) => e.def.id === 'peasant');
+      // far from the player, so he walks and never comes into swinging reach
+      for (const [i, e] of g.enemies.entries()) Object.assign(e, { x: g.player.x + (e === peasants[0] ? 400 : 3000 + i * 40), y: g.player.y, hp: 1e6, maxHp: 1e6 });
+    });
+    let walking = false;
+    for (let t = 0; t < 5000 && !walking; t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('peasant')?.anim ?? 'none'))))));
+      walking = a === 'walk';
+    }
+    // several renders in a row with no `run()` between them: same sim tick, so the flicker (a stale bug would drop to idle here) must not show
+    const frames = await inPage(() => {
+      const out = [];
+      for (let i = 0; i < 8; i++) (window.__lb.draw(), out.push(window.__lb.foeAnim('peasant')));
+      return out;
+    });
+    const held = frames.every((f) => f && f.anim === frames[0].anim && f.frame === frames[0].frame);
+    const ok = walking && held && frames[0]?.anim === 'walk';
+    return { ok, detail: `walking before hold: ${walking}; held frames [${frames.map((f) => `${f?.anim}:${f?.frame}`).join(', ')}]` };
+  }),
+);
+
 // ---------- #157: every redrawn foe loads its sheet, and a ranged foe (the Crossbowman) levels and looses on his shot ----------
 await check('Foe sheets: every redrawn foe and commander loads; a crossbowman plays his shot (#157)', () =>
   inPage(() => location.reload()).then(async () => {

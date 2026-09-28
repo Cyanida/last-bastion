@@ -8,7 +8,7 @@ import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
 import type { Enemy, Game, Minion, Player } from '../core/types';
-import { FLINCH_EVERY, foeUntilHit, frameAt, pickFrame, swingTrail, type AnimInput, type AnimName } from '../logic/animation';
+import { FLINCH_EVERY, foeUntilHit, frameAt, noNewTick, pickFrame, swingTrail, type AnimInput, type AnimName } from '../logic/animation';
 import { nearestEnemy } from '../systems/combat';
 import { CARDS } from '../config/cards';
 import { FEATURES, REGIONS } from '../config/regions';
@@ -110,7 +110,7 @@ function playerSprite(g: Game, p: Player, scale: number): Sprite {
  * #157: the foes' animations, the same way: read from each foe's position, timers and HP, kept here per foe (render side only).
  * A slain foe leaves the game at once, so its death plays from `dying`, under the living.
  */
-interface FoeAnim { x: number; y: number; walked: number; timer: number; shot: number; hitAt: number; cd: number; hp: number; hurtAt: number; gone: boolean; wind: number; windMax: number; firedAt: number; phase: number; phaseAt: number; now: { anim: AnimName; frame: number } }
+interface FoeAnim { x: number; y: number; walked: number; timer: number; shot: number; hitAt: number; cd: number; hp: number; hurtAt: number; gone: boolean; wind: number; windMax: number; firedAt: number; phase: number; phaseAt: number; tick: number; now: { anim: AnimName; frame: number } }
 const foeAnims = new WeakMap<Enemy, FoeAnim>();
 const foes = { game: null as Game | null, drawn: [] as Enemy[], dying: [] as { e: Enemy; at: number; scale: number }[] };
 export const foeAnim = (id: string): { anim: string; frame: number } | null => {
@@ -125,7 +125,10 @@ function foeSprite(g: Game, e: Enemy): Sprite | null {
   const id = e.def.sprite, d = SHEETS[id];
   if (!d) return null;
   let a = foeAnims.get(e);
-  if (!a) foeAnims.set(e, (a = { x: e.x, y: e.y, walked: 0, timer: e.attackTimer, shot: e.timer, hitAt: -Infinity, cd: e.def.attackCd, hp: e.hp, hurtAt: -Infinity, gone: false, wind: 0, windMax: 0, firedAt: -Infinity, phase: e.phase, phaseAt: -Infinity, now: { anim: 'idle', frame: 0 } }));
+  if (!a) foeAnims.set(e, (a = { x: e.x, y: e.y, walked: 0, timer: e.attackTimer, shot: e.timer, hitAt: -Infinity, cd: e.def.attackCd, hp: e.hp, hurtAt: -Infinity, gone: false, wind: 0, windMax: 0, firedAt: -Infinity, phase: e.phase, phaseAt: -Infinity, tick: -1, now: { anim: 'idle', frame: 0 } }));
+  foes.drawn.push(e);
+  if (noNewTick(g.tick, a.tick)) return sheetSprite(id, foeScale(e), e.def.palette ?? 0, a.now.anim, a.now.frame);
+  a.tick = g.tick;
   const step = Math.hypot(e.x - a.x, e.y - a.y);
   if (step < 64) a.walked += step;
   const shooter = e.def.fireCd !== undefined && e.def.range !== undefined;
@@ -159,13 +162,12 @@ function foeSprite(g: Game, e: Enemy): Sprite | null {
     sincePhase: g.time - a.phaseAt,
   };
   Object.assign(a, { x: e.x, y: e.y, timer: e.attackTimer, shot: e.timer, hp: e.hp });
-  foes.drawn.push(e);
   a.now = pickFrame(d, s, e.baseSpeed);
   return sheetSprite(id, foeScale(e), e.def.palette ?? 0, a.now.anim, a.now.frame);
 }
 
 /** #156: the champions' allies (skeletons, the decoy, the shade) animate the same way, read from their position and timers. */
-interface AllyAnim { x: number; y: number; walked: number; timer: number; shot: number; hitAt: number; cd: number; hp: number; hurtAt: number; now: { anim: AnimName; frame: number } }
+interface AllyAnim { x: number; y: number; walked: number; timer: number; shot: number; hitAt: number; cd: number; hp: number; hurtAt: number; tick: number; now: { anim: AnimName; frame: number } }
 const allyAnims = new WeakMap<Minion, AllyAnim>();
 let allyGame: Game | null = null;
 export const minionAnim = (kind: string): { anim: string; frame: number } | null => {
@@ -179,7 +181,9 @@ function allySprite(g: Game, m: Minion, id: string, pal: number): Sprite | null 
   if (!d) return null;
   allyGame = g;
   let a = allyAnims.get(m);
-  if (!a) allyAnims.set(m, (a = { x: m.x, y: m.y, walked: 0, timer: m.attackTimer, shot: m.shoot?.t ?? 0, hitAt: -Infinity, cd: m.attackCd, hp: m.hp, hurtAt: -Infinity, now: { anim: 'idle', frame: 0 } }));
+  if (!a) allyAnims.set(m, (a = { x: m.x, y: m.y, walked: 0, timer: m.attackTimer, shot: m.shoot?.t ?? 0, hitAt: -Infinity, cd: m.attackCd, hp: m.hp, hurtAt: -Infinity, tick: -1, now: { anim: 'idle', frame: 0 } }));
+  if (noNewTick(g.tick, a.tick)) return sheetSprite(id, m.scale, pal, a.now.anim, a.now.frame);
+  a.tick = g.tick;
   const step = Math.hypot(m.x - a.x, m.y - a.y);
   if (step < 64) a.walked += step;
   if (!m.passive && m.attackTimer > a.timer + 1e-6) (a.hitAt = g.time), (a.cd = m.attackTimer); // struck: the timer was just reset to its cooldown

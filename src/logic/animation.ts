@@ -91,6 +91,16 @@ export function pickFrame(d: SheetData, s: AnimInput, baseSpeed: number): { anim
 }
 
 /**
+ * #166: the sim steps at a fixed rate but the renderer draws every frame, so several draws can land between two sim ticks. A foe
+ * or ally's position doesn't change on those frames, so re-reading `moving` from its render-frame position delta would read as
+ * idle even mid-stride. True when this frame's `tick` is the one the animation was last picked for: the caller should keep that
+ * frame instead of recomputing.
+ */
+export function noNewTick(tick: number, lastTick: number): boolean {
+  return tick === lastTick;
+}
+
+/**
  * #157: seconds until a foe's next blow lands, for its wind-up: a telegraphed attack's own wind-up first, else the sooner of a
  * shot (`shot`: seconds to its next bolt, Infinity when it doesn't shoot or its target is out of range) and a melee swing (only
  * while its target is in reach). Infinity: nothing coming.
