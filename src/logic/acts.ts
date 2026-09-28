@@ -90,7 +90,9 @@ export function hashSeed(text: string): number {
   for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
   return h >>> 0;
 }
-export const formatSeed = (seed: number) => (seed >>> 0).toString(36).toUpperCase();
+/** #182: the Merchant's reroll has a stream of its own (the n-th reroll of a run), so buying one never shifts the run's or the relic rolls. */
+export const merchantRerollRng = (seed: number, n: number) => mulberry32(hashSeed(`merchantReroll:${seed}:${n}`));
+export const formatSeed =(seed: number) => (seed >>> 0).toString(36).toUpperCase();
 /** What the player typed: a seed code from a results screen, or any word (hashed). Empty = null. */
 export function parseSeed(text: string): number | null {
   const t = text.trim();

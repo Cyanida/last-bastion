@@ -4,6 +4,7 @@ export const GAME = {
   tickRate: 60,
   spriteScale: 3,
   spatialCell: 64,
+  spriteFrameCacheCap: 512, // #168: rigged sheet frames (4 canvases each, id@scale@palette@anim@frame) kept at once; the whole play test peaks near 210 in one page and an Act I + III run near 50, so play never evicts, while memory stays bounded (the sprite gallery draws uncached)
 
   // stat scaling
   statDamageScale: 0.04, // +4% damage per point of the attack's scaling stat
@@ -76,5 +77,6 @@ export const RENDER = {
 export type TextSize = 'normal' | 'large' | 'larger';
 export const TEXT_SIZES: Record<TextSize, number> = { normal: 1, large: 1.15, larger: 1.3 };
 export const TEXT_FIT = { minW: 640, minH: 320 }; // the HUD's layout needs at least this many CSS pixels once scaled
+export const COMPACT_MAX_H = 560; // v0.5: below this window height (unscaled), the denser phone HUD layout is used
 
 export const VIEW = { targetW: 1280, targetH: 720, minZoom: 0.6, maxZoom: 2 };

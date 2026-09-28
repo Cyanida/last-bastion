@@ -59,7 +59,7 @@ export const SPECIALS: Record<string, Special> = {
       if (o !== e && !o.dead && o.hp < o.maxHp && (!worst || o.hp / o.maxHp < worst.hp / worst.maxHp)) worst = o;
     }
     if (worst) {
-      const amount = Math.min(worst.maxHp - worst.hp, e.def.healAmount! * g.waveHpMult);
+      const amount = Math.min(worst.maxHp - worst.hp, e.def.healAmount! * g.waveHpMult * g.tier.enemyHp); // #182: mends as much as the tier made them tougher
       worst.hp += amount;
       line(g, e.x, e.y - 10, worst.x, worst.y, '#6fdc6f');
       floatText(g, worst.x, worst.y - worst.r - 8, `+${Math.round(amount)}`, '#6fdc6f', 12);
@@ -85,9 +85,10 @@ export const SPECIALS: Record<string, Special> = {
   // plague doctor: a telegraphed flask that leaves a poison cloud, and once in his life he raises a fallen unit
   plague(g, e, t) {
     const def = e.def;
+    const dmg = g.waveDmgMult * g.tier.enemyDmg; // #182: the pool and its poison follow the difficulty like his flask
     addZone(g, {
       x: t.x, y: t.y, r: def.zoneRadius!, delay: def.windup!, damage: hitDamage(e), hostile: true, color: POISON, owner: e, dtype: 'shadow',
-      leaveField: { life: def.poolLife!, dps: def.poolDps! * g.waveDmgMult, color: POISON, dtype: 'shadow', apply: { id: 'poison', power: def.poolDps! * 0.5 * g.waveDmgMult } },
+      leaveField: { life: def.poolLife!, dps: def.poolDps! * dmg, color: POISON, dtype: 'shadow', apply: { id: 'poison', power: def.poolDps! * 0.5 * dmg } },
     });
     const corpse = e.charged ? undefined : g.corpses.find((c) => Math.hypot(c.x - e.x, c.y - e.y) < 240);
     if (corpse) {

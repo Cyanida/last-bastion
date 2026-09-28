@@ -53,6 +53,7 @@ export function shootAt(g: Game, e: Enemy, angle: number): void {
     r: e.def.boss ? 8 : 5,
     speed: e.def.projSpeed!,
     range: 700,
+    owner: e,
   });
 }
 

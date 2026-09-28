@@ -12,8 +12,8 @@
  * The routine and CI run it on every pull request. A change a player sees gets its own check added here (see AGENTS.md).
  * Not covered: a gamepad beyond the press that answers a screen, and how it feels.
  */
-import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from 'playwright';
+import { spawnTree, killTree } from './lib/process-tree.mjs';
 
 const PORT = Number(process.env.PLAY_PORT ?? 4180);
 
@@ -22,10 +22,12 @@ if (await fetch(`http://localhost:${PORT}/`).then(() => true, () => false)) {
   console.error(`port ${PORT} is already in use: stop that server or set PLAY_PORT`);
   process.exit(1);
 }
-const preview = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', shell: process.platform === 'win32' });
-// on Windows the server runs under a shell: end the whole tree (perf-test.mjs)
-const stop = () => (process.platform === 'win32' ? spawnSync('taskkill', ['/pid', String(preview.pid), '/T', '/F'], { stdio: 'ignore' }) : preview.kill());
+const preview = spawnTree(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', shell: process.platform === 'win32' });
+// #179: end the whole server tree (its vite child included), on success, failure and a signal, Linux and Windows alike
+const stop = () => killTree(preview);
 process.on('exit', stop);
+process.on('SIGINT', () => { stop(); process.exit(130); });
+process.on('SIGTERM', () => { stop(); process.exit(143); });
 for (let i = 0; i < 60; i++) {
   try {
     await fetch(`http://localhost:${PORT}/`);
@@ -135,6 +137,51 @@ await check('class select: champions on the finer grid keep their size, at one s
   }),
 );
 
+// #176: the relic-family names on a class card sit in a readable chip, not bare family-coloured text on parchment
+await check('class select: family names on the cards are readable (#176)', () =>
+  inPage(async () => {
+    const P = window.__play;
+    await P.click('[data-go="start"]');
+    const parse = (s) => s.match(/[\d.]+/g).map(Number);
+    const luminance = ([r, g, b]) => {
+      const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const contrast = (a, b) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const chips = [...document.querySelectorAll('.fam-line .fam-chip')];
+    const worst = chips.map((chip) => {
+      const cs = getComputedStyle(chip);
+      const [r, g, b, a = 1] = parse(cs.backgroundColor);
+      const bg = [r, g, b].map((c) => c * a + 255 * (1 - a)); // composited over white, the card's lightest possible background: a lower bound on the real contrast
+      return contrast(parse(cs.color), bg);
+    });
+    await P.click('[data-back]');
+    const ok = chips.length > 0 && worst.every((c) => c >= 4.5); // WCAG AA for normal-size text
+    return { ok, detail: `${chips.length} chips, worst contrast ${Math.min(...worst).toFixed(2)}` };
+  }),
+);
+
+// #182: picking an option re-renders the class select; the seed typed there stays until Back
+await check('class select: a typed seed survives picking an option, Back clears it (#182)', () =>
+  inPage(async () => {
+    const P = window.__play;
+    await P.click('[data-go="start"]');
+    const seed = document.querySelector('#seed');
+    seed.value = 'KEEPME';
+    seed.dispatchEvent(new Event('input'));
+    await P.click('[data-tier]:not([disabled])');
+    const kept = document.querySelector('#seed').value;
+    await P.click('[data-back]');
+    await P.click('[data-go="start"]');
+    const after = document.querySelector('#seed').value;
+    await P.click('[data-back]');
+    return { ok: kept === 'KEEPME' && after === '', detail: `after an option: "${kept}", after Back: "${after}"` };
+  }),
+);
+
 // ---------- a test run from the real Test mode screen ----------
 await check('test mode starts a run', () =>
   inPage(async () => {
@@ -223,13 +270,25 @@ await check('level-up: free reroll, paid reroll, banish, pick', () =>
   }),
 );
 
-await check('level-up: pick with the 1 key', async () => {
+await check('level-up: pick with the 1 key, its heading clear of the HUD banner at phone width (#177)', async () => {
   const opened = await inPage(() => {
     window.__lb.game.pendingLevelUps++;
+    window.__lb.game.banner = { ...window.__lb.game.banner, text: 'Wave 12', t: 1 }; // the HUD banner, up at the same moment as a level-up
     return window.__play.toChoice();
   });
+  // #177: at phone width the heading must clear the HUD's Act/Wave plate and its banner underneath, both always up mid-run
+  await page.setViewportSize({ width: 844, height: 390 });
+  const overlap = await inPage(() => {
+    const box = (sel) => document.querySelector(sel)?.getBoundingClientRect();
+    const h1 = box('.levelup h1');
+    const overlaps = (a, b) => !!a && !!b && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    const hits = ['.hud-wave', '#h-banner'].filter((sel) => overlaps(h1, box(sel)));
+    return { compact: document.documentElement.classList.contains('compact'), top: Math.round(h1?.top ?? -1), hits };
+  });
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page.keyboard.press('Digit1');
-  return inPage((opened) => ({ ok: opened && window.__lb.state === 'playing' && window.__lb.game.pendingLevelUps === 0, detail: opened ? '' : 'no screen' }), opened);
+  const r = await inPage((opened) => ({ ok: opened && window.__lb.state === 'playing' && window.__lb.game.pendingLevelUps === 0, detail: opened ? '' : 'no screen' }), opened);
+  return { ok: r.ok && overlap.hits.length === 0, detail: `${r.detail}; compact ${overlap.compact}, h1 top ${overlap.top}${overlap.hits.length ? `, overlaps: ${overlap.hits.join(', ')}` : ''}` };
 });
 
 // v0.7.5 (#111): X picks the first level-up card and is also the utility button; held past the screen, it must not cast
@@ -261,6 +320,33 @@ await check('gamepad: the button that answers a screen does not also cast', () =
       buttons[2].pressed = false;
       await frames();
       return { ok: picked && !heldCast && freshCast, detail: `picked ${picked}, held X cast ${heldCast}, fresh X cast ${freshCast}` };
+    } finally {
+      navigator.getGamepads = real;
+    }
+  }),
+);
+
+// #170: once the mouse has moved, it used to keep aiming forever; the right stick must be able to take aim back
+await check('gamepad: the right stick aims again after the mouse moved', () =>
+  inPage(async () => {
+    const lb = window.__lb, g = lb.game, p = g.player;
+    const buttons = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
+    const axes = [0, 0, 0, 0];
+    const real = navigator.getGamepads;
+    navigator.getGamepads = () => [{ connected: true, buttons, axes }];
+    const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))));
+    try {
+      await frames();
+      window.dispatchEvent(new PointerEvent('pointermove', { clientX: 1250, clientY: 690, pointerType: 'mouse', bubbles: true })); // the mouse moves, near a screen corner
+      lb.run(1, false, 'input');
+      const mouseAngle = Math.atan2(g.input.aimY - p.y, g.input.aimX - p.x);
+      axes[2] = -1; // right stick hard left
+      axes[3] = 0;
+      await frames(); // pumpGamepad() runs in the real frame loop
+      lb.run(1, false, 'input');
+      const stickAngle = Math.atan2(g.input.aimY - p.y, g.input.aimX - p.x);
+      const followsStick = Math.abs(stickAngle - Math.PI) < 0.2;
+      return { ok: followsStick, detail: `mouse aim ${mouseAngle.toFixed(2)} rad, stick aim ${stickAngle.toFixed(2)} rad (want ~${Math.PI.toFixed(2)})` };
     } finally {
       navigator.getGamepads = real;
     }
@@ -481,6 +567,22 @@ await check('peddler at full health: the draught is shut, a reroll token buys on
     const free = label.includes(`${g.rerolls + 1} free`);
     await P.click('[data-pick="0"]');
     return { ok: shut && bought && free && lb.state === 'playing', detail: `draught ${shut ? 'shut' : 'OPEN'}, gold ${gold} → ${g.gold}, "${label}"` };
+  }),
+);
+
+await check('peddler: drawn from the Siege Engineer rigged sheet, breathing through its idle (#178)', () =>
+  inPage(async () => {
+    const lb = window.__lb, g = lb.game, p = g.player;
+    const was = p.invulnerable;
+    p.invulnerable = true;
+    g.event = { kind: 'peddler', x: p.x + 200, y: p.y, unit: null, foe: null, used: true, t: 0, stock: 0 }; // out of reach: no shop opens
+    const seen = [];
+    for (let i = 0; i < 60 && lb.state === 'playing'; i++) (lb.run(1, false, 'input'), lb.draw(), seen.push(lb.peddlerAnim()));
+    g.event = null;
+    p.invulnerable = was;
+    const frames = new Set(seen.map((a) => (a ? `${a.anim}${a.frame}` : 'grid')));
+    const ok = seen.length > 0 && seen.every((a) => a?.anim === 'idle') && frames.size > 1;
+    return { ok, detail: [...frames].join(' ') };
   }),
 );
 
@@ -837,6 +939,91 @@ await check('starts with site data blocked: title, Settings, sound toggle', asyn
   return { ok: before !== after && crash === 0 && errs.length === 0, detail: `title up, sound ${before} -> ${after}${errs.length ? `, errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- v0.8.3 (#171): offline, a failed background update check shows no error overlay ----------
+await check('offline: a failed update check shows no error overlay', async () => {
+  const off = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  off.on('pageerror', (e) => errs.push(e.message));
+  off.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await off.goto(`http://localhost:${PORT}/`);
+  await off.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await off.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration('./'))); // registered
+  await off.waitForTimeout(200); // its own .then() has attached the visibilitychange listener (src/core/pwa.ts)
+  await off.context().setOffline(true);
+  await off.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); // "back in the foreground": looks for an update
+  await off.waitForTimeout(500); // the failed fetch has time to reject
+  const crash = await off.locator('#crash').count();
+  await off.context().setOffline(false);
+  await off.close();
+  return { ok: crash === 0 && errs.length === 0, detail: `overlay ${crash}${errs.length ? `, errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- v0.8.3 (#182): desktop Settings shows the update status as it comes in, a failed check included ----------
+await check('Settings: the update status follows the check while the screen is open, an error as text (#182)', async () => {
+  const desk = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  desk.on('pageerror', (e) => errs.push(e.message));
+  desk.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  // the Electron preload's API (electron/preload.cjs), with the status events in the test's hands
+  await desk.addInitScript(() => {
+    window.desktop = {
+      getVersion: async () => '0.0.0',
+      checkForUpdates: async () => window.__emit?.({ state: 'checking' }),
+      quitAndInstall: () => undefined,
+      onUpdateStatus: (fn) => (window.__emit = fn),
+    };
+  });
+  await desk.goto(`http://localhost:${PORT}/`);
+  await desk.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await desk.getByRole('button', { name: 'Settings' }).click();
+  const status = desk.locator('[data-update-status]');
+  await desk.evaluate(() => window.__emit({ state: 'none' }));
+  const upToDate = await status.textContent();
+  await desk.getByRole('button', { name: 'Check for updates' }).click();
+  const checking = await status.textContent();
+  await desk.evaluate(() => window.__emit({ state: 'error', message: '<b>net::ERR_INTERNET_DISCONNECTED</b>' }));
+  const failed = await status.textContent();
+  const markup = await status.locator('b').count();
+  await desk.close();
+  const ok = upToDate === 'You are up to date.' && checking === 'Checking…' && failed.includes('failed') && failed.includes('<b>') && markup === 0 && errs.length === 0;
+  return { ok, detail: `${upToDate} -> ${checking} -> ${failed}${errs.length ? `, errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- v0.8.3 (#182): Esc in the relic compendium goes back to the Keep, and again to the title ----------
+await check('Esc in the relic compendium: back to the Keep, then the title (#182)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await p.goto(`http://localhost:${PORT}/`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.locator('[data-go="keep"]').click();
+  await p.getByRole('button', { name: 'Relic compendium' }).click();
+  const heading = () => p.locator('#overlay h1, .overlay h1').first().textContent();
+  const opened = await heading();
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(100);
+  const back = await heading();
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(100);
+  const title = await p.getByText('Take up arms').count();
+  await p.close();
+  return { ok: opened === 'Relic compendium' && back === 'The Keep' && title > 0, detail: `${opened} -> ${back} -> ${title ? 'title' : '?'}` };
+});
+
+// ---------- v0.8.3 (#182): a new pixel ratio (another monitor) re-sizes the canvas, so the arena stays sharp ----------
+await check('DPR: moving to a sharper screen re-sizes the canvas to its pixels (#182)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+  await p.goto(`http://localhost:${PORT}/`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const size = () => p.evaluate(() => { const c = document.getElementById('game'); return `${c.width}x${c.height}`; });
+  const before = await size();
+  // the window lands on a 2x monitor: same CSS size, twice the pixels (the way Chromium reports it: no resize event needed)
+  const cdp = await p.context().newCDPSession(p);
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 2, mobile: false });
+  await p.waitForTimeout(200);
+  const after = await size();
+  await p.close();
+  return { ok: before === '1280x720' && after === '2560x1440', detail: `canvas ${before} -> ${after}` };
+});
+
 // ---------- v0.7.5: a shared save with markup in its title, titles and a run's Daily label shows it as text, never as page (#105) ----------
 await check('import: a save with markup stays text', () =>
   inPage(() => {
@@ -855,6 +1042,7 @@ await check('import: a save with markup stays text', () =>
       const raw = JSON.parse(area.value);
       const run = { at: '', classId: 'paladin', tier: 0, arena: 'courtyard', seed: 1, daily: bad, curses: [], oath: 0, trait: 'none', time: 60, wave: 3, level: 2, kills: 5, end: 'slain', cause: bad, relics: {}, talents: [], upgrades: [], waves: [], marks: [] };
       area.value = JSON.stringify({ ...raw, title: bad, titles: [bad, 'the Steadfast'], runs: [run] });
+      window.confirm = () => true; // v0.8.3 (#175): import asks first; its own check below answers the real dialog
       await P.click('[data-act="import"]');
       const imported = document.body.innerText.includes('Save imported');
       const seen = [];
@@ -878,6 +1066,123 @@ await check('import: a save with markup stays text', () =>
     });
   }),
 );
+
+// ---------- v0.8.3 (#175): Import asks first; the save it replaces shows up under Restore, and importing again never lists it twice ----------
+await check('import: asks first and keeps the replaced save as a backup, once', async () => {
+  await page.reload();
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  await page.click('[data-act="save"]');
+  const before = await page.evaluate(() => ({ gold: window.__lb.save.gold, text: localStorage.getItem('lastbastion.save') }));
+  const next = JSON.stringify({ ...JSON.parse(await page.inputValue('#save-text')), gold: before.gold + 1234 });
+  const asked = [];
+  const importIt = async (answer) => {
+    await page.fill('#save-text', next);
+    page.once('dialog', (d) => (asked.push(d.message()), answer ? d.accept() : d.dismiss()));
+    await page.click('[data-act="import"]');
+    await page.waitForTimeout(150);
+  };
+  await importIt(false); // "no" leaves everything as it was
+  const kept = await page.evaluate(() => window.__lb.save.gold);
+  await importIt(true);
+  const gold = await page.evaluate(() => window.__lb.save.gold);
+  const msg = await page.textContent('#save-msg');
+  const rows1 = await page.locator('[data-restore]').count();
+  const top = await page.evaluate(() => JSON.parse(localStorage.getItem('lastbastion.save.backups'))[0].text);
+  await importIt(true);
+  await importIt(true); // the same save again: its backup moves up, it is not stored twice
+  const texts = await page.evaluate(() => JSON.parse(localStorage.getItem('lastbastion.save.backups')).map((b) => b.text));
+  const rows2 = await page.locator('[data-restore]').count();
+  await page.click('[data-act="back"]');
+  const ok = asked.length === 4 && kept === before.gold && gold === before.gold + 1234 && msg.includes('Save imported') && top === before.text &&
+    rows1 >= 1 && rows2 === texts.length && new Set(texts).size === texts.length;
+  return { ok, detail: `asked ${asked.length}×, gold ${before.gold} -> ${kept} (no) -> ${gold} (yes), backup is the old save ${top === before.text}, restore rows ${rows1} -> ${rows2}, ${texts.length} backups, ${new Set(texts).size} distinct` };
+});
+
+// ---------- v0.8.3 (#174): Blood Pact and Crimson Chalice both cut max HP onto the same pool; a tier-up on one must stay right ----------
+// beside the other's cut. Tiering Blood Pact up while Crimson Chalice was still held used to recompute against a stale share of the
+// pool (Crimson Chalice's cut baked in from when it was taken); the HUD's max HP must move by exactly Blood Pact's own tier I -> II
+// ratio, not some other amount. A fresh test run (like the checks below), so it never disturbs the shared run's own screen sequence.
+await check("Blood Pact + Crimson Chalice: a tier-up moves max HP right beside the other's cut (#174)", async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  return inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'paladin');
+    set('tm-level', '1');
+    const relic = (name, tier) => {
+      const s = [...document.querySelectorAll('select')].find((x) => x.closest('div, label, li')?.innerText.split('\n')[0].includes(name));
+      s.value = [...s.options].find((o) => o.textContent.trim() === tier).value;
+      s.dispatchEvent(new Event('input', { bubbles: true }));
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    relic('Blood Pact', 'I');
+    relic('Crimson Chalice', 'I');
+    const lb = window.__lb, g = window.__startTest(), p = g.player;
+    if (!p.relics.held.includes('bloodPact') || !p.relics.held.includes('crimsonChalice')) return { ok: false, detail: `setup is missing Blood Pact or Crimson Chalice (held: ${p.relics.held.join(', ')})` };
+    const before = p.stats.hp;
+    p.relics.attune.bloodPact = 1; // a full bar: the next tick ties it up for real (systems/relics.ts tierUp), same as earning it in a fight
+    lb.run(1);
+    lb.draw(); // the HUD only redraws on a real frame, same as the running game
+    const after = p.stats.hp;
+    const bp1 = 0.75, bp2 = 0.8; // config/relics.ts bloodPact: n.hp (tier I) / n2.hp (tier II) — the fraction of max HP it keeps
+    const want = bp2 / bp1, got = after / before;
+    const hpShown = document.getElementById('h-hp-text')?.textContent ?? '';
+    const shownMax = Number(hpShown.split('/')[1]);
+    return { ok: p.relics.tiers.bloodPact === 2 && Math.abs(got - want) < 0.01 && Math.abs(shownMax - after) < 1, detail: `HP ${before.toFixed(1)} -> ${after.toFixed(1)} (x${got.toFixed(3)}, want x${want.toFixed(3)}), HUD shows ${hpShown}` };
+  });
+});
+
+// ---------- v0.8.3 (#182): a set bonus reached in a new run flashes, even when the last run reached it too ----------
+await check('HUD: a new run flashes its family set again, nothing kept from the last run (#182)', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  return inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const relic = (name, tier) => {
+      const s = [...document.querySelectorAll('select')].find((x) => x.closest('div, label, li')?.innerText.split('\n')[0].includes(name));
+      s.value = [...s.options].find((o) => o.textContent.trim() === tier).value;
+      s.dispatchEvent(new Event('input', { bubbles: true }));
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const flashing = () => document.querySelectorAll('#h-families .fam-chip.flash').length;
+    relic('Blood Pact', 'I');
+    relic('Vampire Fang', 'I');
+    const lb = window.__lb;
+    window.__startTest();
+    lb.draw();
+    const first = flashing();
+    document.getElementById('btn-pause').click(); // end the run the way a player does: pause, End run (a test run goes back to its setup)
+    await wait();
+    document.querySelector('[data-quit]').click();
+    await wait();
+    relic('Serrated Edge', 'I'); // three Blood relics: still the 2-piece set, a different relic bar
+    window.__startTest();
+    lb.draw();
+    const second = flashing();
+    return { ok: first > 0 && second > 0, detail: `set chip flashing: first run ${first}, next run ${second}` };
+  });
+});
 
 // ---------- v0.7.5 (#112): an Act III slam that came due while you kept away lands as soon as you walk up ----------
 await check('Act III: a slam that is due fires when you walk into range', async () => {
@@ -981,6 +1286,47 @@ await check('Bone Colossus: capped over many Raise Deads, skeletons stay beside 
   const last = seen.at(-1);
   const ok = seen.every((s) => s.colossi === 1 && s.bones > 0 && s.fused <= 10) && last.fused === 10 && last.damage > 0 && last.damage < 5000;
   return { ok, detail: `after ${seen.length} casts: ${last.bones} skeletons, Colossus ×${last.fused}, ${Math.round(last.damage)} dmg (first ${Math.round(seen[0].damage)})` };
+});
+
+// ---------- #182: the Aegis of Dawn's dome goes when Divine Shield is detonated early ----------
+await check('Aegis of Dawn: the dome rises with the shield and goes with an early detonation', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  await inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'paladin');
+    set('tm-level', '10');
+    const g = window.__startTest();
+    g.evolutions = ['aegisOfDawn']; // test mode has no evolution picker
+    g.breather = 1e9;
+    g.player.abilityCd = 0;
+  });
+  const press = async () => {
+    await page.keyboard.down('Space');
+    await inPage(() => window.__lb.run(2, false, 'input'));
+    await page.keyboard.up('Space');
+    await inPage(() => window.__lb.run(2, false, 'input'));
+  };
+  const dome = () => inPage(() => ({ dome: window.__lb.game.fields.some((f) => f.follow), up: window.__lb.game.player.abilityTime > 0 }));
+  await press();
+  const raised = await dome();
+  await press(); // again: detonate early
+  const after = await dome();
+  const ok = raised.up && raised.dome && !after.up && !after.dome;
+  return { ok, detail: `raised: shield ${raised.up}, dome ${raised.dome}; detonated: shield ${after.up}, dome ${after.dome}` };
 });
 
 // ---------- #134: Dread Howl stuns the enemies around the Viking when rage starts, and none of them flee ----------
@@ -1386,6 +1732,34 @@ await check('text size: Larger grows the HUD, no overlap at 1400x800 and 844x390
   return { ok, detail: `player panel ${Math.round(dn.tl)} -> ${Math.round(dl.tl)}px (1400x800), ${Math.round(pn.tl)} -> ${Math.round(pl.tl)}px (844x390), +N ${seen.map((s) => s.more).join('/')}${hits.length ? `; overlaps: ${hits.slice(0, 4).join(', ')}` : ''}` };
 });
 
+// ---------- #172: at a desktop window height where the old h/scale check misclassified it, Larger text stays on the desktop layout ----------
+await check('text size: Larger keeps the desktop layout on a desktop window', async () => {
+  const atSize = async (w, h, size) => {
+    await page.setViewportSize({ width: w, height: h });
+    await inPage(() => {
+      localStorage.removeItem('lastbastion.save');
+      location.reload();
+    });
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async (size) => {
+      const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+      const btn = (text) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === text);
+      btn('Settings').click();
+      await wait(150);
+      document.querySelector(`[data-text-size="${size}"]`).click();
+      await wait();
+      return { compact: document.documentElement.classList.contains('compact'), scaled: document.documentElement.classList.contains('scaled') };
+    }, size);
+  };
+  // 1000x700: desktop-width, and tall enough to stay desktop -- but 700 / textScale('larger', ...) = 700 / 1.3 = 538, which used to trip the 560 compact threshold
+  const tall = await atSize(1000, 700, 'larger');
+  // a genuinely short desktop-width window still gets the compact layout, at Normal size (no scale to divide by)
+  const short = await atSize(1000, 500, 'normal');
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const ok = !tall.compact && tall.scaled && short.compact;
+  return { ok, detail: `1000x700 at Larger: compact=${tall.compact} scaled=${tall.scaled}; 1000x500 at Normal: compact=${short.compact}` };
+});
+
 // #146: a class card only selects its champion; Start (or a second click on the chosen card) begins the run
 await check('class select: a card selects, a click beside a swatch starts nothing, Enter selects then starts, Start begins the run', async () => {
   await inPage(() => {
@@ -1766,6 +2140,7 @@ await check('Swing trail and walk pace: a crescent trail on the swing; the feet 
     const r = await inPage(async (mult) => {
       const lb = window.__lb, g = lb.game, p = g.player;
       g.enemies.length = 0;
+      p.x = g.arena.w * 0.25; // room to walk right: the 1.5x walk used to reach the wall and leave the slow walk none
       p.stats.baseMove ??= p.stats.moveSpd;
       p.stats.moveSpd = p.stats.baseMove * mult; // a fast build (movement talents, Ghost Step) or a heavy slow
       return { x: p.x, speed: p.cls.base.moveSpd }; // the walk's base: the class's own speed, as the renderer uses
@@ -1870,7 +2245,7 @@ await check("Allies: raised skeletons walk and strike, the Angel's decoy and the
 await check('Boss sheets: all eight bosses and the Royal Flame load and play their special and phase pose in the gallery; the Usurper is the tallest (#158)', () =>
   inPage(() => location.reload()).then(async () => {
     const bosses = ['blackKnight', 'warlord', 'lich', 'inquisitor', 'abbot', 'dragon', 'warden', 'usurper'];
-    await page.waitForFunction((ids) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ids.every((id) => window.__lb.sheets().includes(id)), {}, [...bosses, 'royalFlame']).catch(() => {});
+    await page.waitForFunction((ids) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ids.every((id) => window.__lb.sheets().includes(id)), [...bosses, 'royalFlame']).catch(() => {});
     return inPage(async (bosses) => {
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       const loaded = window.__lb.sheets();
@@ -2018,6 +2393,48 @@ await check('Peasant sheet: he walks up, jabs, and plays his death when slain (#
   }),
 );
 
+// ---------- #166: rendering runs every frame but the sim only every tick; a walking foe holds its pose across the extra draws ----------
+await check('Foe sheets: a walking peasant keeps its walk frame across render frames with no new sim tick (#166)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('peasant'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-class', 'paladin');
+      set('tm-act', '1');
+      set('tm-wave', '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      const peasants = g.enemies.filter((e) => e.def.id === 'peasant');
+      // far from the player, so he walks and never comes into swinging reach
+      for (const [i, e] of g.enemies.entries()) Object.assign(e, { x: g.player.x + (e === peasants[0] ? 400 : 3000 + i * 40), y: g.player.y, hp: 1e6, maxHp: 1e6 });
+    });
+    let walking = false;
+    for (let t = 0; t < 5000 && !walking; t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.foeAnim('peasant')?.anim ?? 'none'))))));
+      walking = a === 'walk';
+    }
+    // several renders in a row with no `run()` between them: same sim tick, so the flicker (a stale bug would drop to idle here) must not show
+    const frames = await inPage(() => {
+      const out = [];
+      for (let i = 0; i < 8; i++) (window.__lb.draw(), out.push(window.__lb.foeAnim('peasant')));
+      return out;
+    });
+    const held = frames.every((f) => f && f.anim === frames[0].anim && f.frame === frames[0].frame);
+    const ok = walking && held && frames[0]?.anim === 'walk';
+    return { ok, detail: `walking before hold: ${walking}; held frames [${frames.map((f) => `${f?.anim}:${f?.frame}`).join(', ')}]` };
+  }),
+);
+
 // ---------- #157: every redrawn foe loads its sheet, and a ranged foe (the Crossbowman) levels and looses on his shot ----------
 await check('Foe sheets: every redrawn foe and commander loads; a crossbowman plays his shot (#157)', () =>
   inPage(() => location.reload()).then(async () => {
@@ -2050,6 +2467,46 @@ await check('Foe sheets: every redrawn foe and commander loads; a crossbowman pl
       if (seen[seen.length - 1] !== a) seen.push(a);
     }
     return { ok: missing.length === 0 && seen.includes('attack'), detail: `missing [${missing.join(', ')}]; crossbow ${seen.join(' → ')}` };
+  }),
+);
+
+// ---------- #165: the Plague Cart is rolled by the event, not its own (zero) config speed; it must keep a valid walk frame, not vanish ----------
+await check('Plague Cart: keeps a valid walk frame while it crosses, though its base speed is 0 (#165)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('plagueCart'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      for (const [id, v] of [['tm-class', 'paladin'], ['tm-act', '1'], ['tm-wave', '1']]) {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      for (let i = 0; i < 200 && !g.enemies.length; i++) window.__lb.run(1, false, 'input'); // the wave's first foe
+      const [e] = g.enemies;
+      e.def = window.__lb.enemyDef('plagueCart'); // the first foe becomes the cart
+      Object.assign(e, { baseSpeed: 0, x: g.player.x + 150, y: g.player.y, hp: 1e6, maxHp: 1e6 }); // its own speed is 0: the event moves it by hand (systems/events.ts)
+      for (const x of g.enemies) if (x !== e) Object.assign(x, { x: g.player.x + 3000, y: g.player.y }); // everyone else out of the way
+    });
+    const frames = [];
+    for (let i = 0; i < 20; i++) {
+      frames.push(
+        await inPage(() => {
+          window.__lb.game.enemies[0].x += 5; // rolls across, same as the event's moveTo
+          window.__lb.run(1, false, 'input');
+          return window.__lb.foeAnim('plagueCart');
+        }),
+      );
+    }
+    const walking = frames.filter((f) => f?.anim === 'walk');
+    const ok = walking.length > 0 && walking.every((f) => Number.isFinite(f.frame) && f.frame >= 0);
+    return { ok, detail: frames.map((f) => `${f?.anim ?? 'none'}${f?.frame ?? ''}`).join(' ') };
   }),
 );
 // ---------- #159: every arena draws its ground props from the rig's atlas, and the keep's braziers flicker ----------
@@ -2119,13 +2576,13 @@ await check('Arenas: every arena shows its rigged props; the braziers flicker; p
           // the ground pickups: an xp gem, a big one and a coin next to the champion, drawn once (no tick, so none is picked up)
           let pickups = null;
           if (arena === 'keep') {
-            const drops = [['xp', 1, 508], ['xp', 10, 521], ['gold', 1, 534]].map(([kind, value, row], i) => ({ kind, value, row, x: Math.round(g.player.x) + 40 + i * 30, y: Math.round(g.player.y) - 60 }));
+            const drops = [['xp', 1, 508, 7], ['xp', 10, 522, 7], ['gold', 1, 536, 6]].map(([kind, value, row, at], i) => ({ kind, value, row, at, x: Math.round(g.player.x) + 40 + i * 30, y: Math.round(g.player.y) - 60 }));
             g.enemies.length = 0;
             g.pickups.push(...drops.map(({ kind, value, x, y }) => ({ kind, value, x, y })));
             lb.draw();
             const cam = lb.camera(), c = document.getElementById('game').getContext('2d');
             pickups = drops.filter((d) => {
-              const want = a.getImageData(6, d.row + 6, 1, 1).data;
+              const want = a.getImageData(d.at, d.row + d.at, 1, 1).data; // the anchor
               const got = c.getImageData(Math.round((d.x - Math.round(cam.x)) * cam.zoom), Math.round((d.y - Math.round(cam.y)) * cam.zoom), 1, 1).data;
               return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
             }).length;
@@ -2181,7 +2638,7 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
             return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
           };
           // src/render/props.json: atlas row and anchor of each feature's prop
-          const F = { shrine: [585, 30, 34], chest: [637, 20, 20], lair: [671, 32, 26], hazard: [711, 24, 24] };
+          const F = { shrine: [587, 30, 35], chest: [640, 20, 20], lair: [674, 32, 26], hazard: [715, 24, 24] };
           let features = null;
           const f = g.features[0];
           if (f) {
@@ -2209,7 +2666,7 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
             g.enemies.length = 0;
             lb.draw();
             const frame = Math.min(2, Math.floor(Math.min(1, z.t / z.delay) * 3));
-            hand = shows(z.x, z.y + 8, 16, 38, frame * 32 + 16, 749 + 38); // the earth heaped round the wrist, at the anchor
+            hand = shows(z.x, z.y + 8, 16, 42, frame * 32 + 16, 753 + 42); // the earth heaped round the wrist, at the anchor
           }
           return { arena, features, arts, hand };
         }, arena),
@@ -2221,6 +2678,77 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
   }),
 );
 
+
+// ---------- #167: no frame in the sprite gallery is cut off at its cell: nothing opaque on a cell's edge ----------
+await check('Sprite gallery: no frame of any sheet is cut off at the edge of its cell; the Warlord swings and falls in full (#167)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ['warlord', 'abbot', 'dragon', 'viking'].every((id) => window.__lb.sheets().includes(id)));
+    return inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      // the gallery draws each art pixel as 2x2: a cell's edge is its canvas's outer 2 px
+      const seen = new Set(), cut = new Set();
+      for (let i = 0; i < 40; i++) {
+        for (const c of document.querySelectorAll('[data-sheet]')) {
+          const key = `${c.dataset.sheet} ${c.dataset.anim} ${c.dataset.frame}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, w = c.width, h = c.height;
+          const a = (x, y) => d[(y * w + x) * 4 + 3];
+          let hit = false;
+          for (let x = 0; x < w && !hit; x++) hit = !!(a(x, 0) || a(x, 1) || a(x, h - 1) || a(x, h - 2));
+          for (let y = 0; y < h && !hit; y++) hit = !!(a(0, y) || a(1, y) || a(w - 1, y) || a(w - 2, y));
+          if (hit) cut.add(key);
+        }
+        await wait(70);
+      }
+      document.querySelector('.testmode [data-back]').click();
+      await wait(100);
+      document.querySelector('[data-act="back"]').click();
+      await wait(100);
+      const warlord = [...seen].filter((k) => /^warlord (attack|death) /.test(k)).length;
+      return { ok: !cut.size && seen.size > 150 && warlord >= 6, detail: `${seen.size} frames looked at (${warlord} of the Warlord's swing and fall); cut off: [${[...cut].slice(0, 8)}]` };
+    });
+  }),
+);
+
+// ---------- #168: the sprite frame cache stays bounded without thrashing, and the gallery leaves it alone ----------
+await check('Frame cache: the sprite gallery adds nothing to it; a run through Act III stays under its cap and never re-renders a frame (#168)', async () => {
+  const all = await inPage(() => window.__lb.frameCache()); // everything the checks since the last reload drew
+  return inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('paladin'));
+    return inPage(async () => {
+      const lb = window.__lb, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      const before = lb.frameCache().size;
+      document.querySelector('[data-act="test"]').click();
+      await wait(1500); // every sheet in the gallery cycles several frames
+      const played = new Set([...document.querySelectorAll('[data-sheet]')].map((c) => c.dataset.frame)).size > 1;
+      const gallery = lb.frameCache().size - before;
+      // a run, drawn every few ticks: Act I, then the Act III waves and their bosses
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      for (const act of [1, 3])
+        for (let i = 0; i < 400 && lb.game && lb.state !== 'results'; i++) {
+          if (i === 0 && act > 1) lb.skipTo(act, 1);
+          lb.run(6, true);
+          lb.draw();
+          if (i % 50 === 0) await wait(20); // let real frames draw too
+        }
+      const run = lb.frameCache();
+      return { played, gallery, run };
+    });
+  }).then(({ played, gallery, run }) => {
+    const rate = run.hits / Math.max(1, run.hits + run.misses);
+    // every miss filled a new entry: nothing drawn in the run was ever evicted and drawn again
+    const ok = played && gallery === 0 && run.size <= run.cap && run.misses === run.size && rate > 0.99;
+    return { ok: ok && all.size <= all.cap && all.misses === all.size, detail: `gallery added ${gallery} frames${played ? '' : ' (and did not play)'}; run: ${run.size}/${run.cap} frames, ${run.misses} misses, hit rate ${(rate * 100).toFixed(2)}%; the checks before: ${all.size} frames, ${all.misses} misses` };
+  });
+});
 
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose

@@ -320,6 +320,7 @@ export interface Projectile extends Body {
   status: Status | null;
   source: DamageSource;
   by?: RelicKey; // v0.7: fired by this relic or duo (its damage is credited to it)
+  owner: Enemy | null; // #182: the enemy whose shot it is (its hit bleeds, curses, feeds vampiric and draws thorns like a blow)
   dtype: DamageType;
 }
 
@@ -504,7 +505,7 @@ export interface Game {
   tierIndex: number;
   modifier: ModifierId | null;
   fields: Field[];
-  timers: { t: number; kind: string; a: unknown }[]; // delayed actions (second volley, twin pulse...) as data: entities/hazards.ts timer()
+  timers: { t: number; kind: string; a: unknown; by?: RelicKey }[]; // delayed actions (second volley, twin pulse...) as data: entities/hazards.ts timer()
   vars: Record<string, number>; // scratch for relics and ability upgrades
   baseMods: Mods; // meta upgrades + tradeoffs; relics are layered on top each tick
   salvage: number; // Rune shards from salvaged relics
@@ -557,6 +558,7 @@ export interface Game {
   pendingShrine: BlessingId[] | null; // a shrine's choice waiting for the UI (or the bot)
   // --- v0.5 side quests and wave events (config/quests.ts, config/events.ts) ---
   quests: Quest[]; // the board while pendingBoard, then the ones taken (finished ones linger for the tracker)
+  actQuestsDone: QuestKind[]; // #169: kinds finished this Act, kept once the done quest itself lingers out of `quests`
   pendingBoard: boolean;
   questsDone: number;
   questRunes: number;

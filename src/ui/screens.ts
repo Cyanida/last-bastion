@@ -23,7 +23,7 @@ import { salvageValue, sellPrice } from '../systems/acts';
 import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
-import { GAME, SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
+import { SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
 import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { latchGamepad, onAction } from '../input';
@@ -31,7 +31,7 @@ import type { Action } from '../input/mapping';
 import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
 import { nextTierRequirement } from '../logic/difficulty';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
-import { exportSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
+import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
 import { ACT_THEMES, ACTS, FINAL, MERCHANT, type BookId } from '../config/acts';
@@ -40,7 +40,7 @@ import type { Route } from '../logic/routes';
 import { EVOLUTION_IDS, EVOLUTIONS, type EvolutionId } from '../config/evolutions';
 import { requirementText } from '../logic/evolutions';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
-import { outlineSprite, portraitSprite, SHEETS, sheetSprite, SPRITE_PALETTES } from '../render/sprites';
+import { drawSheetFrame, outlineSprite, portraitSprite, SHEETS, SPRITE_PALETTES } from '../render/sprites';
 import { frameAt, type AnimName } from '../logic/animation';
 import { OATHS } from '../config/oaths';
 import { oathCap, oathReward } from '../logic/oaths';
@@ -181,7 +181,7 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
       <div class="setting"><div><b>Aim</b><span>Auto: basic attacks pick their own target. Manual: they go where the mouse or right stick points. Touch always aims itself.</span></div><div><button class="chip ${info.manualAim ? '' : 'on'}" data-aim="auto">Auto</button><button class="chip ${info.manualAim ? 'on' : ''}" data-aim="manual">Manual</button></div></div>
       <div class="setting"><div><b>Performance overlay</b><span>Frame, update and render times, entity counts, draw calls (F3 in a run).</span></div><button class="chip ${info.perf ? 'on' : ''}" data-act="perf">${info.perf ? 'On' : 'Off'}</button></div>
       ${info.desktop ? `
-      <div class="setting"><div><b>Updates</b><span>Version ${info.desktop.version}. ${info.desktop.status}</span></div><button class="chip" data-act="check">Check for updates</button></div>
+      <div class="setting"><div><b>Updates</b><span>Version ${info.desktop.version}. <span data-update-status>${esc(info.desktop.status)}</span></span></div><button class="chip" data-act="check">Check for updates</button></div>
       <div class="setting"><div><b>Beta versions</b><span>Also install pre-releases.</span></div><button class="chip ${info.desktop.prerelease ? 'on' : ''}" data-act="pre">${info.desktop.prerelease ? 'On' : 'Off'}</button></div>` : ''}
       <div class="setting"><div><b>Save data</b><span>Export, import or reset your progress.</span></div><button class="chip" data-act="save">Open</button></div>
       ${info.dev ? '<div class="setting"><div><b>Test mode</b><span>Start a run anywhere and hear every arena’s music. Test runs pay nothing and leave no trace.</span></div><button class="chip" data-act="test">Open</button></div>' : ''}
@@ -211,6 +211,8 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
 
 /** #146: the champion picked on the class select; kept while its options re-render the screen. Starts as the last one played. */
 let selectedClass: ClassId | undefined;
+/** #182: the seed typed on the class select, kept while its options re-render the screen; Back or Start clears it. */
+let seedText = '';
 
 /** #156: the rigged champions' portrait scale on the class cards: the Paladin's figure (120 px at scale 6) shows at 84 px. */
 const PORTRAIT_K = 0.7;
@@ -244,7 +246,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       <div class="ability"><b class="gold">${c.ability.name}</b><p>${c.ability.desc}</p></div>
       <div class="ability"><b class="gold">${c.secondary.name}</b><p>${c.secondary.desc}</p></div>
       ${treasure}
-      <div class="fam-line" data-tip="${esc(`Can max these relic families: ${preferredFamilies(c.id).map((f) => FAMILIES[f].name).join(', ')}. Every family is open to every class; these reach their 6-set with straight pieces.`)}">Families: ${preferredFamilies(c.id).map((f) => `<span style="color:${FAMILIES[f].color}">${FAMILIES[f].icon} ${FAMILIES[f].name}</span>`).join(' ')}</div>
+      <div class="fam-line" data-tip="${esc(`Can max these relic families: ${preferredFamilies(c.id).map((f) => FAMILIES[f].name).join(', ')}. Every family is open to every class; these reach their 6-set with straight pieces.`)}">Families:${preferredFamilies(c.id).map((f) => `<span class="fam-chip" style="--fam:${FAMILIES[f].color}">${FAMILIES[f].icon} ${FAMILIES[f].name}</span>`).join('')}</div>
       ${save.wins[c.id] ? `<div class="oath-line">⚜ ${save.oaths[c.id] ? `Oath ${save.oaths[c.id]} kept` : 'No Oath kept yet'}${sworn ? ` · this run: <b>${oathOf(c.id) ? `Oath ${oathOf(c.id)}` : 'custom'}</b>` : ''}</div>` : ''}
       <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
     </button>`;
@@ -284,7 +286,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       <div class="pickers curses">
         <div><span class="label">Curses</span>${CURSE_IDS.map(curseBtn).join('')}
           <span class="mult" data-tip="Every curse adds to the gold and class XP this run earns.">gold &amp; XP ×${curseMultiplier(save.settings.curses).toFixed(2)}</span></div>
-        <div><span class="label">Seed</span><input id="seed" maxlength="24" placeholder="random" autocomplete="off" spellcheck="false" data-tip="Type a seed from a results screen to replay that run." /></div>
+        <div><span class="label">Seed</span><input id="seed" maxlength="24" placeholder="random" value="${esc(seedText)}" autocomplete="off" spellcheck="false" data-tip="Type a seed from a results screen to replay that run." /></div>
       </div>
       <div class="pickers traits"><div><span class="label">Trait</span>${TRAIT_IDS.map(traitBtn).join('')}</div></div>
       ${oathMax ? `<div class="pickers oath"><div><span class="label">Oath</span>
@@ -312,7 +314,12 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     e.stopPropagation(); // the card underneath would take the click
     on.treasure(chip.dataset.treasure as ClassId);
   }));
-  const start = () => on.pick(selectedClass!, el.querySelector<HTMLInputElement>('#seed')!.value);
+  const seedIn = el.querySelector<HTMLInputElement>('#seed')!;
+  seedIn.oninput = () => (seedText = seedIn.value);
+  const start = () => {
+    seedText = '';
+    on.pick(selectedClass!, seedIn.value);
+  };
   // #146: a card selects its champion (no re-render, so the keyboard focus stays on it); a second click on it, or Start, begins the run
   click(el, '[data-class]', (b) => {
     if (b.dataset.class === selectedClass) return start();
@@ -328,7 +335,10 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   click(el, '[data-oath]', (b) => on.oath(Number(b.dataset.oath)));
   click(el, '[data-arena]', (b) => on.settings(b.dataset.arena as ArenaId, save.settings.tier));
   click(el, '[data-tier]', (b) => on.settings(save.settings.arena, Number(b.dataset.tier)));
-  click(el, '[data-back]', on.back);
+  click(el, '[data-back]', () => {
+    seedText = '';
+    on.back();
+  });
 }
 
 export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; chronicle: () => void; treasures: () => void; history: () => void; glossary: () => void; back: () => void }): void {
@@ -568,7 +578,7 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
 
-export function showSaveDialog(save: Save, on: { import: (text: string) => boolean; reset: () => void; back: () => void; backups: SaveBackup[]; restore: (b: SaveBackup) => void }): void {
+export function showSaveDialog(save: Save, on: { import: (save: Save) => void; reset: () => void; back: () => void; backups: SaveBackup[]; restore: (b: SaveBackup) => void }): void {
   const el = show(`
     <div class="panel dialog wide">
       <h1 class="small">Save data</h1>
@@ -582,7 +592,7 @@ export function showSaveDialog(save: Save, on: { import: (text: string) => boole
         <button class="btn" data-act="back">Back</button>
       </div>
       ${on.backups.length ? `<h2>Restore previous version</h2>
-      <p class="hint">Before a new version changes your save, the old one is kept here (the last ${on.backups.length === 1 ? 'one' : on.backups.length}). Restoring replaces your current progress; the current save is kept as a backup in turn.</p>
+      <p class="hint">Before a new version or an import replaces your save, the old one is kept here (the last ${on.backups.length === 1 ? 'one' : on.backups.length}). Restoring replaces your current progress; the current save is kept as a backup in turn.</p>
       <div class="row">${on.backups.map((b, i) => `<button class="btn small" data-restore="${i}">${new Date(b.at).toLocaleString()} · ${saveFormatLabel(b.version)}</button>`).join('')}</div>` : ''}
     </div>`);
   click(el, '[data-restore]', (b) => {
@@ -599,7 +609,15 @@ export function showSaveDialog(save: Save, on: { import: (text: string) => boole
       area.select();
       void navigator.clipboard?.writeText(area.value);
       msg.textContent = 'Copied to the clipboard.';
-    } else if (act === 'import') msg.textContent = on.import(area.value) ? 'Save imported.' : 'That is not a valid Last Bastion save.';
+    } else if (act === 'import') {
+      const imported = importSave(area.value);
+      if (!imported) msg.textContent = 'That is not a valid Last Bastion save.';
+      // v0.8.3 (#175): ask first; the save it replaces is kept as a backup
+      else if (confirm('Import this save? Your current progress is replaced; it is kept as a backup.')) {
+        on.import(imported);
+        document.getElementById('save-msg')!.textContent = 'Save imported.';
+      }
+    }
     else if (confirm('Erase ALL progress — gold, upgrades, mastery, achievements and records? This cannot be undone.')) on.reset();
   });
 }
@@ -1080,6 +1098,7 @@ export function showCompendium(save: Save, onBack: () => void): void {
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-back]', onBack);
+  onActions((a) => (a === 'cancel' || a === 'pause') && onBack()); // #182: Esc goes back to the Keep, like its sibling screens
 }
 
 export function showDaily(setup: DailySetup, best: number, onStart: () => void, onBack: () => void): void {
@@ -1253,10 +1272,9 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
     for (const c of cells) {
       const id = c.dataset.sheet!, anim = c.dataset.anim as AnimName;
       const f = frameAt(SHEETS[id].anims[anim]!, now - t0, true);
-      const spr = sheetSprite(id, GAME.spriteScale * 2, 0, anim, f);
       const ctx = c.getContext('2d')!;
       ctx.clearRect(0, 0, c.width, c.height);
-      if (spr) ctx.drawImage(spr.img, 0, 0);
+      drawSheetFrame(ctx, id, anim, f, 2); // #168: uncached, so browsing every sheet doesn't fill the frame cache
       c.dataset.frame = String(f); // for the play test
     }
     requestAnimationFrame(tick);

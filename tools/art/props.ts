@@ -6,6 +6,7 @@
  */
 import { Bone, ell, Figure, limb, type Material, type Pt } from './rig';
 import { png } from './png';
+import { fitCell } from './sheet';
 
 export interface PropDef {
   id: string;
@@ -239,19 +240,21 @@ export const propPaths = { png: 'public/sprites/props.png', json: 'src/render/pr
 
 /** The atlas: a row per prop, a column per frame. */
 export function buildProps(defs = PROPS): { png: Buffer; data: Record<string, PropData> } {
-  const W = Math.max(...defs.map((d) => d.w * d.frames.length)), H = defs.reduce((s, d) => s + d.h, 0);
+  const fits = defs.map((d) => fitCell(d.id, d.frames, d.w, d.h, d.anchor)); // #167: a cell grows where a prop reaches past it
+  const W = Math.max(...fits.map((f) => f.w * f.frames.length)), H = fits.reduce((s, f) => s + f.h, 0);
   const px = new Uint8Array(W * H * 4);
   const data: Record<string, PropData> = {};
   let y0 = 0;
-  for (const d of defs) {
-    d.frames.forEach((fig, i) => {
-      for (const [q, c] of fig.render()) {
-        const x = q % d.w, y = (q - x) / d.w;
-        px.set([1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)).concat(255), ((y0 + y) * W + i * d.w + x) * 4);
+  defs.forEach((d, n) => {
+    const f = fits[n];
+    f.frames.forEach((frame, i) => {
+      for (const [q, c] of frame) {
+        const x = q % f.w, y = (q - x) / f.w;
+        px.set([1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)).concat(255), ((y0 + y) * W + i * f.w + x) * 4);
       }
     });
-    data[d.id] = { x: 0, y: y0, w: d.w, h: d.h, anchor: d.anchor, r: d.r, frames: d.frames.length };
-    y0 += d.h;
-  }
+    data[d.id] = { x: 0, y: y0, w: f.w, h: f.h, anchor: f.anchor, r: d.r, frames: f.frames.length };
+    y0 += f.h;
+  });
   return { png: png(W, H, px), data };
 }

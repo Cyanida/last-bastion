@@ -148,6 +148,12 @@ const fmt = (key: StatKey, v: number) => (key === 'atkSpd' ? v.toFixed(2) : Stri
 const lastLevels: Partial<Record<FamilyId, number>> = {}; // v0.7: family set levels last shown (a new threshold flashes)
 let lastAttKey = '';
 let lastRelicKey = '';
+/** #182: a new run starts from a clean HUD: no relic bar or set flashes remembered from the last one, no toasts left over. */
+export function resetHud(): void {
+  lastRelicKey = lastAttKey = '';
+  for (const f of FAMILY_IDS) delete lastLevels[f];
+  $('h-toasts').replaceChildren();
+}
 const MOD_NAMES: Partial<Record<keyof Mods, string>> = { damage: 'damage', atkSpd: 'attack speed', moveSpd: 'speed', cooldown: 'cooldown cut', pickup: 'pickup', xp: 'XP', gold: 'gold', armor: 'armor', crit: 'crit', pierce: 'pierce', minionAtkSpd: 'minion speed', minionDamage: 'minion damage' };
 
 export function updateHud(g: Game): void {
@@ -182,14 +188,13 @@ export function updateHud(g: Game): void {
   const armor = Math.round(Math.min(0.8, p.cls.armor + p.mods.armor) * 100);
   const relicStats = (Object.entries(g.player.relics.totals) as [keyof Mods, RelicModTotal][]).filter(([, t]) => t.count > 1);
   const relicRows = relicStats.map(([key, t]) => `<div class="dim" data-tip="${esc(`${t.count} relics add up to +${Math.round(t.raw * 100)}% ${MOD_NAMES[key] ?? key}.`)}"><span>Relics: ${MOD_NAMES[key] ?? key}</span><b>+${Math.round(t.eff * 100)}%</b></div>`).join('');
-  const procs = ''; // v0.7: no proc sharing
   const heal = g.vars.relicHeal ?? 0;
   const healRow = heal > 0 ? `<div class="dim" data-tip="${esc(`Relics healed ${Math.round(heal * 100)}% of your max HP this wave. Past the soft cap (${Math.round(RELIC_STACKING.healCap * 100)}%) each further heal counts for less.`)}"><span>Relic healing (wave)</span><b>${Math.round(softCap(heal, RELIC_STACKING.healCap) * 100)}%${heal > RELIC_STACKING.healCap ? ` <s>${Math.round(heal * 100)}</s>` : ''}</b></div>` : '';
   const damage = `×${(p.mods.damage * p.buff.damage).toFixed(2)}`;
   // in a fight: the six numbers that matter, in two columns; hover (tap) the panel for everything
   const cell = (label: string, value: string) => `<div><span>${label}</span><b>${value}</b></div>`;
   html('h-stats-grid', cell('Damage', damage) + cell('Attack', `${p.stats.atkSpd.toFixed(2)}/s`) + cell('Crit', `${crit}%`) + cell('Armor', `${armor}%`) + cell('Speed', String(Math.round(p.stats.moveSpd))) + cell(statLabel('secondary', p.cls), fmt('secondary', p.stats.secondary)));
-  html('h-stats-all', `${stats}<div class="dim"><span>Crit · Armor</span><b>${crit}% · ${armor}%</b></div><div class="dim"><span>Damage</span><b>${damage}</b></div>${relicRows}${procs}${healRow}`);
+  html('h-stats-all', `${stats}<div class="dim"><span>Crit · Armor</span><b>${crit}% · ${armor}%</b></div><div class="dim"><span>Damage</span><b>${damage}</b></div>${relicRows}${healRow}`);
 
   // relic bar: one row of the newest relics that fit, older ones behind a "+N" chip (hover or tap); tap or hover a relic for its tooltip.
   // Rebuilt only when the set changes (or the window is resized).

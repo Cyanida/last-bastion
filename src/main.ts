@@ -15,7 +15,7 @@ import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
 import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as setPerfOverlay, summary } from './core/perf';
 import { particleBudget, quality, sampleFrame, setQuality } from './core/quality';
-import { loadSave, prefs, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
+import { backupSave, loadSave, prefs, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
 import { createGame } from './game';
 import { banked, createTestRun, isTestRun, type TestSetup } from './systems/testMode';
@@ -30,21 +30,21 @@ import { nextAct, reforgeChoices } from './systems/acts';
 import { questTake } from './systems/quests';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
-import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from './logic/save';
+import { buyMeta, defaultSave, type Save, buyBuilding, today } from './logic/save';
 import { buildArena, loadProps, propsLoaded } from './render/arena';
 import { ENEMIES, type EnemyId } from './config/enemies';
-import { cameraFor, foeAnim, foesDying, minionAnim, playerAnim, render, renderBackdrop, setSpotlight, spotlightOn, type View } from './render/renderer';
-import { loadSheets, SHEETS, sheetLoaded } from './render/sprites';
+import { cameraFor, foeAnim, foesDying, minionAnim, peddlerAnim, playerAnim, render, renderBackdrop, setSpotlight, spotlightOn, type View } from './render/renderer';
+import { frameCacheStats, loadSheets, SHEETS, sheetLoaded } from './render/sprites';
 import { botInput, botStep } from './sim/bot';
 import { playCues, view as simView } from './sim/view';
 import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choice, type Intent } from './sim/commands';
 import { abilityAimRadius } from './systems/abilities';
 import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
-import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
+import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
-import { textScale } from './logic/textSize';
+import { isCompactLayout, textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
@@ -317,10 +317,10 @@ function toSaveDialog(): void {
   menu();
   showSaveDialog(save, {
     back: toSettings,
-    import(text) {
-      const imported = importSave(text);
-      if (imported) commit(imported);
-      return imported !== null;
+    import(imported) {
+      backupSave(); // v0.8.3 (#175): the save it replaces stays restorable
+      commit(imported);
+      toSaveDialog(); // the Restore list now shows it
     },
     reset() {
       wipeSave();
@@ -341,6 +341,7 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?:
   stopMenuMusic();
   clearOverlay();
   toasted.clear();
+  resetHud();
   lastToastCheck = '';
   lastChain = '';
   const d = opts.daily;
@@ -711,6 +712,8 @@ function frame(now: number): void {
   const elapsed = now - last;
   acc += elapsed / 1000;
   last = now;
+  // #182: a new pixel ratio (another monitor, browser zoom) can leave the CSS size alone and fire no resize event
+  if (window.devicePixelRatio !== shownDpr) resize();
   pumpGamepad();
   let steps = 0;
   const t0 = performance.now(); // always measured (not begin()): the dynamic quality needs it with the overlay off
@@ -747,10 +750,12 @@ window.addEventListener('error', (e) => crashed(e.error ?? e.message));
 window.addEventListener('unhandledrejection', (e) => crashed(e.reason));
 
 // ---------- boot ----------
+let shownDpr = 0; // the raw devicePixelRatio the canvas was last sized for
 function resize(): void {
   // innerWidth/innerHeight, not 100vh: on iOS 100vh includes the area under the browser chrome
   const w = window.innerWidth;
   const h = window.innerHeight;
+  shownDpr = window.devicePixelRatio;
   view.dpr = Math.min(window.devicePixelRatio || 1, quality.maxDpr);
   view.w = canvas.width = Math.round(w * view.dpr);
   view.h = canvas.height = Math.round(h * view.dpr);
@@ -761,7 +766,7 @@ function resize(): void {
   const scale = textScale(save.settings.textSize, w, h);
   document.documentElement.style.setProperty('--ui-scale', String(scale));
   document.documentElement.classList.toggle('scaled', scale !== 1);
-  document.documentElement.classList.toggle('compact', h / scale < 560); // v0.5: phones get a denser HUD layout at full text size, not a scaled-down one
+  document.documentElement.classList.toggle('compact', isCompactLayout(h)); // #172: by window height alone, not the text-size scale
 }
 window.addEventListener('resize', resize);
 window.visualViewport?.addEventListener('resize', resize);
@@ -799,6 +804,9 @@ if (platform.desktop) {
     else if (s.state === 'downloading') updateStatus = `Downloading v${s.version}… ${Math.round(s.percent)}%`;
     else if ('version' in s) updateStatus = s.state === 'ready' ? `v${s.version} is ready to install.` : `v${s.version} found, downloading…`;
     else updateStatus = s.state === 'checking' ? 'Checking…' : 'You are up to date.';
+    // #182: an open Settings shows it as it comes in (textContent: the message comes from outside the game)
+    const shown = document.querySelector('[data-update-status]');
+    if (shown) shown.textContent = updateStatus;
     if (s.state === 'ready') setNotice({ text: `Update to v${s.version} ready`, button: 'Restart', action: () => platform.desktop!.quitAndInstall() });
   });
   void platform.desktop.checkForUpdates(save.settings.prerelease);
@@ -830,9 +838,11 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       setQuality, // v0.8: the play test compares particle budgets
       anim: playerAnim, // #155: the champion's animation and frame, as last drawn
       sheets: () => Object.keys(SHEETS).filter(sheetLoaded), // #155: the rigged sprite sheets that have loaded
+      frameCache: frameCacheStats, // #168: the play test checks a run's hit rate and that the gallery leaves the cache alone
       foeAnim, // #157: a foe kind's animation and frame, as last drawn
       foesDying, // #157: the slain foes whose death is playing
       minionAnim, // #156: an ally kind's animation and frame, as last drawn
+      peddlerAnim, // #178: the peddler's sheet frame, as last drawn
       enemyDef: (id: EnemyId) => ENEMIES[id], // #157: the play test turns a foe into a given kind
       props: propsLoaded, // #159: the arenas' rigged props have loaded
       arenaCanvas, // #159: the play test reads the baked ground under the props

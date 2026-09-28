@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { TEXT_SIZES } from '../src/config/game';
+import { COMPACT_MAX_H, TEXT_SIZES } from '../src/config/game';
 import { defaultSave, migrate } from '../src/logic/save';
-import { textScale } from '../src/logic/textSize';
+import { isCompactLayout, textScale } from '../src/logic/textSize';
 
 describe('text size (v0.8, #123)', () => {
   it('a desktop window gets the chosen size', () => {
@@ -27,5 +27,17 @@ describe('text size (v0.8, #123)', () => {
     expect(migrate(old).settings.textSize).toBe('normal');
     expect(migrate({ ...old, settings: { ...old.settings, textSize: 'larger' } }).settings.textSize).toBe('larger');
     expect(migrate({ ...old, settings: { ...old.settings, textSize: 'toString' } }).settings.textSize).toBe('normal');
+  });
+
+  it('#172: a desktop window keeps the desktop layout at any text size', () => {
+    // a window just tall enough that Larger's scale would push h/scale under COMPACT_MAX_H if it still divided by scale
+    const h = COMPACT_MAX_H + 50;
+    expect(textScale('larger', 1400, h)).toBeGreaterThan(1); // scaling is still in effect
+    expect(isCompactLayout(h)).toBe(false); // but the layout decision ignores it
+  });
+
+  it('a short window still gets the compact phone layout', () => {
+    expect(isCompactLayout(COMPACT_MAX_H - 1)).toBe(true);
+    expect(isCompactLayout(COMPACT_MAX_H)).toBe(false);
   });
 });

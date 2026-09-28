@@ -192,6 +192,7 @@ export function pumpGamepad(): void {
   const live = livePad(pad.latched, now);
   const move = stickVector(gp.axes[0] ?? 0, gp.axes[1] ?? 0);
   const aim = stickVector(gp.axes[2] ?? 0, gp.axes[3] ?? 0, 0.3);
+  if (aim.x || aim.y) mouse.used = false; // #170: the right stick takes aim back from a mouse that moved earlier, same as a touch tap does
   Object.assign(pad, { moveX: move.x, moveY: move.y, aimX: aim.x, aimY: aim.y, ability: PAD_ABILITY_BUTTONS.some((i) => live[i]), utility: PAD_UTILITY_BUTTONS.some((i) => live[i]) });
 }
 

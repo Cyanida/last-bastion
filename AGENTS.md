@@ -174,8 +174,16 @@ These are the extra duties of the agent that works for the maintainer. A contrib
 
   **Never `APPROVE`**: it would post as @Cyanida and count as Jesse's approval. When your verdict is **Recommend merging** and every check
   is green, merge the pull request into its release branch yourself (`git merge --no-ff` and push; GitHub marks it merged).
+- **Road to the Crown** ([docs/road-to-the-crown.md](docs/road-to-the-crown.md)) is Jesse's go for everything in it, up to v1.0.0.
+  - Where it leaves a design question open, pick the most balanced option that fits the plan. Note it on the issue ("🤖 Decided: ..."),
+    add it to the plan's decisions log, and carry on.
+  - Its gates are shown to Jesse on the issue (preview images under `docs/review/`, sim output), without waiting for him. A later comment
+    from him is acted on first.
 - **Jesse only gets complete releases.** Work lives on release branches (`release/x.y.z` from main, `patch/x.y.z` from the last release
   tag).
+  - Up to v1.0.0, each release branch starts from the previous release's branch instead: `release/0.9.0` from `patch/0.8.3`,
+    `release/0.10.0` from `release/0.9.0`, and so on. The next release is built while the one before waits for Jesse's merge. Keep a
+    branch current by merging its parent release branch when that gets new commits. The release pull requests are merged in version order.
   - Your own issues are built on short branches from the release branch, checked, and merged into it without a pull request.
   - When every issue of a milestone is done, add the release commit and open **one** pull request from the release branch into `main`.
     Label it **`ready to merge`** ("Ready to merge to main: all issues for this merge have been completed") only when it is complete

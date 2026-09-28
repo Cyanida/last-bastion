@@ -31,7 +31,7 @@ const loose = timer('aimFan', (g, { e, tele, o }: { e: Enemy; tele: Telegraph; o
   if (e.dead || e.telegraph !== tele) return; // slain, stunned or overridden: the volley never comes
   e.telegraph = null;
   for (let i = 0; i < o.count; i++) {
-    fireProjectile(g, e.x, e.y, lineAngle(tele, i), { damage: o.damage, crit: false, hostile: true, pierce: 0, shape: 'orb', color: o.color ?? COLORS[o.dtype ?? 'physical'], r: 7, speed: o.speed, range: o.range, dtype: o.dtype });
+    fireProjectile(g, e.x, e.y, lineAngle(tele, i), { damage: o.damage, crit: false, hostile: true, pierce: 0, shape: 'orb', color: o.color ?? COLORS[o.dtype ?? 'physical'], r: 7, speed: o.speed, range: o.range, dtype: o.dtype, owner: e });
   }
 });
 

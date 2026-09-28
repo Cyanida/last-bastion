@@ -133,4 +133,6 @@ const AUTHORED: Record<ArenaId, ArenaDef> = {
 /** The playable maps: each authored arena is the core of a bigger map with wings behind gates (config/regions.ts). */
 export const ARENAS = Object.fromEntries(Object.entries(AUTHORED).map(([id, def]) => [id, expandArena(def)])) as Record<ArenaId, ArenaDef>;
 /** The arenas a run can start in, and that Acts rotate through. The Last Bastion is only ever Act IV (config/acts.ts FINAL). */
+/** #182: seconds before an arena's first hazard, at the run's start and again in each new Act's arena. */
+export const HAZARD_GRACE = 5;
 export const ARENA_IDS: ArenaId[] = ['courtyard', 'graveyard', 'keep'];
