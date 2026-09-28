@@ -59,6 +59,12 @@ export function readBackups(kv: KV = local): SaveBackup[] {
   return Array.isArray(list) ? list.filter((b): b is SaveBackup => b && typeof b.text === 'string' && typeof b.at === 'string') : [];
 }
 
+/** v0.8.3 (#175): set a save's text aside as the newest backup; an older copy of the same text moves up instead of being kept twice. */
+function keepBackup(kv: KV, text: string, now: string): void {
+  const rest = readBackups(kv).filter((b) => b.text !== text);
+  kv.set(BACKUP_KEY, JSON.stringify([{ at: now, version: versionOf(parse(text)), text }, ...rest].slice(0, BACKUPS_KEPT)));
+}
+
 /**
  * Load the save. Anything that is not the current format (an older version, a future one, corrupt text) is set aside raw first, newest
  * first, at most BACKUPS_KEPT, never twice the same text. The stored save is only read here, never written: a migration that fails leaves
@@ -69,8 +75,7 @@ export function loadSaveFrom(kv: KV, now = new Date().toISOString()): { save: Sa
   const raw = parse(text);
   const legacy = parse(kv.get(LEGACY_BEST_KEY));
   if (text !== null && versionOf(raw) !== SAVE_VERSION) {
-    const backups = readBackups(kv);
-    if (backups[0]?.text !== text) kv.set(BACKUP_KEY, JSON.stringify([{ at: now, version: versionOf(raw), text }, ...backups].slice(0, BACKUPS_KEPT)));
+    if (readBackups(kv)[0]?.text !== text) keepBackup(kv, text, now);
   }
   if (text === null || readable(raw)) {
     try {
@@ -100,12 +105,17 @@ export function loadSave(): { save: Save; restored: SaveBackup | null } {
 export function restoreBackup(b: SaveBackup, kv: KV = local): void {
   const current = kv.get(SAVE_KEY);
   if (current !== null && current !== b.text) {
-    const backups = readBackups(kv).filter((x) => x.text !== b.text);
-    kv.set(BACKUP_KEY, JSON.stringify([{ at: new Date().toISOString(), version: versionOf(parse(current)), text: current }, ...backups].slice(0, BACKUPS_KEPT)));
+    kv.set(BACKUP_KEY, JSON.stringify(readBackups(kv).filter((x) => x.text !== b.text))); // the restored one is the save now
+    keepBackup(kv, current, new Date().toISOString());
   }
   kv.set(SAVE_KEY, b.text);
 }
 
+/** v0.8.3 (#175): before an imported save replaces the stored one, that one is kept as a backup (Settings › Save data › Restore). */
+export function backupSave(kv: KV = local, now = new Date().toISOString()): void {
+  const current = kv.get(SAVE_KEY);
+  if (current !== null) keepBackup(kv, current, now);
+}
 export function storeSave(save: Save): void {
   local.set(SAVE_KEY, JSON.stringify(save));
 }

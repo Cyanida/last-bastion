@@ -31,7 +31,7 @@ import type { Action } from '../input/mapping';
 import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
 import { nextTierRequirement } from '../logic/difficulty';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
-import { exportSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
+import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
 import { ACT_THEMES, ACTS, FINAL, MERCHANT, type BookId } from '../config/acts';
@@ -568,7 +568,7 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
 
-export function showSaveDialog(save: Save, on: { import: (text: string) => boolean; reset: () => void; back: () => void; backups: SaveBackup[]; restore: (b: SaveBackup) => void }): void {
+export function showSaveDialog(save: Save, on: { import: (save: Save) => void; reset: () => void; back: () => void; backups: SaveBackup[]; restore: (b: SaveBackup) => void }): void {
   const el = show(`
     <div class="panel dialog wide">
       <h1 class="small">Save data</h1>
@@ -582,7 +582,7 @@ export function showSaveDialog(save: Save, on: { import: (text: string) => boole
         <button class="btn" data-act="back">Back</button>
       </div>
       ${on.backups.length ? `<h2>Restore previous version</h2>
-      <p class="hint">Before a new version changes your save, the old one is kept here (the last ${on.backups.length === 1 ? 'one' : on.backups.length}). Restoring replaces your current progress; the current save is kept as a backup in turn.</p>
+      <p class="hint">Before a new version or an import replaces your save, the old one is kept here (the last ${on.backups.length === 1 ? 'one' : on.backups.length}). Restoring replaces your current progress; the current save is kept as a backup in turn.</p>
       <div class="row">${on.backups.map((b, i) => `<button class="btn small" data-restore="${i}">${new Date(b.at).toLocaleString()} · ${saveFormatLabel(b.version)}</button>`).join('')}</div>` : ''}
     </div>`);
   click(el, '[data-restore]', (b) => {
@@ -599,7 +599,15 @@ export function showSaveDialog(save: Save, on: { import: (text: string) => boole
       area.select();
       void navigator.clipboard?.writeText(area.value);
       msg.textContent = 'Copied to the clipboard.';
-    } else if (act === 'import') msg.textContent = on.import(area.value) ? 'Save imported.' : 'That is not a valid Last Bastion save.';
+    } else if (act === 'import') {
+      const imported = importSave(area.value);
+      if (!imported) msg.textContent = 'That is not a valid Last Bastion save.';
+      // v0.8.3 (#175): ask first; the save it replaces is kept as a backup
+      else if (confirm('Import this save? Your current progress is replaced; it is kept as a backup.')) {
+        on.import(imported);
+        document.getElementById('save-msg')!.textContent = 'Save imported.';
+      }
+    }
     else if (confirm('Erase ALL progress — gold, upgrades, mastery, achievements and records? This cannot be undone.')) on.reset();
   });
 }

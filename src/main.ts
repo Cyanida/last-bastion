@@ -15,7 +15,7 @@ import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
 import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as setPerfOverlay, summary } from './core/perf';
 import { particleBudget, quality, sampleFrame, setQuality } from './core/quality';
-import { loadSave, prefs, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
+import { backupSave, loadSave, prefs, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
 import type { Game } from './core/types';
 import { createGame } from './game';
 import { banked, createTestRun, isTestRun, type TestSetup } from './systems/testMode';
@@ -30,7 +30,7 @@ import { nextAct, reforgeChoices } from './systems/acts';
 import { questTake } from './systems/quests';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
-import { buyMeta, defaultSave, importSave, type Save, buyBuilding, today } from './logic/save';
+import { buyMeta, defaultSave, type Save, buyBuilding, today } from './logic/save';
 import { buildArena, loadProps, propsLoaded } from './render/arena';
 import { ENEMIES, type EnemyId } from './config/enemies';
 import { cameraFor, foeAnim, foesDying, minionAnim, playerAnim, render, renderBackdrop, setSpotlight, spotlightOn, type View } from './render/renderer';
@@ -317,10 +317,10 @@ function toSaveDialog(): void {
   menu();
   showSaveDialog(save, {
     back: toSettings,
-    import(text) {
-      const imported = importSave(text);
-      if (imported) commit(imported);
-      return imported !== null;
+    import(imported) {
+      backupSave(); // v0.8.3 (#175): the save it replaces stays restorable
+      commit(imported);
+      toSaveDialog(); // the Restore list now shows it
     },
     reset() {
       wipeSave();
