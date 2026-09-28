@@ -22,7 +22,7 @@ import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
 import * as kit from './kit';
 import { duoTier, familySets, looseRelics, halfAttunement, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
-import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
+import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicRarity, relicTip, tierBadge } from './relicText';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
 import { SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
@@ -1130,46 +1130,52 @@ export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r
   onActions((a) => a === 'confirm' && on.leave());
 }
 
-/** The relic compendium in the Keep (v0.7): every relic by family, discovered or not, with its tiers and awakening, and each family's sets. */
+/**
+ * The relic compendium in the Keep (v0.7): every relic by family, discovered or not, with its tiers and awakening, and each family's sets.
+ * #187: in the kit: a wood frame, a ribbon, the list on parchment, each relic a row with its icon in the frame of its rarity.
+ */
 export function showCompendium(save: Save, onBack: () => void): void {
   const found = (id: RelicId) => save.relicPicks[id] ?? 0;
   const card = (id: RelicId) => {
     const r = relicDef(id);
     const n = found(id);
     const who = r.classId ? ` · ${CLASSES[r.classId].name}` : '';
-    if (n === 0) return `<div class="card panel boon relic-card undiscovered" style="--fam:${keyColor(id)}" data-tip="${esc(`Not found yet. A ${r.family ? `${r.rarity} ${FAMILIES[r.family].name}` : 'cursed'} relic${r.classId ? ` for the ${CLASSES[r.classId].name}` : ''}.`)}"><div class="relic-icon">?</div><h2>Unknown</h2><div class="tag">${r.rarity}${who}${save.newRelics.includes(id) ? ' · <b class="new">new in v0.7</b>' : ''}</div></div>`;
+    if (n === 0) return kit.row(`<b>Unknown</b><div class="tag">${r.rarity}${who}${save.newRelics.includes(id) ? ' · <b class="new">new in v0.7</b>' : ''}</div>`, { cls: 'comp-card locked undiscovered', attrs: `data-relic="${id}" data-tip="${esc(`Not found yet. A ${r.family ? `${r.rarity} ${FAMILIES[r.family].name}` : 'cursed'} relic${r.classId ? ` for the ${CLASSES[r.classId].name}` : ''}.`)}"`, lead: kit.rarityGlyph(relicRarity(id), '?') });
     const tiers = [1, 2].map((t) => `<div class="tierline"><b>${TIER_NUMERALS[t]}</b> ${relicDesc(id, t)}</div>`).join('');
-    return `<div class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}"><div class="relic-icon">${r.icon}</div><h2>${r.name}</h2><div class="tag">${r.cursed ? 'cursed' : r.rarity}${who} · found ${n}×</div>${tiers}<div class="tierline"><b>III</b> <em>${r.awaken.name}</em>: ${r.awaken.desc}</div></div>`;
+    return kit.row(`<b>${r.name}</b><div class="tag">${r.cursed ? 'cursed' : r.rarity}${who} · found ${n}×</div>${tiers}<div class="tierline"><b>III</b> <em>${r.awaken.name}</em>: ${r.awaken.desc}</div>`, { cls: `comp-card${r.cursed ? ' cursed' : ''}`, attrs: `data-relic="${id}"`, lead: kit.rarityGlyph(relicRarity(id), r.icon) });
   };
   const family = (f: (typeof FAMILY_IDS)[number]) => {
     const fam = FAMILIES[f];
     const prefer = (fam.preferredBy as readonly string[]).map((c) => CLASSES[c as keyof typeof CLASSES].name).join(', ');
-    return `<h2 style="color:${fam.color}">${fam.icon} ${fam.name}</h2><p class="hint">${fam.mechanic}. ${([2, 4, 6] as const).map((l) => `<b>${l} ${fam.sets[l][0]}</b>: ${fam.sets[l][1]}`).join(' ')} Can be maxed by: ${prefer}.</p>
-      <div class="cards wrap">${RELIC_IDS.filter((id) => relicDef(id).family === f).map(card).join('')}</div>`;
+    return `<h2 style="--fam:${fam.color}">${kit.icon(f)}${fam.name}</h2><p class="hint">${fam.mechanic}. ${([2, 4, 6] as const).map((l) => `<b>${l} ${fam.sets[l][0]}</b>: ${fam.sets[l][1]}`).join(' ')} Can be maxed by: ${prefer}.</p>
+      <div class="comp-grid">${RELIC_IDS.filter((id) => relicDef(id).family === f).map(card).join('')}</div>`;
   };
+  // a duo or an evolution: its icon in the gold (signature) frame once discovered, a greyed ? until then
+  const recipe = (known: boolean, icon: string, head: string, body: string) =>
+    kit.row(`${head}${body}`, { cls: `recipe${known ? ' known' : ' locked'}`, lead: kit.rarityGlyph('signature', known ? icon : '?') });
   const discovered = RELIC_IDS.filter((id) => found(id) > 0).length;
   const el = show(`
-    <div class="panel dialog wide compendium">
-      <h1 class="small">Relic compendium</h1>
+    <div class="kit-frame kit-book compendium">
+      ${kit.closeButton('back', { cls: 'kit-corner', attrs: 'data-back' })}
+      <h1 class="kit-head">${kit.ribbon('Relic compendium')}</h1>
       <p class="sub">${discovered} / ${RELIC_IDS.length} discovered · seven families; 2, 4 and 6 of a family unlock its set bonuses · a relic attunes as it works: tier II, then it awakens</p>
-      ${FAMILY_IDS.map(family).join('')}
-      <h2 style="color:${CURSED.color}">☠ Cursed</h2><p class="hint">No family and no set bonus, far stronger than any other relic, and each carries a curse; awakening it lifts the curse. At most one is offered an Act, as the purple third card of a wave boss or a lair.</p>
-      <div class="cards wrap">${CURSED_IDS.map(card).join('')}</div>
+      ${kit.parch(`${FAMILY_IDS.map(family).join('')}
+      <h2 style="--fam:${CURSED.color}">☠ Cursed</h2><p class="hint">No family and no set bonus, far stronger than any other relic, and each carries a curse; awakening it lifts the curse. At most one is offered an Act, as the purple third card of a wave boss or a lair.</p>
+      <div class="comp-grid">${CURSED_IDS.map(card).join('')}</div>
       <h2>Duos · ${save.duos.length} / ${DUO_IDS.length} discovered</h2>
       <p class="hint">Hold both relics of a recipe and a relic moment offers the duo as a gold fourth card; it combines the two into one relic that attunes as one, the families keep their counts, and each relic feeds one duo. A discovered duo shows in full.</p>
       <div class="recipes">${DUO_IDS.map((id) => {
         const d = DUOS[id];
         const known = save.duos.includes(id);
-        return `<div class="recipe ${known ? 'known' : ''}"><span>${known ? `${d.icon} ${d.name}` : '? Unknown duo'} <em>${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</em></span>${known ? `<p>${d.desc}</p>` : ''}<i>${d.from.map((r) => relicDef(r).name).join(' + ')}</i></div>`;
+        return recipe(known, d.icon, `<span><b>${known ? d.name : 'Unknown duo'}</b> <em>${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</em></span>`, `${known ? `<p>${d.desc}</p>` : ''}<i>${d.from.map((r) => relicDef(r).name).join(' + ')}</i>`);
       }).join('')}</div>
       <h2>Evolutions · ${save.evolutions.length} / ${EVOLUTION_IDS.length} discovered</h2>
       <p class="hint">Three for each champion's signature ability, two for the second one. Meet both halves of a recipe in a run and the next level-up offers it as a gold card; one of each kind a run. A discovered recipe shows in full.</p>
-      <div class="recipes">${CLASS_ORDER.map((c) => `<div class="recipe-class"><b>${CLASSES[c].name}</b>${EVOLUTION_IDS.filter((id) => EVOLUTIONS[id].classId === c).map((id) => {
+      <div class="recipes">${CLASS_ORDER.map((c) => `<div class="recipe-class"><h3>${CLASSES[c].name}</h3>${EVOLUTION_IDS.filter((id) => EVOLUTIONS[id].classId === c).map((id) => {
         const e = EVOLUTIONS[id];
         const known = save.evolutions.includes(id);
-        return `<div class="recipe ${known ? 'known' : ''}"><span>${known ? `${e.icon} ${e.name}` : '? Unknown evolution'} <em>${e.slot === 'signature' ? CLASSES[c].ability.name : UTILITIES[c].name}</em></span>${known ? `<p>${e.desc}</p>` : ''}<i>${e.requires.map((r) => requirementText(r, !known)).join(' + ')}</i></div>`;
-      }).join('')}</div>`).join('')}</div>
-      <button class="btn" data-back>Back</button>
+        return recipe(known, e.icon, `<span><b>${known ? e.name : 'Unknown evolution'}</b> <em>${e.slot === 'signature' ? CLASSES[c].ability.name : UTILITIES[c].name}</em></span>`, `${known ? `<p>${e.desc}</p>` : ''}<i>${e.requires.map((r) => requirementText(r, !known)).join(' + ')}</i>`);
+      }).join('')}</div>`).join('')}</div>`, { cls: 'kit-scroll' })}
     </div>`);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack()); // #182: Esc goes back to the Keep, like its sibling screens
@@ -1214,12 +1220,12 @@ export function showWhatsNew(w: WhatsNew, onBack: () => void): void {
 export function showGlossary(onBack: () => void, cards: CardId[] = []): void {
   const met = cards.map((id) => ({ id, ...cardInfo(id) })).sort((a, b) => a.name.localeCompare(b.name));
   const el = show(`
-    <div class="panel dialog wide glossary">
-      <h1 class="small">Glossary</h1>
+    <div class="kit-frame kit-book glossary">
+      ${kit.closeButton('back', { cls: 'kit-corner', attrs: 'data-back' })}
+      <h1 class="kit-head">${kit.ribbon('Glossary')}</h1>
       <p class="sub">The words the game uses, and what they mean. Tooltips underline them and explain them too.</p>
-      <dl>${[...GLOSSARY].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<dt>${t.name}</dt><dd>${t.def}</dd>`).join('')}</dl>
-      ${met.length ? `<h2 class="small">Foes and marks met</h2><dl class="cards-met">${met.map((c) => `<dt>${cardPicture(c.id)}${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}
-      <button class="btn" data-back>Back</button>
+      ${kit.parch(`<dl>${[...GLOSSARY].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<dt>${t.name}</dt><dd>${t.def}</dd>`).join('')}</dl>
+      ${met.length ? `<h2>Foes and marks met</h2><dl class="cards-met">${met.map((c) => `<dt>${cardPicture(c.id)}${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}`, { cls: 'kit-scroll' })}
     </div>`);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
@@ -1254,12 +1260,11 @@ function cardPicture(id: CardId, foe?: CardPictureFoe): string {
 export function showFlashCard(id: CardId, foe: CardPictureFoe | undefined, onDone: (pause: boolean) => void): void {
   const c = cardInfo(id);
   const el = show(`
-    <div class="panel dialog flash-card${c.boss ? ' boss' : ''}" data-card="${id}">
-      <div class="tag">${c.boss ? 'Boss' : 'New'}</div>
+    <div class="kit-frame flash-card${c.boss ? ' boss' : ''}" data-card="${id}">
+      ${kit.ribbon(c.boss ? 'Boss' : 'New', { cls: 'tag' })}
       ${cardPicture(id, foe)}
-      <h2>${c.name}</h2>
-      <p>${c.text}</p>
-      <button class="btn big" data-leave>Got it</button>
+      ${kit.parch(`<h2>${c.name}</h2><p>${c.text}</p>`)}
+      ${kit.button('Got it', { kind: 'gold', size: 'big', attrs: 'data-leave' })}
     </div>`);
   click(el, '[data-leave]', () => onDone(false));
   onActions((a) => (a === 'confirm' || a === 'cancel' || a === 'pause') && onDone(a === 'pause'));

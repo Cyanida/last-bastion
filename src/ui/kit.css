@@ -478,3 +478,78 @@
 .compact .keep-head h1 { font-size: 17px; }
 .compact .keep-plate { font-size: 10px; padding: 0 5px; }
 .compact .keep-panel { padding: 10px; }
+/* ---------- #187: the compendium, the glossary and the flash cards in the kit ----------
+   .kit-book: a frame that reads like a book: a ribbon heading, the close button in its corner, and a parchment that scrolls */
+.kit-book {
+  display: flex;
+  flex-direction: column;
+  width: min(880px, calc(96 * var(--vw)));
+  max-height: calc(94 * var(--vh));
+  padding: 16px 18px 18px;
+}
+.kit-corner { position: absolute; top: 12px; right: 12px; z-index: 2; }
+.kit-head { margin: 4px 0 0; font-size: inherit; line-height: 1; text-align: center; text-shadow: none; }
+.kit-book > .sub { margin: 10px 44px 12px; text-align: center; font-size: 16px; color: var(--kit-light); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6); }
+.kit-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; text-align: left; }
+.kit-book .kit-parch h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 6px;
+  padding-bottom: 3px;
+  font: 800 20px var(--kit-num);
+  letter-spacing: 0.04em;
+  border-bottom: 3px solid var(--fam, var(--kit-brass-dark));
+}
+.kit-book .kit-parch h2:first-child { margin-top: 4px; }
+.kit-book .kit-parch .hint { margin: 0 0 8px; opacity: 0.85; }
+.kit-glyph { font-size: 30px; font-weight: normal; line-height: 1; }
+
+/* a relic: a row with its icon in its rarity frame; not found yet, a greyed ? */
+.comp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); align-items: start; gap: 10px; margin-bottom: 6px; }
+.comp-card { align-items: flex-start; }
+.comp-card .kit-row-body b { overflow-wrap: break-word; }
+.comp-card .tag { text-align: left; font-size: 12px; font-weight: bold; opacity: 0.75; }
+.comp-card.cursed .tag { color: #5b2380; opacity: 1; } /* v0.7.1 B6: a cursed relic says so, in its purple */
+.comp-card .tag .new { color: #8a5a00; } /* v0.7 A7: new in the compendium */
+.kit-parch .tierline b { color: var(--kit-brass-dark); text-shadow: none; }
+
+/* duos and evolutions: gold (signature) frames once discovered */
+.recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); align-items: start; gap: 10px; margin: 6px 0 12px; }
+.recipe-class { display: grid; align-content: start; gap: 8px; }
+.recipe-class h3 { margin: 0; font: 800 16px var(--kit-num); letter-spacing: 0.04em; }
+.recipe { align-items: flex-start; font-size: 14px; }
+.recipe em { font-size: 12px; opacity: 0.75; }
+.recipe p { margin: 2px 0; font-size: 13px; }
+.recipe i { display: block; font-size: 13px; color: #6b4a08; }
+
+/* the glossary: each term in Cinzel, its meaning under it */
+.glossary dl { margin: 0; }
+.glossary dt { margin-top: 10px; font: 800 15px var(--kit-num); letter-spacing: 0.03em; }
+.glossary dd { margin: 2px 0 0; }
+.glossary .cards-met dt { display: flex; align-items: center; }
+
+/* a flash card: the ribbon says New or Boss, the foe on the wood, what it does on parchment, one gold button */
+.flash-card { display: grid; justify-items: center; gap: 10px; width: min(360px, calc(92 * var(--vw))); padding: 18px 20px 22px; text-align: center; }
+.flash-card .kit-ribbon { margin-top: 2px; }
+.flash-card.boss .kit-ribbon { font-size: 22px; }
+.flash-card .card-pic { margin-top: 0; }
+.flash-card .kit-parch { width: 100%; box-sizing: border-box; }
+.flash-card .kit-parch h2 { margin: 0; font: 800 22px var(--kit-num); letter-spacing: 0.03em; }
+.flash-card .kit-parch p { margin: 6px 0 2px; font-size: 1.15em; }
+
+.compact .kit-book { padding: 10px 12px 12px; }
+/* the glossary from the pause menu on a phone: the book covers the HUD whole, so it takes the full height, not the space under the plate (#177) */
+.compact #hud:not(.hidden) ~ #overlay:has(> .kit-book) { align-items: safe center; padding-top: max(16px, env(safe-area-inset-top)); }
+.compact .kit-book > .sub { margin: 6px 44px 8px; font-size: 13px; }
+.compact .kit-corner { top: 8px; right: 8px; }
+.compact .kit-head .kit-ribbon { font-size: 14px; padding: 4px 18px 3px; }
+.compact .comp-card .kit-rarity, .compact .recipe .kit-rarity { width: 44px; height: 44px; }
+.compact .comp-card .kit-glyph, .compact .recipe .kit-glyph { font-size: 22px; }
+/* a phone mid-run anchors the overlay under the HUD's wave plate (#177): the card goes wide, the foe beside its text, so it fits */
+.compact .flash-card { grid-template-columns: auto 1fr; grid-template-areas: 'tag tag' 'pic text' 'pic go'; align-items: center; gap: 6px 14px; width: min(520px, calc(92 * var(--vw))); padding: 12px 16px 16px; }
+.compact .flash-card .kit-ribbon { grid-area: tag; justify-self: center; font-size: 14px; padding: 4px 18px 3px; }
+.compact .flash-card .card-pic { grid-area: pic; }
+.compact .flash-card .kit-parch { grid-area: text; padding: 6px 10px; }
+.compact .flash-card .kit-btn { grid-area: go; justify-self: center; }
+.compact .flash-card .kit-parch h2 { font-size: 18px; }

@@ -301,6 +301,101 @@ await check('Settings and results: the UI kit, their controls work, all in the w
   return { ok: seen.every((x) => x.ok), detail: seen.map((x) => x.detail).join(' | ') };
 });
 
+// #187: the compendium, the glossary and the flash cards in the kit, played at 1280x720 with the mouse and in phone landscape by touch:
+// each is a wood frame with a ribbon heading that fits the screen, what you read on parchment that scrolls, the round back button in its
+// corner (which goes back); every relic row has its icon in the frame of its rarity; a flash card's one button is gold and closes it
+await check('menus: the compendium, glossary and flash cards in the kit, every relic in its rarity frame, at 1280x720 and phone landscape (#187)', async () => {
+  const seen = [];
+  for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    // a save that found a common, a legendary and a champion's own relic, and met two foes and a mark
+    await p.evaluate(() => {
+      const s = window.__lb.save;
+      s.relicPicks = { brimstoneOil: 2, dragonsTongue: 1, fireArrows: 1 };
+      s.cards = ['peasant', 'wolf', 'elite'];
+    });
+    // what a kit book looks like on screen: fits, its ribbon heading, a parchment that scrolls, the back button inside the frame
+    const book = (sel) => p.evaluate(async (sel) => {
+      const b = document.querySelector(`#overlay > .kit-frame.kit-book${sel}`);
+      if (!b) return null;
+      const r = b.getBoundingClientRect(), back = b.querySelector('.kit-corner.kit-close[data-back]').getBoundingClientRect();
+      const scroll = b.querySelector('.kit-parch.kit-scroll');
+      const before = scroll.scrollTop;
+      scroll.scrollTop = 400;
+      const scrolls = scroll.scrollTop > before && scroll.scrollHeight > scroll.clientHeight;
+      scroll.scrollTop = 0;
+      return {
+        fits: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1,
+        ribbon: b.querySelector('h1 .kit-ribbon')?.textContent,
+        scrolls,
+        back: back.width >= 38 && back.right <= r.right && back.top >= r.top && getComputedStyle(b.querySelector('.kit-close .kit-icon')).backgroundImage.includes('ui-icons.png'),
+        font: getComputedStyle(b.querySelector('.kit-parch h2, .kit-parch dt')).fontFamily,
+      };
+    }, sel);
+    const heading = () => p.locator('#overlay h1').first().textContent();
+    await press('[data-go="keep"]');
+    await press('[data-compendium]');
+    const comp = await book('.compendium');
+    const rows = await p.evaluate(() => {
+      const rows = [...document.querySelectorAll('.compendium .comp-card')];
+      const frame = (id) => document.querySelector(`.comp-card[data-relic="${id}"] > .kit-rarity`);
+      const rim = (id) => getComputedStyle(frame(id)).borderTopColor;
+      return {
+        n: rows.length,
+        framed: rows.filter((r) => r.firstElementChild?.matches('.kit-rarity.common, .kit-rarity.rare, .kit-rarity.legendary, .kit-rarity.class')).length,
+        found: rows.filter((r) => !r.classList.contains('locked')).map((r) => `${r.querySelector('.kit-row-body > b').textContent} ${r.firstElementChild.classList[1]}`),
+        glyph: frame('dragonsTongue').textContent === '🐉',
+        colours: new Set(['brimstoneOil', 'dragonsTongue', 'fireArrows'].map(rim)).size,
+        recipes: document.querySelectorAll('.compendium .recipe > .kit-rarity.signature').length,
+        total: Number(document.querySelector('.compendium .sub').textContent.match(/\/ (\d+)/)?.[1]),
+      };
+    });
+    await press('.compendium [data-back]');
+    const fromComp = await heading();
+    await press('[data-glossary]');
+    const gloss = await book('.glossary');
+    const terms = await p.evaluate(() => ({ terms: document.querySelectorAll('.glossary .kit-parch > dl:first-child dt').length, met: document.querySelectorAll('.glossary .cards-met dt .card-pic').length }));
+    await press('.glossary [data-back]');
+    const fromGloss = await heading();
+    // a real run by the real screens: the first foe brings its flash card
+    await press('[data-back]');
+    await press('[data-go="start"]');
+    await press('[data-class="viking"]');
+    await press('[data-start]');
+    await p.waitForFunction(() => !!window.__lb.game); // the run is on (its quest board up); the loop below answers it, as a run's checks do
+    const card = await p.evaluate(() => {
+      const lb = window.__lb;
+      lb.save.cards = [];
+      lb.game.player.invulnerable = true;
+      for (let i = 0; i < 3000 && !document.querySelector('[data-card]'); i++) lb.run(1, false, true);
+      const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+      if (!c) return null;
+      const r = c.getBoundingClientRect(), btn = c.querySelector('.kit-btn.gold.big[data-leave]');
+      return {
+        fits: r.top >= 0 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1,
+        ribbon: c.querySelector('.kit-ribbon')?.textContent,
+        text: !!c.querySelector('.kit-parch h2') && !!c.querySelector('.kit-parch p')?.textContent,
+        pic: !!c.querySelector('.card-pic'),
+        gold: btn?.textContent === 'Got it' && c.querySelectorAll('.kit-btn.gold').length === 1,
+      };
+    });
+    if (card) await press('[data-leave]');
+    const closed = await p.evaluate(async () => (await new Promise((r) => setTimeout(r, 100)), !document.querySelector('[data-card]') && window.__lb.state === 'playing'));
+    await p.close();
+    const ok = !!comp && comp.fits && comp.ribbon === 'Relic compendium' && comp.scrolls && comp.back && /Cinzel/.test(comp.font) &&
+      rows.n === rows.total && rows.framed === rows.n && rows.found.join() === "Brimstone Oil common,Dragon's Tongue legendary,Fire Arrows class" && rows.glyph && rows.colours === 3 && rows.recipes > 0 &&
+      fromComp === 'The Keep' && !!gloss && gloss.fits && gloss.ribbon === 'Glossary' && gloss.scrolls && gloss.back && /Cinzel/.test(gloss.font) && terms.terms > 10 && terms.met === 3 && fromGloss === 'The Keep' &&
+      !!card && card.fits && card.ribbon === 'New' && card.text && card.pic && card.gold && closed && errs.length === 0;
+    seen.push({ ok, detail: `${w}x${h}${touch ? ' touch' : ''}: compendium ${comp ? `fits ${comp.fits}, "${comp.ribbon}", scrolls ${comp.scrolls}, back ${comp.back}` : 'NOT IN THE KIT'}, ${rows.framed}/${rows.n} framed (${rows.found.join(', ')}; ${rows.colours} colours), back to ${fromComp}; glossary ${gloss ? `fits ${gloss.fits}, ${terms.terms} terms, ${terms.met} met, scrolls ${gloss.scrolls}` : 'NOT IN THE KIT'}, back to ${fromGloss}; flash card ${card ? `fits ${card.fits}, "${card.ribbon}", gold ${card.gold}` : 'NONE'}, closed ${closed}${errs.length ? `, errors: ${errs[0]}` : ''}` });
+  }
+  return { ok: seen.every((s) => s.ok), detail: seen.map((s) => s.detail).join(' · ') };
+});
+
 // #138: the champions are drawn on a grid twice as fine, and show at the same size as before on the class select
 await check('class select: champions on the finer grid keep their size, at one scale, standing on one line (#156)', () =>
   inPage(async () => {
@@ -2190,7 +2285,7 @@ await check('compendium: no card text falls off its card', async () => {
         await wait();
         document.querySelector('[data-compendium]').click();
         await wait();
-        const cards = [...document.querySelectorAll('.compendium .relic-card')];
+        const cards = [...document.querySelectorAll('.compendium .comp-card')]; // #187: each relic a kit row
         const bad = [];
         for (const c of cards) {
           const box = c.getBoundingClientRect();
@@ -2201,7 +2296,7 @@ await check('compendium: no card text falls off its card', async () => {
             range.selectNodeContents(t);
             for (const r of range.getClientRects()) {
               if (r.left < box.left - 1 || r.right > box.right + 1 || r.top < box.top - 1 || r.bottom > box.bottom + 1) {
-                bad.push(`${c.querySelector('h2')?.textContent}: "${t.textContent.trim().slice(0, 20)}"`);
+                bad.push(`${c.querySelector('.kit-row-body > b')?.textContent}: "${t.textContent.trim().slice(0, 20)}"`);
                 break;
               }
             }
