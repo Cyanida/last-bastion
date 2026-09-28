@@ -211,6 +211,8 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
 
 /** #146: the champion picked on the class select; kept while its options re-render the screen. Starts as the last one played. */
 let selectedClass: ClassId | undefined;
+/** #182: the seed typed on the class select, kept while its options re-render the screen; Back or Start clears it. */
+let seedText = '';
 
 /** #156: the rigged champions' portrait scale on the class cards: the Paladin's figure (120 px at scale 6) shows at 84 px. */
 const PORTRAIT_K = 0.7;
@@ -284,7 +286,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       <div class="pickers curses">
         <div><span class="label">Curses</span>${CURSE_IDS.map(curseBtn).join('')}
           <span class="mult" data-tip="Every curse adds to the gold and class XP this run earns.">gold &amp; XP ×${curseMultiplier(save.settings.curses).toFixed(2)}</span></div>
-        <div><span class="label">Seed</span><input id="seed" maxlength="24" placeholder="random" autocomplete="off" spellcheck="false" data-tip="Type a seed from a results screen to replay that run." /></div>
+        <div><span class="label">Seed</span><input id="seed" maxlength="24" placeholder="random" value="${esc(seedText)}" autocomplete="off" spellcheck="false" data-tip="Type a seed from a results screen to replay that run." /></div>
       </div>
       <div class="pickers traits"><div><span class="label">Trait</span>${TRAIT_IDS.map(traitBtn).join('')}</div></div>
       ${oathMax ? `<div class="pickers oath"><div><span class="label">Oath</span>
@@ -312,7 +314,12 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     e.stopPropagation(); // the card underneath would take the click
     on.treasure(chip.dataset.treasure as ClassId);
   }));
-  const start = () => on.pick(selectedClass!, el.querySelector<HTMLInputElement>('#seed')!.value);
+  const seedIn = el.querySelector<HTMLInputElement>('#seed')!;
+  seedIn.oninput = () => (seedText = seedIn.value);
+  const start = () => {
+    seedText = '';
+    on.pick(selectedClass!, seedIn.value);
+  };
   // #146: a card selects its champion (no re-render, so the keyboard focus stays on it); a second click on it, or Start, begins the run
   click(el, '[data-class]', (b) => {
     if (b.dataset.class === selectedClass) return start();
@@ -328,7 +335,10 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   click(el, '[data-oath]', (b) => on.oath(Number(b.dataset.oath)));
   click(el, '[data-arena]', (b) => on.settings(b.dataset.arena as ArenaId, save.settings.tier));
   click(el, '[data-tier]', (b) => on.settings(save.settings.arena, Number(b.dataset.tier)));
-  click(el, '[data-back]', on.back);
+  click(el, '[data-back]', () => {
+    seedText = '';
+    on.back();
+  });
 }
 
 export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; chronicle: () => void; treasures: () => void; history: () => void; glossary: () => void; back: () => void }): void {
