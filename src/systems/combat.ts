@@ -523,8 +523,9 @@ export function updateFields(g: Game, dt: number): void {
       const inside = dist2(f.x, f.y, p.x, p.y) <= f.r * f.r;
       if (f.hostile) {
         if (inside) {
+          const before = p.hp;
           damagePlayer(g, f.dps * GAME.fieldTick, true, null, `${DAMAGE_TYPES[f.dtype].name.toLowerCase()} on the ground`);
-          if (f.apply) applyStatusTo(p.statuses, f.apply);
+          if (f.apply && p.hp < before) applyStatusTo(p.statuses, f.apply); // #182: a shield, ward, block or dodge keeps the burn off too, as with a blow
         }
         for (const m of g.minions) if (dist2(f.x, f.y, m.x, m.y) <= f.r * f.r) damageMinion(g, m, f.dps * GAME.fieldTick);
       } else {

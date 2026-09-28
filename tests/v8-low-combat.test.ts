@@ -4,7 +4,8 @@ import { TIERS } from '../src/config/economy';
 import type { Game } from '../src/core/types';
 import { createGame } from '../src/game';
 import { shootAt } from '../src/systems/aiHelpers';
-import { updateProjectiles } from '../src/systems/combat';
+import { addField } from '../src/entities/hazards';
+import { updateFields, updateProjectiles } from '../src/systems/combat';
 import { SPECIALS } from '../src/systems/specials';
 import { spawnEnemy } from '../src/systems/spawning';
 
@@ -47,5 +48,16 @@ describe('the remaining low combat items of the 28-09 check (#182)', () => {
     for (let i = 0; i < 120 && g.projectiles.length; i++) updateProjectiles(g, 1 / 60);
     expect(g.player.hp).toBeLessThan(g.player.stats.hp);
     expect(g.player.statuses.poison).toBeTruthy();
+  });
+
+  it('a burning field only sets you alight when its damage gets through, as a blow does', () => {
+    for (const shielded of [true, false]) {
+      const g = stage();
+      const p = g.player;
+      p.invulnerable = shielded; // Divine Shield
+      addField(g, { x: p.x, y: p.y, r: 80, life: 5, dps: 10, hostile: true, color: '#e07b28', dtype: 'fire', apply: { id: 'burn', power: 4 } });
+      updateFields(g, 1 / 60);
+      expect(!!p.statuses.burn).toBe(!shielded);
+    }
   });
 });

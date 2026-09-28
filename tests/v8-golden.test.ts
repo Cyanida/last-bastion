@@ -20,6 +20,7 @@ import { simulateRun } from '../src/sim/bot';
  * +armor talents) plays out differently on purpose.
  * Re-recorded for #182 (v0.8.3): an enemy's bolt now carries its shooter, so its hit poisons, curses and draws thorns like a blow;
  * every run with ranged enemies changed on purpose, and paladin:1234 (now short of the boss) became paladin:5.
+ * Re-recorded for #182: a burning or poisoned field no longer sets its status on you when a shield, ward, block or dodge stops its damage.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -56,19 +57,19 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 
 // v0.8 #99 + #100 + #101: re-recorded on release/0.8.0 because boss draws, boss relic families and the Squire enemy roster changed on purpose
 const GOLDEN: Record<string, string> = {
-  'paladin:5': 'wave 15 kills 489 level 15 gold 1776 relics 6 hash 7f2b8204',
-  'paladin:98765': 'wave 16 kills 646 level 17 gold 2603 relics 6 hash c21246e4',
-  'viking:98765': 'wave 18 kills 753 level 18 gold 3233 relics 7 hash 1ce7baf4',
-  'viking:5': 'wave 18 kills 673 level 17 gold 3602 relics 7 hash 30d45a13',
-  'angel:1234': 'wave 16 kills 670 level 17 gold 2627 relics 5 hash cf01d259',
-  'angel:98765': 'wave 14 kills 571 level 15 gold 2188 relics 5 hash afc6c2a8',
+  'paladin:5': 'wave 15 kills 489 level 15 gold 1776 relics 6 hash ae9285a2',
+  'paladin:98765': 'wave 15 kills 616 level 16 gold 2502 relics 7 hash 1f1f4b28',
+  'viking:98765': 'wave 18 kills 768 level 18 gold 3312 relics 7 hash c53f8959',
+  'viking:5': 'wave 18 kills 676 level 18 gold 3636 relics 7 hash bb2efac8',
+  'angel:1234': 'wave 16 kills 670 level 17 gold 2627 relics 5 hash a78b6f00',
+  'angel:98765': 'wave 16 kills 727 level 18 gold 3513 relics 7 hash 7a7f8010',
   'necromancer:1234': 'wave 9 kills 290 level 10 gold 864 relics 4 hash 709acac7',
   'necromancer:5': 'wave 19 kills 724 level 19 gold 3196 relics 7 hash 1ae406b6',
-  'archer:2027': 'wave 9 kills 301 level 10 gold 883 relics 4 hash f502a6cf',
-  'archer:5': 'wave 19 kills 762 level 19 gold 4059 relics 6 hash eefe4012',
-  'paladin:7 meta': 'wave 15 kills 577 level 17 gold 2011 relics 7 hash 8a3f680a',
+  'archer:2027': 'wave 9 kills 301 level 10 gold 883 relics 4 hash 48aea908',
+  'archer:5': 'wave 21 kills 928 level 20 gold 5612 relics 9 hash 97accca6',
+  'paladin:7 meta': 'wave 16 kills 653 level 19 gold 2497 relics 7 hash e90ca7d0',
   'viking:98765 curse': 'wave 18 kills 808 level 18 gold 3899 relics 7 hash 2ec27a7e',
-  'angel:98765 oath 3': 'wave 15 kills 658 level 16 gold 3837 relics 7 hash b499e01a',
+  'angel:98765 oath 3': 'wave 13 kills 527 level 14 gold 2529 relics 5 hash b4058e85',
   'archer:5 variant 1': 'wave 14 kills 452 level 14 gold 2356 relics 5 hash 6a889c6',
 };
 
