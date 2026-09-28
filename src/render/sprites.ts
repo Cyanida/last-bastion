@@ -1,5 +1,6 @@
 import { GAME } from '../config/game';
 import type { AnimName, SheetData } from '../logic/animation';
+import { LRUCache } from '../logic/lruCache';
 import { spriteSize } from '../logic/spriteRes';
 
 /** Pixel-grid sprites. One char = one pixel, looked up in PALETTE. '.' is transparent. Sprites face right. #138: every champion, foe, commander, siege piece and boss is drawn on a grid twice as fine (SPRITE_RES); the skeleton minion keeps the old grid on purpose, its gaps between the bones read better there. */
@@ -1294,10 +1295,12 @@ export function loadSheets(): Promise<void> {
 }
 export const sheetLoaded = (id: string): boolean => sheetImages.has(id);
 
-const frames = new Map<string, Sprite>();
+const frames = new LRUCache<string, Sprite>(GAME.spriteFrameCacheCap);
 /**
  * One frame of a rigged sheet as a Sprite (with flips, hit-flash silhouettes and the palette filter), or null while its sheet
  * isn't loaded. 1 art pixel = 1 world pixel at GAME.spriteScale; the feet sit where a letter-grid sprite's feet would.
+ * #168: bounded (LRU) — a real run only ever draws a handful of id@scale@palette@anim combos, but the sprite gallery cycles
+ * every one of them at once, and an unbounded cache there grew past half a gigabyte of off-screen canvases.
  */
 export function sheetSprite(id: string, scale: number, palette: number, anim: AnimName, frame: number): Sprite | null {
   const d = SHEETS[id], img = sheetImages.get(id);

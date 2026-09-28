@@ -4,6 +4,7 @@ export const GAME = {
   tickRate: 60,
   spriteScale: 3,
   spatialCell: 64,
+  spriteFrameCacheCap: 256, // #168: rigged sheet frames (4 canvases each) kept per id@scale@palette@anim@frame; the sprite gallery alone cycles through 1000+, so this bounds it well below that
 
   // stat scaling
   statDamageScale: 0.04, // +4% damage per point of the attack's scaling stat
