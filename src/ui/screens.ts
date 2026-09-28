@@ -17,6 +17,7 @@ import { WAVES } from '../config/waves';
 import { TREASURE_RULES, TREASURES, treasureDesc, type TreasureId } from '../config/treasures';
 import { chainStep, followUpText, inText, nextFragmentBoss, rankFor } from '../logic/treasures';
 import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
+import { classFacts, statShare } from '../logic/roster';
 import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
 import * as kit from './kit';
 import { duoTier, familySets, looseRelics, halfAttunement, type RelicTiers } from '../logic/relics';
@@ -143,7 +144,7 @@ export function showTitle(info: TitleInfo, on: { start: () => void; daily: () =>
         ${info.daily.date ? kit.button(`Daily Trial${info.daily.best ? ` · best ${info.daily.best}` : ''}`, { kind: 'go', attrs: 'data-go="daily"' }) : ''}
         ${kit.button('The Keep', { icon: 'keep', attrs: 'data-go="keep"' })}
         ${kit.button('Chronicle', { icon: 'crown', attrs: 'data-go="chronicle"' })}
-        ${kit.button('Settings', { attrs: 'data-go="settings"' })}
+        ${kit.button('Settings', { icon: 'settings', attrs: 'data-go="settings"' })}
       </div>
       ${kit.frame(kit.parch(`<b>This week's contracts</b> <span class="dim">· new ones every Monday · Runes when a run completes one</span>
         ${info.contracts.map((c) => `<div class="contract ${c.progress >= c.target ? 'done' : ''}"><span>${c.progress >= c.target ? '✔ ' : ''}${c.text}</span><span>${c.progress.toLocaleString('en')}/${c.target.toLocaleString('en')} · ${kit.icon('runes')}${c.runes}</span></div>`).join('')}`, { cls: 'contracts' }))}
@@ -227,78 +228,101 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   const oathOf = (id: ClassId) => Math.min(save.settings.oath, oathCap(save.wins[id], save.oaths[id]));
   const sworn = save.settings.oath > 0 && oathMax > 0;
   selectedClass ??= save.runs.at(-1)?.classId ?? CLASS_ORDER[0];
-  const card = (c: ClassDef) => {
+  const roster = CLASS_ORDER.map((id) => CLASSES[id]);
+  const paletteOf = (c: ClassDef) => {
+    const palettes = [...new Set([...masteryBonus(save.classes[c.id].xp).palettes, ...save.palettes])].sort(); // mastery's own plus the account-wide ones from deeds
+    const chosen = save.settings.palettes[c.id] ?? 0;
+    return { palettes, chosen, n: palettes.includes(chosen) ? chosen : 0 };
+  };
+  // #65: the roster: a small tile per champion, in a strip that scrolls sideways, so more champions fit without a taller screen
+  const tile = (c: ClassDef) => {
+    const { palettes, chosen, n } = paletteOf(c);
+    const swatches = palettes.length ? `<div class="swatches">${[0, ...palettes].map((p) => `<span class="swatch ${chosen === p ? 'on' : ''}" data-palette="${c.id}:${p}" data-tip="${['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours'][p]}"><i style="filter:${SPRITE_PALETTES[p] || 'none'}"></i></span>`).join('')}</div>` : '';
+    return `
+    <button class="card champ ${selectedClass === c.id ? 'on' : ''}" data-class="${c.id}">
+      <div class="portrait" data-sprite="${c.sprite}" data-palette-n="${n}"></div>${swatches}
+      <b class="champ-name">${c.name}</b>
+      <span class="champ-rec">${save.wins[c.id] ? `${kit.icon('crown')}${save.wins[c.id]} · ` : ''}Mastery ${masteryRank(save.classes[c.id].xp)}</span>
+    </button>`;
+  };
+  // #65: the chosen champion in full, on a pedestal: stat bars against the roster's best, the facts the bars leave out, both abilities,
+  // families, treasure, Oath and record. One per champion, the others hidden, so picking one needs no re-render (#146)
+  const hero = (c: ClassDef) => {
     const rec = save.classes[c.id];
     const rank = masteryRank(rec.xp);
     const next = MASTERY[rank];
-    const palettes = [...new Set([...masteryBonus(rec.xp).palettes, ...save.palettes])].sort(); // mastery's own plus the account-wide ones from deeds
-    const chosen = save.settings.palettes[c.id] ?? 0;
-    const swatches = palettes.length ? `<div class="swatches">${[0, ...palettes].map((n) => `<span class="swatch ${chosen === n ? 'on' : ''}" data-palette="${c.id}:${n}" data-tip="${['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours'][n]}"><i style="filter:${SPRITE_PALETTES[n] || 'none'}"></i></span>`).join('')}</div>` : '';
     // v0.5: the sacred treasure, once earned: on (taken into the run) or off
     const t = TREASURES[c.id];
     const tr = save.treasures[c.id];
     const treasure = tr.tier ? `<span class="chip treasure-chip ${tr.equipped ? 'on' : ''}" data-treasure="${c.id}" data-tip="${esc(`${tr.equipped ? 'Equipped' : 'Left in the Keep'} — tap to switch.\n${treasureDesc(c.id, tr.tier)}`)}">${t.icon} ${t.name} ${TIER_NUMERALS[tr.tier]}</span>` : '';
     return `
-    <button class="card panel ${selectedClass === c.id ? 'on' : ''}" data-class="${c.id}">
-      <div class="portrait" data-sprite="${c.sprite}" data-palette-n="${palettes.includes(chosen) ? chosen : 0}"></div>${swatches}
-      <h2${c.name.length > 9 ? ' class="long"' : ''}>${c.name}</h2>
-      <div class="role">${c.role}</div>
-      <div class="stats">
-        ${STAT_KEYS.map((k) => `<div><span>${statLabel(k, c)}</span><b>${fmtStat(k, c.base[k])}</b></div>`).join('')}
+    <div class="hero" data-hero="${c.id}"${selectedClass === c.id ? '' : ' hidden'}>
+      <div class="pedestal"><div class="hero-figure" data-figure="${c.id}"></div>${kit.ribbon(c.name)}<i class="role">${c.role}</i></div>
+      <div class="hero-stats">
+        ${STAT_KEYS.map((k) => `<div class="stat-bar"><span>${statLabel(k, c)}</span><i><b style="width:${Math.round(statShare(roster, k, c.base[k]) * 100)}%"></b></i><em>${fmtStat(k, c.base[k])}</em></div>`).join('')}
+        <div class="facts">${classFacts(c).map((f) => `<span><small>${f.label}</small> ${f.value}</span>`).join('')}</div>
       </div>
-      <div class="ability"><b class="gold">${c.ability.name}</b><p>${c.ability.desc}</p></div>
-      <div class="ability"><b class="gold">${c.secondary.name}</b><p>${c.secondary.desc}</p></div>
-      ${treasure}
-      <div class="fam-line" data-tip="${esc(`Can max these relic families: ${preferredFamilies(c.id).map((f) => FAMILIES[f].name).join(', ')}. Every family is open to every class; these reach their 6-set with straight pieces.`)}">Families:${preferredFamilies(c.id).map((f) => `<span class="fam-chip" style="--fam:${FAMILIES[f].color}">${FAMILIES[f].icon} ${FAMILIES[f].name}</span>`).join('')}</div>
-      ${save.wins[c.id] ? `<div class="oath-line">⚜ ${save.oaths[c.id] ? `Oath ${save.oaths[c.id]} kept` : 'No Oath kept yet'}${sworn ? ` · this run: <b>${oathOf(c.id) ? `Oath ${oathOf(c.id)}` : 'custom'}</b>` : ''}</div>` : ''}
-      <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
-    </button>`;
+      <div class="hero-text">
+        <div class="ability"><b>${c.ability.name}</b><p>${c.ability.desc}</p></div>
+        <div class="ability"><b>${c.secondary.name}</b><p>${c.secondary.desc}</p></div>
+        <div class="fam-line" data-tip="${esc(`Can max these relic families: ${preferredFamilies(c.id).map((f) => FAMILIES[f].name).join(', ')}. Every family is open to every class; these reach their 6-set with straight pieces.`)}">Families:${preferredFamilies(c.id).map((f) => `<span class="fam-chip" style="--fam:${FAMILIES[f].color}">${FAMILIES[f].icon} ${FAMILIES[f].name}</span>`).join('')}</div>
+        ${treasure}
+        ${save.wins[c.id] ? `<div class="oath-line">⚜ ${save.oaths[c.id] ? `Oath ${save.oaths[c.id]} kept` : 'No Oath kept yet'}${sworn ? ` · this run: <b>${oathOf(c.id) ? `Oath ${oathOf(c.id)}` : 'custom'}</b>` : ''}</div>` : ''}
+        <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
+      </div>
+    </div>`;
   };
+  // #65: the run's options as small kit buttons; the picked one has the brass ring, a locked one its lock
+  const opt = (label: string, attrs: string, o: { on?: boolean; locked?: boolean; disabled?: boolean; cls?: string } = {}) =>
+    kit.button(label, { size: 'small', cls: `opt${o.on ? ' on' : ''}${o.cls ? ` ${o.cls}` : ''}`, attrs, icon: o.locked ? 'lock' : undefined, disabled: o.locked || o.disabled });
   const arenaBtn = (id: ArenaId) => {
     const a = ARENAS[id];
     const gate = locked.includes(id) ? gateOf({ arena: id }) : undefined;
-    return `<button class="chip ${save.settings.arena === id ? 'on' : ''}" data-arena="${id}" ${gate ? 'disabled' : ''} data-tip="${gate ? `Locked — ${gate.desc}` : `${a.desc} ${a.feature} Boss relics: ${familyList(ARENA_FAMILIES[id])}.`}">${gate ? '🔒 ' : ''}${a.name}</button>`;
+    return opt(a.name, `data-arena="${id}" data-tip="${esc(gate ? `Locked — ${gate.desc}` : `${a.desc} ${a.feature} Boss relics: ${familyList(ARENA_FAMILIES[id])}.`)}"`, { on: save.settings.arena === id, locked: !!gate });
   };
   const tierBtn = (i: number) => {
     const t = TIERS[i];
     const lockedTier = i > save.tierUnlocked;
     const tip = lockedTier ? `Locked — ${nextTierRequirement(i, save) || `unlock ${TIERS[i - 1].name} first`}` : `Enemy HP ×${t.enemyHp}, damage ×${t.enemyDmg}, elites ×${t.eliteMult} · gold ×${t.gold}, class XP ×${t.classXp} · ${i ? `new foes: ${WAVES.tierRoster[i].map((id) => ENEMIES[id].name).join(', ')}` : 'the basic foes'}`;
-    return `<button class="chip ${save.settings.tier === i ? 'on' : ''}" data-tier="${i}" ${lockedTier ? 'disabled' : ''} data-tip="${tip}">${lockedTier ? '🔒 ' : ''}${t.name}</button>`;
+    return opt(t.name, `data-tier="${i}" data-tip="${esc(tip)}"`, { on: save.settings.tier === i, locked: lockedTier });
   };
   const lockedC = lockedCurses(save);
   const curseBtn = (id: CurseId) => {
     const c = CURSES[id];
     const gate = lockedC.includes(id) ? gateOf({ curse: id }) : undefined;
     const tip = gate ? `Locked — ${gate.desc}` : `${c.desc} +${Math.round(c.bonus * 100)}% gold and class XP.`;
-    return `<button class="chip curse ${save.settings.curses.includes(id) && !sworn ? 'on' : ''}" data-curse="${id}" ${gate || sworn ? 'disabled' : ''} data-tip="${sworn ? 'An Oath brings its own curses. Free curses are for custom runs.' : tip}">${gate ? '🔒 ' : ''}${c.name}</button>`;
+    return opt(c.name, `data-curse="${id}" data-tip="${esc(sworn ? 'An Oath brings its own curses. Free curses are for custom runs.' : tip)}"`, { on: save.settings.curses.includes(id) && !sworn, locked: !!gate, disabled: sworn, cls: 'curse' });
   };
   const traitBtn = (id: TraitId) => {
     const t = TRAITS[id];
     const need = t.unlock.achievement ? ACHIEVEMENTS.find((a) => a.id === t.unlock.achievement) : undefined;
     const lockedT = need !== undefined && !save.achievements.includes(need.id);
     const tip = lockedT ? `Locked — ${need!.name}: ${need!.desc}` : t.desc;
-    return `<button class="chip trait ${save.settings.trait === id || (id !== 'none' && save.settings.trait2 === id) ? 'on' : ''}" data-trait="${id}" ${lockedT ? 'disabled' : ''} data-tip="${esc(tip)}">${lockedT ? '🔒 ' : `${t.icon} `}${t.name}</button>`;
+    return opt(lockedT ? t.name : `${t.icon} ${t.name}`, `data-trait="${id}" data-tip="${esc(tip)}"`, { on: save.settings.trait === id || (id !== 'none' && save.settings.trait2 === id), locked: lockedT, cls: 'trait' });
   };
+  // #65: the champion select in the kit: the roster strip and the chosen champion on the left, the run's options on the right, one gold Start
   const el = show(`
-    <div class="select">
-      <h1 class="small">Choose your champion</h1>
-      <div class="pickers">
-        <div><span class="label">Arena</span>${ARENA_IDS.map(arenaBtn).join('')}</div>
-        <div><span class="label">Difficulty</span>${TIERS.map((_, i) => tierBtn(i)).join('')}</div>
+    <div class="select kit-select">
+      <div class="kit-select-top">${kit.closeButton('back', { attrs: 'data-back' })}${kit.ribbon('Choose your champion')}</div>
+      <div class="kit-purse">${kit.pill('gold', save.gold, { title: 'Gold' })}${save.runes ? kit.pill('runes', save.runes, { title: 'Runes' }) : ''}</div>
+      <div class="kit-select-main">
+        <div class="kit-select-champ">
+          ${kit.frame(`<div class="roster">${roster.map(tile).join('')}</div>`, { cls: 'roster-frame' })}
+          ${kit.frame(kit.parch(roster.map(hero).join('')), { cls: 'hero-frame' })}
+        </div>
+        ${kit.frame(`
+          <div class="pick"><span class="label">Arena</span><div>${ARENA_IDS.map(arenaBtn).join('')}</div></div>
+          <div class="pick"><span class="label">Difficulty</span><div>${TIERS.map((_, i) => tierBtn(i)).join('')}</div></div>
+          <div class="pick curses"><span class="label">Curses <span class="mult" data-tip="Every curse adds to the gold and class XP this run earns.">gold &amp; XP ×${curseMultiplier(save.settings.curses).toFixed(2)}</span></span><div>${CURSE_IDS.map(curseBtn).join('')}</div></div>
+          <div class="pick traits"><span class="label">Trait</span><div>${TRAIT_IDS.map(traitBtn).join('')}</div></div>
+          ${oathMax ? `<div class="pick oath"><span class="label">Oath</span><div>
+            ${opt('−', `data-oath="${save.settings.oath - 1}"`, { disabled: save.settings.oath <= 0 })}
+            <b data-tip="${esc(save.settings.oath ? OATHS.slice(0, save.settings.oath).map((o, i) => `${i + 1}. ${o.name}: ${o.desc}`).join('\n') : 'A custom run: choose your own curses.')}">${save.settings.oath ? `Oath ${save.settings.oath}: ${OATHS[save.settings.oath - 1].name}` : 'No Oath (custom run)'}</b>
+            ${opt('+', `data-oath="${save.settings.oath + 1}"`, { disabled: save.settings.oath >= oathMax })}</div>
+            <span class="hint">${save.settings.oath ? `${OATHS[save.settings.oath - 1].desc} Every Oath below it holds too. A class that has not kept Oath ${save.settings.oath - 1} swears its highest.` : 'Win with a class to swear its first Oath. Every level adds one hardship; keeping one pays.'}</span></div>` : ''}
+          <div class="pick seed"><span class="label">Seed</span><input id="seed" maxlength="24" placeholder="random" value="${esc(seedText)}" autocomplete="off" spellcheck="false" data-tip="Type a seed from a results screen to replay that run." /></div>`, { cls: 'run-frame' })}
+        ${kit.button(`Start as ${CLASSES[selectedClass].name}`, { kind: 'gold', size: 'big', attrs: 'data-start' })}
       </div>
-      <div class="pickers curses">
-        <div><span class="label">Curses</span>${CURSE_IDS.map(curseBtn).join('')}
-          <span class="mult" data-tip="Every curse adds to the gold and class XP this run earns.">gold &amp; XP ×${curseMultiplier(save.settings.curses).toFixed(2)}</span></div>
-        <div><span class="label">Seed</span><input id="seed" maxlength="24" placeholder="random" value="${esc(seedText)}" autocomplete="off" spellcheck="false" data-tip="Type a seed from a results screen to replay that run." /></div>
-      </div>
-      <div class="pickers traits"><div><span class="label">Trait</span>${TRAIT_IDS.map(traitBtn).join('')}</div></div>
-      ${oathMax ? `<div class="pickers oath"><div><span class="label">Oath</span>
-        <button class="chip" data-oath="${save.settings.oath - 1}" ${save.settings.oath <= 0 ? 'disabled' : ''}>−</button>
-        <b class="gold" data-tip="${esc(save.settings.oath ? OATHS.slice(0, save.settings.oath).map((o, i) => `${i + 1}. ${o.name}: ${o.desc}`).join('\n') : 'A custom run: choose your own curses.')}">${save.settings.oath ? `Oath ${save.settings.oath}: ${OATHS[save.settings.oath - 1].name}` : 'No Oath (custom run)'}</b>
-        <button class="chip" data-oath="${save.settings.oath + 1}" ${save.settings.oath >= oathMax ? 'disabled' : ''}>+</button>
-        <span class="hint">${save.settings.oath ? `${OATHS[save.settings.oath - 1].desc} Every Oath below it holds too. A class that has not kept Oath ${save.settings.oath - 1} swears its highest.` : 'Win with a class to swear its first Oath. Every level adds one hardship; keeping one pays.'}</span></div></div>` : ''}
-      <div class="cards">${CLASS_ORDER.map((id) => card(CLASSES[id])).join('')}</div>
-      <div class="row"><button class="btn" data-back>Back</button><button class="btn big" data-start>Start as ${CLASSES[selectedClass].name}</button></div>
     </div>`);
   el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => {
     const id = slot.dataset.sprite as ClassDef['sprite'];
@@ -307,16 +331,20 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     // #156: every champion at the Paladin's scale, so a helm's horns or a halo don't shrink the one who wears them
     spr.img.style.setProperty('--sprite-h', `${SHEETS[id] ? Math.round(spr.h * PORTRAIT_K) : spr.h}px`);
     slot.appendChild(spr.img);
+    // #65: the same figure, larger, on the chosen champion's pedestal (a copy: the cached canvas can sit in one place only)
+    const big = document.createElement('canvas');
+    big.width = spr.img.width;
+    big.height = spr.img.height;
+    big.getContext('2d')!.drawImage(spr.img, 0, 0);
+    big.style.setProperty('--sprite-h', `${SHEETS[id] ? spr.h : Math.round(spr.h / PORTRAIT_K)}px`);
+    el.querySelector(`[data-figure="${slot.closest<HTMLElement>('[data-class]')!.dataset.class}"]`)?.appendChild(big);
   });
   el.querySelectorAll<HTMLElement>('[data-palette]').forEach((sw) => (sw.onclick = (e) => {
     e.stopPropagation(); // the card underneath would take the click
     const [cls, n] = sw.dataset.palette!.split(':');
     on.palette(cls as ClassId, Number(n));
   }));
-  el.querySelectorAll<HTMLElement>('[data-treasure]').forEach((chip) => (chip.onclick = (e) => {
-    e.stopPropagation(); // the card underneath would take the click
-    on.treasure(chip.dataset.treasure as ClassId);
-  }));
+  click(el, '[data-treasure]', (chip) => on.treasure(chip.dataset.treasure as ClassId));
   const seedIn = el.querySelector<HTMLInputElement>('#seed')!;
   seedIn.oninput = () => (seedText = seedIn.value);
   const start = () => {
@@ -328,6 +356,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     if (b.dataset.class === selectedClass) return start();
     selectedClass = b.dataset.class as ClassId;
     el.querySelectorAll('[data-class]').forEach((c) => c.classList.toggle('on', c === b));
+    el.querySelectorAll<HTMLElement>('[data-hero]').forEach((h) => (h.hidden = h.dataset.hero !== selectedClass)); // #65: its details
     el.querySelector('[data-start]')!.textContent = `Start as ${CLASSES[selectedClass].name}`;
   });
   click(el, '[data-start]', start);

@@ -322,3 +322,96 @@
 .compact .kit-title .kit-frame { margin-top: 14px; padding: 10px; }
 .compact .kit-purse { top: max(8px, env(safe-area-inset-top)); }
 .compact .kit-pill { height: 26px; font-size: 14px; }
+
+/* ---------- #65: the champion select in the kit ----------
+   The roster strip (a tile per champion, scrolls sideways when more join) and the chosen champion on a pedestal on parchment at the
+   left, the run's options on wood at the right, one gold Start that stays in reach at the bottom. */
+.kit-select { position: relative; display: grid; justify-items: center; gap: 12px; width: min(1240px, 100%); max-height: none; }
+.kit-select .kit-purse { position: absolute; top: 0; right: 0; }
+.kit-select-top { position: relative; width: 100%; display: flex; justify-content: center; }
+.kit-select-top .kit-close { position: absolute; left: 0; top: 0; }
+.kit-select-top .kit-ribbon { font-size: 22px; }
+.kit-select-main { display: grid; grid-template: 'champ run' auto 'start run' 1fr / minmax(0, 1fr) 380px; gap: 14px; width: 100%; align-items: start; text-align: left; }
+.kit-select-champ { grid-area: champ; display: grid; gap: 12px; min-width: 0; }
+.kit-select-main > .run-frame { grid-area: run; }
+.roster-frame { padding: 8px 12px; }
+.roster { position: relative; z-index: 1; display: flex; gap: 10px; overflow-x: auto; padding: 10px 6px 6px; scroll-snap-type: x proximity; }
+.kit-select .card.champ {
+  flex: none;
+  width: 128px;
+  padding: 6px 6px 8px;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  scroll-snap-align: start;
+  color: var(--kit-light);
+  text-align: center;
+  background: radial-gradient(ellipse at 50% 30%, #3b2a1c, #120c08 80%);
+  border: 3px solid var(--kit-brass-dark);
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px var(--kit-wood-edge), inset 0 2px 0 rgba(255, 214, 160, 0.15), 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+.kit-select .card.champ:hover { transform: translateY(-3px); outline: none; }
+.kit-select .card.champ.on { border-color: var(--kit-brass-light); outline: none; transform: translateY(-4px); box-shadow: 0 0 0 2px var(--kit-wood-edge), 0 0 14px rgba(246, 217, 122, 0.7); }
+.kit-select .card.champ:focus-visible { outline: 3px solid var(--kit-brass-light); outline-offset: 2px; }
+.champ .swatches { margin: 0; }
+.champ-name { font: 800 14px var(--kit-num); letter-spacing: 0.03em; text-shadow: 0 2px 0 #000; }
+.champ-rec { white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; font: 800 11px var(--kit-num); color: #cdb68a; font-variant-numeric: lining-nums tabular-nums; }
+.champ-rec .kit-icon { --s: 0.8; }
+
+.hero-frame .kit-parch { padding: 12px 14px; }
+.hero { display: grid; grid-template-columns: 200px minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 16px; align-items: start; font-size: 14px; line-height: 1.25; }
+.hero[hidden] { display: none; }
+.pedestal { display: grid; justify-items: center; }
+.hero-figure { min-height: 140px; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
+.hero-figure canvas { position: relative; z-index: 1; height: var(--sprite-h, auto); image-rendering: pixelated; filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.45)); }
+.hero-figure::after { /* the pedestal: a stone disc under the feet */
+  content: '';
+  width: 128px;
+  height: 22px;
+  margin-top: -12px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 30%, #b8ad96, #9b917d 40%, #3d3632);
+  border: 2px solid var(--kit-wood-edge);
+  box-shadow: 0 4px 0 #3d3632, 0 6px 8px rgba(0, 0, 0, 0.45);
+}
+.pedestal .kit-ribbon { margin: 12px 22px 0; padding: 4px 14px 3px; font-size: 13px; letter-spacing: 0.06em; }
+.pedestal .role { margin-top: 8px; font-size: 14px; text-align: center; }
+.hero-stats { display: grid; gap: 3px; }
+.stat-bar { display: grid; grid-template-columns: 96px 1fr 38px; align-items: center; gap: 8px; }
+.stat-bar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-bar i { height: 10px; background: rgba(42, 29, 16, 0.2); border: 1px solid var(--kit-brass-dark); border-radius: 5px; overflow: hidden; }
+.stat-bar i b { display: block; height: 100%; background: linear-gradient(var(--kit-brass-light), var(--kit-brass) 55%, var(--kit-brass-dark)); }
+.stat-bar em { font: 800 13px var(--kit-num); font-style: normal; text-align: right; font-variant-numeric: lining-nums tabular-nums; }
+.facts { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(90, 61, 37, 0.5); font-size: 13px; }
+.facts small { font: 800 10px var(--kit-num); letter-spacing: 0.06em; text-transform: uppercase; color: var(--kit-brass-dark); }
+.hero-text .ability b { font: 800 14px var(--kit-num); color: var(--kit-brass-dark); }
+.hero-text .ability p { margin: 1px 0 6px; }
+.hero .fam-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 13px; }
+.hero .fam-line .fam-chip { font-size: 12px; padding: 1px 5px; }
+.hero .treasure-chip { margin: 6px 0 0; }
+.hero .oath-line { font-size: 13px; color: var(--kit-brass-dark); margin-top: 4px; }
+.hero .best { text-align: left; font-size: 13px; margin-top: 6px; }
+
+.run-frame { display: grid; gap: 8px; padding: 14px 16px; color: var(--kit-light); }
+.run-frame .pick { position: relative; z-index: 1; display: grid; gap: 4px; }
+.run-frame .pick > div { display: flex; flex-wrap: wrap; gap: 7px 6px; align-items: center; }
+.run-frame .label { display: flex; justify-content: space-between; align-items: baseline; font: 900 14px var(--kit-num); letter-spacing: 0.08em; text-transform: uppercase; color: var(--kit-brass-light); text-shadow: 0 2px 0 #000; }
+.run-frame .mult { margin: 0; font: 800 12px var(--kit-num); letter-spacing: 0; text-transform: none; color: #cdb68a; }
+.run-frame .oath b { font: 800 13px var(--kit-num); color: var(--kit-brass-light); }
+.run-frame .hint { font-size: 12px; }
+.run-frame #seed { width: 100%; box-sizing: border-box; }
+.kit-select .kit-btn.opt { padding: 4px 9px 3px; font-size: 12px; gap: 4px; }
+.kit-select .kit-btn.opt .kit-icon { --s: 0.8; }
+.kit-select .kit-btn.opt.on { color: var(--kit-brass-light); border-color: var(--kit-brass); box-shadow: 0 0 0 2px var(--kit-brass-light), inset 0 2px 0 rgba(255, 255, 255, 0.35), 0 3px 0 var(--lip), 0 0 10px rgba(246, 217, 122, 0.6); }
+.kit-select-main > [data-start] { grid-area: start; justify-self: center; position: sticky; bottom: 4px; z-index: 3; }
+.compact .kit-select { gap: 8px; }
+.compact .kit-select-top .kit-ribbon { font-size: 15px; padding: 4px 18px 3px; }
+.compact .kit-select-main { grid-template: 'champ' 'run' 'start' / minmax(0, 1fr); gap: 8px; }
+.compact .kit-select .card.champ { width: 118px; }
+.compact .champ-name { font-size: 12px; }
+.compact .hero { grid-template-columns: 150px minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 12px; font-size: 13px; }
+.compact .hero-figure { min-height: 96px; }
+.compact .hero-figure canvas { height: calc(var(--sprite-h) * 0.7); }
+.compact .pedestal .kit-ribbon { font-size: 11px; margin: 8px 18px 0; }
+.compact .run-frame { grid-template-columns: 1fr 1fr; gap: 8px 16px; padding: 12px 14px; }
