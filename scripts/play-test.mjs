@@ -1897,7 +1897,7 @@ await check("Allies: raised skeletons walk and strike, the Angel's decoy and the
 await check('Boss sheets: all eight bosses and the Royal Flame load and play their special and phase pose in the gallery; the Usurper is the tallest (#158)', () =>
   inPage(() => location.reload()).then(async () => {
     const bosses = ['blackKnight', 'warlord', 'lich', 'inquisitor', 'abbot', 'dragon', 'warden', 'usurper'];
-    await page.waitForFunction((ids) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ids.every((id) => window.__lb.sheets().includes(id)), {}, [...bosses, 'royalFlame']).catch(() => {});
+    await page.waitForFunction((ids) => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ids.every((id) => window.__lb.sheets().includes(id)), [...bosses, 'royalFlame']).catch(() => {});
     return inPage(async (bosses) => {
       const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       const loaded = window.__lb.sheets();
@@ -2332,23 +2332,38 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
 
 
 // ---------- #168: the sprite frame cache stays bounded without thrashing, and the gallery leaves it alone ----------
-await check('Frame cache: a whole play test hits it almost always, under its cap; the sprite gallery adds nothing to it (#168)', async () => {
-  const run = await inPage(() => window.__lb.frameCache());
-  const rate = run.hits / Math.max(1, run.hits + run.misses);
-  await inPage(() => location.reload());
-  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('paladin'));
-  const gallery = await inPage(async () => {
-    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
-    await wait(150);
-    const before = window.__lb.frameCache().size;
-    document.querySelector('[data-act="test"]').click();
-    await wait(1500); // every sheet cycles several frames
-    const played = new Set([...document.querySelectorAll('[data-sheet]')].map((c) => c.dataset.frame)).size > 1;
-    return { before, after: window.__lb.frameCache().size, played };
+await check('Frame cache: the sprite gallery adds nothing to it; a run through Act III stays under its cap and never re-renders a frame (#168)', async () => {
+  const all = await inPage(() => window.__lb.frameCache()); // everything the checks since the last reload drew
+  return inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('paladin'));
+    return inPage(async () => {
+      const lb = window.__lb, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      const before = lb.frameCache().size;
+      document.querySelector('[data-act="test"]').click();
+      await wait(1500); // every sheet in the gallery cycles several frames
+      const played = new Set([...document.querySelectorAll('[data-sheet]')].map((c) => c.dataset.frame)).size > 1;
+      const gallery = lb.frameCache().size - before;
+      // a run, drawn every few ticks: Act I, then the Act III waves and their bosses
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      for (const act of [1, 3])
+        for (let i = 0; i < 400 && lb.game && lb.state !== 'results'; i++) {
+          if (i === 0 && act > 1) lb.skipTo(act, 1);
+          lb.run(6, true);
+          lb.draw();
+          if (i % 50 === 0) await wait(20); // let real frames draw too
+        }
+      const run = lb.frameCache();
+      return { played, gallery, run };
+    });
+  }).then(({ played, gallery, run }) => {
+    const rate = run.hits / Math.max(1, run.hits + run.misses);
+    // every miss filled a new entry: nothing drawn in the run was ever evicted and drawn again
+    const ok = played && gallery === 0 && run.size <= run.cap && run.misses === run.size && rate > 0.99;
+    return { ok: ok && all.size <= all.cap && all.misses === all.size, detail: `gallery added ${gallery} frames${played ? '' : ' (and did not play)'}; run: ${run.size}/${run.cap} frames, ${run.misses} misses, hit rate ${(rate * 100).toFixed(2)}%; the checks before: ${all.size} frames, ${all.misses} misses` };
   });
-  const ok = run.size <= run.cap && run.misses === run.size && rate > 0.99 && gallery.played && gallery.after === gallery.before;
-  return { ok, detail: `run: ${run.size}/${run.cap} frames, ${run.misses} misses, hit rate ${(rate * 100).toFixed(2)}%; gallery: ${gallery.before} → ${gallery.after} frames` };
 });
 
 await check('no console errors', async () => {

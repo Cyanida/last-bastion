@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { GAME } from '../src/config/game';
 import { LRUCache } from '../src/logic/lruCache';
 
 describe('v0.8.3 sprite frame cache is bounded (#168)', () => {
