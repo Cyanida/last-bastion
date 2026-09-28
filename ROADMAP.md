@@ -1,7 +1,8 @@
-# Roadmap to 1.0
+# Roadmap
 
 Release rules: [RELEASES.md](RELEASES.md). Live progress: the [Last Bastion Roadmap board](https://github.com/users/Cyanida/projects/2) and the pinned **🔨 Now building** issue.
 Each section below is one release, with its [milestone](https://github.com/Cyanida/last-bastion/milestones).
+From v0.8.3 on, the roadmap is **Road to the Crown** ([docs/road-to-the-crown.md](docs/road-to-the-crown.md)), the plan Jesse approved on 28-09-2026: champions, a world map, the Marches, seven relic realms and the Last Bastion as the finale. The releases up to v1.0.0 are built one after another, each on a branch that starts from the one before it. A **Gate** in a scope marks where the builder shows Jesse what it made; since 28-09 it posts that for him and carries on without waiting.
 
 | Version | Theme | Status |
 |---|---|---|
@@ -15,11 +16,19 @@ Each section below is one release, with its [milestone](https://github.com/Cyani
 | v0.8.0 | Balance, relics & bosses | released 2026-09-26 |
 | v0.8.1 | Characters | released 2026-09-26 |
 | v0.8.2 | Art & animation | released 2026-09-26 |
-| v0.9.0 | Classes & roster | planned |
-| v0.10.0 | Items, arenas & sound | planned |
-| v0.11.0 | The Keep & Master difficulty | planned |
-| v0.12.0 | Polished PC game | planned |
+| v0.8.3 | Fixes from the 28-09 check | planned |
+| v0.9.0 | The new look | planned |
+| v0.10.0 | Champions & the Marches | planned |
+| v0.11.0 | The Iron Hold | planned |
+| v0.12.0 | The Cinderlands | planned |
+| v0.13.0 | The Barrowvale | planned |
+| v0.14.0 | The Frozen Pass & the Last Bastion | planned |
+| v0.15.0 | Classes & roster | planned |
+| v0.16.0 | Polished PC | planned |
 | v1.0.0 | Phone & launch | planned |
+| v1.1.0 | The Stormspire | after 1.0 |
+| v1.2.0 | The Hallowed Reach | after 1.0 |
+| v1.3.0 | The Crimson Fields | after 1.0 |
 | Ideas | not planned yet (the inbox) | – |
 
 **Co-op is dropped** (25-09-2026): see [the last section](#co-op-dropped).
@@ -218,68 +227,209 @@ as too cartoonish.
 - Every sprite plays its animations in the gallery and in the game, and each attack matches its wind-up or telegraph.
 - The golden runs are unchanged, the balance targets hold after any camera or arena change, and `npm run test:perf` holds.
 
-## v0.9.0 – Classes & roster
+## v0.8.3 – Fixes from the 28-09 check
 
-[Milestone](https://github.com/Cyanida/last-bastion/milestone/5)
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/26) · a patch release, built on v0.8.2
 
-**Scope.**
-- ([#64](https://github.com/Cyanida/last-bastion/issues/64)) Unlockable classes.
-- ([#65](https://github.com/Cyanida/last-bastion/issues/65)) The character select, improved.
-- ([#66](https://github.com/Cyanida/last-bastion/issues/66)) A new class: the Wizard.
-- ([#83](https://github.com/Cyanida/last-bastion/issues/83)) The Necromancer's Raise Dead upgrade: skeleton archers.
-- ([#58](https://github.com/Cyanida/last-bastion/issues/58)) Hidden subclasses.
-- ([#137](https://github.com/Cyanida/last-bastion/issues/137)) Real skins: a different design per class, drawn on v0.8.1's new art.
-
-## v0.10.0 – Items, arenas & sound
-
-[Milestone](https://github.com/Cyanida/last-bastion/milestone/22)
+**Goal.** Every bug the check confirmed, and the docs brought up to date.
 
 **Scope.**
-- ([#62](https://github.com/Cyanida/last-bastion/issues/62)) Potions: carry up to 3 and drink them when you need them.
-- ([#86](https://github.com/Cyanida/last-bastion/issues/86)) A relic that puts a shield in front of you.
-- ([#89](https://github.com/Cyanida/last-bastion/issues/89)) Breakable objects in the arena, with small rewards inside.
-- ([#141](https://github.com/Cyanida/last-bastion/issues/141)) 3 or 4 new themed arenas, each with its own look, hazard, relic families and music.
-- ([#142](https://github.com/Cyanida/last-bastion/issues/142)) A sound overhaul: distinct sounds per class, enemy, boss and relic, stereo and a proper mixer.
+1. **Plague Cart: visible while it crosses the arena.** Speed 0 gives a NaN walk frame (src/logic/animation.ts:89).
+2. **Foes: no flicker to the idle frame between sim ticks** (src/render/renderer.ts:149).
+3. **Art: no frame cut off at its sheet cell.** Grow the cells or keep poses inside; add a test that no opaque pixel touches a cell border (tools/art/rig.ts:131; worst: robed boss deaths, the Warlord's swings, the Dragon's fire, the Viking's death).
+4. **Performance: the sprite frame cache has a bound**; the test gallery no longer takes about 500 MB (src/render/sprites.ts:1309).
+5. **Bosses: a quest-gated boss still comes when its quest was finished early** (src/systems/spawning.ts:90).
+6. **Aim: the right stick aims again after the mouse moved** (src/main.ts:609).
+7. **Offline: a failed update check no longer shows the error dialog** (src/core/pwa.ts:23).
+8. **Text size: Larger keeps the desktop layout on a desktop window** (src/main.ts:764).
+9. **Relics: Anvil Heart and Adamant count talent armor**; **Blood Pact with Crimson Chalice keeps max HP right when either tiers up.**
+10. **Save import: asks first, keeps a backup, never stores a duplicate backup** (src/core/storage.ts).
+11. **Class select: family names readable on the cards**; **phone: the level-up heading clears the HUD banner**; **the peddler is drawn from a rigged sheet.**
+12. **Tooling: play and perf tests stop their preview server on Linux; release notes list the release's own pull request; branch cleanup removes merged issue branches.**
+13. **Docs: ROADMAP.md, README (asset rule, structure, scripts) and ARCHITECTURE.md (co-op dropped) match the code and this plan.**
+14. **The remaining low items from the check** as one issue: enemy DoT and heal tiers, bolt owners, field statuses through shields, split children of side elites, timers across Acts, the Aegis dome, relic crediting of delayed damage, the relic moment size in one place, Gutting through Last Blood, the Merchant reroll stream, seed-wipe on class select, update status in Settings, compendium Esc, HUD caches across runs, DPR changes, dead code.
 
-## v0.11.0 – The Keep & Master difficulty
+**Done when** every fix has a test or a play check, all checks are green, and [#67](https://github.com/Cyanida/last-bastion/issues/67) has moved to v0.9.0.
 
-[Milestone](https://github.com/Cyanida/last-bastion/milestone/23)
+## v0.9.0 – The new look
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/27) · a feature release
+
+**Goal.** Every menu in the Kingdom Rush / Survivor.io style, drawn in code; the Keep as a castle.
 
 **Scope.**
-- ([#67](https://github.com/Cyanida/last-bastion/issues/67)) The Keep drawn as a castle of buildings that grow with its upgrades.
-- ([#131](https://github.com/Cyanida/last-bastion/issues/131)) A hidden Master difficulty above Legend. Its unlock rule and reward wait for Jesse's answers.
+1. **Menus: an art direction prototype** (UI kit: frames, bevelled buttons, ribbons, rarity frames, currency pills, tab bar, icon atlas) and one restyled screen. **Gate:** Jesse approves it, as with the Paladin prototype ([#155](https://github.com/Cyanida/last-bastion/issues/155)).
+2. **Menus: the UI kit in code**: CSS components, an icon atlas rendered by the rig (tools/art/ui), a UI section in tools/art/STYLE.md.
+3. **Title, champion select ([#65](https://github.com/Cyanida/last-bastion/issues/65)), Settings, results, compendium, glossary and flash cards in the new look.**
+4. **The Keep: drawn as a castle whose buildings grow with its upgrades ([#67](https://github.com/Cyanida/last-bastion/issues/67))**, the account's hub in the new look.
+5. **World map: a map painter prototype.** The rig paints terrain per family (grass and fields, grey mountains, basalt and lava, barrows and mist, snow and pines, storm cliffs, golden fields, red battlefields), dirt roads, castles, clouds. **Gate:** Jesse approves the look.
+6. **Play checks for every restyled screen**, at 1280×720 and phone landscape; before and after screenshots.
 
-## v0.12.0 – Polished PC game
+**Done when** no screen is left in the old style, test:perf holds, and both gates are passed.
 
-[Milestone](https://github.com/Cyanida/last-bastion/milestone/6)
+## v0.10.0 – Champions & the Marches
 
-**Goal.** The PC game is polished before it goes to the phone.
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/22) · a feature release
+
+**Goal.** The engine, the save and the first realm: the map is in the game from here on.
 
 **Scope.**
-1. ([#60](https://github.com/Cyanida/last-bastion/issues/60)) A tutorial that introduces the mechanics one at a time, built on the flash cards.
-2. ([#45](https://github.com/Cyanida/last-bastion/issues/45)) The save format frozen, with a migration test from every earlier version.
-3. ([#46](https://github.com/Cyanida/last-bastion/issues/46)) The perf budget holds on a PC, with a 30 fps option.
-4. ([#47](https://github.com/Cyanida/last-bastion/issues/47)) A crash sweep: full runs to victory on PC, without a crash or an error.
-5. ([#48](https://github.com/Cyanida/last-bastion/issues/48)) The 1.0 scope written down, with every release before it checked against it.
+1. **World: realms and levels as data.** src/config/world.ts (realms, rings, what opens them, arena, levels with wave ranges, slots, featured family, end bosses, rewards) and src/logic/world.ts (unlocks, slots, rewards, crowns, tier rules), with tests.
+2. **Levels: a level runner with a real head start.** One headStart(g, wave) in src/systems, shared with test mode: expectedLevel(startWave − 1), queued ability and utility picks, a boon stat bundle, talents along the plan. A start wave on the game; the realm's arena and boss; "level cleared" before any Merchant; wings open by the start wave; slotted relics added after growth with a new source; Armorer's roll sees held relics.
+3. **Levels: rewards count only the waves played.** summarizeRun and applyRun use the start wave; first-clear rewards once; gold caps scaled by length.
+4. **Save v7: champions** in the release branch: champions keyed by class, inventory, loadouts, talent plan, levels and crowns per tier, signature relic; the v6 migration; a format-7 fixture; Keep refunds or repurposes (Armorer's Choice and Keepsake +1 slot, Veteran Levies +1 level).
+5. **Relics: the pool follows the champion.** An explicit pool (starter commons, inventory, the realm family inside a realm); the opening pick; boss moments with a locked relic; 3× weight for new unlocks; family lean 1.0; one 6-set bonus per run; preferred families removed; the three achievement relics handled.
+6. **Relics: the slot rules** (4 per family, legendary 2 slots, 2 class relics, no cursed, tier by position).
+7. **Relics: every starter common between 3% and 35%** (Emberheart, Serrated Edge, Frost Brand, Winter's Grasp and Berserker Tooth are under today).
+8. **Champions: the champion screen** in the new look: the champion on a pedestal, the slots around it, set chips, the inventory, the talent plan, PLAY and Restart.
+9. **Map: the world map and the realm road** from the painter, every realm under clouds, the level panel with tier crowns, head start, slots, featured foes, rewards and FIGHT.
+10. **The Marches: seven levels.** The Castle Courtyard, one featured family per level, a rare pick of 1 of 2 per level (plus one new Flame rare), the Warden with a third phase as the crown boss, the signature relic pick. Levels 1 and 2 are the tutorial ([#60](https://github.com/Cyanida/last-bastion/issues/60)) on flash cards.
+11. **Relics: five signature relics**, one per champion, outside the families. **Gate:** RELICS.md entries approved by Jesse.
+12. **Difficulty: Squire and Knight open, Champion and Legend per realm**, the ring step; the knight deed updated.
+13. **Daily Trial: a fixed pool and no loadout**, open after the Marches crown. The Classic mode goes.
+14. **Deeds: "in one run" and Six of a Kind count in the Last Bastion; wave deeds count waves played.**
+15. **Test mode: start any realm level** through headStart.
+16. **Bot and sim: levels and loadouts.** The bot fills slots and plays levels; `npm run sim -- levels`; a loadout mode in relic-report; BALANCE.md targets; golden runs for Marches levels 1 and 7.
+17. **Play checks**: new champion, slot picking and its rules, the map, the realm road, a cleared level, a death and its restart, the Marches crown pick.
+
+**Done when** a new save plays the Marches from the champion screen to its crown, the sims hit the targets, the play test and test:perf are green, and a v6 save migrates without losing a relic.
+
+## v0.11.0 – The Iron Hold
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/23) · a feature release
+
+**Goal.** The first relic realm, and the recipe for every one after it.
+
+**Scope.**
+1. **Iron Hold: the Great Keep as a fortress**, with wings (forge, armory, barracks) and its hazard: forge presses that slam marked tiles.
+2. **Foes: armor you break, shields that block from the front, thorns that hit back**: realm variants of the knight, shieldwall and shield bearer, each with a flash card.
+3. **Bosses: the Forgemaster (level 3) and the Iron King (crown, 3 phases).** The Warden comes back at level 2 and as an elite at level 4. **Gate:** Jesse plays the Iron King before release.
+4. **Relics: 7 new Steel relics**: 1 common, 2 rares, a second legendary, class relics for the Angel, the Necromancer and the Archer; one new Steel duo.
+5. **The realm: five levels, rewards, crown and a music theme.**
+6. **Balance and checks**: every class through every level on Knight; a golden run; play checks; test:perf in the fortress.
+
+**Done when** the Iron Hold can be crowned on Knight by every class within the targets.
+
+## v0.12.0 – The Cinderlands
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/28) · a feature release
+
+**Goal.** [#141](https://github.com/Cyanida/last-bastion/issues/141)'s Ember Forge; fire that spreads.
+
+**Scope.**
+1. **Cinderlands: the Ember Forge ([#141](https://github.com/Cyanida/last-bastion/issues/141))** with lava channels and fire that spreads over the floor.
+2. **Foes: burn stacks on you, bursts of fire when foes die**, with flash cards.
+3. **Bosses: the Ember Queen (level 3) and the Cinder Colossus (crown).** The Grand Inquisitor at level 2 and 4. **Gate:** Jesse plays the crown boss.
+4. **Relics: 5 new Flame relics**: 2 rares, a second legendary, class relics for the Viking and the Necromancer; one new duo.
+5. **The realm, balance and checks** as in v0.11.
+
+**Done when** the Cinderlands can be crowned on Knight by every class within the targets.
+
+## v0.13.0 – The Barrowvale
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/29) · a feature release
+
+**Goal.** The dead rise; Soul Lantern finds its crown.
+
+**Scope.**
+1. **Barrowvale: the Forsaken Graveyard** with its grasping hands; the Drowned Fen ([#141](https://github.com/Cyanida/last-bastion/issues/141)) comes later as a second arena.
+2. **Foes: corpses that rise unless you trample them, plague ground that lasts**, with flash cards.
+3. **Bosses: the Barrow King (crown) and one new level-3 boss.** The Lich and the Plague Abbot return. **Gate:** Jesse plays the Barrow King.
+4. **Relics: 8 new Grave relics**: 1 common, 2 rares, a second legendary (Soul Lantern moves to this crown), class relics for the Paladin, Viking, Angel and Archer; one new duo.
+5. **The realm, balance and checks** as in v0.11.
+
+**Done when** the Barrowvale can be crowned on Knight by every class within the targets.
+
+## v0.14.0 – The Frozen Pass & the Last Bastion
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/30) · a feature release
+
+**Goal.** Ring 3 opens, and five crowns open the finale.
+
+**Scope.**
+1. **Frozen Pass: [#141](https://github.com/Cyanida/last-bastion/issues/141)'s arena** with thin ice that cracks into open water.
+2. **Foes: chill that stacks on you until you freeze, foes that shatter**, with flash cards.
+3. **Bosses: the Rime Witch (level 3) and the Frost Jötun (crown).**
+4. **Relics: 6 new Frost relics**: 1 common, 2 rares, a second legendary, class relics for the Paladin and the Viking; one new duo.
+5. **The Last Bastion: one 40-wave round with elite foes**: the finale settings, 5 slots, no Armorer's Choice or Merchant relic buys; Oaths and Endless move here; Master ([#131](https://github.com/Cyanida/last-bastion/issues/131)) on Legend; elite bosses ([#152](https://github.com/Cyanida/last-bastion/issues/152)) on Champion and Legend; veteran saves with a win get it open. **Gate:** Jesse plays a full finale.
+6. **Balance and checks**, including the finale's power budget of about 15–16 relics per win.
+
+**Done when** the Frozen Pass can be crowned on Knight by every class within the targets, the Last Bastion hits its clear-rate and power targets in the sim, and Jesse has played a full finale.
+
+## v0.15.0 – Classes & roster
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/5) · a feature release
+
+**Goal.** The Wizard, and what champions wear.
+
+**Scope.**
+1. **The Wizard ([#66](https://github.com/Cyanida/last-bastion/issues/66))**: a sixth champion that unlocks with 3 crowns ([#64](https://github.com/Cyanida/last-bastion/issues/64)), a signature relic, and class relics for every realm built so far (the rest arrive with their realms). **Gate:** the Wizard's design.
+2. **Skins ([#137](https://github.com/Cyanida/last-bastion/issues/137)) as crown rewards** and **real recolours ([#164](https://github.com/Cyanida/last-bastion/issues/164))**.
+3. **The Necromancer's skeleton archers ([#83](https://github.com/Cyanida/last-bastion/issues/83)).** Hidden subclasses ([#58](https://github.com/Cyanida/last-bastion/issues/58)) move after 1.0.
+
+**Done when** the Wizard can crown the Marches and every realm built so far on Knight within the targets, and every skin and recolour renders from the rig.
+
+## v0.16.0 – Polished PC
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/6) · a feature release
+
+**Goal.** The old v0.12 scope, with the map in it.
+
+**Scope.**
+1. **The save format frozen ([#45](https://github.com/Cyanida/last-bastion/issues/45))**, with realm progress in it and a migration test from every earlier version.
+2. **The perf budget in every realm arena ([#46](https://github.com/Cyanida/last-bastion/issues/46))**, with a 30 fps option.
+3. **A crash sweep ([#47](https://github.com/Cyanida/last-bastion/issues/47))**: every realm crowned and the Last Bastion won on PC without an error.
+4. **The 1.0 scope written down ([#48](https://github.com/Cyanida/last-bastion/issues/48))**: the Marches, four relic realms, the Last Bastion.
+5. **A balance pass over every level and tier**, and the sound mixer part of [#142](https://github.com/Cyanida/last-bastion/issues/142).
+
+**Done when** a save from every earlier version migrates in a test, test:perf holds in every arena, and the crash sweep finds no error.
 
 ## v1.0.0 – Phone & launch
 
-[Milestone](https://github.com/Cyanida/last-bastion/milestone/4)
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/4) · a launch release
 
-**Goal.** The polished game comes to the phone, and launches.
+**Goal.** [#120](https://github.com/Cyanida/last-bastion/issues/120): the champion screen, the map and the roads at phone width.
 
-**Scope.** ([#120](https://github.com/Cyanida/last-bastion/issues/120)):
-- the phone layout, and save and resume a run;
-- the iPhone app through TestFlight and the App Store, once the Apple Developer account exists;
-- the perf budget and crash-free full runs on a recent phone.
+**Scope.**
+1. **Phone layout for every new screen**, touch-first; levels of 4 to 10 minutes fit phone sessions.
+2. **The iPhone app through TestFlight and the App Store**, once the Apple Developer account exists.
 
-**Exit criteria.** Everything in [RELEASES.md](RELEASES.md) under "1.0.0 is released only when".
+**Done when** the play test plays a level at 390 px wide by touch, from the map to the crown, with no sideways scroll on any new screen.
+
+## v1.1.0 – The Stormspire
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/31) · after 1.0
+
+**Goal.** Lightning that chains into you; Stormcaller's Horn finds its crown. 7 new relics.
+
+**Scope.**
+1. **A storm peak arena, chained lightning, fast rushers and wind; the Storm Caller and the Thunder Roc; 1 common, 2 rares, a second legendary, class relics for the Paladin, Angel and Necromancer; one duo.**
+
+## v1.2.0 – The Hallowed Reach
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/32) · after 1.0
+
+**Goal.** [#141](https://github.com/Cyanida/last-bastion/issues/141)'s Sunken Cathedral; wards and healers; Phoenix Feather finds its crown. 6 new relics.
+
+**Scope.**
+1. **Ward-bearers that make squads untouchable, healers you must reach first; the Ward-Keeper and the Fallen Saint; 1 common, 2 rares, a second legendary, class relics for the Viking and Archer; one duo.**
+
+## v1.3.0 – The Crimson Fields
+
+[Milestone](https://github.com/Cyanida/last-bastion/milestone/33) · after 1.0
+
+**Goal.** Bleed on you; the map is complete. 8 new relics.
+
+**Scope.**
+1. **A battlefield arena, bleed on the player, foes that grow stronger as they bleed; the Butcher and the Crimson Baron; 1 common, 2 rares, a second legendary, class relics for the Paladin, Angel, Necromancer and Archer; one duo.**
+
+Each of these is done when its realm can be crowned on Knight by every class within the targets. After that: items and sound ([#62](https://github.com/Cyanida/last-bastion/issues/62) potions, [#86](https://github.com/Cyanida/last-bastion/issues/86), [#89](https://github.com/Cyanida/last-bastion/issues/89), [#140](https://github.com/Cyanida/last-bastion/issues/140), the rest of [#142](https://github.com/Cyanida/last-bastion/issues/142)), hidden subclasses ([#58](https://github.com/Cyanida/last-bastion/issues/58)), and a second arena per realm.
 
 ## Ideas – not planned yet
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/9) · the inbox
 
-New ideas wait here until Jesse gives them a release. Everything open today is planned before 1.0.
+New ideas wait here until Jesse gives them a release. Some planned work waits here for after 1.0: hidden subclasses ([#58](https://github.com/Cyanida/last-bastion/issues/58)), potions ([#62](https://github.com/Cyanida/last-bastion/issues/62)), the shield relic ([#86](https://github.com/Cyanida/last-bastion/issues/86)), breakable objects ([#89](https://github.com/Cyanida/last-bastion/issues/89)), boss themes ([#140](https://github.com/Cyanida/last-bastion/issues/140)) and the sound overhaul ([#142](https://github.com/Cyanida/last-bastion/issues/142); its mixer part is in v0.16.0).
 
 ## Co-op (dropped)
 
