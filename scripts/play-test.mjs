@@ -2052,6 +2052,46 @@ await check('Foe sheets: every redrawn foe and commander loads; a crossbowman pl
     return { ok: missing.length === 0 && seen.includes('attack'), detail: `missing [${missing.join(', ')}]; crossbow ${seen.join(' → ')}` };
   }),
 );
+
+// ---------- #165: the Plague Cart is rolled by the event, not its own (zero) config speed; it must keep a valid walk frame, not vanish ----------
+await check('Plague Cart: keeps a valid walk frame while it crosses, though its base speed is 0 (#165)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('plagueCart'));
+    await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(60);
+      for (const [id, v] of [['tm-class', 'paladin'], ['tm-act', '1'], ['tm-wave', '1']]) {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      for (let i = 0; i < 200 && !g.enemies.length; i++) window.__lb.run(1, false, 'input'); // the wave's first foe
+      const [e] = g.enemies;
+      e.def = window.__lb.enemyDef('plagueCart'); // the first foe becomes the cart
+      Object.assign(e, { baseSpeed: 0, x: g.player.x + 150, y: g.player.y, hp: 1e6, maxHp: 1e6 }); // its own speed is 0: the event moves it by hand (systems/events.ts)
+      for (const x of g.enemies) if (x !== e) Object.assign(x, { x: g.player.x + 3000, y: g.player.y }); // everyone else out of the way
+    });
+    const frames = [];
+    for (let i = 0; i < 20; i++) {
+      frames.push(
+        await inPage(() => {
+          window.__lb.game.enemies[0].x += 5; // rolls across, same as the event's moveTo
+          window.__lb.run(1, false, 'input');
+          return window.__lb.foeAnim('plagueCart');
+        }),
+      );
+    }
+    const walking = frames.filter((f) => f?.anim === 'walk');
+    const ok = walking.length > 0 && walking.every((f) => Number.isFinite(f.frame) && f.frame >= 0);
+    return { ok, detail: frames.map((f) => `${f?.anim ?? 'none'}${f?.frame ?? ''}`).join(' ') };
+  }),
+);
 // ---------- #159: every arena draws its ground props from the rig's atlas, and the keep's braziers flicker ----------
 await check('Arenas: every arena shows its rigged props; the braziers flicker; pickups are rigged (#159)', () =>
   inPage(() => location.reload()).then(async () => {
