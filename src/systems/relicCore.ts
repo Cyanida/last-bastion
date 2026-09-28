@@ -169,14 +169,21 @@ export type RelicHooks = { [K in EventName]?: (g: Game, ev: GameEvents[K], p: Pl
   remove?: (g: Game, p: Player) => void; // v0.7.1: sold or salvaged (what acquire changed goes back)
 };
 
+/** The keys the two HP-cutting relics keep their own live fraction under (`cutMaxHp` multiplies every one of them onto the same pool). */
+const HP_CUT_KEYS = ['bloodPactHp', 'chaliceHp'] as const;
+
 /**
- * A relic that cuts max HP to `frac` (Blood Pact; Crimson Chalice's curse), under its own key: it keeps the HP it took and gives exactly that
- * back first, so tier-ups, a lifted curse and removal round-trip without inflating max HP gained after the cut.
+ * A relic that cuts max HP to `frac`, under its own key (Blood Pact; Crimson Chalice's curse): every key's current fraction multiplies onto
+ * the SAME pool, with every key's cut undone first, so flat HP gained since (a level, a stat upgrade) stays exactly where it landed, never
+ * scaled by a relic. v0.8.3 #174: recomputing the combined fraction from every key's live share (not from one key's own stale amount) is what
+ * keeps a tier-up, a lifted curse or a sale right beside the other relic, whichever one changed and in whatever order they were taken or tiered.
  */
 export function cutMaxHp(g: Game, p: Player, key: string, frac: number): void {
-  const full = p.stats.hp + (g.vars[key] ?? 0);
-  g.vars[key] = full * (1 - frac);
-  p.stats.hp = full - g.vars[key];
+  g.vars[key] = frac;
+  const combined = HP_CUT_KEYS.reduce((f, k) => f * (g.vars[k] ?? 1), 1);
+  const full = p.stats.hp + (g.vars.hpCutTaken ?? 0);
+  g.vars.hpCutTaken = full * (1 - combined);
+  p.stats.hp = full * combined;
   p.hp = Math.min(p.hp, p.stats.hp);
 }
 
