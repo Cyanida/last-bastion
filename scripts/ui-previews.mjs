@@ -2,14 +2,19 @@
  * #184: review screenshots of the new look.   node scripts/ui-previews.mjs   (after `npm run build`)
  * Renders the title screen and the champion select (#65) at 1280x720 and in phone landscape (844x390, touch), and a kit sheet with every component of
  * src/ui/kit.css (built with kit.ts, #185), into docs/review/0.9.0/. These are review images for the issue, not game assets.
+ * #189: and every screen of the screen tour at both sizes; `PREVIEW_DIST=<an older build> PREVIEW_TAG=before` renders the before pictures.
  */
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { spawnTree, killTree } from './lib/process-tree.mjs';
+import { tour } from './lib/screen-tour.mjs';
 
 const PORT = Number(process.env.PREVIEW_PORT ?? 4190);
 const OUT = 'docs/review/0.9.0';
-const preview = spawnTree(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', shell: process.platform === 'win32' });
+// #189: PREVIEW_DIST serves another build (an older release's, for the "before" pictures), PREVIEW_TAG names its pictures
+const DIST = process.env.PREVIEW_DIST ?? 'dist';
+const TAG = process.env.PREVIEW_TAG ?? 'after';
+const preview = spawnTree(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vite', 'preview', '--port', String(PORT), '--strictPort', '--outDir', DIST], { stdio: 'ignore', shell: process.platform === 'win32' });
 process.on('exit', () => killTree(preview));
 for (let i = 0; i < 60 && !(await fetch(`http://localhost:${PORT}/`).then(() => true, () => false)); i++) await new Promise((r) => setTimeout(r, 250));
 mkdirSync(OUT, { recursive: true });
@@ -27,6 +32,7 @@ async function shot(file, viewport, touch, prepare) {
   console.log(`${OUT}/${file}`);
 }
 
+if (TAG === 'after') {
 await shot('title-1280x720.png', { width: 1280, height: 720 });
 await shot('title-phone-844x390.png', { width: 844, height: 390 }, true);
 // #65: the champion select
@@ -68,6 +74,20 @@ await shot('kit-sheet.png', { width: 1280, height: 800 }, false, () => {
       </div>
     </div>`;
   o.classList.remove('hidden');
-});
+});}
+
+// #189: every screen of the screen tour (lib/screen-tour.mjs), played through its buttons: 189-<screen>-<before|after>-<size>.png
+for (const [size, viewport, touch] of [['1280x720', { width: 1280, height: 720 }, false], ['phone', { width: 844, height: 390 }, true]]) {
+  const page = await browser.newPage({ viewport, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+  await page.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await page.getByText('Take up arms').first().waitFor();
+  await page.evaluate(() => document.fonts.ready);
+  const { skipped } = await tour(page, async (name) => {
+    await page.screenshot({ path: `${OUT}/189-${name}-${TAG}-${size}.png` });
+    console.log(`${OUT}/189-${name}-${TAG}-${size}.png`);
+  }, { touch });
+  if (skipped.length) console.log(`${size}: skipped ${skipped.join(', ')}`);
+  await page.close();
+}
 await browser.close();
 process.exit(0);

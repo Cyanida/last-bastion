@@ -114,6 +114,21 @@ const duoCard = (id: DuoId, attrs: string, extra = '') => {
   return `<button class="card panel boon evolution duo-card" ${attrs} data-tip="${esc(duoTip(id))}"><div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${d.desc}</p><div class="preview">Combines ${d.from.map((r) => relicDef(r).name).join(' + ')} into one · families keep their counts</div>${extra}</button>`;
 };
 
+/**
+ * #189: a framed screen in the kit, as Settings and the results (#186): the heading on a ribbon with the round back disc in its corner
+ * (`back` is the disc's data attribute; none for a screen whose own button goes on), what you read on parchment that scrolls, and the
+ * buttons in a footer that stays in view.
+ */
+const kitScreen = (cls: string, title: string, o: { sub?: string; body?: string; foot?: string; back?: string }) => `
+    <div class="kit-frame kit-screen ${cls}">
+      <header class="kit-head">${kit.ribbon(title, { attrs: 'role="heading" aria-level="1"' })}${o.back ? kit.closeButton('back', { attrs: o.back }) : ''}</header>
+      ${o.sub ? `<p class="sub">${o.sub}</p>` : ''}
+      ${o.body ? kit.parch(o.body, { cls: 'kit-scroll' }) : ''}
+      ${o.foot ? `<footer class="row">${o.foot}</footer>` : ''}
+    </div>`;
+/** #189: a choice screen's heading (level-up, relics, the board, the Merchant...): the ribbon over the cards. */
+const choiceHead = (title: string) => `<h1 class="kit-head">${kit.ribbon(title)}</h1>`;
+
 // ---------------------------------------------------------------- title & menus
 
 export interface TitleInfo {
@@ -498,7 +513,7 @@ export function showRunHistory(runs: RunLog[], onBack: () => void): void {
     const ups = r.upgrades.map((id) => ABILITY_UPGRADES[id as AbilityUpgradeId]?.name ?? UTILITY_UPGRADES[id as UtilityUpgradeId]?.name).filter(Boolean).join(' · ');
     const trait = r.trait !== 'none' && TRAIT_IDS.includes(r.trait as TraitId) ? `${TRAITS[r.trait as TraitId].icon} ${TRAITS[r.trait as TraitId].name}` : '';
     const when = r.at ? new Date(r.at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '';
-    return `<div class="run panel">
+    return `<div class="run">
       <div class="rhead"><b>${CLASSES[r.classId].name}</b><span>${TIERS[r.tier]?.name ?? ''} · ${ARENAS[r.arena].name}${r.daily ? ` · Daily Trial ${esc(r.daily)}` : ''}</span><span class="dim">${when}</span></div>
       <div class="rstats">${actName(Math.max(1, Math.ceil(r.wave / ACTS.length)))} · wave ${r.wave} · ${fmtTime(r.time)} · level ${r.level} · ${r.kills} kills · ${r.end === 'slain' ? `slain by ${esc(r.cause || 'something unseen')}` : 'ended from the pause menu'}</div>
       ${timeline(r)}
@@ -506,14 +521,13 @@ export function showRunHistory(runs: RunLog[], onBack: () => void): void {
       ${talents || ups ? `<p class="hint">${[talents && `🌿 ${talents}`, ups && `⬆️ ${ups}`].filter(Boolean).join('<br>')}</p>` : ''}
     </div>`;
   };
-  const el = show(`
-    <div class="panel dialog wide history">
-      <h1 class="small">Run history</h1>
-      <p class="sub">${runs.length ? `The last ${runs.length} run${runs.length > 1 ? 's' : ''} · on average ${fmtTime(avg((r) => r.time))} and wave ${avg((r) => r.wave).toFixed(1)}${bored ? ` · ${bored} bored mark${bored > 1 ? 's' : ''}` : ''}` : 'No runs logged yet. Every run from v0.6 on is kept here (the last 50).'}</p>
-      <p class="hint">Each band is a wave, as wide as it lasted (darker: a boss wave); the small ticks are level-ups. Hover or tap anything for details. F8 in a run (or the pause menu) marks a moment you were bored.</p>
-      ${[...runs].reverse().map(row).join('')}
-      <div class="row">${runs.length ? '<button class="btn" data-export>Export as JSON</button>' : ''}<button class="btn" data-back>Back</button></div>
-    </div>`);
+  const el = show(kitScreen('history', 'Run history', {
+    back: 'data-back',
+    sub: runs.length ? `The last ${runs.length} run${runs.length > 1 ? 's' : ''} · on average ${fmtTime(avg((r) => r.time))} and wave ${avg((r) => r.wave).toFixed(1)}${bored ? ` · ${bored} bored mark${bored > 1 ? 's' : ''}` : ''}` : 'No runs logged yet. Every run from v0.6 on is kept here (the last 50).',
+    body: `<p class="hint">Each band is a wave, as wide as it lasted (darker: a boss wave); the small ticks are level-ups. Hover or tap anything for details. F8 in a run (or the pause menu) marks a moment you were bored.</p>
+      ${[...runs].reverse().map(row).join('')}`,
+    foot: runs.length ? kit.button('Export as JSON', { attrs: 'data-export' }) : '',
+  }));
   click(el, '[data-export]', () => {
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([exportRunLogs(runs)], { type: 'application/json' })), download: `last-bastion-runs-${new Date().toISOString().slice(0, 10)}.json` });
     a.click();
@@ -545,13 +559,11 @@ export function showTreasures(save: Save, first: ClassId | null, onBack: () => v
     return `<div class="treasure">${head}<p>${treasureDesc(id, Math.max(1, rec.tier))}</p><div class="tsteps">${steps.join('')}</div>
       <p class="hint">Hidden talent while it is equipped: <b>${t.talent.name}</b> — ${t.talent.desc}</p></div>`;
   };
-  const el = show(`
-    <div class="panel dialog wide treasures">
-      <h1 class="small">Sacred treasures</h1>
-      <p class="sub">One for every champion, earned over many runs, kept forever. Take it into a run from the champion select screen.</p>
-      ${order.map(block).join('')}
-      <button class="btn" data-back>Back</button>
-    </div>`);
+  const el = show(kitScreen('treasures', 'Sacred treasures', {
+    back: 'data-back',
+    sub: 'One for every champion, earned over many runs, kept forever. Take it into a run from the champion select screen.',
+    body: order.map(block).join(''),
+  }));
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
@@ -561,13 +573,11 @@ export function showMastery(save: Save, classId: ClassId, onBack: () => void): v
   const xp = save.classes[classId].xp;
   const rank = masteryRank(xp);
   const rows = MASTERY.map((r, i) => `<div class="rank ${i < rank ? 'on' : ''}"><b>${i + 1}</b><span>${r.name}</span><em>${rewardText(r.reward)}</em><i>${i < rank ? '✔' : `${r.xp} XP`}</i></div>`).join('');
-  const el = show(`
-    <div class="panel dialog wide">
-      <h1 class="small">${CLASSES[classId].name} mastery</h1>
-      <p class="sub">Rank ${rank} / ${MASTERY.length} · ${Math.round(xp)} class XP${rank < MASTERY.length ? ` · next at ${MASTERY[rank].xp}` : ''}</p>
-      <div class="ranks">${rows}</div>
-      <button class="btn" data-back>Back</button>
-    </div>`);
+  const el = show(kitScreen('mastery-track', `${CLASSES[classId].name} mastery`, {
+    back: 'data-back',
+    sub: `Rank ${rank} / ${MASTERY.length} · ${Math.round(xp)} class XP${rank < MASTERY.length ? ` · next at ${MASTERY[rank].xp}` : ''}`,
+    body: `<div class="ranks">${rows}</div>`,
+  }));
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
 }
@@ -603,10 +613,12 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
     if (chronicleView.state === 'hidden') return a.hidden === true;
     return true;
   });
-  const chip = (key: 'cat' | 'state', value: string, label: string) => `<button class="chip ${chronicleView[key] === value ? 'on' : ''}" data-filter="${key}:${value}">${label}</button>`;
+  // #189: filters and titles are small wood buttons, the one chosen sits pressed (as Settings' choices)
+  const chip = (on: boolean, label: string, attrs: string) => kit.button(label, { size: 'small', cls: on ? 'on pressed' : '', attrs: `${attrs} aria-pressed="${on}"` });
+  const filter = (key: 'cat' | 'state', value: string, label: string) => chip(chronicleView[key] === value, label, `data-filter="${key}:${value}"`);
   const titles = earnedTitles(save);
   const titleChips = onEquip
-    ? `<div class="titles">${[`<button class="chip ${save.title === null ? 'on' : ''}" data-equip="">Bare name</button>`, ...titles.map((t) => `<button class="chip ${save.title === t ? 'on' : ''}" data-equip="${esc(t)}">${esc(t)}</button>`)].join('')}</div>`
+    ? `<div class="kit-choice titles">${[chip(save.title === null, 'Bare name', 'data-equip=""'), ...titles.map((t) => chip(save.title === t, esc(t), `data-equip="${esc(t)}"`))].join('')}</div>`
     : '';
   const records = CLASS_ORDER.map((id) => save.classes[id]);
   const favorite = (Object.entries(save.relicPicks) as [RelicId, number][]).sort((a, b) => b[1] - a[1])[0];
@@ -614,13 +626,13 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
     const c = save.classes[id];
     return `<tr><td>${CLASSES[id].name}</td><td>${c.bestWave}</td><td>${c.kills}</td><td>${c.runs}</td><td>${fmtTime(c.time)}</td><td>${masteryRank(c.xp)}</td></tr>`;
   }).join('');
-  const el = show(`
-    <div class="panel dialog wide">
-      <h1 class="small">Chronicle</h1>
+  const el = show(kitScreen('chronicle', 'Chronicle', {
+    back: 'data-back',
+    body: `
       <h2>Deeds — ${save.achievements.length} / ${TOTAL_TIERS} tiers</h2>
       <div class="filters">
-        <div>${chip('cat', 'all', 'All')}${(Object.keys(CATEGORIES) as AchievementCategory[]).map((c) => chip('cat', c, CATEGORIES[c])).join('')}</div>
-        <div>${chip('state', 'all', 'Everything')}${chip('state', 'earned', 'Earned')}${chip('state', 'progress', 'In progress')}${chip('state', 'hidden', 'Secrets')}</div>
+        <div class="kit-choice">${filter('cat', 'all', 'All')}${(Object.keys(CATEGORIES) as AchievementCategory[]).map((c) => filter('cat', c, CATEGORIES[c])).join('')}</div>
+        <div class="kit-choice">${filter('state', 'all', 'Everything')}${filter('state', 'earned', 'Earned')}${filter('state', 'progress', 'In progress')}${filter('state', 'hidden', 'Secrets')}</div>
       </div>
       <div class="achs">${shown.map(ach).join('') || '<p class="hint">Nothing here yet.</p>'}</div>
       <h2>Titles</h2>
@@ -634,9 +646,8 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
         <div><span>Favorite relic</span><b>${favorite ? `${relicDef(favorite[0]).icon} ${relicDef(favorite[0]).name} (${favorite[1]}×)` : '—'}</b></div>
         <div><span>Gold banked in total</span><b>${save.counters.goldEarned}</b></div>
         <div><span>Highest difficulty</span><b>${TIERS[save.tierUnlocked].name}</b></div>
-      </div>
-      <button class="btn" data-back>Back</button>
-    </div>`);
+      </div>`,
+  }));
   click(el, '[data-filter]', (b) => {
     const [key, value] = b.dataset.filter!.split(':');
     Object.assign(chronicleView, { [key]: value });
@@ -648,22 +659,17 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
 }
 
 export function showSaveDialog(save: Save, on: { import: (save: Save) => void; reset: () => void; back: () => void; backups: SaveBackup[]; restore: (b: SaveBackup) => void }): void {
-  const el = show(`
-    <div class="panel dialog wide">
-      <h1 class="small">Save data</h1>
+  const el = show(kitScreen('save-data', 'Save data', {
+    back: 'data-act="back"',
+    body: `
       <p class="hint">Copy this text somewhere safe to back up your progress. To restore, paste a save here and press Import.</p>
       <textarea id="save-text" spellcheck="false"></textarea>
       <div id="save-msg" class="hint">&nbsp;</div>
-      <div class="row">
-        <button class="btn" data-act="copy">Copy</button>
-        <button class="btn" data-act="import">Import</button>
-        <button class="btn danger" data-act="reset">Reset all progress</button>
-        <button class="btn" data-act="back">Back</button>
-      </div>
       ${on.backups.length ? `<h2>Restore previous version</h2>
       <p class="hint">Before a new version or an import replaces your save, the old one is kept here (the last ${on.backups.length === 1 ? 'one' : on.backups.length}). Restoring replaces your current progress; the current save is kept as a backup in turn.</p>
-      <div class="row">${on.backups.map((b, i) => `<button class="btn small" data-restore="${i}">${new Date(b.at).toLocaleString()} · ${saveFormatLabel(b.version)}</button>`).join('')}</div>` : ''}
-    </div>`);
+      <div class="kit-choice restore">${on.backups.map((b, i) => kit.button(`${new Date(b.at).toLocaleString()} · ${saveFormatLabel(b.version)}`, { size: 'small', attrs: `data-restore="${i}"` })).join('')}</div>` : ''}`,
+    foot: `${kit.button('Copy', { attrs: 'data-act="copy"' })}${kit.button('Import', { attrs: 'data-act="import"' })}${kit.button('Reset all progress', { cls: 'danger', attrs: 'data-act="reset"' })}`,
+  }));
   click(el, '[data-restore]', (b) => {
     const backup = on.backups[Number(b.dataset.restore)];
     if (confirm(`Restore the save from ${new Date(backup.at).toLocaleString()} (${saveFormatLabel(backup.version)})? Your current progress is replaced; it is kept as a backup.`)) on.restore(backup);
@@ -702,7 +708,7 @@ export function showLevelUp(
   const canReroll = reroll.free > 0 || reroll.gold >= reroll.cost;
   const el = show(`
     <div class="levelup">
-      <h1 class="small">Level ${level}</h1>
+      ${choiceHead(`Level ${level}`)}
       <p class="sub">Choose a boon</p>
       <div class="cards">
         ${options.map((o, i) => {
@@ -714,7 +720,7 @@ export function showLevelUp(
           return `<button class="card panel boon ${kind} ${special}" data-pick="${i}">${strike}<div class="num">${i + 1}</div><h2>${t.title}</h2><div class="tag">${t.tag}</div><p>${t.desc}</p>${now}</button>`;
         }).join('')}
       </div>
-      <button class="btn" data-reroll ${canReroll ? '' : 'disabled'}>Reroll (R) — ${reroll.free > 0 ? `${reroll.free} free` : `🪙 ${reroll.cost}`}</button>
+      ${kit.button(`Reroll (R) — ${reroll.free > 0 ? `${reroll.free} free` : `🪙 ${reroll.cost}`}`, { attrs: 'data-reroll', disabled: !canReroll })}
     </div>`);
   click(el, '[data-pick]', (b) => on.pick(options[Number(b.dataset.pick)]));
   el.querySelectorAll<HTMLElement>('[data-banish]').forEach((b) => (b.onclick = (ev) => {
@@ -748,13 +754,13 @@ export function showRelicOffer(
   const { options } = offer;
   const el = show(`
     <div class="levelup">
-      <h1 class="small">${MOMENT_TITLES[offer.from]}</h1>
+      ${choiceHead(MOMENT_TITLES[offer.from])}
       <p class="sub">Choose a relic · ${held.length} carried</p>
       ${offer.families ? `<p class="sub" data-families>This arena's bosses drop only ${familyList(offer.families)}</p>` : ''}
       <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div><div class="preview">${esc(info.line(id))}</div>`, ['', 'For this build:', ...info.preview(id)])).join('')}${offer.duo ? duoCard(offer.duo, `data-pick="${options.length}"`, `<div class="num">${options.length + 1}</div>`) : ''}</div>
       <div class="row">
-        <button class="btn" data-reroll ${offer.rerolls > 0 ? '' : 'disabled'}>Reroll (R) · ${offer.rerolls} left</button>
-        <button class="btn" data-skip data-tip="Take nothing from this moment: gold for this run and a Rune shard for the Keep">Skip · 🪙 ${info.skip.gold} · ◆ ${info.skip.shards} shard</button>
+        ${kit.button(`Reroll (R) · ${offer.rerolls} left`, { attrs: 'data-reroll', disabled: offer.rerolls <= 0 })}
+        ${kit.button(`Skip · 🪙 ${info.skip.gold} · ◆ ${info.skip.shards} shard`, { attrs: 'data-skip data-tip="Take nothing from this moment: gold for this run and a Rune shard for the Keep"' })}
       </div>
     </div>`);
   click(el, '[data-pick]', (b) => on.take(Number(b.dataset.pick) < options.length ? options[Number(b.dataset.pick)] : offer.duo!));
@@ -772,7 +778,7 @@ export function showAbilityUpgrade(tier: number, options: readonly AbilityUpgrad
 export function showShrine(options: readonly BlessingId[], onPick: (id: BlessingId) => void): void {
   const el = show(`
     <div class="levelup">
-      <h1 class="small">⛩️ An old shrine</h1>
+      ${choiceHead('⛩️ An old shrine')}
       <p class="sub">Kneel, and choose a blessing. It lasts the whole run.</p>
       <div class="cards">${options.map((id, i) => `<button class="card panel boon special" data-pick="${id}"><div class="num">${i + 1}</div><h2>${BLESSINGS[id].name}</h2><p>${BLESSINGS[id].desc}</p></button>`).join('')}</div>
     </div>`);
@@ -787,12 +793,12 @@ export function showBoard(act: number, quests: { kind: QuestKind; reward: Reward
   const trial = (i: number) => quests[i]?.kind === 'trial';
   const el = show(`
     <div class="levelup board">
-      <h1 class="small">📜 ${actName(act)} · The quest board</h1>
+      ${choiceHead(`📜 ${actName(act)} · The quest board`)}
       <p class="sub">Take up to ${take}. None of it is required: a failed quest costs nothing, and every one done opens a gate.</p>
       <div class="cards">${quests.map((q, i) => `<button class="card panel boon quest ${trial(i) ? 'special' : ''}" data-quest="${i}"><div class="num">${i + 1}</div><h2>${QUESTS[q.kind].icon} ${trial(i) ? q.name : QUESTS[q.kind].name}</h2>${trial(i) ? '<div class="tag">Sacred treasure · free, on top of the others</div>' : ''}<p>${q.desc ?? QUESTS[q.kind].desc}</p><div class="best" data-tip="${esc(REWARDS[q.reward].desc)}">${REWARDS[q.reward].icon} ${reward(q.reward)}</div></button>`).join('')}</div>
-      <button class="btn big" data-leave></button>
+      ${kit.button('', { kind: 'gold', size: 'big', attrs: 'data-leave' })}
     </div>`);
-  const go = el.querySelector<HTMLElement>('[data-leave]')!;
+  const go =el.querySelector<HTMLElement>('[data-leave]')!;
   const label = () => (go.textContent = picks.length ? `Set out with ${picks.length} quest${picks.length > 1 ? 's' : ''}` : 'Set out without a quest');
   const toggle = (i: number) => {
     if (i >= quests.length) return;
@@ -815,10 +821,10 @@ export function showBoard(act: number, quests: { kind: QuestKind; reward: Reward
 export function showPeddler(info: { stock: number; price: number; tokenPrice: number; gold: number; hurt: boolean }, on: { buy: () => void; token: () => void; leave: () => void }): void {
   const el = show(`
     <div class="levelup">
-      <h1 class="small">🧺 A wandering merchant</h1>
+      ${choiceHead('🧺 A wandering merchant')}
       <p class="sub">"Good things, fair prices, no questions." Purse: <b class="goldtext">🪙 ${info.gold}</b> — what you spend here never reaches the Keep.</p>
       <div class="cards">${info.stock > 0 ? `<button class="card panel boon shop" data-buy="0" ${info.gold >= info.price && info.hurt ? '' : 'disabled'}><div class="num">1</div><h2>🧪 Healing draught</h2><p>${info.hurt ? 'Drink, and mend a good part of your wounds.' : 'You are not hurt.'}</p><div class="best">🪙 ${info.price}</div></button><button class="card panel boon shop" data-buy="1" ${info.gold >= info.tokenPrice ? '' : 'disabled'}><div class="num">2</div><h2>🎲 Reroll token</h2><p>One more free reroll on your next level-up.</p><div class="best">🪙 ${info.tokenPrice}</div></button>` : '<p class="sub">Sold out.</p>'}</div>
-      <button class="btn big" data-leave>Leave</button>
+      ${kit.button('Leave', { size: 'big', attrs: 'data-leave' })}
     </div>`);
   click(el, '[data-buy]', (b) => (b.dataset.buy === '1' ? on.token() : on.buy()));
   click(el, '[data-leave]', on.leave);
@@ -836,7 +842,7 @@ export function showUtilityUpgrade(tier: number, options: readonly UtilityUpgrad
 function showTwoWay(title: string, options: { id: string; name: string; desc: string }[], onPick: (id: string) => void): void {
   const el = show(`
     <div class="levelup">
-      <h1 class="small">${title}</h1>
+      ${choiceHead(title)}
       <p class="sub">Choose one path. The other is lost for this run.</p>
       <div class="cards">
         ${options.map((o, i) => `<button class="card panel boon special" data-pick="${o.id}"><div class="num">${i + 1}</div><h2>${o.name}</h2><p>${o.desc}</p></button>`).join('<div class="or heading">or</div>')}
@@ -869,13 +875,11 @@ export function showTalents(info: { classId: ClassId; taken: string[]; points: n
       }).join('')}</div>`).join('')}
     </div>`;
   };
-  const el = show(`
-    <div class="panel dialog wide talents">
-      <h1 class="small">Talents</h1>
-      <p class="sub">${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${TALENTS.levelsPerPoint} levels · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}${info.rowCap < TALENTS.rows - 1 ? ' · <b>keystones open when the Library is raised in the Keep</b>' : ''}</p>
-      <div class="tree">${branches.map(column).join('')}</div>
-      <button class="btn big" data-back>Back</button>
-    </div>`);
+  const el = show(kitScreen('talents', 'Talents', {
+    back: 'data-back',
+    sub: `${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${TALENTS.levelsPerPoint} levels · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}${info.rowCap < TALENTS.rows - 1 ? ' · <b>keystones open when the Library is raised in the Keep</b>' : ''}`,
+    body: `<div class="tree">${branches.map(column).join('')}</div>`,
+  }));
   click(el, '[data-talent]', (b) => {
     if (on.spend(b.dataset.talent!)) showTalents({ ...info, taken: [...info.taken, b.dataset.talent!], points: info.points - 1 }, on);
   });
@@ -927,19 +931,13 @@ export function buildHtml(info: BuildInfo): string {
 }
 
 export function showPause(info: BuildInfo, on: { resume: () => void; quit: () => void; talents: () => void; treasures: () => void; glossary: () => void; bored: () => void }): void {
-  const el = show(`
-    <div class="panel dialog">
-      <h1 class="small">Paused</h1>
-      ${buildHtml(info)}
-      <button class="btn big" data-resume>Resume</button>
-      <button class="btn" data-talents>Talents${info.talentPoints > 0 ? ` (${info.talentPoints} to spend)` : ''}</button>
-      <button class="btn" data-treasures>Sacred treasures</button>
-      <button class="btn" data-glossary>Glossary</button>
-      <div class="row">
-        <button class="btn small" data-bored data-tip="Playtest aid: stamps this moment into the run log (Keep › Run history). F8 does the same without pausing.">😴 Bored here</button>
-        <button class="btn" data-quit>End run (keeps your gold)</button>
-      </div>
-    </div>`);
+  // #189: Resume is the one main button; the build (when there is one) on parchment above the menu
+  const el = show(kitScreen('pause', 'Paused', {
+    body: buildHtml(info),
+    foot: `${kit.button('Resume', { kind: 'gold', size: 'big', attrs: 'data-resume' })}
+      <div class="row">${kit.button(`Talents${info.talentPoints > 0 ? ` (${info.talentPoints} to spend)` : ''}`, { attrs: 'data-talents' })}${kit.button('Sacred treasures', { icon: 'crown', attrs: 'data-treasures' })}${kit.button('Glossary', { attrs: 'data-glossary' })}</div>
+      <div class="row">${kit.button('😴 Bored here', { size: 'small', attrs: 'data-bored data-tip="Playtest aid: stamps this moment into the run log (Keep › Run history). F8 does the same without pausing."' })}${kit.button('End run (keeps your gold)', { attrs: 'data-quit' })}</div>`,
+  }));
   click(el, '[data-resume]', on.resume);
   click(el, '[data-talents]', on.talents);
   click(el, '[data-treasures]', on.treasures);
@@ -1066,7 +1064,7 @@ export function showRoutes(act: number, routes: Route[], onPick: (i: number) => 
   };
   const el = show(`
     <div class="levelup routes">
-      <h1 class="small">The road forks</h1>
+      ${choiceHead('The road forks')}
       <p class="sub">Choose your way into ${actName(act + 1)}</p>
       <svg class="fork" viewBox="0 0 300 60" aria-hidden="true"><circle cx="150" cy="8" r="6"/><path d="M150 14 L50 58 M150 14 L150 58 M150 14 L250 58"/></svg>
       <div class="cards">${routes.map(card).join('')}</div>
@@ -1102,22 +1100,22 @@ export function showMerchant(info: MerchantInfo, on: { heal: () => void; buy: (r
     const kept = halfAttunement(tier, info.attune[id] ?? 0);
     const forge = !fam ? 'A cursed relic has no family to reforge within' : !info.reforgeable.includes(id) ? `You carry every ${FAMILIES[fam].name} relic you can find` : `Swap it for a random other ${FAMILIES[fam].name} relic you do not carry, keeping half its attunement: tier ${TIER_NUMERALS[kept.tier]}${kept.attune > 0 ? `, ${Math.round(kept.attune * 100)}% toward ${TIER_NUMERALS[kept.tier + 1]}` : ''}`;
     return `<div class="held ${relicClass(id)}">${relicLine(id, tier, info.relics)}
-      <button class="chip" data-reroll="${id}" ${info.gold >= price('reroll') ? '' : 'disabled'} data-tip="Swap it for a random ${relicDef(id).rarity} relic you do not carry, at the same tier">Reroll 🪙 ${price('reroll')}</button>
-      <button class="chip" data-reforge="${id}" ${info.gold >= price('reforge') && info.reforgeable.includes(id) ? '' : 'disabled'} data-tip="${esc(forge)}">Reforge 🪙 ${price('reforge')}</button>
-      <button class="chip" data-sell="${id}" data-tip="Sell it for gold${tier > 1 ? ' (every tier counts)' : ''}">Sell +🪙 ${sellPrice(id, tier, info.act)}</button>
-      <button class="chip" data-salvage="${id}" data-tip="Break it into Rune shards: progress toward Runes, the Keep's second currency">Salvage +${salvageValue(id, tier)} ◆</button></div>`;
+      ${kit.button(`Reroll 🪙 ${price('reroll')}`, { size: 'small', disabled: info.gold < price('reroll'), attrs: `data-reroll="${id}" data-tip="Swap it for a random ${relicDef(id).rarity} relic you do not carry, at the same tier"` })}
+      ${kit.button(`Reforge 🪙 ${price('reforge')}`, { size: 'small', disabled: !(info.gold >= price('reforge') && info.reforgeable.includes(id)), attrs: `data-reforge="${id}" data-tip="${esc(forge)}"` })}
+      ${kit.button(`Sell +🪙 ${sellPrice(id, tier, info.act)}`, { size: 'small', attrs: `data-sell="${id}" data-tip="Sell it for gold${tier > 1 ? ' (every tier counts)' : ''}"` })}
+      ${kit.button(`Salvage +${salvageValue(id, tier)} ◆`, { size: 'small', attrs: `data-salvage="${id}" data-tip="Break it into Rune shards: progress toward Runes, the Keep's second currency"` })}</div>`;
   }).join('');
   const el = show(`
     <div class="levelup merchant">
-      <h1 class="small">${info.mid ? 'The Merchant’s caravan' : `${actName(info.act)} is won`}</h1>
+      ${choiceHead(info.mid ? 'The Merchant’s caravan' : `${actName(info.act)} is won`)}
       <p class="sub">${info.mid ? 'The Merchant path: his caravan has caught up with you.' : 'The Merchant waits by the gate.'} Purse: <b class="goldtext">🪙 ${info.gold}</b>${info.salvage > 0 ? ` · shards: <b>${info.salvage} ◆</b>` : ''} — what you spend here never reaches the Keep.</p>
       <div class="cards">
         ${offer('heal', 'data-heal', 'Field Surgeon', `Heal half your HP (${Math.ceil(info.hp)} / ${Math.round(info.maxHp)}).`, info.hp < info.maxHp)}
         ${info.books.length ? info.books.map((b) => offer(`book:${b}`, `data-book="${b}"`, `${MERCHANT.books[b].icon} ${MERCHANT.books[b].name}`, info.booksLeft.includes(b) ? MERCHANT.books[b].desc : 'Bought. One of each a visit.', info.booksLeft.includes(b))).join('')
         : info.mid && info.relicsLeft <= 0 ? '' : (Object.keys(RELIC_WEIGHTS) as Rarity[]).map((r) => offer(`buy:${r}`, `data-buy="${r}"`, `${r[0].toUpperCase()}${r.slice(1)} relic`, info.relicsLeft > 0 ? `Choose one of three ${r} relics you do not carry. One relic a visit.` : 'He sells one relic a visit.', info.relicsLeft > 0)).join('')}
       </div>
-      ${held ? `<div class="panel heldlist">${held}</div>` : ''}
-      <button class="btn big" data-leave>March on</button>
+      ${held ? kit.frame(kit.parch(held), { cls: 'heldlist' }) : ''}
+      ${kit.button('March on', { kind: 'gold', size: 'big', attrs: 'data-leave' })}
     </div>`);
   click(el, '[data-heal]', on.heal);
   click(el, '[data-buy]', (b) => on.buy(b.dataset.buy as Rarity));
@@ -1182,20 +1180,18 @@ export function showCompendium(save: Save, onBack: () => void): void {
 }
 
 export function showDaily(setup: DailySetup, best: number, onStart: () => void, onBack: () => void): void {
-  const el = show(`
-    <div class="panel dialog">
-      <h1 class="small">Daily Trial</h1>
-      <p class="sub">${setup.date} — the same trial for everyone today</p>
-      <div class="stats wide">
+  const el = show(kitScreen('daily', 'Daily Trial', {
+    back: 'data-back',
+    sub: `${setup.date} — the same trial for everyone today`,
+    body: `<div class="stats wide">
         <div><span>Champion</span><b>${CLASSES[setup.classId].name}</b></div>
         <div><span>Arena</span><b>${ARENAS[setup.arena].name}</b></div>
         <div><span>Curses</span><b>${setup.curses.map((c) => CURSES[c].name).join(' · ')}</b></div>
         <div><span>Gold &amp; class XP</span><b>×${curseMultiplier(setup.curses).toFixed(2)}</b></div>
         <div><span>Your best today</span><b>${best ? `wave ${best}` : '—'}</b></div>
-      </div>
-      <button class="btn big" data-start>Begin the trial</button>
-      <button class="btn" data-back>Back</button>
-    </div>`);
+      </div>`,
+    foot: kit.button('Begin the trial', { kind: 'gold', size: 'big', attrs: 'data-start' }),
+  }));
   click(el, '[data-start]', onStart);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'confirm' ? onStart() : a === 'cancel' && onBack()));
@@ -1203,15 +1199,13 @@ export function showDaily(setup: DailySetup, best: number, onStart: () => void, 
 
 /** v0.7.1: what changed in this version, from the top CHANGELOG entry (logic/whatsNew.ts, at build time). Once after an update, and from the title screen. */
 export function showWhatsNew(w: WhatsNew, onBack: () => void): void {
-  const el = show(`
-    <div class="panel dialog wide whatsnew">
-      <h1 class="small">What’s new in v${w.version}</h1>
-      ${w.title ? `<p class="sub"><b>${esc(w.title)}</b></p>` : ''}
-      ${w.intro ? `<p>${esc(w.intro)}</p>` : ''}
+  const el = show(kitScreen('whatsnew', `What’s new in v${w.version}`, {
+    sub: w.title ? `<b>${esc(w.title)}</b>` : '',
+    body: `${w.intro ? `<p>${esc(w.intro)}</p>` : ''}
       <ul>${w.points.map((p) => `<li><b>${esc(p.name)}</b>${p.text ? ` — ${esc(p.text)}` : ''}</li>`).join('')}</ul>
-      ${w.more ? `<p class="hint">…and ${w.more} more change${w.more > 1 ? 's' : ''}.</p>` : ''}
-      <button class="btn big" data-back>Continue</button>
-    </div>`);
+      ${w.more ? `<p class="hint">…and ${w.more} more change${w.more > 1 ? 's' : ''}.</p>` : ''}`,
+    foot: kit.button('Continue', { kind: 'gold', size: 'big', attrs: 'data-back' }),
+  }));
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'confirm' || a === 'cancel' || a === 'pause') && onBack());
 }
@@ -1280,10 +1274,10 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
   const talents = (classId: ClassId) => TALENT_BRANCHES[classId].map((b) => `<div><b>${b.name}</b>${talentsFor(classId).filter((n) => n.branch === b.id).map((n) => `<label><input type="checkbox" value="${n.id}" ${setup.talents.includes(n.id) ? 'checked' : ''}> ${n.name}${n.keystone ? ' (keystone)' : ''}</label>`).join('')}</div>`).join('');
   const group = (label: string, ids: RelicId[]) => `<div><b>${label}</b>${ids.map((id) => `<label>${relicDef(id).icon} ${relicDef(id).name} <select data-relic="${id}">${options([['0', '–'], ['1', 'I'], ['2', 'II'], ['3', 'III']], String(setup.relics[id] ?? 0))}</select></label>`).join('')}</div>`;
   const relics = (classId: ClassId) => [...FAMILY_IDS.map((f) => group(`${FAMILIES[f].icon} ${FAMILIES[f].name}`, RELIC_IDS.filter((id) => relicDef(id).family === f && (relicDef(id).classId ?? classId) === classId))), group('☠ Cursed', CURSED_IDS)].join('');
-  const el = show(`
-    <div class="panel dialog wide testmode">
-      <h1 class="small">Test mode</h1>
-      <p class="sub">Test runs pay nothing and leave no trace: no gold, Runes, class XP, deeds, contracts or run history. The HUD says TEST.</p>
+  const el = show(kitScreen('testmode', 'Test mode', {
+    back: 'data-back',
+    sub: 'Test runs pay nothing and leave no trace: no gold, Runes, class XP, deeds, contracts or run history. The HUD says TEST.',
+    body: `
       <h2>Start a run</h2>
       <div class="tm-grid">
         <label>Champion <select id="tm-class">${options(CLASS_ORDER.map((id) => [id, CLASSES[id].name]), setup.classId)}</select></label>
@@ -1294,21 +1288,20 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
       </div>
       <div class="tm-talents" id="tm-talents">${talents(setup.classId)}</div>
       <h2>Relics</h2>
-      <p class="sub">Held from the start, at the attunement tier chosen (III is awakened).</p>
+      <p class="hint">Held from the start, at the attunement tier chosen (III is awakened).</p>
       <div class="tm-talents" id="tm-relics">${relics(setup.classId)}</div>
-      <button class="btn big" data-start>Start test run</button>
       <h2>Sprite gallery</h2>
-      <p class="sub">Every rigged sprite's animations, side by side at 2×, each on its own clock (#155).</p>
+      <p class="hint">Every rigged sprite's animations, side by side at 2×, each on its own clock (#155).</p>
       ${Object.entries(SHEETS).map(([id, d]) => `<div class="tm-gallery"><b>${id}</b>${Object.keys(d.anims).map((a) => `<figure><canvas data-sheet="${id}" data-anim="${a}" width="${d.w * 2}" height="${d.h * 2}"></canvas><figcaption>${a}</figcaption></figure>`).join('')}</div>`).join('')}
       <h2>Music jukebox</h2>
       <div class="tm-grid">
         <label>Theme <select id="jb-arena">${arenas(setup.arena)}</select></label>
         <label>Layer <input id="jb-layer" type="range" min="0" max="3" step="1" value="1"></label><span id="jb-name"></span>
       </div>
-      <div class="row"><button class="btn" data-play>Play</button><button class="btn" data-cue="fork">Fork cue</button><button class="btn" data-cue="victory">Victory cue</button><button class="btn" data-stop>Stop</button></div>
-      <div class="row">${JUKEBOX_STINGERS.map(([k, label]) => `<button class="btn small" data-sting="${k}">${label}</button>`).join('')}</div>
-      <button class="btn" data-back>Back</button>
-    </div>`);
+      <div class="row">${kit.button('Play', { kind: 'go', attrs: 'data-play' })}${kit.button('Fork cue', { attrs: 'data-cue="fork"' })}${kit.button('Victory cue', { attrs: 'data-cue="victory"' })}${kit.button('Stop', { attrs: 'data-stop' })}</div>
+      <div class="row">${JUKEBOX_STINGERS.map(([k, label]) => kit.button(label, { size: 'small', attrs: `data-sting="${k}"` })).join('')}</div>`,
+    foot: kit.button('Start test run', { kind: 'gold', size: 'big', attrs: 'data-start' }), // #189: in the footer, always in reach
+  }));
   const field = (id: string) => el.querySelector<HTMLInputElement>(`#${id}`)!;
   const num = (id: string, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number(field(id).value)) || lo));
   field('tm-class').onchange = () => {
@@ -1369,13 +1362,10 @@ export function showCrash(report: string): void {
   if (document.getElementById('crash')) return;
   const el = document.createElement('div');
   el.id = 'crash';
-  el.innerHTML = `
-    <div class="panel dialog wide">
-      <h1 class="small">Something went wrong</h1>
-      <p>The game can go on. If this keeps happening, please send this with a bug report:</p>
-      <pre></pre>
-      <button class="btn big" data-continue>Continue</button>
-    </div>`;
+  el.innerHTML = kitScreen('crash', 'Something went wrong', {
+    body: '<p>The game can go on. If this keeps happening, please send this with a bug report:</p><pre></pre>',
+    foot: kit.button('Continue', { kind: 'gold', size: 'big', attrs: 'data-continue' }),
+  });
   el.querySelector('pre')!.textContent = report;
   el.querySelector('[data-continue]')!.addEventListener('click', () => el.remove());
   document.body.append(el);
