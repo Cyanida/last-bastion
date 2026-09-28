@@ -1,6 +1,6 @@
 /**
  * #184: review screenshots of the new look.   node scripts/ui-previews.mjs   (after `npm run build`)
- * Renders the title screen at 1280x720 and in phone landscape (844x390, touch), and a kit sheet with every component of
+ * Renders the title screen and the champion select (#65) at 1280x720 and in phone landscape (844x390, touch), and a kit sheet with every component of
  * src/ui/kit.css (built with kit.ts, #185), into docs/review/0.9.0/. These are review images for the issue, not game assets.
  */
 import { mkdirSync } from 'node:fs';
@@ -29,6 +29,10 @@ async function shot(file, viewport, touch, prepare) {
 
 await shot('title-1280x720.png', { width: 1280, height: 720 });
 await shot('title-phone-844x390.png', { width: 844, height: 390 }, true);
+// #65: the champion select
+const champions = () => document.querySelector('[data-go="start"]').click();
+await shot('champions-1280x720.png', { width: 1280, height: 720 }, false, champions);
+await shot('champions-phone-844x390.png', { width: 844, height: 390 }, true, champions);
 // #185: the kit sheet is built with the kit's own helpers (kit.ts, on window.__lb with ?debug), so it shows what screens get
 await shot('kit-sheet.png', { width: 1280, height: 800 }, false, () => {
   const k = window.__lb.kit;

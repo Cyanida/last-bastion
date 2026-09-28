@@ -203,6 +203,199 @@ await check('menus: the UI kit helpers build the title and every component works
   return { ok, detail: `title from helpers ${same.join('/')}, tab ${r.on} (picked ${r.picked}), switch ${r.toggled}, rarity colours ${r.rarity}, close ${r.close}, frame ${r.frame}` };
 });
 
+// #186: Settings and the results in the kit, on PC and phone landscape, played through their controls: the framed screen with its
+// ribbon, choices as pressed wood buttons, the Sound switch, the Effects slider by keyboard, the back disc; then a real run ended from
+// the pause menu, its results framed with the one gold main button, the atlas's gold icon, everything in the window, and the wood
+// button on to the class select. Mouse on PC, touch taps on the phone.
+await check('Settings and results: the UI kit, their controls work, all in the window at 1280x720 and 844x390 (#186)', async () => {
+  const seen = [];
+  for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    // all of the frame in the window; the parchment scrolls if it must, and its last line comes into view
+    const inside = (sel) =>
+      p.evaluate((sel) => {
+        const f = document.querySelector(sel).getBoundingClientRect();
+        const btns = [...document.querySelectorAll(`${sel} footer .kit-btn, ${sel} .kit-close`)].every((b) => {
+          const r = b.getBoundingClientRect();
+          return r.top >= f.top && r.bottom <= f.bottom + 6; // the lip may sit on the frame's edge
+        });
+        const scroll = document.querySelector(`${sel} .kit-scroll`);
+        const last = scroll.lastElementChild;
+        last.scrollIntoView({ block: 'nearest' });
+        const lr = last.getBoundingClientRect(), sr = scroll.getBoundingClientRect();
+        return f.top >= 0 && f.left >= 0 && f.bottom <= innerHeight && f.right <= innerWidth && btns && lr.bottom <= sr.bottom + 1;
+      }, sel);
+    await press('[data-go="settings"]');
+    const set = await p.evaluate(() => {
+      const root = document.querySelector('.kit-screen.settings');
+      return {
+        frame: !!root && root.classList.contains('kit-frame') && !!root.querySelector('.kit-parch.kit-scroll .setting'),
+        ribbon: root?.querySelector('.kit-head .kit-ribbon')?.textContent.trim(),
+        choices: [...document.querySelectorAll('[data-quality], [data-text-size], [data-aim]')].every((b) => b.classList.contains('kit-btn')) && document.querySelectorAll('.kit-choice .kit-btn.on.pressed').length === 3,
+        switches: document.querySelectorAll('.settings .kit-toggle').length,
+        sliders: document.querySelectorAll('.settings .kit-slider input[type=range]').length,
+      };
+    });
+    const fitsSet = await inside('.kit-screen.settings');
+    await press('[data-text-size="large"]');
+    const large = await p.evaluate(() => {
+      const b = document.querySelector('[data-text-size="large"]');
+      return b.classList.contains('on') && b.getAttribute('aria-pressed') === 'true' && window.__lb.save.settings.textSize === 'large';
+    });
+    await press('[data-text-size="normal"]');
+    const sound = p.locator('.kit-toggle:has([data-set="mute"])');
+    const soundBefore = (await sound.textContent()).trim();
+    await sound.click(); // a label: a click or a tap flips it alike
+    const soundAfter = (await sound.textContent()).trim();
+    const checked = await p.locator('[data-set="mute"]').isChecked();
+    await sound.click();
+    const fx = p.locator('[data-set="effects"]');
+    const fxBefore = (await p.locator('.kit-slider:has([data-set="effects"]) [data-level]').textContent()).trim();
+    await fx.focus();
+    await p.keyboard.press('ArrowLeft');
+    await p.waitForTimeout(60);
+    const fxAfter = (await p.locator('.kit-slider:has([data-set="effects"]) [data-level]').textContent()).trim();
+    await p.locator('[data-set="effects"]').focus();
+    await p.keyboard.press('ArrowRight');
+    await press('.settings [data-act="back"]');
+    const title = await p.locator('[data-go="start"]').count();
+    // a real run, ended from the pause menu
+    await press('[data-go="start"]');
+    await p.evaluate(() => document.querySelector('[data-class="viking"]').click());
+    await p.evaluate(() => document.querySelector('[data-start]')?.click());
+    await p.waitForFunction(() => window.__lb.state !== 'menu'); // the quest board comes first
+    await p.evaluate(() => { // the bot answers the screens; stop mid-fight, where Esc pauses
+      const lb = window.__lb;
+      for (let i = 0; i < 400 && !(i > 60 && lb.state === 'playing'); i++) lb.run(1, false, true);
+    });
+    await p.keyboard.press('Escape');
+    await press('[data-quit]');
+    await p.locator('.kit-screen.results').waitFor({ timeout: 3000 });
+    const res = await p.evaluate(() => {
+      const root = document.querySelector('.kit-screen.results');
+      const gold = [...root.querySelectorAll('.kit-btn.gold')];
+      const banked = [...root.querySelectorAll('.stats > div')].find((d) => d.firstElementChild?.textContent === 'Gold banked');
+      return {
+        ribbon: root.querySelector('.kit-head .kit-ribbon')?.textContent.trim(),
+        main: gold.length === 1 && gold[0].matches('[data-retry].big') && gold[0].textContent.startsWith('Quick restart'),
+        menu: root.querySelector('[data-menu]')?.classList.contains('wood'),
+        icon: !!banked?.querySelector('.kit-icon.i-gold') && getComputedStyle(banked.querySelector('.kit-icon')).backgroundImage.includes('ui-icons.png'),
+        seed: !!root.querySelector('.stats .seed')?.textContent.trim(),
+      };
+    });
+    const fitsRes = await inside('.kit-screen.results');
+    await press('[data-menu]');
+    const select = await p.evaluate(() => !!document.querySelector('[data-class="viking"]') && !document.querySelector('.kit-screen.results'));
+    await p.close();
+    const ok = set.frame && set.ribbon === 'Settings' && set.choices && set.switches >= 3 && set.sliders === 2 && fitsSet && large &&
+      soundBefore === 'On' && soundAfter === 'Off' && !checked && fxBefore !== fxAfter && title > 0 &&
+      res.ribbon === 'The run ends' && res.main && res.menu && res.icon && res.seed && fitsRes && select && errs.length === 0;
+    seen.push({ ok, detail: `${w}x${h}: settings ${set.frame}/${set.ribbon}, choices ${set.choices}, ${set.switches} switches, ${set.sliders} sliders, fits ${fitsSet}, Large ${large}, sound ${soundBefore}->${soundAfter}, effects ${fxBefore}->${fxAfter}, back ${title > 0}; results "${res.ribbon}", gold main ${res.main}, wood ${res.menu}, icon ${res.icon}, fits ${fitsRes}, to select ${select}${errs.length ? `, errors: ${errs[0]}` : ''}` });
+  }
+  return { ok: seen.every((x) => x.ok), detail: seen.map((x) => x.detail).join(' | ') };
+});
+
+// #187: the compendium, the glossary and the flash cards in the kit, played at 1280x720 with the mouse and in phone landscape by touch:
+// each is a wood frame with a ribbon heading that fits the screen, what you read on parchment that scrolls, the round back button in its
+// corner (which goes back); every relic row has its icon in the frame of its rarity; a flash card's one button is gold and closes it
+await check('menus: the compendium, glossary and flash cards in the kit, every relic in its rarity frame, at 1280x720 and phone landscape (#187)', async () => {
+  const seen = [];
+  for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    // a save that found a common, a legendary and a champion's own relic, and met two foes and a mark
+    await p.evaluate(() => {
+      const s = window.__lb.save;
+      s.relicPicks = { brimstoneOil: 2, dragonsTongue: 1, fireArrows: 1 };
+      s.cards = ['peasant', 'wolf', 'elite'];
+    });
+    // what a kit book looks like on screen: fits, its ribbon heading, a parchment that scrolls, the back button inside the frame
+    const book = (sel) => p.evaluate(async (sel) => {
+      const b = document.querySelector(`#overlay > .kit-frame.kit-book${sel}`);
+      if (!b) return null;
+      const r = b.getBoundingClientRect(), back = b.querySelector('.kit-corner.kit-close[data-back]').getBoundingClientRect();
+      const scroll = b.querySelector('.kit-parch.kit-scroll');
+      const before = scroll.scrollTop;
+      scroll.scrollTop = 400;
+      const scrolls = scroll.scrollTop > before && scroll.scrollHeight > scroll.clientHeight;
+      scroll.scrollTop = 0;
+      return {
+        fits: r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1,
+        ribbon: b.querySelector('h1 .kit-ribbon')?.textContent,
+        scrolls,
+        back: back.width >= 38 && back.right <= r.right && back.top >= r.top && getComputedStyle(b.querySelector('.kit-close .kit-icon')).backgroundImage.includes('ui-icons.png'),
+        font: getComputedStyle(b.querySelector('.kit-parch h2, .kit-parch dt')).fontFamily,
+      };
+    }, sel);
+    const heading = () => p.locator('#overlay h1').first().textContent();
+    await press('[data-go="keep"]');
+    await press('[data-compendium]');
+    const comp = await book('.compendium');
+    const rows = await p.evaluate(() => {
+      const rows = [...document.querySelectorAll('.compendium .comp-card')];
+      const frame = (id) => document.querySelector(`.comp-card[data-relic="${id}"] > .kit-rarity`);
+      const rim = (id) => getComputedStyle(frame(id)).borderTopColor;
+      return {
+        n: rows.length,
+        framed: rows.filter((r) => r.firstElementChild?.matches('.kit-rarity.common, .kit-rarity.rare, .kit-rarity.legendary, .kit-rarity.class')).length,
+        found: rows.filter((r) => !r.classList.contains('locked')).map((r) => `${r.querySelector('.kit-row-body > b').textContent} ${r.firstElementChild.classList[1]}`),
+        glyph: frame('dragonsTongue').textContent === '🐉',
+        colours: new Set(['brimstoneOil', 'dragonsTongue', 'fireArrows'].map(rim)).size,
+        recipes: document.querySelectorAll('.compendium .recipe > .kit-rarity.signature').length,
+        total: Number(document.querySelector('.compendium .sub').textContent.match(/\/ (\d+)/)?.[1]),
+      };
+    });
+    await press('.compendium [data-back]');
+    const fromComp = await heading();
+    await press('[data-glossary]');
+    const gloss = await book('.glossary');
+    const terms = await p.evaluate(() => ({ terms: document.querySelectorAll('.glossary .kit-parch > dl:first-child dt').length, met: document.querySelectorAll('.glossary .cards-met dt .card-pic').length }));
+    await press('.glossary [data-back]');
+    const fromGloss = await heading();
+    // a real run by the real screens: the first foe brings its flash card
+    await press('[data-back]');
+    await press('[data-go="start"]');
+    await press('[data-class="viking"]');
+    await press('[data-start]');
+    await p.waitForFunction(() => !!window.__lb.game); // the run is on (its quest board up); the loop below answers it, as a run's checks do
+    const card = await p.evaluate(() => {
+      const lb = window.__lb;
+      lb.save.cards = [];
+      lb.game.player.invulnerable = true;
+      for (let i = 0; i < 3000 && !document.querySelector('[data-card]'); i++) lb.run(1, false, true);
+      const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+      if (!c) return null;
+      const r = c.getBoundingClientRect(), btn = c.querySelector('.kit-btn.gold.big[data-leave]');
+      return {
+        fits: r.top >= 0 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1,
+        ribbon: c.querySelector('.kit-ribbon')?.textContent,
+        text: !!c.querySelector('.kit-parch h2') && !!c.querySelector('.kit-parch p')?.textContent,
+        pic: !!c.querySelector('.card-pic'),
+        gold: btn?.textContent === 'Got it' && c.querySelectorAll('.kit-btn.gold').length === 1,
+      };
+    });
+    if (card) await press('[data-leave]');
+    const closed = await p.evaluate(async () => (await new Promise((r) => setTimeout(r, 100)), !document.querySelector('[data-card]') && window.__lb.state === 'playing'));
+    await p.close();
+    const ok = !!comp && comp.fits && comp.ribbon === 'Relic compendium' && comp.scrolls && comp.back && /Cinzel/.test(comp.font) &&
+      rows.n === rows.total && rows.framed === rows.n && rows.found.join() === "Brimstone Oil common,Dragon's Tongue legendary,Fire Arrows class" && rows.glyph && rows.colours === 3 && rows.recipes > 0 &&
+      fromComp === 'The Keep' && !!gloss && gloss.fits && gloss.ribbon === 'Glossary' && gloss.scrolls && gloss.back && /Cinzel/.test(gloss.font) && terms.terms > 10 && terms.met === 3 && fromGloss === 'The Keep' &&
+      !!card && card.fits && card.ribbon === 'New' && card.text && card.pic && card.gold && closed && errs.length === 0;
+    seen.push({ ok, detail: `${w}x${h}${touch ? ' touch' : ''}: compendium ${comp ? `fits ${comp.fits}, "${comp.ribbon}", scrolls ${comp.scrolls}, back ${comp.back}` : 'NOT IN THE KIT'}, ${rows.framed}/${rows.n} framed (${rows.found.join(', ')}; ${rows.colours} colours), back to ${fromComp}; glossary ${gloss ? `fits ${gloss.fits}, ${terms.terms} terms, ${terms.met} met, scrolls ${gloss.scrolls}` : 'NOT IN THE KIT'}, back to ${fromGloss}; flash card ${card ? `fits ${card.fits}, "${card.ribbon}", gold ${card.gold}` : 'NONE'}, closed ${closed}${errs.length ? `, errors: ${errs[0]}` : ''}` });
+  }
+  return { ok: seen.every((s) => s.ok), detail: seen.map((s) => s.detail).join(' · ') };
+});
+
 // #138: the champions are drawn on a grid twice as fine, and show at the same size as before on the class select
 await check('class select: champions on the finer grid keep their size, at one scale, standing on one line (#156)', () =>
   inPage(async () => {
@@ -268,6 +461,76 @@ await check('class select: a typed seed survives picking an option, Back clears 
     return { ok: kept === 'KEEPME' && after === '', detail: `after an option: "${kept}", after Back: "${after}"` };
   }),
 );
+
+// #65: the title and the champion select in the new look, at 1280x720 and in phone landscape, played with the mouse: the title's kit
+// buttons fit the screen; Take up arms opens the roster strip, a tile picks its champion and shows it on the pedestal with stat bars
+// and facts, an option takes the brass ring, the one gold Start names the champion and stays in reach, the round Back goes home
+await check('menus: the title and the champion select in the new look, at 1280x720 and phone landscape (#65)', async () => {
+  const seen = [];
+  for (const [w, h] of [[1280, 720], [844, 390]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(150);
+    const title = await inPage(() => {
+      const o = document.getElementById('overlay');
+      const btns = [...o.querySelectorAll('.kit-title .kit-btn')];
+      return {
+        kit: btns.length >= 4 && !o.querySelector('.kit-title .btn'),
+        settingsIcon: !!document.querySelector('[data-go="settings"] .kit-icon.i-settings'),
+        fits: o.scrollWidth <= o.clientWidth && btns.every((b) => b.getBoundingClientRect().right <= innerWidth),
+      };
+    });
+    await page.click('[data-go="start"]');
+    await page.waitForSelector('.kit-select [data-start]');
+    // a second click on the chosen tile would start the run (#146): pick the Paladin only if he isn't already
+    if ((await inPage(() => document.querySelector('.kit-select .card.champ.on')?.dataset.class)) !== 'paladin') await page.click('[data-class="paladin"]');
+    const look = () =>
+      inPage(() => {
+        const o = document.getElementById('overlay');
+        const shown = [...document.querySelectorAll('.kit-select [data-hero]')].filter((x) => !x.hidden && x.getBoundingClientRect().height > 0);
+        const hero = shown[0];
+        const bars = hero ? [...hero.querySelectorAll('.stat-bar i b')].map((b) => Math.round((b.getBoundingClientRect().width / b.parentElement.clientWidth) * 100)) : [];
+        const start = document.querySelector('[data-start]').getBoundingClientRect();
+        return {
+          tiles: document.querySelectorAll('.kit-select .roster .card.champ[data-class] .portrait canvas').length,
+          on: [...document.querySelectorAll('.kit-select .card.champ.on')].map((c) => c.dataset.class).join(),
+          hero: shown.map((x) => x.dataset.hero).join(),
+          figure: !!hero?.querySelector('.hero-figure canvas')?.width,
+          bars,
+          facts: hero ? [...hero.querySelectorAll('.facts small')].map((s) => s.textContent).join('/') : '',
+          start: document.querySelector('[data-start]').textContent,
+          gold: document.querySelectorAll('#overlay .kit-btn.gold').length,
+          inReach: start.top >= 0 && start.bottom <= innerHeight,
+          back: !!document.querySelector('.kit-select-top .kit-close[data-back] .kit-icon.i-back'),
+          ribbon: !!document.querySelector('.kit-select-top .kit-ribbon'),
+          wide: o.scrollWidth > o.clientWidth,
+          scrolls: o.scrollHeight > o.clientHeight + 1,
+        };
+      });
+    const pal = await look();
+    await page.click('[data-class="viking"]'); // a tile picks the champion: the pedestal and Start follow, no run starts
+    const vik = await look();
+    await page.locator('[data-trait="glassCannon"]').scrollIntoViewIfNeeded();
+    await page.click('[data-trait="glassCannon"]'); // an option re-renders the screen: the champion stays, the option takes the ring
+    const ring = await inPage(() => {
+      const b = document.querySelector('[data-trait="glassCannon"]');
+      return { on: b.classList.contains('on') && b.classList.contains('kit-btn') && getComputedStyle(b).boxShadow.includes('0px 0px 0px 2px'), trait: window.__lb.save.settings.trait, still: document.querySelector('.kit-select .card.champ.on')?.dataset.class };
+    });
+    await page.click('[data-trait="none"]');
+    await page.locator('[data-back]').scrollIntoViewIfNeeded();
+    await page.click('[data-back]');
+    const home = await inPage(() => window.__lb.state === 'menu' && !!document.querySelector('.kit-title [data-go="start"]'));
+    seen.push({ w, h, title, pal, vik, ring, home });
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const ok = seen.every(({ w, title, pal, vik, ring, home }) =>
+    title.kit && title.settingsIcon && title.fits
+    && pal.tiles === 5 && pal.on === 'paladin' && pal.hero === 'paladin' && pal.figure && pal.bars.length === 7 && pal.bars[0] >= 99 && pal.bars.every((b) => b > 0 && b <= 100)
+    && pal.facts === 'Attack/Reach/Armor/Regen/Cooldown' && pal.start === 'Start as Paladin' && pal.gold === 1 && pal.inReach && pal.back && pal.ribbon && !pal.wide
+    && vik.on === 'viking' && vik.hero === 'viking' && vik.start === 'Start as Viking' && vik.inReach
+    && ring.on && ring.trait === 'glassCannon' && ring.still === 'viking' && home
+    && (w < 1000 || !pal.scrolls)); // at 1280x720 the whole screen fits without scrolling
+  return { ok, detail: seen.map(({ w, h, title, pal, vik, ring, home }) => `${w}x${h}: title kit ${title.kit}/settings icon ${title.settingsIcon}/fits ${title.fits}; ${pal.tiles} tiles, ${pal.on} on the pedestal (${pal.hero}), bars ${pal.bars.join(' ')}, facts ${pal.facts}, "${pal.start}", ${pal.gold} gold button, in reach ${pal.inReach}, scrolls ${pal.scrolls}, wide ${pal.wide}; tile -> ${vik.hero} "${vik.start}"; option ring ${ring.on} (${ring.trait}, ${ring.still} kept); Back home ${home}`).join(' | ') };
+});
 
 // ---------- a test run from the real Test mode screen ----------
 await check('test mode starts a run', () =>
@@ -1017,10 +1280,10 @@ await check('starts with site data blocked: title, Settings, sound toggle', asyn
   await blocked.goto(`http://localhost:${PORT}/`);
   await blocked.getByText('Take up arms').first().waitFor({ timeout: 5000 });
   await blocked.getByRole('button', { name: 'Settings' }).click();
-  const mute = blocked.locator('[data-act="mute"]');
+  const mute = blocked.locator('.kit-toggle:has([data-set="mute"])'); // #186: a switch
   const before = await mute.textContent();
   await mute.click();
-  const after = await blocked.locator('[data-act="mute"]').textContent();
+  const after = await blocked.locator('.kit-toggle:has([data-set="mute"])').textContent();
   const crash = await blocked.locator('#crash').count();
   await blocked.close();
   return { ok: before !== after && crash === 0 && errs.length === 0, detail: `title up, sound ${before} -> ${after}${errs.length ? `, errors: ${errs[0]}` : ''}` };
@@ -1095,6 +1358,58 @@ await check('Esc in the relic compendium: back to the Keep, then the title (#182
   return { ok: opened === 'Relic compendium' && back === 'The Keep' && title > 0, detail: `${opened} -> ${back} -> ${title ? 'title' : '?'}` };
 });
 
+// ---------- #67: the Keep is a castle courtyard; its buildings grow with levels and ranks, and a tap opens a building's panel ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`The Keep as a castle: see it grow, ${touch ? 'tap' : 'click'} a building for its panel, buy a rank, Esc out, at ${w}x${h} (#67)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate(() => Object.assign(window.__lb.save, { gold: 5000, runes: 12, buildings: { chapel: 2 }, meta: { relicChance: 2 } }));
+    const press = (sel) => (touch ? p.locator(sel).tap() : p.locator(sel).click());
+    await press('[data-go="keep"]');
+    await p.locator('.keep-yard').waitFor({ timeout: 3000 });
+    // every building stands in the yard, drawn from the rig's atlas at its stage: the ruined Armory, the Chapel at level 2 with a banner
+    const yard = await p.evaluate(() => {
+      const box = document.querySelector('.keep-yard').getBoundingClientRect();
+      const blds = [...document.querySelectorAll('[data-building]')].map((b) => {
+        const r = b.getBoundingClientRect();
+        return { id: b.dataset.building, cls: b.className, bg: getComputedStyle(b).backgroundImage, inside: r.left >= box.left - 1 && r.right <= box.right + 1 && r.top >= box.top - 1 && r.width > 20 };
+      });
+      return { blds, yardBg: getComputedStyle(document.querySelector('.keep-yard')).backgroundImage };
+    });
+    const art = await p.evaluate(() => Promise.all(['/sprites/keep-castle.png', '/sprites/keep-yard.png'].map((src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i.naturalWidth); i.onerror = () => ok(0); i.src = src; }))));
+    const chapelStage = yard.blds.find((b) => b.id === 'chapel')?.cls.match(/s-(\d+)/)?.[1];
+    const armoryStage = yard.blds.find((b) => b.id === 'armory')?.cls.match(/s-(\d+)/)?.[1];
+    // a tap on the Chapel opens its panel, with its ranks, costs and deed as before
+    await press('[data-building="chapel"]');
+    const panel = () => p.evaluate(() => {
+      const el = document.querySelector('[data-panel="chapel"]');
+      const r = el.getBoundingClientRect();
+      return { open: !el.classList.contains('hidden') && r.width > 0, onScreen: r.top >= 0 && r.bottom <= innerHeight + 1, name: el.querySelector('.kit-ribbon').textContent.trim(), rows: el.querySelectorAll('.meta-row').length, raise: !!el.querySelector('[data-raise="chapel"]'), deed: /next deed/.test(el.textContent), others: document.querySelectorAll('[data-panel]:not(.hidden)').length };
+    });
+    const opened = await panel();
+    // buying a rank keeps the panel open, with one more rank bought
+    const before = await p.evaluate(() => window.__lb.save.meta.salvage ?? 0);
+    await press('[data-panel="chapel"] [data-buy="salvage"]');
+    await p.waitForTimeout(100);
+    const after = await p.evaluate(() => window.__lb.save.meta.salvage ?? 0);
+    const still = await panel();
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(100);
+    const closed = !(await panel()).open && (await p.locator('.keep-yard').count()) === 1;
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(100);
+    const title = await p.getByText('Take up arms').count();
+    await p.close();
+    const ok = yard.blds.length === 6 && yard.blds.every((b) => b.inside && b.bg.includes('keep-castle')) && yard.yardBg.includes('keep-yard') && art.every((n) => n > 0)
+      && armoryStage === '0' && chapelStage === '9' && opened.open && opened.onScreen && opened.name.startsWith('Chapel') && opened.rows === 3 && opened.raise && opened.deed && opened.others === 1
+      && after === before + 1 && still.open && closed && title > 0 && errs.length === 0;
+    return { ok, detail: `${yard.blds.length} buildings${yard.blds.every((b) => b.inside) ? ' in the yard' : ' (one outside the yard)'}, armory s-${armoryStage}, chapel s-${chapelStage}, art ${art.join('/')}; panel ${opened.open ? 'open' : 'shut'} "${opened.name}" ${opened.rows} rows${opened.onScreen ? '' : ' (off screen)'}; smelter ${before} -> ${after}, still ${still.open ? 'open' : 'shut'}; Esc ${closed ? 'closes it' : 'did not close it'}, then ${title ? 'title' : '?'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 // ---------- v0.8.3 (#182): a new pixel ratio (another monitor) re-sizes the canvas, so the arena stays sharp ----------
 await check('DPR: moving to a sharper screen re-sizes the canvas to its pixels (#182)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
@@ -1134,7 +1449,7 @@ await check('import: a save with markup stays text', () =>
       const imported = document.body.innerText.includes('Save imported');
       const seen = [];
       await P.click('[data-act="back"]');
-      btn('Back').click(); // settings -> title
+      await P.click('[data-act="back"]'); // settings -> title (#186: the back disc)
       await P.wait(150);
       seen.push(!!document.getElementById('xss'));
       btn('Chronicle').click();
@@ -1970,7 +2285,7 @@ await check('compendium: no card text falls off its card', async () => {
         await wait();
         document.querySelector('[data-compendium]').click();
         await wait();
-        const cards = [...document.querySelectorAll('.compendium .relic-card')];
+        const cards = [...document.querySelectorAll('.compendium .comp-card')]; // #187: each relic a kit row
         const bad = [];
         for (const c of cards) {
           const box = c.getBoundingClientRect();
@@ -1981,7 +2296,7 @@ await check('compendium: no card text falls off its card', async () => {
             range.selectNodeContents(t);
             for (const r of range.getClientRects()) {
               if (r.left < box.left - 1 || r.right > box.right + 1 || r.top < box.top - 1 || r.bottom > box.bottom + 1) {
-                bad.push(`${c.querySelector('h2')?.textContent}: "${t.textContent.trim().slice(0, 20)}"`);
+                bad.push(`${c.querySelector('.kit-row-body > b')?.textContent}: "${t.textContent.trim().slice(0, 20)}"`);
                 break;
               }
             }

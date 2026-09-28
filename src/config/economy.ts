@@ -158,6 +158,9 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
 };
 export const BUILDING_IDS = Object.keys(BUILDINGS) as BuildingId[];
 
+/** #67: the Keep drawn as a castle. A building shows its level (a ruin at 0) and flies a banner for each of these shares of its ranks bought. */
+export const KEEP_BANNERS = [1 / 3, 2 / 3, 1];
+
 /** The Library's level caps the talent rows: three rows in a ruin, the keystones (row 3) from level 1. (v0.4 opened only two rows at first: it read as a broken tree.) */
 export const TALENT_ROW_CAP = [2, 3, 3, 3];
 
