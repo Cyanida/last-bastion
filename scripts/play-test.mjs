@@ -158,6 +158,51 @@ await check('title screen: the UI kit (gold bevelled button that presses, ribbon
   return { ok, detail: `kit ${up.kit}, bevel ${up.bevel}, lip ${up.lip} -> ${down.lip} pressed (sinks ${Math.round(down.y - up.y)} px), ${up.font}, ribbon ${up.ribbon}, frame ${up.frame}, pill ${up.pill}, atlas ${atlas} px wide` };
 });
 
+// #185: the kit's helpers build the title screen, and every kit component renders in its classes and works: the tab bar moves its
+// open tab on a click, a switch flips, the rarity frames differ in colour and the close button shows its atlas icon
+await check('menus: the UI kit helpers build the title and every component works (tabs switch, a switch flips, rarity frames) (#185)', async () => {
+  const same = await inPage(() => {
+    const k = window.__lb.kit;
+    const html = (sel) => document.querySelector(sel)?.outerHTML;
+    return [
+      html('[data-go="start"]') === k.button('Take up arms', { kind: 'gold', size: 'big', attrs: 'data-go="start"' }),
+      html('[data-go="keep"]') === k.button('The Keep', { icon: 'keep', attrs: 'data-go="keep"' }),
+      html('.kit-purse .kit-pill') === k.pill('gold', window.__lb.save.gold, { title: 'Gold' }),
+    ];
+  });
+  await inPage(() => {
+    const k = window.__lb.kit;
+    const d = document.createElement('div');
+    d.id = 'kit-check';
+    d.style.cssText = 'position:fixed;inset:0;z-index:9999;display:grid;align-content:start;gap:12px;padding:20px;background:#0c0806';
+    d.innerHTML = k.tabs(k.MAIN_TABS, 'champion') + k.frame(k.parch(k.toggle('Music', 'music', false))) +
+      k.row('<b>Relic</b>', { lead: k.rarityIcon('common', 'steel') + k.rarityIcon('signature', 'holy'), end: k.closeButton('close') });
+    document.body.append(d);
+    window.__kitPicked = [];
+    k.wireTabs(d, (id) => window.__kitPicked.push(id));
+  });
+  await page.click('#kit-check [data-tab="relics"]');
+  await page.click('#kit-check .kit-toggle');
+  const r = await inPage(() => {
+    const d = document.getElementById('kit-check');
+    const knob = getComputedStyle(d.querySelector('.kit-toggle > i'), '::after').transform;
+    const rim = (sel) => getComputedStyle(d.querySelector(sel)).borderTopColor;
+    const out = {
+      on: [...d.querySelectorAll('.kit-tab.on')].map((t) => t.dataset.tab).join(),
+      picked: window.__kitPicked.join(),
+      toggled: d.querySelector('[data-set="music"]').checked && knob !== 'none',
+      rarity: rim('.kit-rarity.common') !== rim('.kit-rarity.signature'),
+      close: getComputedStyle(d.querySelector('.kit-close .kit-icon.i-close')).backgroundImage.includes('ui-icons.png') && d.querySelector('.kit-close').getBoundingClientRect().width >= 38,
+      frame: getComputedStyle(d.querySelector('.kit-frame'), '::before').borderTopWidth === '2px',
+    };
+    d.remove();
+    delete window.__kitPicked;
+    return out;
+  });
+  const ok = same.every(Boolean) && r.on === 'relics' && r.picked === 'relics' && r.toggled && r.rarity && r.close && r.frame;
+  return { ok, detail: `title from helpers ${same.join('/')}, tab ${r.on} (picked ${r.picked}), switch ${r.toggled}, rarity colours ${r.rarity}, close ${r.close}, frame ${r.frame}` };
+});
+
 // #138: the champions are drawn on a grid twice as fine, and show at the same size as before on the class select
 await check('class select: champions on the finer grid keep their size, at one scale, standing on one line (#156)', () =>
   inPage(async () => {
