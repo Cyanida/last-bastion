@@ -958,6 +958,72 @@ await check('offline: a failed update check shows no error overlay', async () =>
   return { ok: crash === 0 && errs.length === 0, detail: `overlay ${crash}${errs.length ? `, errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- v0.8.3 (#182): desktop Settings shows the update status as it comes in, a failed check included ----------
+await check('Settings: the update status follows the check while the screen is open, an error as text (#182)', async () => {
+  const desk = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  desk.on('pageerror', (e) => errs.push(e.message));
+  desk.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  // the Electron preload's API (electron/preload.cjs), with the status events in the test's hands
+  await desk.addInitScript(() => {
+    window.desktop = {
+      getVersion: async () => '0.0.0',
+      checkForUpdates: async () => window.__emit?.({ state: 'checking' }),
+      quitAndInstall: () => undefined,
+      onUpdateStatus: (fn) => (window.__emit = fn),
+    };
+  });
+  await desk.goto(`http://localhost:${PORT}/`);
+  await desk.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await desk.getByRole('button', { name: 'Settings' }).click();
+  const status = desk.locator('[data-update-status]');
+  await desk.evaluate(() => window.__emit({ state: 'none' }));
+  const upToDate = await status.textContent();
+  await desk.getByRole('button', { name: 'Check for updates' }).click();
+  const checking = await status.textContent();
+  await desk.evaluate(() => window.__emit({ state: 'error', message: '<b>net::ERR_INTERNET_DISCONNECTED</b>' }));
+  const failed = await status.textContent();
+  const markup = await status.locator('b').count();
+  await desk.close();
+  const ok = upToDate === 'You are up to date.' && checking === 'Checking…' && failed.includes('failed') && failed.includes('<b>') && markup === 0 && errs.length === 0;
+  return { ok, detail: `${upToDate} -> ${checking} -> ${failed}${errs.length ? `, errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- v0.8.3 (#182): Esc in the relic compendium goes back to the Keep, and again to the title ----------
+await check('Esc in the relic compendium: back to the Keep, then the title (#182)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await p.goto(`http://localhost:${PORT}/`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.locator('[data-go="keep"]').click();
+  await p.getByRole('button', { name: 'Relic compendium' }).click();
+  const heading = () => p.locator('#overlay h1, .overlay h1').first().textContent();
+  const opened = await heading();
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(100);
+  const back = await heading();
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(100);
+  const title = await p.getByText('Take up arms').count();
+  await p.close();
+  return { ok: opened === 'Relic compendium' && back === 'The Keep' && title > 0, detail: `${opened} -> ${back} -> ${title ? 'title' : '?'}` };
+});
+
+// ---------- v0.8.3 (#182): a new pixel ratio (another monitor) re-sizes the canvas, so the arena stays sharp ----------
+await check('DPR: moving to a sharper screen re-sizes the canvas to its pixels (#182)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+  await p.goto(`http://localhost:${PORT}/`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const size = () => p.evaluate(() => { const c = document.getElementById('game'); return `${c.width}x${c.height}`; });
+  const before = await size();
+  // the window lands on a 2x monitor: same CSS size, twice the pixels (the way Chromium reports it: no resize event needed)
+  const cdp = await p.context().newCDPSession(p);
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 2, mobile: false });
+  await p.waitForTimeout(200);
+  const after = await size();
+  await p.close();
+  return { ok: before === '1280x720' && after === '2560x1440', detail: `canvas ${before} -> ${after}` };
+});
+
 // ---------- v0.7.5: a shared save with markup in its title, titles and a run's Daily label shows it as text, never as page (#105) ----------
 await check('import: a save with markup stays text', () =>
   inPage(() => {
@@ -1077,6 +1143,44 @@ await check("Blood Pact + Crimson Chalice: a tier-up moves max HP right beside t
     const hpShown = document.getElementById('h-hp-text')?.textContent ?? '';
     const shownMax = Number(hpShown.split('/')[1]);
     return { ok: p.relics.tiers.bloodPact === 2 && Math.abs(got - want) < 0.01 && Math.abs(shownMax - after) < 1, detail: `HP ${before.toFixed(1)} -> ${after.toFixed(1)} (x${got.toFixed(3)}, want x${want.toFixed(3)}), HUD shows ${hpShown}` };
+  });
+});
+
+// ---------- v0.8.3 (#182): a set bonus reached in a new run flashes, even when the last run reached it too ----------
+await check('HUD: a new run flashes its family set again, nothing kept from the last run (#182)', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  return inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const relic = (name, tier) => {
+      const s = [...document.querySelectorAll('select')].find((x) => x.closest('div, label, li')?.innerText.split('\n')[0].includes(name));
+      s.value = [...s.options].find((o) => o.textContent.trim() === tier).value;
+      s.dispatchEvent(new Event('input', { bubbles: true }));
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const flashing = () => document.querySelectorAll('#h-families .fam-chip.flash').length;
+    relic('Blood Pact', 'I');
+    relic('Vampire Fang', 'I');
+    const lb = window.__lb;
+    window.__startTest();
+    lb.draw();
+    const first = flashing();
+    document.getElementById('btn-pause').click(); // end the run the way a player does: pause, End run (a test run goes back to its setup)
+    await wait();
+    document.querySelector('[data-quit]').click();
+    await wait();
+    relic('Serrated Edge', 'I'); // three Blood relics: still the 2-piece set, a different relic bar
+    window.__startTest();
+    lb.draw();
+    const second = flashing();
+    return { ok: first > 0 && second > 0, detail: `set chip flashing: first run ${first}, next run ${second}` };
   });
 });
 

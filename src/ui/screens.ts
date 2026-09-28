@@ -181,7 +181,7 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
       <div class="setting"><div><b>Aim</b><span>Auto: basic attacks pick their own target. Manual: they go where the mouse or right stick points. Touch always aims itself.</span></div><div><button class="chip ${info.manualAim ? '' : 'on'}" data-aim="auto">Auto</button><button class="chip ${info.manualAim ? 'on' : ''}" data-aim="manual">Manual</button></div></div>
       <div class="setting"><div><b>Performance overlay</b><span>Frame, update and render times, entity counts, draw calls (F3 in a run).</span></div><button class="chip ${info.perf ? 'on' : ''}" data-act="perf">${info.perf ? 'On' : 'Off'}</button></div>
       ${info.desktop ? `
-      <div class="setting"><div><b>Updates</b><span>Version ${info.desktop.version}. ${info.desktop.status}</span></div><button class="chip" data-act="check">Check for updates</button></div>
+      <div class="setting"><div><b>Updates</b><span>Version ${info.desktop.version}. <span data-update-status>${esc(info.desktop.status)}</span></span></div><button class="chip" data-act="check">Check for updates</button></div>
       <div class="setting"><div><b>Beta versions</b><span>Also install pre-releases.</span></div><button class="chip ${info.desktop.prerelease ? 'on' : ''}" data-act="pre">${info.desktop.prerelease ? 'On' : 'Off'}</button></div>` : ''}
       <div class="setting"><div><b>Save data</b><span>Export, import or reset your progress.</span></div><button class="chip" data-act="save">Open</button></div>
       ${info.dev ? '<div class="setting"><div><b>Test mode</b><span>Start a run anywhere and hear every arena’s music. Test runs pay nothing and leave no trace.</span></div><button class="chip" data-act="test">Open</button></div>' : ''}
@@ -1098,6 +1098,7 @@ export function showCompendium(save: Save, onBack: () => void): void {
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-back]', onBack);
+  onActions((a) => (a === 'cancel' || a === 'pause') && onBack()); // #182: Esc goes back to the Keep, like its sibling screens
 }
 
 export function showDaily(setup: DailySetup, best: number, onStart: () => void, onBack: () => void): void {

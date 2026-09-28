@@ -41,7 +41,7 @@ import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choic
 import { abilityAimRadius } from './systems/abilities';
 import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
-import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
+import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
 import { isCompactLayout, textScale } from './logic/textSize';
@@ -341,6 +341,7 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?:
   stopMenuMusic();
   clearOverlay();
   toasted.clear();
+  resetHud();
   lastToastCheck = '';
   lastChain = '';
   const d = opts.daily;
@@ -711,6 +712,8 @@ function frame(now: number): void {
   const elapsed = now - last;
   acc += elapsed / 1000;
   last = now;
+  // #182: a new pixel ratio (another monitor, browser zoom) can leave the CSS size alone and fire no resize event
+  if (window.devicePixelRatio !== shownDpr) resize();
   pumpGamepad();
   let steps = 0;
   const t0 = performance.now(); // always measured (not begin()): the dynamic quality needs it with the overlay off
@@ -747,10 +750,12 @@ window.addEventListener('error', (e) => crashed(e.error ?? e.message));
 window.addEventListener('unhandledrejection', (e) => crashed(e.reason));
 
 // ---------- boot ----------
+let shownDpr = 0; // the raw devicePixelRatio the canvas was last sized for
 function resize(): void {
   // innerWidth/innerHeight, not 100vh: on iOS 100vh includes the area under the browser chrome
   const w = window.innerWidth;
   const h = window.innerHeight;
+  shownDpr = window.devicePixelRatio;
   view.dpr = Math.min(window.devicePixelRatio || 1, quality.maxDpr);
   view.w = canvas.width = Math.round(w * view.dpr);
   view.h = canvas.height = Math.round(h * view.dpr);
@@ -799,6 +804,9 @@ if (platform.desktop) {
     else if (s.state === 'downloading') updateStatus = `Downloading v${s.version}… ${Math.round(s.percent)}%`;
     else if ('version' in s) updateStatus = s.state === 'ready' ? `v${s.version} is ready to install.` : `v${s.version} found, downloading…`;
     else updateStatus = s.state === 'checking' ? 'Checking…' : 'You are up to date.';
+    // #182: an open Settings shows it as it comes in (textContent: the message comes from outside the game)
+    const shown = document.querySelector('[data-update-status]');
+    if (shown) shown.textContent = updateStatus;
     if (s.state === 'ready') setNotice({ text: `Update to v${s.version} ready`, button: 'Restart', action: () => platform.desktop!.quitAndInstall() });
   });
   void platform.desktop.checkForUpdates(save.settings.prerelease);

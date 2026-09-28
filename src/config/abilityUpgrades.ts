@@ -1,11 +1,5 @@
 import type { ClassId } from './classes';
 
-export interface AbilityUpgradeDef {
-  name: string;
-  desc: string;
-  n: Record<string, number>;
-}
-
 function up<N extends Record<string, number>>(name: string, n: N, desc: (n: N) => string) {
   return { name, n, desc: desc(n) };
 }
