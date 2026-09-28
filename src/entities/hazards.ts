@@ -53,10 +53,15 @@ const TIMER_KINDS = new Map<string, (g: Game, a: any) => void>();
  */
 export function timer<A>(kind: string, fn: (g: Game, a: A) => void): (g: Game, seconds: number, a: A) => void {
   TIMER_KINDS.set(kind, fn); // a second registration (a dev hot reload) replaces the first
-  return (g, seconds, a) => void g.timers.push({ t: seconds, kind, a });
+  return (g, seconds, a) => void g.timers.push({ t: seconds, kind, a, by: relicContext.acting ?? undefined }); // #182: set by a relic's hook: what it does later is still that relic's
 }
 
 /** addField after a delay (Burning Rain). */
 export const fieldLater = timer('field', addField);
 
-export const runTimer = (g: Game, t: Game['timers'][number]): void => TIMER_KINDS.get(t.kind)!(g, t.a);
+export function runTimer(g: Game, t: Game['timers'][number]): void {
+  const outer = relicContext.acting;
+  relicContext.acting = t.by ?? outer;
+  TIMER_KINDS.get(t.kind)!(g, t.a);
+  relicContext.acting = outer;
+}

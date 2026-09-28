@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Game } from '../src/core/types';
-import { createGame } from '../src/game';
+import { emit } from '../src/core/events';
+import { createGame, updateGame } from '../src/game';
 import { merchantReroll } from '../src/systems/acts';
 import { killEnemy } from '../src/systems/combat';
 import { addRelic } from '../src/systems/relics';
@@ -46,5 +47,21 @@ describe('the Merchant reroll stream (#182)', () => {
       return g.player.relics.held[0];
     };
     expect(pick(0)).toBe(pick(5));
+  });
+});
+
+describe('relic crediting of delayed damage (#182)', () => {
+  it("Thunder Drum's Rolling Thunder, a clap a second later, is credited to the drum", () => {
+    const g = createGame('viking', 1);
+    addRelic(g, 'thunderDrum', 'other', 3);
+    const e = foe(g, 40);
+    e.hp = e.maxHp = 1e9;
+    emit(g, 'onAbilityUsed', { cooldown: 10 });
+    const first = g.player.relics.stats.thunderDrum?.damage ?? 0;
+    expect(first).toBeGreaterThan(0);
+    expect(g.timers).toHaveLength(1);
+    for (let i = 0; i < 120 && g.timers.length; i++) updateGame(g, 1 / 60);
+    expect(g.timers).toHaveLength(0);
+    expect(g.player.relics.stats.thunderDrum!.damage).toBeGreaterThan(first * 1.5);
   });
 });
