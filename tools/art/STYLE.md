@@ -32,7 +32,8 @@ Every character, foe, boss and siege piece is drawn the same way: by the rig in 
 - 1 art pixel = 1 world pixel. **People are about 6 heads tall and 50-58 px** (the Paladin: 55).
 - Bigger bodies get a target size when their issue draws them: riders and beasts, siege engines and bosses each get a height written in
   their definition file's comment, measured against the Paladin.
-- Sprites face **right**; the game flips them. The cell leaves room for the swing trail. `anchor` is the ground point between the feet;
+- Sprites face **right**; the game flips them. The cell leaves room for the swing trail; where a pose still reaches past it (a wide swing, a fallen body, a burst of fire),
+  the sheet grows the cell on that side and moves the anchor with it, so no frame is cut off (#167, `tests/v8-cell-clip.test.ts`). `anchor` is the ground point between the feet;
   `tall` is the figure's height.
 
 ## Animations

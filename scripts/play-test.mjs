@@ -2322,13 +2322,13 @@ await check('Arenas: every arena shows its rigged props; the braziers flicker; p
           // the ground pickups: an xp gem, a big one and a coin next to the champion, drawn once (no tick, so none is picked up)
           let pickups = null;
           if (arena === 'keep') {
-            const drops = [['xp', 1, 508], ['xp', 10, 521], ['gold', 1, 534]].map(([kind, value, row], i) => ({ kind, value, row, x: Math.round(g.player.x) + 40 + i * 30, y: Math.round(g.player.y) - 60 }));
+            const drops = [['xp', 1, 508, 7], ['xp', 10, 522, 7], ['gold', 1, 536, 6]].map(([kind, value, row, at], i) => ({ kind, value, row, at, x: Math.round(g.player.x) + 40 + i * 30, y: Math.round(g.player.y) - 60 }));
             g.enemies.length = 0;
             g.pickups.push(...drops.map(({ kind, value, x, y }) => ({ kind, value, x, y })));
             lb.draw();
             const cam = lb.camera(), c = document.getElementById('game').getContext('2d');
             pickups = drops.filter((d) => {
-              const want = a.getImageData(6, d.row + 6, 1, 1).data;
+              const want = a.getImageData(d.at, d.row + d.at, 1, 1).data; // the anchor
               const got = c.getImageData(Math.round((d.x - Math.round(cam.x)) * cam.zoom), Math.round((d.y - Math.round(cam.y)) * cam.zoom), 1, 1).data;
               return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
             }).length;
@@ -2384,7 +2384,7 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
             return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
           };
           // src/render/props.json: atlas row and anchor of each feature's prop
-          const F = { shrine: [585, 30, 34], chest: [637, 20, 20], lair: [671, 32, 26], hazard: [711, 24, 24] };
+          const F = { shrine: [587, 30, 35], chest: [640, 20, 20], lair: [674, 32, 26], hazard: [715, 24, 24] };
           let features = null;
           const f = g.features[0];
           if (f) {
@@ -2412,7 +2412,7 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
             g.enemies.length = 0;
             lb.draw();
             const frame = Math.min(2, Math.floor(Math.min(1, z.t / z.delay) * 3));
-            hand = shows(z.x, z.y + 8, 16, 38, frame * 32 + 16, 749 + 38); // the earth heaped round the wrist, at the anchor
+            hand = shows(z.x, z.y + 8, 16, 42, frame * 32 + 16, 753 + 42); // the earth heaped round the wrist, at the anchor
           }
           return { arena, features, arts, hand };
         }, arena),
@@ -2424,6 +2424,42 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
   }),
 );
 
+
+// ---------- #167: no frame in the sprite gallery is cut off at its cell: nothing opaque on a cell's edge ----------
+await check('Sprite gallery: no frame of any sheet is cut off at the edge of its cell; the Warlord swings and falls in full (#167)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && ['warlord', 'abbot', 'dragon', 'viking'].every((id) => window.__lb.sheets().includes(id)));
+    return inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      // the gallery draws each art pixel as 2x2: a cell's edge is its canvas's outer 2 px
+      const seen = new Set(), cut = new Set();
+      for (let i = 0; i < 40; i++) {
+        for (const c of document.querySelectorAll('[data-sheet]')) {
+          const key = `${c.dataset.sheet} ${c.dataset.anim} ${c.dataset.frame}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, w = c.width, h = c.height;
+          const a = (x, y) => d[(y * w + x) * 4 + 3];
+          let hit = false;
+          for (let x = 0; x < w && !hit; x++) hit = !!(a(x, 0) || a(x, 1) || a(x, h - 1) || a(x, h - 2));
+          for (let y = 0; y < h && !hit; y++) hit = !!(a(0, y) || a(1, y) || a(w - 1, y) || a(w - 2, y));
+          if (hit) cut.add(key);
+        }
+        await wait(70);
+      }
+      document.querySelector('.testmode [data-back]').click();
+      await wait(100);
+      document.querySelector('[data-act="back"]').click();
+      await wait(100);
+      const warlord = [...seen].filter((k) => /^warlord (attack|death) /.test(k)).length;
+      return { ok: !cut.size && seen.size > 150 && warlord >= 6, detail: `${seen.size} frames looked at (${warlord} of the Warlord's swing and fall); cut off: [${[...cut].slice(0, 8)}]` };
+    });
+  }),
+);
 
 // ---------- #168: the sprite frame cache stays bounded without thrashing, and the gallery leaves it alone ----------
 await check('Frame cache: the sprite gallery adds nothing to it; a run through Act III stays under its cap and never re-renders a frame (#168)', async () => {
