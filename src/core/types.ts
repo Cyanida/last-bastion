@@ -505,7 +505,7 @@ export interface Game {
   tierIndex: number;
   modifier: ModifierId | null;
   fields: Field[];
-  timers: { t: number; kind: string; a: unknown }[]; // delayed actions (second volley, twin pulse...) as data: entities/hazards.ts timer()
+  timers: { t: number; kind: string; a: unknown; by?: RelicKey }[]; // delayed actions (second volley, twin pulse...) as data: entities/hazards.ts timer()
   vars: Record<string, number>; // scratch for relics and ability upgrades
   baseMods: Mods; // meta upgrades + tradeoffs; relics are layered on top each tick
   salvage: number; // Rune shards from salvaged relics

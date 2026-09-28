@@ -1,5 +1,5 @@
 import { oathStack, type OathStack } from './logic/oaths';
-import { ARENAS, type ArenaId } from './config/arenas';
+import { ARENAS, HAZARD_GRACE, type ArenaId } from './config/arenas';
 import { CLASSES, type ClassId } from './config/classes';
 import type { CurseId } from './config/curses';
 import { TIERS, type TierDef } from './config/economy';
@@ -149,7 +149,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     bossHit: false,
     flawlessBosses: 0,
     wave10Time: 0,
-    hazardT: 5,
+    hazardT: HAZARD_GRACE,
     seed,
     squads: [],
     squadPlans: [],
@@ -227,7 +227,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
   if (loadout.startRelic) {
     // v0.6 Armorer's Choice: the run opens on a choice of three common relics
     const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
-    const choice = rollRelics(commons, [], g.rng, 3);
+    const choice = rollRelics(commons, [], g.rng, RELIC_MOMENTS.choices);
     if (choice.length) (g.player.relics.offers.push({ from: 'start', options: choice, rerolls: RELIC_MOMENTS.rerolls }), (g.vars.armorerOffer = 1));
   }
   if (mastery.relic) {

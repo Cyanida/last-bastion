@@ -164,6 +164,24 @@ await check('class select: family names on the cards are readable (#176)', () =>
   }),
 );
 
+// #182: picking an option re-renders the class select; the seed typed there stays until Back
+await check('class select: a typed seed survives picking an option, Back clears it (#182)', () =>
+  inPage(async () => {
+    const P = window.__play;
+    await P.click('[data-go="start"]');
+    const seed = document.querySelector('#seed');
+    seed.value = 'KEEPME';
+    seed.dispatchEvent(new Event('input'));
+    await P.click('[data-tier]:not([disabled])');
+    const kept = document.querySelector('#seed').value;
+    await P.click('[data-back]');
+    await P.click('[data-go="start"]');
+    const after = document.querySelector('#seed').value;
+    await P.click('[data-back]');
+    return { ok: kept === 'KEEPME' && after === '', detail: `after an option: "${kept}", after Back: "${after}"` };
+  }),
+);
+
 // ---------- a test run from the real Test mode screen ----------
 await check('test mode starts a run', () =>
   inPage(async () => {

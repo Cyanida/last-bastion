@@ -42,7 +42,6 @@ function relic<N extends Record<string, number>, A extends Record<string, number
 export const RELIC_MAX_TIER = 3;
 export const TIER_NUMERALS = ['', 'I', 'II', 'III'];
 export const RELIC_WEIGHTS: Record<Rarity, number> = { common: 60, rare: 30, legendary: 2 }; // A8: legendary 10 -> 2 (a straight 6-set needs its family's legendary; 6-sets came in 60-90% of winning runs)
-export const BOSS_RELIC_CHOICES = 3;
 
 /**
  * v0.7: relics come only at fixed moments: every mid-Act and Act boss, lairs, a quest whose reward is a relic, the Merchant
