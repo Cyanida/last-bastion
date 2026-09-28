@@ -33,6 +33,7 @@ import type { Action } from '../input/mapping';
 import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
 import { nextTierRequirement } from '../logic/difficulty';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
+import { keepStage } from '../logic/keep';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
@@ -373,6 +374,10 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   });
 }
 
+/** #67: the building whose panel is open, so it stays open while ranks are bought (the Keep redraws after each). */
+let keepOpen: BuildingId | null = null;
+
+/** The Keep (#67): a castle courtyard whose six buildings grow with their levels and ranks; tap one for its panel. */
 export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id: BuildingId) => void; mastery: (id: ClassId) => void; compendium: () => void; chronicle: () => void; treasures: () => void; history: () => void; glossary: () => void; back: () => void }): void {
   const row = (id: MetaId) => {
     const m = META[id];
@@ -381,10 +386,10 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
     const cost = metaCost(id, rank, save.buildings);
     const pips = Array.from({ length: m.max }, (_, i) => `<i class="${i < rank ? 'on' : i < cap ? '' : 'capped'}"></i>`).join('');
     const btn = rank >= m.max ? '<span class="maxed">Maxed</span>' : cost === null ? `<span class="maxed" data-tip="Raise the ${BUILDINGS[buildingOf(id)].name} to buy further ranks">Level cap</span>`
-      : `<button class="btn small" data-buy="${id}" ${save.gold < cost.gold || save.runes < cost.runes ? 'disabled' : ''}>🪙 ${cost.gold}${cost.runes ? ` · ◆ ${cost.runes}` : ''}</button>`;
-    return `<div class="meta-row"><div><b>${m.name}</b><span>${m.desc}</span></div><div class="pips">${pips}</div>${btn}</div>`;
+      : kit.button(`${kit.icon('gold')}${cost.gold}${cost.runes ? ` · ${kit.icon('runes')}${cost.runes}` : ''}`, { kind: 'go', size: 'small', attrs: `data-buy="${id}"`, disabled: save.gold < cost.gold || save.runes < cost.runes });
+    return kit.row(`<b>${m.name}</b><span>${m.desc}</span>`, { cls: 'meta-row', end: `<div class="pips">${pips}</div>${btn}` });
   };
-  const building = (id: BuildingId) => {
+  const panel = (id: BuildingId) => {
     const b = BUILDINGS[id];
     const level = buildingLevel(save.buildings, id);
     const next = b.levels[level];
@@ -393,10 +398,17 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
     const deedDone = !next?.achievement || save.achievements.includes(next.achievement);
     const can = next && deedDone && save.gold >= next.gold && save.runes >= next.runes;
     const raise = !next ? '<span class="maxed">Fully raised</span>'
-      : `<button class="btn small" data-raise="${id}" ${can ? '' : 'disabled'} data-tip="${esc(`Level ${level + 1}: 🪙 ${next.gold} · ◆ ${next.runes}${deed ? `\nDeed: ${deed.name} — ${deed.desc}${deedDone ? ' ✔' : ''}` : ''}`)}">Raise · 🪙 ${next.gold} · ◆ ${next.runes}${deed && !deedDone ? ' · 🔒' : ''}</button>`;
+      : kit.button(`Raise · ${kit.icon('gold')}${next.gold} · ${kit.icon('runes')}${next.runes}${deed && !deedDone ? ` ${kit.icon('lock')}` : ''}`, { kind: 'gold', size: 'small', disabled: !can, attrs: `data-raise="${id}" data-tip="${esc(`Level ${level + 1}: 🪙 ${next.gold} · ◆ ${next.runes}${deed ? `\nDeed: ${deed.name} — ${deed.desc}${deedDone ? ' ✔' : ''}` : ''}`)}"` });
     const pips = b.levels.map((_, i) => `<i class="${i < level ? 'on' : ''}"></i>`).join('');
-    return `<div class="building panel"><div class="bhead"><b>${b.icon} ${b.name}</b><span class="pips">${pips}</span>${raise}</div><p class="hint">${b.desc}${deed && !deedDone ? ` · next deed: <em>${deed.name}</em>` : ''}</p>
-      <div class="meta">${b.upgrades.map(row).join('')}</div></div>`;
+    return kit.frame(`${kit.closeButton('close', { cls: 'keep-close', attrs: 'data-close-building' })}
+      ${kit.ribbon(`${b.name} <span class="pips">${pips}</span>`)}
+      ${kit.parch(`<div class="bhead"><p>${b.desc}${deed && !deedDone ? ` · next deed: <em>${deed.name}</em> — ${deed.desc}` : ''}</p>${raise}</div>
+        <div class="meta">${b.upgrades.map(row).join('')}</div>`)}`, { cls: `keep-panel${keepOpen === id ? '' : ' hidden'}`, attrs: `data-panel="${id}"` });
+  };
+  const plot = (id: BuildingId) => {
+    const st = keepStage(save.buildings, save.meta, id);
+    const pips = BUILDINGS[id].levels.map((_, i) => `<i class="${i < st.level ? 'on' : ''}"></i>`).join('');
+    return `<button class="keep-bld b-${id} s-${st.frame}" data-building="${id}" aria-label="${BUILDINGS[id].name}, level ${st.level}"><span class="keep-plate">${BUILDINGS[id].name}<span class="pips">${pips}</span></span></button>`;
   };
   const level = accountLevel(CLASS_ORDER.map((id) => save.classes[id].xp));
   const nextMilestone = ACCOUNT_MILESTONES.find((m) => m.level > level);
@@ -409,19 +421,32 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
     return `<button class="mastery" data-mastery="${id}"><b>${CLASSES[id].name}</b><span>Rank ${rank}/${MASTERY.length}</span><div class="bar xp"><div style="width:${frac * 100}%"></div></div><span class="dim">${next ? `Next: ${next.name}` : 'Grandmaster'}</span></button>`;
   }).join('');
   const el = show(`
-    <div class="panel dialog wide keep">
-      <h1 class="small">The Keep</h1>
-      <p class="sub">Treasury: <b>🪙 ${save.gold}</b> · <b>◆ ${save.runes}</b> Runes${save.runeShards ? ` <span class="dim">(${save.runeShards}/${RUNES.shardsPerRune} shards)</span>` : ''} — gold buys ranks, Runes (from Act bosses, quests and deeds) raise buildings and the top ranks</p>
-      ${save.refund ? `<p class="hint">${(save.refund.version ?? 'v0.6').split(',').map((v) => REFUND_NOTES[v] ?? '').join(' ')} What those ranks cost came back: <b>🪙 ${save.refund.gold}${save.refund.runes ? ` and ◆ ${save.refund.runes}` : ''}</b>.</p>` : ''}
-      <div class="buildings">${BUILDING_IDS.map(building).join('')}</div>
-      <h2>Class mastery · account level ${level}</h2>
+    <div class="kit-frame keep keep-castle">
+      ${kit.closeButton('back', { cls: 'keep-back', attrs: 'data-back' })}
+      <div class="keep-head">${kit.ribbon('<h1>The Keep</h1>')}
+        <div class="keep-purse">${kit.pill('gold', save.gold, { title: 'Gold: buys ranks' })}${kit.pill('runes', save.runes, { title: `Runes: raise buildings and the top ranks${save.runeShards ? ` (${save.runeShards}/${RUNES.shardsPerRune} shards)` : ''}` })}</div></div>
+      ${save.refund ? kit.parch(`${(save.refund.version ?? 'v0.6').split(',').map((v) => REFUND_NOTES[v] ?? '').join(' ')} What those ranks cost came back: <b>🪙 ${save.refund.gold}${save.refund.runes ? ` and ◆ ${save.refund.runes}` : ''}</b>.`, { cls: 'hint' }) : ''}
+      <div class="keep-yard">${BUILDING_IDS.map(plot).join('')}</div>
+      <p class="keep-tip">Tap a building to raise it and buy its ranks. Gold buys ranks; Runes (from Act bosses, quests and deeds) raise buildings and the top ranks.</p>
+      ${kit.parch(`<h2>Class mastery · account level ${level}</h2>
       <p class="hint">Earned by playing a class: waves cleared, bosses slain, levels gained, times the difficulty tier. Every rank unlocks something; tap a class for its track.
         ${nextMilestone ? `Account level ${nextMilestone.level}: <em>${nextMilestone.name}</em> — ${nextMilestone.desc}.` : 'Every account milestone reached.'}</p>
       <div class="masteries">${mastery}</div>
-      <div class="milestones">${ACCOUNT_MILESTONES.map((m) => `<span class="${level >= m.level ? 'on' : ''}" data-tip="${esc(m.desc)}">${level >= m.level ? '✔ ' : ''}${m.level} ${m.name}</span>`).join('')}</div>
-      <div class="row"><button class="btn" data-compendium>Relic compendium</button><button class="btn" data-treasures>Sacred treasures</button><button class="btn" data-chronicle>Chronicle</button><button class="btn" data-history>Run history</button><button class="btn" data-glossary>Glossary</button></div>
-      <button class="btn" data-back>Back</button>
+      <div class="milestones">${ACCOUNT_MILESTONES.map((m) => `<span class="${level >= m.level ? 'on' : ''}" data-tip="${esc(m.desc)}">${level >= m.level ? '✔ ' : ''}${m.level} ${m.name}</span>`).join('')}</div>`, { cls: 'keep-mastery' })}
+      <div class="row">${kit.button('Relic compendium', { icon: 'relics', attrs: 'data-compendium' })}${kit.button('Sacred treasures', { icon: 'crown', attrs: 'data-treasures' })}${kit.button('Chronicle', { icon: 'deeds', attrs: 'data-chronicle' })}${kit.button('Run history', { attrs: 'data-history' })}${kit.button('Glossary', { attrs: 'data-glossary' })}</div>
+      ${BUILDING_IDS.map(panel).join('')}
     </div>`);
+  const openPanel = (id: BuildingId | null) => {
+    keepOpen = id;
+    el.querySelectorAll<HTMLElement>('[data-panel]').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== id));
+    if (id) el.querySelector<HTMLElement>(`[data-panel="${id}"] [data-close-building]`)?.focus();
+  };
+  const back = () => {
+    keepOpen = null;
+    on.back();
+  };
+  click(el, '[data-building]', (b) => openPanel(b.dataset.building as BuildingId));
+  click(el, '[data-close-building]', () => openPanel(null));
   click(el, '[data-chronicle]', on.chronicle);
   click(el, '[data-history]', on.history);
   click(el, '[data-glossary]', on.glossary);
@@ -430,8 +455,8 @@ export function showKeep(save: Save, on: { buy: (id: MetaId) => void; raise: (id
   click(el, '[data-mastery]', (b) => on.mastery(b.dataset.mastery as ClassId));
   click(el, '[data-compendium]', on.compendium);
   click(el, '[data-treasures]', on.treasures);
-  click(el, '[data-back]', on.back);
-  onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
+  click(el, '[data-back]', back);
+  onActions((a) => (a === 'cancel' || a === 'pause') && (keepOpen ? openPanel(null) : back())); // Esc closes the open building first
 }
 
 const MARK_ICONS: Record<MarkKind, string> = { level: '', relic: '💠', talent: '🌿', upgrade: '⬆️', board: '📜', quest: '✔️', event: '❗', shrine: '⛩️', boss: '💀', phase: '⚜️', evolution: '🌟', merchant: '🪙', route: '🧭', act: '🚩', stand: '❤️‍🔥', bored: '😴', attune: '✴️' };

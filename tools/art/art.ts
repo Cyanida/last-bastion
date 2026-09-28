@@ -9,6 +9,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { buildProps, propPaths } from './props';
 import { buildSheet, loadDefs, sheetJson, sheetPaths } from './sheet';
 import { buildIcons, iconPaths } from './ui/icons';
+import { buildKeep, keepPaths } from './ui/keep';
 
 mkdirSync('public/sprites', { recursive: true });
 mkdirSync('src/render/sheets', { recursive: true });
@@ -27,3 +28,8 @@ const icons = buildIcons(); // #184: the menus' icon atlas and its CSS
 writeFileSync(iconPaths.png, icons.png);
 writeFileSync(iconPaths.css, icons.css);
 console.log(`icons: ${iconPaths.png} (${icons.png.length} bytes), ${iconPaths.css}`);
+const keep = buildKeep(); // #67: the Keep's castle courtyard and its buildings, and their CSS
+writeFileSync(keepPaths.castle, keep.castle);
+writeFileSync(keepPaths.yard, keep.yard);
+writeFileSync(keepPaths.css, keep.css);
+console.log(`keep: ${keepPaths.castle} (${keep.castle.length} bytes), ${keepPaths.yard} (${keep.yard.length} bytes), ${keepPaths.css}`);
