@@ -21,6 +21,7 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #182 (v0.8.3): an enemy's bolt now carries its shooter, so its hit poisons, curses and draws thorns like a blow;
  * every run with ranged enemies changed on purpose, and paladin:1234 (now short of the boss) became paladin:5.
  * Re-recorded for #182: a burning or poisoned field no longer sets its status on you when a shield, ward, block or dodge stops its damage.
+ * Re-recorded for #182: a side elite's split copies no longer hold the wave open (paladin:98765 and angel:1234 meet one).
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -58,10 +59,10 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 // v0.8 #99 + #100 + #101: re-recorded on release/0.8.0 because boss draws, boss relic families and the Squire enemy roster changed on purpose
 const GOLDEN: Record<string, string> = {
   'paladin:5': 'wave 15 kills 489 level 15 gold 1776 relics 6 hash ae9285a2',
-  'paladin:98765': 'wave 15 kills 616 level 16 gold 2502 relics 7 hash 1f1f4b28',
+  'paladin:98765': 'wave 15 kills 624 level 16 gold 2572 relics 7 hash f3d3f678',
   'viking:98765': 'wave 18 kills 768 level 18 gold 3312 relics 7 hash c53f8959',
   'viking:5': 'wave 18 kills 676 level 18 gold 3636 relics 7 hash bb2efac8',
-  'angel:1234': 'wave 16 kills 670 level 17 gold 2627 relics 5 hash a78b6f00',
+  'angel:1234': 'wave 19 kills 813 level 19 gold 3527 relics 5 hash fc083d36',
   'angel:98765': 'wave 16 kills 727 level 18 gold 3513 relics 7 hash 7a7f8010',
   'necromancer:1234': 'wave 9 kills 290 level 10 gold 864 relics 4 hash 709acac7',
   'necromancer:5': 'wave 19 kills 724 level 19 gold 3196 relics 7 hash 1ae406b6',

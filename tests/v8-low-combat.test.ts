@@ -5,7 +5,7 @@ import type { Game } from '../src/core/types';
 import { createGame } from '../src/game';
 import { shootAt } from '../src/systems/aiHelpers';
 import { addField } from '../src/entities/hazards';
-import { updateFields, updateProjectiles } from '../src/systems/combat';
+import { killEnemy, updateFields, updateProjectiles } from '../src/systems/combat';
 import { SPECIALS } from '../src/systems/specials';
 import { spawnEnemy } from '../src/systems/spawning';
 
@@ -59,5 +59,15 @@ describe('the remaining low combat items of the 28-09 check (#182)', () => {
       updateFields(g, 1 / 60);
       expect(!!p.statuses.burn).toBe(!shielded);
     }
+  });
+
+  it("a side elite's split copies are side content too, and do not hold the wave open", () => {
+    const g = stage();
+    const e = spawnEnemy(g, 'knight', g.player.x + 300, g.player.y, ['splitting']);
+    e.side = true; // a lair's sleeper, a quest's named elite, a cursed chest's guard
+    killEnemy(g, e);
+    const kids = g.enemies.filter((c) => c !== e && c.def.id === 'knight');
+    expect(kids.length).toBeGreaterThan(0);
+    expect(kids.every((c) => c.side)).toBe(true);
   });
 });

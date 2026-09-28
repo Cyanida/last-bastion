@@ -77,6 +77,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
         const a = (i / n.count) * TAU + 0.5;
         const c = spawnEnemy(g, e.def.id, e.x + Math.cos(a) * 24, e.y + Math.sin(a) * 24);
         c.hp = c.maxHp = Math.max(1, Math.round(e.maxHp * n.hpFrac));
+        c.side = e.side; // #182: a lair's, a quest's or a cursed chest's elite splits into side content too, not into the wave
       }
     }
   }
