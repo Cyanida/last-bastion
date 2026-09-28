@@ -1410,6 +1410,46 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #198: the world map from the painter: every realm on it, only the Marches open on a new save, the rest under clouds ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`world map: from the title, the Marches open and the rest under clouds, ${touch ? 'tap' : 'click'} the Marches, at ${w}x${h} (#198)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).tap() : p.locator(sel).click());
+    await press('[data-go="map"]');
+    await p.locator('.wm-map').waitFor({ timeout: 3000 });
+    const look = () => p.evaluate(() => {
+      const map = document.querySelector('.wm-map'), box = map.getBoundingClientRect();
+      const realms = [...document.querySelectorAll('.wm-realm')].map((b) => {
+        const r = b.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height * 0.7); // below the name ribbon
+        return { id: b.dataset.realm, open: !b.disabled, inside: r.left >= box.left - 1 && r.right <= box.right + 1 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1, reach: hit === b };
+      });
+      const clouds = [...document.querySelectorAll('.wm-cloud')].map((c) => ({ id: c.className.match(/r-(\w+)/)[1], bg: getComputedStyle(c).backgroundImage, h: c.getBoundingClientRect().height }));
+      const names = [...document.querySelectorAll('.wm-name')].filter((n) => n.getBoundingClientRect().width > 20 && /Cinzel/.test(getComputedStyle(n).fontFamily)).length;
+      return { realms, clouds, names, mapBg: getComputedStyle(map).backgroundImage, onScreen: box.top >= 0 && box.bottom <= innerHeight + 1 && box.right <= innerWidth + 1 && box.width > 300, note: document.querySelector('.wm-note').textContent };
+    });
+    const before = await look();
+    const art = await p.evaluate(() => Promise.all(['/sprites/world-map.png', '/sprites/world-clouds.png'].map((src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i.naturalWidth); i.onerror = () => ok(0); i.src = src; }))));
+    await press('.wm-realm.r-marches');
+    await p.waitForTimeout(100);
+    const after = await look();
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(100);
+    const title = await p.getByText('Take up arms').count();
+    await p.close();
+    const open = before.realms.filter((r) => r.open).map((r) => r.id);
+    const shut = before.realms.filter((r) => !r.open).map((r) => r.id);
+    const ok = before.realms.length === 9 && open.join() === 'marches' && before.realms.every((r) => r.inside) && before.realms.find((r) => r.id === 'marches').reach
+      && before.clouds.length === 8 && before.clouds.every((c) => shut.includes(c.id) && c.bg.includes('world-clouds') && c.h > 20) && before.mapBg.includes('world-map') && art.every((n) => n > 0)
+      && before.names === 9 && before.onScreen && /The Marches/.test(after.note) && title > 0 && errs.length === 0;
+    return { ok, detail: `${before.realms.length} realms, open: ${open.join()}, ${before.clouds.length} under clouds, ${before.names} names in Cinzel${before.onScreen ? '' : ' (map off screen)'}, art ${art.join('/')}; picked -> "${after.note}"; Esc -> ${title ? 'title' : '?'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 // ---------- v0.8.3 (#182): a new pixel ratio (another monitor) re-sizes the canvas, so the arena stays sharp ----------
 await check('DPR: moving to a sharper screen re-sizes the canvas to its pixels (#182)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });

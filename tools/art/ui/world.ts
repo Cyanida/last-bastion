@@ -3,7 +3,7 @@
  * rendered by `npm run art` into public/sprites/world-map.png (every realm open, with its roads, flags, castles and name ribbon) and
  * public/sprites/world-clouds.png (a band per realm in REALM_IDS order: the clouds the painter puts over that realm when it alone is
  * sealed, transparent elsewhere), plus src/ui/world-map.css that places each realm's clouds and hit area. The screen stacks the clouds
- * of the realms still shut over the open map, so any mix of open realms needs no repaint. The name ribbons stay above the clouds.
+ * of the realms still shut over the open map, so any mix of open realms needs no repaint. The names are set on top in Cinzel.
  */
 import { REALM_IDS, REALMS, type RealmId } from '../../../src/config/world';
 import { type MapLayout, paintMap, type RealmLayout, type Terrain, trail } from '../map';
@@ -28,7 +28,7 @@ const at = (id: RealmId) => REALM_IDS.indexOf(id);
 
 function layout(sealed?: RealmId): MapLayout {
   return {
-    w: W, h: H, seed: 198,
+    w: W, h: H, seed: 198, names: false,
     realms: REALM_IDS.map((id) => {
       const p = PLACE[id], n = REALMS[id].levels.length;
       const points = n === 1 ? [{ x: p.rect[0] + p.rect[2] / 2, y: p.rect[1] + 118, n: 1, castle: true }] : trail(p.rect, n, [], p.flip);
