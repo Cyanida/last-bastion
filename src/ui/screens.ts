@@ -171,41 +171,53 @@ export interface SettingsInfo {
 }
 
 export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; aim: (manual: boolean) => void; textSize: (size: TextSize) => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
-  const chip = (q: QualitySetting) => `<button class="chip ${info.quality === q ? 'on' : ''}" data-quality="${q}">${q[0].toUpperCase()}${q.slice(1)}</button>`;
+  // #186: Settings in the kit: a framed screen, choices as a row of small wood buttons (the one picked sits pressed), on/off as
+  // switches, the two volumes as sliders over MUSIC_LEVELS, and the back disc in the corner
+  const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
+  const choice = (attr: string, list: readonly string[], on: string) =>
+    `<div class="kit-choice">${list.map((v) => kit.button(cap(v), { size: 'small', cls: v === on ? 'on pressed' : '', attrs: `data-${attr}="${v}" aria-pressed="${v === on}"` })).join('')}</div>`;
+  const onOff = (name: string, on: boolean) => kit.toggle(on ? 'On' : 'Off', name, on);
+  const level = (name: string, v: MusicLevel) => kit.slider(`<em data-level>${cap(v)}</em>`, name, MUSIC_LEVELS.indexOf(v), 0, MUSIC_LEVELS.length - 1);
+  const setting = (title: string, text: string, control: string) => `<div class="setting"><div><b>${title}</b><span>${text}</span></div>${control}</div>`;
+  const open = (act: string, label = 'Open') => kit.button(label, { size: 'small', attrs: `data-act="${act}"` });
   const el = show(`
-    <div class="panel dialog wide settings">
-      <h1 class="small">Settings</h1>
-      <div class="setting"><div><b>Graphics quality</b><span>Low cuts particles, screen shake and shadows. Auto measures the first waves and drops to low if needed. Now: ${info.effective}.</span></div><div>${(['auto', 'low', 'high'] as const).map(chip).join('')}</div></div>
-      <div class="setting"><div><b>Text size</b><span>The HUD and every screen. A small screen keeps what still fits.</span></div><div>${(Object.keys(TEXT_SIZES) as TextSize[]).map((t) => `<button class="chip ${info.textSize === t ? 'on' : ''}" data-text-size="${t}">${t[0].toUpperCase()}${t.slice(1)}</button>`).join('')}</div></div>
-      <div class="setting"><div><b>Sound</b><span>Synthesised effects and music (M).</span></div><button class="chip on" data-act="mute">${info.muted ? 'Off' : 'On'}</button></div>
-      <div class="setting"><div><b>Music</b><span>Composed live. In a run it plays quieter, under the effects.${info.muted ? ' Silent while Sound is off.' : ''}</span></div><div>${MUSIC_LEVELS.map((l) => `<button class="chip ${info.music === l ? 'on' : ''}" data-music="${l}">${l[0].toUpperCase()}${l.slice(1)}</button>`).join('')}</div></div>
-      <div class="setting"><div><b>Music during runs</b><span>A quiet theme for every arena that builds a little in a fight.</span></div><button class="chip ${info.runMusic ? 'on' : ''}" data-act="runMusic">${info.runMusic ? 'On' : 'Off'}</button></div>
-      <div class="setting"><div><b>Effects</b><span>How loud the sound effects are.</span></div><div>${MUSIC_LEVELS.map((l) => `<button class="chip ${info.effects === l ? 'on' : ''}" data-effects="${l}">${l[0].toUpperCase()}${l.slice(1)}</button>`).join('')}</div></div>
-      <div class="setting"><div><b>Aim</b><span>Auto: basic attacks pick their own target. Manual: they go where the mouse or right stick points. Touch always aims itself.</span></div><div><button class="chip ${info.manualAim ? '' : 'on'}" data-aim="auto">Auto</button><button class="chip ${info.manualAim ? 'on' : ''}" data-aim="manual">Manual</button></div></div>
-      <div class="setting"><div><b>Performance overlay</b><span>Frame, update and render times, entity counts, draw calls (F3 in a run).</span></div><button class="chip ${info.perf ? 'on' : ''}" data-act="perf">${info.perf ? 'On' : 'Off'}</button></div>
+    <div class="kit-frame kit-screen settings">
+      <header class="kit-head">${kit.ribbon(`${kit.icon('settings')} Settings`, { attrs: 'role="heading" aria-level="1"' })}${kit.closeButton('back', { attrs: 'data-act="back"' })}</header>
+      ${kit.parch(`
+      ${setting('Graphics quality', `Low cuts particles, screen shake and shadows. Auto measures the first waves and drops to low if needed. Now: ${info.effective}.`, choice('quality', ['auto', 'low', 'high'], info.quality))}
+      ${setting('Text size', 'The HUD and every screen. A small screen keeps what still fits.', choice('text-size', Object.keys(TEXT_SIZES), info.textSize))}
+      ${setting(`${kit.icon('sound')} Sound`, 'Synthesised effects and music (M).', onOff('mute', !info.muted))}
+      ${setting(`${kit.icon('music')} Music`, `Composed live. In a run it plays quieter, under the effects.${info.muted ? ' Silent while Sound is off.' : ''}`, level('music', info.music))}
+      ${setting('Music during runs', 'A quiet theme for every arena that builds a little in a fight.', onOff('runMusic', info.runMusic))}
+      ${setting('Effects', 'How loud the sound effects are.', level('effects', info.effects))}
+      ${setting('Aim', 'Auto: basic attacks pick their own target. Manual: they go where the mouse or right stick points. Touch always aims itself.', choice('aim', ['auto', 'manual'], info.manualAim ? 'manual' : 'auto'))}
+      ${setting('Performance overlay', 'Frame, update and render times, entity counts, draw calls (F3 in a run).', onOff('perf', info.perf))}
       ${info.desktop ? `
-      <div class="setting"><div><b>Updates</b><span>Version ${info.desktop.version}. <span data-update-status>${esc(info.desktop.status)}</span></span></div><button class="chip" data-act="check">Check for updates</button></div>
-      <div class="setting"><div><b>Beta versions</b><span>Also install pre-releases.</span></div><button class="chip ${info.desktop.prerelease ? 'on' : ''}" data-act="pre">${info.desktop.prerelease ? 'On' : 'Off'}</button></div>` : ''}
-      <div class="setting"><div><b>Save data</b><span>Export, import or reset your progress.</span></div><button class="chip" data-act="save">Open</button></div>
-      ${info.dev ? '<div class="setting"><div><b>Test mode</b><span>Start a run anywhere and hear every arena’s music. Test runs pay nothing and leave no trace.</span></div><button class="chip" data-act="test">Open</button></div>' : ''}
-      <button class="btn" data-act="back">Back</button>
-      <p class="hint" data-version>Version ${info.version}</p>
+      ${setting('Updates', `Version ${info.desktop.version}. <span data-update-status>${esc(info.desktop.status)}</span>`, open('check', 'Check for updates'))}
+      ${setting('Beta versions', 'Also install pre-releases.', onOff('pre', info.desktop.prerelease))}` : ''}
+      ${setting('Save data', 'Export, import or reset your progress.', open('save'))}
+      ${info.dev ? setting('Test mode', 'Start a run anywhere and hear every arena’s music. Test runs pay nothing and leave no trace.', open('test')) : ''}
+      <p class="hint" data-version>Version ${info.version}</p>`, { cls: 'kit-scroll' })}
     </div>`);
   let taps = 0;
   click(el, '[data-version]', () => ++taps === 5 && !info.dev && on.dev());
   click(el, '[data-quality]', (b) => on.quality(b.dataset.quality as QualitySetting));
-  click(el, '[data-music]', (b) => on.music(b.dataset.music as MusicLevel));
-  click(el, '[data-effects]', (b) => on.effects(b.dataset.effects as MusicLevel));
   click(el, '[data-text-size]', (b) => on.textSize(b.dataset.textSize as TextSize));
   click(el, '[data-aim]', (b) => on.aim(b.dataset.aim === 'manual'));
+  const switches: Record<string, () => void> = { mute: on.mute, runMusic: on.runMusic, perf: on.perf, pre: () => on.prerelease(!info.desktop?.prerelease) };
+  for (const input of el.querySelectorAll<HTMLInputElement>('[data-set]')) {
+    const name = input.dataset.set!;
+    if (input.type === 'checkbox') input.onchange = () => switches[name]();
+    else {
+      const pick = () => MUSIC_LEVELS[Number(input.value)];
+      input.oninput = () => (input.closest('label')!.querySelector('[data-level]')!.textContent = cap(pick())); // the level's name follows the knob
+      input.onchange = () => (name === 'music' ? on.music : on.effects)(pick());
+    }
+  }
   click(el, '[data-act]', (b) => {
     const act = b.dataset.act;
-    if (act === 'mute') on.mute();
-    else if (act === 'perf') on.perf();
-    else if (act === 'runMusic') on.runMusic();
-    else if (act === 'test') on.testMode();
+    if (act === 'test') on.testMode();
     else if (act === 'check') on.checkUpdates();
-    else if (act === 'pre') on.prerelease(!info.desktop?.prerelease);
     else if (act === 'save') on.saveData();
     else on.back();
   });
@@ -930,24 +942,27 @@ export interface RunResult {
  */
 export function showResults(r: RunResult, on: { retry: () => void; menu: () => void } | { bank: () => void; endless: () => void; restart: () => void }): void {
   const deciding = 'bank' in on;
+  const G = kit.icon('gold'), R = kit.icon('runes'); // #186: the atlas's currency icons
   const title = deciding ? 'The Usurper has fallen' : r.endless ? (r.slain ? 'The Endless takes you' : 'The Endless ends') : r.won ? 'Victory' : r.slain ? 'Thou art slain' : 'The run ends';
   const winLine = r.won
-    ? `<div class="earned"><span>${r.firstWin ? `First win with the ${r.cls.name}` : `Win ${r.wins} with the ${r.cls.name}`}</span><b>◆ +${VICTORY.win.runes + (r.firstWin ? VICTORY.firstWin.runes : 0)}${r.firstWin ? ` · 🪙 +${VICTORY.firstWin.gold}` : ''} · +${VICTORY.win.classXp + (r.firstWin ? VICTORY.firstWin.classXp : 0)} XP <em>(counted in the totals)</em></b></div>`
+    ? `<div class="earned"><span>${r.firstWin ? `First win with the ${r.cls.name}` : `Win ${r.wins} with the ${r.cls.name}`}</span><b>${R} +${VICTORY.win.runes + (r.firstWin ? VICTORY.firstWin.runes : 0)}${r.firstWin ? ` · ${G} +${VICTORY.firstWin.gold}` : ''} · +${VICTORY.win.classXp + (r.firstWin ? VICTORY.firstWin.classXp : 0)} XP <em>(counted in the totals)</em></b></div>`
     : '';
-  const oathLine = r.oathKept ? `<div class="earned"><span>Oath ${r.oathKept} kept for the first time</span><b>◆ +${oathReward(r.oathKept).runes} · 🪙 +${oathReward(r.oathKept).gold} <em>(counted in the totals)</em></b></div>` : '';
+  const oathLine = r.oathKept ? `<div class="earned"><span>Oath ${r.oathKept} kept for the first time</span><b>${R} +${oathReward(r.oathKept).runes} · ${G} +${oathReward(r.oathKept).gold} <em>(counted in the totals)</em></b></div>` : '';
   const board = r.endless
     ? `<h2>Endless · ${r.cls.name}</h2><table class="stats-table endless"><tr><th>#</th><th>Score</th><th>Wave</th><th>Kills</th><th>Time</th></tr>${r.endless.board.map((e, i) => `<tr class="${i + 1 === r.endless!.rank ? 'on' : ''}"><td>${i + 1}</td><td>${e.score}</td><td>${e.wave}</td><td>${e.kills}</td><td>${fmtTime(e.time)}</td></tr>`).join('')}</table>`
     : '';
   const unlocks = [
     ...(r.tierUnlocked ? [`<div class="unlock">⚔ Difficulty unlocked: <b>${r.tierUnlocked}</b></div>`] : []),
-    ...r.contracts.map((c) => `<div class="unlock">📜 Weekly contract done: <b>${c.text}</b> <em>◆ +${c.runes}</em></div>`),
+    ...r.contracts.map((c) => `<div class="unlock">📜 Weekly contract done: <b>${c.text}</b> <em>${R} +${c.runes}</em></div>`),
     ...r.earned.map((e) => `<div class="unlock">🏆 <b>${e.def.name} · ${TIER_NAMES[e.tier - 1]}</b> — ${e.def.desc} <em>${tierRewardText(e.reward)}</em>${e.tier === 1 && e.def.unlocks?.arena ? ` <em>New arena: ${ARENAS[e.def.unlocks.arena].name}</em>` : ''}${e.tier === 1 && e.def.unlocks?.relic ? ` <em>New relic: ${relicDef(e.def.unlocks.relic).name}</em>` : ''}</div>`),
   ].join('');
+  // #186: the results in the kit: a framed screen with its heading on the ribbon, the run on parchment (it scrolls), and the
+  // buttons in a footer that stays in view. One main button: Quick restart, or Bank the win at the Usurper; Endless is a go.
   const el = show(`
-    <div class="panel dialog ${r.won ? 'victory' : ''}">
-      <h1 class="small ${r.won && !r.endless ? 'gold' : 'blood'}">${title}</h1>
-      <p class="sub">${r.cls.name}${r.title ? `, <em>${esc(r.title)}</em>` : ''} · ${r.tier}${r.oath ? ` · Oath ${r.oath}` : ''}${r.newBest ? ' — <span class="gold">new record!</span>' : ''}${deciding ? '<br>Bank the win now, or march on into Endless: waves without end, for a score. Either way the win counts when the run is banked.' : ''}</p>
-      ${deciding ? `<div class="row"><button class="btn big" data-endless>March on into Endless</button><button class="btn big" data-bank>Bank the win</button><button class="btn" data-restart data-tip="Bank the win and start again at once: ${esc(r.restart)}">Bank and restart</button></div>` : ''}
+    <div class="kit-frame kit-screen results ${r.won ? 'victory' : ''}">
+      <header class="kit-head">${kit.ribbon(title, { attrs: 'role="heading" aria-level="1"' })}</header>
+      <p class="sub">${r.cls.name}${r.title ? `, <em>${esc(r.title)}</em>` : ''} · ${r.tier}${r.oath ? ` · Oath ${r.oath}` : ''}${r.newBest ? ' — <span class="record">new record!</span>' : ''}${deciding ? '<br>Bank the win now, or march on into Endless: waves without end, for a score. Either way the win counts when the run is banked.' : ''}</p>
+      ${kit.parch(`
       <div class="stats wide">
         <div><span>Reached</span><b>${r.endless ? 'Endless · ' : ''}${actName(r.act)} · wave ${r.wave}</b></div>
         ${r.endless ? `<div class="earned"><span>Endless score</span><b>${r.endless.score}${r.endless.rank ? ` · #${r.endless.rank} for the ${r.cls.name}` : ''}</b></div>` : ''}
@@ -959,8 +974,8 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
         <div><span>${r.daily ? `Daily Trial ${r.daily}` : 'Run seed'}</span><b class="seed">${r.seed}</b></div>
         ${r.curseMult > 1 ? `<div><span>Curses</span><b>×${r.curseMult.toFixed(2)} gold &amp; XP</b></div>` : ''}
         <div><span>Best wave (${r.cls.name})</span><b>${r.best}</b></div>
-        <div class="earned"><span>Gold banked</span><b>🪙 +${r.gold}${r.goldRaw > r.gold ? ` <s>${r.goldRaw}</s>` : ''}</b></div>
-        ${r.runes > 0 ? `<div class="earned"><span>Runes</span><b>◆ +${r.runes}</b></div>` : ''}
+        <div class="earned"><span>Gold banked</span><b>${G} +${r.gold}${r.goldRaw > r.gold ? ` <s>${r.goldRaw}</s>` : ''}</b></div>
+        ${r.runes > 0 ? `<div class="earned"><span>Runes</span><b>${R} +${r.runes}</b></div>` : ''}
         <div class="earned"><span>${r.cls.name} mastery</span><b>+${r.classXp} XP · rank ${r.masteryRank}${r.masteryName ? ` — <em>${r.masteryName}</em>` : ''}</b></div>
         ${r.masteryNext ? `<div><span>Next mastery rank</span><b>${r.masteryNext.name} · ${r.masteryNext.need} XP to go</b></div>` : ''}
       </div>
@@ -968,8 +983,10 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
       ${r.relicShares.length ? `<h2>Relics</h2><table class="stats-table relics-table"><tr><th>Relic</th><th>Found</th><th>Damage</th><th>Healing</th><th>Mitigation</th></tr>${r.relicShares.map((s) => `<tr><td><span data-tip="${esc(keyTip(s.id, s.tier, r.relicShares.map((x) => x.id)))}">${keyIcon(s.id)} ${keyName(s.id)}${s.tier > 1 ? ` ${TIER_NUMERALS[s.tier]}` : ''}</span></td><td>${RELIC_SOURCE_NAMES[s.from]}</td><td>${s.damage ? `${s.damage}%` : '-'}</td><td>${s.healing ? `${s.healing}%` : '-'}</td><td>${s.mitigation ? `${s.mitigation}%` : '-'}</td></tr>`).join('')}</table><p class="hint">Each relic's share of all the damage you dealt, the healing you received and the damage turned away this run.</p>` : ''}
       ${unlocks ? `<div class="unlocks">${unlocks}</div>` : ''}
       ${board}
-      ${buildHtml(r.build)}
-      ${deciding ? '' : `<button class="btn big" data-retry data-tip="Enter">Quick restart · ${esc(r.restart)}</button><button class="btn" data-menu>Choose another champion</button>`}
+      ${buildHtml(r.build)}`, { cls: 'kit-scroll' })}
+      <footer class="row">${deciding
+        ? `${kit.button('Bank the win', { kind: 'gold', size: 'big', attrs: 'data-bank' })}${kit.button('March on into Endless', { kind: 'go', attrs: 'data-endless' })}${kit.button('Bank and restart', { attrs: `data-restart data-tip="Bank the win and start again at once: ${esc(r.restart)}"` })}`
+        : `${kit.button(`Quick restart · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button('Choose another champion', { attrs: 'data-menu' })}`}</footer>
     </div>`);
   if ('bank' in on) {
     click(el, '[data-endless]', on.endless);
