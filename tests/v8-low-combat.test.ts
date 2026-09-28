@@ -3,6 +3,7 @@ import { ENEMIES } from '../src/config/enemies';
 import { TIERS } from '../src/config/economy';
 import type { Game } from '../src/core/types';
 import { createGame } from '../src/game';
+import { updateAbility } from '../src/systems/abilities';
 import { shootAt } from '../src/systems/aiHelpers';
 import { addField } from '../src/entities/hazards';
 import { killEnemy, updateFields, updateProjectiles } from '../src/systems/combat';
@@ -69,5 +70,20 @@ describe('the remaining low combat items of the 28-09 check (#182)', () => {
     const kids = g.enemies.filter((c) => c !== e && c.def.id === 'knight');
     expect(kids.length).toBeGreaterThan(0);
     expect(kids.every((c) => c.side)).toBe(true);
+  });
+
+  it('the Aegis of Dawn dome lasts exactly as long as the shield: stretched with it, gone with an early detonation', () => {
+    const g = stage();
+    g.evolutions = ['aegisOfDawn'];
+    const press = (on: boolean) => ((g.input.ability = on), updateAbility(g, 1 / 60));
+    press(true);
+    const dome = () => g.fields.find((f) => f.follow);
+    expect(dome()).toBeTruthy();
+    g.player.abilityTime += 3; // Sanctuary holding the shield up longer
+    press(false);
+    expect(dome()!.life).toBeCloseTo(g.player.abilityTime);
+    press(true); // detonate early
+    expect(g.player.abilityTime).toBe(0);
+    expect(dome()).toBeUndefined();
   });
 });

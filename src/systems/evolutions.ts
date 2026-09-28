@@ -75,15 +75,21 @@ const attackHit = (g: Game) => {
   return attackDamage(p.cls.attack.damage, p.stats[p.cls.attack.scaling], p.buff.damage * p.mods.damage);
 };
 
+/** The Aegis of Dawn's dome: raised with the shield, and kept (or raised again) with the shield's own time left. */
+function dawnDome(g: Game): void {
+  const dome = g.fields.find((f) => f.follow);
+  if (dome) return void (dome.life = g.player.abilityTime);
+  const n = N('aegisOfDawn');
+  addField(g, { x: g.player.x, y: g.player.y, r: per(g, n, 'radius'), life: g.player.abilityTime, dps: per(g, n, 'dps') * g.player.mods.damage, hostile: false, color: '#f2c94c', dtype: 'holy' });
+  g.fields[g.fields.length - 1].follow = true;
+}
+
 const HOOKS: Record<EvolutionId, EvolutionHook> = {
   // ---------------------------------------------------------------- Paladin
   aegisOfDawn: {
-    cast(g) {
-      const n = N('aegisOfDawn');
-      addField(g, { x: g.player.x, y: g.player.y, r: per(g, n, 'radius'), life: g.player.abilityTime, dps: per(g, n, 'dps') * g.player.mods.damage, hostile: false, color: '#f2c94c', dtype: 'holy' });
-      g.fields[g.fields.length - 1].follow = true;
-    },
+    cast: dawnDome,
     tick(g) {
+      dawnDome(g); // #182: the dome lasts exactly as long as the shield (Sanctuary stretches it; the field cap may have trimmed it)
       // enemy shots that cross into the dome turn round as holy bolts
       const p = g.player;
       const n = N('aegisOfDawn');
@@ -101,6 +107,10 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
         pr.pierce = 2;
         burst(g, pr.x, pr.y, '#f2e6a0', 4, 90);
       }
+    },
+    expire(g) {
+      const i = g.fields.findIndex((f) => f.follow); // #182: a shield detonated early takes its dome with it
+      if (i >= 0) g.fields.splice(i, 1);
     },
   },
 
