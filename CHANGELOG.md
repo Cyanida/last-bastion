@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.8.3 — Fixes from the 28-09 check
+
+A round of fixes from a full check of the game: foes that flickered or vanished, relics that counted wrong, and a handful of screens that misbehaved.
+
+- **The Plague Cart**: visible the whole way while it crosses the arena.
+- **Foes stop flickering**: no more flash back to their idle pose between moves.
+- **No frame cut off**: every pose fits its frame, including the robed bosses' deaths, the Warlord's swings and the Dragon's fire.
+- **Quest bosses**: a boss tied to a quest still comes when you finished that quest early.
+- **Aim**: the right stick aims again after you moved the mouse.
+- **Offline**: a failed update check no longer shows an error dialog; Settings shows the update status as it changes.
+- **Larger text**: keeps the desktop layout in a desktop window.
+- **Anvil Heart and Adamant**: count the armor from your talents too.
+- **Blood Pact with Crimson Chalice**: your max HP stays right when either tiers up.
+- **Save import**: asks before it replaces your save and keeps one backup of the old one.
+- **Class select**: family names are readable on the cards, and a seed you type stays while you change the other options.
+- **On a phone**: the level-up heading no longer sits on the HUD banner.
+- **The peddler**: drawn and animated like everyone else.
+- **Enemy bolts**: carry their shooter, so the Abbot's bolts poison, the Lich's curse, and thorns and Mirror Shield hit back at whoever fired.
+- **Harder tiers**: the Plague Doctor's poison and the Priest's heals now grow with the difficulty like the rest.
+- **Shields and ground fire**: fire or poison on the floor no longer sticks to you when a shield, ward, block or dodge stops its damage.
+- **The Aegis of Dawn**: the dome lasts exactly as long as Divine Shield.
+- **Split elites**: the copies of a lair's or quest's elite no longer hold the wave open.
+- **A new Act**: blasts left on the old field stay behind, and the new arena's hazard starts fresh.
+- **Relic report**: Rolling Thunder and Deathmask's bursts count for their relic.
+- **Gutting**: its bleed is doubled by Last Blood like any other bleed.
+- **The Merchant's reroll**: no longer changes the rest of a seeded run, and never uses up a roll you can't pay for.
+- **The relic compendium**: Esc takes you back.
+- **Each run starts clean**: set-bonus flashes and relic tooltips no longer carry over from the last run.
+- **Another monitor or zoom**: the game resizes and stays sharp.
+
 ## v0.8.2 — Art & animation
 
 The game looks as good as it plays: every champion, foe, boss and arena is redrawn as shaded pixel art that moves.

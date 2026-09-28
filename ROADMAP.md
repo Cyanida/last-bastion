@@ -16,7 +16,7 @@ From v0.8.3 on, the roadmap is **Road to the Crown** ([docs/road-to-the-crown.md
 | v0.8.0 | Balance, relics & bosses | released 2026-09-26 |
 | v0.8.1 | Characters | released 2026-09-26 |
 | v0.8.2 | Art & animation | released 2026-09-26 |
-| v0.8.3 | Fixes from the 28-09 check | planned |
+| v0.8.3 | Fixes from the 28-09 check | released 2026-09-28 |
 | v0.9.0 | The new look | planned |
 | v0.10.0 | Champions & the Marches | planned |
 | v0.11.0 | The Iron Hold | planned |
