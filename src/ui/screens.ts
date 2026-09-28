@@ -18,6 +18,7 @@ import { TREASURE_RULES, TREASURES, treasureDesc, type TreasureId } from '../con
 import { chainStep, followUpText, inText, nextFragmentBoss, rankFor } from '../logic/treasures';
 import { UTILITIES, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
 import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
+import * as kit from './kit';
 import { duoTier, familySets, looseRelics, halfAttunement, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
 import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicTip, tierBadge } from './relicText';
@@ -127,26 +128,25 @@ export interface TitleInfo {
 }
 
 export function showTitle(info: TitleInfo, on: { start: () => void; daily: () => void; keep: () => void; chronicle: () => void; settings: () => void; whatsNew: () => void }): void {
-  // #184: the title screen is the new look's prototype: the UI kit (kit.css) and the rig's icon atlas
-  const rune = '<i class="kit-icon i-runes"></i>';
+  // #184: the title screen is the new look's prototype: the UI kit (kit.css, built by kit.ts) and the rig's icon atlas
   const el = show(`
     <div class="title kit-title">
-      <div class="kit-purse"><span class="kit-pill" title="Gold"><i class="kit-icon i-gold"></i>${info.gold.toLocaleString('en')}</span>${info.runes ? `<span class="kit-pill" title="Runes">${rune}${info.runes.toLocaleString('en')}</span>` : ''}</div>
+      <div class="kit-purse">${kit.pill('gold', info.gold, { title: 'Gold' })}${info.runes ? kit.pill('runes', info.runes, { title: 'Runes' }) : ''}</div>
       <h1>Last Bastion</h1>
-      <div class="kit-ribbon">${info.label}${info.mobile ? ' <span class="badge">Mobile</span>' : ''}</div>
-      ${info.whatsNew ? '<button class="kit-btn wood small whatsnew-link" data-go="whatsNew">What’s new</button>' : ''}
+      ${kit.ribbon(`${info.label}${info.mobile ? ' <span class="badge">Mobile</span>' : ''}`)}
+      ${info.whatsNew ? kit.button('What’s new', { size: 'small', cls: 'whatsnew-link', attrs: 'data-go="whatsNew"' }) : ''}
       ${info.title ? `<div class="epithet">${esc(info.title)}</div>` : ''}
       <p class="sub">The walls have fallen silent. The courtyard has not.</p>
-      ${info.notice ? `<div class="notice kit-parch"><span>${info.notice.text}</span><button class="kit-btn wood small" data-notice>${info.notice.button}</button></div>` : ''}
-      <button class="kit-btn gold big" data-go="start">Take up arms</button>
+      ${info.notice ? kit.parch(`<span>${info.notice.text}</span>${kit.button(info.notice.button, { size: 'small', attrs: 'data-notice' })}`, { cls: 'notice' }) : ''}
+      ${kit.button('Take up arms', { kind: 'gold', size: 'big', attrs: 'data-go="start"' })}
       <div class="row">
-        ${info.daily.date ? `<button class="kit-btn go" data-go="daily">Daily Trial${info.daily.best ? ` · best ${info.daily.best}` : ''}</button>` : ''}
-        <button class="kit-btn wood" data-go="keep"><i class="kit-icon i-keep"></i>The Keep</button>
-        <button class="kit-btn wood" data-go="chronicle"><i class="kit-icon i-crown"></i>Chronicle</button>
-        <button class="kit-btn wood" data-go="settings">Settings</button>
+        ${info.daily.date ? kit.button(`Daily Trial${info.daily.best ? ` · best ${info.daily.best}` : ''}`, { kind: 'go', attrs: 'data-go="daily"' }) : ''}
+        ${kit.button('The Keep', { icon: 'keep', attrs: 'data-go="keep"' })}
+        ${kit.button('Chronicle', { icon: 'crown', attrs: 'data-go="chronicle"' })}
+        ${kit.button('Settings', { attrs: 'data-go="settings"' })}
       </div>
-      <div class="kit-frame"><div class="contracts kit-parch"><b>This week's contracts</b> <span class="dim">· new ones every Monday · Runes when a run completes one</span>
-        ${info.contracts.map((c) => `<div class="contract ${c.progress >= c.target ? 'done' : ''}"><span>${c.progress >= c.target ? '✔ ' : ''}${c.text}</span><span>${c.progress.toLocaleString('en')}/${c.target.toLocaleString('en')} · ${rune}${c.runes}</span></div>`).join('')}</div></div>
+      ${kit.frame(kit.parch(`<b>This week's contracts</b> <span class="dim">· new ones every Monday · Runes when a run completes one</span>
+        ${info.contracts.map((c) => `<div class="contract ${c.progress >= c.target ? 'done' : ''}"><span>${c.progress >= c.target ? '✔ ' : ''}${c.text}</span><span>${c.progress.toLocaleString('en')}/${c.target.toLocaleString('en')} · ${kit.icon('runes')}${c.runes}</span></div>`).join('')}`, { cls: 'contracts' }))}
       <p class="hint">${info.mobile ? 'Left thumb moves · right thumb casts your signature ability (hold and drag to aim) · attacks are automatic' : 'WASD / arrows or gamepad to move · attacks are automatic · Space or right mouse for your signature ability · Esc / P to pause · M to mute'}</p>
       <p class="hint build">build ${info.buildDate}</p>
     </div>`);
