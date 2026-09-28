@@ -1,5 +1,5 @@
 import { ROUTES } from '../config/routes';
-import { ARENA_FAMILIES, ATTUNEMENT, BOSS_RELIC_CHOICES, CURSED, CURSED_IDS, duoOf, DUOS, FAMILIES, isCursedRelic, isDuo, isFamily, FAMILY_IDS, keyColor, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ARENA_FAMILIES, ATTUNEMENT, CURSED, CURSED_IDS, duoOf, DUOS, FAMILIES, isCursedRelic, isDuo, isFamily, FAMILY_IDS, keyColor, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { sfx } from '../sim/view';
 import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
@@ -94,7 +94,7 @@ addListener((g, name, ev) => {
   // v0.7: every wave boss is a relic moment (a lair's boss is the lair's moment; the Usurper ends the run),
   // before the chain limit: a boss killed by the last link of a relic chain still counts
   const slain = name === 'onKill' ? (ev as GameEvents['onKill']).enemy : null;
-  if (slain?.def.boss && !slain.side && slain.def.id !== 'usurper') offerRelics(g, BOSS_RELIC_CHOICES + (g.vars['keep.bossChoices'] ?? 0), 'boss'); // + the Reliquary Vault
+  if (slain?.def.boss && !slain.side && slain.def.id !== 'usurper') offerRelics(g, RELIC_MOMENTS.choices + (g.vars['keep.bossChoices'] ?? 0), 'boss'); // + the Reliquary Vault
   if (g.procDepth >= RELIC_STACKING.procDepth) return; // a relic reacting to a relic's damage is the last link of the chain
   g.procDepth++;
   const outer = relicContext.acting;
@@ -302,7 +302,7 @@ function roll(p: Player, pool: RelicId[], n: number, families?: FamilyId[], excl
  * v0.7: queue a relic moment for a player: a pick of `count` (RELIC_MOMENTS). `pool` narrows it (the Merchant sells one rarity).
  * Every relic choice is an action on a player's own state, so in co-op any player can have their own moment.
  */
-export function offerRelics(g: Game, count = BOSS_RELIC_CHOICES, from: RelicSource = 'other', p: Player = g.player, pool = p.relics.pool): void {
+export function offerRelics(g: Game, count = RELIC_MOMENTS.choices, from: RelicSource = 'other', p: Player = g.player, pool = p.relics.pool): void {
   const cursed = cursedCard(g, p, from);
   const families = from === 'boss' ? ARENA_FAMILIES[g.arena.id] : undefined;
   const options = roll(p, pool, cursed ? count - 1 : count, families);

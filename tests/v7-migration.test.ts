@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ACHIEVEMENTS } from '../src/config/achievements';
 import { META } from '../src/config/economy';
-import { BOSS_RELIC_CHOICES, RELIC_IDS } from '../src/config/relics';
+import { RELIC_IDS, RELIC_MOMENTS } from '../src/config/relics';
 import { createGame, summarizeRun } from '../src/game';
 import { newlyEarned } from '../src/logic/achievements';
 import { metaLoadout } from '../src/logic/economy';
@@ -48,7 +48,7 @@ describe('the Keep after the relic rework (v0.7 A7)', () => {
     const g = createGame('paladin', 1, { meta: { relicChance: 2, relicSlot: 1 } });
     expect(momentRerolls(g)).toBe(momentRerolls(createGame('paladin', 1)) + 2);
     killEnemy(g, spawnEnemy(g, 'warden', g.player.x + 300, g.player.y));
-    expect(g.player.relics.offers[0].options).toHaveLength(BOSS_RELIC_CHOICES + 1);
+    expect(g.player.relics.offers[0].options).toHaveLength(RELIC_MOMENTS.choices + 1);
   });
 });
 

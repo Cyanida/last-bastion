@@ -1,6 +1,7 @@
 import { RUNES } from '../config/economy';
 import { AFFIX_IDS, ELITES } from '../config/elites';
 import { QUEST_BOARD, QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
+import { RELIC_MOMENTS } from '../config/relics';
 import { ROUTES } from '../config/routes';
 import { TREASURES } from '../config/treasures';
 import { sfx } from '../sim/view';
@@ -150,7 +151,7 @@ const HOOKS: Record<QuestKind, QuestHooks> = {
 };
 
 export function payReward(g: Game, reward: RewardKind): void {
-  if (reward === 'relic') offerRelics(g, 3, 'quest');
+  if (reward === 'relic') offerRelics(g, RELIC_MOMENTS.choices, 'quest');
   else if (reward === 'gold') g.gold += REWARDS.gold.amount * g.act;
   else if (reward === 'rune') g.questRunes += RUNES.quest;
   else if (reward === 'talent') g.talentPoints++;

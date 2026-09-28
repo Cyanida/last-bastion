@@ -227,7 +227,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
   if (loadout.startRelic) {
     // v0.6 Armorer's Choice: the run opens on a choice of three common relics
     const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
-    const choice = rollRelics(commons, [], g.rng, 3);
+    const choice = rollRelics(commons, [], g.rng, RELIC_MOMENTS.choices);
     if (choice.length) (g.player.relics.offers.push({ from: 'start', options: choice, rerolls: RELIC_MOMENTS.rerolls }), (g.vars.armorerOffer = 1));
   }
   if (mastery.relic) {
