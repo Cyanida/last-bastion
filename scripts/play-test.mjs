@@ -511,6 +511,22 @@ await check('peddler at full health: the draught is shut, a reroll token buys on
   }),
 );
 
+await check('peddler: drawn from the Siege Engineer rigged sheet, breathing through its idle (#178)', () =>
+  inPage(async () => {
+    const lb = window.__lb, g = lb.game, p = g.player;
+    const was = p.invulnerable;
+    p.invulnerable = true;
+    g.event = { kind: 'peddler', x: p.x + 200, y: p.y, unit: null, foe: null, used: true, t: 0, stock: 0 }; // out of reach: no shop opens
+    const seen = [];
+    for (let i = 0; i < 60 && lb.state === 'playing'; i++) (lb.run(1, false, 'input'), lb.draw(), seen.push(lb.peddlerAnim()));
+    g.event = null;
+    p.invulnerable = was;
+    const frames = new Set(seen.map((a) => (a ? `${a.anim}${a.frame}` : 'grid')));
+    const ok = seen.length > 0 && seen.every((a) => a?.anim === 'idle') && frames.size > 1;
+    return { ok, detail: [...frames].join(' ') };
+  }),
+);
+
 await check('monk escort: taken from the board, he keeps walking with an enemy beside him (#119)', () =>
   inPage(async () => {
     const P = window.__play, lb = window.__lb, g = lb.game;
