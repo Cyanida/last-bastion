@@ -28,6 +28,7 @@ import type { DamageType } from '../config/damage';
 import type { StatusApply, StatusMap } from '../logic/status';
 import type { Sprite } from '../render/sprites';
 import type { SpatialHash } from './spatial';
+import type { RealmId } from '../config/world';
 
 export type StatKey = 'hp' | 'str' | 'dex' | 'int' | 'atkSpd' | 'moveSpd' | 'secondary';
 export type Stats = Record<StatKey, number>;
@@ -43,7 +44,7 @@ export type DamageSource = 'attack' | 'ability' | 'minion' | 'relic' | 'hazard';
 export interface RelicStat { damage: number; healing: number; prevented: number }
 
 /** v0.7: where a relic moment came from (config/relics.ts RELIC_MOMENTS). */
-export type RelicSource = 'boss' | 'lair' | 'strongbox' | 'quest' | 'merchant' | 'start' | 'other';
+export type RelicSource = 'boss' | 'lair' | 'strongbox' | 'quest' | 'merchant' | 'start' | 'loadout' | 'other'; // loadout: a level's slotted relics (#191)
 
 /** v0.7: one relic moment: pick one of the options, or skip it; `rerolls` left for this moment. */
 export interface RelicOffer {
@@ -588,5 +589,8 @@ export interface Game {
   evolutions: EvolutionId[]; // v0.6: taken this run (one signature, one utility; config/evolutions.ts)
   prey: Enemy | null; // v0.6: the Hunter's Mark
   glows: Glow[]; // v0.6: lights the evolutions set every tick (wisps, souls, rings); cleared at the start of each tick
+  // --- v0.10 levels (#191, systems/levels.ts) ---
+  startWave: number; // the first wave this run plays: 1, or a level's first wave (its head start)
+  level: { realm: RealmId; level: number; last: number; cleared: boolean } | null; // the realm level this run is (null: a plain run); cleared once its last wave is
   over: boolean;
 }

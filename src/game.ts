@@ -46,6 +46,8 @@ import { updateSpawning } from './systems/spawning';
 import './systems/bosses'; // registers the Act bosses' scripts
 import { updateSquads } from './systems/squads';
 import { updateStatuses } from './systems/status';
+import { headStart, type LevelStart } from './systems/levels';
+import { REALMS } from './config/world';
 
 /** Everything a run takes from outside: the player's choices on the select screen and their permanent progress. */
 export interface RunOptions {
@@ -64,6 +66,7 @@ export interface RunOptions {
   accountLevel?: number; // v0.4: the sum of every class's mastery rank (account milestones)
   libraryLevel?: number; // v0.4: caps the talent rows (TALENT_ROW_CAP)
   daily?: string; // date of the Daily Trial this run is
+  level?: LevelStart; // v0.10 (#191): a realm level: its arena, a head start at its first wave, its loadout, its end boss
   treasure?: number; // v0.5: tier of the class's sacred treasure to equip (0 or none: not equipped)
   chain?: TreasureRecord; // v0.5: the class's treasure chain from the save (it only plays once mastery has opened it)
   // simulation only (the relic power index, scripts/simulate.ts): start with these relics at this tier, or with this many pickups
@@ -79,7 +82,9 @@ const withOath = (t: TierDef, o: OathStack): TierDef => (o.level ? { ...t, enemy
 
 export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}): Game {
   const cls = CLASSES[classId];
-  const arena = ARENAS[opts.arena ?? 'courtyard'];
+  const realm = opts.level && REALMS[opts.level.realm];
+  const levelDef = realm && realm.levels[opts.level!.level - 1];
+  const arena = ARENAS[(realm && realm.arena in ARENAS ? realm.arena : opts.arena ?? 'courtyard') as ArenaId]; // a realm arena not built yet: the chosen one
   const mastery = masteryBonus(opts.classXp ?? 0);
   const loadout = metaLoadout(opts.meta ?? {});
   const account = accountPerks(opts.accountLevel ?? 0);
@@ -198,6 +203,8 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     evolutions: [],
     prey: null,
     glows: [],
+    startWave: 1,
+    level: null,
     over: false,
   };
   Object.assign(g.player.relics, { pool: relicPoolFor(classId, opts.lockedRelics ?? []), rng: relicStream(seed, 0) });
@@ -218,6 +225,11 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     g.player.stats = applyGrowth(g.player.stats, cls.growth);
     g.player.hp = g.player.stats.hp;
   }
+  if (opts.level && levelDef) {
+    headStart(g, levelDef.waves[0], { plan: opts.level.talentPlan });
+    g.level = { realm: opts.level.realm, level: opts.level.level, last: levelDef.waves[1], cleared: false };
+    for (const id of opts.level.relics ?? []) addRelic(g, id, 'loadout', levelDef.relicTier); // after the growth: an acquire hook (Blood Pact's HP cut) sees the grown stats
+  }
   for (const id of opts.relics ?? []) addRelic(g, id, 'other', opts.relicTier ?? 1);
   for (let i = 0; i < (opts.relicPicks ?? 0); i++) {
     const [pick] = rollRelics(g.player.relics.pool, g.player.relics.held, g.rng, 1);
@@ -227,7 +239,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
   if (loadout.startRelic) {
     // v0.6 Armorer's Choice: the run opens on a choice of three common relics
     const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
-    const choice = rollRelics(commons, [], g.rng, RELIC_MOMENTS.choices);
+    const choice = rollRelics(commons, g.player.relics.held, g.rng, RELIC_MOMENTS.choices); // #191: never one already slotted
     if (choice.length) (g.player.relics.offers.push({ from: 'start', options: choice, rerolls: RELIC_MOMENTS.rerolls }), (g.vars.armorerOffer = 1));
   }
   if (mastery.relic) {

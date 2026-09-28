@@ -1,17 +1,15 @@
 import { ACTS } from '../config/acts';
-import { ARENAS, type ArenaId } from '../config/arenas';
+import type { ArenaId } from '../config/arenas';
 import type { ClassId } from '../config/classes';
 import type { RelicId } from '../config/relics';
 import { TALENT_BY_ID } from '../config/talents';
 import type { Game } from '../core/types';
 import { createGame, summarizeRun } from '../game';
-import { applyGrowth } from '../logic/formulas';
 import { applyRun, type Save } from '../logic/save';
 import { todayString } from '../logic/acts';
-import { nextAct } from './acts';
 import { addRelic } from './relics';
-import { initRegions } from './regions';
-import { spendTalent } from './talents';
+import { talentPointsForLevel } from '../logic/talents';
+import { headStart } from './levels';
 
 /**
  * v0.7.1 test mode (hidden: tap the version in Settings five times, or ?dev=1): start a run anywhere, with a chosen class, level and
@@ -32,19 +30,10 @@ export const isTestRun = (g: Game) => g.vars.test === 1;
 export function createTestRun(s: TestSetup, seed: number): Game {
   const g = createGame(s.classId, seed, { arena: s.arena });
   g.vars.test = 1;
-  while (g.act < s.act) nextAct(g);
-  if (g.arena.id !== s.arena) {
-    g.arena = ARENAS[s.arena];
-    initRegions(g);
-    Object.assign(g.player, { x: g.arena.w / 2, y: g.arena.h / 2 });
-  }
-  const p = g.player;
-  for (; p.level < s.level; p.level++) p.stats = applyGrowth(p.stats, p.cls.growth);
-  p.hp = p.stats.hp;
-  g.talentPoints += s.talents.length;
-  for (const id of [...s.talents].sort((a, b) => TALENT_BY_ID[a].row - TALENT_BY_ID[b].row)) spendTalent(g, id); // one a tree cannot take stays a point to spend
+  g.talentPoints += Math.max(0, s.talents.length - talentPointsForLevel(s.level)); // every chosen talent is paid for, even at a low level
+  // #191: the head start a level gets (queued picks, the boon bundle), at the chosen level, spending along the chosen talents
+  headStart(g, (s.act - 1) * ACTS.length + s.wave, { level: s.level, plan: [...s.talents].sort((a, b) => TALENT_BY_ID[a].row - TALENT_BY_ID[b].row) });
   for (const [id, tier] of Object.entries(s.relics ?? {})) addRelic(g, id as RelicId, 'other', tier);
-  g.wave = g.wavesCleared = (s.act - 1) * ACTS.length + s.wave - 1;
   g.breather = 0.01; // the chosen wave comes next
   return g;
 }
