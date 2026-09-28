@@ -1975,6 +1975,7 @@ await check('Swing trail and walk pace: a crescent trail on the swing; the feet 
     const r = await inPage(async (mult) => {
       const lb = window.__lb, g = lb.game, p = g.player;
       g.enemies.length = 0;
+      p.x = g.arena.w * 0.25; // room to walk right: the 1.5x walk used to reach the wall and leave the slow walk none
       p.stats.baseMove ??= p.stats.moveSpd;
       p.stats.moveSpd = p.stats.baseMove * mult; // a fast build (movement talents, Ghost Step) or a heavy slow
       return { x: p.x, speed: p.cls.base.moveSpd }; // the walk's base: the class's own speed, as the renderer uses
