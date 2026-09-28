@@ -988,6 +988,22 @@ await check('Esc in the relic compendium: back to the Keep, then the title (#182
   return { ok: opened === 'Relic compendium' && back === 'The Keep' && title > 0, detail: `${opened} -> ${back} -> ${title ? 'title' : '?'}` };
 });
 
+// ---------- v0.8.3 (#182): a new pixel ratio (another monitor) re-sizes the canvas, so the arena stays sharp ----------
+await check('DPR: moving to a sharper screen re-sizes the canvas to its pixels (#182)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+  await p.goto(`http://localhost:${PORT}/`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const size = () => p.evaluate(() => { const c = document.getElementById('game'); return `${c.width}x${c.height}`; });
+  const before = await size();
+  // the window lands on a 2x monitor: same CSS size, twice the pixels (the way Chromium reports it: no resize event needed)
+  const cdp = await p.context().newCDPSession(p);
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 2, mobile: false });
+  await p.waitForTimeout(200);
+  const after = await size();
+  await p.close();
+  return { ok: before === '1280x720' && after === '2560x1440', detail: `canvas ${before} -> ${after}` };
+});
+
 // ---------- v0.7.5: a shared save with markup in its title, titles and a run's Daily label shows it as text, never as page (#105) ----------
 await check('import: a save with markup stays text', () =>
   inPage(() => {

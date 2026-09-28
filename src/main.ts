@@ -712,6 +712,8 @@ function frame(now: number): void {
   const elapsed = now - last;
   acc += elapsed / 1000;
   last = now;
+  // #182: a new pixel ratio (another monitor, browser zoom) can leave the CSS size alone and fire no resize event
+  if (window.devicePixelRatio !== shownDpr) resize();
   pumpGamepad();
   let steps = 0;
   const t0 = performance.now(); // always measured (not begin()): the dynamic quality needs it with the overlay off
@@ -748,10 +750,12 @@ window.addEventListener('error', (e) => crashed(e.error ?? e.message));
 window.addEventListener('unhandledrejection', (e) => crashed(e.reason));
 
 // ---------- boot ----------
+let shownDpr = 0; // the raw devicePixelRatio the canvas was last sized for
 function resize(): void {
   // innerWidth/innerHeight, not 100vh: on iOS 100vh includes the area under the browser chrome
   const w = window.innerWidth;
   const h = window.innerHeight;
+  shownDpr = window.devicePixelRatio;
   view.dpr = Math.min(window.devicePixelRatio || 1, quality.maxDpr);
   view.w = canvas.width = Math.round(w * view.dpr);
   view.h = canvas.height = Math.round(h * view.dpr);
