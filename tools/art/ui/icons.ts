@@ -22,11 +22,14 @@ function rune(): Figure {
   f.part(O, [[10, 6], [13, 10], [10, 14], [7, 10]], 'shade', 1); // the glowing core
   return f;
 }
-function crown(): Figure {
-  const f = new Figure(S, S);
-  f.part(O, [[2, 6], [6, 10], [10, 3], [14, 10], [18, 6], [16, 16], [4, 16]], 'gold', 0, { details: dots([[10, 5], [2, 7], [17, 7]], 'gold', 6) });
-  f.part(O, ell(10, 12.5, 1.8, 1.8, 10), 'red', 1);
-  return f;
+/** The crown; the tier crowns (#185) are the same crown in their metal with their stone. */
+function crown(metal: Material = 'gold', stone: Material = 'red'): () => Figure {
+  return () => {
+    const f = new Figure(S, S);
+    f.part(O, [[2, 6], [6, 10], [10, 3], [14, 10], [18, 6], [16, 16], [4, 16]], metal, 0, { details: dots([[10, 5], [2, 7], [17, 7]], metal, 6) });
+    f.part(O, ell(10, 12.5, 1.8, 1.8, 10), stone, 1);
+    return f;
+  };
 }
 function sword(): Figure {
   const f = new Figure(S, S);
@@ -89,11 +92,97 @@ function tower(): Figure {
   return f;
 }
 
-/** Atlas order: the CSS indexes by it. */
+/** #185: the champion tab: a great helm. */
+function helm(): Figure {
+  const f = new Figure(S, S);
+  f.part(O, [[5, 5], [8, 2.5], [12, 2.5], [15, 5], [15.5, 17], [4.5, 17]], 'steel', 0, { details: dots([[7, 5], [7, 6]], 'steel', 6) });
+  f.part(O, [[5, 8.5], [15, 8.5], [15, 10], [5, 10]], 'darksteel', 1, { dim: 2, outline: false }); // the eye slit
+  f.part(O, [[9.3, 10], [10.7, 10], [10.7, 16], [9.3, 16]], 'gold', 1, { profile: 'flat' }); // the brass nasal
+  return f;
+}
+/** #185: the relics tab: a cut gem in a gold setting. Also the rarity gems, one per frame colour. */
+function gem(mat: Material): () => Figure {
+  return () => {
+    const f = new Figure(S, S);
+    f.part(O, [[6, 3], [14, 3], [18, 8], [10, 18], [2, 8]], mat, 0, { details: dots([[6, 5], [7, 4], [8, 4]], mat, 6) });
+    f.part(O, [[2, 8], [18, 8], [10, 18]], mat, 1, { dim: 1, profile: 'flat' }); // the lower facets, in shadow
+    return f;
+  };
+}
+function relic(): Figure {
+  const f = new Figure(S, S);
+  f.part(O, ell(10, 10.5, 7.5, 7.5, 24), 'gold', 0, { details: dots([[5, 6], [6, 5]], 'gold', 6) });
+  f.part(O, [[10, 5], [14.5, 10.5], [10, 16], [5.5, 10.5]], 'amethyst', 1, { details: dots([[8, 9], [9, 8]], 'amethyst', 6) });
+  return f;
+}
+/** #185: the deeds tab: a sealed scroll. */
+function scroll(): Figure {
+  const f = new Figure(S, S);
+  f.part(O, [[4, 4], [16, 4], [16, 16], [4, 16]], 'bone', 0, { details: dots([[6, 7], [7, 7], [8, 7], [9, 7], [10, 7], [11, 7], [12, 7], [13, 7], [6, 10], [7, 10], [8, 10], [9, 10], [10, 10], [11, 10]], 'bone', 2) });
+  f.part(O, [[2.5, 2.5], [17.5, 2.5], [17.5, 5.5], [2.5, 5.5]], 'leather', 1); // the rollers
+  f.part(O, [[2.5, 14.5], [17.5, 14.5], [17.5, 17.5], [2.5, 17.5]], 'leather', 1);
+  f.part(O, ell(13.5, 12.5, 2.2, 2.2, 12), 'red', 2); // the wax seal
+  return f;
+}
+/** #185: settings: a gear. */
+function gear(): Figure {
+  const f = new Figure(S, S);
+  const teeth = Array.from({ length: 32 }, (_, i): Pt => {
+    const a = (i / 32) * Math.PI * 2 + Math.PI / 32, r = i % 4 < 2 ? 8.2 : 6;
+    return [10 + r * Math.cos(a), 10 + r * Math.sin(a)];
+  });
+  f.part(O, teeth, 'steel', 0, { details: dots([[6, 5], [5, 6]], 'steel', 6) });
+  f.part(O, ell(10, 10, 2.4, 2.4, 12), 'darksteel', 1, { dim: 2 }); // the axle hole
+  return f;
+}
+/** #185: back: an arrow pointing left. */
+function back(): Figure {
+  const f = new Figure(S, S);
+  f.part(O, [[2.5, 10], [9, 3.5], [9, 7.5], [17, 7.5], [17, 12.5], [9, 12.5], [9, 16.5]], 'white', 0, { details: dots([[10, 8]], 'white', 6) });
+  return f;
+}
+/** #185: close: a red cross. */
+function close(): Figure {
+  const f = new Figure(S, S);
+  f.part(O, [[3, 5.5], [5.5, 3], [10, 7.5], [14.5, 3], [17, 5.5], [12.5, 10], [17, 14.5], [14.5, 17], [10, 12.5], [5.5, 17], [3, 14.5], [7.5, 10]], 'red', 0, { details: dots([[5, 5], [6, 5]], 'red', 6) });
+  return f;
+}
+/** #185: sound: a horn-speaker with its waves. */
+function sound(): Figure {
+  const f = new Figure(S, S);
+  f.part(O, [[2.5, 7.5], [6, 7.5], [11, 3], [11, 17], [6, 12.5], [2.5, 12.5]], 'steel', 0, { details: dots([[4, 8]], 'steel', 6) });
+  f.part(O, [[13, 7], [14.5, 6], [16, 10], [14.5, 14], [13, 13], [14, 10]], 'white', 1, { profile: 'flat' });
+  return f;
+}
+/** #185: music: a pair of joined notes. */
+function music(): Figure {
+  const f = new Figure(S, S);
+  f.part(O, [[7, 4.5], [17, 2.5], [17, 5], [8.5, 7]], 'gold', 1, { profile: 'flat' }); // the beam
+  f.part(O, [[7, 5], [8.5, 5], [8.5, 15], [7, 15]], 'gold', 0.5, { profile: 'flat', outline: false });
+  f.part(O, [[15.5, 3], [17, 3], [17, 13], [15.5, 13]], 'gold', 0.5, { profile: 'flat', outline: false });
+  f.part(O, ell(5.8, 15, 2.8, 2.2, 14), 'gold', 1, { details: dots([[5, 14]], 'gold', 6) });
+  f.part(O, ell(14.3, 13, 2.8, 2.2, 14), 'gold', 1);
+  return f;
+}
+/** #185: locked: a padlock. */
+function lock(): Figure {
+  const f = new Figure(S, S);
+  const arc = (r: number): Pt[] => Array.from({ length: 11 }, (_, i): Pt => [10 - r * Math.cos((Math.PI * i) / 10), 8 - r * Math.sin((Math.PI * i) / 10)]);
+  f.part(O, [...arc(5.5), [15.5, 10], [13.5, 10], ...arc(3.5).reverse(), [6.5, 10], [4.5, 10]], 'steel', 0); // the shackle
+  f.part(O, [[3.5, 9], [16.5, 9], [16.5, 18], [3.5, 18]], 'gold', 1, { details: dots([[5, 10], [6, 10]], 'gold', 6) });
+  f.part(O, [[9, 12], [11, 12], [11, 15.5], [9, 15.5]], 'gold', 2, { dim: 4, outline: false }); // the keyhole
+  return f;
+}
+
+/** Atlas order: the CSS indexes by it. New icons go at the end, so their classes keep their place. */
 export const ICONS: [id: string, draw: () => Figure][] = [
-  ['gold', coin], ['runes', rune], ['crown', crown],
+  ['gold', coin], ['runes', rune], ['crown', crown()],
   ['steel', sword], ['flame', flame], ['frost', frost], ['storm', storm], ['holy', holy], ['blood', blood], ['grave', skull],
   ['map', flag], ['keep', tower],
+  // #185: the rest of the tab bar, the controls and the tier crowns and rarity gems the next screens need
+  ['champion', helm], ['relics', relic], ['deeds', scroll], ['settings', gear], ['back', back], ['close', close], ['sound', sound], ['music', music], ['lock', lock],
+  ['crown-squire', crown('leather', 'stone')], ['crown-knight', crown('steel', 'blue')], ['crown-champion', crown('gold', 'red')], ['crown-legend', crown('glow', 'soul')],
+  ['common', gem('white')], ['rare', gem('blue')], ['legendary', gem('ember')], ['class', gem('venom')], ['signature', gem('glow')],
 ];
 
 export const iconPaths = { png: 'public/sprites/ui-icons.png', css: 'src/ui/icons.css' };
