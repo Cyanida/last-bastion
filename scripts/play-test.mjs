@@ -938,6 +938,37 @@ await check('offline: a failed update check shows no error overlay', async () =>
   return { ok: crash === 0 && errs.length === 0, detail: `overlay ${crash}${errs.length ? `, errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- v0.8.3 (#182): desktop Settings shows the update status as it comes in, a failed check included ----------
+await check('Settings: the update status follows the check while the screen is open, an error as text (#182)', async () => {
+  const desk = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  desk.on('pageerror', (e) => errs.push(e.message));
+  desk.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  // the Electron preload's API (electron/preload.cjs), with the status events in the test's hands
+  await desk.addInitScript(() => {
+    window.desktop = {
+      getVersion: async () => '0.0.0',
+      checkForUpdates: async () => window.__emit?.({ state: 'checking' }),
+      quitAndInstall: () => undefined,
+      onUpdateStatus: (fn) => (window.__emit = fn),
+    };
+  });
+  await desk.goto(`http://localhost:${PORT}/`);
+  await desk.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await desk.getByRole('button', { name: 'Settings' }).click();
+  const status = desk.locator('[data-update-status]');
+  await desk.evaluate(() => window.__emit({ state: 'none' }));
+  const upToDate = await status.textContent();
+  await desk.getByRole('button', { name: 'Check for updates' }).click();
+  const checking = await status.textContent();
+  await desk.evaluate(() => window.__emit({ state: 'error', message: '<b>net::ERR_INTERNET_DISCONNECTED</b>' }));
+  const failed = await status.textContent();
+  const markup = await status.locator('b').count();
+  await desk.close();
+  const ok = upToDate === 'You are up to date.' && checking === 'Checking…' && failed.includes('failed') && failed.includes('<b>') && markup === 0 && errs.length === 0;
+  return { ok, detail: `${upToDate} -> ${checking} -> ${failed}${errs.length ? `, errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- v0.7.5: a shared save with markup in its title, titles and a run's Daily label shows it as text, never as page (#105) ----------
 await check('import: a save with markup stays text', () =>
   inPage(() => {

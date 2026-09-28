@@ -799,6 +799,9 @@ if (platform.desktop) {
     else if (s.state === 'downloading') updateStatus = `Downloading v${s.version}… ${Math.round(s.percent)}%`;
     else if ('version' in s) updateStatus = s.state === 'ready' ? `v${s.version} is ready to install.` : `v${s.version} found, downloading…`;
     else updateStatus = s.state === 'checking' ? 'Checking…' : 'You are up to date.';
+    // #182: an open Settings shows it as it comes in (textContent: the message comes from outside the game)
+    const shown = document.querySelector('[data-update-status]');
+    if (shown) shown.textContent = updateStatus;
     if (s.state === 'ready') setNotice({ text: `Update to v${s.version} ready`, button: 'Restart', action: () => platform.desktop!.quitAndInstall() });
   });
   void platform.desktop.checkForUpdates(save.settings.prerelease);
