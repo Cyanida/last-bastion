@@ -396,6 +396,11 @@ You are the main AI for Last Bastion (github.com/Cyanida/last-bastion). This pla
 - ◆ **Talents**: the champion keeps a talent plan and the head start spends along it.
 - ◆ **The found bugs ship first**, as v0.8.3; the Keep castle moves into the new look.
 - ◆ **Rarity frame colours** (#184): common stone, rare blue, legendary orange (as today), class green, signature gold with a glow.
+- ◆ **World progress** (#190): a crown on any tier counts toward opening realms; levels open in order per tier, and a clear on a higher tier counts for the lower ones; a first-clear reward is paid once, on any tier.
+- ◆ **Crown rewards** (#190): a relic realm's Squire crown gives no legendary, Knight the pick of 1 of its 2 legendaries, Champion the other, Legend a title and a palette. The Marches' signature relic comes with its first crown on any tier.
+- ◆ **The Marches' featured families** (#190), levels 1-7: Steel, Flame, Blood, Storm, Frost, Holy, Grave. Levels 1-6 end on a pool boss; level 7 is the Warden as crown boss.
+- ◆ **Unnamed bosses** (#190): the Barrowvale's level-1 boss is the Plague Abbot and its level-3 boss "the Gravedigger"; first bosses where the plan names none: Frozen Pass the Frost Lich, Stormspire the Warlord, Hallowed Reach the Heretic, Crimson Fields the Headsman.
+- ◆ **Small rules** (#190): a crown boss phase lasts at least 12 s; a level cleared with no family relic held pays 2 Runes in place of a locked relic; "the family you held" means every family among the relics held at the end; the Last Bastion's opening pick draws from any family.
 - ✓ **28-09:** no approval gates that stop the build; releases stacked on each other's branches up to v1.0.0 (see the top).
 
 ---
