@@ -135,6 +135,33 @@ await check('class select: champions on the finer grid keep their size, at one s
   }),
 );
 
+// #176: the relic-family names on a class card sit in a readable chip, not bare family-coloured text on parchment
+await check('class select: family names on the cards are readable (#176)', () =>
+  inPage(async () => {
+    const P = window.__play;
+    await P.click('[data-go="start"]');
+    const parse = (s) => s.match(/[\d.]+/g).map(Number);
+    const luminance = ([r, g, b]) => {
+      const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const contrast = (a, b) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const chips = [...document.querySelectorAll('.fam-line .fam-chip')];
+    const worst = chips.map((chip) => {
+      const cs = getComputedStyle(chip);
+      const [r, g, b, a = 1] = parse(cs.backgroundColor);
+      const bg = [r, g, b].map((c) => c * a + 255 * (1 - a)); // composited over white, the card's lightest possible background: a lower bound on the real contrast
+      return contrast(parse(cs.color), bg);
+    });
+    await P.click('[data-back]');
+    const ok = chips.length > 0 && worst.every((c) => c >= 4.5); // WCAG AA for normal-size text
+    return { ok, detail: `${chips.length} chips, worst contrast ${Math.min(...worst).toFixed(2)}` };
+  }),
+);
+
 // ---------- a test run from the real Test mode screen ----------
 await check('test mode starts a run', () =>
   inPage(async () => {
