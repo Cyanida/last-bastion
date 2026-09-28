@@ -144,7 +144,7 @@ export function showTitle(info: TitleInfo, on: { start: () => void; daily: () =>
         ${info.daily.date ? kit.button(`Daily Trial${info.daily.best ? ` · best ${info.daily.best}` : ''}`, { kind: 'go', attrs: 'data-go="daily"' }) : ''}
         ${kit.button('The Keep', { icon: 'keep', attrs: 'data-go="keep"' })}
         ${kit.button('Chronicle', { icon: 'crown', attrs: 'data-go="chronicle"' })}
-        ${kit.button('Settings', { attrs: 'data-go="settings"' })}
+        ${kit.button('Settings', { icon: 'settings', attrs: 'data-go="settings"' })}
       </div>
       ${kit.frame(kit.parch(`<b>This week's contracts</b> <span class="dim">· new ones every Monday · Runes when a run completes one</span>
         ${info.contracts.map((c) => `<div class="contract ${c.progress >= c.target ? 'done' : ''}"><span>${c.progress >= c.target ? '✔ ' : ''}${c.text}</span><span>${c.progress.toLocaleString('en')}/${c.target.toLocaleString('en')} · ${kit.icon('runes')}${c.runes}</span></div>`).join('')}`, { cls: 'contracts' }))}

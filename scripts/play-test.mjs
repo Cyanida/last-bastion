@@ -269,6 +269,76 @@ await check('class select: a typed seed survives picking an option, Back clears 
   }),
 );
 
+// #65: the title and the champion select in the new look, at 1280x720 and in phone landscape, played with the mouse: the title's kit
+// buttons fit the screen; Take up arms opens the roster strip, a tile picks its champion and shows it on the pedestal with stat bars
+// and facts, an option takes the brass ring, the one gold Start names the champion and stays in reach, the round Back goes home
+await check('menus: the title and the champion select in the new look, at 1280x720 and phone landscape (#65)', async () => {
+  const seen = [];
+  for (const [w, h] of [[1280, 720], [844, 390]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(150);
+    const title = await inPage(() => {
+      const o = document.getElementById('overlay');
+      const btns = [...o.querySelectorAll('.kit-title .kit-btn')];
+      return {
+        kit: btns.length >= 4 && !o.querySelector('.kit-title .btn'),
+        settingsIcon: !!document.querySelector('[data-go="settings"] .kit-icon.i-settings'),
+        fits: o.scrollWidth <= o.clientWidth && btns.every((b) => b.getBoundingClientRect().right <= innerWidth),
+      };
+    });
+    await page.click('[data-go="start"]');
+    await page.waitForSelector('.kit-select [data-start]');
+    // a second click on the chosen tile would start the run (#146): pick the Paladin only if he isn't already
+    if ((await inPage(() => document.querySelector('.kit-select .card.champ.on')?.dataset.class)) !== 'paladin') await page.click('[data-class="paladin"]');
+    const look = () =>
+      inPage(() => {
+        const o = document.getElementById('overlay');
+        const shown = [...document.querySelectorAll('.kit-select [data-hero]')].filter((x) => !x.hidden && x.getBoundingClientRect().height > 0);
+        const hero = shown[0];
+        const bars = hero ? [...hero.querySelectorAll('.stat-bar i b')].map((b) => Math.round((b.getBoundingClientRect().width / b.parentElement.clientWidth) * 100)) : [];
+        const start = document.querySelector('[data-start]').getBoundingClientRect();
+        return {
+          tiles: document.querySelectorAll('.kit-select .roster .card.champ[data-class] .portrait canvas').length,
+          on: [...document.querySelectorAll('.kit-select .card.champ.on')].map((c) => c.dataset.class).join(),
+          hero: shown.map((x) => x.dataset.hero).join(),
+          figure: !!hero?.querySelector('.hero-figure canvas')?.width,
+          bars,
+          facts: hero ? [...hero.querySelectorAll('.facts small')].map((s) => s.textContent).join('/') : '',
+          start: document.querySelector('[data-start]').textContent,
+          gold: document.querySelectorAll('#overlay .kit-btn.gold').length,
+          inReach: start.top >= 0 && start.bottom <= innerHeight,
+          back: !!document.querySelector('.kit-select-top .kit-close[data-back] .kit-icon.i-back'),
+          ribbon: !!document.querySelector('.kit-select-top .kit-ribbon'),
+          wide: o.scrollWidth > o.clientWidth,
+          scrolls: o.scrollHeight > o.clientHeight + 1,
+        };
+      });
+    const pal = await look();
+    await page.click('[data-class="viking"]'); // a tile picks the champion: the pedestal and Start follow, no run starts
+    const vik = await look();
+    await page.locator('[data-trait="glassCannon"]').scrollIntoViewIfNeeded();
+    await page.click('[data-trait="glassCannon"]'); // an option re-renders the screen: the champion stays, the option takes the ring
+    const ring = await inPage(() => {
+      const b = document.querySelector('[data-trait="glassCannon"]');
+      return { on: b.classList.contains('on') && b.classList.contains('kit-btn') && getComputedStyle(b).boxShadow.includes('0px 0px 0px 2px'), trait: window.__lb.save.settings.trait, still: document.querySelector('.kit-select .card.champ.on')?.dataset.class };
+    });
+    await page.click('[data-trait="none"]');
+    await page.locator('[data-back]').scrollIntoViewIfNeeded();
+    await page.click('[data-back]');
+    const home = await inPage(() => window.__lb.state === 'menu' && !!document.querySelector('.kit-title [data-go="start"]'));
+    seen.push({ w, h, title, pal, vik, ring, home });
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const ok = seen.every(({ w, title, pal, vik, ring, home }) =>
+    title.kit && title.settingsIcon && title.fits
+    && pal.tiles === 5 && pal.on === 'paladin' && pal.hero === 'paladin' && pal.figure && pal.bars.length === 7 && pal.bars[0] >= 99 && pal.bars.every((b) => b > 0 && b <= 100)
+    && pal.facts === 'Attack/Reach/Armor/Regen/Cooldown' && pal.start === 'Start as Paladin' && pal.gold === 1 && pal.inReach && pal.back && pal.ribbon && !pal.wide
+    && vik.on === 'viking' && vik.hero === 'viking' && vik.start === 'Start as Viking' && vik.inReach
+    && ring.on && ring.trait === 'glassCannon' && ring.still === 'viking' && home
+    && (w < 1000 || !pal.scrolls)); // at 1280x720 the whole screen fits without scrolling
+  return { ok, detail: seen.map(({ w, h, title, pal, vik, ring, home }) => `${w}x${h}: title kit ${title.kit}/settings icon ${title.settingsIcon}/fits ${title.fits}; ${pal.tiles} tiles, ${pal.on} on the pedestal (${pal.hero}), bars ${pal.bars.join(' ')}, facts ${pal.facts}, "${pal.start}", ${pal.gold} gold button, in reach ${pal.inReach}, scrolls ${pal.scrolls}, wide ${pal.wide}; tile -> ${vik.hero} "${vik.start}"; option ring ${ring.on} (${ring.trait}, ${ring.still} kept); Back home ${home}`).join(' | ') };
+});
+
 // ---------- a test run from the real Test mode screen ----------
 await check('test mode starts a run', () =>
   inPage(async () => {
