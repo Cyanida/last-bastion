@@ -149,6 +149,13 @@ export class Figure {
     });
   }
 
+  /** #167: the same figure moved by (dx, dy) on a w x h canvas: the sheet grows a cell this way so no pose is cut off at its edge. */
+  moved(dx: number, dy: number, w: number, h: number): Figure {
+    const f = new Figure(w, h);
+    f.parts = this.parts.map((p) => ({ ...p, poly: p.poly.map(([x, y]) => [x + dx, y + dy] as const), bone: new Bone(p.bone.x + dx, p.bone.y + dy, p.bone.a) }));
+    return f;
+  }
+
   /** Pixel index (y * w + x) -> '#rrggbb'. */
   render(): Map<number, string> {
     const { w, h } = this;
