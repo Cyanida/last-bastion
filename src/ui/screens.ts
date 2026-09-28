@@ -1088,6 +1088,7 @@ export function showCompendium(save: Save, onBack: () => void): void {
       <button class="btn" data-back>Back</button>
     </div>`);
   click(el, '[data-back]', onBack);
+  onActions((a) => (a === 'cancel' || a === 'pause') && onBack()); // #182: Esc goes back to the Keep, like its sibling screens
 }
 
 export function showDaily(setup: DailySetup, best: number, onStart: () => void, onBack: () => void): void {

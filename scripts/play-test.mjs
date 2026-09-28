@@ -969,6 +969,25 @@ await check('Settings: the update status follows the check while the screen is o
   return { ok, detail: `${upToDate} -> ${checking} -> ${failed}${errs.length ? `, errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- v0.8.3 (#182): Esc in the relic compendium goes back to the Keep, and again to the title ----------
+await check('Esc in the relic compendium: back to the Keep, then the title (#182)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await p.goto(`http://localhost:${PORT}/`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.locator('[data-go="keep"]').click();
+  await p.getByRole('button', { name: 'Relic compendium' }).click();
+  const heading = () => p.locator('#overlay h1, .overlay h1').first().textContent();
+  const opened = await heading();
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(100);
+  const back = await heading();
+  await p.keyboard.press('Escape');
+  await p.waitForTimeout(100);
+  const title = await p.getByText('Take up arms').count();
+  await p.close();
+  return { ok: opened === 'Relic compendium' && back === 'The Keep' && title > 0, detail: `${opened} -> ${back} -> ${title ? 'title' : '?'}` };
+});
+
 // ---------- v0.7.5: a shared save with markup in its title, titles and a run's Daily label shows it as text, never as page (#105) ----------
 await check('import: a save with markup stays text', () =>
   inPage(() => {
