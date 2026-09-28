@@ -1095,6 +1095,58 @@ await check('Esc in the relic compendium: back to the Keep, then the title (#182
   return { ok: opened === 'Relic compendium' && back === 'The Keep' && title > 0, detail: `${opened} -> ${back} -> ${title ? 'title' : '?'}` };
 });
 
+// ---------- #67: the Keep is a castle courtyard; its buildings grow with levels and ranks, and a tap opens a building's panel ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`The Keep as a castle: see it grow, ${touch ? 'tap' : 'click'} a building for its panel, buy a rank, Esc out, at ${w}x${h} (#67)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate(() => Object.assign(window.__lb.save, { gold: 5000, runes: 12, buildings: { chapel: 2 }, meta: { relicChance: 2 } }));
+    const press = (sel) => (touch ? p.locator(sel).tap() : p.locator(sel).click());
+    await press('[data-go="keep"]');
+    await p.locator('.keep-yard').waitFor({ timeout: 3000 });
+    // every building stands in the yard, drawn from the rig's atlas at its stage: the ruined Armory, the Chapel at level 2 with a banner
+    const yard = await p.evaluate(() => {
+      const box = document.querySelector('.keep-yard').getBoundingClientRect();
+      const blds = [...document.querySelectorAll('[data-building]')].map((b) => {
+        const r = b.getBoundingClientRect();
+        return { id: b.dataset.building, cls: b.className, bg: getComputedStyle(b).backgroundImage, inside: r.left >= box.left - 1 && r.right <= box.right + 1 && r.top >= box.top - 1 && r.width > 20 };
+      });
+      return { blds, yardBg: getComputedStyle(document.querySelector('.keep-yard')).backgroundImage };
+    });
+    const art = await p.evaluate(() => Promise.all(['/sprites/keep-castle.png', '/sprites/keep-yard.png'].map((src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i.naturalWidth); i.onerror = () => ok(0); i.src = src; }))));
+    const chapelStage = yard.blds.find((b) => b.id === 'chapel')?.cls.match(/s-(\d+)/)?.[1];
+    const armoryStage = yard.blds.find((b) => b.id === 'armory')?.cls.match(/s-(\d+)/)?.[1];
+    // a tap on the Chapel opens its panel, with its ranks, costs and deed as before
+    await press('[data-building="chapel"]');
+    const panel = () => p.evaluate(() => {
+      const el = document.querySelector('[data-panel="chapel"]');
+      const r = el.getBoundingClientRect();
+      return { open: !el.classList.contains('hidden') && r.width > 0, onScreen: r.top >= 0 && r.bottom <= innerHeight + 1, name: el.querySelector('.kit-ribbon').textContent.trim(), rows: el.querySelectorAll('.meta-row').length, raise: !!el.querySelector('[data-raise="chapel"]'), deed: /next deed/.test(el.textContent), others: document.querySelectorAll('[data-panel]:not(.hidden)').length };
+    });
+    const opened = await panel();
+    // buying a rank keeps the panel open, with one more rank bought
+    const before = await p.evaluate(() => window.__lb.save.meta.salvage ?? 0);
+    await press('[data-panel="chapel"] [data-buy="salvage"]');
+    await p.waitForTimeout(100);
+    const after = await p.evaluate(() => window.__lb.save.meta.salvage ?? 0);
+    const still = await panel();
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(100);
+    const closed = !(await panel()).open && (await p.locator('.keep-yard').count()) === 1;
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(100);
+    const title = await p.getByText('Take up arms').count();
+    await p.close();
+    const ok = yard.blds.length === 6 && yard.blds.every((b) => b.inside && b.bg.includes('keep-castle')) && yard.yardBg.includes('keep-yard') && art.every((n) => n > 0)
+      && armoryStage === '0' && chapelStage === '9' && opened.open && opened.onScreen && opened.name.startsWith('Chapel') && opened.rows === 3 && opened.raise && opened.deed && opened.others === 1
+      && after === before + 1 && still.open && closed && title > 0 && errs.length === 0;
+    return { ok, detail: `${yard.blds.length} buildings${yard.blds.every((b) => b.inside) ? ' in the yard' : ' (one outside the yard)'}, armory s-${armoryStage}, chapel s-${chapelStage}, art ${art.join('/')}; panel ${opened.open ? 'open' : 'shut'} "${opened.name}" ${opened.rows} rows${opened.onScreen ? '' : ' (off screen)'}; smelter ${before} -> ${after}, still ${still.open ? 'open' : 'shut'}; Esc ${closed ? 'closes it' : 'did not close it'}, then ${title ? 'title' : '?'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 // ---------- v0.8.3 (#182): a new pixel ratio (another monitor) re-sizes the canvas, so the arena stays sharp ----------
 await check('DPR: moving to a sharper screen re-sizes the canvas to its pixels (#182)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
