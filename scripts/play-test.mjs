@@ -12,8 +12,8 @@
  * The routine and CI run it on every pull request. A change a player sees gets its own check added here (see AGENTS.md).
  * Not covered: a gamepad beyond the press that answers a screen, and how it feels.
  */
-import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from 'playwright';
+import { spawnTree, killTree } from './lib/process-tree.mjs';
 
 const PORT = Number(process.env.PLAY_PORT ?? 4180);
 
@@ -22,10 +22,12 @@ if (await fetch(`http://localhost:${PORT}/`).then(() => true, () => false)) {
   console.error(`port ${PORT} is already in use: stop that server or set PLAY_PORT`);
   process.exit(1);
 }
-const preview = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', shell: process.platform === 'win32' });
-// on Windows the server runs under a shell: end the whole tree (perf-test.mjs)
-const stop = () => (process.platform === 'win32' ? spawnSync('taskkill', ['/pid', String(preview.pid), '/T', '/F'], { stdio: 'ignore' }) : preview.kill());
+const preview = spawnTree(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', shell: process.platform === 'win32' });
+// #179: end the whole server tree (its vite child included), on success, failure and a signal, Linux and Windows alike
+const stop = () => killTree(preview);
 process.on('exit', stop);
+process.on('SIGINT', () => { stop(); process.exit(130); });
+process.on('SIGTERM', () => { stop(); process.exit(143); });
 for (let i = 0; i < 60; i++) {
   try {
     await fetch(`http://localhost:${PORT}/`);

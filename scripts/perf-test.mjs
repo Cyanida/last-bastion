@@ -15,8 +15,8 @@
  * 60 Hz is 16.7 ms, so a p95 under 20 means at most a few dropped frames in 5 s). CI runners raster in software
  * and are slower than a desktop, so the workflow passes a looser budget.
  */
-import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from 'playwright';
+import { spawnTree, killTree } from './lib/process-tree.mjs';
 
 const BUDGET = Number(process.env.PERF_BUDGET_MS ?? 20);
 const PORT = Number(process.env.PERF_PORT ?? 4179);
@@ -29,10 +29,12 @@ if (await fetch(`http://localhost:${PORT}/`).then(() => true, () => false)) {
   console.error(`port ${PORT} is already in use: stop that server or set PERF_PORT`);
   process.exit(1);
 }
-const preview = spawn(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', shell: process.platform === 'win32' });
-// on Windows the server runs under a shell: killing the shell alone left every run's Vite server behind, so end the whole tree
-const stop = () => (process.platform === 'win32' ? spawnSync('taskkill', ['/pid', String(preview.pid), '/T', '/F'], { stdio: 'ignore' }) : preview.kill()); // sync: it runs in the exit handler
+const preview = spawnTree(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', shell: process.platform === 'win32' });
+// #179: killing the shell (Windows) or npx (Linux) alone left its vite child behind; end the whole tree, on exit or a signal
+const stop = () => killTree(preview);
 process.on('exit', stop);
+process.on('SIGINT', () => { stop(); process.exit(130); });
+process.on('SIGTERM', () => { stop(); process.exit(143); });
 for (let i = 0; i < 60; i++) {
   try {
     await fetch(`http://localhost:${PORT}/`);
