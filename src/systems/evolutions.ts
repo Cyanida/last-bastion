@@ -91,6 +91,7 @@ const HOOKS: Record<EvolutionId, EvolutionHook> = {
       for (const pr of g.projectiles) {
         if (!pr.hostile || (pr.x - p.x) ** 2 + (pr.y - p.y) ** 2 > r * r) continue;
         pr.hostile = false;
+        pr.owner = null; // ours now
         pr.vx = -pr.vx;
         pr.vy = -pr.vy;
         pr.damage *= per(g, n, 'reflect');

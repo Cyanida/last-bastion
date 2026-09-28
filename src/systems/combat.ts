@@ -439,8 +439,8 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
   for (const o of obstacles) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
   for (const o of g.barriers) if (dist2(pr.x, pr.y, o.x, o.y) < o.r * o.r) return (burst(g, pr.x, pr.y, '#9a9aa0', 3, 60), false);
   if (pr.hostile) {
-    if (dist2(pr.x, pr.y, p.x, p.y) <= (pr.r + p.r) ** 2) return (hurtTarget(g, p, pr.damage, true, null, pr.dtype === 'physical' ? 'an arrow' : `a bolt of ${DAMAGE_TYPES[pr.dtype].name.toLowerCase()}`), false);
-    for (const m of g.minions) if (dist2(pr.x, pr.y, m.x, m.y) <= (pr.r + m.r) ** 2) return (hurtTarget(g, m, pr.damage, true), false);
+    if (dist2(pr.x, pr.y, p.x, p.y) <= (pr.r + p.r) ** 2) return (hurtTarget(g, p, pr.damage, true, pr.owner, pr.dtype === 'physical' ? 'an arrow' : `a bolt of ${DAMAGE_TYPES[pr.dtype].name.toLowerCase()}`), false);
+    for (const m of g.minions) if (dist2(pr.x, pr.y, m.x, m.y) <= (pr.r + m.r) ** 2) return (hurtTarget(g, m, pr.damage, true, pr.owner), false);
     return true;
   }
   for (const e of g.hash.query(pr.x, pr.y, pr.r, near)) {
@@ -451,6 +451,7 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
       pr.vx = -pr.vx;
       pr.vy = -pr.vy;
       pr.hostile = true;
+      pr.owner = e; // his now
       pr.damage = e.damage;
       pr.color = '#7ec8d8';
       pr.life = 1.2;

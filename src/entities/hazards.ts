@@ -13,7 +13,7 @@ export function fireProjectile(
   x: number,
   y: number,
   angle: number,
-  o: Pick<Projectile, 'damage' | 'crit' | 'hostile' | 'pierce' | 'shape' | 'color' | 'r'> & { speed: number; range: number } & Partial<Pick<Projectile, 'status' | 'source' | 'dtype' | 'seek'>>,
+  o: Pick<Projectile, 'damage' | 'crit' | 'hostile' | 'pierce' | 'shape' | 'color' | 'r'> & { speed: number; range: number } & Partial<Pick<Projectile, 'status' | 'source' | 'dtype' | 'seek' | 'owner'>>,
 ): void {
   const pr = pool.pop() ?? ({ hit: [] } as unknown as Projectile);
   pr.x = x;
@@ -32,6 +32,7 @@ export function fireProjectile(
   pr.source = o.source ?? 'attack';
   pr.dtype = o.dtype ?? 'physical';
   pr.seek = o.seek ?? false;
+  pr.owner = o.owner ?? null;
   pr.by = relicContext.acting ?? undefined; // v0.7: fired by a relic's hook: its hits are that relic's work
   g.projectiles.push(pr);
 }

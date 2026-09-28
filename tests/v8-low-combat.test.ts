@@ -3,6 +3,8 @@ import { ENEMIES } from '../src/config/enemies';
 import { TIERS } from '../src/config/economy';
 import type { Game } from '../src/core/types';
 import { createGame } from '../src/game';
+import { shootAt } from '../src/systems/aiHelpers';
+import { updateProjectiles } from '../src/systems/combat';
 import { SPECIALS } from '../src/systems/specials';
 import { spawnEnemy } from '../src/systems/spawning';
 
@@ -34,5 +36,16 @@ describe('the remaining low combat items of the 28-09 check (#182)', () => {
     for (const e of g.enemies) g.hash.insert(e);
     SPECIALS.heal(g, priest, g.player, 1 / 60);
     expect(hurt.hp).toBeCloseTo(1 + ENEMIES.priest.healAmount! * g.waveHpMult * TIERS[3].enemyHp);
+  });
+
+  it("an enemy's bolt is its own: the Abbot's poisons, even after he falls", () => {
+    const g = stage();
+    const abbot = spawnEnemy(g, 'abbot', g.player.x + 120, g.player.y);
+    shootAt(g, abbot, Math.PI);
+    expect(g.projectiles.at(-1)!.owner).toBe(abbot);
+    abbot.dead = true; // the shot is already in the air
+    for (let i = 0; i < 120 && g.projectiles.length; i++) updateProjectiles(g, 1 / 60);
+    expect(g.player.hp).toBeLessThan(g.player.stats.hp);
+    expect(g.player.statuses.poison).toBeTruthy();
   });
 });
