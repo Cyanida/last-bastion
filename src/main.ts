@@ -44,7 +44,7 @@ import { initTooltips } from './ui/tooltip';
 import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
-import { textScale } from './logic/textSize';
+import { isCompactLayout, textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
 import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
@@ -761,7 +761,7 @@ function resize(): void {
   const scale = textScale(save.settings.textSize, w, h);
   document.documentElement.style.setProperty('--ui-scale', String(scale));
   document.documentElement.classList.toggle('scaled', scale !== 1);
-  document.documentElement.classList.toggle('compact', h / scale < 560); // v0.5: phones get a denser HUD layout at full text size, not a scaled-down one
+  document.documentElement.classList.toggle('compact', isCompactLayout(h)); // #172: by window height alone, not the text-size scale
 }
 window.addEventListener('resize', resize);
 window.visualViewport?.addEventListener('resize', resize);

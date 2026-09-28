@@ -1413,6 +1413,34 @@ await check('text size: Larger grows the HUD, no overlap at 1400x800 and 844x390
   return { ok, detail: `player panel ${Math.round(dn.tl)} -> ${Math.round(dl.tl)}px (1400x800), ${Math.round(pn.tl)} -> ${Math.round(pl.tl)}px (844x390), +N ${seen.map((s) => s.more).join('/')}${hits.length ? `; overlaps: ${hits.slice(0, 4).join(', ')}` : ''}` };
 });
 
+// ---------- #172: at a desktop window height where the old h/scale check misclassified it, Larger text stays on the desktop layout ----------
+await check('text size: Larger keeps the desktop layout on a desktop window', async () => {
+  const atSize = async (w, h, size) => {
+    await page.setViewportSize({ width: w, height: h });
+    await inPage(() => {
+      localStorage.removeItem('lastbastion.save');
+      location.reload();
+    });
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async (size) => {
+      const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+      const btn = (text) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === text);
+      btn('Settings').click();
+      await wait(150);
+      document.querySelector(`[data-text-size="${size}"]`).click();
+      await wait();
+      return { compact: document.documentElement.classList.contains('compact'), scaled: document.documentElement.classList.contains('scaled') };
+    }, size);
+  };
+  // 1000x700: desktop-width, and tall enough to stay desktop -- but 700 / textScale('larger', ...) = 700 / 1.3 = 538, which used to trip the 560 compact threshold
+  const tall = await atSize(1000, 700, 'larger');
+  // a genuinely short desktop-width window still gets the compact layout, at Normal size (no scale to divide by)
+  const short = await atSize(1000, 500, 'normal');
+  await page.setViewportSize({ width: 1280, height: 720 });
+  const ok = !tall.compact && tall.scaled && short.compact;
+  return { ok, detail: `1000x700 at Larger: compact=${tall.compact} scaled=${tall.scaled}; 1000x500 at Normal: compact=${short.compact}` };
+});
+
 // #146: a class card only selects its champion; Start (or a second click on the chosen card) begins the run
 await check('class select: a card selects, a click beside a swatch starts nothing, Enter selects then starts, Start begins the run', async () => {
   await inPage(() => {
