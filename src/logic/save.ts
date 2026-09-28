@@ -192,7 +192,7 @@ export function defaultSave(): Save {
     palettes: [],
     talentPoints: 0,
     treasures: Object.fromEntries(CLASS_ORDER.map((id) => [id, emptyTreasure()])) as Record<ClassId, TreasureRecord>,
-    tierUnlocked: 0,
+    tierUnlocked: 1, // v0.10 (#203): Squire and Knight are open from the start (a value, not a format change; migrate lifts older saves)
     tierWaves: TIERS.map(() => 0),
     tierWins: TIERS.map(() => 0),
     counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, sixSets: 0, maxDuos: 0, maxAwakened: 0, cursedWin: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },

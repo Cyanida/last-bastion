@@ -1,3 +1,4 @@
+import { topTierWon } from '../logic/difficulty';
 import { buildingLevel, masteryRank } from '../logic/economy';
 import type { Save } from '../logic/save';
 import type { ArenaId } from './arenas';
@@ -129,7 +130,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'fiveMasters', name: 'Five Masters', desc: 'Reach mastery rank 3, 5 and 10 with every class.', category: 'collection', tiers: tiers([3, 5, 10], { 3: { title: 'the Paragon' } }), progress: minRank },
 
   // ---------------------------------------------------------------- challenges
-  { id: 'knight', name: 'Dubbed a Knight', desc: 'Unlock the Knight, Champion and Legend difficulties.', category: 'challenges', tiers: tiers([1, 2, 3], { 3: { title: 'the Legend', talentPoint: 1 } }), progress: (s) => s.tierUnlocked },
+  { id: 'knight', name: 'Dubbed a Knight', desc: 'Win on Knight, Champion and Legend. Each win opens the next difficulty.', category: 'challenges', tiers: tiers([1, 2, 3], { 3: { title: 'the Legend', talentPoint: 1 } }), progress: topTierWon }, // v0.10 (#203): Knight is open from the start, so the deed counts wins
   { id: 'cursed', name: 'Thrice Cursed', desc: 'Clear Act I with three, five and all eight curses active.', category: 'challenges', tiers: tiers([3, 5, 8], { 3: { title: 'the Damned' } }), progress: (s) => s.counters.cursedActs },
   { id: 'daily', name: 'Trial by Date', desc: 'Finish 1, 10 and 30 Daily Trials.', category: 'challenges', tiers: tiers([1, 10, 30], { 3: { title: 'the Dutiful' } }), progress: (s) => s.counters.dailies },
   { id: 'dailyDeep', name: 'Trial Master', desc: 'Reach wave 10, 20 and 30 in a Daily Trial.', category: 'challenges', tiers: tiers([10, 20, 30]), progress: (s) => top(Object.values(s.daily)) },

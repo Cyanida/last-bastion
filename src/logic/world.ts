@@ -1,4 +1,5 @@
 // v0.10 (#190): what opens on the world map, a level's slots and ring step, and what a clear pays (config/world.ts)
+import { TIER_UNLOCK } from '../config/economy';
 import { relicDef, type RelicId } from '../config/relics';
 import { REALM_IDS, REALMS, WORLD, type CrownReward, type LevelReward, type RealmId } from '../config/world';
 
@@ -22,8 +23,11 @@ export function realmOpen(p: WorldProgress, realm: RealmId): boolean {
   return won.length >= crowns && (!fromRing || won.filter((r) => REALMS[r].ring === fromRing[0]).length >= fromRing[1]);
 }
 
-/** Squire and Knight open with the realm; Champion once it is crowned on Knight, Legend once crowned on Champion. */
-export const tierOpen = (p: WorldProgress, realm: RealmId, tier: number): boolean => realmOpen(p, realm) && (tier < 2 || isCrowned(p, realm, tier - 1));
+/** Squire and Knight open with the realm; Champion once it is crowned on Knight, Legend once crowned on Champion (config/economy TIER_UNLOCK). */
+export function tierOpen(p: WorldProgress, realm: RealmId, tier: number): boolean {
+  const win = TIER_UNLOCK[tier]?.win;
+  return tier >= 0 && tier < TIER_UNLOCK.length && realmOpen(p, realm) && (win === undefined || isCrowned(p, realm, win));
+}
 
 /** Levels open in order on each tier: level n (1-based) once n - 1 is cleared on that tier or higher. */
 export const levelOpen = (p: WorldProgress, realm: RealmId, level: number, tier: number): boolean =>

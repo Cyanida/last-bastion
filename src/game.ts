@@ -8,6 +8,8 @@ import { curseMultiplier, curseValue } from './logic/curses';
 import { GAME } from './config/game';
 import { RELIC_MOMENTS, relicDef, type RelicId } from './config/relics';
 import { TREASURES } from './config/treasures';
+import type { RealmId } from './config/world';
+import { ringStep } from './logic/world';
 import { FREE_REROLLS } from './config/upgrades';
 import { WAVES } from './config/waves';
 import { compact, mulberry32 } from './core/math';
@@ -64,6 +66,7 @@ export interface RunOptions {
   accountLevel?: number; // v0.4: the sum of every class's mastery rank (account milestones)
   libraryLevel?: number; // v0.4: caps the talent rows (TALENT_ROW_CAP)
   daily?: string; // date of the Daily Trial this run is
+  realm?: RealmId; // v0.10 (#203): a realm level's run; its ring step (logic/world ringStep) folds into the tier. None: the run as before
   treasure?: number; // v0.5: tier of the class's sacred treasure to equip (0 or none: not equipped)
   chain?: TreasureRecord; // v0.5: the class's treasure chain from the save (it only plays once mastery has opened it)
   // simulation only (the relic power index, scripts/simulate.ts): start with these relics at this tier, or with this many pickups
@@ -76,6 +79,13 @@ export interface RunOptions {
 
 /** The difficulty tier with an Oath's numbers folded in, so every place that reads the tier sees them. */
 const withOath = (t: TierDef, o: OathStack): TierDef => (o.level ? { ...t, enemyHp: t.enemyHp * o.n.hp, enemyDmg: t.enemyDmg * o.n.damage, eliteMult: t.eliteMult * o.n.eliteMult } : t);
+
+/** v0.10 (#203): a realm's ring step on the tier's enemy HP and damage, the same way. */
+const withRing = (t: TierDef, realm?: RealmId): TierDef => {
+  if (!realm) return t;
+  const r = ringStep(realm);
+  return { ...t, enemyHp: t.enemyHp * r.hp, enemyDmg: t.enemyDmg * r.damage };
+};
 
 export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}): Game {
   const cls = CLASSES[classId];
@@ -114,7 +124,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     shake: 0,
     pendingLevelUps: 0,
     arena,
-    tier: withOath(TIERS[opts.tier ?? 0], oath),
+    tier: withRing(withOath(TIERS[opts.tier ?? 0], oath), opts.realm),
     tierIndex: opts.tier ?? 0,
     modifier: null,
     fields: [],
