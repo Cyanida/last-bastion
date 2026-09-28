@@ -267,6 +267,33 @@ await check('gamepad: the button that answers a screen does not also cast', () =
   }),
 );
 
+// #170: once the mouse has moved, it used to keep aiming forever; the right stick must be able to take aim back
+await check('gamepad: the right stick aims again after the mouse moved', () =>
+  inPage(async () => {
+    const lb = window.__lb, g = lb.game, p = g.player;
+    const buttons = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
+    const axes = [0, 0, 0, 0];
+    const real = navigator.getGamepads;
+    navigator.getGamepads = () => [{ connected: true, buttons, axes }];
+    const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(r))));
+    try {
+      await frames();
+      window.dispatchEvent(new PointerEvent('pointermove', { clientX: 1250, clientY: 690, pointerType: 'mouse', bubbles: true })); // the mouse moves, near a screen corner
+      lb.run(1, false, 'input');
+      const mouseAngle = Math.atan2(g.input.aimY - p.y, g.input.aimX - p.x);
+      axes[2] = -1; // right stick hard left
+      axes[3] = 0;
+      await frames(); // pumpGamepad() runs in the real frame loop
+      lb.run(1, false, 'input');
+      const stickAngle = Math.atan2(g.input.aimY - p.y, g.input.aimX - p.x);
+      const followsStick = Math.abs(stickAngle - Math.PI) < 0.2;
+      return { ok: followsStick, detail: `mouse aim ${mouseAngle.toFixed(2)} rad, stick aim ${stickAngle.toFixed(2)} rad (want ~${Math.PI.toFixed(2)})` };
+    } finally {
+      navigator.getGamepads = real;
+    }
+  }),
+);
+
 await check('relic offer: reroll, then take the duo', () =>
   inPage(async () => {
     const P = window.__play, g = window.__lb.game, rel = g.player.relics;
