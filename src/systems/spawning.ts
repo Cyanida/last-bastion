@@ -2,6 +2,7 @@ import { AFFIX_IDS } from '../config/elites';
 import { routeChoices } from '../logic/routes';
 import type { AffixId } from '../config/elites';
 import { ENEMIES, type EnemyId } from '../config/enemies';
+import type { QuestKind } from '../config/quests';
 import { MODIFIERS, WAVES } from '../config/waves';
 import { sfx } from '../sim/view';
 import { emit } from '../core/events';
@@ -85,10 +86,14 @@ export function spawnSquad(g: Game, index: number, units: SpawnUnit[], at = edge
   }
 }
 
+/** #169: quest kinds taken this Act — active now, or done even if the quest itself has since lingered out of g.quests. */
+export function questsTakenThisAct(g: Game): QuestKind[] {
+  return g.pendingBoard ? [] : [...g.actQuestsDone, ...g.quests.filter((q) => q.state === 'active').map((q) => q.kind)];
+}
+
 function startWave(g: Game): void {
   g.wave++;
-  const quests = g.pendingBoard ? [] : g.quests.filter((q) => q.state === 'active' || q.state === 'done').map((q) => q.kind);
-  const key = bossForWave(g.wave, { seed: g.seed, arena: g.arena.id, seen: g.bossesSeen, quests });
+  const key = bossForWave(g.wave, { seed: g.seed, arena: g.arena.id, seen: g.bossesSeen, quests: questsTakenThisAct(g) });
   if (key) g.bossesSeen.push(key);
   const boss = key ? bossDef(key).from : null;
   const plan = directWave({
