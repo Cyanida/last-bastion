@@ -1,0 +1,38 @@
+import { describe, expect, it } from 'vitest';
+import { ENEMIES } from '../src/config/enemies';
+import { TIERS } from '../src/config/economy';
+import type { Game } from '../src/core/types';
+import { createGame } from '../src/game';
+import { SPECIALS } from '../src/systems/specials';
+import { spawnEnemy } from '../src/systems/spawning';
+
+function stage(tier = 0): Game {
+  const g = createGame('paladin', 7, { tier });
+  g.pendingBoard = false;
+  g.breather = 1e9;
+  g.player.attackTimer = 1e9;
+  return g;
+}
+
+describe('the remaining low combat items of the 28-09 check (#182)', () => {
+  it("the plague doctor's pool and its poison follow the difficulty tier", () => {
+    const g = stage(3);
+    const doc = spawnEnemy(g, 'plagueDoctor', g.player.x + 200, g.player.y);
+    SPECIALS.plague(g, doc, g.player, 1 / 60);
+    const pool = g.zones.at(-1)!.leaveField!;
+    const mult = g.waveDmgMult * TIERS[3].enemyDmg;
+    expect(pool.dps).toBeCloseTo(ENEMIES.plagueDoctor.poolDps! * mult);
+    expect(pool.apply!.power).toBeCloseTo(ENEMIES.plagueDoctor.poolDps! * 0.5 * mult);
+  });
+
+  it("a priest's heal follows the difficulty tier, as the HP it mends does", () => {
+    const g = stage(3);
+    const priest = spawnEnemy(g, 'priest', g.player.x + 200, g.player.y);
+    const hurt = spawnEnemy(g, 'knight', priest.x + 20, priest.y);
+    hurt.hp = 1;
+    g.hash.clear();
+    for (const e of g.enemies) g.hash.insert(e);
+    SPECIALS.heal(g, priest, g.player, 1 / 60);
+    expect(hurt.hp).toBeCloseTo(1 + ENEMIES.priest.healAmount! * g.waveHpMult * TIERS[3].enemyHp);
+  });
+});
