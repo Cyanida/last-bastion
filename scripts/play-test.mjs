@@ -906,6 +906,53 @@ await check('import: a save with markup stays text', () =>
   }),
 );
 
+// ---------- v0.8.3 (#174): Blood Pact and Crimson Chalice both cut max HP onto the same pool; a tier-up on one must stay right ----------
+// beside the other's cut. Tiering Blood Pact up while Crimson Chalice was still held used to recompute against a stale share of the
+// pool (Crimson Chalice's cut baked in from when it was taken); the HUD's max HP must move by exactly Blood Pact's own tier I -> II
+// ratio, not some other amount. A fresh test run (like the checks below), so it never disturbs the shared run's own screen sequence.
+await check("Blood Pact + Crimson Chalice: a tier-up moves max HP right beside the other's cut (#174)", async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  return inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'paladin');
+    set('tm-level', '1');
+    const relic = (name, tier) => {
+      const s = [...document.querySelectorAll('select')].find((x) => x.closest('div, label, li')?.innerText.split('\n')[0].includes(name));
+      s.value = [...s.options].find((o) => o.textContent.trim() === tier).value;
+      s.dispatchEvent(new Event('input', { bubbles: true }));
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    relic('Blood Pact', 'I');
+    relic('Crimson Chalice', 'I');
+    const lb = window.__lb, g = window.__startTest(), p = g.player;
+    if (!p.relics.held.includes('bloodPact') || !p.relics.held.includes('crimsonChalice')) return { ok: false, detail: `setup is missing Blood Pact or Crimson Chalice (held: ${p.relics.held.join(', ')})` };
+    const before = p.stats.hp;
+    p.relics.attune.bloodPact = 1; // a full bar: the next tick ties it up for real (systems/relics.ts tierUp), same as earning it in a fight
+    lb.run(1);
+    lb.draw(); // the HUD only redraws on a real frame, same as the running game
+    const after = p.stats.hp;
+    const bp1 = 0.75, bp2 = 0.8; // config/relics.ts bloodPact: n.hp (tier I) / n2.hp (tier II) — the fraction of max HP it keeps
+    const want = bp2 / bp1, got = after / before;
+    const hpShown = document.getElementById('h-hp-text')?.textContent ?? '';
+    const shownMax = Number(hpShown.split('/')[1]);
+    return { ok: p.relics.tiers.bloodPact === 2 && Math.abs(got - want) < 0.01 && Math.abs(shownMax - after) < 1, detail: `HP ${before.toFixed(1)} -> ${after.toFixed(1)} (x${got.toFixed(3)}, want x${want.toFixed(3)}), HUD shows ${hpShown}` };
+  });
+});
+
 // ---------- v0.7.5 (#112): an Act III slam that came due while you kept away lands as soon as you walk up ----------
 await check('Act III: a slam that is due fires when you walk into range', async () => {
   await inPage(() => {
