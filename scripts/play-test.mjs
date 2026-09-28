@@ -901,6 +901,7 @@ await check('import: a save with markup stays text', () =>
       const raw = JSON.parse(area.value);
       const run = { at: '', classId: 'paladin', tier: 0, arena: 'courtyard', seed: 1, daily: bad, curses: [], oath: 0, trait: 'none', time: 60, wave: 3, level: 2, kills: 5, end: 'slain', cause: bad, relics: {}, talents: [], upgrades: [], waves: [], marks: [] };
       area.value = JSON.stringify({ ...raw, title: bad, titles: [bad, 'the Steadfast'], runs: [run] });
+      window.confirm = () => true; // v0.8.3 (#175): import asks first; its own check below answers the real dialog
       await P.click('[data-act="import"]');
       const imported = document.body.innerText.includes('Save imported');
       const seen = [];
@@ -924,6 +925,38 @@ await check('import: a save with markup stays text', () =>
     });
   }),
 );
+
+// ---------- v0.8.3 (#175): Import asks first; the save it replaces shows up under Restore, and importing again never lists it twice ----------
+await check('import: asks first and keeps the replaced save as a backup, once', async () => {
+  await page.reload();
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  await page.getByRole('button', { name: 'Settings' }).first().click();
+  await page.click('[data-act="save"]');
+  const before = await page.evaluate(() => ({ gold: window.__lb.save.gold, text: localStorage.getItem('lastbastion.save') }));
+  const next = JSON.stringify({ ...JSON.parse(await page.inputValue('#save-text')), gold: before.gold + 1234 });
+  const asked = [];
+  const importIt = async (answer) => {
+    await page.fill('#save-text', next);
+    page.once('dialog', (d) => (asked.push(d.message()), answer ? d.accept() : d.dismiss()));
+    await page.click('[data-act="import"]');
+    await page.waitForTimeout(150);
+  };
+  await importIt(false); // "no" leaves everything as it was
+  const kept = await page.evaluate(() => window.__lb.save.gold);
+  await importIt(true);
+  const gold = await page.evaluate(() => window.__lb.save.gold);
+  const msg = await page.textContent('#save-msg');
+  const rows1 = await page.locator('[data-restore]').count();
+  const top = await page.evaluate(() => JSON.parse(localStorage.getItem('lastbastion.save.backups'))[0].text);
+  await importIt(true);
+  await importIt(true); // the same save again: its backup moves up, it is not stored twice
+  const texts = await page.evaluate(() => JSON.parse(localStorage.getItem('lastbastion.save.backups')).map((b) => b.text));
+  const rows2 = await page.locator('[data-restore]').count();
+  await page.click('[data-act="back"]');
+  const ok = asked.length === 4 && kept === before.gold && gold === before.gold + 1234 && msg.includes('Save imported') && top === before.text &&
+    rows1 >= 1 && rows2 === texts.length && new Set(texts).size === texts.length;
+  return { ok, detail: `asked ${asked.length}×, gold ${before.gold} -> ${kept} (no) -> ${gold} (yes), backup is the old save ${top === before.text}, restore rows ${rows1} -> ${rows2}, ${texts.length} backups, ${new Set(texts).size} distinct` };
+});
 
 // ---------- v0.8.3 (#174): Blood Pact and Crimson Chalice both cut max HP onto the same pool; a tier-up on one must stay right ----------
 // beside the other's cut. Tiering Blood Pact up while Crimson Chalice was still held used to recompute against a stale share of the
