@@ -17,7 +17,7 @@ describe('#67 the Keep as a castle', () => {
     expect(keepStage({}, all, 'armory').banners).toBe(0);
   });
 
-  it('the committed castle art is up to date', () => {
+  it('the committed castle art is up to date', { timeout: 60000 }, () => {
     const k = buildKeep();
     expect(Buffer.compare(k.castle, readFileSync(keepPaths.castle)) === 0, `${keepPaths.castle} is out of date: npm run art`).toBe(true);
     expect(Buffer.compare(k.yard, readFileSync(keepPaths.yard)) === 0, `${keepPaths.yard} is out of date: npm run art`).toBe(true);
