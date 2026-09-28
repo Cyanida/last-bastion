@@ -20,7 +20,8 @@ export function registerServiceWorker(onUpdate: (apply: () => void) => void): vo
         offer();
         reg.addEventListener('updatefound', () => reg.installing?.addEventListener('statechange', offer));
         // a home-screen app can stay open for days: look for a new deploy whenever it comes back to the foreground
-        document.addEventListener('visibilitychange', () => !document.hidden && void reg.update());
+        // offline (or any other fetch failure): stay quiet, same as the initial register above — never the crash overlay
+        document.addEventListener('visibilitychange', () => !document.hidden && void reg.update().catch(() => undefined));
       })
       .catch(() => undefined); // offline support is a bonus, never a reason to fail
   });
