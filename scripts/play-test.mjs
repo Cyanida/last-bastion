@@ -1110,6 +1110,44 @@ await check("Blood Pact + Crimson Chalice: a tier-up moves max HP right beside t
   });
 });
 
+// ---------- v0.8.3 (#182): a set bonus reached in a new run flashes, even when the last run reached it too ----------
+await check('HUD: a new run flashes its family set again, nothing kept from the last run (#182)', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  return inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const relic = (name, tier) => {
+      const s = [...document.querySelectorAll('select')].find((x) => x.closest('div, label, li')?.innerText.split('\n')[0].includes(name));
+      s.value = [...s.options].find((o) => o.textContent.trim() === tier).value;
+      s.dispatchEvent(new Event('input', { bubbles: true }));
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const flashing = () => document.querySelectorAll('#h-families .fam-chip.flash').length;
+    relic('Blood Pact', 'I');
+    relic('Vampire Fang', 'I');
+    const lb = window.__lb;
+    window.__startTest();
+    lb.draw();
+    const first = flashing();
+    document.getElementById('btn-pause').click(); // end the run the way a player does: pause, End run (a test run goes back to its setup)
+    await wait();
+    document.querySelector('[data-quit]').click();
+    await wait();
+    relic('Serrated Edge', 'I'); // three Blood relics: still the 2-piece set, a different relic bar
+    window.__startTest();
+    lb.draw();
+    const second = flashing();
+    return { ok: first > 0 && second > 0, detail: `set chip flashing: first run ${first}, next run ${second}` };
+  });
+});
+
 // ---------- v0.7.5 (#112): an Act III slam that came due while you kept away lands as soon as you walk up ----------
 await check('Act III: a slam that is due fires when you walk into range', async () => {
   await inPage(() => {

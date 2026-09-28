@@ -41,7 +41,7 @@ import { choiceCommand, intentCommand, levelHand, levelRerolls, step, type Choic
 import { abilityAimRadius } from './systems/abilities';
 import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
-import { buildHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
+import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
 import { isCompactLayout, textScale } from './logic/textSize';
@@ -341,6 +341,7 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?:
   stopMenuMusic();
   clearOverlay();
   toasted.clear();
+  resetHud();
   lastToastCheck = '';
   lastChain = '';
   const d = opts.daily;
