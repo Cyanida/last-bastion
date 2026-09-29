@@ -16,7 +16,6 @@ export type WorldArenaId = ArenaId | 'emberForge' | 'frozenPass' | 'stormPeak' |
 
 /** Bosses the realms add, not in config/bosses.ts yet. Their releases build them. */
 export const WORLD_BOSSES = {
-  ironKing: { name: 'The Iron King', realm: 'ironHold' },
   gravedigger: { name: 'The Gravedigger', realm: 'barrowvale' }, // Decided: the plan leaves the Barrowvale's level-3 boss unnamed
   barrowKing: { name: 'The Barrow King', realm: 'barrowvale' },
   emberQueen: { name: 'The Ember Queen', realm: 'cinderlands' },

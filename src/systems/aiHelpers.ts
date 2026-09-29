@@ -1,9 +1,9 @@
 import { AI_TUNING } from '../config/ai';
-import { TOWER_SHIELDS } from '../config/damage';
 import { AFFIXES } from '../config/elites';
 import { TAU } from '../core/math';
 import type { Enemy, Game, Minion, Player } from '../core/types';
 import { fireProjectile } from '../entities/hazards';
+import { towerShieldOf } from '../logic/ironKing';
 import { turnToward } from '../logic/status';
 import { hurtTarget } from './combat';
 import { spawnEnemy } from './spawning';
@@ -33,7 +33,7 @@ export function moveTo(e: Enemy, x: number, y: number, speed: number, dt: number
 /** Walk at the target until touching it. e.angle doubles as the facing (shield bearers block along it). */
 export function seek(e: Enemy, t: Target, speed: number, dt: number): void {
   const want = angleTo(e, t);
-  const tower = TOWER_SHIELDS[e.def.id];
+  const tower = towerShieldOf(e.def.id, e.phase); // #216: the Iron King's only in his shield phase
   // #213: a man behind an iron tower shield turns slowly, so you can step round it; everyone else faces you at once
   e.angle = tower ? turnToward(e.angle, want, tower.turn * dt) : want;
   e.flip = tower ? Math.cos(e.angle) < 0 : t.x < e.x;

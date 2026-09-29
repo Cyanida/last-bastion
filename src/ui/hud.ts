@@ -2,7 +2,7 @@ import { EVOLUTIONS } from '../config/evolutions';
 import { buildState, evolutionIn } from '../systems/evolutions';
 import { SKILL } from '../config/game';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
-import { ARMOR, DAMAGE_TYPES, PLATES, RESISTS, STATUSES, TOWER_SHIELDS, THORNS, type DamageType } from '../config/damage';
+import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
 import { DUOS, FAMILIES, FAMILY_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
@@ -12,6 +12,7 @@ import { actName } from '../logic/acts';
 import { shieldBurst } from '../logic/abilities';
 import { duoTier, familySets, looseRelics, softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
+import { platesOf, thornsOf, towerShieldOf } from '../logic/ironKing';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
 import { describeUtility, utilityDef, utilityUnlocked } from '../systems/utility';
@@ -32,9 +33,9 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
   const weak = list((m) => m > 1);
   const strong = list((m) => m < 1);
   const armor = ARMOR[e.def.id];
-  const plates = PLATES[e.def.id]; // #212
-  const tower = TOWER_SHIELDS[e.def.id]; // #213
-  const thorns = THORNS[e.def.id]; // #214
+  const plates = platesOf(e.def.id, e.phase); // #212 (#216: the Iron King's by phase)
+  const tower = towerShieldOf(e.def.id, e.phase); // #213
+  const thorns = thornsOf(e.def.id, e.phase); // #214
   const statuses = activeStatuses(e.statuses).map((id) => `${STATUSES[id].name}${e.statuses[id]!.stacks > 1 ? ` ×${e.statuses[id]!.stacks}` : ''}`);
   html('h-inspect', `
     <b>${e.elite ? 'Elite ' : ''}${e.def.name}</b>${e.def.aura ? ' <em>commander</em>' : ''}
