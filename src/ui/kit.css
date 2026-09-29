@@ -514,7 +514,7 @@
 .comp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); align-items: start; gap: 10px; margin-bottom: 6px; }
 .comp-card { align-items: flex-start; }
 .comp-card .kit-row-body b { overflow-wrap: break-word; }
-.comp-card .tag { text-align: left; font-size: 12px; font-weight: bold; opacity: 0.75; }
+.comp-card .tag { text-align: left; font-size: 14px; font-weight: bold; opacity: 0.75; }
 .comp-card.cursed .tag { color: #5b2380; opacity: 1; } /* v0.7.1 B6: a cursed relic says so, in its purple */
 .comp-card .tag .new { color: #8a5a00; } /* v0.7 A7: new in the compendium */
 .kit-parch .tierline b { color: var(--kit-brass-dark); text-shadow: none; }
@@ -524,9 +524,9 @@
 .recipe-class { display: grid; align-content: start; gap: 8px; }
 .recipe-class h3 { margin: 0; font: 800 16px var(--kit-num); letter-spacing: 0.04em; }
 .recipe { align-items: flex-start; font-size: 14px; }
-.recipe em { font-size: 12px; opacity: 0.75; }
-.recipe p { margin: 2px 0; font-size: 13px; }
-.recipe i { display: block; font-size: 13px; color: #6b4a08; }
+.recipe em { font-size: 14px; opacity: 0.75; }
+.recipe p { margin: 2px 0; font-size: 14px; }
+.recipe i { display: block; font-size: 14px; color: #6b4a08; }
 
 /* the glossary: each term in Cinzel, its meaning under it */
 .glossary dl { margin: 0; }

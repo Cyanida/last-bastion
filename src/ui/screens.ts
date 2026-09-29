@@ -7,7 +7,7 @@ import { ARENA_FAMILIES, FAMILIES, FAMILY_IDS, type FamilyId, type Rarity, RELIC
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
 import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
-import { CURSED, CURSED_IDS, DUO_IDS, SIGNATURE, SIGNATURE_IDS, DUOS, keyColor, keyIcon, keyName, relicDef, type DuoId, type RelicId, type RelicKey } from '../config/relics';
+import { CURSED, CURSED_IDS, DUO_IDS, SIGNATURE, SIGNATURE_IDS, DUOS, isDuo, keyColor, keyIcon, keyName, relicDef, type DuoId, type RelicId, type RelicKey } from '../config/relics';
 import { BLESSINGS, type BlessingId } from '../config/regions';
 import { QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
@@ -22,7 +22,8 @@ import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
 import * as kit from './kit';
 import { duoTier, familySets, looseRelics, halfAttunement, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
-import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicRarity, relicTip, tierBadge } from './relicText';
+import { duoTip, esc, infoButton, keyTip, recipeLines, relicClass, relicLine, relicRarity, relicTip, tierBadge, tierChips } from './relicText';
+import { RELIC_SHORT } from '../config/relicShort';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
 import { SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
@@ -100,21 +101,66 @@ function numberKeys(el: HTMLElement, other?: (a: Action) => void): void {
 const fmtStat = (k: StatKey, v: number) => (k === 'atkSpd' ? v.toFixed(2) : String(Math.round(v * 10) / 10));
 const fmtTime = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`);
 /**
- * A relic card: the tier it would be at after taking it (1 = new), its text at that tier, synergies with what is held. `more` goes to the end of
- * its tooltip (#98: an offer card shows only its effect and one compact line; the details are on hover or tap).
+ * A relic card: the tier it would be at after taking it (1 = new), its short line and tier chips, synergies with what is held. `more` goes
+ * to the end of its tooltip (#98: an offer card shows only its effect and one compact line; the details are on hover or tap). #235: the
+ * effect is the relic's short line; the full text is its compendium page, behind the ⓘ (wireRelicInfo).
  */
 const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, extra = '', more: string[] = []) => {
   const r = relicDef(id);
   const fam = r.family ? `${FAMILIES[r.family].icon} ${FAMILIES[r.family].name}` : r.signature ? '👑 Signature' : '☠ Cursed'; // v0.7.1 B6: a cursed card is purple and says so (#201: a signature one gold)
   const upgrade = tier > 1;
-  return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip="${esc([relicTip(id, tier, held), ...more].join('\n'))}"><div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.family ? r.rarity : 'no family'}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${relicDesc(id, tier)}</p>${extra}</button>`;
+  return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip="${esc([relicTip(id, tier, held), ...more].join('\n'))}">${infoButton(id, r.name)}<div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.family ? r.rarity : 'no family'}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${RELIC_SHORT[id]}</p>${tierChips(tier)}${extra}</button>`;
 };
 
 /** v0.7 A5: a duo as a gold card: it takes the moment's pick. v0.7.5 (#96): it combines its two relics into one; the families keep their counts. */
 const duoCard = (id: DuoId, attrs: string, extra = '') => {
   const d = DUOS[id];
-  return `<button class="card panel boon evolution duo-card" ${attrs} data-tip="${esc(duoTip(id))}"><div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${d.desc}</p><div class="preview">Combines ${d.from.map((r) => relicDef(r).name).join(' + ')} into one · families keep their counts</div>${extra}</button>`;
+  return `<button class="card panel boon evolution duo-card" ${attrs} data-tip="${esc(duoTip(id))}">${infoButton(id, d.name)}<div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${RELIC_SHORT[id]}</p>${tierChips(1)}${extra}</button>`;
 };
+
+/** #235: a relic's full text, as its compendium row shows it: tiers I and II with their numbers, then the awakening. */
+const relicFullText = (id: RelicId) => {
+  const r = relicDef(id);
+  return `${[1, 2].map((t) => `<div class="tierline"><b>${TIER_NUMERALS[t]}</b> ${relicDesc(id, t)}</div>`).join('')}<div class="tierline"><b>III</b> <em>${r.awaken.name}</em>: ${r.awaken.desc}</div>`;
+};
+
+/**
+ * #235: a relic's or duo's compendium page over the screen it was opened from (the ⓘ on its card): the short line, the full text, its
+ * family's set bonuses. Esc, the close disc or a tap beside it closes it; keys inside it stay with it, so a number key picks no card.
+ */
+function showRelicPage(root: HTMLElement, id: RelicId | DuoId): void {
+  root.querySelector('.relic-page')?.remove();
+  const duo = isDuo(id);
+  const head = duo ? `${DUOS[id].icon} ${DUOS[id].name}` : `${relicDef(id).icon} ${relicDef(id).name}`;
+  const fam = !duo && relicDef(id).family ? FAMILIES[relicDef(id).family!] : null;
+  const body = duo
+    ? `<div class="tierline">${DUOS[id].desc}</div>${DUOS[id].from.map((r) => `<div class="tierline"><b>${relicDef(r).icon}</b> ${relicDef(r).name}: ${relicDesc(r, 1)}</div>`).join('')}<p class="hint">Combines ${DUOS[id].from.map((r) => relicDef(r).name).join(' + ')} into one relic that attunes as one, up to tier ${TIER_NUMERALS[RELIC_MAX_TIER]}; each family keeps its count.</p>`
+    : `${relicFullText(id)}${fam ? `<p class="hint">${fam.name}: ${fam.mechanic}. ${([2, 4, 6] as const).map((l) => `<b>${l} ${fam.sets[l][0]}</b>: ${fam.sets[l][1]}`).join(' ')}</p>` : ''}`;
+  const page = document.createElement('div');
+  page.className = 'relic-page';
+  page.innerHTML = `<div class="kit-frame kit-book" role="dialog" aria-modal="true" aria-label="${esc(head)}">${kit.closeButton('close', { cls: 'kit-corner', attrs: 'data-page-close' })}
+    <h2>${head}</h2><p class="short">${RELIC_SHORT[id]}</p>${kit.parch(body)}</div>`;
+  // keys go to the page while it is open (caught before the game's own keys, focus or not); a screen that replaces it drops the catch
+  const onKey = (e: KeyboardEvent) => {
+    if (!page.isConnected) return window.removeEventListener('keydown', onKey, true);
+    e.stopPropagation();
+    if (e.key === 'Escape') close();
+  };
+  const close = () => { window.removeEventListener('keydown', onKey, true); page.remove(); root.querySelector<HTMLElement>(`[data-info="${id}"]`)?.focus(); };
+  page.onclick = (e) => { e.stopPropagation(); if (e.target === page || (e.target as Element).closest('[data-page-close]')) close(); };
+  window.addEventListener('keydown', onKey, true);
+  root.appendChild(page);
+  page.querySelector<HTMLElement>('[data-page-close]')?.focus();
+}
+
+/** #235: every ⓘ on a screen's relic cards opens that relic's page, by click, tap, Enter or Space, and never picks the card under it. */
+function wireRelicInfo(el: HTMLElement): void {
+  el.querySelectorAll<HTMLElement>('[data-info]').forEach((b) => {
+    const open = (e: Event) => { e.stopPropagation(); e.preventDefault(); showRelicPage(el, b.dataset.info as RelicId | DuoId); };
+    b.onclick = open;
+    b.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && open(e);
+  });
+}
 
 /**
  * #189: a framed screen in the kit, as Settings and the results (#186): the heading on a ribbon with the round back disc in its corner
@@ -292,14 +338,14 @@ export function showChampion(
     const idle = s.live ? '' : ' idle';
     if (!s.id) return `<span class="cs-slot empty${idle}" data-slot="${i}" title="${s.live ? 'An empty slot: tap a relic in the inventory' : `Not open in this level (${info.slots} slot${info.slots > 1 ? 's' : ''})`}">${s.live ? '' : kit.icon('lock')}</span>`;
     const r = relicDef(s.id);
-    return `<button class="cs-slot${idle}${s.second ? ' second' : ''}" data-slot="${i}" data-unslot="${s.id}" aria-label="${esc(`${r.name}: take it out`)}" data-tip="${esc(`${relicTip(s.id, tier)}${s.live ? '' : '\nNot in this level: no slot left for it.'}\nTap to take it out.`)}">${kit.rarityGlyph(relicRarity(s.id), s.second ? '' : r.icon)}</button>`;
+    return `<button class="cs-slot${idle}${s.second ? ' second' : ''}" data-slot="${i}" data-unslot="${s.id}" aria-label="${esc(`${r.name}: take it out`)}" data-tip="${esc(`${relicTip(s.id, tier)}${s.live ? '' : '\nNot in this level: no slot left for it.'}\nTap to take it out.`)}">${kit.rarityGlyph(relicRarity(s.id), s.second ? '' : r.icon)}${s.second ? '' : infoButton(s.id, r.name)}</button>`;
   };
   const sets = Object.entries(familySets(goes)) as [FamilyId, { count: number; level: number }][];
   const chip = ([f, st]: [FamilyId, { count: number; level: number }]) =>
     `<span class="cs-set${st.level ? ' on' : ''}" data-tip="${esc(`${FAMILIES[f].name}: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[f].sets[n][0]}`).join(' · ')}`)}">${kit.icon(f)}${st.count}</span>`;
   const relic = (id: RelicId) => {
     const why = info.loadout.includes(id) ? null : slotBlock(info.classId, info.loadout, id, WORLD.maxSlots, finale);
-    return `<button class="cs-relic${info.loadout.includes(id) ? ' on' : why ? ' blocked' : ''}" data-relic="${id}" data-why="${why ? esc(SLOT_BLOCKS[why]) : ''}" aria-label="${esc(relicDef(id).name)}" data-tip="${esc(relicTip(id, tier))}">${kit.rarityGlyph(relicRarity(id), relicDef(id).icon)}</button>`;
+    return `<button class="cs-relic${info.loadout.includes(id) ? ' on' : why ? ' blocked' : ''}" data-relic="${id}" data-why="${why ? esc(SLOT_BLOCKS[why]) : ''}" aria-label="${esc(relicDef(id).name)}" data-tip="${esc(relicTip(id, tier))}">${kit.rarityGlyph(relicRarity(id), relicDef(id).icon)}${infoButton(id, relicDef(id).name)}</button>`;
   };
   const plan = info.plan.map((t) => `<li>${esc(TALENT_BY_ID[t]?.name ?? t)}</li>`).join('');
   const el = show(`
@@ -332,6 +378,7 @@ export function showChampion(
   big.getContext('2d')!.drawImage(spr.img, 0, 0);
   big.style.setProperty('--sprite-h', `${SHEETS[c.sprite] ? spr.h : Math.round(spr.h / PORTRAIT_K)}px`);
   fig.appendChild(big);
+  wireRelicInfo(el);
   click(el, '[data-unslot]', (b) => on.unslot(b.dataset.unslot as RelicId));
   click(el, '[data-relic]', (b) => {
     const id = b.dataset.relic as RelicId;
@@ -898,6 +945,7 @@ export function showRelicOffer(
         ${kit.button(`Skip · 🪙 ${info.skip.gold} · ◆ ${info.skip.shards} shard`, { attrs: 'data-skip data-tip="Take nothing from this moment: gold for this run and a Rune shard for the Keep"' })}
       </div>
     </div>`);
+  wireRelicInfo(el);
   click(el, '[data-pick]', (b) => on.take(Number(b.dataset.pick) < options.length ? options[Number(b.dataset.pick)] : offer.duo!));
   click(el, '[data-skip]', on.skip);
   click(el, '[data-reroll]', () => offer.rerolls > 0 && on.reroll());
@@ -915,6 +963,7 @@ export function showRarePick(level: string, family: FamilyId, options: RelicId[]
       <p class="sub">${options.length ? `Choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} rare to keep. It joins your champion's relics for every loadout.` : `You hold every ${FAMILIES[family].name} rare already.`}</p>
       ${options.length ? `<div class="cards">${options.map((id, i) => relicCard(id, 1, [], `data-pick="${i}"`, `<div class="num">${i + 1}</div>`)).join('')}</div>` : `<div class="row">${kit.button(`Take ◆ ${runes} Runes`, { kind: 'gold', attrs: 'data-runes' })}</div>`}
     </div>`);
+  wireRelicInfo(el);
   click(el, '[data-pick]', (b) => onPick(options[Number(b.dataset.pick)]));
   click(el, '[data-runes]', () => onPick(null));
   numberKeys(el, (a) => a === 'confirm' && !options.length && onPick(null));
@@ -933,6 +982,7 @@ export function showCrownPick(realm: string, champion: string, relic: RelicId, o
     </div>`);
   let taken = false;
   const take = () => { if (!taken) { taken = true; onTake(); } };
+  wireRelicInfo(el);
   click(el, '[data-pick]', take);
   numberKeys(el, (a) => a === 'confirm' && take());
 }
@@ -1076,7 +1126,7 @@ export function buildHtml(info: BuildInfo): string {
   const relics = looseRelics(info.relics, info.duos ?? []).map((id) => { // v0.7.5 (#96): a duo's two relics show as the duo
     const tier = info.tiers[id] ?? 1;
     const att = info.attune && tier < RELIC_MAX_TIER ? ` · ${Math.floor((info.attune[id] ?? 0) * 100)}% to ${TIER_NUMERALS[tier + 1]}` : '';
-    return `<div><span tabindex="0" data-tip="${esc(relicTip(id, tier, info.relics))}">${relicDef(id).icon} ${relicDef(id).name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}${att}</span><em>${relicDesc(id, tier)}</em></div>`;
+    return `<div><span tabindex="0" data-tip="${esc(relicTip(id, tier, info.relics))}">${relicDef(id).icon} ${relicDef(id).name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}${att}</span><em>${RELIC_SHORT[id]}</em></div>`;
   }).join('');
   const trait = info.trait !== 'none' ? `<div><span>${TRAITS[info.trait].icon} ${TRAITS[info.trait].name}</span><em>${TRAITS[info.trait].desc}</em></div>` : '';
   const ups = info.upgrades.map((id) => `<div><span>✦ ${ABILITY_UPGRADES[id].name}</span><em>${ABILITY_UPGRADES[id].desc}</em></div>`).join('');
@@ -1088,7 +1138,7 @@ export function buildHtml(info: BuildInfo): string {
   const duos = (info.duos ?? []).map((id) => {
     const tier = duoTier(info.tiers, id);
     const att = info.attune && tier < RELIC_MAX_TIER ? ` · ${Math.floor(Math.max(...DUOS[id].from.map((r) => info.attune![r] ?? 0)) * 100)}% to ${TIER_NUMERALS[tier + 1]}` : '';
-    return `<div class="evolved"><span tabindex="0" data-tip="${esc(duoTip(id, tier))}">${DUOS[id].icon} ${DUOS[id].name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}${att}</span><em>${DUOS[id].desc}</em></div>`;
+    return `<div class="evolved"><span tabindex="0" data-tip="${esc(duoTip(id, tier))}">${DUOS[id].icon} ${DUOS[id].name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}${att}</span><em>${RELIC_SHORT[id]}</em></div>`;
   }).join('');
   const syns = Object.entries(familySets(info.relics)).map(([f, st]) => {
     const fam = FAMILIES[f as keyof typeof FAMILIES];
@@ -1311,8 +1361,7 @@ export function showCompendium(save: Save, onBack: () => void): void {
     const n = found(id);
     const who = r.classId ? ` · ${CLASSES[r.classId].name}` : '';
     if (n === 0) return kit.row(`<b>Unknown</b><div class="tag">${r.rarity}${who}${save.newRelics.includes(id) ? ' · <b class="new">new in v0.7</b>' : ''}</div>`, { cls: 'comp-card locked undiscovered', attrs: `data-relic="${id}" data-tip="${esc(`Not found yet. A ${r.family ? `${r.rarity} ${FAMILIES[r.family].name}` : r.signature ? 'signature' : 'cursed'} relic${r.classId ? ` for the ${CLASSES[r.classId].name}` : ''}.`)}"`, lead: kit.rarityGlyph(relicRarity(id), '?') });
-    const tiers = [1, 2].map((t) => `<div class="tierline"><b>${TIER_NUMERALS[t]}</b> ${relicDesc(id, t)}</div>`).join('');
-    return kit.row(`<b>${r.name}</b><div class="tag">${r.cursed ? 'cursed' : r.signature ? 'signature' : r.rarity}${who} · found ${n}×</div>${tiers}<div class="tierline"><b>III</b> <em>${r.awaken.name}</em>: ${r.awaken.desc}</div>`, { cls: `comp-card${r.cursed ? ' cursed' : ''}`, attrs: `data-relic="${id}"`, lead: kit.rarityGlyph(relicRarity(id), r.icon) });
+    return kit.row(`<b>${r.name}</b><div class="tag">${r.cursed ? 'cursed' : r.signature ? 'signature' : r.rarity}${who} · found ${n}×</div>${relicFullText(id)}`, { cls: `comp-card${r.cursed ? ' cursed' : ''}`, attrs: `data-relic="${id}"`, lead: kit.rarityGlyph(relicRarity(id), r.icon) });
   };
   const family = (f: (typeof FAMILY_IDS)[number]) => {
     const fam = FAMILIES[f];

@@ -127,7 +127,7 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 /* relic bar: bottom right on desktop, one row of fixed tiles; older relics behind the "+N" chip (hud.ts decides how many fit) */
 .hud-relics { position: absolute; right: 0; bottom: 0; display: flex; gap: 6px; pointer-events: auto; }
 .relic { position: relative; flex: none; width: 44px; height: 44px; display: grid; place-items: center; font-size: 24px; cursor: help; }
-.relic .tier { position: absolute; right: -5px; bottom: -6px; padding: 0 4px; }
+.relic .tier { position: absolute; right: -5px; bottom: -6px; padding: 0 4px; font-size: 14px; } /* #235: no relic text under 14 px */
 .relic.more { position: static; font: 700 16px var(--hud-text); color: var(--hud-light); background: #3a2a18; border-color: var(--gold); cursor: pointer; } /* static: its popover spans the whole bar */
 .relic.more .hud-pop { left: 0; right: 0; flex-wrap: wrap; justify-content: flex-end; gap: 10px 6px; padding: 8px; cursor: default; }
 .relic.more:hover .hud-pop, .relic.more:focus-within .hud-pop { display: flex; }
@@ -283,7 +283,7 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .syn.on { color: #3a6b2a; font-weight: bold; }
 .syn.anti { color: var(--blood); }
 .syn em { opacity: 0.8; }
-.tierline { font-size: 13px; text-align: left; margin-top: 3px; }
+.tierline { font-size: 14px; text-align: left; margin-top: 3px; }
 .tierline b { color: #e9c95a; text-shadow: 0 0 2px #000; margin-right: 4px; }
 .build .syn { flex-direction: row; gap: 8px; }
 .build .syn span { color: inherit; }
@@ -532,7 +532,7 @@ canvas#game { touch-action: none; }
 .contracts .contract.done { color: #3f6b2a; }
 
 /* v0.7 relic moments: what a relic would do for this build */
-.relic-card .preview { font-size: 13px; color: #3f5a2a; margin-top: 3px; }
+.relic-card .preview { font-size: 14px; color: #3f5a2a; margin-top: 3px; }
 .levelup .relic-card p { font-size: 17px; line-height: 1.3; } /* #98: an offer card leads with its effect */
 .crown-pick .card { width: min(460px, calc(92 * var(--vw))); } /* #202: the crown's one card, wide so its long text stays short enough for a phone held sideways */
 @media (max-height: 500px) { .crown-pick .cards { margin: 6px 0; } .crown-pick .relic-card p { font-size: 15px; } }
@@ -540,6 +540,24 @@ canvas#game { touch-action: none; }
 /* v0.7 relic families: a card's family colour on its edge and tag */
 .relic-card { border-left: 5px solid var(--fam, transparent); }
 .relic-card .fam { color: var(--fam, inherit); font-weight: 700; filter: brightness(0.75); }
+
+/* #235: a relic card is its short line and tier chips, no text under 14 px (at 1280x720); the ⓘ opens its compendium page */
+.relic-card .tag, .duo-card .tag { font-size: 14px; letter-spacing: 0.5px; }
+.tier-chips { display: flex; justify-content: center; gap: 4px; margin: 2px 0 4px; }
+.tier-chips i { min-width: 26px; padding: 0 5px; font: 700 14px/20px var(--body); font-style: normal; text-align: center; color: #6b5a44; border: 1px solid rgba(90, 61, 37, 0.45); border-radius: 10px; }
+.tier-chips i.on { color: #f3d77a; background: #3a2614; border-color: var(--gold); }
+.relic-info { position: absolute; top: 6px; right: 8px; z-index: 1; width: 26px; height: 26px; font: 700 16px/24px var(--body); font-style: normal; text-align: center; color: #3a1f0b;
+  background: rgba(243, 234, 208, 0.92); border: 1px solid #5a3d25; border-radius: 50%; cursor: pointer; }
+.relic-info:hover, .relic-info:focus-visible { background: var(--gold); outline: none; }
+.cs-slot, .cs-relic { position: relative; }
+.cs-slot .relic-info, .cs-relic .relic-info { top: -6px; right: -6px; width: 22px; height: 22px; font-size: 14px; line-height: 20px; }
+.relic-page { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 12px; background: rgba(0, 0, 0, 0.55); }
+.relic-page .kit-book { position: relative; width: min(560px, calc(96 * var(--vw))); overflow-y: auto; text-align: left; color: var(--kit-light); }
+.relic-page h2 { margin: 4px 44px 6px 0; font: 800 22px var(--kit-num); }
+.relic-page .short { margin: 0 0 10px; font-size: 17px; font-style: italic; }
+.relic-page .kit-parch { font-size: 15px; color: var(--ink); }
+.relic-page .tierline { font-size: 15px; margin-top: 6px; }
+.relic-page .hint { font-size: 14px; margin: 10px 0 0; }
 .hud-families { position: absolute; right: 0; bottom: 58px; display: flex; gap: 4px; pointer-events: auto; }
 .touch .hud-families { position: relative; bottom: auto; margin-bottom: 4px; }
 .fam-chip { display: flex; align-items: center; gap: 2px; padding: 1px 6px; border-radius: 10px; font-size: 15px; background: rgba(20, 14, 8, 0.72); border: 1px solid rgba(255, 255, 255, 0.15); color: #f3ead0; }
@@ -558,7 +576,7 @@ canvas#game { touch-action: none; }
 
 /* v0.7.1 glossary: underlined terms in tooltips, their definitions under a rule (the Glossary page is in kit.css, #187) */
 #tooltip u { text-decoration: underline dotted; text-underline-offset: 2px; }
-#tooltip .gloss { margin-top: 6px; padding-top: 5px; border-top: 1px dotted currentColor; font-size: 13px; line-height: 1.3; white-space: normal; }
+#tooltip .gloss { margin-top: 6px; padding-top: 5px; border-top: 1px dotted currentColor; font-size: 14px; line-height: 1.3; white-space: normal; }
 /* #133: the foe itself on its card, pixel-crisp, breathing gently; a mechanic's icon in its place; small in the Glossary */
 .flash-card .card-pic { display: block; margin: 10px auto 0; height: 96px; image-rendering: pixelated; animation: card-bob 0.9s ease-in-out infinite alternate; }
 .flash-card .card-pic.icon { height: auto; font-size: 64px; line-height: 96px; }
