@@ -1716,18 +1716,20 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
     lb.draw();
     const c = document.getElementById('game').getContext('2d'), cam = lb.camera();
     const px = (wx, wy) => [...c.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data];
-    const bracket = px(mine.x - S / 2 + 4, mine.y - S / 2 + 4), ramOn = px(mine.x, mine.y - 20);
+    // the ram over a 3x3 grid across the slab: the champion standing on it hides some of those points, never all
+    const grid = [-1, 0, 1].flatMap((i) => [-1, 0, 1].map((j) => [mine.x + (i * S) / 4, mine.y + (j * S) / 4 - 10]));
+    const bracket = px(mine.x - S / 2 + 4, mine.y - S / 2 + 4), ramOn = grid.map(([x, y]) => px(x, y).join());
     const keep = g.zones;
     g.zones = g.zones.filter((z) => !z.slab);
     lb.draw();
-    const ramOff = px(mine.x, mine.y - 20);
+    const ramOff = grid.map(([x, y]) => px(x, y).join());
     g.zones = keep;
     // stand still: the ram lands
     const slams = sounds.slam;
     let onIt = false, hp = p.hp, foeHp = foe?.hp ?? 0; // as the ram lands: the tick the slabs go
     for (let i = 0; i < 1000 && marked().length; i++) { onIt = onSlab(mine, p); hp = p.hp; foeHp = foe?.hp ?? 0; lb.run(1, false, 'input'); if (foe && other && marked().length) Object.assign(foe, { x: other.x, y: other.y }); }
     return { found: true, realm: g.level?.realm, level: g.level?.level, arena: g.arena.id, n: zs.length, warned, onIt, hurt: hp - p.hp, foeHurt: foe && other ? foeHp - foe.hp : -1, slam: sounds.slam - slams,
-      bracket, ram: ramOn.join() !== ramOff.join(), props: lb.props() };
+      bracket, ram: ramOn.filter((v, i) => v !== ramOff[i]).length >= 3, props: lb.props() };
   })()`);
   // the next marking: step off the line with the keyboard (a line across: up or down, towards the open floor; a line down: left or right)
   let dodge = { found: false };
