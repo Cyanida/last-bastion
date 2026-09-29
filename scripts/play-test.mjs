@@ -1544,6 +1544,48 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #205: a realm level's relics don't count for "in one run" deeds; a full run's do, and the Chronicle says so ----------
+await check('deeds: six relics held in a Marches level leave Reliquarian at 0; in a full run it is earned; the Chronicle says "full run" (#205)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const six = ['brimstoneOil', 'emberheart', 'cinderCharm', 'salamanderScale', 'dragonsTongue', 'frostBrand'];
+  // hold six relics mid-fight, then Esc and quit from the pause menu: the run is banked
+  const holdAndQuit = async () => {
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 });
+    await p.evaluate((ids) => {
+      const lb = window.__lb;
+      for (let i = 0; i < 400 && !(i > 60 && lb.state === 'playing'); i++) lb.run(1, false, true);
+      lb.game.player.invulnerable = true;
+      lb.game.player.relics.held.push(...ids.filter((id) => !lb.game.player.relics.held.includes(id)));
+    }, six);
+    await p.keyboard.press('Escape');
+    await p.click('[data-quit]');
+    await p.locator('.kit-screen.results').waitFor({ timeout: 3000 });
+    return p.evaluate(() => ({ held: window.__lb.save.counters.maxRelics, deed: window.__lb.save.achievements.includes('collector') }));
+  };
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-marches');
+  await p.click('[data-fight]');
+  const level = await holdAndQuit();
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.click('[data-go="start"]');
+  await p.evaluate(() => document.querySelector('[data-class="viking"]').click());
+  await p.evaluate(() => document.querySelector('[data-start]')?.click());
+  const full = await holdAndQuit();
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.click('[data-go="chronicle"]');
+  await p.waitForTimeout(150);
+  const row = await p.evaluate(() => [...document.querySelectorAll('.ach')].find((a) => a.textContent.includes('Reliquarian'))?.textContent.replace(/\s+/g, ' ') ?? '');
+  await p.close();
+  const ok = level.held === 0 && !level.deed && full.held >= 6 && full.deed && /in one full run/.test(row) && /✔ Reliquarian/.test(row) && errs.length === 0;
+  return { ok, detail: `level: best held ${level.held}, deed ${level.deed}; full run: best held ${full.held}, deed ${full.deed}; Chronicle "${row.slice(0, 90)}"${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- v0.8.3 (#182): a new pixel ratio (another monitor) re-sizes the canvas, so the arena stays sharp ----------
 await check('DPR: moving to a sharper screen re-sizes the canvas to its pixels (#182)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
