@@ -54,6 +54,14 @@ export const ARMOR: Partial<Record<EnemyId, { frac: number; reduction: number; b
 export const PLATES: Partial<Record<EnemyId, { plates: number; reduction: number; heavy: number }>> = {
   ironKnight: { plates: 6, reduction: 0.75, heavy: 0.2 },
 };
+/**
+ * #213: an iron tower shield that is always up (the Iron Hold's shieldwalls). A hit that comes at its front (within the foe's
+ * `frontBlock` of his facing) does `reduction` less, and shots from the front are stopped outright; from the side or behind it lands in
+ * full, as does damage with no direction (areas, ticks). The man behind it turns at most `turn` radians a second, so you can step round.
+ */
+export const TOWER_SHIELDS: Partial<Record<EnemyId, { reduction: number; turn: number }>> = {
+  ironShieldwall: { reduction: 0.85, turn: 1.8 },
+};
 /** v0.7.3 (#59): how much of a blocked (shield bearer) or thrown-back (mirror knight) shot's damage wears the shield or mirror down. */
 export const ARMOR_WEAR = { block: 1, reflect: 0.5 };
 /**

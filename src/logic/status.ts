@@ -1,5 +1,6 @@
 import { ARMOR, BACK_ARC, PLATES, BOSS_RESOLVE, RESISTS, STATUS_TUNING, STATUSES, type DamageType, type StatusId } from '../config/damage';
 import type { EnemyId } from '../config/enemies';
+import { angleDiff } from '../core/math';
 
 /** Pure status-effect and damage-type rules, shared by enemies, the player and minions. */
 
@@ -116,6 +117,28 @@ export function fromBehind(kx: number, ky: number, facing: number): boolean {
   if (kx === 0 && ky === 0) return false;
   const d = Math.abs(Math.atan2(ky, kx) - facing) % (Math.PI * 2);
   return Math.min(d, Math.PI * 2 - d) < BACK_ARC;
+}
+
+/** #213: did a hit travelling along (kx, ky) come at the front of an enemy facing `facing`, within `arc` radians either side? */
+export function atFront(kx: number, ky: number, facing: number, arc: number): boolean {
+  if (kx === 0 && ky === 0) return false; // no direction (an area, a tick): no front to come at
+  return angleDiff(Math.atan2(-ky, -kx), facing) < arc;
+}
+
+/**
+ * #213: a hit on an iron tower shield (config/damage.ts TOWER_SHIELDS). From the front (within `arc` of his facing) it does `reduction`
+ * less and counts as blocked; from the side, from behind or with no direction it lands in full.
+ */
+export function throughTowerShield(amount: number, kx: number, ky: number, facing: number, arc: number, reduction: number): { dealt: number; blocked: boolean } {
+  const blocked = amount > 0 && atFront(kx, ky, facing, arc);
+  return { dealt: blocked ? amount * (1 - reduction) : amount, blocked };
+}
+
+/** #213: turn a facing toward `want` by at most `step` radians, the short way round (a slow-turning shield bearer). */
+export function turnToward(facing: number, want: number, step: number): number {
+  const d = Math.atan2(Math.sin(want - facing), Math.cos(want - facing));
+  const to = Math.abs(d) <= step ? want : facing + Math.sign(d) * step;
+  return Math.atan2(Math.sin(to), Math.cos(to)); // kept in -PI..PI
 }
 
 /** The armor bar an enemy starts with: an ARMOR soak pool in HP, or #212's PLATES as a count of plates. */

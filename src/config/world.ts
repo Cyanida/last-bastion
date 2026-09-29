@@ -104,7 +104,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
   ironHold: {
     name: 'The Iron Hold', ring: 2, opens: { crowns: 1 }, arena: 'keep', family: 'steel', release: '0.11.0',
     teaches: 'Armor you break, shields that block from the front, thorns that hit back',
-    foes: { knight: 'ironKnight' },
+    foes: { knight: 'ironKnight', shieldwall: 'ironShieldwall' },
     hazard: 'presses',
     levels: relicRealmLevels('steel', 'warden', 'forgemaster', 'ironKing'), crown: RELIC_CROWN,
   },
