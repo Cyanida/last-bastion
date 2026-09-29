@@ -393,6 +393,7 @@ as too cartoonish.
 **Scope.**
 1. **Phone layout for every new screen**, touch-first; levels of 4 to 10 minutes fit phone sessions.
 2. **The iPhone app through TestFlight and the App Store**, once the Apple Developer account exists.
+3. **The sound overhaul ([#142](https://github.com/Cyanida/last-bastion/issues/142))**: distinct sounds per class, enemy, boss and relic, stereo, sound files allowed; the mixer comes first, in v0.16.0.
 
 **Done when** the play test plays a level at 390 px wide by touch, from the map to the crown, with no sideways scroll on any new screen.
 
@@ -423,13 +424,13 @@ as too cartoonish.
 **Scope.**
 1. **A battlefield arena, bleed on the player, foes that grow stronger as they bleed; the Butcher and the Crimson Baron; 1 common, 2 rares, a second legendary, class relics for the Paladin, Angel, Necromancer and Archer; one duo.**
 
-Each of these is done when its realm can be crowned on Knight by every class within the targets. After that: items and sound ([#62](https://github.com/Cyanida/last-bastion/issues/62) potions, [#86](https://github.com/Cyanida/last-bastion/issues/86), [#89](https://github.com/Cyanida/last-bastion/issues/89), [#140](https://github.com/Cyanida/last-bastion/issues/140), the rest of [#142](https://github.com/Cyanida/last-bastion/issues/142)), hidden subclasses ([#58](https://github.com/Cyanida/last-bastion/issues/58)), and a second arena per realm.
+Each of these is done when its realm can be crowned on Knight by every class within the targets. After that: items and sound ([#62](https://github.com/Cyanida/last-bastion/issues/62) potions, [#86](https://github.com/Cyanida/last-bastion/issues/86), [#89](https://github.com/Cyanida/last-bastion/issues/89), [#140](https://github.com/Cyanida/last-bastion/issues/140)), hidden subclasses ([#58](https://github.com/Cyanida/last-bastion/issues/58)), and a second arena per realm.
 
 ## Ideas – not planned yet
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/9) · the inbox
 
-New ideas wait here until Jesse gives them a release. Some planned work waits here for after 1.0: hidden subclasses ([#58](https://github.com/Cyanida/last-bastion/issues/58)), potions ([#62](https://github.com/Cyanida/last-bastion/issues/62)), the shield relic ([#86](https://github.com/Cyanida/last-bastion/issues/86)), breakable objects ([#89](https://github.com/Cyanida/last-bastion/issues/89)), boss themes ([#140](https://github.com/Cyanida/last-bastion/issues/140)) and the sound overhaul ([#142](https://github.com/Cyanida/last-bastion/issues/142); its mixer part is in v0.16.0).
+New ideas wait here until Jesse gives them a release. Some planned work waits here for after 1.0: hidden subclasses ([#58](https://github.com/Cyanida/last-bastion/issues/58)), potions ([#62](https://github.com/Cyanida/last-bastion/issues/62)), the shield relic ([#86](https://github.com/Cyanida/last-bastion/issues/86)), breakable objects ([#89](https://github.com/Cyanida/last-bastion/issues/89)) and boss themes ([#140](https://github.com/Cyanida/last-bastion/issues/140)).
 
 ## Co-op (dropped)
 
