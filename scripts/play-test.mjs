@@ -4726,6 +4726,125 @@ await check('Iron King: test mode starts the Iron Hold level 5; its crown boss: 
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; plates ${fight.plates.join('>')}, guard ${fight.guard}; phases at ${fight.phases.join(', ')} s, plate ${fight.armorAt2} at phase 2; decree zones ${fight.decree.join('/')}, rush ticks ${fight.rush.join('/')}, shield blocks ${fight.block.join('/')}, thorn bites ${fight.bites.join('/')} by phase; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #219: the Iron Hold's five levels, their rewards, its crown and its theme ----------
+// A Paladin who holds the Marches crown: the map opens the Iron Hold, its road starts on level 1 and its panel names the keep-locked
+// reward; the level plays the Iron Hold's own theme. Each level is fought on from its last wave with a strong blow on every swing. Level 1
+// (the opening pick's Steel relic held) offers 1 of 2 locked Steel rares (key 1); level 3 banks the Paladin's Steel class relic on one
+// card (Enter); the Knight crown is a pick of the two Steel legendaries (key 2); the Champion crown gives the other on one card (a click).
+await check('Iron Hold: the map opens it with the Marches crown, its road and theme; level 1 keeps a locked Steel rare, level 3 the class relic, the Knight crown picks a legendary, the Champion crown gives the other (#219)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const press = (sel) => p.locator(sel).first().click();
+  const bad = [], log = [];
+  const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+  const champ = () => p.evaluate(() => window.__lb.save.champions.paladin);
+  const setWorld = (hold) => p.evaluate((hold) => { window.__lb.save.champions.paladin.world.ironHold = hold; }, hold);
+  await p.evaluate(() => {
+    window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7] }, signature: false, lastBastion: false } };
+  });
+  const road = async (tier) => {
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    if (tier !== undefined) await press(`.rr-tier[data-tier="${tier}"]`);
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    return p.evaluate(() => ({ name: document.querySelector('.rr-name').textContent.trim(), text: document.querySelector('.rr-panel').textContent.replace(/\s+/g, ' ') }));
+  };
+  // FIGHT, the opening pick (a Steel relic), `before` (while the run plays in real time), then on from the level's last wave to its end
+  const fight = async (before) => {
+    await press('[data-fight]');
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 });
+    await press('[data-pick="0"]');
+    const seen = before ? await before() : null;
+    const out = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.player.stats.str *= 40;
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1;
+      g.breather = 0.01;
+      let held = [];
+      for (let i = 0; i < 60000 && lb.state !== 'results'; i++) {
+        g.player.invulnerable = true;
+        held = [...g.player.relics.held];
+        lb.run(1, false, true);
+      }
+      return { held, level: g.level?.level, tier: g.tierIndex, cleared: !!g.level?.cleared, wave: g.wave };
+    });
+    return { ...out, seen };
+  };
+  const screenOf = (sel) => p.evaluate((sel) => ({
+    head: document.querySelector(`${sel} .kit-head`)?.textContent.trim() ?? '',
+    cards: [...document.querySelectorAll(`${sel} [data-pick]`)].map((b) => ({ name: b.querySelector('h2')?.textContent.trim() ?? '', fam: b.querySelector('.fam')?.textContent.trim() ?? '' })),
+  }), sel);
+  // the map opens the Iron Hold; its road on level 1
+  await press('[data-go="map"]');
+  await p.locator('.wm-map').waitFor({ timeout: 3000 });
+  const open = await p.evaluate(() => document.querySelector('.wm-realm.r-ironHold')?.disabled === false);
+  want(open, 'the Iron Hold is shut on the map');
+  await press('.wm-realm.r-ironHold');
+  const r1 = await road();
+  want(r1.name === 'The Iron Hold · Level 1' && /Keep a locked relic/.test(r1.text), `road ${JSON.stringify(r1)}`);
+  // level 1, playing its own theme
+  const one = await fight(() => p.waitForFunction(() => window.__lb.music?.().arena === 'ironHold', null, { timeout: 10000 }).then(() => 'ironHold', () => p.evaluate(() => String(window.__lb.music?.().arena))));
+  want(one.seen === 'ironHold', `theme ${one.seen}`);
+  await p.locator('.rare-pick').waitFor({ timeout: 5000 });
+  const keep = await screenOf('.rare-pick');
+  want(one.cleared && keep.head === 'The Iron Hold · Level 1 cleared' && keep.cards.length === 2 && keep.cards.every((c) => /Steel/.test(c.fam)), `level 1 ${JSON.stringify(one)} pick ${JSON.stringify(keep)}`);
+  await p.keyboard.press('1');
+  await p.locator('[data-menu]').waitFor({ timeout: 3000 });
+  const after1 = await champ();
+  want(after1.inventory.length === 1 && after1.world.ironHold?.[0] === 1, `after level 1 ${JSON.stringify(after1)}`);
+  log.push(`map open, "${r1.name}", theme ${one.seen}, held ${one.held.join()}; "${keep.head}": ${keep.cards.map((c) => c.name).join('/')} -> ${after1.inventory.join()}`);
+  // level 3: the class relic on one card
+  await setWorld([2]);
+  await press('[data-menu]');
+  const r3 = await road();
+  want(r3.name === 'The Iron Hold · Level 3' && /Your class relic of Steel/.test(r3.text) && /Forgemaster/.test(r3.text), `road 3 ${JSON.stringify(r3)}`);
+  const three = await fight();
+  await p.locator('.class-pick').waitFor({ timeout: 5000 });
+  const cls = await screenOf('.class-pick');
+  want(three.cleared && cls.head === 'The Iron Hold · Level 3 cleared' && cls.cards.length === 1 && cls.cards[0].name === 'Aegis of the Faithful', `level 3 ${JSON.stringify(three)} card ${JSON.stringify(cls)}`);
+  await p.keyboard.press('Enter');
+  await p.locator('[data-menu]').waitFor({ timeout: 3000 });
+  const after3 = await champ();
+  want(after3.inventory.includes('aegisFaithful'), `after level 3 ${JSON.stringify(after3.inventory)}`);
+  log.push(`"${cls.head}": ${cls.cards[0]?.name}`);
+  // level 5 on Knight: the Iron King, then the pick of the two Steel legendaries
+  await setWorld([4, 4]);
+  await press('[data-menu]');
+  const r5 = await road(1);
+  want(r5.name === 'The Iron Hold · Level 5' && /Pick 1 of 2 Steel legendaries/.test(r5.text) && /Iron King/.test(r5.text), `road 5 ${JSON.stringify(r5)}`);
+  const five = await fight();
+  await p.locator('.legendary-pick').waitFor({ timeout: 5000 });
+  const leg = await screenOf('.legendary-pick');
+  want(five.cleared && five.tier === 1 && leg.head === '👑 The Iron Hold crowned' && leg.cards.length === 2, `Knight crown ${JSON.stringify(five)} pick ${JSON.stringify(leg)}`);
+  await p.keyboard.press('2');
+  await p.locator('[data-menu]').waitFor({ timeout: 3000 });
+  const knight = await champ();
+  const took = knight.inventory.find((id) => ['unbreakable', 'heartOfTheHold'].includes(id));
+  want(!!took && knight.world.ironHold[1] === 5, `after the Knight crown ${JSON.stringify(knight)}`);
+  log.push(`"${leg.head}" on Knight: ${leg.cards.map((c) => c.name).join('/')} -> ${took}`);
+  // the Champion crown: the other legendary on one card
+  await setWorld([5, 5, 4]);
+  await press('[data-menu]');
+  const rc = await road(2);
+  want(rc.name === 'The Iron Hold · Level 5' && /The other Steel legendary/.test(rc.text), `road Champion ${JSON.stringify(rc)}`);
+  const top = await fight();
+  await p.locator('.crown-pick').waitFor({ timeout: 5000 });
+  const other = await screenOf('.crown-pick');
+  await press('.crown-pick [data-pick="0"]');
+  await p.locator('[data-menu]').waitFor({ timeout: 3000 });
+  const end = await champ();
+  await p.close();
+  want(top.cleared && top.tier === 2 && other.head === '👑 The Iron Hold crowned' && other.cards.length === 1 && other.cards[0].name !== leg.cards[1]?.name
+    && end.inventory.includes('unbreakable') && end.inventory.includes('heartOfTheHold') && end.world.ironHold[2] === 5, `Champion crown ${JSON.stringify(top)} card ${JSON.stringify(other)} champion ${JSON.stringify(end)}`);
+  want(errs.length === 0, `errors: ${errs[0]}`);
+  log.push(`Champion crown: ${other.cards[0]?.name}; inventory ${end.inventory.join()}`);
+  return { ok: bad.length === 0, detail: `${log.join('; ')}${bad.length ? `; WRONG: ${bad.join(' | ')}` : ''}` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
