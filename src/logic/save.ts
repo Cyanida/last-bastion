@@ -21,7 +21,9 @@ import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, rune
 import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
 import { keepRuns, readRunLog, type RunLog } from './runlog';
 import { recordTierRun, tierUnlockedFor } from './difficulty';
-import { championsFromV6, readChampions, type Champion } from './champions';
+import { championsFromV6, newChampion, readChampions, type Champion } from './champions';
+import { clearRewards, levelSkip, recordClear } from './world';
+import type { CrownReward, LevelReward, RealmId } from '../config/world';
 
 export const SAVE_VERSION = 7; // v0.10 (#193): champions, one per class (logic/champions.ts); v6 was v0.7's relic rework
 export const READABLE_VERSIONS = [2, 3, 4, 5, 6, 7]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
@@ -172,6 +174,7 @@ export interface RunSummary {
   evolutions?: EvolutionId[]; // v0.6: taken this run
   duos?: DuoId[]; // v0.7: formed this run
   endlessScore?: number; // v0.6: 0 unless the run went on into Endless
+  realmLevel?: { realm: RealmId; level: number; cleared: boolean }; // v0.10 (#192): the realm level this run was; its head start doesn't count
 }
 
 const emptyClass = (): ClassRecord => ({ bestWave: 0, runs: 0, kills: 0, time: 0, xp: 0 });
@@ -381,7 +384,11 @@ export const today = (now: Date): string => now.toISOString().slice(0, 10);
 
 /** Fold a run into the save: gold, class XP, records, counters, difficulty unlock. Achievements are evaluated separately.
  * The game passes the day and time (testMode's banked); without them (tests) the run is banked on no day. */
-export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number; contracts: Contract[] } {
+export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number; contracts: Contract[]; levelRewards: { level: LevelReward[]; crown: CrownReward[] } } {
+  // v0.10 (#192): a realm level counts only the waves it played and the levels grown in them, and its gold cap is its share of a full run
+  const lv = run.realmLevel;
+  const skip = lv ? levelSkip(lv.realm, lv.level) : { waves: 0, levels: 0, share: 1 };
+  const wavesPlayed = Math.max(0, run.wavesCleared - skip.waves);
   const curses = run.curses ?? [];
   const loadout = metaLoadout(save.meta);
   const curseMult = curseMultiplier(curses) + curses.length * loadout.curseBonus;
@@ -393,12 +400,12 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   const oathKept = run.won && (run.oath ?? 0) > save.oaths[run.classId] ? run.oath! : 0;
   const oath = oathKept ? oathReward(oathKept) : { runes: 0, gold: 0 };
   const win = { runes: run.won ? VICTORY.win.runes + (firstWin ? VICTORY.firstWin.runes : 0) + oath.runes : 0, gold: (firstWin ? VICTORY.firstWin.gold : 0) + oath.gold, classXp: run.won ? VICTORY.win.classXp + (firstWin ? VICTORY.firstWin.classXp : 0) : 0 };
-  const classXp = Math.round(classXpForRun({ wavesCleared: run.wavesCleared, bosses: run.bosses.length, level: run.level }, TIERS[run.tier]) * curseMult * (1 + (save.meta.classXp ?? 0) * META.classXp.perRank)) + win.classXp;
+  const classXp = Math.round(classXpForRun({ wavesCleared: wavesPlayed, bosses: run.bosses.length, level: run.level - skip.levels }, TIERS[run.tier]) * curseMult * (1 + (save.meta.classXp ?? 0) * META.classXp.perRank)) + win.classXp;
   const c = save.counters;
   const acts = run.actsCleared ?? 0;
   // v0.4: the Treasury's income multiplier, then the daily caps on what curses and the Daily Trial add (BALANCE.md)
   const dailyGold = save.dailyGold.date === date ? save.dailyGold : { date, curse: 0, trial: 0 };
-  const runCap = RUNES.runGoldCap + (save.meta.dailyCap ?? 0) * 400;
+  const runCap = (RUNES.runGoldCap + (save.meta.dailyCap ?? 0) * 400) * skip.share;
   let gold = Math.round(run.gold * loadout.goldIncome);
   if (gold > runCap) gold = Math.round(runCap + runCap * (1 - Math.exp(-(gold - runCap) / runCap))); // the same soft cap as relic stacking: at most twice the cap
   const curseCap = RUNES.dailyCaps.curseGold + loadout.dailyCap;
@@ -418,19 +425,23 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   // v0.6: the weekly contracts (their Runes are outside the caps too)
   const contracts = advanceContracts(save.contracts, weekKey(date), {
     classId: run.classId, kills: run.kills, elites: run.elites, bosses: run.bosses.length, quests: run.quests ?? 0, commanders: run.commanders ?? 0,
-    wave: run.wave, acts: acts, evolutions: run.evolutions?.length ?? 0, relics: run.relics.length,
+    wave: run.wave - skip.waves, acts: acts, evolutions: run.evolutions?.length ?? 0, relics: run.relics.length,
   });
   runes += contracts.runes;
   // v0.6: the Endless leaderboard (per class, best first); endlessRank is 1-based, 0 = not on it
   const entry: EndlessEntry | null = run.endlessScore ? { score: run.endlessScore, wave: run.wave, kills: run.kills, time: run.time, at } : null;
   const board = entry ? [...save.endless[run.classId], entry].sort((a, b) => b.score - a.score).slice(0, VICTORY.leaderboard) : save.endless[run.classId];
   const endlessRank = entry ? board.indexOf(entry) + 1 : 0;
-  const tierRecords = recordTierRun(save, run.tier, run.wavesCleared, run.won === true);
+  const tierRecords = recordTierRun(save, run.tier, wavesPlayed, run.won === true);
   const tierTop = tierUnlockedFor(save.tierUnlocked, tierRecords); // v0.8 (#79): TIER_UNLOCK, no longer only from the highest tier
   const tierUnlocked = tierTop > save.tierUnlocked;
   const relicPicks = { ...save.relicPicks };
   for (const id of run.relicsFound ?? run.relics) relicPicks[id] = (relicPicks[id] ?? 0) + 1; // v0.4: every pickup and tier-up counts
   // class feats are kept as "the best a single run managed", so an achievement can ask for something within one run
+  // v0.10 (#192): a cleared level goes on its champion's world progress, and pays its first-clear and crown rewards once (the screens offer the picks)
+  const champion = lv ? save.champions[run.classId] ?? newChampion(run.classId) : null;
+  const levelRewards = lv?.cleared && champion ? clearRewards(champion.world, lv.realm, lv.level, run.tier) : { level: [], crown: [] };
+  const champions = lv?.cleared && champion ? { ...save.champions, [run.classId]: { ...champion, world: recordClear(champion.world, lv.realm, lv.level, run.tier) } } : save.champions;
   const feats = Object.fromEntries(FEAT_KEYS.map((k) => [k, Math.max(c[k], run.feats?.[k] ?? 0)])) as Record<FeatKey, number>;
   return {
     classXp,
@@ -441,6 +452,7 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
     endlessRank,
     oathKept,
     contracts: contracts.completed,
+    levelRewards,
     save: {
       ...save,
       gold: save.gold + gold,
@@ -451,6 +463,7 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
         [run.classId]: { bestWave: Math.max(prev.bestWave, run.wave), runs: prev.runs + 1, kills: prev.kills + run.kills, time: prev.time + run.time, xp: prev.xp + classXp },
       },
       relicPicks,
+      champions,
       treasures: run.treasure
         ? { ...save.treasures, [run.classId]: advanceChain(run.classId, save.treasures[run.classId], run.treasure, { unlocked: masteryBonus(prev.xp).treasureStep, difficulty: run.tier, acts }) }
         : save.treasures,

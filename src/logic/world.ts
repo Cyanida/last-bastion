@@ -30,6 +30,15 @@ export function levelBoss(end: EndBoss, wave: number, draw: BossDraw): BossKey |
   return key === FINAL.boss ? actBoss(actOf(wave)) : key;
 }
 
+/**
+ * #192: what a level's head start hands out for free, so a banked level counts only what was played: the waves before its first
+ * (`waves`), the levels the head start grew (`levels`), and its length as a share of a full run (`share`, which scales the gold cap).
+ */
+export function levelSkip(realm: RealmId, level: number): { waves: number; levels: number; share: number } {
+  const [first, last] = REALMS[realm].levels[level - 1].waves;
+  return { waves: first - 1, levels: headStartLevel(first) - 1, share: (last - first + 1) / (FINAL.act * ACTS.length) };
+}
+
 /** One champion's world progress: per realm, the highest level cleared on each tier (index into config/economy TIERS). */
 export type WorldProgress = Partial<Record<RealmId, number[]>>;
 
