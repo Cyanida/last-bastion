@@ -364,6 +364,45 @@ read 29.7%, close to the ceiling, so it came down. Rivet Hammer's first numbers 
 Hold's share counts only its thorns and Iron Keep: the armor of its extra, unfading stacks is not credited to it. The power index stayed in
 its band in every run (1.80-2.00).
 
+## C3 · The Iron Hold's Steel class relics and duo (v0.11, [#218](https://github.com/Cyanida/last-bastion/issues/218))
+
+The other three of the Iron Hold's seven new Steel relics: class relics for the three champions who had none in Steel (the Paladin has
+Aegis of the Faithful, the Viking Ironhide), and the realm's duo. Numbers in `config/relics.ts` (after Heart of the Hold, and the last duo),
+behaviour in `systems/relicFamilies/steel.ts` (Iron Tithe lives in Reprisal Cuirass's hook, where the reprisal happens, as Lightning Rod
+lives in the Shockwave Sigil), the pure rules (Radiance's stacks, the per-stack bonus, the bodkin count and share) in `logic/relics.ts`.
+
+| Relic | Rarity | Effect (I → II) | Awakened (III) |
+|---|---|---|---|
+| 💫 Iron Halo *(Angel)* | rare | Heavenly Radiance gives 1 + Grace/5 → 4 armor stacks and strikes everything it hits for 6 → 8 damage per armor stack you hold (grows with level) | **Aureole**: Radiance heals 5% more per armor stack you hold |
+| ⛓️ Legion Plate *(Necromancer)* | rare | Every 6th → 4th minion hit gives you an armor stack; minion hits deal 3% → 4% more per armor stack you hold | **Iron Legion**: skeletons you raise wear plate, 50% more HP |
+| 📌 Bodkin Points *(Archer)* | rare | Every 3rd arrow hit is a bodkin: 40% → 60% of the hit again, +2% per Focus, that no shield turns, and an armor stack | **Armor-Piercer**: at full armor stacks every arrow hit is a bodkin |
+| ⚖️ Iron Tithe *(duo)* | Steel + Blood | Reprisal Cuirass + Vampire Fang: a reprisal opens 3 bleed stacks on its target (10% of it per second each) and heals you 3% of its damage | (the duo's tier awakens both sources) |
+
+- **Each champion's lesson.** The Iron Hold teaches armor you break, shields that block from the front and thorns that hit back. The Angel
+  stands in the horde to cast Radiance, so her relic arms her as she casts and turns the armor into holy damage; the Necromancer's armor
+  comes from his legion and feeds it back; the Archer's bodkin is the arrow that goes through what a shield would turn (a bodkin is relic
+  damage with no direction, so no shield's front turns it; the arrow itself still has to reach the foe).
+- **Where they are found.** A class relic is in the Iron Hold's pool only for its class; level 3 unlocks it (the plan's rule "level 3
+  unlocks your class relic of that family"), and once kept it is in the champion's inventory. Runs without a champion find it as any other
+  class relic. It counts toward the 2 class relics and the 4 Steel relics a loadout may hold.
+- **Iron Tithe pairs Steel with Blood.** Flame (the forge's own family) already sits in 4 recipes, the most a family may have (A5, "spread
+  evenly"); Blood had 3. The reprisal is the hit paid back, the tithe takes it in blood, and the bleed is what Vampire Fang heals from, so
+  the two sources feed each other. Both halves are open to every class.
+
+**Measured.** `npx vite-node scripts/relic-report.ts run <class> <runs> <out> hold=<id>` for the class that owns each relic (6 runs each)
+and `hold=reprisalCuirass,vampireFang` for the duo (4 Paladin and 4 Viking runs), maxed saves, 26 runs, 26 won. Share from wave 21 on, target 3-35%:
+
+| Relic | Runs held at wave 20 | Share |
+|---|---|---|
+| ⚖️ Iron Tithe (with its two sources) | 8 | 26.0% |
+| 💫 Iron Halo | 6 | 18.1% |
+| ⛓️ Legion Plate | 6 | 12.6% |
+| 📌 Bodkin Points | 6 | 7.8% |
+
+All four sit inside the band on their first numbers. A duo's row counts its two sources' work as its own (#96), so Iron Tithe's 26% is the
+cuirass's reprisals, the fang's leech and the tithe's bleed and heal together; the cuirass read 9.3% in the runs where it stood alone. The power index
+read 2.04 (Act II 1.86, Act III 2.25), inside its band.
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
@@ -483,7 +522,7 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Deathmask | common | Cursed enemies deal 15% → 20% less damage | **Mark of the Grave**: a cursed enemy you kill leaves a corpse that bursts in shadow after 1 s | any |
 | Bone Chime *(Necromancer)* | rare | Minions inherit 50% → 70% of your attack speed, plus 2% → 3% per Soul Power | **Death Knell**: every 20th minion hit tolls the chime: a shadow burst around that minion | Necromancer |
 
-#### 🛡️ Steel (9 + 2 class)
+#### 🛡️ Steel (9 + 5 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -498,8 +537,11 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Pavise *(v0.11)* | rare | 25% → 35% chance to block a hit from an enemy in front of you (within 60° of where you strike) | **Riposte**: a block from the front strikes the attacker for 3× the hit | any |
 | Reprisal Cuirass *(v0.11)* | rare | Every hit that comes at you, blocked or not, is kept at full force (up to 25% of max HP); your next attack hit adds 8× → 10× that as damage | **Vengeance**: the reprisal also strikes every enemy within 90 px of the target for 50% of it | any |
 | Heart of the Hold *(v0.11)* | legendary | Armor stacks never fade and you hold 3 more; a hit you take or block gives an armor stack, and the attacker takes 8 → 12 damage per stack you hold (grows with level) | **Iron Keep**: at full armor stacks, hits take 20% less damage | any |
+| Iron Halo *(Angel, v0.11)* | rare | Heavenly Radiance gives 1 + Grace/5 → 4 armor stacks and strikes everything it hits for 6 → 8 damage per armor stack you hold (grows with level) | **Aureole**: Radiance heals 5% more per armor stack you hold | Angel |
+| Legion Plate *(Necromancer, v0.11)* | rare | Every 6th → 4th minion hit gives you an armor stack; minion hits deal 3% → 4% more per armor stack you hold | **Iron Legion**: skeletons you raise wear plate, 50% more HP | Necromancer |
+| Bodkin Points *(Archer, v0.11)* | rare | Every 3rd arrow hit is a bodkin: 40% → 60% of the hit again, +2% per Focus, that no shield turns, and an armor stack | **Armor-Piercer**: at full armor stacks every arrow hit is a bodkin | Archer |
 
-### Duo relics (12)
+### Duo relics (13)
 
 Hold both source relics and a duo can be offered (a gold fourth card, it takes the moment's pick). A duo combines its two source relics into
 one relic with both their effects and its own, attuning as one up to tier III; the families keep the two relics' counts (v0.7.5, #96). Each
@@ -519,6 +561,7 @@ source relic can feed only one formed duo.
 | **Martyr's Covenant** | Blood + Holy | Blood Pact + Guardian's Aegis | 30% of the damage you take comes back as ward over 3 s |
 | **Requiem** | Holy + Grave | Halo of Mercy + Deathmask | Cursed enemies always drop a mercy orb |
 | **Consecration** | Holy + Steel | Rally Banner + Thorn Mail | Ward you gain also gives an armor stack, and a block heals 2% max HP |
+| **Iron Tithe** *(v0.11)* | Steel + Blood | Reprisal Cuirass + Vampire Fang | A reprisal opens 3 bleed stacks on its target (10% of it per second each) and heals you 3% of its damage |
 
 ### Rules check
 

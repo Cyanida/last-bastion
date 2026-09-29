@@ -4347,6 +4347,56 @@ await check('Relics: Rivet Hammer, Pavise, Reprisal Cuirass and Heart of the Hol
   }),
 );
 
+// ---------- #218: the Iron Hold's Steel class relics: each champion's own, in a test run fought through the real input (ability on Space) ----------
+await check('Relics: Iron Halo, Legion Plate and Bodkin Points each work for their own champion in a fight, test mode lists each for its class only, and their HUD tiles say what they do (#218)', async () => {
+  const cases = [
+    { classId: 'angel', id: 'ironHalo', says: /Heavenly Radiance gives .* armor stacks/ },
+    { classId: 'necromancer', id: 'legionPlate', says: /hit of your minions gives you an armor stack/ },
+    { classId: 'archer', id: 'bodkinPoints', says: /arrow hit is a bodkin/ },
+  ];
+  const ids = cases.map((c) => c.id);
+  const out = [];
+  for (const c of cases) {
+    await inPage(() => location.reload());
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const start = await inPage(async ({ c, ids }) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), c.classId);
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave and a level-1 champion, as #217's check
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), '1');
+      const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
+      const own = document.querySelector(`#tm-relics select[data-relic="${c.id}"]`);
+      if (own) set(own, '1');
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land and are counted, the run just never ends
+      await wait(300);
+      return { listed, held: g.player.relics.held.includes(c.id), tip: document.querySelector(`#h-relics .relic[data-id="${c.id}"]`)?.dataset.tip ?? '' };
+    }, { c, ids });
+    // the champion steps toward the horde and fights for 30 s, casting the ability (Space) whenever it is ready
+    await page.keyboard.down('ArrowRight');
+    await inPage(() => window.__lb.run(60, false, 'input'));
+    await page.keyboard.up('ArrowRight');
+    await page.keyboard.down('Space');
+    let stacks = 0;
+    for (let i = 0; i < 30; i++) stacks = Math.max(stacks, await inPage(() => (window.__lb.run(60, false, 'input'), window.__lb.game.player.armorStacks)));
+    await page.keyboard.up('Space');
+    const damage = await inPage((id) => window.__lb.game.player.relics.stats[id]?.damage ?? 0, c.id);
+    const ok = start.listed.length === 1 && start.listed[0] === c.id && start.held && c.says.test(start.tip) && damage > 0 && stacks > 0;
+    out.push({ ok, text: `${c.classId}: lists ${start.listed.join('+') || 'none'}, held ${start.held}, tile ${c.says.test(start.tip) ? 'yes' : 'NO'}, ${Math.round(damage)} dmg, up to ${stacks} armor stacks` });
+  }
+  return { ok: out.every((o) => o.ok), detail: out.map((o) => o.text).join('; ') };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };

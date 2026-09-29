@@ -42,6 +42,9 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #217 on the merged code (after #196, #197, #200, #201, #205, #210 and #212 came into release/0.11.0): the four Steel
  * relics on top of Ember Mantle, the tuned commons and the Great Keep's wing rooms move every run but archer:5 on purpose; each run
  * still reaches the first Act boss.
+ * Re-recorded for #218 (v0.11): the Steel class relics of the Angel, the Necromancer and the Archer join their pools and Iron Tithe
+ * (Reprisal Cuirass + Vampire Fang) joins the duos, so the runs of those three classes draw different relics on purpose; every seed still
+ * reaches the first Act boss.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -83,15 +86,15 @@ const GOLDEN: Record<string, string> = {
   'viking:98765': 'wave 18 kills 811 level 18 gold 3433 relics 7 hash ea110cf7',
   'viking:5': 'wave 9 kills 269 level 10 gold 767 relics 4 hash 70af9ff',
   'angel:1234': 'wave 18 kills 784 level 18 gold 3259 relics 6 hash e195f8bb',
-  'angel:98765': 'wave 14 kills 562 level 15 gold 2604 relics 5 hash fab8979b',
-  'necromancer:1234': 'wave 9 kills 290 level 10 gold 835 relics 4 hash e8f55806',
-  'necromancer:5': 'wave 20 kills 784 level 19 gold 3030 relics 9 hash f256fb42',
-  'archer:2027': 'wave 9 kills 289 level 10 gold 889 relics 3 hash e3214744',
-  'archer:5': 'wave 9 kills 263 level 11 gold 869 relics 4 hash 5254d592',
+  'angel:98765': 'wave 17 kills 725 level 18 gold 3609 relics 7 hash a9273f62',
+  'necromancer:1234': 'wave 9 kills 290 level 10 gold 835 relics 4 hash ddce38b6',
+  'necromancer:5': 'wave 9 kills 269 level 10 gold 714 relics 3 hash a355106',
+  'archer:2027': 'wave 9 kills 299 level 10 gold 849 relics 3 hash a754676f',
+  'archer:5': 'wave 20 kills 858 level 19 gold 3984 relics 9 hash f56fce7a',
   'paladin:7 meta': 'wave 15 kills 596 level 18 gold 2217 relics 8 hash fe4c37bb',
   'viking:98765 curse': 'wave 17 kills 744 level 17 gold 4727 relics 7 hash aa1a88df',
-  'angel:98765 oath 3': 'wave 13 kills 538 level 14 gold 2458 relics 4 hash 693ab727',
-  'archer:13 variant 1': 'wave 20 kills 965 level 20 gold 3767 relics 7 hash b7eea7b8',
+  'angel:98765 oath 3': 'wave 18 kills 777 level 18 gold 4605 relics 7 hash 9ccfd807',
+  'archer:13 variant 1': 'wave 20 kills 997 level 20 gold 4201 relics 7 hash e428caa0',
 };
 
 describe('v0.8 golden runs', () => {
