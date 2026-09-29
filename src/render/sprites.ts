@@ -1314,6 +1314,45 @@ export const SPRITES = {
     '....kkpqqqqqqqqqqqqqqqqqqqkk....',
     '....kkkkkkkkkkkkkkkkkkkkkkkk....',
   ],
+  // #227: the Ember Queen: a letter-grid stand-in (the Inquisitor's shape in coal and ember) until her rigged sheet loads
+  emberQueen: [
+    '................................',
+    '................................',
+    '......kgkkgkkgkkkkgkkgkkgk......',
+    '......kDoooooooooooooooook......',
+    '....kkDDooooooooooooooooookk....',
+    '....kkooooooooooooooooooookk....',
+    '......khhhhhhgmhhhhhkooook..oo..',
+    '......kkkkkooooooooookkkkk..oo..',
+    '..........ksssssssssak....oooooo',
+    '..........ksskkaakksak....oooooo',
+    '..........ksswksswksak......oo..',
+    '..........ksssssasssak......oo..',
+    '..........kssskkksssak......bb..',
+    '..........ksssssssssak......bb..',
+    '......kkkkkhhhhhhhhhhkkkkk..bb..',
+    '......khhhkhhhhhhhhhkkhhhk..bb..',
+    '....kkhhhhkhhhhgghhhkhhhhhkkbb..',
+    '....khhhhhkhhhgggghhkhhhhhsbbb..',
+    '..kkhhhhhhkhhhhgghhhkhhhhhssbb..',
+    '..khhhhhhhkhhhhgghhhkhhhhhaabb..',
+    '..khhhhhkkkhhhhhhhhhkkkhhk..bb..',
+    '..khhhhhkkhhhhhhhhhhhhkkkk..bb..',
+    '..kssshhkhhhhhhhhhhhhhhk....bb..',
+    '..kksakkkhhhhhhhhhhhhhhk....bb..',
+    '....kk..khhhhhhhhhhhhhhk........',
+    '....kk..khhhhhhhhhhhhhhk........',
+    '........khhhhhoooohhhhhk........',
+    '........khhhhhogoohhhhhk........',
+    '......kkhhhhhhoooohhhhhhkk......',
+    '......khhhhhhhoooohhhhhhhk......',
+    '......khhhhhhhogoohhhhhhhk......',
+    '......khhhhhhhoooohhhhhhhk......',
+    '....kkhhhhhhhhoooohhhhhhhhkk....',
+    '....khhhhhhhhhogoohhhhhhhhhk....',
+    '....kkhhhhhhhhoooohhhhhhhhkk....',
+    '....kkkkkkkkkkkkkkkkkkkkkkkk....',
+  ],
   // v0.6: the end of the run. A crowned king in black-and-gold plate, a red cape, the greatsword he took the throne with.
   usurper: [
     '..........gm..gggm..gm..........',
@@ -1397,7 +1436,7 @@ export const SPRITE_RES: Partial<Record<SpriteId, number>> = {
   bannerman: 2, drummer: 2, chaplain: 2, // the commanders
   // the siege pieces and the bosses (#138, part 3); the skeleton minion stays 1x on purpose
   ballista: 2, siegeTower: 2, siegeCamp: 2, plagueCart: 2,
-  blackKnight: 2, warlord: 2, lich: 2, inquisitor: 2, abbot: 2, dragon: 2, warden: 2, forgemaster: 2, ironKing: 2, usurper: 2, royalFlame: 2,
+  blackKnight: 2, warlord: 2, lich: 2, inquisitor: 2, abbot: 2, dragon: 2, warden: 2, forgemaster: 2, ironKing: 2, emberQueen: 2, usurper: 2, royalFlame: 2,
 };
 
 export interface Sprite {

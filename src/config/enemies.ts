@@ -28,6 +28,7 @@ export type EnemyId =
   | 'warden'
   | 'forgemaster'
   | 'ironKing'
+  | 'emberQueen'
   | 'blackKnight'
   | 'warlord'
   | 'lich'
@@ -287,6 +288,13 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     ...boss, id: 'ironKing', name: 'The Iron King', sprite: 'ironKing', behavior: 'chaser', phases: 3,
     hp: 1150, damage: 24, speed: 74, radius: 32, xp: 150, frontBlock: 1.2,
     specialCd: 5, windup: 0.9, specialMult: 1.4, zoneRadius: 40, chargeSpeed: 620, chargeDist: 440, summon: 'ironKnight', summonCount: 2, p2SpeedMult: 1.1,
+  },
+  // #227: the Cinderlands' level-3 boss (config/bosses.ts EMBER_QUEEN, systems/bosses.ts). She keeps to the middle distance and sets the
+  // ground alight: her Kindling, her Ember volley, her Flare, and from phase 3 burning footsteps
+  emberQueen: {
+    ...boss, id: 'emberQueen', name: 'The Ember Queen', sprite: 'emberQueen', behavior: 'chaser', phases: 3,
+    hp: 1050, damage: 22, speed: 76, radius: 28, xp: 120, range: 250,
+    specialCd: 4.6, windup: 0.9, specialMult: 1.4, zoneRadius: 44, projSpeed: 340, poolLife: 4.5, poolDps: 11, p2SpeedMult: 1.1,
   },
   // ---- v0.6: the end of the run (config/acts.ts FINAL, systems/bosses.ts) ----
   usurper: {
