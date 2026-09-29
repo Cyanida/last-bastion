@@ -265,6 +265,21 @@ function bunk(): Figure {
   return f;
 }
 
+/**
+ * #211: a forge press's ram, as it hangs over a marked tile: a riveted black iron block on a steel piston, a steel striking face with
+ * an edge still hot from the forge. The face is 68 px wide, a flagstone slab (80 px) less its mortar and a margin.
+ */
+function press(): Figure {
+  const f = new Figure(76, 96);
+  f.part(O, rect(32, 0, 44, 48), 'steel', 0, { folds: [0.5, 4, 0], details: dots([[35, 10], [35, 26], [35, 40]], 'steel', 6) }); // piston
+  f.part(O, rect(25, 42, 51, 52), 'darksteel', 0.5, { details: dots([[28, 46], [47, 46]], 'steel', 5) }); // its collar
+  f.part(O, rect(6, 50, 70, 80), 'black', 1, { details: dots([[10, 54], [65, 54], [10, 75], [65, 75], [37, 54]], 'steel', 5) }); // the ram, riveted
+  f.part(O, rect(6, 62, 70, 67), 'darksteel', 1.1, { dim: 1 }); // a band round it
+  f.part(O, [[4, 80], [72, 80], [69, 88], [7, 88]], 'steel', 1.2); // the striking face
+  f.part(O, rect(9, 88, 67, 91), 'ember', 1.3, { profile: 'flat', details: dots([[20, 89], [44, 89]], 'ember', 6) }); // its edge, hot
+  return f;
+}
+
 export const PROPS: PropDef[] = [
   { id: 'pillar', w: 76, h: 100, anchor: [38, 80], r: 30, frames: [pillar()] },
   { id: 'brazier', w: 56, h: 72, anchor: [28, 54], r: 20, frames: [0, 1, 2, 3].map(brazier) },
@@ -286,6 +301,8 @@ export const PROPS: PropDef[] = [
   { id: 'anvil', w: 76, h: 72, anchor: [38, 50], r: 30, frames: [anvil()] },
   { id: 'rack', w: 80, h: 100, anchor: [40, 80], r: 30, frames: [rack()] },
   { id: 'bunk', w: 76, h: 52, anchor: [38, 30], r: 30, frames: [bunk()] },
+  // #211: the Iron Hold's forge press; its anchor is the middle of its face, where it lands on the marked tile
+  { id: 'press', w: 76, h: 96, anchor: [38, 88], r: 1, frames: [press()] },
 ];
 
 export const propPaths = { png: 'public/sprites/props.png', json: 'src/render/props.json' };
