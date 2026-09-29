@@ -21,7 +21,7 @@ import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, rune
 import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
 import { keepRuns, readRunLog, type RunLog } from './runlog';
 import { recordTierRun, tierUnlockedFor } from './difficulty';
-import { championsFromV6, newChampion, readChampions, type Champion } from './champions';
+import { championsFromV6, grantSignature, newChampion, readChampions, type Champion } from './champions';
 import { clearRewards, levelSkip, recordClear } from './world';
 import type { CrownReward, LevelReward, RealmId } from '../config/world';
 
@@ -441,7 +441,8 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   // v0.10 (#192): a cleared level goes on its champion's world progress, and pays its first-clear and crown rewards once (the screens offer the picks)
   const champion = lv ? save.champions[run.classId] ?? newChampion(run.classId) : null;
   const levelRewards = lv?.cleared && champion ? clearRewards(champion.world, lv.realm, lv.level, run.tier) : { level: [], crown: [] };
-  const champions = lv?.cleared && champion ? { ...save.champions, [run.classId]: { ...champion, world: recordClear(champion.world, lv.realm, lv.level, run.tier) } } : save.champions;
+  const cleared = lv?.cleared && champion ? { ...champion, world: recordClear(champion.world, lv.realm, lv.level, run.tier) } : null;
+  const champions = cleared ? { ...save.champions, [run.classId]: levelRewards.crown.some((r) => r.kind === 'signature') ? grantSignature(cleared, run.classId) : cleared } : save.champions; // #201: the Marches crown
   const feats = Object.fromEntries(FEAT_KEYS.map((k) => [k, Math.max(c[k], run.feats?.[k] ?? 0)])) as Record<FeatKey, number>;
   return {
     classXp,

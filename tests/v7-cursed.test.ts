@@ -43,7 +43,7 @@ describe('cursed relics (v0.7.1 B6): the model', () => {
       expect(r.awaken.desc, id).toMatch(/^The curse lifts/);
       expect(HOOKS[id], id).toBeTruthy();
     }
-    for (const id of RELIC_IDS.filter((r) => !isCursedRelic(r))) expect(FAMILY_IDS).toContain(relicDef(id).family);
+    for (const id of RELIC_IDS.filter((r) => !isCursedRelic(r) && !relicDef(r).signature)) expect(FAMILY_IDS).toContain(relicDef(id).family);
     for (const c of CLASS_ORDER) expect(relicPoolFor(c).filter(isCursedRelic)).toEqual([]);
   });
 });

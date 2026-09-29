@@ -347,7 +347,7 @@ await check('menus: the compendium, glossary and flash cards in the kit, every r
       const rim = (id) => getComputedStyle(frame(id)).borderTopColor;
       return {
         n: rows.length,
-        framed: rows.filter((r) => r.firstElementChild?.matches('.kit-rarity.common, .kit-rarity.rare, .kit-rarity.legendary, .kit-rarity.class')).length,
+        framed: rows.filter((r) => r.firstElementChild?.matches('.kit-rarity.common, .kit-rarity.rare, .kit-rarity.legendary, .kit-rarity.class, .kit-rarity.signature')).length, // #201: the signature relics in gold
         found: rows.filter((r) => !r.classList.contains('locked')).map((r) => `${r.querySelector('.kit-row-body > b').textContent} ${r.firstElementChild.classList[1]}`),
         glyph: frame('dragonsTongue').textContent === '🐉',
         colours: new Set(['brimstoneOil', 'dragonsTongue', 'fireArrows'].map(rim)).size,
@@ -1939,6 +1939,53 @@ await check('Bone Colossus: capped over many Raise Deads, skeletons stay beside 
   const last = seen.at(-1);
   const ok = seen.every((s) => s.colossi === 1 && s.bones > 0 && s.fused <= 10) && last.fused === 10 && last.damage > 0 && last.damage < 5000;
   return { ok, detail: `after ${seen.length} casts: ${last.bones} skeletons, Colossus ×${last.fused}, ${Math.round(last.damage)} dmg (first ${Math.round(seen[0].damage)})` };
+});
+
+// ---------- #201: the signature relics: gold in the compendium, a test run holds the Phylactery, Raise Dead brings its Bone Knight ----------
+await check('Relics: five gold signature relics in the compendium; the Phylactery raises a Bone Knight with Raise Dead (#201)', async () => {
+  const cp = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await cp.goto(`http://localhost:${PORT}/`);
+  await cp.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await cp.locator('[data-go="keep"]').click();
+  await cp.getByRole('button', { name: 'Relic compendium' }).click();
+  const comp = await cp.evaluate(() => {
+    const head = [...document.querySelectorAll('.compendium h2')].find((h) => /Signature/.test(h.textContent));
+    const grid = head?.nextElementSibling?.nextElementSibling;
+    return { head: !!head, gold: grid ? grid.querySelectorAll('.comp-card > .kit-rarity.signature').length : 0 };
+  });
+  await cp.close();
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  const run = await inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const cls = document.getElementById('tm-class');
+    cls.value = 'necromancer';
+    cls.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait();
+    const s = document.querySelector('select[data-relic="phylactery"]');
+    if (!s) return { listed: false };
+    s.value = '1';
+    s.dispatchEvent(new Event('change', { bubbles: true }));
+    const g = window.__startTest();
+    g.player.invulnerable = true;
+    g.breather = 1e9; // no wave: nothing kills the knight before it is counted
+    window.__lb.draw();
+    const chip = document.querySelector('#hud .relic.signature, .relic.signature');
+    return { listed: true, held: g.player.relics.held.includes('phylactery'), chip: !!chip && /Phylactery/.test(chip.dataset.tip ?? '') };
+  });
+  await page.keyboard.down('Space');
+  await inPage(() => window.__lb.run(2, false, 'input'));
+  await page.keyboard.up('Space');
+  const knights = await inPage(() => window.__lb.game.minions.filter((m) => m.relicBy === 'phylactery').length);
+  const ok = comp.head && comp.gold === 5 && run.listed && run.held && run.chip && knights === 1;
+  return { ok, detail: `compendium: signature section ${comp.head}, ${comp.gold} gold frames; test mode lists it ${run.listed}, held ${run.held}, gold HUD chip ${run.chip}; Bone Knights after Raise Dead: ${knights}` };
 });
 
 // ---------- #182: the Aegis of Dawn's dome goes when Divine Shield is detonated early ----------
