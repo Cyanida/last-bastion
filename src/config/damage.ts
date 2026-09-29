@@ -33,6 +33,7 @@ export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>
   assassin: { holy: 1.25 },
   dragon: { fire: 0.1, frost: 1.5, physical: 0.9 },
   warden: { physical: 0.85, shadow: 1.3 },
+  forgemaster: { fire: 0.5, frost: 1.3 }, // #215: forge-hot iron: fire barely warms it, frost cracks it
   usurper: { shadow: 0.7, holy: 1.25, physical: 0.9 },
   royalFlame: { fire: 0.1, frost: 2 }, // fire feeds it; frost puts it out
 };
@@ -55,6 +56,7 @@ export const ARMOR: Partial<Record<EnemyId, { frac: number; reduction: number; b
  */
 export const PLATES: Partial<Record<EnemyId, { plates: number; reduction: number; heavy: number }>> = {
   ironKnight: { plates: 6, reduction: 0.75, heavy: 0.2 },
+  forgemaster: { plates: 6, reduction: 0.6, heavy: 0.2 }, // #215: reforged at every new phase (config/bosses.ts FORGEMASTER)
 };
 /**
  * #213: an iron tower shield that is always up (the Iron Hold's shieldwalls). A hit that comes at its front (within the foe's

@@ -18,6 +18,8 @@ export interface Armoured {
   plate: Material; accent: Material; trim: Material; cape: Material; blade: Material;
   fx: Material; // the special's streak, trail and burst: its damage type (STYLE.md trails)
   mace?: boolean; // a flanged mace instead of the greatsword
+  hammer?: boolean; // #215: a forge hammer (a square iron head, its face glowing in `fx`) instead of the greatsword
+  apron?: Material; // #215: a smith's apron over the breastplate and the mail skirt
   special: 'charge' | 'slam';
   h?: number; // cell height, for a boss too tall for the default 100
   regal?: boolean; // the Usurper: a broad ermine-collared cloak to the ground and heavier pauldrons
@@ -77,6 +79,7 @@ function armoured(c: Armoured, p: Pose): Figure {
   f.part(torso, sc([[-3, -15], [4.6, -15], [3.6, -10.6], [0.8, -8.4], [-2, -10.6]]), c.accent, 3.2, { profile: 'flat' }); // chevron
   f.part(torso, sc([[-7.8, -4.6], [8.2, -4.6], [8.2, -2.1], [-7.8, -2.1]]), 'leather', 3.5); // belt
   f.part(torso, sc([[1, -5], [3.8, -5], [3.8, -1.7], [1, -1.7]]), c.trim, 3.6); // buckle
+  if (c.apron) f.part(torso.child(1.2 * S, -9 * S, 0.05 * p.lean), sc([[-3.6, 0], [4.4, 0], [5.6, 15.5], [0.6, 16.6], [-4.6, 15.5]]), c.apron, 3.65, { folds: [0.5, 2.4, 0], trim: ['darksteel', 0.8] }); // the apron, scorched at its hem
   f.part(torso, sc([[-4.2, -21], [4.8, -21], [5.4, -17], [-4.8, -17]]), c.plate, 3.7); // gorget
   const pd = c.regal ? 1.35 : 1; // pauldron size
   f.part(torso, E(-6.8, -16, 4.2 * pd, 3.6 * pd), c.plate, 3.8, { trim: [c.trim, 1], dim: 1 }); // far pauldron
@@ -101,7 +104,11 @@ function armoured(c: Armoured, p: Pose): Figure {
   f.part(sw, sc([[-1, -2], [1, -2], [1, 4.5], [-1, 4.5]]), 'leather', zs); // long grip
   f.part(sw, E(0, 5.4, 1.6, 1.5), c.plate, zs + 0.1); // pommel
   f.part(sw, sc([[-5, -3.2], [5, -3.2], [5.4, -1.8], [-5.4, -1.8]]), c.plate, zs + 0.1); // crossguard
-  if (c.mace) {
+  if (c.hammer) {
+    f.part(sw, sc([[-1.1, -3], [1.1, -3], [1.1, -19], [-1.1, -19]]), 'leather', zs + 0.05); // haft
+    f.part(sw, sc([[-4.6, -18], [5.4, -18], [5.4, -26.5], [-4.6, -26.5]]), c.blade, zs + 0.06, { trim: [c.plate, 0.8], details: dt([[-2.5, -22, c.blade, 1], [3.3, -22, c.blade, 1]]) }); // the square iron head
+    f.part(sw, sc([[4.2, -18.6], [6.6, -18.6], [6.6, -25.9], [4.2, -25.9]]), c.fx, zs + 0.07, { profile: 'flat' }); // its striking face, still glowing from the forge
+  } else if (c.mace) {
     f.part(sw, sc([[-1, -3], [1, -3], [1, -18], [-1, -18]]), 'leather', zs + 0.05); // haft
     f.part(sw, sc([[-4, -17], [4, -17], [4.6, -21], [3.2, -25], [0, -26.4], [-3.2, -25], [-4.6, -21]]), c.blade, zs + 0.06, { details: dt([[-2.6, -21, c.blade, 1], [0, -21, c.blade, 1], [2.6, -21, c.blade, 1]]) }); // flanged head
   } else f.part(sw, sc([[-2.2, -3], [2.2, -3], [2, -24], [0, -28.5], [-2, -24]]), c.blade, zs + 0.05, { details: Array.from({ length: 18 }, (_, k) => [0.1, -(k + 4) * S - 0.5, c.blade, 2] as Px) }); // greatsword

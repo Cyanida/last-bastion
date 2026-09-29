@@ -1,11 +1,12 @@
 import { FINAL } from '../config/acts';
-import { DRAGON, WARDEN } from '../config/bosses';
+import { DRAGON, FORGEMASTER, WARDEN } from '../config/bosses';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
 import { addZone, timer } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
 import { hammerZones, wardenMove, wardenSpecialCd } from '../logic/crownBoss';
+import { forgeCd, forgeMove, pressTiles, slamZones } from '../logic/forgemaster';
 import { angleTo, chargeStart, chargeThrough, distTo, hitDamage, keepRange, move, moveTo, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { pickTarget, registerBoss } from './enemyAI';
 import { burst, floatText, ring, shake } from './effects';
@@ -150,6 +151,46 @@ registerBoss('warden', (g, e, dt) => {
   }
   if (move.close) closeSeal(g, WARDEN.close.after, { e, x, y }); // the circle closes
   if (move.summon) summon(g, e);
+});
+
+// ---------------------------------------------------------------- #215: the Forgemaster, the Iron Hold's level-3 boss (config/bosses.ts FORGEMASTER)
+
+const EMBER = '#f08a1c';
+const IRON = '#9a9aa0';
+
+registerBoss('forgemaster', (g, e, dt) => {
+  const t = pickTarget(g, e);
+  const def = e.def;
+  // a new phase (enemyAI's enterPhase moved e.phase on): he reforges his plate whole, so it has to be broken again
+  if (e.phase > 1 && e.state < e.phase) {
+    e.state = e.phase;
+    e.armorHp = e.armorMax;
+    g.banner = { text: 'The Forgemaster reforges his plate', t: 2.2 };
+    markPhase(g, 'The Forgemaster reforges his plate');
+    ring(g, e.x, e.y, 130, EMBER, 0.6);
+    sfx(g, 'clang');
+  }
+  seek(e, t, e.speed, dt);
+  touch(g, e, t);
+  e.special -= dt;
+  if (e.special > 0 || distTo(e, g.player) > FORGEMASTER.reach) return;
+  e.special = forgeCd(e.phase);
+  sfx(g, 'warn');
+  const move = forgeMove(e.phase, e.combo++);
+  if (move.slam) {
+    // his hammer comes down in an arc in front of him; from phase 3 the struck ground stays molten (the Dragon's fire fields' burn)
+    const a = angleTo(e, t);
+    e.flip = t.x < e.x;
+    for (const z of slamZones(e.x, e.y, e.r, a)) addZone(g, { x: z.x, y: z.y, r: FORGEMASTER.slam.radius, delay: def.windup!, damage: specialDamage(e) * FORGEMASTER.slam.damage, hostile: true, color: EMBER, owner: e, dtype: 'fire', leaveField: move.slag ? fireField(g, e) : null });
+    const s = FORGEMASTER.sparks;
+    if (move.sparks && !e.telegraph) aimFan(g, e, { angle: a, count: s.count, spread: s.spread, windup: s.windup, damage: hitDamage(e) * s.damage, speed: def.projSpeed!, range: s.range, dtype: 'fire', color: EMBER });
+    return;
+  }
+  // the forge presses: a checkerboard of marked tiles round you, one colour slamming after the other
+  const { x, y } = g.player;
+  for (const z of pressTiles(x, y, move.strokes)) addZone(g, { x: z.x, y: z.y, r: FORGEMASTER.press.radius, delay: z.delay, damage: specialDamage(e) * FORGEMASTER.press.damage, hostile: true, color: IRON, owner: e });
+  g.banner = { text: 'The presses fall', t: 1.4 };
+  shake(g, 6);
 });
 
 // ---------------------------------------------------------------- v0.6: the Usurper, the end of the run (config/acts.ts FINAL)

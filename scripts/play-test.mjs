@@ -4224,6 +4224,77 @@ await check('test mode: "Start at" a realm level starts that level through its h
   return { ok, detail: `"${label}"; act/wave/level disabled ${before} -> ${after}; run: ${run ? `test ${run.test}, ${run.realm} level ${run.level}, waves ${run.start}-${run.last} (on wave ${run.wave}, Act ${run.act}), lv ${run.lv}, ${run.arena}, ${run.picks} queued ability picks, offer from ${run.offer} "${run.families}", TEST tag ${run.hud}` : 'none'}; picked -> ${held} held${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #215: the Forgemaster: Settings -> Test mode -> "Start at" the Iron Hold's level 3 -> the opening pick -> its last wave ----------
+// The champion stands beside him and trades plain blows (no ability, no bot moves, unhurt), so the fight goes the same way every run:
+// his plate breaks blow by blow, his hammer comes down in a marked arc, each new phase reforges the plate whole, from phase 2 the forge
+// presses slam a checkerboard (a third stroke in phase 3), and his fall clears the level.
+await check('Forgemaster: test mode starts the Iron Hold level 3; its last wave is his; hammer, presses, plates broken and reforged each phase, level cleared (#215)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="ironHold:3"]').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption('keep');
+  await p.locator('#tm-start').selectOption('ironHold:3');
+  await p.evaluate(() => {
+    // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    const clangs = { n: 0 };
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'clang' && clangs.n++), real(n));
+    }
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 20, the level's last
+    g.breather = 0.01;
+    const out = { wave: 0, id: '', plates: [], broke: false, hammer: [0, 0, 0], presses: [0, 0, 0], reforged: [], phases: [], dead: false };
+    let f = null;
+    const seen = new WeakSet();
+    for (let i = 0; i < 60000 && lb.state !== 'results' && !(f?.dead && g.level.cleared); i++) {
+      g.player.invulnerable = true;
+      // beside him, trading blows, once this phase has shown its moves (the hammer; from phase 2 the presses too); until then a
+      // few steps off, out of reach of his blows but inside his, so he keeps swinging and pressing
+      const shown = f && out.hammer[f.phase - 1] > 0 && (f.phase === 1 || out.presses[f.phase - 1] > 0);
+      if (f && !f.dead) (g.player.x = f.x - f.r - (shown ? 16 : 220)), (g.player.y = f.y);
+      lb.run(1, false, false);
+      f ??= g.enemies.find((e) => e.def.boss) ?? null;
+      if (!f) continue;
+      if (!out.id) (out.id = f.def.id), (out.wave = g.wave), out.plates.push(f.armorHp);
+      if (f.phase > out.phases.length + 1) out.phases.push(+g.time.toFixed(1)), out.reforged.push(f.armorHp);
+      if (out.phases.length === 0 && f.armorHp !== out.plates[out.plates.length - 1]) out.plates.push(f.armorHp);
+      if (f.armorHp === 0) out.broke = true;
+      const mine = g.zones.filter((z) => z.owner === f && !seen.has(z)); // the zones one blow set this tick
+      for (const z of mine) seen.add(z);
+      out.hammer[f.phase - 1] = Math.max(out.hammer[f.phase - 1], mine.filter((z) => z.color === '#f08a1c').length);
+      out.presses[f.phase - 1] = Math.max(out.presses[f.phase - 1], mine.filter((z) => z.color === '#9a9aa0').length);
+      if (f.dead) out.dead = true;
+    }
+    return { ...out, max: f?.armorMax, clangs: clangs.n, cleared: !!g.level?.cleared, test: g.vars.test };
+  });
+  await p.close();
+  const oneByOne = fight.plates.length >= 4 && fight.plates.slice(1).every((v, i) => v < fight.plates[i]);
+  const ok = fight.test === 1 && fight.wave === 20 && fight.id === 'forgemaster' && fight.plates[0] === 6 && fight.max === 6 && oneByOne && fight.broke && fight.clangs > 0
+    && fight.phases.length === 2 && fight.reforged.every((n) => n === 6) && fight.hammer[0] === 5 && fight.presses[0] === 0 && fight.presses[1] === 25 && fight.presses[2] === 38
+    && fight.dead && fight.cleared && errs.length === 0;
+  return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}; plates ${fight.plates.join('>')} of ${fight.max}, ${fight.clangs} clangs; phases at ${fight.phases.join(', ')} s, reforged to ${fight.reforged.join('/')}; hammer zones ${fight.hammer.join('/')}, press tiles ${fight.presses.join('/')} by phase; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
