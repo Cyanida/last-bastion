@@ -770,9 +770,9 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     }
     if (e.def.id === 'cinderColossus' && e.phase >= CINDER_COLOSSUS.burstFrom) {
       // #228: his heat: a foe that falls inside this ring bursts into fire (one faint, slowly pulsing circle)
-      ctx.globalAlpha = 0.18 + 0.08 * Math.sin(g.time * 3);
+      ctx.globalAlpha = 0.32 + 0.1 * Math.sin(g.time * 3);
       ctx.strokeStyle = '#f08a1c';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(e.x, e.y, CINDER_COLOSSUS.burst.reach, 0, Math.PI * 2);
       ctx.stroke();
