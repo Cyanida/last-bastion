@@ -57,6 +57,7 @@ export const ARMOR: Partial<Record<EnemyId, { frac: number; reduction: number; b
 export const PLATES: Partial<Record<EnemyId, { plates: number; reduction: number; heavy: number }>> = {
   ironKnight: { plates: 6, reduction: 0.75, heavy: 0.2 },
   forgemaster: { plates: 6, reduction: 0.6, heavy: 0.2 }, // #215: reforged at every new phase (config/bosses.ts FORGEMASTER)
+  ironKing: { plates: 8, reduction: 0.6, heavy: 0.2 }, // #216: his phase 1 only; he casts off what is left at phase 2 (config/bosses.ts IRON_KING)
 };
 /**
  * #213: an iron tower shield that is always up (the Iron Hold's shieldwalls). A hit that comes at its front (within the foe's
@@ -65,6 +66,7 @@ export const PLATES: Partial<Record<EnemyId, { plates: number; reduction: number
  */
 export const TOWER_SHIELDS: Partial<Record<EnemyId, { reduction: number; turn: number }>> = {
   ironShieldwall: { reduction: 0.85, turn: 1.8 },
+  ironKing: { reduction: 0.85, turn: 1.4 }, // #216: his phase 2 only (logic/ironKing towerShieldOf); a king turns slower than a shieldwall, so stepping round him works
 };
 /**
  * #214: thorns that hit back (the Iron Hold's Thorn Bearers). A blow of the champion's own (his attack or an ability, not a status or field
@@ -73,6 +75,7 @@ export const TOWER_SHIELDS: Partial<Record<EnemyId, { reduction: number; turn: n
  */
 export const THORNS: Partial<Record<EnemyId, { share: number; cap: number; reach: number; cd: number }>> = {
   thornBearer: { share: 0.2, cap: 0.05, reach: 100, cd: 0.35 },
+  ironKing: { share: 0.15, cap: 0.04, reach: 100, cd: 0.5 }, // #216: his phase 3 only (logic/ironKing thornsOf); a boss takes many blows, so a smaller, slower bite
 };
 /** v0.7.3 (#59): how much of a blocked (shield bearer) or thrown-back (mirror knight) shot's damage wears the shield or mirror down. */
 export const ARMOR_WEAR = { block: 1, reflect: 0.5 };

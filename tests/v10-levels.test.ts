@@ -98,7 +98,8 @@ describe('levels: the end boss and "level cleared" (#191)', () => {
   it('the end boss: named, the Usurper, or the draw; never the Usurper at wave 40 outside the Last Bastion', () => {
     expect(levelBoss({ boss: 'warden', crown: true }, 40, draw)).toBe('warden');
     expect(levelBoss({ boss: 'usurper' }, 40, draw)).toBe(FINAL.boss);
-    expect(levelBoss({ boss: 'ironKing', crown: true }, 40, draw)).not.toBe(FINAL.boss); // not built yet: an Act boss
+    expect(levelBoss({ boss: 'ironKing', crown: true }, 40, draw)).toBe('ironKing'); // #216: built now
+    expect(levelBoss({ boss: 'barrowKing', crown: true }, 40, draw)).not.toBe(FINAL.boss); // not built yet: an Act boss
     expect(levelBoss({ boss: 'pool' }, 40, draw)).not.toBe(FINAL.boss);
     expect(levelBoss({ boss: 'pool' }, 5, draw)).toBe('blackKnight'); // Act I keeps the arena's opener
   });

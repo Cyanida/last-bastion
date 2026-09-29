@@ -27,6 +27,7 @@ export type EnemyId =
   | 'dragon'
   | 'warden'
   | 'forgemaster'
+  | 'ironKing'
   | 'blackKnight'
   | 'warlord'
   | 'lich'
@@ -279,6 +280,13 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     ...boss, id: 'forgemaster', name: 'The Forgemaster', sprite: 'forgemaster', behavior: 'chaser', phases: 3,
     hp: 1000, damage: 22, speed: 70, radius: 30, xp: 120,
     specialCd: 5.5, windup: 0.9, specialMult: 1.4, zoneRadius: 46, projSpeed: 330, poolLife: 4, poolDps: 12, p2SpeedMult: 1.1,
+  },
+  // #216: the Iron Hold's crown boss (config/bosses.ts IRON_KING, systems/bosses.ts). A phase for each of the realm's lessons: his plate
+  // (config/damage.ts PLATES), then his iron tower shield (TOWER_SHIELDS, frontBlock), then his thorns (THORNS)
+  ironKing: {
+    ...boss, id: 'ironKing', name: 'The Iron King', sprite: 'ironKing', behavior: 'chaser', phases: 3,
+    hp: 1150, damage: 24, speed: 74, radius: 32, xp: 150, frontBlock: 1.2,
+    specialCd: 5, windup: 0.9, specialMult: 1.4, zoneRadius: 40, chargeSpeed: 620, chargeDist: 440, summon: 'ironKnight', summonCount: 2, p2SpeedMult: 1.1,
   },
   // ---- v0.6: the end of the run (config/acts.ts FINAL, systems/bosses.ts) ----
   usurper: {

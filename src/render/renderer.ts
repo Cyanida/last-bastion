@@ -3,7 +3,7 @@ import { AFFIXES, ELITES } from '../config/elites';
 import { GAME, RENDER } from '../config/game';
 import { MODIFIERS } from '../config/waves';
 import { clamp, TAU } from '../core/math';
-import { PLATES, STATUSES, TOWER_SHIELDS } from '../config/damage';
+import { PLATES, STATUSES } from '../config/damage';
 import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
@@ -19,6 +19,7 @@ import { digitGlyphs, fogSprite, getSprite, SHEETS, sheetSprite, glyphIndex, isN
 import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
 import { typeMultiplier } from '../logic/status';
+import { thornsOf, towerShieldOf } from '../logic/ironKing';
 import { uiScale } from '../ui/tooltip';
 
 export interface View {
@@ -746,12 +747,24 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.arc(e.x, e.y - 6, e.r + 6, e.angle - 1, e.angle + 1);
       ctx.stroke();
     }
-    if (TOWER_SHIELDS[e.def.id]) {
+    if (towerShieldOf(e.def.id, e.phase)) {
       // #213: the iron tower shield is always up: an iron rim over the front it covers, which swings round slowly as he turns
       ctx.strokeStyle = '#96a1b2';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(e.x, e.y - 6, e.r + 6, e.angle - e.def.frontBlock!, e.angle + e.def.frontBlock!);
+      ctx.stroke();
+    }
+    if (e.def.boss && thornsOf(e.def.id, e.phase)) {
+      // #216: the Iron King's thorns: iron spikes all round him, slowly turning (a thorn bearer's are on his sprite)
+      ctx.strokeStyle = '#c7ced6';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2 + g.time * 0.4;
+        ctx.moveTo(e.x + Math.cos(a) * (e.r + 3), e.y - 6 + Math.sin(a) * (e.r + 3));
+        ctx.lineTo(e.x + Math.cos(a) * (e.r + 13), e.y - 6 + Math.sin(a) * (e.r + 13));
+      }
       ctx.stroke();
     }
     if (e.shield > 0) {
