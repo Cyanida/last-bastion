@@ -30,6 +30,7 @@ import { closestGoals } from './logic/goals';
 import { currentProgress, weekKey, weeklyContracts } from './logic/contracts';
 import { nextAct, reforgeChoices } from './systems/acts';
 import { questTake } from './systems/quests';
+import { spawnEnemy } from './systems/spawning';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
 import { buyMeta, defaultSave, type Save, buyBuilding, today } from './logic/save';
@@ -993,6 +994,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       minionAnim, // #156: an ally kind's animation and frame, as last drawn
       peddlerAnim, // #178: the peddler's sheet frame, as last drawn
       enemyDef: (id: EnemyId) => ENEMIES[id], // #157: the play test turns a foe into a given kind
+      spawn: (id: EnemyId, x: number, y: number) => game && spawnEnemy(game, id, x, y), // #214: a foe brought in the way a wave brings it (a realm's variant included)
       props: propsLoaded, // #159: the arenas' rigged props have loaded
       arenaCanvas, // #159: the play test reads the baked ground under the props
       camera: () => game && { ...cameraFor(game, view), zoom: view.zoom }, // #159: where a world point lands on the canvas
