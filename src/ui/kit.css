@@ -311,6 +311,9 @@
 .kit-title .sub { margin: 12px 0 18px; text-shadow: 0 2px 4px #000; }
 .kit-title .notice { display: flex; gap: 14px; align-items: center; margin-bottom: 16px; font-size: 17px; }
 .kit-title .row { gap: 12px; margin-top: 20px; }
+/* #204: the Daily Trial while shut: its lock, and what opens it under the name */
+.kit-title .daily-locked { flex-wrap: wrap; justify-content: center; }
+.kit-title .daily-locked .lock-note { flex-basis: 100%; font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; opacity: 0.85; }
 .kit-purse { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); display: flex; gap: 14px; z-index: 2; }
 .kit-title .kit-frame { margin-top: 24px; width: min(560px, 100%); }
 .kit-title .contracts { margin: 0; max-width: none; }
