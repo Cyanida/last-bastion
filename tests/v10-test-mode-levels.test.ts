@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { talentsFor } from '../src/config/talents';
 import { REALM_IDS, REALMS } from '../src/config/world';
 import { createGame } from '../src/game';
-import { headStartLevel, parseTestLevel, ringStep, testLevels } from '../src/logic/world';
+import { headStartLevel, levelStep, parseTestLevel, ringStep, testLevels } from '../src/logic/world';
 import { createTestRun, isTestRun, type TestSetup } from '../src/systems/testMode';
 
 const row0 = talentsFor('viking').filter((n) => n.row === 0).slice(0, 2).map((n) => n.id);
@@ -39,7 +39,7 @@ describe('test mode starts any realm level (#206)', () => {
     expect(t.level?.realm).toBe('ironHold');
     expect(t.startWave).toBe(21);
     expect(t.player.level).toBe(headStartLevel(21));
-    expect(t.tier.enemyHp).toBeCloseTo(createGame('viking', 3).tier.enemyHp * ringStep('ironHold').hp, 5);
+    expect(t.tier.enemyHp).toBeCloseTo(createGame('viking', 3).tier.enemyHp * ringStep('ironHold').hp * levelStep('ironHold', 4).hp, 5);
   });
 
   it('spends the chosen talents along the plan and pays for every one, and holds the chosen relics', () => {

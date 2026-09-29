@@ -4,7 +4,7 @@ import { TIERS } from '../src/config/economy';
 import { REALMS, type RealmId } from '../src/config/world';
 import { createGame } from '../src/game';
 import { nextTierRequirement, tierUnlockedFor, topTierWon } from '../src/logic/difficulty';
-import { ringStep, recordClear, tierOpen, type WorldProgress } from '../src/logic/world';
+import { levelStep, ringStep, recordClear, tierOpen, type WorldProgress } from '../src/logic/world';
 import { applyRun, defaultSave, migrate, type RunSummary } from '../src/logic/save';
 
 const recs = (wins: number[]) => ({ tierWaves: [0, 0, 0, 0], tierWins: wins });
@@ -55,7 +55,7 @@ describe('v0.10 #203: difficulty', () => {
     const oath = createGame('paladin', 7, { tier: 0, oath: 3, realm: 'frozenPass' }).tier; // Oath and ring stack
     expect(oath.enemyHp).toBeCloseTo(createGame('paladin', 7, { tier: 0, oath: 3 }).tier.enemyHp * ringStep('frozenPass').hp);
     const lvl = createGame('paladin', 7, { tier: 1, level: { realm: 'frozenPass', level: 1 } }).tier; // a level run uses its own realm (#191)
-    expect(lvl.enemyHp).toBeCloseTo(TIERS[1].enemyHp * ringStep('frozenPass').hp);
+    expect(lvl.enemyHp).toBeCloseTo(TIERS[1].enemyHp * ringStep('frozenPass').hp * levelStep('frozenPass', 1).hp); // and its level step (#221)
   });
 
   it('the knight deed counts wins on Knight, Champion and Legend', () => {

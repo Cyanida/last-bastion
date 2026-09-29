@@ -155,13 +155,24 @@ export const WORLD = {
   loadout: { perFamily: 4, legendarySlots: 2, legendaries: 1, legendariesFinale: 2, classRelics: 2 },
   /** Rule 7: enemy HP and damage by ring (rings 1-4, then the finale). One tier step (config/economy TIERS) outweighs the whole ladder. */
   ringStep: { hp: [1, 1.07, 1.14, 1.21, 1.28], damage: [1, 1.04, 1.08, 1.12, 1.16] },
+  /**
+   * #221 (rule 9): enemy HP and damage by a level's place in its realm, on top of the tier and the ring step (logic/world levelStep). A
+   * level is a short run whose head start holds fewer relics than a run that played the waves before, so its foes ease to meet the
+   * first-try clear rates. Pass 2 eases realm level 1's HP and the Marches levels 3 and 7 (the dips) most. Decided: the Last Bastion is a whole run and keeps 1. Each stays over Squire's on Knight (a tier step still
+   * outweighs it).
+   */
+  levelStep: {
+    marches: { hp: [0.85, 0.9, 0.85, 0.9, 0.9, 0.9, 0.85], damage: [0.85, 0.9, 0.85, 0.9, 0.9, 0.9, 0.85] },
+    realm: { hp: [0.7, 0.85, 0.9, 0.9, 0.9], damage: [0.85, 0.9, 0.9, 0.9, 0.9] },
+  },
   /** Rule 6: the Last Bastion's elite foes and limits. */
   finale: { minAffixes: 2, eliteCap: 0.35, eliteChanceMult: 1.5, armorersChoice: false, merchantRelics: false },
   /**
    * Rule 3 (#191): the head start's missing level-up boons, one per level skipped, taken round this cycle ('attack': the class's attack
-   * stat). Decided: at rare strength, about what the best of three rolled cards is worth.
+   * stat). Decided: at rare strength, about what the best of three rolled cards is worth. #221: the levels from `lateFrom` on give
+   * `lateRarity` boons, since a run that played those waves also holds twice the relics a loadout does (rule 9's power band).
    */
-  headStart: { boons: ['attack', 'hp', 'atkSpd', 'secondary'] as const, rarity: 'rare' as const },
+  headStart: { boons: ['attack', 'hp', 'atkSpd', 'secondary'] as const, rarity: 'rare' as const, lateRarity: 'epic' as const, lateFrom: 11 },
   /**
    * Rule 6 (#204): the Daily Trial is today's 40-wave run with the fixed pool and no loadout, open once any champion holds this realm's
    * crown (any tier). Decided: a save that already took a Daily Trial keeps it open; the Armorer's offer and the Keepsake's free common

@@ -33,17 +33,16 @@ function golden({ cls, seed, level, variant = 0 }: GoldenLevel): string {
   return `${r.cleared ? 'cleared' : 'fell'} wave ${s.wavesCleared} kills ${s.kills} level ${s.level} loadout ${r.loadout.join('+') || '-'} relics ${s.relicsFound?.length ?? 0} hash ${fnv(JSON.stringify(s))}`;
 }
 
-// recorded on release/0.10.0 after #200; no fresh bot clears Marches level 7 on Knight yet (plan rule 9's tuning comes later), so its runs
-// pin the head start, the loadout and the fight up to the fall
-// Re-recorded for #217 (v0.11): Rivet Hammer joins the starter pool as a Steel common, so level 1's relic draws (and its three runs) changed on
-// purpose; level 7's runs hold their loadout and did not move.
+// re-recorded for #221 (rule 9's tuning: the level step on enemies, epic head-start boons from level 11; gameplay changed on purpose),
+// and again on release/0.11.0 with #217's Rivet Hammer in the starter pool (level 1's relic draws changed on purpose);
+// these seeds still fall on Marches level 7 on Knight, so its runs pin the head start, the loadout and the fight up to the fall
 const GOLDEN: Record<string, string> = {
-  'marches 1 paladin:1': 'cleared wave 5 kills 98 level 5 loadout - relics 1 hash 49afc03f',
-  'marches 1 archer:2': 'cleared wave 5 kills 105 level 5 loadout - relics 3 hash 3aeb6cc5',
-  'marches 1 angel:4 variant 1': 'cleared wave 5 kills 102 level 6 loadout - relics 3 hash e9719a3a',
-  'marches 7 paladin:1': 'fell wave 32 kills 257 level 24 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash ed61f5ec',
-  'marches 7 angel:1': 'fell wave 33 kills 412 level 25 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash 7aa2e40a',
-  'marches 7 viking:2 variant 1': 'fell wave 34 kills 474 level 25 loadout tempestEye+anvilHeart+salamanderScale+berserkerTooth relics 5 hash 987dccdc',
+  'marches 1 paladin:1': 'cleared wave 5 kills 105 level 6 loadout - relics 3 hash fdf9ffdb',
+  'marches 1 archer:2': 'cleared wave 5 kills 105 level 5 loadout - relics 3 hash 3805bec1',
+  'marches 1 angel:4 variant 1': 'cleared wave 5 kills 102 level 5 loadout - relics 3 hash add2be37',
+  'marches 7 paladin:1': 'fell wave 32 kills 254 level 24 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash e1d5adef',
+  'marches 7 angel:1': 'fell wave 31 kills 221 level 24 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash ca941fbf',
+  'marches 7 viking:2 variant 1': 'fell wave 30 kills 90 level 24 loadout tempestEye+anvilHeart+salamanderScale+berserkerTooth relics 5 hash 963f0a60',
 };
 
 describe('v0.10 golden level runs (#207)', () => {
