@@ -4477,6 +4477,77 @@ await check('test mode: "Start at" a realm level starts that level through its h
   return { ok, detail: `"${label}"; act/wave/level disabled ${before} -> ${after}; run: ${run ? `test ${run.test}, ${run.realm} level ${run.level}, waves ${run.start}-${run.last} (on wave ${run.wave}, Act ${run.act}), lv ${run.lv}, ${run.arena}, ${run.picks} queued ability picks, offer from ${run.offer} "${run.families}", TEST tag ${run.hud}` : 'none'}; picked -> ${held} held${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #223: the Ember Forge: Settings -> Test mode -> "Start at" the Cinderlands' level 1 -> the opening pick -> the Ember Forge ----------
+// The level plays in the Ember Forge (the HUD names it); its lava is baked into the ground (molten orange along a channel, but for a crust
+// plate or two; grey stone on the bridge between two runs). Walked into with the keyboard and stood in, the lava burns the champion; walked over the bridge, it doesn't.
+await check('Ember Forge: a Cinderlands level plays in the Ember Forge; walk into a lava channel and it burns you, cross at the bridge and it doesn\'t (#223)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => (window.__lb.save.cards = [...window.__lb.cardIds])); // every flash card seen: nothing stops the walk
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="cinderlands:1"]').count())) return (await p.close(), { skip: true, detail: 'no Cinderlands level start in this build' });
+  await p.locator('#tm-class').selectOption('viking');
+  await p.locator('#tm-start').selectOption('cinderlands:1');
+  await p.getByRole('button', { name: /start test run/i }).click();
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  await p.waitForFunction(() => window.__lb.state === 'playing', null, { timeout: 5000 }).catch(() => {});
+  const seen = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, lava = g.arena.lava ?? [];
+    const top = lava.filter((c) => c.y === Math.min(...lava.map((q) => q.y))).sort((a, b) => a.x - b.x);
+    const ground = lb.arenaCanvas(g.arena.id).getContext('2d');
+    const px = (x, y) => [...ground.getImageData(Math.round(x), Math.round(y), 1, 1).data];
+    const run = top[1] ?? top[0];
+    const molten = run ? [0.15, 0.3, 0.45, 0.6, 0.75, 0.9].map((t) => px(run.x + run.w * t, run.y + run.h / 2)) : [];
+    const bridge = top.length > 1 ? px((top[0].x + top[0].w + top[1].x) / 2, top[0].y + top[0].h / 2) : [0, 0, 0];
+    return { arena: g.arena.id, realm: g.level?.realm, runs: lava.length, hud: document.body.innerText.includes('The Ember Forge'),
+      molten: molten.filter(([r, gg, b]) => r > 150 && r > gg && b < 90).length, bridge, run: run && { x: run.x, y: run.y, w: run.w, h: run.h }, gapX: top.length > 1 ? (top[0].x + top[0].w + top[1].x) / 2 : 0 };
+  });
+  // walk down with the keyboard from the bank; `into` stops as the champion stands in the middle of the channel, then he stands there
+  const walk = async (x, y, stopY) => {
+    await p.evaluate(([x, y]) => {
+      const g = window.__lb.game;
+      Object.assign(g.player, { x, y, invulnerable: false, iFrames: 0 });
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      window.__lb.run(1, false, 'input');
+    }, [x, y]);
+    const hp0 = await p.evaluate(() => window.__lb.game.player.hp);
+    await p.keyboard.down('KeyS');
+    for (let i = 0; i < 40; i++) {
+      const at = await p.evaluate((stopY) => {
+        const lb = window.__lb, g = lb.game;
+        for (let k = 0; k < 3 && g.player.y < stopY; k++) (g.enemies.length = 0), (g.spawnQueue.length = 0), lb.run(1, false, 'input');
+        return g.player.y;
+      }, stopY);
+      if (at >= stopY) break;
+    }
+    await p.keyboard.up('KeyS');
+    return p.evaluate((hp0) => {
+      const lb = window.__lb, g = lb.game, texts = [];
+      for (let i = 0; i < 75; i++) { // stand there 1.25 s: two or three lava ticks
+        g.enemies.length = 0;
+        g.spawnQueue.length = 0;
+        lb.run(1, false, 'input');
+        for (const t of g.texts) if (!texts.includes(t.text)) texts.push(t.text);
+      }
+      return { lost: Math.round(hp0 - g.player.hp), x: Math.round(g.player.x), y: Math.round(g.player.y), burns: texts.filter((t) => /^-\d/.test(t)).length };
+    }, hp0);
+  };
+  const r = seen.run;
+  const into = r ? await walk(r.x + r.w / 2, r.y - 50, r.y + r.h / 2) : null;
+  const over = r && seen.gapX ? await walk(seen.gapX, r.y - 50, r.y + r.h / 2) : null;
+  await p.close();
+  const grey = Math.max(...seen.bridge.slice(0, 3)) - Math.min(...seen.bridge.slice(0, 3)) < 40;
+  const ok = seen.arena === 'emberForge' && seen.realm === 'cinderlands' && seen.hud && seen.runs === 6 && seen.molten >= 4 && grey
+    && into?.lost > 0 && into.burns > 0 && over?.lost <= 0 && errs.length === 0;
+  return { ok, detail: `${seen.realm} level 1 in ${seen.arena} (HUD ${seen.hud ? 'names it' : 'NO'}); ${seen.runs} lava runs, ${seen.molten}/6 molten pixels, bridge rgb ${seen.bridge.slice(0, 3).join(',')}; stood in the lava at ${into?.x},${into?.y}: -${into?.lost} HP (${into?.burns} burns); on the bridge at ${over?.x},${over?.y}: ${over?.lost > 0 ? `-${over.lost}` : 'unhurt'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #215: the Forgemaster: Settings -> Test mode -> "Start at" the Iron Hold's level 3 -> the opening pick -> its last wave ----------
 // The champion stands beside him and trades plain blows (no ability, no bot moves, unhurt), so the fight goes the same way every run:
 // his plate breaks blow by blow, his hammer comes down in a marked arc, each new phase reforges the plate whole, from phase 2 the forge
