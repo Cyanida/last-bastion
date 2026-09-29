@@ -1,5 +1,5 @@
 import type { ClassId } from '../config/classes';
-import { ATTUNEMENT, DUO_IDS, DUOS, FAMILIES, FAMILY_IDS, SET_LEVELS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_POOL, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, DUO_IDS, DUOS, FAMILIES, FAMILY_IDS, SET_LEVELS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_POOL, RELIC_WEIGHTS, relicDef, SIGNATURE, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng, SeededRng } from '../core/types';
 import { isMultiplicative } from './mods';
@@ -63,9 +63,12 @@ export function attuneAll(r: RelicState, amount: number): void {
   for (const id of r.held) if ((r.tiers[id] ?? 0) < RELIC_MAX_TIER) r.attune[id] = (r.attune[id] ?? 0) + amount;
 }
 
-/** Every relic this class may find, less other classes' relics: the fixed pool of a run without a champion (the Daily Trial, the sims). */
+/**
+ * Every relic this class may find, less other classes' relics: the fixed pool of a run without a champion (the Daily Trial, the sims).
+ * Cursed relics come by their own rule (v0.7.1), and a signature relic only from a champion's inventory (#201).
+ */
 export function relicPoolFor(classId: ClassId): RelicId[] {
-  return RELIC_IDS.filter((id) => !relicDef(id).cursed && (relicDef(id).classId ?? classId) === classId); // v0.7.1: cursed relics come by their own rule
+  return RELIC_IDS.filter((id) => !relicDef(id).cursed && !relicDef(id).signature && (relicDef(id).classId ?? classId) === classId);
 }
 
 /** v0.10 (#194): a relic every champion's run finds whatever it owns: a starter common, or one of RELIC_POOL.open. */
@@ -76,7 +79,8 @@ export const isStarterRelic = (id: RelicId): boolean => relicDef(id).rarity === 
  * level's featured one) that whole family, locked or not.
  */
 export function championPool(classId: ClassId, inventory: RelicId[], family?: FamilyId): RelicId[] {
-  return relicPoolFor(classId).filter((id) => isStarterRelic(id) || inventory.includes(id) || (!!family && relicDef(id).family === family));
+  const own = SIGNATURE.relic[classId]; // #201: its signature relic once won
+  return [...relicPoolFor(classId).filter((id) => isStarterRelic(id) || inventory.includes(id) || (!!family && relicDef(id).family === family)), ...(inventory.includes(own) ? [own] : [])];
 }
 
 /** v0.10 (#194): the relics of a pool the champion hasn't unlocked yet: neither a starter relic nor in its inventory. */
@@ -255,7 +259,7 @@ export function relicCardLine(id: RelicId, count: number, o: { upgrade: boolean;
   const fam = relicDef(id).family;
   const next = o.upgrade ? count : count + 1;
   const bonus = (SET_LEVELS as readonly number[]).includes(next) && !(next === 6 && o.noSix);
-  const parts = [fam ? `${FAMILIES[fam].icon} ${FAMILIES[fam].name} ${o.upgrade ? count : `${count} → ${next}`}${!o.upgrade && bonus ? ' ★ set bonus' : ''}` : '☠ no family'];
+  const parts = [fam ? `${FAMILIES[fam].icon} ${FAMILIES[fam].name} ${o.upgrade ? count : `${count} → ${next}`}${!o.upgrade && bonus ? ' ★ set bonus' : ''}` : relicDef(id).signature ? '👑 signature · no family' : '☠ no family'];
   if (o.duo) parts.push('✦ duo');
   if (o.evolution) parts.push('✦ evolution');
   return parts.join(' · ');

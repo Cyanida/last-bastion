@@ -577,6 +577,7 @@
 .levelup .boon.rare, .levelup .relic-card.rare { --r: #6f9fe0; }
 .levelup .boon.epic, .levelup .relic-card.legendary { --r: #f0913a; }
 .levelup .relic-card.cursed { --r: #9b59d0; }
+.levelup .relic-card.signature { --r: #f6d97a; }
 .levelup .boon.talent, .levelup .route.pilgrim { --r: #6fc26b; }
 .levelup .boon.tradeoff, .levelup .route.elite { --r: #a3282a; }
 .levelup .boon.special, .levelup .boon.evolution, .levelup .route.merchant { --r: #f6d97a; }

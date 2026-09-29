@@ -272,6 +272,10 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .relic.cursed { box-shadow: 0 0 10px #9b59d0; }
 .relic-card.cursed { background: linear-gradient(#eadcf3, #cdb3df); }
 .relic-card.cursed .tag, .relic-line.cursed { color: #5b2380; font-weight: bold; }
+.relic.signature, .relic-card.signature { border-color: #9a6118; outline-color: #f6d97a; } /* #201: a signature relic is gold */
+.relic.signature { box-shadow: 0 0 10px #f6d97a; }
+.relic-card.signature { background: linear-gradient(#fbf0cf, #efd796); }
+.relic-card.signature .tag, .relic-line.signature { color: #7a4a0e; font-weight: bold; }
 .relic-icon .tier { position: absolute; right: calc(50% - 34px); bottom: 4px; font: bold 14px var(--body); font-style: normal; color: #e9c95a; text-shadow: 0 0 3px #000, 0 0 3px #000; }
 .relic-icon { position: relative; }
 .relic-line { cursor: help; }

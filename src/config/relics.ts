@@ -18,6 +18,7 @@ export interface RelicDef {
   icon: string;
   family?: FamilyId; // none for a cursed relic
   cursed?: true; // v0.7.1 B6: a cursed relic (no family; offered by CURSED's rules, never from the pool)
+  signature?: true; // v0.10 (#201): a champion's signature relic (no family; won with the Marches crown, SIGNATURE below)
   classId?: ClassId; // a class relic: only offered to this class
   mods?: Partial<Mods>; // a few relics also carry a plain bonus (Blood Pact's damage, Tempest Eye's crit)
   n: Record<string, number>; // tier I numbers, read by the family module
@@ -31,7 +32,7 @@ const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 /** Keeps each relic's numbers typed and its text in sync with them. Tier III (awakened) keeps tier II's numbers. */
 function relic<N extends Record<string, number>, A extends Record<string, number> = Record<string, never>>(r: {
-  name: string; rarity: Rarity; icon: string; family?: FamilyId; cursed?: true; classId?: ClassId; mods?: Partial<Mods>; mods2?: Partial<Mods>;
+  name: string; rarity: Rarity; icon: string; family?: FamilyId; cursed?: true; signature?: true; classId?: ClassId; mods?: Partial<Mods>; mods2?: Partial<Mods>;
   n: N; n2: Partial<N>; a?: A; awaken: [string, string | ((a: A) => string)]; desc: (n: N) => string;
 }): RelicDef {
   const { n2, mods2, a = {} as A, awaken, desc, ...rest } = r;
@@ -325,6 +326,17 @@ export const RELICS = {
     awaken: ['Overflowing', 'The curse lifts: your max HP comes back.'], desc: (n) => `${pct(n.leech)} of all the damage you deal heals you (under the relic healing cap). Curse: your max HP is cut to ${pct(n.hp)}.` }),
   tyrantsBanner: relic({ name: "Tyrant's Banner", rarity: 'legendary', icon: '🏴', cursed: true, n: { per: 0.04, max: 0.6, elites: 1.6 }, n2: { per: 0.06, max: 0.9 },
     awaken: ['Conqueror', 'The curse lifts: elites come as often as before.'], desc: (n) => `Every elite you slay adds +${pct(n.per)} damage and attack speed for the rest of the run (up to +${pct(n.max)}). Curse: ${pct(n.elites - 1)} more elites.` }),
+  // ---------------------------------------------------------------- 👑 Signature (v0.10, #201): one per champion, no family, won with the Marches crown
+  oathkeepersSeal: relic({ name: "Oathkeeper's Seal", rarity: 'rare', icon: '⚜️', signature: true, classId: 'paladin', n: { base: 40, stored: 1.5, perS: 0.05, cap: 1, radius: 180 }, n2: { stored: 2 }, a: { ward: 0.06 },
+    awaken: ['Sanctified', (a) => `The strike also wards you for ${pct(a.ward)} of your max HP.`], desc: (n) => `Divine Shield keeps the blows it turns away (up to ${pct(n.cap)} of your max HP). When it ends, it strikes every enemy within ${n.radius} px for ${n.base} plus ${pct(n.stored)} of what it kept (+${pct(n.perS)} per point of Faith).` }),
+  jarlsTorc: relic({ name: "Jarl's Torc", rarity: 'rare', icon: '🪓', signature: true, classId: 'viking', n: { cleave: 0.35, radius: 90 }, n2: { cleave: 0.5 }, a: { per: 0.3, max: 3 },
+    awaken: ["Saga's End", (a) => `Every kill during Berserker Rage makes it last ${a.per} s longer (up to ${a.max} s a Rage).`], desc: (n) => `During Berserker Rage your attacks cleave: ${pct(n.cleave)} of each hit to every other enemy within ${n.radius} px of the target.` }),
+  dawnstar: relic({ name: 'Dawnstar', rarity: 'rare', icon: '🌟', signature: true, classId: 'angel', n: { beams: 3, damage: 60, perS: 5, radius: 60, range: 360 }, n2: { beams: 4 }, a: { heal: 0.01 },
+    awaken: ['Morning Hymn', (a) => `Every beam that lands heals you ${pct(a.heal)} of your max HP.`], desc: (n) => `Heavenly Radiance calls ${n.beams} beams of dawn on the strongest enemies within ${n.range} px: ${n.damage} (+${n.perS} per point of Grace) holy damage around each.` }),
+  phylactery: relic({ name: 'Phylactery', rarity: 'rare', icon: '🏺', signature: true, classId: 'necromancer', n: { count: 1, hp: 120, damage: 14, life: 8 }, n2: { count: 2 }, a: { damage: 30 },
+    awaken: ["Lich's Crown", (a) => `Its Bone Knights burst for ${a.damage} shadow damage when they fall.`], desc: (n) => `Raise Dead also raises ${n.count === 1 ? 'a Bone Knight' : `${n.count} Bone Knights`} (${n.hp} HP, ${n.damage} damage) for ${n.life} s.` }),
+  eagleFletching: relic({ name: 'Eagle Fletching', rarity: 'rare', icon: '🦅', signature: true, classId: 'archer', n: { chance: 0.3, mult: 0.8 }, n2: { chance: 0.4 }, a: { mult: 1.2 },
+    awaken: ['Deadeye', (a) => `The second strike hits for ${pct(a.mult)} of the arrow.`], desc: (n) => `Every Arrow Volley arrow has a ${pct(n.chance)} chance to strike again for ${pct(n.mult)} of its hit.` }),
 };
 
 export type RelicId = keyof typeof RELICS;
@@ -339,6 +351,18 @@ export const relicDef = (id: RelicId): RelicDef => RELICS[id];
 /** v0.7.1 B6: the cursed relics (no family), and whether a relic is one. */
 export const isCursedRelic = (id: RelicId): boolean => RELICS[id].cursed === true;
 export const CURSED_IDS = RELIC_IDS.filter(isCursedRelic);
+
+/**
+ * v0.10 (#201, docs/road-to-the-crown.md "The Marches crown gives a champion-specific rare"): one signature relic per champion, outside the
+ * families (no set, no duo, the family rule of an offer ignores it). Won with the Marches crown (config/world.ts), it joins the champion's
+ * inventory: from then on its pool holds it and a loadout may slot it. It takes 1 slot and is not one of the 2 class relics. Gold.
+ */
+export const SIGNATURE = {
+  color: '#f6d97a',
+  relic: { paladin: 'oathkeepersSeal', viking: 'jarlsTorc', angel: 'dawnstar', necromancer: 'phylactery', archer: 'eagleFletching' } satisfies Record<ClassId, RelicId>,
+};
+export const isSignatureRelic = (id: RelicId): boolean => RELICS[id].signature === true;
+export const SIGNATURE_IDS = RELIC_IDS.filter(isSignatureRelic);
 
 /** The numbers of a relic at a tier (1..RELIC_MAX_TIER). Tier III (awakened) keeps tier II's numbers. */
 export function relicN(id: RelicId, tier: number): Record<string, number> {
@@ -389,7 +413,7 @@ export const isDuo = (k: RelicKey): k is DuoId => k in DUOS;
 export const isFamily = (k: RelicKey): k is FamilyId => k in FAMILIES;
 export const keyName = (k: RelicKey): string => (isDuo(k) ? DUOS[k].name : isFamily(k) ? `${FAMILIES[k].name} set` : relicDef(k).name);
 export const keyIcon = (k: RelicKey): string => (isDuo(k) ? DUOS[k].icon : isFamily(k) ? FAMILIES[k].icon : relicDef(k).icon);
-export const keyColor = (k: RelicKey): string => (isDuo(k) ? DUO_COLOR : isFamily(k) ? FAMILIES[k].color : relicDef(k).family ? FAMILIES[relicDef(k).family!].color : CURSED.color);
+export const keyColor = (k: RelicKey): string => (isDuo(k) ? DUO_COLOR : isFamily(k) ? FAMILIES[k].color : relicDef(k).family ? FAMILIES[relicDef(k).family!].color : relicDef(k).signature ? SIGNATURE.color : CURSED.color);
 /** The duo a relic is a source of (every source relic is in exactly one recipe). */
 export const duoOf = (id: RelicId): DuoId | undefined => DUO_IDS.find((d) => DUOS[d].from.includes(id));
 
