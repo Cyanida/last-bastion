@@ -3,6 +3,8 @@ import { ELITES } from './elites';
 import { SKILL } from './game';
 import { OATHS } from './oaths';
 import { ATTUNEMENT, RELIC_MAX_TIER, TIER_NUMERALS } from './relics';
+import { WORLD } from './world';
+import type { SlotBlock } from '../logic/champions';
 
 /**
  * v0.7.1: the game's own words, defined once. Every tooltip underlines the ones it uses and adds their definitions (ui/tooltip.ts);
@@ -39,3 +41,24 @@ export const GLOSSARY: Term[] = [
   { name: 'Duo', forms: ['duo', 'duos'], def: 'A relic made of two: hold one named relic from each of two families and a wave boss or a lair can offer their duo as a gold fourth card (it takes the pick). It combines the two into one relic with both their effects and its own, attuning as one up to tier III; the families keep the counts of both relics, and each relic feeds only one duo.' },
   { name: 'Cursed relic', forms: ['cursed relic', 'cursed relics'], def: 'A relic of no family, far stronger than the others but with a drawback. At most one is offered an Act, as the purple third card of a wave boss or lair. Awakening it lifts the curse.' },
 ];
+
+const L = WORLD.loadout;
+
+/** #239: why a relic can't go in a slot (logic/champions slotBlock), in the player's words: the champion screen says it on hover and tap. */
+export const SLOT_BLOCK_TEXT: Record<SlotBlock, string> = {
+  cursed: 'A cursed relic never goes in a loadout.',
+  otherClass: "Another class's relic.",
+  slotted: 'In a slot already: tap the slot to take it out.',
+  slots: 'No free slot for it.',
+  double: `A legendary takes ${L.legendarySlots} slots, and only 1 is free.`,
+  family: `At most ${L.perFamily} relics of one family.`,
+  legendary: `At most ${L.legendaries} legendary (${L.legendariesFinale} in the Last Bastion).`,
+  classRelics: `At most ${L.classRelics} class relics.`,
+};
+
+/** #239: the champion screen's ⓘ explanations, one or two plain sentences each (#240's tabs and tour reuse them). */
+export const CHAMPION_HELP = {
+  slots: `The relics in your slots go into the level with you; locked slots open on later levels, and the Keep adds more. A legendary takes ${L.legendarySlots} slots, and a loadout holds at most ${L.perFamily} relics of one family, ${L.legendaries} legendary (${L.legendariesFinale} in the Last Bastion) and ${L.classRelics} class relics.`,
+  sets: 'Slotted relics of one family count toward its set: 2, 4 and 6 of them each add a bonus in the level. A lit chip has its bonus on; hover or tap a chip to read them.',
+  talents: 'A level starts with a head start: your champion is already some levels up, with talent points to spend. The plan spends them for you, in its order; a point it can’t place yet is yours to spend.',
+} as const;

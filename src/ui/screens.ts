@@ -36,7 +36,7 @@ import { keepStage } from '../logic/keep';
 import type { CrownReward, LevelReward, RealmId } from '../config/world';
 import { bestCleared, parseTestLevel, testLevels, type LevelPanel, type RoadLevel } from '../logic/world';
 import { REALMS, WORLD } from '../config/world';
-import { fitLoadout, slotBlock, slotView, type SlotBlock } from '../logic/champions';
+import { fitLoadout, slotBlock, slotCost, slotView } from '../logic/champions';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
@@ -52,7 +52,7 @@ import { oathReward } from '../logic/oaths';
 import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
-import { GLOSSARY } from '../config/glossary';
+import { CHAMPION_HELP, GLOSSARY, SLOT_BLOCK_TEXT } from '../config/glossary';
 import { cardInfo, iconCard, type CardId } from '../config/cards';
 import { AFFIXES, ELITES, type AffixId } from '../config/elites';
 import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
@@ -246,17 +246,6 @@ export function showRealmRoad(
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
-/** #197: why an inventory relic can't go in a slot, in the player's words (logic/champions slotBlock). */
-const SLOT_BLOCKS: Record<SlotBlock, string> = {
-  cursed: 'A cursed relic never goes in a loadout.',
-  otherClass: "Another class's relic.",
-  slotted: 'In a slot already: tap the slot to take it out.',
-  slots: 'No free slot for it (a legendary takes two).',
-  family: 'At most 4 relics of one family.',
-  legendary: 'At most 1 legendary (2 in the Last Bastion).',
-  classRelics: 'At most 2 class relics.',
-};
-
 export interface ChampionInfo {
   classId: ClassId;
   name: string;
@@ -288,32 +277,38 @@ export function showChampion(
   const view = slotView(info.classId, info.loadout, info.slots, finale);
   const goes = fitLoadout(info.classId, info.loadout, info.slots, finale);
   const tier = REALMS[info.realm].levels[info.level - 1].relicTier;
+  // #239: a legendary is one wide frame over its two slots, with its "2 slots" badge; its second slot draws nothing of its own
+  const two = `<span class="cs-badge">${WORLD.loadout.legendarySlots} slots</span>`;
   const slot = (s: (typeof view)[number], i: number) => {
     const idle = s.live ? '' : ' idle';
-    if (!s.id) return `<span class="cs-slot empty${idle}" data-slot="${i}" title="${s.live ? 'An empty slot: tap a relic in the inventory' : `Not open in this level (${info.slots} slot${info.slots > 1 ? 's' : ''})`}">${s.live ? '' : kit.icon('lock')}</span>`;
+    if (!s.id) return `<span class="cs-slot empty${idle}" data-slot="${i}" data-tip="${s.live ? 'An empty slot: tap a relic in the inventory to put it here.' : `Locked in this level (${info.slots} slot${info.slots > 1 ? 's' : ''}): later levels and the Keep open more.`}">${s.live ? '' : kit.icon('lock')}</span>`;
+    if (s.second) return '';
     const r = relicDef(s.id);
-    return `<button class="cs-slot${idle}${s.second ? ' second' : ''}" data-slot="${i}" data-unslot="${s.id}" aria-label="${esc(`${r.name}: take it out`)}" data-tip="${esc(`${relicTip(s.id, tier)}${s.live ? '' : '\nNot in this level: no slot left for it.'}\nTap to take it out.`)}">${kit.rarityGlyph(relicRarity(s.id), s.second ? '' : r.icon)}</button>`;
+    const double = slotCost(s.id) > 1;
+    return `<button class="cs-slot${idle}${double ? ' double' : ''}" data-slot="${i}" data-unslot="${s.id}" aria-label="${esc(`${r.name}${double ? ', 2 slots' : ''}: take it out`)}" data-tip="${esc(`${relicTip(s.id, tier)}${double ? `\nA legendary: it takes ${WORLD.loadout.legendarySlots} slots.` : ''}${s.live ? '' : '\nNot in this level: no slot left for it.'}\nTap to take it out.`)}">${kit.rarityGlyph(relicRarity(s.id), r.icon)}${double ? two : ''}</button>`;
   };
   const sets = Object.entries(familySets(goes)) as [FamilyId, { count: number; level: number }][];
   const chip = ([f, st]: [FamilyId, { count: number; level: number }]) =>
     `<span class="cs-set${st.level ? ' on' : ''}" data-tip="${esc(`${FAMILIES[f].name}: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[f].sets[n][0]}`).join(' · ')}`)}">${kit.icon(f)}${st.count}</span>`;
+  // #239: a relic that can't go in says why on hover (its tip) and on tap (below the inventory, and on the open slots it greys out)
   const relic = (id: RelicId) => {
     const why = info.loadout.includes(id) ? null : slotBlock(info.classId, info.loadout, id, WORLD.maxSlots, finale);
-    return `<button class="cs-relic${info.loadout.includes(id) ? ' on' : why ? ' blocked' : ''}" data-relic="${id}" data-why="${why ? esc(SLOT_BLOCKS[why]) : ''}" aria-label="${esc(relicDef(id).name)}" data-tip="${esc(relicTip(id, tier))}">${kit.rarityGlyph(relicRarity(id), relicDef(id).icon)}</button>`;
+    const reason = why ? SLOT_BLOCK_TEXT[why] : '';
+    return `<button class="cs-relic${info.loadout.includes(id) ? ' on' : why ? ' blocked' : ''}" data-relic="${id}" data-why="${esc(reason)}" aria-label="${esc(relicDef(id).name)}" data-tip="${esc(`${relicTip(id, tier)}${reason ? `\n${reason}` : ''}`)}">${kit.rarityGlyph(relicRarity(id), relicDef(id).icon)}${slotCost(id) > 1 ? two : ''}</button>`;
   };
   const plan = info.plan.map((t) => `<li>${esc(TALENT_BY_ID[t]?.name ?? t)}</li>`).join('');
   const el = show(`
     <div class="kit-frame champion-screen">
       <header class="kit-head">${kit.closeButton('back', { attrs: 'data-back' })}${kit.ribbon(`${kit.icon('champion')} ${esc(info.name)}`, { attrs: 'role="heading" aria-level="1"' })}<div class="kit-purse">${kit.pill('gold', info.gold, { title: 'Gold' })}${info.runes ? kit.pill('runes', info.runes, { title: 'Runes' }) : ''}</div></header>
       <div class="cs-main">
-        <div class="cs-slots">${view.slice(0, 3).map(slot).join('')}</div>
-        <div class="cs-hero pedestal"><div class="hero-figure" data-figure></div><div class="cs-pick"><button class="kit-close cs-arrow" data-champ="-1" aria-label="Previous champion">‹</button>${kit.ribbon(c.name)}<button class="kit-close cs-arrow" data-champ="1" aria-label="Next champion">›</button></div><div class="cs-sets">${sets.map(chip).join('') || '<small>No set yet</small>'}</div></div>
-        <div class="cs-slots">${view.slice(3).map((s, i) => slot(s, i + 3)).join('')}</div>
+        <div class="cs-hero pedestal"><div class="hero-figure" data-figure></div><div class="cs-pick"><button class="kit-close cs-arrow" data-champ="-1" aria-label="Previous champion">‹</button>${kit.ribbon(c.name)}<button class="kit-close cs-arrow" data-champ="1" aria-label="Next champion">›</button></div>
+          <div class="cs-slots">${view.map(slot).join('')}${kit.infoButton('slots', 'How slots work')}</div>
+          <div class="cs-sets">${sets.map(chip).join('') || '<small>No set yet</small>'}${kit.infoButton('sets', 'How sets work')}</div></div>
         <div class="cs-side">
           ${kit.parch(`<h2>Inventory <small>${info.inventory.length}</small></h2>
             ${info.inventory.length ? `<div class="cs-inv">${info.inventory.map(relic).join('')}</div>` : '<p class="cs-empty">No relics yet. Levels cleared win them; tap one to put it in a slot.</p>'}
             <p class="cs-why" aria-live="polite"></p>`, { cls: 'cs-inventory' })}
-          ${kit.parch(`<h2>Talent plan <small>${info.plan.length}</small></h2>
+          ${kit.parch(`<h2>Talent plan <small>${info.plan.length}</small>${kit.infoButton('talents', 'How the talent plan works')}</h2>
             ${plan ? `<ol class="cs-plan">${plan}</ol>` : '<p class="cs-empty">No plan: the head start leaves its points to spend.</p>'}
             <div class="row">${kit.button('Edit plan', { size: 'small', attrs: 'data-plan' })}${info.plan.length ? kit.button('Clear', { size: 'small', attrs: 'data-clear-plan' }) : ''}</div>`, { cls: 'cs-talents' })}
         </div>
@@ -333,19 +328,35 @@ export function showChampion(
   big.style.setProperty('--sprite-h', `${SHEETS[c.sprite] ? spr.h : Math.round(spr.h / PORTRAIT_K)}px`);
   fig.appendChild(big);
   click(el, '[data-unslot]', (b) => on.unslot(b.dataset.unslot as RelicId));
+  // #239: pointing at (or tapping) a relic that can't go in greys out the open slots, each saying why
+  const deny = (why: string) => {
+    for (const s of el.querySelectorAll<HTMLElement>('.cs-slot.empty:not(.idle)')) {
+      s.classList.toggle('deny', !!why);
+      s.dataset.tip = why || 'An empty slot: tap a relic in the inventory to put it here.';
+    }
+  };
+  for (const b of el.querySelectorAll<HTMLElement>('.cs-relic.blocked')) {
+    b.addEventListener('pointerenter', () => deny(b.dataset.why!));
+    b.addEventListener('focus', () => deny(b.dataset.why!));
+    b.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && deny(''));
+    b.addEventListener('blur', () => deny(''));
+  }
   click(el, '[data-relic]', (b) => {
     const id = b.dataset.relic as RelicId;
     if (info.loadout.includes(id)) on.unslot(id);
-    else if (b.dataset.why) el.querySelector('.cs-why')!.textContent = `${relicDef(id).name}: ${b.dataset.why}`;
-    else on.slot(id);
+    else if (b.dataset.why) {
+      el.querySelector('.cs-why')!.textContent = `${relicDef(id).name}: ${b.dataset.why}`;
+      deny(b.dataset.why);
+    } else on.slot(id);
   });
+  const help = kit.wireInfo(el, CHAMPION_HELP);
   click(el, '[data-plan]', () => on.plan());
   click(el, '[data-champ]', (b) => on.champ(Number(b.dataset.champ)));
   click(el, '[data-clear-plan]', () => on.clearPlan());
   click(el, '[data-play]', () => on.play());
   click(el, '[data-back]', () => on.back());
   kit.wireTabs(el, (id) => on.tab(id));
-  onActions((a) => (a === 'cancel' || a === 'pause' ? on.back() : a === 'confirm' && !(document.activeElement instanceof HTMLButtonElement) && on.play()));
+  onActions((a) => (a === 'cancel' || a === 'pause' ? help.close() || on.back() : a === 'confirm' && !(document.activeElement instanceof HTMLButtonElement) && on.play()));
 }
 
 export interface SettingsInfo {

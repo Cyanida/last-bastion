@@ -120,7 +120,7 @@ export const championSlots = (meta: MetaRanks, classXp: number, realm: RealmId, 
 export const slotCost = (id: RelicId): number => (relicDef(id).rarity === 'legendary' ? WORLD.loadout.legendarySlots : 1);
 
 /** Why a relic can't be slotted: the champion screen names it. */
-export type SlotBlock = 'cursed' | 'otherClass' | 'slotted' | 'slots' | 'family' | 'legendary' | 'classRelics';
+export type SlotBlock = 'cursed' | 'otherClass' | 'slotted' | 'slots' | 'double' | 'family' | 'legendary' | 'classRelics';
 
 /**
  * Why `id` can't join `loadout` in `slots` slots, or null when it fits (rule 4): no cursed relic, no other class's relic, at most 4 of one
@@ -134,7 +134,8 @@ export function slotBlock(classId: ClassId, loadout: RelicId[], id: RelicId, slo
   if (isCursedRelic(id)) return 'cursed';
   if (!ownable(classId, id)) return 'otherClass';
   if (loadout.includes(id)) return 'slotted';
-  if (loadout.reduce((n, r) => n + slotCost(r), slotCost(id)) > slots) return 'slots';
+  const used = loadout.reduce((n, r) => n + slotCost(r), 0);
+  if (used + slotCost(id) > slots) return used < slots ? 'double' : 'slots'; // #239: 'double', a legendary with one slot free: it takes two
   if (def.family && count((d) => d.family === def.family) >= rule.perFamily) return 'family';
   if (def.rarity === 'legendary' && count((d) => d.rarity === 'legendary') >= (finale ? rule.legendariesFinale : rule.legendaries)) return 'legendary';
   if (def.classId && !def.signature && count((d) => !!d.classId && !d.signature) >= rule.classRelics) return 'classRelics';
