@@ -1360,6 +1360,7 @@ export function showDaily(setup: DailySetup, best: number, onStart: () => void, 
         <div><span>Champion</span><b>${CLASSES[setup.classId].name}</b></div>
         <div><span>Arena</span><b>${ARENAS[setup.arena].name}</b></div>
         <div><span>Curses</span><b>${setup.curses.map((c) => CURSES[c].name).join(' · ')}</b></div>
+        <div><span>Relics</span><b>Every relic its class can find · no loadout</b></div>
         <div><span>Gold &amp; class XP</span><b>×${curseMultiplier(setup.curses).toFixed(2)}</b></div>
         <div><span>Your best today</span><b>${best ? `wave ${best}` : '—'}</b></div>
       </div>`,

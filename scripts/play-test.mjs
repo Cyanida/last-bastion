@@ -2253,7 +2253,7 @@ await check('Gallows: a cursed run (the Daily Trial) earns its bonus, the result
 // locked) are checked with the road (#199)
 
 // #101: each difficulty adds enemy types; the tier's tip names them, and a Knight run fields no Champion or Legend type
-await check('difficulty: a Knight run's waves bring no foes from the tiers above', () =>
+await check('difficulty: the waves of a Knight run bring no foes from the tiers above', () =>
   inPage(async () => {
     localStorage.removeItem('lastbastion.save');
     location.reload();
