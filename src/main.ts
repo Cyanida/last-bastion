@@ -685,7 +685,7 @@ function endRun(g: Game): void {
   setTouchControls(false);
   startMenuMusic();
   // #197: a level lost is remembered for its restart; one cleared forgets it. A level's results go home to the champion screen
-  if (g.level) fall = g.level.cleared ? null : { classId: g.player.cls.id, realm: g.level.realm, level: g.level.level, tier: g.tierIndex, seed: g.seed, wave: g.wave };
+  if (g.level) fall = g.level.cleared ? null : { classId: g.player.cls.id, realm: g.level.realm, level: g.level.level, tier: g.tierIndex, seed: g.seed, wave: Math.max(1, g.wave) }; // lost in the lull before wave 1 counts as wave 1
   showResults(runResult(g, true), { retry: () => again(g), menu: g.level ? () => toChampion() : toSelect });
 }
 

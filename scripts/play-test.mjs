@@ -1603,9 +1603,14 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await press('[data-play]');
     await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
     const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, seed: g.seed, held: g.player.relics.held.join(','), talents: g.player.talents.length } : null; });
-    // the opening pick, then the pause menu's End run: the level is lost
+    // the opening screens (a pick, then the quest board, left as it is), then the pause menu's End run: the level is lost
     await p.waitForFunction(() => window.__lb.state === 'choice', null, { timeout: 5000 }).catch(() => {});
-    if (await p.locator('[data-pick]').count()) await press('[data-pick]');
+    for (let i = 0; i < 8 && (await p.evaluate(() => window.__lb.state)) === 'choice'; i++) {
+      const answer = p.locator('[data-pick], [data-leave]');
+      await answer.first().waitFor({ timeout: 3000 }).catch(() => {});
+      if (await answer.count()) await press(await p.locator('[data-pick]').count() ? '[data-pick]' : '[data-leave]');
+      await p.waitForTimeout(200);
+    }
     await p.waitForFunction(() => window.__lb.state === 'playing', null, { timeout: 5000 }).catch(() => {});
     await p.keyboard.press('Escape');
     await press('[data-quit]');
