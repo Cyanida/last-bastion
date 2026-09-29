@@ -11,6 +11,14 @@ const W = 120;
 const X0 = 48; // anchor x between the feet
 const cell = (c: Armoured) => ({ H: c.h ?? 100, GROUND: (c.h ?? 100) - 6 }); // GROUND: first empty row under the near foot
 
+/** #228: a glowing seam: a zigzag 1-1.5 px wide through `pts` (Paladin-size px, scaled), flat and unoutlined, on top of its part. */
+function seam(f: Figure, b: Bone, pts: Pt[], S: number, mat: Material, z: number): void {
+  const w = 0.55;
+  const top = pts.map(([x, y]): Pt => [(x - w) * S, (y - w) * S]);
+  const bottom = pts.map(([x, y]): Pt => [(x + w) * S, (y + w) * S]).reverse();
+  f.part(b, [...top, ...bottom], mat, z, { profile: 'flat', outline: false });
+}
+
 export interface Armoured {
   id: string;
   S: number; // size against the Paladin
@@ -22,6 +30,7 @@ export interface Armoured {
   apron?: Material; // #215: a smith's apron over the breastplate and the mail skirt
   tower?: boolean; // #216: a tall iron tower shield (plate, a `trim` rim, ridge and boss, spiked with `accent` studs) instead of the heater
   spiked?: boolean; // #216: spikes on the pauldrons and poleyns, in `trim`
+  cracks?: Material; // #228: glowing seams across the plate (the Cinder Colossus: a body of cinder with the fire showing through)
   special: 'charge' | 'slam';
   h?: number; // cell height, for a boss too tall for the default 100
   regal?: boolean; // the Usurper: a broad ermine-collared cloak to the ground and heavier pauldrons
@@ -72,12 +81,21 @@ function armoured(c: Armoured, p: Pose): Figure {
     f.part(sh, sc([[-2.8, 0], [2.8, 0], [2.5, 11], [-2.5, 11]]), c.plate, z + 0.1, { dim }); // greave
     f.part(new Bone(ankle[0], ankle[1], fa), sc([[-2.8, -1], [2.6, -1], [5, 0.6], [6.6, 2.2], [6.6, 3], [-3, 3]]), c.plate, z + 0.15, { dim, details: [[5.6, 1.4, c.trim, 4]] }); // sabaton
     f.part(th, E(0.5, 11.3, 3.3, 2.8), c.plate, z + 0.2, { dim, details: [[1.4 * S, 11.3 * S, c.accent, 3]] }); // spiked poleyn
+    if (c.cracks) {
+      seam(f, th, [[-1.6, 1.5], [0.6, 4.5], [-0.8, 7], [1, 9.5]], S, c.cracks, z + 0.12);
+      seam(f, sh, [[1, 1.5], [-0.6, 4.5], [0.8, 8]], S, c.cracks, z + 0.13);
+    }
   });
 
   f.part(torso, sc([[-7.4, -3], [7.6, -3], [8.4, 7.5], [-7.8, 7.5]]), c.plate, 3.0, { mail: true }); // mail skirt
   f.part(torso, sc([[-8.6, -18], [8.2, -18], [9.4, -11], [8.2, -3], [-7.6, -3], [-9, -11]]), c.plate, 3.1, {
     details: dt([[1, -14, c.plate, 5], [1, -13, c.plate, 5], [1, -12, c.plate, 4], [-3.5, -8, c.plate, 1], [5.5, -8, c.plate, 1]]),
   }); // breastplate with a ridge
+  if (c.cracks) {
+    seam(f, torso, [[-6.5, -16], [-3.5, -12.5], [-5, -9], [-2, -5]], S, c.cracks, 3.15);
+    seam(f, torso, [[7, -15], [4.5, -11], [6.5, -7.5], [4, -4]], S, c.cracks, 3.15);
+    seam(f, torso, [[-4, -12.5], [-1, -11], [1.5, -8]], S, c.cracks, 3.15);
+  }
   f.part(torso, sc([[-3, -15], [4.6, -15], [3.6, -10.6], [0.8, -8.4], [-2, -10.6]]), c.accent, 3.2, { profile: 'flat' }); // chevron
   f.part(torso, sc([[-7.8, -4.6], [8.2, -4.6], [8.2, -2.1], [-7.8, -2.1]]), 'leather', 3.5); // belt
   f.part(torso, sc([[1, -5], [3.8, -5], [3.8, -1.7], [1, -1.7]]), c.trim, 3.6); // buckle
@@ -123,6 +141,10 @@ function armoured(c: Armoured, p: Pose): Figure {
   } else f.part(sw, sc([[-2.2, -3], [2.2, -3], [2, -24], [0, -28.5], [-2, -24]]), c.blade, zs + 0.05, { details: Array.from({ length: 18 }, (_, k) => [0.1, -(k + 4) * S - 0.5, c.blade, 2] as Px) }); // greatsword
   f.part(sw, E(0.3, 0.6, 3, 2.9), c.plate, za + 0.4, { details: [-0.6, 0.6, 1.8].map((y) => [1.8 * S, y * S, c.plate, 1] as Px) }); // gauntlet
   f.part(new Bone(sh[0], sh[1], torso.a * 0.65 + up.a * 0.35), E(0.5, 0.2, 5 * pd, 4.2 * pd), c.plate, za + 0.5, { trim: [c.trim, 1] }); // pauldron
+  if (c.cracks) {
+    seam(f, new Bone(sh[0], sh[1], torso.a * 0.65 + up.a * 0.35), [[-3, -1.5], [-0.5, 0.5], [2.5, -1], [4, 1.5]], S, c.cracks, za + 0.52);
+    seam(f, up, [[0.8, 1], [-0.8, 4], [0.6, 6.5]], S, c.cracks, za + 0.05);
+  }
   if (c.spiked) {
     const pb = new Bone(sh[0], sh[1], torso.a * 0.65 + up.a * 0.35);
     for (const x of [-3, 0.5, 4]) f.part(pb, sc([[x - 1.1, -3.4], [x + 1.1, -3.4], [x + 0.2, -7.4]]), c.trim, za + 0.55, { profile: 'flat' }); // spikes on the pauldron
