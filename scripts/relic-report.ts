@@ -4,6 +4,7 @@
  *
  *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json>     maxed saves, the family-following bot, a win stops the run
  *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json> signature     ...every run holding the class's signature relic (#201)
+ *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json> hold=<id>,<id> ...every run holding those relics from the start (#217)
  *   npx vite-node scripts/relic-report.ts merge <out.json> ...                the tables
  *
  * Targets (the v0.7 brief): every relic 3-35% of what it does in the builds that hold it; a 6-set in about 15% of winning runs (#96, was a third); 1-2 duos
@@ -12,7 +13,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { CLASS_ORDER, type ClassId } from '../src/config/classes';
 import { MASTERY, META, META_IDS } from '../src/config/economy';
-import { DUO_IDS, FAMILIES, FAMILY_IDS, isDuo, isFamily, keyName, RELIC_IDS, relicDef, SIGNATURE, type FamilyId, type RelicKey } from '../src/config/relics';
+import { DUO_IDS, FAMILIES, FAMILY_IDS, isDuo, isFamily, keyName, RELIC_IDS, relicDef, SIGNATURE, type FamilyId, type RelicId, type RelicKey } from '../src/config/relics';
 import type { Game, RelicStat } from '../src/core/types';
 import { createGame, type RunOptions } from '../src/game';
 import { familySets } from '../src/logic/relics';
@@ -87,7 +88,7 @@ const [cmd, ...args] = process.argv.slice(2);
 if (cmd === 'run') {
   const [classId, runsArg, out, extra] = args as [ClassId, string, string, string?];
   const maxed = Object.fromEntries(META_IDS.map((id) => [id, META[id].max]));
-  const opts: RunOptions = { tier: 0, arena: 'courtyard', meta: maxed, classXp: MASTERY[MASTERY.length - 1].xp, treasure: 3, relics: extra === 'signature' ? [SIGNATURE.relic[classId]] : undefined };
+  const opts: RunOptions = { tier: 0, arena: 'courtyard', meta: maxed, classXp: MASTERY[MASTERY.length - 1].xp, treasure: 3, relics: extra === 'signature' ? [SIGNATURE.relic[classId]] : extra?.startsWith('hold=') ? (extra.slice(5).split(',') as RelicId[]) : undefined };
   const rows = Array.from({ length: Number(runsArg) }, (_, i) => play(classId, 1000 + i * 7919, opts, i % 2));
   writeFileSync(out, JSON.stringify(rows));
   console.log(`${classId}: ${rows.length} runs, ${rows.filter((r) => r.won).length} won`);

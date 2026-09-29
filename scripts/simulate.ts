@@ -12,7 +12,7 @@
  * One save, played run after run by the bot (classes in turn, the bot spends gold and Runes greedily on the Keep between runs, deeds
  * earned as they come). Reports gold and Runes per run and the run on which the Keep is fully raised (target 40-60, BALANCE.md).
  *
- * Relics (v0.7):  npm run sim -- relics [runs=3] [signature]
+ * Relics (v0.7):  npm run sim -- relics [runs=3] [signature | hold=<id>,<id>]
  * Maxed saves and the family-following bot, one process per class (scripts/relic-report.ts): 6-sets and duos in winning runs, families
  * at a 4-set per class, the relic power index, and every relic's contribution from wave 21 on (targets: RELICS.md, A8).
  *
@@ -156,7 +156,7 @@ if (mode === 'relics') {
   const outs = CLASS_ORDER.map((c) => join(dir, `${c}.json`));
   const node = (argv: string[]) => new Promise<void>((done, fail) => spawn('npx', ['vite-node', 'scripts/relic-report.ts', ...argv], { stdio: 'inherit', shell: true }).on('exit', (code) => (code ? fail(new Error(`exit ${code}`)) : done())));
   const started = Date.now();
-  const extra = process.argv.includes('signature') ? ['signature'] : []; // #201: every run holds its class's signature relic from the start
+  const extra = process.argv.includes('signature') ? ['signature'] : process.argv.filter((a) => a.startsWith('hold=')).slice(0, 1); // #201: every run holds its class's signature relic from the start; #217: or the relics named (hold=id,id)
   await Promise.all(CLASS_ORDER.map((c, i) => node(['run', c, String(runs), outs[i], ...extra])));
   await node(['merge', ...outs]);
   console.log(`

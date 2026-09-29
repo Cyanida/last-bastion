@@ -123,10 +123,10 @@ export function gainWard(g: Game, p: Player, amount: number): void {
   ring(g, p.x, p.y, p.r + 14, FAMILIES.holy.color, 0.3);
 }
 
-/** Armor stacks (Steel): +3% armor each, they fade `fade` s after the last one was gained. */
+/** Armor stacks (Steel): +3% armor each, they fade `fade` s after the last one was gained (never, while Heart of the Hold is held). */
 export function armorStacksMax(p: Player): number {
   const n = FAMILIES.steel.n;
-  return n.stacksMax + Math.floor(sOf(p) / 10) * n.stacksPer10S;
+  return n.stacksMax + Math.floor(sOf(p) / 10) * n.stacksPer10S + (has(p, 'heartOfTheHold') ? nOf(p, 'heartOfTheHold').extra : 0); // #217: Heart of the Hold holds more
 }
 export function gainArmorStacks(g: Game, p: Player, count: number): void {
   if (count <= 0) return;

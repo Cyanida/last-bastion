@@ -29,6 +29,7 @@ export interface RelicDef {
 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
+const ord = (v: number) => `${v}${v === 2 ? 'nd' : v === 3 ? 'rd' : 'th'}`;
 
 /** Keeps each relic's numbers typed and its text in sync with them. Tier III (awakened) keeps tier II's numbers. */
 function relic<N extends Record<string, number>, A extends Record<string, number> = Record<string, never>>(r: {
@@ -312,6 +313,15 @@ export const RELICS = {
     awaken: ['Consecrated Steel', (a) => `At full armor stacks Divine Shield's burst is ${pct(a.bonus)} larger.`], desc: (n) => `When Divine Shield ends you gain an armor stack per ${n.per} Faith.` }),
   ironhide: relic({ name: 'Ironhide', rarity: 'rare', icon: '🐗', family: 'steel', classId: 'viking', n: { every: 2 }, n2: { every: 1.5 }, a: { heal: 0.02 },
     awaken: ['Unstoppable', (a) => `During Rage, blocked hits heal ${pct(a.heal)} of your max HP.`], desc: (n) => `Berserker Rage gives an armor stack every ${n.every} s.` }),
+  // v0.11 (#217): the Iron Hold's Steel relics: armor you break, shields that block from the front, thorns that hit back
+  rivetHammer: relic({ name: 'Rivet Hammer', rarity: 'common', icon: '🔩', family: 'steel', n: { every: 4, damage: 16 }, n2: { every: 3, damage: 20 },
+    awaken: ['Sunder', "A rivet breaks the armor or shield of the enemy it strikes (not a boss's)."], desc: (n) => `Every ${ord(n.every)} attack hit drives a rivet: +${n.damage} damage (grows with level) and an armor stack.` }),
+  pavise: relic({ name: 'Pavise', rarity: 'rare', icon: '🚪', family: 'steel', n: { chance: 0.3, arc: 60 }, n2: { chance: 0.4 }, a: { mult: 3 },
+    awaken: ['Riposte', (a) => `A block from the front strikes the attacker for ${a.mult}× the hit.`], desc: (n) => `${pct(n.chance)} chance to block a hit from an enemy in front of you (within ${n.arc}° of where you strike).` }),
+  reprisalCuirass: relic({ name: 'Reprisal Cuirass', rarity: 'rare', icon: '🦔', family: 'steel', n: { mult: 1.5, cap: 0.25 }, n2: { mult: 2 }, a: { radius: 90, frac: 0.5 },
+    awaken: ['Vengeance', (a) => `The reprisal also strikes every enemy within ${a.radius} px of the target for ${pct(a.frac)} of it.`], desc: (n) => `Hits you take or block are kept (up to ${pct(n.cap)} of your max HP); your next attack hit adds ${pct(n.mult)} of them as damage.` }),
+  heartOfTheHold: relic({ name: 'Heart of the Hold', rarity: 'legendary', icon: '🏰', family: 'steel', n: { extra: 3, per: 8 }, n2: { per: 12 }, a: { cut: 0.2 },
+    awaken: ['Iron Keep', (a) => `At full armor stacks, hits take ${pct(a.cut)} less damage.`], desc: (n) => `Your armor stacks never fade and you hold ${n.extra} more. A hit you take or block gives an armor stack, and the attacker takes ${n.per} damage per stack you hold (grows with level).` }),
 
   // ---------------------------------------------------------------- ☠ Cursed (v0.7.1 B6): no family; the awakening lifts the curse
   hungeringBlade: relic({ name: 'Hungering Blade', rarity: 'legendary', icon: '🗡️', cursed: true, n: { per: 0.02, max: 0.6, starve: 5, bite: 0.06 }, n2: { per: 0.03, max: 0.9 },
