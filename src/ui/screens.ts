@@ -55,7 +55,7 @@ import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
 import { GLOSSARY } from '../config/glossary';
-import { cardInfo, MECHANIC_CARDS, type CardId, type MechanicCard } from '../config/cards';
+import { cardInfo, iconCard, type CardId } from '../config/cards';
 import { AFFIXES, ELITES, type AffixId } from '../config/elites';
 import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
 import type { TestSetup } from '../systems/testMode';
@@ -1420,7 +1420,7 @@ export function showGlossary(onBack: () => void, cards: CardId[] = []): void {
       <h1 class="kit-head">${kit.ribbon('Glossary')}</h1>
       <p class="sub">The words the game uses, and what they mean. Tooltips underline them and explain them too.</p>
       ${kit.parch(`<dl>${[...GLOSSARY].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<dt>${t.name}</dt><dd>${t.def}</dd>`).join('')}</dl>
-      ${met.length ? `<h2>Foes and marks met</h2><dl class="cards-met">${met.map((c) => `<dt>${cardPicture(c.id)}${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}`, { cls: 'kit-scroll' })}
+      ${met.length ? `<h2>Flash cards seen</h2><dl class="cards-met">${met.map((c) => `<dt>${cardPicture(c.id)}${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}`, { cls: 'kit-scroll' })}
     </div>`);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
@@ -1439,7 +1439,7 @@ export interface CardPictureFoe {
  */
 function cardPicture(id: CardId, foe?: CardPictureFoe): string {
   const def = id in ENEMIES ? ENEMIES[id as EnemyId] : id === 'elite' ? foe?.def : undefined;
-  if (!def) return `<span class="card-pic icon">${MECHANIC_CARDS[id as MechanicCard].icon}</span>`;
+  if (!def) return `<span class="card-pic icon">${iconCard(id)?.icon ?? ''}</span>`;
   const elite = !!foe?.elite && foe.def === def;
   const spr = portraitSprite(def.sprite, def.scale + (elite ? ELITES.scaleBonus : 0), def.palette);
   const c = document.createElement('canvas');

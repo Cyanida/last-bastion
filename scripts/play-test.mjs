@@ -3588,6 +3588,110 @@ await check('Frame cache: the sprite gallery adds nothing to it; a run through A
   });
 });
 
+// ---------- #60: the Marches' levels 1 and 2 are the tutorial, on flash cards ----------
+// A new save, only the foes' and marks' cards seen: a full run shows no tutorial card. Map -> the Marches -> FIGHT: the opening pick and the
+// quest board come first with no card over them, then "Move and fight" (closed with Enter or a tap on Got it), then relics once one is held, the ability a few
+// seconds in, "Level up" before its screen (which opens once the card is closed), the utility when it unlocks and a status once a foe
+// near the champion burns (as level 2's Flame relics make them); each one once, kept in the save, with an icon and no spotlight
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`Marches tutorial: levels 1-2 teach moving, relics, the ability, level-ups, the utility and a status on flash cards, once each, none in a full run, ${touch ? 'tap' : 'Enter'} at ${w}x${h} (#60)`, async () => {
+    const TUTORIAL = ['move', 'relics', 'ability', 'levelUp', 'utility', 'sets', 'status'];
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    const fresh = async () => {
+      await p.goto(`http://localhost:${PORT}/?debug`);
+      await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+      await p.evaluate((tut) => { const lb = window.__lb; lb.save.cards.splice(0, lb.save.cards.length, ...lb.cardIds.filter((id) => !tut.includes(id))); }, TUTORIAL);
+    };
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    // a full run: the bot plays a while and no tutorial card comes up
+    await fresh();
+    await press('[data-go="start"]');
+    await press('[data-class="viking"]');
+    await press('[data-start]');
+    await p.waitForFunction(() => !!window.__lb.game);
+    const full = await p.evaluate(() => {
+      const lb = window.__lb, cards = [];
+      lb.game.player.invulnerable = true;
+      for (let i = 0; i < 1500 && lb.game && lb.state !== 'results'; i++) {
+        const c = document.querySelector('[data-card]');
+        if (c) cards.push(c.dataset.card);
+        lb.run(1, false, true);
+      }
+      return cards;
+    });
+    // the Marches level 1 by the real screens
+    await fresh();
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-marches');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('[data-fight]');
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 });
+    const opening = await p.evaluate(() => ({ pick: document.querySelectorAll('[data-pick]').length, card: !!document.querySelector('[data-card]'), level: window.__lb.game.level?.level }));
+    await press('[data-pick="0"]');
+    // then the quest board, set out as it is; the move card follows once the run is on
+    for (let i = 0; i < 6 && !(await p.locator('[data-card]').count()); i++) {
+      if ((await p.evaluate(() => window.__lb.state)) === 'choice') await press('[data-pick], [data-leave]');
+      await p.waitForTimeout(200);
+    }
+    await p.locator('[data-card="move"]').waitFor({ timeout: 5000 }).catch(() => {});
+    const look = () => p.evaluate(() => {
+      const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+      if (!c) return null;
+      const r = c.getBoundingClientRect(), b = c.querySelector('[data-leave]').getBoundingClientRect();
+      return {
+        id: c.dataset.card, name: c.querySelector('h2').textContent, text: c.querySelector('p').textContent, icon: c.querySelector('.card-pic.icon')?.textContent.trim() ?? '',
+        ribbon: c.querySelector('.kit-ribbon')?.textContent.trim(), state: window.__lb.state, spot: !!window.__lb.spotlight,
+        fits: r.left >= -1 && r.right <= innerWidth + 1 && b.bottom <= innerHeight + 1 && b.top >= -1, saved: window.__lb.save.cards.includes(c.dataset.card),
+      };
+    });
+    const move = await look();
+    const tick0 = await p.evaluate(() => window.__lb.game.tick);
+    await p.waitForTimeout(300); // real frames: the run waits under the card
+    const held = (await p.evaluate(() => window.__lb.game.tick)) === tick0;
+    if (touch) await p.locator('[data-card] [data-leave]').tap();
+    else await p.keyboard.press('Enter');
+    await p.waitForTimeout(150);
+    const closed = await p.evaluate(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing');
+    // then play on (the bot moves; run() answers each screen and card through its button): note every card and when it came
+    const seen = await p.evaluate((tut) => {
+      const lb = window.__lb, g = lb.game, out = [];
+      g.player.invulnerable = true;
+      let burnt = false;
+      for (let i = 0; i < 9000 && lb.game === g && lb.state !== 'results'; i++) {
+        const c = document.querySelector('[data-card]');
+        if (c && tut.includes(c.dataset.card)) {
+          const e = { id: c.dataset.card, tick: g.tick, icon: !!c.querySelector('.card-pic.icon'), spot: !!lb.spotlight, levelUps: g.pendingLevelUps, screenUnder: !!document.querySelector('.levelup') };
+          lb.run(1, false, true); // Got it, and a step
+          e.screenAfter = !!document.querySelector('.levelup [data-pick]'); // the level-up card's screen follows it
+          out.push(e);
+          continue;
+        }
+        const need = ['move', 'relics', 'ability', 'levelUp', 'utility'].every((id) => lb.save.cards.includes(id));
+        if (need && !burnt && lb.state === 'playing') { // as a Flame relic does in level 2: a foe near the champion catches fire
+          const foe = g.enemies.find((f) => !f.dead && !f.hidden && Math.hypot(f.x - g.player.x, f.y - g.player.y) < 300);
+          if (foe) { foe.statuses.burn = { stacks: 1, time: 3, power: 1 }; burnt = true; }
+        }
+        if (burnt && lb.save.cards.includes('status')) break;
+        lb.run(1, false, true);
+      }
+      return { out, cards: [...lb.save.cards], level: g.level?.level };
+    }, TUTORIAL);
+    await p.close();
+    const ids = seen.out.map((e) => e.id);
+    const at = (id) => seen.out.find((e) => e.id === id);
+    const want = ['relics', 'ability', 'levelUp', 'utility', 'status'];
+    const lvl = at('levelUp');
+    const ok = full.every((id) => !TUTORIAL.includes(id)) && opening.pick > 0 && !opening.card && opening.level === 1
+      && move?.id === 'move' && move.name === 'Move and fight' && /WASD/.test(move.text) && move.icon && move.ribbon === 'New' && move.state === 'choice' && !move.spot && move.fits && move.saved && held && closed
+      && want.every((id) => ids.filter((x) => x === id).length === 1) && !ids.includes('move') && seen.out.every((e) => e.icon && !e.spot)
+      && at('relics').tick >= 120 && at('ability').tick >= 480 && lvl.levelUps > 0 && !lvl.screenUnder && lvl.screenAfter
+      && TUTORIAL.filter((id) => id !== 'sets').every((id) => seen.cards.filter((x) => x === id).length === 1) && errs.length === 0;
+    return { ok, detail: `full run: ${full.filter((id) => TUTORIAL.includes(id)).length} tutorial cards (${full.length} cards); level ${opening.level}: opening pick ${opening.pick ? 'first' : 'MISSING'}${opening.card ? ' UNDER A CARD' : ''}; "${move?.name ?? 'no move card'}" ${move ? `(${move.icon}, fits ${move.fits}, held ${held}, closed ${closed})` : ''}; then ${seen.out.map((e) => `${e.id}@${e.tick}`).join(', ')}${lvl ? `; level-up card with ${lvl.levelUps} pending, screen after ${lvl.screenAfter}` : ''}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
