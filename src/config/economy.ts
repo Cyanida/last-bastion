@@ -234,16 +234,10 @@ export interface TierDef {
   gold: number;
   classXp: number;
 }
-/** Clearing wave TIER_UNLOCK_WAVE on Squire unlocks Knight (#79; also the pacing mark in BALANCE.md). */
-export const TIER_UNLOCK_WAVE = 15;
-/** v0.8 (#79): what opens each difficulty, by index into TIERS. Every key present must be met, in any order:
- * `wave` = clear that wave on that tier, `win` = beat the Usurper on that tier. Squire has none: it is open from the start. */
-export const TIER_UNLOCK: { wave?: { tier: number; wave: number }; win?: number }[] = [
-  {},
-  { wave: { tier: 0, wave: TIER_UNLOCK_WAVE } },
-  { wave: { tier: 1, wave: 30 }, win: 0 },
-  { win: 2 },
-];
+/** v0.10 (#203, plan rule 7): what opens each difficulty, by index into TIERS. Squire and Knight are open from the start; a tier
+ * with `win` opens once that tier is won: in a realm (logic/world tierOpen), its crown won on that tier; in a run with no realm,
+ * the Usurper beaten on it. This replaces #79's wave rule. */
+export const TIER_UNLOCK: { win?: number }[] = [{}, {}, { win: 1 }, { win: 2 }];
 export const TIERS: TierDef[] = [
   { name: 'Squire', enemyHp: 1, enemyDmg: 1, eliteMult: 1, gold: 1, classXp: 1 },
   { name: 'Knight', enemyHp: 1.45, enemyDmg: 1.25, eliteMult: 1.5, gold: 1.6, classXp: 1.5 },

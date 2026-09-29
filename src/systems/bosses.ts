@@ -5,6 +5,7 @@ import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
 import { addZone, timer } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
+import { hammerZones, wardenMove, wardenSpecialCd } from '../logic/crownBoss';
 import { angleTo, chargeStart, chargeThrough, distTo, hitDamage, keepRange, move, moveTo, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { pickTarget, registerBoss } from './enemyAI';
 import { burst, floatText, ring, shake } from './effects';
@@ -112,17 +113,26 @@ const closeSeal = timer('warden.seal', (g, a: { e: Enemy; x: number; y: number }
 registerBoss('warden', (g, e, dt) => {
   const t = pickTarget(g, e);
   const def = e.def;
+  // #202: the crown's Judgement begins: his own third phase, and the next seal comes at once
+  if (e.crown && e.phase >= 3 && e.state !== 3) {
+    e.state = 3;
+    e.special = Math.min(e.special, 0.8);
+    g.banner = { text: 'The Warden’s judgement', t: 2.5 };
+    markPhase(g, 'The Warden’s judgement');
+  }
   seek(e, t, e.speed, dt);
   touch(g, e, t);
   e.special -= dt;
   if (e.special > 0 || distTo(e, g.player) > WARDEN.reach) return;
-  e.special = def.specialCd!;
+  e.special = wardenSpecialCd(def.specialCd!, e.phase, e.crown);
   sfx(g, 'warn');
   const { x, y } = g.player;
-  g.banner = { text: 'Sealed in', t: 1.4 };
-  seal(g, x, y, WARDEN.seal.radius, WARDEN.seal.gaps[e.phase - 1], WARDEN.seal.life);
+  const move = wardenMove(e.phase, e.crown, e.combo++);
+  g.banner = { text: move.inner ? 'Judged' : 'Sealed in', t: 1.4 };
+  seal(g, x, y, WARDEN.seal.radius, move.gaps, WARDEN.seal.life);
+  if (move.inner) seal(g, x, y, WARDEN.crown.inner.radius, WARDEN.crown.inner.gaps, WARDEN.crown.inner.life); // a ring inside the ring
 
-  if (e.phase >= 2) {
+  if (move.sweep) {
     // a clock hand of force sweeps the sealed circle: keep moving ahead of it
     const base = g.rng() * TAU;
     const w = WARDEN.sweep;
@@ -133,10 +143,13 @@ registerBoss('warden', (g, e, dt) => {
       }
     }
   }
-  if (e.phase === 3) {
-    closeSeal(g, WARDEN.close.after, { e, x, y }); // the circle closes
-    summon(g, e);
+  if (move.hammer) {
+    // his hammer: rings of force rolling out from him, one after another; step through a ring once it has struck
+    for (const z of hammerZones(e.x, e.y, g.rng() * TAU)) addZone(g, { x: z.x, y: z.y, r: WARDEN.crown.hammer.radius, delay: z.delay, damage: specialDamage(e) * WARDEN.crown.hammer.damage, hostile: true, color: SEAL, owner: e, dtype: 'shadow' });
+    shake(g, 8);
   }
+  if (move.close) closeSeal(g, WARDEN.close.after, { e, x, y }); // the circle closes
+  if (move.summon) summon(g, e);
 });
 
 // ---------------------------------------------------------------- v0.6: the Usurper, the end of the run (config/acts.ts FINAL)

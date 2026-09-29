@@ -32,6 +32,7 @@ export interface MapLayout {
   seed: number;
   realms: RealmLayout[];
   links?: [from: number, to: number][]; // a road from realm `from`'s last point to realm `to`'s first
+  names?: false; // #198: leave the name ribbons out (the game sets the names in Cinzel on top, readable at any scale)
 }
 export interface Painted {
   w: number;
@@ -433,7 +434,7 @@ export function paintMap(L: MapLayout): Painted {
   }
 
   // Ribbons with the realm names, at the top of each realm.
-  for (const rl of realms) {
+  if (L.names !== false) for (const rl of realms) {
     const name = rl.name.toUpperCase(), tw = textWidth(name), rb = ribbon(tw);
     const [rx, ry, rw] = rl.rect, x = Math.round(rx + rw / 2 - rb.w / 2), y = ry + 4;
     blit(rb, x, y);

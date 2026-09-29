@@ -11,7 +11,7 @@ import { mulberry32 } from '../src/core/math';
 import type { Enemy, Game } from '../src/core/types';
 import { createGame, summarizeRun } from '../src/game';
 import { pickAbilityUpgrade, tierForLevel } from '../src/logic/abilityUpgrades';
-import { lockedArenas, lockedRelics, newlyEarned, withAchievements } from '../src/logic/achievements';
+import { lockedArenas, newlyEarned, withAchievements } from '../src/logic/achievements';
 import { classXpForRun, goldDrop, masteryBonus, masteryRank, metaCost, metaLoadout, rerollCost, startingStats, totalMetaCost, waveClearGold } from '../src/logic/economy';
 import { applyAffixes, eliteChance, rollAffixes } from '../src/logic/elites';
 import { neutralMods } from '../src/logic/mods';
@@ -147,10 +147,10 @@ describe('relic hooks', () => {
   });
 
   it('pool and rolls (v0.7: a held relic is never rolled again)', () => {
-    const pool = relicPoolFor('viking', ['phoenixFeather']);
+    const pool = relicPoolFor('viking');
     expect(pool).toContain('wolfskin');
     expect(pool).not.toContain('reliquary');
-    expect(pool).not.toContain('phoenixFeather');
+    expect(pool).toContain('phoenixFeather'); // v0.10 (#194): no deed locks a relic any more
     const rolled = rollRelics(pool, ['frostBrand'], mulberry32(3), 3);
     expect(rolled).toHaveLength(3);
     expect(rolled).not.toContain('frostBrand');
@@ -392,7 +392,6 @@ describe('unlock conditions', () => {
     expect(new Set(ACHIEVEMENTS.map((a) => a.id)).size).toBe(ACHIEVEMENTS.length);
     expect(newlyEarned(defaultSave())).toEqual([]);
     expect(lockedArenas(defaultSave())).toEqual(expect.arrayContaining(['graveyard', 'keep']));
-    expect(lockedRelics(defaultSave())).toEqual(expect.arrayContaining(['phoenixFeather', 'soulLantern', 'stormcallersHorn']));
   });
 
   it('a run feeds gold, records, counters and class XP into the save', () => {
@@ -405,13 +404,13 @@ describe('unlock conditions', () => {
     expect(applyRun(save, run({ wave: 3 })).save.classes.paladin.bestWave).toBe(6); // best never goes down
   });
 
-  it('reaching wave 10 unlocks the graveyard; a flawless boss unlocks the Phoenix Feather', () => {
+  it('reaching wave 10 unlocks the graveyard; a flawless boss pays a title (#194: no longer the Phoenix Feather)', () => {
     const after = withAchievements(applyRun(defaultSave(), run({ wave: 10, flawlessBosses: 1 })).save);
     const ids = after.earned.map((a) => a.id);
     expect(ids).toEqual(expect.arrayContaining(['wave10', 'flawless', 'bossSlayer']));
     expect(lockedArenas(after.save)).not.toContain('graveyard');
     expect(lockedArenas(after.save)).toContain('keep');
-    expect(lockedRelics(after.save)).not.toContain('phoenixFeather');
+    expect(after.earned.find((a) => a.id === 'flawless')?.reward.title).toBe('Phoenix-Touched');
     expect(withAchievements(after.save).earned).toEqual([]); // only reported once
   });
 
@@ -423,14 +422,14 @@ describe('unlock conditions', () => {
     expect(withAchievements(save).earned.map((a) => a.id)).toContain('wave20all');
   });
 
-  it('clearing wave 15 on your highest tier unlocks the next, and only then', () => {
-    expect(applyRun(defaultSave(), run({ wavesCleared: 14 })).tierUnlocked).toBe(false);
-    const up = applyRun(defaultSave(), run({ wavesCleared: 15 }));
+  it('Knight is open from the start; a win on your highest tier opens the next (#203)', () => {
+    expect(defaultSave().tierUnlocked).toBe(1);
+    expect(applyRun(defaultSave(), run({ wavesCleared: 40, won: true, tier: 0 })).tierUnlocked).toBe(false);
+    const up = applyRun(defaultSave(), run({ wavesCleared: 40, won: true, tier: 1 }));
     expect(up.tierUnlocked).toBe(true);
-    expect(up.save.tierUnlocked).toBe(1);
-    expect(applyRun(up.save, run({ wavesCleared: 15, tier: 0 })).tierUnlocked).toBe(false); // must be on the new tier
+    expect(up.save.tierUnlocked).toBe(2);
     const top = { ...defaultSave(), tierUnlocked: TIERS.length - 1 };
-    expect(applyRun(top, run({ wavesCleared: 15, tier: TIERS.length - 1 })).save.tierUnlocked).toBe(TIERS.length - 1);
+    expect(applyRun(top, run({ wavesCleared: 40, won: true, tier: TIERS.length - 1 })).save.tierUnlocked).toBe(TIERS.length - 1);
   });
 });
 

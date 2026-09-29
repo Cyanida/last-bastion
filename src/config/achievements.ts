@@ -1,10 +1,11 @@
+import { topTierWon } from '../logic/difficulty';
 import { buildingLevel, masteryRank } from '../logic/economy';
 import type { Save } from '../logic/save';
 import type { ArenaId } from './arenas';
 import { CLASS_ORDER, type ClassId } from './classes';
 import type { CurseId } from './curses';
 import { BUILDING_IDS, MASTERY, META_IDS, RUNES } from './economy';
-import { CURSED_IDS, isCursedRelic, RELIC_IDS, type RelicId } from './relics';
+import { CURSED_IDS, isCursedRelic, isSignatureRelic, RELIC_IDS, SIGNATURE_IDS, type RelicId } from './relics';
 import type { TraitId } from './traits';
 
 export type AchievementCategory = 'survival' | 'combat' | 'class' | 'collection' | 'challenges' | 'secrets';
@@ -43,7 +44,7 @@ export interface AchievementDef {
   progress: (s: Save) => number;
   hidden?: boolean; // only its hint is shown until the bronze tier is earned
   hint?: string;
-  unlocks?: { arena?: ArenaId; relic?: RelicId; curse?: CurseId }; // granted with the bronze tier
+  unlocks?: { arena?: ArenaId; curse?: CurseId }; // granted with the bronze tier
 }
 
 /** Per-run class feats, recorded by systems/feats.ts and kept as "best run" counters in the save. */
@@ -57,20 +58,29 @@ export const tierReward = (a: AchievementDef, tier: number): AchievementReward =
 });
 
 /** Rising targets; `rewards` is keyed by tier number (1 = bronze). Every tier pays Runes whether or not it is listed. */
+/**
+ * v0.10 (#194, rule 8): the three deeds that unlocked Phoenix Feather, Soul Lantern and Stormcaller's Horn pay these extra Runes (and a title)
+ * instead; the relics are open to every run until their realm crowns ship. Decided: a legendary is worth more than a keep-a-locked-relic
+ * level's 2 Runes (config/world WORLD.keepLockedRunes).
+ */
+const ACHIEVEMENT_RELIC_RUNES = 3;
+
+// v0.10 (#205): "full run" is the Last Bastion (today also a run with no realm level): a level's loadout would hand these deeds out (logic/save applyRun)
+
 const tiers = (targets: number[], rewards: Record<number, AchievementReward> = {}): AchievementTier[] => targets.map((target, i) => ({ target, reward: rewards[i + 1] ?? {} }));
 
 const classes = (s: Save) => CLASS_ORDER.map((id) => s.classes[id]);
 const bestWave = (s: Save) => Math.max(...classes(s).map((c) => c.bestWave));
 const totalTime = (s: Save) => classes(s).reduce((n, c) => n + c.time, 0);
 const minRank = (s: Save) => Math.min(...classes(s).map((c) => masteryRank(c.xp)));
-const relicPicks = (s: Save) => Object.entries(s.relicPicks).filter(([id]) => !isCursedRelic(id as RelicId)).map(([, n]) => n ?? 0); // v0.7.1: cursed relics are a deed of their own
+const relicPicks = (s: Save) => Object.entries(s.relicPicks).filter(([id]) => !isCursedRelic(id as RelicId) && !isSignatureRelic(id as RelicId)).map(([, n]) => n ?? 0); // v0.7.1: cursed relics are a deed of their own; #201: a signature relic is a crown's
 const top = (xs: number[]) => Math.max(0, ...xs);
 
 export const ACHIEVEMENTS: AchievementDef[] = [
   // ---------------------------------------------------------------- survival
   { id: 'wave10', name: 'Holding the Line', desc: 'Reach wave 10, 12 and 15 with any class.', category: 'survival', tiers: tiers([10, 12, 15], { 1: { trait: 'pilgrim' }, 3: { title: 'the Steadfast', talentPoint: 1 } }), progress: bestWave, unlocks: { arena: 'graveyard', curse: 'timedWaves' } },
   { id: 'wave20', name: 'Unbroken', desc: 'Reach wave 20, 25 and 30 with any class.', category: 'survival', tiers: tiers([20, 25, 30], { 3: { title: 'the Unbroken', palette: 1 } }), progress: bestWave },
-  { id: 'wave20all', name: 'Five Banners', desc: 'Reach wave 20 with all five classes.', category: 'survival', tiers: tiers([5], { 1: { title: 'Banner-Bearer' } }), progress: (s) => classes(s).filter((c) => c.bestWave >= 20).length, unlocks: { relic: 'stormcallersHorn' } }, // v0.7: Conqueror's Crown left with the stat relics
+  { id: 'wave20all', name: 'Five Banners', desc: 'Reach wave 20 with all five classes.', category: 'survival', tiers: tiers([5], { 1: { title: 'Banner-Bearer', runes: ACHIEVEMENT_RELIC_RUNES } }), progress: (s) => classes(s).filter((c) => c.bestWave >= 20).length }, // v0.10 (#194): Runes, no longer Stormcaller's Horn (open to all until the Stormspire crown)
   { id: 'fiveMarches', name: 'Five Marches', desc: 'Reach wave 10 with three, four and all five classes.', category: 'survival', tiers: tiers([3, 4, 5]), progress: (s) => classes(s).filter((c) => c.bestWave >= 10).length },
   { id: 'allClasses', name: 'Jack of All Arms', desc: 'Finish a run with every class.', category: 'survival', tiers: tiers([5]), progress: (s) => classes(s).filter((c) => c.runs > 0).length },
   { id: 'veteran', name: 'Veteran', desc: 'Finish 25, 100 and 250 runs.', category: 'survival', tiers: tiers([25, 100, 250], { 3: { title: 'the Tireless' } }), progress: (s) => classes(s).reduce((n, c) => n + c.runs, 0) },
@@ -86,11 +96,11 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // ---------------------------------------------------------------- combat
   { id: 'firstBlood', name: 'First Blood', desc: 'Slay 100, 500 and 2,000 enemies.', category: 'combat', tiers: tiers([100, 500, 2000], { 3: { title: 'Blooded' } }), progress: (s) => s.counters.kills, unlocks: { curse: 'ironHorde' } },
   { id: 'slayer', name: 'Butcher of the Bastion', desc: 'Slay 5,000, 20,000 and 50,000 enemies.', category: 'combat', tiers: tiers([5000, 20000, 50000], { 3: { title: 'the Butcher' } }), progress: (s) => s.counters.kills },
-  { id: 'eliteHunter', name: 'Elite Hunter', desc: 'Slay 50, 250 and 1,000 elite enemies.', category: 'combat', tiers: tiers([50, 250, 1000], { 1: { trait: 'cursedLuck' }, 3: { title: 'Elitebane' } }), progress: (s) => s.counters.elites, unlocks: { relic: 'soulLantern' } },
+  { id: 'eliteHunter', name: 'Elite Hunter', desc: 'Slay 50, 250 and 1,000 elite enemies.', category: 'combat', tiers: tiers([50, 250, 1000], { 1: { trait: 'cursedLuck', title: 'Lantern-Bearer', runes: ACHIEVEMENT_RELIC_RUNES }, 3: { title: 'Elitebane' } }), progress: (s) => s.counters.elites }, // v0.10 (#194): Runes and a title, no longer Soul Lantern
   { id: 'bossSlayer', name: 'Giant Killer', desc: 'Defeat a boss.', category: 'combat', tiers: tiers([1]), progress: (s) => s.counters.bosses, unlocks: { curse: 'glassBones' } },
   { id: 'bossHunter', name: 'Boss Hunter', desc: 'Defeat 5, 25 and 100 bosses.', category: 'combat', tiers: tiers([5, 25, 100], { 3: { title: 'Kingsbane' } }), progress: (s) => s.counters.bosses, unlocks: { arena: 'keep', curse: 'blind' } },
   { id: 'rogues', name: "Rogues' Gallery", desc: 'Defeat all five different bosses.', category: 'combat', tiers: tiers([5], { 1: { palette: 2 } }), progress: (s) => s.counters.bossKinds.length },
-  { id: 'flawless', name: 'Untouchable', desc: 'Defeat 1, 10 and 25 bosses without taking damage while they live.', category: 'combat', tiers: tiers([1, 10, 25], { 1: { trait: 'duelist' }, 3: { title: 'the Untouched' } }), progress: (s) => s.counters.flawlessBosses, unlocks: { relic: 'phoenixFeather' } },
+  { id: 'flawless', name: 'Untouchable', desc: 'Defeat 1, 10 and 25 bosses without taking damage while they live.', category: 'combat', tiers: tiers([1, 10, 25], { 1: { trait: 'duelist', title: 'Phoenix-Touched', runes: ACHIEVEMENT_RELIC_RUNES }, 3: { title: 'the Untouched' } }), progress: (s) => s.counters.flawlessBosses }, // v0.10 (#194): Runes and a title, no longer Phoenix Feather
   { id: 'commanders', name: 'Cut Off the Head', desc: 'Slay 10, 50 and 200 commanders.', category: 'combat', tiers: tiers([10, 50, 200], { 3: { title: 'Headtaker' } }), progress: (s) => s.counters.commanders, unlocks: { curse: 'eliteCommanders' } },
   { id: 'championKills', name: "Champion's Tally", desc: 'Slay 2,000, 6,000 and 15,000 enemies with a single champion.', category: 'combat', tiers: tiers([2000, 6000, 15000], { 3: { title: 'Warlord' } }), progress: (s) => top(classes(s).map((c) => c.kills)) },
   { id: 'evenHand', name: 'Even Hand', desc: 'Slay 250, 1,000 and 3,000 enemies with every champion.', category: 'combat', tiers: tiers([250, 1000, 3000], { 3: { title: 'the Even-Handed' } }), progress: (s) => Math.min(...classes(s).map((c) => c.kills)) },
@@ -113,23 +123,23 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: 'archerMastery', name: 'Keen Eye', desc: 'Reach Archer mastery rank 5, 12 and 20.', category: 'class', classId: 'archer', tiers: tiers([5, 12, 20], { 3: { fragment: true } }), progress: (s) => masteryRank(s.classes.archer.xp) },
 
   // ---------------------------------------------------------------- collection
-  { id: 'collector', name: 'Reliquarian', desc: 'Hold 6, 10 and 15 relics in a single run.', category: 'collection', tiers: tiers([6, 10, 15]), progress: (s) => s.counters.maxRelics },
+  { id: 'collector', name: 'Reliquarian', desc: 'Hold 6, 10 and 15 relics in one full run.', category: 'collection', tiers: tiers([6, 10, 15]), progress: (s) => s.counters.maxRelics },
   { id: 'curator', name: 'Curator', desc: 'Discover 10, 20 and 28 different relics.', category: 'collection', tiers: tiers([10, 20, 28], { 3: { palette: 3 } }), progress: (s) => relicPicks(s).filter((n) => n > 0).length },
-  { id: 'sixSet', name: 'Six of a Kind', desc: "Complete a family's 6-set in 1, 5 and 15 runs.", category: 'collection', tiers: tiers([1, 5, 15], { 3: { title: 'the Sixfold' } }), progress: (s) => s.counters.sixSets }, // v0.7
-  { id: 'duos', name: 'Bound in Pairs', desc: 'Form 1, 2 and 3 duos in one run.', category: 'collection', tiers: tiers([1, 2, 3]), progress: (s) => s.counters.maxDuos }, // v0.7
-  { id: 'awakening', name: 'The Awakening', desc: 'Awaken 1, 2 and 4 relics in one run.', category: 'collection', tiers: tiers([1, 2, 4], { 3: { title: 'the Awakener' } }), progress: (s) => s.counters.maxAwakened }, // v0.7
+  { id: 'sixSet', name: 'Six of a Kind', desc: "Complete a family's 6-set in 1, 5 and 15 full runs.", category: 'collection', tiers: tiers([1, 5, 15], { 3: { title: 'the Sixfold' } }), progress: (s) => s.counters.sixSets }, // v0.7
+  { id: 'duos', name: 'Bound in Pairs', desc: 'Form 1, 2 and 3 duos in one full run.', category: 'collection', tiers: tiers([1, 2, 3]), progress: (s) => s.counters.maxDuos }, // v0.7
+  { id: 'awakening', name: 'The Awakening', desc: 'Awaken 1, 2 and 4 relics in one full run.', category: 'collection', tiers: tiers([1, 2, 4], { 3: { title: 'the Awakener' } }), progress: (s) => s.counters.maxAwakened }, // v0.7
   { id: 'hoarder', name: 'Devoted', desc: 'Find the same relic 5, 15 and 30 times.', category: 'collection', tiers: tiers([5, 15, 30]), progress: (s) => top(relicPicks(s)) },
   { id: 'treasurer', name: 'Treasurer', desc: 'Bank 5,000, 25,000 and 100,000 gold in total.', category: 'collection', tiers: tiers([5000, 25000, 100000], { 1: { trait: 'scavenger' }, 3: { title: 'the Wealthy' } }), progress: (s) => s.counters.goldEarned, unlocks: { curse: 'swarm' } },
   { id: 'patron', name: 'Lord of the Keep', desc: 'Buy 15, 45 and 82 ranks of permanent upgrades.', category: 'collection', tiers: tiers([15, 45, 82], { 3: { title: 'Lord of the Keep', talentPoint: 1 } }), progress: (s) => META_IDS.reduce((n, id) => n + (s.meta[id] ?? 0), 0) },
   { id: 'mason', name: 'Master Mason', desc: 'Raise the Keep to 6, 12 and 18 building levels.', category: 'collection', tiers: tiers([6, 12, 18], { 3: { title: 'the Architect' } }), progress: (s) => BUILDING_IDS.reduce((n, id) => n + buildingLevel(s.buildings, id), 0) },
   { id: 'runeHoard', name: 'Rune Hoard', desc: 'Hold 10, 30 and 60 Runes at once.', category: 'collection', tiers: tiers([10, 30, 60]), progress: (s) => s.runes },
-  { id: 'ascended', name: 'Ascended', desc: 'Choose all three ability upgrades in one run.', category: 'collection', tiers: tiers([3]), progress: (s) => s.counters.maxAbilityUpgrades },
+  { id: 'ascended', name: 'Ascended', desc: 'Choose all three ability upgrades in one full run.', category: 'collection', tiers: tiers([3]), progress: (s) => s.counters.maxAbilityUpgrades },
   { id: 'master', name: 'Master-at-Arms', desc: 'Reach mastery rank 5, 15 and 25 with any class.', category: 'collection', tiers: tiers([MASTERY[4].xp, MASTERY[14].xp, MASTERY[24].xp], { 3: { title: 'Master-at-Arms' } }), progress: (s) => top(classes(s).map((c) => c.xp)) },
   { id: 'keeperOfRelics', name: 'Keeper of Relics', desc: 'Earn 1, 3 and 5 sacred treasures.', category: 'collection', tiers: tiers([1, 3, 5], { 3: { title: 'Keeper of Relics' } }), progress: (s) => CLASS_ORDER.filter((id) => s.treasures[id].tier > 0).length },
   { id: 'fiveMasters', name: 'Five Masters', desc: 'Reach mastery rank 3, 5 and 10 with every class.', category: 'collection', tiers: tiers([3, 5, 10], { 3: { title: 'the Paragon' } }), progress: minRank },
 
   // ---------------------------------------------------------------- challenges
-  { id: 'knight', name: 'Dubbed a Knight', desc: 'Unlock the Knight, Champion and Legend difficulties.', category: 'challenges', tiers: tiers([1, 2, 3], { 3: { title: 'the Legend', talentPoint: 1 } }), progress: (s) => s.tierUnlocked },
+  { id: 'knight', name: 'Dubbed a Knight', desc: 'Win on Knight, Champion and Legend. Each win opens the next difficulty.', category: 'challenges', tiers: tiers([1, 2, 3], { 3: { title: 'the Legend', talentPoint: 1 } }), progress: topTierWon }, // v0.10 (#203): Knight is open from the start, so the deed counts wins
   { id: 'cursed', name: 'Thrice Cursed', desc: 'Clear Act I with three, five and all eight curses active.', category: 'challenges', tiers: tiers([3, 5, 8], { 3: { title: 'the Damned' } }), progress: (s) => s.counters.cursedActs },
   { id: 'daily', name: 'Trial by Date', desc: 'Finish 1, 10 and 30 Daily Trials.', category: 'challenges', tiers: tiers([1, 10, 30], { 3: { title: 'the Dutiful' } }), progress: (s) => s.counters.dailies },
   { id: 'dailyDeep', name: 'Trial Master', desc: 'Reach wave 10, 20 and 30 in a Daily Trial.', category: 'challenges', tiers: tiers([10, 20, 30]), progress: (s) => top(Object.values(s.daily)) },
@@ -142,7 +152,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // ---------------------------------------------------------------- secrets (hidden until earned)
   { id: 'shardMiser', name: 'Chaff and Dust', desc: 'Hold nine Rune shards at once — one short of a Rune.', category: 'secrets', hidden: true, hint: 'Something glitters in the dust.', tiers: tiers([RUNES.shardsPerRune - 1]), progress: (s) => s.runeShards },
   { id: 'speedDemon', name: 'Ahead of the Horde', desc: 'Reach wave 10 in under three minutes.', category: 'secrets', hidden: true, hint: 'Faster than the horde can march.', tiers: tiers([1], { 1: { title: 'the Fleet' } }), progress: (s) => (s.counters.fastestWave10 > 0 && s.counters.fastestWave10 <= 180 ? 1 : 0) },
-  { id: 'relicLord', name: 'Nothing Left to Find', desc: 'Discover every relic in the compendium.', category: 'secrets', hidden: true, hint: 'Every last one of them.', tiers: tiers([RELIC_IDS.length - CURSED_IDS.length], { 1: { title: 'the Reliquary' } }), progress: (s) => relicPicks(s).filter((n) => n > 0).length },
+  { id: 'relicLord', name: 'Nothing Left to Find', desc: 'Discover every relic in the compendium.', category: 'secrets', hidden: true, hint: 'Every last one of them.', tiers: tiers([RELIC_IDS.length - CURSED_IDS.length - SIGNATURE_IDS.length], { 1: { title: 'the Reliquary' } }), progress: (s) => relicPicks(s).filter((n) => n > 0).length },
   { id: 'grandmasters', name: 'Five Grandmasters', desc: 'Reach the final mastery rank with every class.', category: 'secrets', hidden: true, hint: 'Master all five, to the last rank.', tiers: tiers([MASTERY.length], { 1: { title: 'the Grandmaster', talentPoint: 1 } }), progress: minRank },
   { id: 'thirteen', name: 'Thirteen Banners', desc: 'Reach wave 13 with all five classes.', category: 'secrets', hidden: true, hint: 'Thirteen banners on the wall.', tiers: tiers([5]), progress: (s) => classes(s).filter((c) => c.bestWave >= 13).length },
   { id: 'dragonHoard', name: "Dragon's Hoard", desc: 'Bank half a million gold.', category: 'secrets', hidden: true, hint: 'Gold enough to shame a dragon.', tiers: tiers([500000], { 1: { title: 'the Gilded' } }), progress: (s) => s.counters.goldEarned },

@@ -272,6 +272,10 @@ h2 { font-family: var(--heading); font-size: 28px; margin: 4px 0 0; }
 .relic.cursed { box-shadow: 0 0 10px #9b59d0; }
 .relic-card.cursed { background: linear-gradient(#eadcf3, #cdb3df); }
 .relic-card.cursed .tag, .relic-line.cursed { color: #5b2380; font-weight: bold; }
+.relic.signature, .relic-card.signature { border-color: #9a6118; outline-color: #f6d97a; } /* #201: a signature relic is gold */
+.relic.signature { box-shadow: 0 0 10px #f6d97a; }
+.relic-card.signature { background: linear-gradient(#fbf0cf, #efd796); }
+.relic-card.signature .tag, .relic-line.signature { color: #7a4a0e; font-weight: bold; }
 .relic-icon .tier { position: absolute; right: calc(50% - 34px); bottom: 4px; font: bold 14px var(--body); font-style: normal; color: #e9c95a; text-shadow: 0 0 3px #000, 0 0 3px #000; }
 .relic-icon { position: relative; }
 .relic-line { cursor: help; }
@@ -530,6 +534,8 @@ canvas#game { touch-action: none; }
 /* v0.7 relic moments: what a relic would do for this build */
 .relic-card .preview { font-size: 13px; color: #3f5a2a; margin-top: 3px; }
 .levelup .relic-card p { font-size: 17px; line-height: 1.3; } /* #98: an offer card leads with its effect */
+.crown-pick .card { width: min(460px, calc(92 * var(--vw))); } /* #202: the crown's one card, wide so its long text stays short enough for a phone held sideways */
+@media (max-height: 500px) { .crown-pick .cards { margin: 6px 0; } .crown-pick .relic-card p { font-size: 15px; } }
 
 /* v0.7 relic families: a card's family colour on its edge and tag */
 .relic-card { border-left: 5px solid var(--fam, transparent); }
@@ -541,8 +547,6 @@ canvas#game { touch-action: none; }
 .fam-chip.on { border-color: var(--fam); box-shadow: 0 0 6px var(--fam); }
 .fam-chip.flash { animation: fam-flash 1.2s ease-out 2; }
 @keyframes fam-flash { 0% { transform: scale(1.5); background: var(--fam); } 100% { transform: scale(1); } }
-.card .fam-line { font-size: 13px; margin-top: 4px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-.card .fam-line .fam-chip { font-size: 12px; padding: 1px 5px; } /* #176: readable on parchment, unlike plain family-colour text */
 .relic .att { position: absolute; left: 4px; right: 4px; bottom: 3px; height: 3px; border-radius: 2px; background: rgba(42, 29, 16, 0.35); overflow: hidden; }
 .relic .att::after { content: ''; position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--att, 0)); background: var(--gold); transition: transform 0.4s; }
 .relic.duo { border-color: #c9a227; box-shadow: 0 0 0 2px #f2c94c inset, 0 0 10px rgba(242, 201, 76, 0.6); } /* v0.7 A5 */

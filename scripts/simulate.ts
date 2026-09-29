@@ -12,9 +12,17 @@
  * One save, played run after run by the bot (classes in turn, the bot spends gold and Runes greedily on the Keep between runs, deeds
  * earned as they come). Reports gold and Runes per run and the run on which the Keep is fully raised (target 40-60, BALANCE.md).
  *
- * Relics (v0.7):  npm run sim -- relics [runs=3]
+ * Relics (v0.7):  npm run sim -- relics [runs=3] [signature]
  * Maxed saves and the family-following bot, one process per class (scripts/relic-report.ts): 6-sets and duos in winning runs, families
  * at a 4-set per class, the relic power index, and every relic's contribution from wave 21 on (targets: RELICS.md, A8).
+ *
+ * Relics with a loadout (v0.10, #207):  npm run sim -- relics [runs=3] loadout
+ * The same tables, but every run is the Last Bastion with the loadout the bot fills from an expected champion's inventory (src/sim/levels.ts).
+ *
+ * Realm levels (v0.10, #207):  npm run sim -- levels [runs=4] [tier=1] [realms=marches,ironHold]
+ * First tries by the bot at every level of those realms with expected progress (it fills the slots from the inventory earlier first clears
+ * gave), one process per class (scripts/level-report.ts): clear rate, minutes, power at the first wave against a continuous run, and plan
+ * rule 9's targets. Add lastBastion to the realms for the finale's targets (duos, 6-sets, minutes).
  *
  * Depth past the win (v0.6):  npm run sim -- deep [runs=3] [tier=0]: the default table, wins going on into Endless.
  * v0.7.1: SIM_CLASS=viking,archer runs only those classes (so the tables can run one process per class in parallel).
@@ -29,14 +37,14 @@ import { ACTS } from '../src/config/acts';
 import { RUN_LOG } from '../src/config/game';
 import { actMinutes, quietStretches } from '../src/logic/runlog';
 import type { RunOptions } from '../src/game';
-import { lockedRelics, withAchievements } from '../src/logic/achievements';
+import { withAchievements } from '../src/logic/achievements';
 import { accountLevel, buildingLevel, metaCost, totalKeepCost } from '../src/logic/economy';
 import { expectedLevel } from '../src/logic/formulas';
 import { applyRun, buyBuilding, buyMeta, defaultSave } from '../src/logic/save';
 import type { RunSummary } from '../src/logic/save';
 import { probeRun, simulateRun } from '../src/sim/bot';
 
-const mode = ['probe', 'relics', 'economy', 'pacing', 'deep'].includes(process.argv[2] ?? '') ? process.argv[2] : '';
+const mode = ['probe', 'relics', 'economy', 'pacing', 'deep', 'levels'].includes(process.argv[2] ?? '') ? process.argv[2] : '';
 const deep = mode === 'deep'; // v0.6: the default table, but a win marches on into Endless, so depth is not capped at wave 40
 const probe = mode === 'probe';
 const argAt = mode ? 3 : 2;
@@ -69,7 +77,7 @@ if (mode === 'economy') {
   for (let i = 1; i <= runs; i++) {
     const classId = CLASS_ORDER[(i - 1) % CLASS_ORDER.length];
     const result = simulateRun(classId, 5000 + i, {
-      tier, arena, meta: save.meta, classXp: save.classes[classId].xp, lockedRelics: lockedRelics(save),
+      tier, arena, meta: save.meta, classXp: save.classes[classId].xp,
       accountLevel: accountLevel(CLASS_ORDER.map((c) => save.classes[c].xp)), libraryLevel: buildingLevel(save.buildings, 'library'),
       bonusTalentPoints: save.talentPoints, // v0.4: deeds pay permanent talent points
     }, i % 2);
@@ -146,6 +154,25 @@ pacing · ${runs} runs per cell · ${TIERS[tier].name} · ${arena} · from the r
   process.exit(0);
 }
 
+if (mode === 'levels') {
+  // #207: one class per process (scripts/level-report.ts), in parallel, then the tables; Knight unless a tier is given
+  const { spawn } = await import('node:child_process');
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'lb-levels-'));
+  const outs = CLASSES.map((c) => join(dir, `${c}.json`));
+  const node = (argv: string[]) => new Promise<void>((done, fail) => spawn('npx', ['vite-node', 'scripts/level-report.ts', ...argv], { stdio: 'inherit', shell: true }).on('exit', (code) => (code ? fail(new Error(`exit ${code}`)) : done())));
+  const started = Date.now();
+  const levelTier = process.argv[argAt + 1] === undefined ? 1 : tier;
+  const realms = process.argv[argAt + 2] ?? 'marches,ironHold';
+  await Promise.all(CLASSES.map((c, i) => node(['run', c, String(runs), String(levelTier), realms, outs[i]])));
+  await node(['merge', ...outs]);
+  console.log(`
+(${((Date.now() - started) / 1000).toFixed(0)}s)`);
+  process.exit(0);
+}
+
 if (mode === 'relics') {
   // v0.7 A8: one class per process (scripts/relic-report.ts), in parallel, then the tables
   const { spawn } = await import('node:child_process');
@@ -156,7 +183,8 @@ if (mode === 'relics') {
   const outs = CLASS_ORDER.map((c) => join(dir, `${c}.json`));
   const node = (argv: string[]) => new Promise<void>((done, fail) => spawn('npx', ['vite-node', 'scripts/relic-report.ts', ...argv], { stdio: 'inherit', shell: true }).on('exit', (code) => (code ? fail(new Error(`exit ${code}`)) : done())));
   const started = Date.now();
-  await Promise.all(CLASS_ORDER.map((c, i) => node(['run', c, String(runs), outs[i]])));
+  const extra = process.argv.includes('signature') ? ['signature'] : process.argv.includes('loadout') ? ['loadout'] : []; // #201: every run holds its class's signature relic from the start; #207: the Last Bastion with a loadout
+  await Promise.all(CLASS_ORDER.map((c, i) => node(['run', c, String(runs), outs[i], ...extra])));
   await node(['merge', ...outs]);
   console.log(`
 (${((Date.now() - started) / 1000).toFixed(0)}s)`);

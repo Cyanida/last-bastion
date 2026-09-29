@@ -48,7 +48,7 @@ export const BLOOD_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   berserkerTooth: {
     tick(_g, _dt, p) {
       const n = nOf(p, 'berserkerTooth');
-      bonus(p, 'atkSpd', Math.min(n.max, missing(p) / n.per)); // Last Blood lives in relicCore.addBleed
+      bonus(p, 'atkSpd', n.flat + Math.min(n.max, missing(p) / n.per)); // #196: the flat part works at full HP too; Last Blood lives in relicCore.addBleed
     },
   },
 

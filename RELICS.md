@@ -157,6 +157,9 @@ sold, rerolled or reforged. Every class still reaches a 6-set: each of its three
 First measure (`sim -- relics 4`, 20 runs, 13 won): 6-sets in 7.7% of winning runs (was 41-65%, mostly completed with a duo), 1.00 duos a winning run, power index 2.04. Jesse's new target
 (on #96): a 6-set in **about 15% of winning runs**, rarer than before but a noticeable power-up. Offers now lean 1.6× toward the families
 you hold (`RELIC_MOMENTS.heldFamilyWeight`, was 1): 6-sets in 15.4% of winning runs, still 1.00 duos and a power index of 2.04 (BALANCE.md).
+**v0.10 (#194, docs/road-to-the-crown.md rules 4 and 5):** the 15% target and the preferred families are retired. The lean is back to 1.0,
+only one family reaches its 6-set bonus in a run (a second stops at its 4), and a champion's pool is the starter commons, its inventory and,
+inside a realm, that realm's family (`logic/relics.ts` `championPool`, `familySets`).
 
 ## A7 · Keep, achievements, migration (built)
 
@@ -275,6 +278,51 @@ Half of that goes over as tier plus bar (`logic/relics.ts` `halfAttunement`):
 It costs 30 gold (+35% an Act; `MERCHANT.reforge`). A cursed relic has no family, so it cannot be reforged. A relic combined into a duo is not
 listed (v0.7.5). Reroll keeps the tier but not the family; Reforge keeps the family count but halves the attunement.
 
+## C1 · Signature relics (v0.10, [#201](https://github.com/Cyanida/last-bastion/issues/201)) — for approval
+
+One signature relic per champion, outside the families: the champion-specific rare the Marches crown gives (docs/road-to-the-crown.md,
+decisions log: "the champion-specific rare is a new signature relic"). Numbers in `config/relics.ts` (`SIGNATURE`, the five entries at the end of
+`RELICS`), behaviour in `systems/relicFamilies/signature.ts`.
+
+- **Outside the families.** Rare, gold (`SIGNATURE.color`), `signature: true` and no family: it counts toward no set, feeds no duo, the
+  family rule of an offer ignores it, and the Merchant cannot reforge it (like a cursed relic). Each is built on its class's signature ability.
+- **Won once, with the Marches crown.** The first Marches crown on any tier (`config/world.ts`) puts it in the champion's inventory
+  (`logic/champions.ts` `grantSignature`, applied when the run is banked). Save v7's `signature` flag says it is won; a save read with the
+  flag set always has it in the inventory.
+- **The pool follows the champion (#194).** It is never in a pool without a champion (the Daily Trial, the sims); once won, it is in the
+  champion's pool in every realm like the rest of its inventory, and offered 3× as often until first picked.
+- **Slot rules (#195).** It takes 1 slot and is not one of the 2 class relics, so a loadout may hold both class relics and the signature.
+- **Collection deeds.** Like the cursed relics it stays out of Curator, Devoted and Nothing Left to Find: it is a crown's reward, not a find.
+  The compendium lists the five under their own gold heading, and test mode offers the champion's own.
+
+| Champion | Relic | Effect (I → II) | Awakened (III) |
+|---|---|---|---|
+| Paladin | ⚜️ Oathkeeper's Seal | Divine Shield keeps the blows it turns away (up to 100% of max HP). When it ends it strikes every enemy within 180 px for 40 plus 150% → 200% of what it kept (+5% per point of Faith) | **Sanctified**: the strike also wards you for 6% of max HP |
+| Viking | 🪓 Jarl's Torc | During Berserker Rage your attacks cleave: 35% → 50% of each hit to every other enemy within 90 px of the target | **Saga's End**: every kill during Rage makes it last 0.3 s longer (up to 3 s a Rage) |
+| Angel | 🌟 Dawnstar | Heavenly Radiance calls 3 → 4 beams of dawn on the strongest enemies within 360 px: 60 (+5 per point of Grace) holy damage around each (60 px) | **Morning Hymn**: every beam that lands heals 1% of max HP (under the relic healing cap) |
+| Necromancer | 🏺 Phylactery | Raise Dead also raises 1 → 2 Bone Knights (120 HP, 14 damage) for 8 s | **Lich's Crown**: its Bone Knights burst for 30 shadow damage when they fall |
+| Archer | 🦅 Eagle Fletching | Every Arrow Volley arrow has a 30% → 40% chance to strike again for 80% of its hit | **Deadeye**: the second strike hits for 120% |
+
+Flat damage (the Seal's 40, the beams, the knights and their burst) grows with character level like every relic's
+(`RELIC_DAMAGE_PER_LEVEL`). The Phylactery's knights last 8 s, the length of Raise Dead's cooldown, because relic skeletons count toward the
+skeleton cap: a longer life would take the next cast's slots.
+
+**Measured.** `npm run sim -- relics 4 signature` (the relic sim with every run holding its class's signature relic from the start; maxed
+saves, 20 runs, 18 won). Share from wave 21 on, target 3-35%:
+
+| Relic | Runs held at wave 20 | Share |
+|---|---|---|
+| ⚜️ Oathkeeper's Seal | 4 | 13.0% |
+| 🌟 Dawnstar | 4 | 12.6% |
+| 🦅 Eagle Fletching | 4 | 11.6% |
+| 🪓 Jarl's Torc | 3 | 4.6% |
+| 🏺 Phylactery | 4 | 3.3% |
+
+All five sit inside the band, in the middle of the family rares (Salamander Scale 12.5%, Vampire Fang 12.4%), none near the 35% ceiling. The
+Torc and the Phylactery read low for the same reason Bone Chime reads high: the share sees the Torc's cleave but not the longer Rage of Saga's
+End, and the Phylactery's knights also soak hits the shares cannot see. The run's other targets hold as before (6-sets 16.7% of winning runs,
+1.28 duos); the power index reads 1.73 with 4 runs a class, as the sim's small samples do.
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
@@ -320,14 +368,15 @@ the end for comparison.
 
 Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shines; every relic works for every class unless it names one.
 
-#### 🔥 Flame (5 + 3 class)
+#### 🔥 Flame (6 + 3 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
 | Brimstone Oil | common | Attacks have a 25% → 35% chance to add a burn stack (20% of the hit per second) | **Hellfire**: ability hits add 2 burn stacks | Archer, Angel |
-| Emberheart | common | +6% → 8% damage for each burning enemy within 250 px (max 5) | **Kindled**: while 5 or more burning enemies are near, every hit adds a burn stack | any |
+| Emberheart | common | +60% → 80% damage for each burning enemy within 250 px (max 5) | **Kindled**: while 5 or more burning enemies are near, every hit adds a burn stack | any |
 | Salamander Scale | rare | Enemies at 3+ burn stacks take 25% → 35% more damage from you | **Scorched Earth**: an enemy that dies at full burn stacks leaves a fire patch for 3 s that adds burn stacks | Paladin, Viking |
 | Cinder Charm | common | A burning enemy you kill throws an ember at the nearest enemy: 1 → 2 burn stacks | **Ember Storm**: the ember splits in three | any |
+| Ember Mantle *(v0.10, #200)* | rare | Every 1.5 → 1 s, enemies within 120 px of you catch fire: 1 burn stack | **Firewalk**: you leave a trail of fire (6 damage per second, for 2 s) | Viking, Paladin |
 | Dragon's Tongue | legendary | Every 8 → 6 s your next attack also breathes a cone of fire: 3 → 4 burn stacks | **Wyrmfire**: the cone detonates every burn it touches for its remaining damage at once | Archer, Paladin |
 | Fire Arrows *(Archer)* | rare | Arrow Volley arrows each add a burn stack; burn damage +2% → 3% per Focus | **Rain of Cinders**: the Volley's area keeps burning for 3 s | Archer |
 | Sunfire Censer *(Angel)* | rare | Heavenly Radiance adds 1 + Grace/6 → Grace/4 burn stacks to everything it hits | **Solar Flare**: enemies killed by Radiance burst into fire (a Pyre explosion) | Angel |
@@ -337,8 +386,8 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
-| Frost Brand | common | Attacks have a 25% → 35% chance to chill | **Hoarfrost**: chilled enemies deal 20% less damage | Archer, Angel |
-| Winter's Grasp | common | Your signature ability chills everything it hits (2 → 3 chill) | **Deep Freeze**: enemies your ability freezes stay frozen 1 s longer | any |
+| Frost Brand | common | Attacks have a 90% → 100% chance to chill (1 chill) | **Hoarfrost**: chilled enemies deal 20% less damage | Archer, Angel |
+| Winter's Grasp | common | Your signature ability chills everything it hits (5 → 7 chill) | **Deep Freeze**: enemies your ability freezes stay frozen 1 s longer | any |
 | Shatterglass | rare | Your hits on frozen enemies always crit, with +25% → 40% crit damage | **Splinter**: a crit on a frozen enemy sprays 3 ice shards that chill | Archer, Viking |
 | Glacial Heart | rare | While 3 or more chilled enemies are near you, you take 15% → 20% less damage | **Cold Blood**: every freeze near you gives +20% attack speed for 2 s | any |
 | Everfrost Crown | legendary | Every 10 → 7 s a frost nova around you chills everything within 200 px (3 chill) | **Blizzard**: the nova leaves a freezing field for 3 s | any |
@@ -362,9 +411,9 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
-| Serrated Edge | common | Crits open 2 → 3 bleed stacks (10% of the hit per second each) | **Haemorrhage**: +20% crit damage against bleeding enemies | Archer, Viking |
+| Serrated Edge | common | Crits open 7 → 8 bleed stacks (100% of the hit per second each) | **Haemorrhage**: +20% crit damage against bleeding enemies | Archer, Viking |
 | Butcher's Hook | common | Bleeding enemies are slowed 15% → 20% and take 15% → 20% more damage from your attacks | **Gutting**: a bleeding enemy you kill passes its bleed to 2 enemies near it | Viking, Paladin |
-| Berserker Tooth | rare | +1% attack speed per 3% → 2% of HP missing (max 30% → 40%) | **Last Blood**: below 25% HP, every bleed you apply is doubled | Viking |
+| Berserker Tooth | rare | +10% → 15% attack speed, and +1% more per 0.1% → 0.08% of HP missing (max 80% → 100%) | **Last Blood**: below 25% HP, every bleed you apply is doubled | Viking |
 | Vampire Fang | rare | Hits on bleeding enemies heal 3% → 5% of the damage (under the relic healing cap) | **Thirst**: below half HP, doubled | any melee |
 | Blood Pact | legendary | +40% → 55% damage, but max HP is cut by 25% → 20% | **Covenant**: under half HP, kills restore 1% max HP | any |
 | Wolfskin Cloak *(Viking)* | rare | During Berserker Rage your hits add a bleed stack; +1 per 15 → 10 Rage | **Blood Frenzy**: bleeding enemies you kill during Rage give 5% attack speed for the rest of it (max 25%) | Viking |

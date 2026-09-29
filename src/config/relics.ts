@@ -4,7 +4,7 @@ import type { ClassId } from './classes';
 
 /**
  * v0.7 relics (RELICS.md, approved revision 2): seven families, each with one core mechanic and set bonuses at 2, 4 and 6 relics held.
- * Every relic belongs to one family; class relics (three per class, one in each of its preferred families) are only offered to their class.
+ * Every relic belongs to one family; class relics (three per class) are only offered to their class.
  * v0.7.1 B6: the six cursed relics are the exception: no family, far stronger, with a curse that their awakening lifts (CURSED below).
  * A relic grows by attunement (A4): tier II strengthens its numbers, tier III awakens it (an extra behaviour with its own name).
  * Numbers live here; the behaviour is in systems/relicFamilies/<family>.ts.
@@ -18,6 +18,7 @@ export interface RelicDef {
   icon: string;
   family?: FamilyId; // none for a cursed relic
   cursed?: true; // v0.7.1 B6: a cursed relic (no family; offered by CURSED's rules, never from the pool)
+  signature?: true; // v0.10 (#201): a champion's signature relic (no family; won with the Marches crown, SIGNATURE below)
   classId?: ClassId; // a class relic: only offered to this class
   mods?: Partial<Mods>; // a few relics also carry a plain bonus (Blood Pact's damage, Tempest Eye's crit)
   n: Record<string, number>; // tier I numbers, read by the family module
@@ -31,7 +32,7 @@ const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 /** Keeps each relic's numbers typed and its text in sync with them. Tier III (awakened) keeps tier II's numbers. */
 function relic<N extends Record<string, number>, A extends Record<string, number> = Record<string, never>>(r: {
-  name: string; rarity: Rarity; icon: string; family?: FamilyId; cursed?: true; classId?: ClassId; mods?: Partial<Mods>; mods2?: Partial<Mods>;
+  name: string; rarity: Rarity; icon: string; family?: FamilyId; cursed?: true; signature?: true; classId?: ClassId; mods?: Partial<Mods>; mods2?: Partial<Mods>;
   n: N; n2: Partial<N>; a?: A; awaken: [string, string | ((a: A) => string)]; desc: (n: N) => string;
 }): RelicDef {
   const { n2, mods2, a = {} as A, awaken, desc, ...rest } = r;
@@ -53,8 +54,10 @@ export const RELIC_MOMENTS = {
   choices: 3,
   rerolls: 1,
   skip: { gold: 30, goldPerAct: 30, shards: 1 },
-  heldFamilyWeight: 1.6, // #96: a duo no longer counts toward 6-sets; 1 gave 7.7% of winning runs a 6-set, 1.6 gives ~15% (Jesse's target)
-  classRelicWeight: 0.5, // A8: class relics come half as often (a straight 6-set in a preferred family needs its class relic)
+  heldFamilyWeight: 1, // v0.10 (#194): was 1.6 for #96's 15% 6-set target, which is retired (rule 4: the lean drops to 1.0)
+  classRelicWeight: 0.5, // A8: class relics come half as often
+  newRelicWeight: 3, // v0.10 (#194): a relic the champion unlocked and never picked is offered this many times as often (rule 5)
+  sixSets: 1, // v0.10 (#194): one family reaches its 6-set bonus in a run; any other stops at its 4 (rule 4)
   duoAt: ['boss', 'lair'] as string[], // A8: the moments that can carry a ready duo (at every moment, duos completed most 6-sets)
   merchantPerVisit: 1, // the Merchant sells one relic moment a visit between Acts (not at the Merchant path's caravan): at most 3 a run
 };
@@ -62,7 +65,7 @@ export const RELIC_MOMENTS = {
 /**
  * #100: the families each arena's bosses drop. A boss moment offers only relics of its arena's families (plus a cursed third card or a ready
  * duo), and so do its rerolls, so a boss can't be rerolled into any build. Lairs, quests, strongboxes, the Merchant and the run start stay
- * open, so every class can still gather a 6-set of its preferred families. Every family is some arena's; a boss falls back to the whole
+ * open. Every family is some arena's; a boss falls back to the whole
  * pool when too few of its families' relics are left to fill the pick.
  */
 export const ARENA_FAMILIES: Record<ArenaId, FamilyId[]> = {
@@ -123,12 +126,12 @@ export const RELIC_STACKING = {
 export const RELIC_COLOR = '#d9a8ff';
 
 /**
- * The families. `preferredBy`: the classes that can max it with straight pieces (5 relics any class finds + that class's own class relic).
+ * The families. v0.10 (#194): no family is preferred by a class any more (docs/road-to-the-crown.md rule 5).
  * Set bonus numbers are read by systems/relicFamilies/<family>.ts; `...PerS` numbers grow with the class's secondary stat.
  */
 export const FAMILIES = {
   flame: {
-    name: 'Flame', icon: '🔥', color: '#e8793a', mechanic: 'Burn stacks and fire bursts', preferredBy: ['paladin', 'angel', 'archer'],
+    name: 'Flame', icon: '🔥', color: '#e8793a', mechanic: 'Burn stacks and fire bursts',
     sets: {
       2: ['Stoked', 'Burns stack one higher, and burn damage grows 3% per point of your secondary stat.'],
       4: ['Pyre', 'Burning enemies explode on death: 20% of their max HP (+1% per point of your secondary stat) around them.'],
@@ -137,7 +140,7 @@ export const FAMILIES = {
     n: { stacksBonus: 1, burnPerS: 0.03, pyreFrac: 0.2, pyrePerS: 0.01, pyreRadius: 90, spreadEvery: 2, spreadRange: 160 },
   },
   frost: {
-    name: 'Frost', icon: '❄️', color: '#8ec9e8', mechanic: 'Chill (a relic\'s chill: +4% damage taken per stack), freeze, shatter', preferredBy: ['angel', 'necromancer', 'archer'],
+    name: 'Frost', icon: '❄️', color: '#8ec9e8', mechanic: 'Chill (a relic\'s chill: +4% damage taken per stack), freeze, shatter',
     sets: {
       2: ['Biting Cold', 'Chill builds 50% faster.'],
       4: ['Shatter', 'Frozen enemies shatter when killed: 30% of their max HP (+1% per point of your secondary stat) to enemies around them.'],
@@ -146,7 +149,7 @@ export const FAMILIES = {
     n: { chillVuln: 0.04, chillMult: 1.5, shatterFrac: 0.3, shatterPerS: 0.01, shatterRadius: 110, trailEvery: 0.3, trailLife: 2, trailRadius: 45, touchFreeze: 0.6, touchCd: 3, near: 300 },
   },
   storm: {
-    name: 'Storm', icon: '⚡', color: '#f2e6a0', mechanic: 'Chains and speed', preferredBy: ['viking', 'archer'],
+    name: 'Storm', icon: '⚡', color: '#f2e6a0', mechanic: 'Chains and speed',
     sets: {
       2: ['Arc', 'Every 4th hit chains to a second enemy for full damage (every 3rd from 15 in your secondary stat).'],
       4: ['Thunderstrike', 'Crits call a lightning strike: 50% of the hit to everything around the target.'],
@@ -155,7 +158,7 @@ export const FAMILIES = {
     n: { arcEvery: 4, arcEveryAt15: 3, arcMult: 1, arcRange: 170, strikeMult: 0.5, strikeRadius: 60, rangeMult: 1.5, streakKills: 10, streakWindow: 5 },
   },
   blood: {
-    name: 'Blood', icon: '🩸', color: '#c23a2e', mechanic: 'Bleed, and HP for power', preferredBy: ['viking'],
+    name: 'Blood', icon: '🩸', color: '#c23a2e', mechanic: 'Bleed, and HP for power',
     sets: {
       2: ['Open Wounds', 'Every bleed you apply adds two stacks more.'],
       4: ['Bloodlust', '+1% damage for every 2% of HP missing (max 50%), and killing a bleeding enemy heals 1% of your max HP.'],
@@ -164,7 +167,7 @@ export const FAMILIES = {
     n: { extraStacks: 2, perMissing: 0.5, lustMax: 0.5, killHeal: 0.01, hpCost: 0.2 },
   },
   holy: {
-    name: 'Holy', icon: '✨', color: '#f0d77a', mechanic: 'Healing, ward and blessing', preferredBy: ['paladin', 'angel', 'necromancer'],
+    name: 'Holy', icon: '✨', color: '#f0d77a', mechanic: 'Healing, ward and blessing',
     sets: {
       2: ['Blessed', 'Healing also grants ward: 25% of the heal (your ward holds up to 15% of your max HP, +1% per point of your secondary stat).'],
       4: ['Radiance', 'Overhealing becomes a holy pulse around you: twice the overheal as damage.'],
@@ -173,7 +176,7 @@ export const FAMILIES = {
     n: { wardShare: 0.25, wardMax: 0.15, wardMaxPerS: 0.01, pulseMult: 2, pulseRadius: 150, wardMaxMult: 2 },
   },
   grave: {
-    name: 'Grave', icon: '💀', color: '#9a7fc0', mechanic: 'Corpses, summons and curse', preferredBy: ['necromancer'],
+    name: 'Grave', icon: '💀', color: '#9a7fc0', mechanic: 'Corpses, summons and curse',
     sets: {
       2: ['Charnel', 'Corpses last twice as long, and walking over one attunes your Grave relics.'],
       4: ['Undying Host', 'Every 10th kill raises a skeleton for you, whatever your class (max 3, +1 per 10 in your secondary stat).'],
@@ -182,7 +185,7 @@ export const FAMILIES = {
     n: { corpseMult: 2, every: 10, max: 3, maxPer10S: 1, hp: 50, damage: 10, life: 20 },
   },
   steel: {
-    name: 'Steel', icon: '🛡️', color: '#a8b0bc', mechanic: 'Armor stacks, block, thorns', preferredBy: ['paladin', 'viking'],
+    name: 'Steel', icon: '🛡️', color: '#a8b0bc', mechanic: 'Armor stacks, block, thorns',
     sets: {
       2: ['Bulwark', 'Blocking or taking a hit gives an armor stack (+3% armor each, 5 at most, +1 per 10 in your secondary stat; they fade 4 s after the last).'],
       4: ['Spiked', 'Thorns: an enemy that hits you takes 4 × your armor % of the hit back.'],
@@ -190,7 +193,7 @@ export const FAMILIES = {
     },
     n: { stackArmor: 0.03, stacksMax: 5, stacksPer10S: 1, fade: 4, thornsMult: 4, quakePerStack: 20, quakeRadius: 160 },
   },
-} satisfies Record<FamilyId, { name: string; icon: string; color: string; mechanic: string; preferredBy: ClassId[]; sets: Record<2 | 4 | 6, [string, string]>; n: Record<string, number> }>;
+} satisfies Record<FamilyId, { name: string; icon: string; color: string; mechanic: string; sets: Record<2 | 4 | 6, [string, string]>; n: Record<string, number> }>;
 export const FAMILY_IDS = Object.keys(FAMILIES) as FamilyId[];
 export const SET_LEVELS = [2, 4, 6] as const;
 export type SetLevel = (typeof SET_LEVELS)[number];
@@ -199,12 +202,15 @@ export const RELICS = {
   // ---------------------------------------------------------------- 🔥 Flame
   brimstoneOil: relic({ name: 'Brimstone Oil', rarity: 'common', icon: '🔥', family: 'flame', n: { chance: 0.35, power: 0.5 }, n2: { chance: 0.5 }, a: { stacks: 2 },
     awaken: ['Hellfire', (a) => `Ability hits add ${a.stacks} burn stacks.`], desc: (n) => `Attacks have a ${pct(n.chance)} chance to add a burn stack (${pct(n.power)} of the hit per second).` }),
-  emberheart: relic({ name: 'Emberheart', rarity: 'common', icon: '🧡', family: 'flame', n: { per: 0.3, max: 5, radius: 250 }, n2: { per: 0.4 }, a: { count: 5, power: 0.2 },
+  emberheart: relic({ name: 'Emberheart', rarity: 'common', icon: '🧡', family: 'flame', n: { per: 0.6, max: 5, radius: 250 }, n2: { per: 0.8 }, a: { count: 5, power: 0.2 },
     awaken: ['Kindled', (a) => `While ${a.count} or more burning enemies are near, every hit adds a burn stack.`], desc: (n) => `+${pct(n.per)} damage for each burning enemy within ${n.radius} px (up to ${n.max}).` }),
   cinderCharm: relic({ name: 'Cinder Charm', rarity: 'common', icon: '🪔', family: 'flame', n: { stacks: 2, range: 220 }, n2: { stacks: 3 }, a: { throws: 3 },
     awaken: ['Ember Storm', 'The ember splits in three.'], desc: (n) => `A burning enemy you kill throws an ember at the nearest enemy: ${n.stacks} burn stack${n.stacks > 1 ? 's' : ''}.` }),
   salamanderScale: relic({ name: 'Salamander Scale', rarity: 'rare', icon: '🦎', family: 'flame', n: { bonus: 0.35, stacks: 3 }, n2: { bonus: 0.5 }, a: { radius: 60, life: 3, dps: 8, power: 3 },
     awaken: ['Scorched Earth', (a) => `An enemy that dies at full burn stacks leaves a fire patch for ${a.life} s that adds burn stacks.`], desc: (n) => `Enemies at ${n.stacks}+ burn stacks take ${pct(n.bonus)} more damage from you.` }),
+  // v0.10 (#200): the Marches' new Flame rare, so its level 2 offers a pick of two; a burn source that needs no hit, for melee champions
+  emberMantle: relic({ name: 'Ember Mantle', rarity: 'rare', icon: '🧥', family: 'flame', n: { every: 1.5, radius: 120, stacks: 1, power: 5 }, n2: { every: 1 }, a: { every: 0.3, life: 2, radius: 40, dps: 6 },
+    awaken: ['Firewalk', (a) => `You leave a trail of fire (${a.dps} damage per second, for ${a.life} s).`], desc: (n) => `Every ${n.every} s, enemies within ${n.radius} px of you catch fire: ${n.stacks} burn stack.` }),
   dragonsTongue: relic({ name: "Dragon's Tongue", rarity: 'legendary', icon: '🐉', family: 'flame', n: { every: 6, stacks: 3, range: 230, arc: 0.9 }, n2: { every: 4, stacks: 4 },
     awaken: ['Wyrmfire', 'The cone detonates every burn it touches for its remaining damage at once.'], desc: (n) => `Every ${n.every} s your next attack also breathes a cone of fire: ${n.stacks} burn stacks.` }),
   fireArrows: relic({ name: 'Fire Arrows', rarity: 'rare', icon: '🏹', family: 'flame', classId: 'archer', n: { perFocus: 0.04 }, n2: { perFocus: 0.06 }, a: { radius: 110, life: 3, dps: 10 },
@@ -215,7 +221,7 @@ export const RELICS = {
     awaken: ['Pillar of Dawn', 'While the shield holds, burning enemies touching you take their burn damage again every second.'], desc: (n) => `Divine Shield's burst adds ${n.base} + Faith/${n.per} burn stacks.` }),
 
   // ---------------------------------------------------------------- ❄️ Frost
-  frostBrand: relic({ name: 'Frost Brand', rarity: 'common', icon: '❄️', family: 'frost', n: { chance: 0.35, chill: 3 }, n2: { chance: 0.5 }, a: { reduce: 0.2 },
+  frostBrand: relic({ name: 'Frost Brand', rarity: 'common', icon: '❄️', family: 'frost', n: { chance: 0.9, chill: 1 }, n2: { chance: 1 }, a: { reduce: 0.2 },
     awaken: ['Hoarfrost', (a) => `Chilled enemies deal ${pct(a.reduce)} less damage.`], desc: (n) => `Attacks have a ${pct(n.chance)} chance to chill.` }),
   wintersGrasp: relic({ name: "Winter's Grasp", rarity: 'common', icon: '🧤', family: 'frost', n: { chill: 5 }, n2: { chill: 7 }, a: { time: 1 },
     awaken: ['Deep Freeze', (a) => `Enemies your ability freezes stay frozen ${a.time} s longer.`], desc: (n) => `Your signature ability chills everything it hits (${n.chill} chill).` }),
@@ -249,12 +255,12 @@ export const RELICS = {
     awaken: ['Thunder God', (a) => `Kills during Rage extend it by ${a.perRage} s × Rage (up to double length).`], desc: (n) => `During Berserker Rage every ${n.every}th hit chains to another enemy for 50% + ${pct(n.perRage)} per Rage.` }),
 
   // ---------------------------------------------------------------- 🩸 Blood
-  serratedEdge: relic({ name: 'Serrated Edge', rarity: 'common', icon: '🩹', family: 'blood', n: { stacks: 3, power: 0.6 }, n2: { stacks: 4 }, a: { critDamage: 0.2 },
+  serratedEdge: relic({ name: 'Serrated Edge', rarity: 'common', icon: '🩹', family: 'blood', n: { stacks: 7, power: 1 }, n2: { stacks: 8 }, a: { critDamage: 0.2 },
     awaken: ['Haemorrhage', (a) => `+${pct(a.critDamage)} crit damage against bleeding enemies.`], desc: (n) => `Crits open ${n.stacks} bleed stacks (${pct(n.power)} of the hit per second each).` }),
   butchersHook: relic({ name: "Butcher's Hook", rarity: 'common', icon: '🪝', family: 'blood', n: { slow: 0.15, bonus: 0.15 }, n2: { slow: 0.2, bonus: 0.2 }, a: { count: 2, range: 180 },
     awaken: ['Gutting', (a) => `A bleeding enemy you kill passes its bleed to ${a.count} enemies near it.`], desc: (n) => `Bleeding enemies are ${pct(n.slow)} slower and take ${pct(n.bonus)} more damage from your attacks.` }),
-  berserkerTooth: relic({ name: 'Berserker Tooth', rarity: 'rare', icon: '🦷', family: 'blood', n: { per: 1, max: 0.6 }, n2: { per: 0.75, max: 0.75 }, a: { below: 0.25, mult: 2 },
-    awaken: ['Last Blood', (a) => `Below ${pct(a.below)} HP every bleed you apply is doubled.`], desc: (n) => `+1% attack speed for every ${n.per}% of HP missing (up to ${pct(n.max)}).` }),
+  berserkerTooth: relic({ name: 'Berserker Tooth', rarity: 'rare', icon: '🦷', family: 'blood', n: { flat: 0.1, per: 0.1, max: 0.8 }, n2: { flat: 0.15, per: 0.08, max: 1 }, a: { below: 0.25, mult: 2 },
+    awaken: ['Last Blood', (a) => `Below ${pct(a.below)} HP every bleed you apply is doubled.`], desc: (n) => `+${pct(n.flat)} attack speed, and +1% more for every ${n.per}% of HP missing (up to ${pct(n.max)}).` }),
   vampireFang: relic({ name: 'Vampire Fang', rarity: 'rare', icon: '🧛', family: 'blood', n: { leech: 0.03 }, n2: { leech: 0.05 }, a: { below: 0.5, mult: 2 },
     awaken: ['Thirst', 'Below half HP it heals twice as much.'], desc: (n) => `Hits on bleeding enemies heal you ${pct(n.leech)} of the damage.` }),
   bloodPact: relic({ name: 'Blood Pact', rarity: 'legendary', icon: '🩸', family: 'blood', mods: { damage: 1.4 }, mods2: { damage: 1.55 }, n: { bonus: 0.4, hp: 0.75 }, n2: { bonus: 0.55, hp: 0.8 }, a: { below: 0.5, heal: 0.01 },
@@ -323,14 +329,43 @@ export const RELICS = {
     awaken: ['Overflowing', 'The curse lifts: your max HP comes back.'], desc: (n) => `${pct(n.leech)} of all the damage you deal heals you (under the relic healing cap). Curse: your max HP is cut to ${pct(n.hp)}.` }),
   tyrantsBanner: relic({ name: "Tyrant's Banner", rarity: 'legendary', icon: '🏴', cursed: true, n: { per: 0.04, max: 0.6, elites: 1.6 }, n2: { per: 0.06, max: 0.9 },
     awaken: ['Conqueror', 'The curse lifts: elites come as often as before.'], desc: (n) => `Every elite you slay adds +${pct(n.per)} damage and attack speed for the rest of the run (up to +${pct(n.max)}). Curse: ${pct(n.elites - 1)} more elites.` }),
+  // ---------------------------------------------------------------- 👑 Signature (v0.10, #201): one per champion, no family, won with the Marches crown
+  oathkeepersSeal: relic({ name: "Oathkeeper's Seal", rarity: 'rare', icon: '⚜️', signature: true, classId: 'paladin', n: { base: 40, stored: 1.5, perS: 0.05, cap: 1, radius: 180 }, n2: { stored: 2 }, a: { ward: 0.06 },
+    awaken: ['Sanctified', (a) => `The strike also wards you for ${pct(a.ward)} of your max HP.`], desc: (n) => `Divine Shield keeps the blows it turns away (up to ${pct(n.cap)} of your max HP). When it ends, it strikes every enemy within ${n.radius} px for ${n.base} plus ${pct(n.stored)} of what it kept (+${pct(n.perS)} per point of Faith).` }),
+  jarlsTorc: relic({ name: "Jarl's Torc", rarity: 'rare', icon: '🪓', signature: true, classId: 'viking', n: { cleave: 0.35, radius: 90 }, n2: { cleave: 0.5 }, a: { per: 0.3, max: 3 },
+    awaken: ["Saga's End", (a) => `Every kill during Berserker Rage makes it last ${a.per} s longer (up to ${a.max} s a Rage).`], desc: (n) => `During Berserker Rage your attacks cleave: ${pct(n.cleave)} of each hit to every other enemy within ${n.radius} px of the target.` }),
+  dawnstar: relic({ name: 'Dawnstar', rarity: 'rare', icon: '🌟', signature: true, classId: 'angel', n: { beams: 3, damage: 60, perS: 5, radius: 60, range: 360 }, n2: { beams: 4 }, a: { heal: 0.01 },
+    awaken: ['Morning Hymn', (a) => `Every beam that lands heals you ${pct(a.heal)} of your max HP.`], desc: (n) => `Heavenly Radiance calls ${n.beams} beams of dawn on the strongest enemies within ${n.range} px: ${n.damage} (+${n.perS} per point of Grace) holy damage around each.` }),
+  phylactery: relic({ name: 'Phylactery', rarity: 'rare', icon: '🏺', signature: true, classId: 'necromancer', n: { count: 1, hp: 120, damage: 14, life: 8 }, n2: { count: 2 }, a: { damage: 30 },
+    awaken: ["Lich's Crown", (a) => `Its Bone Knights burst for ${a.damage} shadow damage when they fall.`], desc: (n) => `Raise Dead also raises ${n.count === 1 ? 'a Bone Knight' : `${n.count} Bone Knights`} (${n.hp} HP, ${n.damage} damage) for ${n.life} s.` }),
+  eagleFletching: relic({ name: 'Eagle Fletching', rarity: 'rare', icon: '🦅', signature: true, classId: 'archer', n: { chance: 0.3, mult: 0.8 }, n2: { chance: 0.4 }, a: { mult: 1.2 },
+    awaken: ['Deadeye', (a) => `The second strike hits for ${pct(a.mult)} of the arrow.`], desc: (n) => `Every Arrow Volley arrow has a ${pct(n.chance)} chance to strike again for ${pct(n.mult)} of its hit.` }),
 };
 
 export type RelicId = keyof typeof RELICS;
 export const RELIC_IDS = Object.keys(RELICS) as RelicId[];
+/**
+ * v0.10 (#194, docs/road-to-the-crown.md rule 5): what a champion's run finds besides its inventory and a realm's family. Every common is the
+ * starter pool, open to every run. `open`: the three relics deeds used to unlock, open to every run until their realm crowns ship (Holy,
+ * Grave, Storm).
+ */
+export const RELIC_POOL = { open: ['phoenixFeather', 'soulLantern', 'stormcallersHorn'] as RelicId[] };
 export const relicDef = (id: RelicId): RelicDef => RELICS[id];
 /** v0.7.1 B6: the cursed relics (no family), and whether a relic is one. */
 export const isCursedRelic = (id: RelicId): boolean => RELICS[id].cursed === true;
 export const CURSED_IDS = RELIC_IDS.filter(isCursedRelic);
+
+/**
+ * v0.10 (#201, docs/road-to-the-crown.md "The Marches crown gives a champion-specific rare"): one signature relic per champion, outside the
+ * families (no set, no duo, the family rule of an offer ignores it). Won with the Marches crown (config/world.ts), it joins the champion's
+ * inventory: from then on its pool holds it and a loadout may slot it. It takes 1 slot and is not one of the 2 class relics. Gold.
+ */
+export const SIGNATURE = {
+  color: '#f6d97a',
+  relic: { paladin: 'oathkeepersSeal', viking: 'jarlsTorc', angel: 'dawnstar', necromancer: 'phylactery', archer: 'eagleFletching' } satisfies Record<ClassId, RelicId>,
+};
+export const isSignatureRelic = (id: RelicId): boolean => RELICS[id].signature === true;
+export const SIGNATURE_IDS = RELIC_IDS.filter(isSignatureRelic);
 
 /** The numbers of a relic at a tier (1..RELIC_MAX_TIER). Tier III (awakened) keeps tier II's numbers. */
 export function relicN(id: RelicId, tier: number): Record<string, number> {
@@ -349,8 +384,6 @@ export const relicDesc = (id: RelicId, tier: number): string => {
   return tier >= RELIC_MAX_TIER ? `${text} Awakened, ${def.awaken.name}: ${def.awaken.desc}` : text;
 };
 
-/** The families this class prefers (it can max them with straight pieces), in the order of FAMILY_IDS. */
-export const preferredFamilies = (classId: ClassId): FamilyId[] => FAMILY_IDS.filter((f) => (FAMILIES[f].preferredBy as readonly ClassId[]).includes(classId));
 
 /**
  * v0.7 A5 duo relics (RELICS.md): hold both source relics (of two families) and a relic moment offers the duo as a gold fourth card that
@@ -383,7 +416,7 @@ export const isDuo = (k: RelicKey): k is DuoId => k in DUOS;
 export const isFamily = (k: RelicKey): k is FamilyId => k in FAMILIES;
 export const keyName = (k: RelicKey): string => (isDuo(k) ? DUOS[k].name : isFamily(k) ? `${FAMILIES[k].name} set` : relicDef(k).name);
 export const keyIcon = (k: RelicKey): string => (isDuo(k) ? DUOS[k].icon : isFamily(k) ? FAMILIES[k].icon : relicDef(k).icon);
-export const keyColor = (k: RelicKey): string => (isDuo(k) ? DUO_COLOR : isFamily(k) ? FAMILIES[k].color : relicDef(k).family ? FAMILIES[relicDef(k).family!].color : CURSED.color);
+export const keyColor = (k: RelicKey): string => (isDuo(k) ? DUO_COLOR : isFamily(k) ? FAMILIES[k].color : relicDef(k).family ? FAMILIES[relicDef(k).family!].color : relicDef(k).signature ? SIGNATURE.color : CURSED.color);
 /** The duo a relic is a source of (every source relic is in exactly one recipe). */
 export const duoOf = (id: RelicId): DuoId | undefined => DUO_IDS.find((d) => DUOS[d].from.includes(id));
 

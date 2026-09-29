@@ -4,7 +4,7 @@ import { branchPlan, canTakeTalent } from '../logic/talents';
 import type { ClassId } from '../config/classes';
 import { UPGRADE_RARITIES } from '../config/upgrades';
 import type { Game, RelicOffer, StatKey } from '../core/types';
-import { FAMILY_IDS, isCursedRelic, preferredFamilies, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
+import { FAMILY_IDS, isCursedRelic, RELIC_IDS, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
 import { familySets } from '../logic/relics';
 import { createGame, summarizeRun, type RunOptions } from '../game';
 import type { RunSummary } from '../logic/save';
@@ -172,8 +172,8 @@ function scoreOption(g: Game, o: LevelUpOption): number {
 /** v0.7 A8: how often the drafting bot takes something outside its plan (a "branch"). */
 export const BOT_BRANCH = 0.15;
 /**
- * v0.7 A8: a sensible draft: a duo whenever one is offered; otherwise a relic of the family it holds most (at the start, one its class
- * prefers), now and then (BOT_BRANCH) another card instead. The branch roll hangs on the seed and the pick count, so a seed replays the same.
+ * v0.7 A8: a sensible draft: a duo whenever one is offered; otherwise a relic of the family it holds most (at the start, one of its class
+ * relics' families), now and then (BOT_BRANCH) another card instead. The branch roll hangs on the seed and the pick count, so a seed replays the same.
  */
 function draftRelic(g: Game, o: RelicOffer): RelicId | DuoId | null {
   if (o.duo) return o.duo;
@@ -182,7 +182,7 @@ function draftRelic(g: Game, o: RelicOffer): RelicId | DuoId | null {
   if (cursed) return cursed;
   const r = g.player.relics;
   const sets = familySets(r.held);
-  const prefer = preferredFamilies(g.player.cls.id);
+  const prefer = FAMILY_IDS.filter((f) => RELIC_IDS.some((id) => relicDef(id).classId === g.player.cls.id && relicDef(id).family === f)); // #194: the bot's own taste, its class relics' families (the game has no preferred families)
   const count = (f: FamilyId) => sets[f]?.count ?? 0;
   const main = FAMILY_IDS.reduce((a, b) => (count(b) > count(a) || (count(b) === count(a) && prefer.includes(b) && !prefer.includes(a)) ? b : a));
   const picks = r.found.length;
@@ -248,7 +248,7 @@ export function botStep(g: Game, variant = 0, out?: Command[]): void {
 /** A whole run by the bot. A win is banked on the spot, unless `endless`: then it goes on past the Usurper until it dies or runs out of time. */
 export function simulateRun(classId: ClassId, seed: number, opts: RunOptions = {}, variant = 0, maxSeconds = 45 * 60, endless = false): RunSummary {
   const g = createGame(classId, seed, opts);
-  while (!g.over && g.time < maxSeconds) {
+  while (!g.over && !g.level?.cleared && g.time < maxSeconds) {
     if (g.victory === 'pending') {
       if (!endless) break;
       step(g, [choiceCommand(g, { c: 'endless' })], false);

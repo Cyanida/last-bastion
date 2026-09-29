@@ -10,28 +10,28 @@ import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLev
 import { addListener, type EventName } from './core/events';
 import { moodOf, type Stinger } from './logic/runMusic';
 import { showWhatsNewNow } from './logic/whatsNew';
-import { nextCard } from './logic/cards';
-import { CARD_IDS, CARDS } from './config/cards';
+import { inTutorial, nextCard, statusSeen, tutorialCard } from './logic/cards';
+import { CARD_IDS, CARDS, type CardId } from './config/cards';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
 import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as setPerfOverlay, summary } from './core/perf';
 import { particleBudget, quality, sampleFrame, setQuality } from './core/quality';
 import { backupSave, loadSave, prefs, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
-import type { Game } from './core/types';
+import type { Enemy, Game } from './core/types';
 import { createGame } from './game';
 import { banked, createTestRun, isTestRun, type TestSetup } from './systems/testMode';
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
 import { upgradeOptions } from './logic/abilityUpgrades';
-import { lockedArenas, lockedRelics, rewardText, tierKey, unlockedCurses, withAchievements } from './logic/achievements';
-import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from './logic/acts';
-import { oathCap } from './logic/oaths';
+import { rewardText, tierKey, withAchievements } from './logic/achievements';
+import { dailySetup, formatSeed, todayString, type DailySetup } from './logic/acts';
+import { dailyOpen, dailyOpensText } from './logic/daily';
 import { closestGoals } from './logic/goals';
 import { currentProgress, weekKey, weeklyContracts } from './logic/contracts';
 import { nextAct, reforgeChoices } from './systems/acts';
 import { questTake } from './systems/quests';
 import { densestCluster, resolveAim } from './logic/aim';
-import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
+import { masteryBonus, masteryRank, rerollCost, accountLevel, buildingLevel } from './logic/economy';
 import { buyMeta, defaultSave, type Save, buyBuilding, today } from './logic/save';
 import { buildArena, loadProps, propsLoaded } from './render/arena';
 import { ENEMIES, type EnemyId } from './config/enemies';
@@ -44,12 +44,18 @@ import { abilityAimRadius } from './systems/abilities';
 import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, showChampion, pickClass, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showCrownPick, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
+import { levelPanel, mapRealms, nextLevel, roadLevels, roadTier } from './logic/world';
+import { REALMS, WORLD, type LevelReward, type RealmId } from './config/world';
+import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, newChampion, nextStop, rarePickOptions, type Champion } from './logic/champions';
+import { TALENT_ROW_CAP } from './config/economy';
+import { talentsFor } from './config/talents';
+import type { LevelStart } from './systems/levels';
 import { isCompactLayout, textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
-import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
+import { RELIC_MOMENTS, SIGNATURE, TIER_NUMERALS } from './config/relics';
 import { BOOK_IDS } from './config/acts';
 import { looseRelics } from './logic/relics';
 import { TRAITS } from './config/traits';
@@ -60,7 +66,7 @@ import { buildState } from './systems/evolutions';
 import { recipeLines, setRecipeBuild } from './ui/relicText';
 import { endlessScore } from './systems/victory';
 import { peddlerPrice, peddlerTokenPrice } from './systems/events';
-import { utilityUpgradeOptions } from './systems/utility';
+import { utilityUnlocked, utilityUpgradeOptions } from './systems/utility';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
 
@@ -126,8 +132,8 @@ function toTitle(): void {
   menu();
   onTitle = true;
   showTitle(
-    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(new Date()), best: save.daily[todayString(new Date())] ?? 0 }, title: save.title, contracts: titleContracts(), whatsNew: platform.whatsNew !== null },
-    { start: toSelect, daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings, whatsNew: toWhatsNew },
+    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(new Date()), best: save.daily[todayString(new Date())] ?? 0, open: dailyOpen(save), opens: dailyOpensText() }, title: save.title, contracts: titleContracts(), whatsNew: platform.whatsNew !== null },
+    { start: toSelect, champion: () => toChampion(), map: () => toMap(toTitle), daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings, whatsNew: toWhatsNew },
   );
 }
 
@@ -153,8 +159,12 @@ function toChronicle(back: () => void): void {
   });
 }
 
-/** Same seed, class, arena and curses for everyone on a given date. Locks do not apply: it is a fixed challenge. */
+/**
+ * Same seed, class, arena and curses for everyone on a given date. Locks do not apply: it is a fixed challenge. #204: the fixed pool, no
+ * loadout, and shut until the Marches crown (the title says what opens it).
+ */
 function toDaily(): void {
+  if (!dailyOpen(save)) return toTitle();
   initAudio();
   menu();
   const setup = dailySetup(todayString(new Date()));
@@ -167,41 +177,16 @@ function setNotice(next: TitleInfo['notice']): void {
   if (onTitle) toTitle();
 }
 
+/** #65: the champion select. #204: no Classic run any more: a champion picked here opens its champion screen. */
 function toSelect(): void {
   initAudio();
   menu();
   showClassSelect(save, {
-    pick: (id, seedText) => startRun(id, { seed: parseSeed(seedText) ?? undefined }),
+    pick: (id) => (pickClass(id), toChampion()),
     back: toTitle,
-    curse(id) {
-      if (!unlockedCurses(save).includes(id)) return;
-      const on = save.settings.curses;
-      commit({ ...save, settings: { ...save.settings, curses: on.includes(id) ? on.filter((c) => c !== id) : [...on, id] } });
-      toSelect();
-    },
-    settings(arena, tier) {
-      if (lockedArenas(save).includes(arena) || tier > save.tierUnlocked) return;
-      commit({ ...save, settings: { ...save.settings, arena, tier } });
-      toSelect();
-    },
-    oath(level) {
-      const max = Math.max(...CLASS_ORDER.map((id) => oathCap(save.wins[id], save.oaths[id])));
-      commit({ ...save, settings: { ...save.settings, oath: Math.max(0, Math.min(max, level)) } });
-      toSelect();
-    },
     palette(id, n) {
       if (n !== 0 && !masteryBonus(save.classes[id].xp).palettes.includes(n) && !save.palettes.includes(n)) return;
       commit({ ...save, settings: { ...save.settings, palettes: { ...save.settings.palettes, [id]: n } } });
-      toSelect();
-    },
-    trait(id) {
-      const need = TRAITS[id].unlock.achievement;
-      if (need && !save.achievements.includes(need)) return;
-      // v0.6: with the Second Banner two traits can be on; a third choice replaces the newer one
-      const slots = metaLoadout(save.meta).traitSlots;
-      const on = [save.settings.trait, save.settings.trait2].filter((t) => t !== 'none');
-      const next = id === 'none' ? [] : on.includes(id) ? on.filter((t) => t !== id) : [...on, id].slice(-slots);
-      commit({ ...save, settings: { ...save.settings, trait: next[0] ?? 'none', trait2: next[1] ?? 'none' } });
       toSelect();
     },
     treasure(id) {
@@ -212,6 +197,96 @@ function toSelect(): void {
     },
   });
 }
+
+/** #198: the world map, for the picked champion's progress; an open realm opens its road. #197: Back goes where the map was opened from. */
+let mapBack: () => void = toTitle;
+function toMap(back = mapBack): void {
+  menu();
+  mapBack = back;
+  showWorldMap(mapRealms(champOf(pickedClass(save)).world), { realm: (id) => toRoad(id), back });
+}
+
+/**
+ * #199: the realm road and its level panel, for the picked champion. FIGHT starts the level through the level runner with the champion's
+ * loadout for the realm and its talent plan, on the picked tier; #197: Loadout opens the champion screen on this level.
+ */
+function toRoad(realm: RealmId, level?: number, tier?: number): void {
+  menu();
+  const id = pickedClass(save);
+  const progress = champOf(id).world;
+  const t = roadTier(progress, realm, tier ?? save.settings.tier);
+  const n = level ?? nextLevel(progress, realm, t);
+  const bonus = championBonus(save.meta, save.classes[id].xp);
+  const panel = levelPanel(progress, realm, n, t, bonus);
+  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champOf(id).name, road: roadLevels(progress, realm, t), panel, fell: fellAt(id, realm, n, t) }, {
+    level: (next) => toRoad(realm, next, t),
+    tier: (next) => toRoad(realm, undefined, next),
+    fight: () => panel.open && playLevel(id, realm, n, t),
+    loadout: () => toChampion({ realm, level: n, tier: t }),
+    back: () => toMap(),
+  });
+}
+
+/** #197: a class's champion; one never played gets a fresh one (saved once its screen opens). */
+const champOf = (id: ClassId): Champion => save.champions[id] ?? newChampion(id);
+const setChampion = (id: ClassId, c: Champion) => commit({ ...save, champions: { ...save.champions, [id]: c } });
+
+/**
+ * #197: a level lost this session: rule 3's restart plays it again on the same seed, so the same opening offers. Decided: kept in memory,
+ * not in the save (its format belongs to the release), so a reload plays a fresh seed.
+ */
+let fall: { classId: ClassId; realm: RealmId; level: number; tier: number; seed: number; wave: number } | null = null;
+const fellAt = (id: ClassId, realm: RealmId, level: number, tier: number): number | null =>
+  fall && fall.classId === id && fall.realm === realm && fall.level === level && fall.tier === tier ? fall.wave : null;
+
+/**
+ * #197: a realm level with the champion's saved loadout for the realm (the level fits it to its slots) and its talent plan: the one way a
+ * level starts. A level lost this session (fall) plays again on the same seed until it is cleared (#200); a cleared one plays a fresh seed.
+ */
+function playLevel(id: ClassId, realm: RealmId, level: number, tier: number): void {
+  const champ = champOf(id);
+  const seed = fellAt(id, realm, level, tier) !== null ? fall!.seed : undefined;
+  startRun(id, { seed, tier, level: { realm, level, relics: champ.loadouts[realm] ?? [], talentPlan: champ.talentPlan } });
+}
+
+/**
+ * #197: the champion screen: the picked champion on its pedestal, the loadout for the level it plays next (`at`: a level from the road's
+ * Loadout button), the inventory, the talent plan, PLAY, and the main tabs.
+ */
+function toChampion(at?: { realm: RealmId; level: number; tier: number }): void {
+  menu();
+  const id = pickedClass(save);
+  if (!save.champions[id]) setChampion(id, newChampion(id)); // made the first time its screen opens
+  const champ = champOf(id);
+  const { realm, level, tier } = at ?? nextStop(champ, save.settings.tier);
+  const finale = realm === 'lastBastion';
+  const loadout = champ.loadouts[realm] ?? [];
+  const again = () => toChampion(at);
+  const saveLoadout = (ids: typeof loadout) => {
+    setChampion(id, { ...champOf(id), loadouts: { ...champOf(id).loadouts, [realm]: fitLoadout(id, ids, WORLD.maxSlots, finale) } });
+    again();
+  };
+  showChampion({
+    classId: id, name: champ.name, palette: save.settings.palettes[id] ?? 0, gold: save.gold, runes: save.runes, realm, realmName: REALMS[realm].name,
+    level, tier, slots: championSlots(save.meta, save.classes[id].xp, realm, level), loadout, inventory: champ.inventory, plan: champ.talentPlan, fell: fellAt(id, realm, level, tier),
+  }, {
+    slot: (r) => saveLoadout([...loadout, r]),
+    unslot: (r) => saveLoadout(loadout.filter((x) => x !== r)),
+    plan: () => {
+      const lib = buildingLevel(save.buildings, 'library');
+      showTalents({ classId: id, taken: champ.talentPlan, points: talentsFor(id).length, rowCap: TALENT_ROW_CAP[Math.min(TALENT_ROW_CAP.length - 1, lib)], plan: true }, {
+        spend: (t) => (setChampion(id, { ...champOf(id), talentPlan: [...champOf(id).talentPlan, t] }), true),
+        back: again,
+      });
+    },
+    clearPlan: () => (setChampion(id, { ...champOf(id), talentPlan: [] }), again()),
+    play: () => playLevel(id, realm, level, tier),
+    champ: (step) => (pickClass(CLASS_ORDER[(CLASS_ORDER.indexOf(id) + step + CLASS_ORDER.length) % CLASS_ORDER.length]), toChampion()),
+    tab: (t) => (t === 'map' ? toMap(again) : t === 'keep' ? toKeep() : t === 'relics' ? showCompendium(save, again) : t === 'deeds' ? toChronicle(again) : again()),
+    back: toTitle,
+  });
+}
+
 
 function toKeep(): void {
   menu();
@@ -338,7 +413,7 @@ function toSaveDialog(): void {
 }
 
 // ---------- run ----------
-function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?: TestSetup } = {}): void {
+function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?: TestSetup; level?: LevelStart; tier?: number } = {}): void {
   initAudio();
   stopMenuMusic();
   clearOverlay();
@@ -349,16 +424,20 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?:
   const d = opts.daily;
   const rec = save.treasures[id];
   game = opts.test ? createTestRun(opts.test, opts.seed ?? Date.now() >>> 0) : createGame(id, opts.seed ?? Date.now() >>> 0, {
-    arena: d ? d.arena : save.settings.arena,
-    tier: d ? 0 : save.settings.tier,
+    arena: d ? d.arena : save.settings.arena, // a level plays its realm's arena
+    tier: d ? 0 : opts.tier ?? save.settings.tier,
+    level: opts.level, // #199: a realm level from the road
+    inventory: opts.level ? save.champions[id]?.inventory : undefined, // #194: a level's pool follows the champion
+    fresh: opts.level && save.champions[id] ? freshRelics(save.champions[id]!, save.relicPicks) : undefined,
     meta: save.meta,
     classXp: save.classes[id].xp,
-    lockedRelics: lockedRelics(save),
-    curses: d ? d.curses : save.settings.curses.filter((c) => unlockedCurses(save).includes(c)),
+    // #204: a run is a level or the Daily Trial now. The Classic select's curses, traits and Oath stay in the save's settings for the
+    // Last Bastion, but no run takes them: nothing on screen could switch them off
+    curses: d ? d.curses : [],
     daily: d?.date,
-    trait: d ? 'none' : save.settings.trait, // the Daily Trial is the same for everyone
-    trait2: d ? 'none' : save.settings.trait2,
-    oath: d ? 0 : Math.min(save.settings.oath, oathCap(save.wins[id], save.oaths[id])), // v0.6: a class swears at most one above its highest kept
+    trait: 'none',
+    trait2: 'none',
+    oath: 0,
     accountLevel: accountLevel(CLASS_ORDER.map((c) => save.classes[c].xp)),
     libraryLevel: buildingLevel(save.buildings, 'library'),
     palette: save.settings.palettes[id] ?? 0,
@@ -369,6 +448,7 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?:
   });
   play();
   showHud(true);
+  updateHud(game); // the new run's HUD (its TEST tag too) at once, not on the first real frame: a busy or throttled page may draw none for a while
 }
 
 function play(): void {
@@ -422,7 +502,8 @@ function openChoice(g: Game): void {
       skip: () => void (choose(g, { c: 'relicSkip' }), resume()),
       reroll: () => void (choose(g, { c: 'relicReroll' }), openChoice(g)),
     });
-  } else if (g.pendingAbilityTiers.length > 0) {
+  } else if (g.level?.cleared) endRun(g); // #191: a cleared level ends once its spoils are taken (the realm road shows what it pays)
+  else if (g.pendingAbilityTiers.length > 0) {
     const tier = g.pendingAbilityTiers[0];
     showAbilityUpgrade(tier, upgradeOptions(g.player.cls.id, tier), g.player.cls, (id) => {
       choose(g, { c: 'abilityUpgrade', id });
@@ -509,7 +590,7 @@ function sacredLines(g: Game): { name: string; desc: string }[] {
   return news.length ? [...out, { name: '🧩 Treasure quest this run', desc: news.join(' · ') }] : out;
 }
 
-const hasChoice = (g: Game) => g.victory === 'pending' || g.pendingShrine !== null || g.player.relics.offers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant || g.pendingRoute !== null;
+const hasChoice = (g: Game) => g.victory === 'pending' || !!g.level?.cleared || g.pendingShrine !== null || g.player.relics.offers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant || g.pendingRoute !== null;
 
 /** A screen opened from the pause menu (Talents, Glossary, Treasures) is up: its own Esc goes back to the pause menu, so this one must not resume. */
 let pauseSub = false;
@@ -566,7 +647,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
   const newRank = masteryRank(after.classes[id].xp);
   return {
     cls: g.player.cls, wave: g.wave, kills: g.kills, time: g.time, level: g.player.level,
-    best: after.classes[id].bestWave, newBest: g.wave > prevBest,
+    best: after.classes[id].bestWave, newBest: after.classes[id].bestWave > prevBest, // #205: a level's best counts the waves played
     gold: result.gold, goldRaw: Math.max(0, g.gold - g.goldStart), runes: result.runes, classXp: result.classXp, masteryRank: newRank,
     masteryName: newRank > prevRank ? MASTERY[newRank - 1].name : null,
     masteryNext: MASTERY[newRank] ? { name: MASTERY[newRank].name, need: Math.max(0, Math.round(MASTERY[newRank].xp - after.classes[id].xp)) } : null,
@@ -575,21 +656,45 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
     goals: closestGoals(after, id, weekKey(today(new Date()))),
     relicShares: relicShares(g),
-    restart: g.daily ? `the Daily Trial ${g.daily}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
+    restart: g.daily ? `the Daily Trial ${g.daily}` : g.level ? `${REALMS[g.level.realm].name} · Level ${g.level.level}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
+    road: g.level?.cleared ? REALMS[g.level.realm].name : null, // a cleared level goes back to its road; a lost one to the champion screen (endRun)
+    levelRewards: result.levelRewards.level,
+    crownRewards: result.levelRewards.crown,
   };
 }
 
-/** v0.6 Quick Restart: the same class, traits and Oath (they live in the settings), or today's Daily Trial again. */
-const again = (g: Game): void => (g.daily ? toDaily() : startRun(g.player.cls.id));
+/**
+ * v0.6 Quick Restart: today's Daily Trial again. #197/#200: a level again through playLevel, on the same seed after a fall (endRun
+ * remembers it) and a fresh one once it is cleared. #204: there is no Classic run to restart any more; anything else opens the champion.
+ */
+const again = (g: Game): void => (g.daily ? toDaily() : g.level ? playLevel(g.player.cls.id, g.level.realm, g.level.level, g.tierIndex) : toChampion());
 
 /** Death, "end run", or banking a win: the run is banked. */
 function endRun(g: Game): void {
   if (isTestRun(g)) return toTestMode(); // v0.7.1: a test run leaves no trace and goes back to where it was set up
   state = 'results';
   setTouchControls(false);
+  showHud(false); // the run is over: at a phone's height a HUD left up pushes the results and a level's rare pick below the fold
   startMenuMusic();
-  showResults(runResult(g, true), { retry: () => again(g), menu: toSelect });
+  // #197: a level lost is remembered for its restart; one cleared forgets it
+  if (g.level) fall = g.level.cleared ? null : { classId: g.player.cls.id, realm: g.level.realm, level: g.level.level, tier: g.tierIndex, seed: g.seed, wave: Math.max(1, g.wave) }; // lost in the lull before wave 1 counts as wave 1
+  const r = runResult(g, true);
+  const lv = g.level, tier = g.tierIndex;
+  // a cleared level goes back to the realm road; a lost one to the champion screen on that level, whose RESTART plays its seed again
+  const home = lv ? (lv.cleared ? () => toRoad(lv.realm) : () => toChampion({ realm: lv.realm, level: lv.level, tier })) : toTitle; // #204: a Daily Trial goes home
+  const results = () => showResults(r, { retry: () => again(g), menu: home });
+  // #200: a Marches level's first clear lets the champion keep one of its family's rares. Its clear is banked already, so closing the
+  // game on this screen loses the pick (ponytail: a pending-reward field in the save would keep it; the save format isn't this issue's)
+  const pick = r.levelRewards.find((x): x is Extract<LevelReward, { kind: 'rarePick' }> => x.kind === 'rarePick');
+  const id = g.player.cls.id;
+  // #202: then a first Marches crown shows the signature relic it won (banked with the run already), and the results after it
+  const crowned = lv && r.crownRewards.some((x) => x.kind === 'signature') ? () => showCrownPick(REALMS[lv.realm].name, champOf(id).name, SIGNATURE.relic[id], results) : results;
+  if (!lv || !pick) return crowned();
+  showRarePick(`${REALMS[lv.realm].name} · Level ${lv.level}`, pick.family, rarePickOptions(champOf(id), pick.family, pick.of), WORLD.keepLockedRunes, (relic) => {
+    commit(relic ? { ...save, champions: { ...save.champions, [id]: grantRelic(champOf(id), relic) } } : { ...save, runes: save.runes + WORLD.keepLockedRunes });
+    crowned();
+  });
 }
 
 function mute(): void {
@@ -651,21 +756,43 @@ function afterStep(g: Game): void {
   else {
     checkToasts(g);
     chainToasts(g);
-    if (hasChoice(g)) openChoice(g);
-    else flashCard(g);
+    if (hasChoice(g)) {
+      if (!tutorial(g, true)) openChoice(g); // #60: the level-up card comes before its screen, which opens once it is closed
+    } else flashCard(g);
   }
+}
+
+/** #60: the Marches' levels 1 and 2 teach the basics on flash cards (logic/cards tutorialCard). Returns whether a card opened. */
+function tutorial(g: Game, choice: boolean): boolean {
+  if (!g.level || !inTutorial(g.level) || isTestRun(g)) return false; // everywhere else: nothing to build
+  const p = g.player;
+  const id = tutorialCard({
+    realm: g.level.realm,
+    level: g.level.level,
+    tick: g.tick,
+    held: p.relics.held.length,
+    setLevel: Math.max(0, ...Object.values(p.relics.sets).map((s) => s?.level ?? 0)),
+    utility: utilityUnlocked(p),
+    levelUp: g.pendingLevelUps > 0,
+    status: !choice && statusSeen(g.enemies, p.x, p.y, p.statuses),
+  }, save.cards, choice);
+  if (!id) return false;
+  openCard(id);
+  return true;
 }
 
 /** v0.8 (#124): a card the first time a foe, a boss or a mechanic is met; the run waits under it. A test run leaves no trace, so it shows none. */
 function flashCard(g: Game): void {
-  if (g.tick % CARDS.checkEvery || isTestRun(g)) return;
+  if (g.tick % CARDS.checkEvery || isTestRun(g) || tutorial(g, false)) return;
   const met = nextCard(g.enemies, g.player.x, g.player.y, save.cards);
-  if (!met) return;
-  const { id, foe } = met;
+  if (met) openCard(met.id, met.foe);
+}
+
+function openCard(id: CardId, foe?: Enemy): void {
   commit({ ...save, cards: [...save.cards, id] }); // seen as soon as it shows: a reload never shows it twice
   state = 'choice';
   setTouchControls(false);
-  setSpotlight(foe); // #133: the arena dims round the foe while its card is open
+  setSpotlight(foe ?? null); // #133: the arena dims round the foe while its card is open (a tutorial card has none)
   showFlashCard(id, foe, (pause) => {
     setSpotlight(null);
     resume();

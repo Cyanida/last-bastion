@@ -28,6 +28,7 @@ import type { DamageType } from '../config/damage';
 import type { StatusApply, StatusMap } from '../logic/status';
 import type { Sprite } from '../render/sprites';
 import type { SpatialHash } from './spatial';
+import type { RealmId } from '../config/world';
 
 export type StatKey = 'hp' | 'str' | 'dex' | 'int' | 'atkSpd' | 'moveSpd' | 'secondary';
 export type Stats = Record<StatKey, number>;
@@ -43,7 +44,7 @@ export type DamageSource = 'attack' | 'ability' | 'minion' | 'relic' | 'hazard';
 export interface RelicStat { damage: number; healing: number; prevented: number }
 
 /** v0.7: where a relic moment came from (config/relics.ts RELIC_MOMENTS). */
-export type RelicSource = 'boss' | 'lair' | 'strongbox' | 'quest' | 'merchant' | 'start' | 'other';
+export type RelicSource = 'boss' | 'lair' | 'strongbox' | 'quest' | 'merchant' | 'start' | 'loadout' | 'other'; // loadout: a level's slotted relics (#191)
 
 /** v0.7: one relic moment: pick one of the options, or skip it; `rerolls` left for this moment. */
 export interface RelicOffer {
@@ -65,6 +66,8 @@ export interface RelicState {
   attune: Partial<Record<RelicId, number>>; // v0.7 A4: progress to the next tier, 0..1 (config ATTUNEMENT)
   work: Partial<Record<RelicId, number>>; // attunement from work this wave (capped at ATTUNEMENT.workCap)
   pool: RelicId[]; // unlocked and allowed for this class
+  locked: RelicId[]; // v0.10 (#194): pool relics the champion hasn't unlocked (a realm's family): the opening pick and realm bosses offer one
+  fresh: RelicId[]; // v0.10 (#194): unlocked relics never picked yet, offered RELIC_MOMENTS.newRelicWeight times as often
   offers: RelicOffer[]; // queued moments, oldest first
   found: RelicId[]; // every pickup and tier-up this run, for the compendium
   from: Record<string, RelicSource>; // where each held relic came from
@@ -236,6 +239,8 @@ export interface Enemy extends Body {
   resolve: number; // v0.7.5 (#95): a boss's recent damage taken, as of resolveT (logic/status throughResolve)
   resolveT: number;
   hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
+  crown: boolean; // #202: a realm's crown boss: every phase runs WORLD.crownBoss.minPhaseSeconds (logic/crownBoss)
+  phaseAt: number; // #202: when its current phase began (g.time)
   secondWind: number; // v0.6 Oath: a boss rises once more from the brink with this fraction of its HP; 0 = none (or spent)
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
   waypoint: { x: number; y: number } | null; // v0.5: the gate to walk to when the player is on another floor (logic/regions waypoint)
@@ -588,5 +593,8 @@ export interface Game {
   evolutions: EvolutionId[]; // v0.6: taken this run (one signature, one utility; config/evolutions.ts)
   prey: Enemy | null; // v0.6: the Hunter's Mark
   glows: Glow[]; // v0.6: lights the evolutions set every tick (wisps, souls, rings); cleared at the start of each tick
+  // --- v0.10 levels (#191, systems/levels.ts) ---
+  startWave: number; // the first wave this run plays: 1, or a level's first wave (its head start)
+  level: { realm: RealmId; level: number; last: number; cleared: boolean } | null; // the realm level this run is (null: a plain run); cleared once its last wave is
   over: boolean;
 }

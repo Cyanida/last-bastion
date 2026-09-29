@@ -1,5 +1,108 @@
 # Balance notes
 
+## v0.10: two tuning passes toward rule 9 (#221)
+
+`npm run sim -- levels 6 1 marches,ironHold,lastBastion` (30 first tries a level on Knight with expected progress, as #207). Changed, in
+`src/config/world.ts`:
+- **A level step on enemies** (`WORLD.levelStep`, new; `logic/world levelStep`, folded into a level run's tier with the ring step and shown
+  in the level panel's Enemy HP): the Marches HP and damage ×0.85 on level 1 and ×0.9 on levels 2-7; a relic realm HP ×0.8 / 0.85 / 0.9 /
+  0.9 / 0.9 and damage ×0.85 / 0.9 / 0.9 / 0.9 / 0.9 by level. The Last Bastion keeps 1. On Knight every level stays above Squire.
+- **Late head-start boons** (`WORLD.headStart.lateRarity`, `lateFrom`): the levels from 11 on give epic boons (was rare), so a head start
+  keeps up with a run that played those waves and holds twice the relics. A trial with every boon epic put Marches 2-3 at +19-22% power.
+
+| Target (rule 9) | Before | Pass 1 | Pass 2 |
+|---|---|---|---|
+| First-try clear about 95% at Marches level 1 | 80% | 97% | 97% |
+| About 90% at realm level 1 (Iron Hold) | 57% | 80% | 80% |
+| 55-60% at realm level 5 (Iron Hold) | 33% | 57% | 57% |
+| Power within ±15% of a continuous run | 4/10 levels; widest Marches 6 -21% | 10/10; widest Marches 6 -8% | 10/10; widest Marches 6 -8% |
+| A 6-set in most crown-level clears | Marches 7 0%, Iron Hold 5 40% | Marches 7 0%, Iron Hold 5 35% | Marches 7 0%, Iron Hold 5 35% |
+| Last Bastion (6-set in wins, before wave 10, duos, minutes) | 88%, 30%, 1.38 / 13%, 28.7 | unchanged (no level step, no head start) | unchanged |
+| Relic moments per findable relic | Marches 0.50, Iron Hold 0.45 | 0.61, 0.51 | 0.62, 0.51 |
+| A 5-wave / 10-wave level, minutes | 4.0 / 9.4 | 3.8 / 9.0 | 3.8 / 8.9 |
+| A realm clean / with retries (Iron Hold) | 32.6 / 50.9 | 31.7 / 39.9 | 31.7 / 39.8 |
+
+Per level, clear rate (before -> pass 1): Marches 80->97%, 20->50%, 23->27%, 17->47%, 17->47%, 23->47%, 13->13%; Iron Hold 57->80%,
+33->57%, 47->63%, 67->77%, 33->57%. Power gap: Marches +5, -3, -6, 0, -8, -6%; Iron Hold +5, -3, -4, -7%.
+
+**Pass 2** (measured again before it on the merged branch: the pass 1 numbers, unchanged): realm level 1 HP ×0.7 (was 0.8), and the
+Marches levels 3 and 7 HP and damage ×0.85 (was 0.9). On Knight realm level 1 still sits above Squire (145% × 0.7 = 102%).
+
+Per level, clear rate (pass 1 -> pass 2): Marches 97->97%, 50->50%, 27->30%, 47->47%, 47->47%, 47->47%, 13->13%; Iron Hold 80->80%,
+57->57%, 63->63%, 77->77%, 57->57%. Realm level 1 did not move: its falls are the bot's archer on 3 seeds in 6 and one angel, all at
+wave 5's mid-Act boss, where a lighter HP step changes little (the bot underrates the Archer, AGENTS.md). Marches level 7 stays at 13%.
+
+Still missed after two passes (the plan's gate rule: reported, not tuned further): realm level 1 80% vs about 90% (11% under, within the
+20% the plan accepts); and, not moved by this issue's levers, a 6-set in crown-level clears (Marches 7 0%, Iron Hold 5 35% vs most), the
+Last Bastion's 6-set before wave 10 (30% of runs vs none) and its length (28.7 minutes vs 35-45), the Marches' relic moments (0.62 vs
+0.4-0.6) and a realm's clean time (Iron Hold 31.7 vs about 35 minutes).
+
+## v0.10: realm levels and the plan's rule 9 targets (#207)
+
+The targets for the Road to the Crown ([docs/road-to-the-crown.md](docs/road-to-the-crown.md), rule 9), measured by `npm run sim -- levels`
+(`src/sim/levels.ts`, `scripts/level-report.ts`). Each run is a **first try on Knight with expected progress**: the champion has first-cleared
+every earlier level (and crowned the realms that open this one), the bot taking the first option of each reward; no Keep ranks and no
+mastery, so the Keep's extra slots and levels are headroom on top. The bot fills the level's slots from that inventory under the slot rules
+(`botLoadout`: its signature relic, then one family toward a set, the featured family first). The Iron Hold stands in for "a relic realm"
+(its arena and bosses are not built yet, so it plays in the Great Keep with pool bosses). **Power** is a static index,
+sqrt(basic attack damage per second × effective HP), at the level's first wave, against a continuous Knight run revived on death at that
+wave; relic procs and sets are not in it.
+
+Measured on release/0.10.0 after #200 (`npm run sim -- levels 6 1 marches,ironHold,lastBastion`, 30 first tries a level, 959 s). No tuning
+yet: this is the baseline the release's balance pass works from.
+
+| Target (rule 9) | Measured | Missed by |
+|---|---|---|
+| First-try clear about 95% at Marches level 1 | 80% | 15 points |
+| About 90% at realm level 1 | 57% (Iron Hold) | 33 points |
+| 55-60% at realm level 5 | 30% (Iron Hold) | 25 points |
+| Power at a level's first wave within ±15% of a continuous run | 4 of 10 levels (Marches 2-3, Iron Hold 2-3); Marches 4 -16%, 5 -15%, 6 -21%, 7 -20%, Iron Hold 4 -18%, 5 -21% | up to 6 points past the band |
+| A 6-set in most crown-level clears | Marches 7 0%, Iron Hold 5 33% | Marches 7 by 50+ points; Iron Hold 5 by 17+ |
+| A 6-set in most Last Bastion wins | 88% | met |
+| No 6-set before wave 10 in the Last Bastion | 30% of runs have one | 30% |
+| 1-2 duos per Last Bastion win; 3+ in under 15% | 1.38; 13% | met |
+| Relic moments per findable relic 0.4-0.6 (a realm played through) | Marches 0.50, Iron Hold 0.45 | met |
+| A 5-wave level about 4 minutes, a 10-wave level 8-10 | 4.0 (2.2-5.7) and 9.3 (7.7-10.1) on average | met on average |
+| A realm about 35 minutes clean, 45 with retries | Iron Hold 32.6 / 53.0 | retries 8 minutes over |
+| The Last Bastion 35-45 minutes | 28.7 (a win) | 6 minutes under |
+| Every family's 6-set within ±15% of the class median; every relic 3-35% | not in this table: `npm run sim -- relics 3 loadout` | |
+
+Per level (clear rate, then minutes of a clear): Marches 80% 2.6, 20% 3.9, 23% 4.8, 17% 5.7, 17% 4.8, 23% 5.1, 13% 10.1; Iron Hold 57% 2.2,
+33% 3.2, 47% 7.7, 67% 9.3, 30% 10.1; the Last Bastion 27% 28.7. The fresh Knight bot is the weak point: past Marches level 1 it clears about
+a fifth of the Marches levels, and a plain Knight run by it rarely passes wave 10. The head start falls behind the continuous run from wave
+16 on: by then the continuous run has picked about twice the relics (5.6-11.5 against a loadout of 3-5), and its level-up cards beat the
+head start's fixed boons. In the Last Bastion a 5-slot loadout of one family plus the opening pick makes a 6-set before wave 10 in 30% of runs.
+
+`npm run sim -- relics [runs] loadout` runs the relic tables on the Last Bastion with the bot's loadout (maxed saves, 6 slots). A 1-run
+smoke on the same code: 2 of 5 won, both at a 6-set, power index 4.23 (a loadout's relics deal their share from wave 1, so the index is
+far over the 1.8-2.2 a run from zero reads).
+
+## v0.10: the starter commons (#196)
+
+Target: every starter common 3-35% of what it does where held (`npm run sim -- relics 8`, 40 runs, maxed saves; "Contribution from wave 21 on").
+Changed in `src/config/relics.ts` (tier I / II):
+- **Emberheart** +30% / 40% -> +60% / 80% damage per burning enemy.
+- **Frost Brand** 35% / 50% chance, 3 chill -> 90% / 100% chance, 1 chill (a chill that builds up to the freeze instead of freezing on the second proc).
+- **Serrated Edge** 3 / 4 bleed stacks at 60% -> 7 / 8 stacks at 100% of the hit per second (pass 3 added the seventh / eighth stack).
+- **Berserker Tooth** +1% attack speed per 1% / 0.75% of HP missing (max 60% / 75%) -> a flat +10% / 15% (pass 3, `flat`), and +1% more
+  per 0.1% / 0.08% missing (max 80% / 100%), so it works at full HP too.
+- **Winter's Grasp** unchanged (pass 1 tried 3 / 4 chill: 0.2%, and lost the freeze, so it went back to 5 / 7). Pass 3 changed what the share
+  measures instead: the damage an enemy takes while a relic's freeze holds it counts for that relic (`frozenHit.<relic>` in `g.vars`, read by
+  `scripts/relic-report.ts`), as a chill's extra damage and a Shatter already did.
+
+| Pass | Won | Power index (Acts II-III) | Emberheart | Frost Brand | Serrated Edge | Berserker Tooth | Winter's Grasp |
+|---|---|---|---|---|---|---|---|
+| Before | 35 | 1.86 | 2.5% | 1.1% | 2.1% | 0.3% | 0.0% |
+| Pass 1 | 33 | 1.89 | 5.0% | 2.4% | 2.9% | 1.0% | 0.2% |
+| Pass 2 | 34 | 1.90 | 4.5% | 3.4% | 2.9% | 0.9% | 0.0% |
+| Pass 3 | 34 | 1.85 | 4.7% | 4.9% | 2.9% | 2.6% | 7.6% |
+
+Pass 3 (8 / 11 / 9 / 11 / 6 runs holding each at wave 20): every set target still holds (6-set 11.8%, 1.56 duos, 3+ duos 11.8%, power
+index Act II 1.64, Act III 2.14). Emberheart, Frost Brand and Winter's Grasp are in the band. **Serrated Edge (2.9%) and Berserker Tooth
+(2.6%) stay just under 3%**, which is accepted: the bot is rarely hurt, so Berserker Tooth's missing-HP part still reads near zero, and
+more bleed stacks moved Serrated Edge no further than pass 1 did.
+The golden runs (`tests/v8-golden.test.ts`) were re-recorded for these changes.
+
 ## v0.8: the balance pass (#125)
 
 Measured on release/0.8.0 with every other v0.8 change in (the boss pool #99, arena families #100, enemy tiers #101, the capped Bone Colossus
@@ -625,7 +728,7 @@ headless simulation says they currently achieve.
 | **Wave 5, first boss** | **The first real check.** | A run that took random boons and ignores telegraphs ends here. Ability tier 1 arrives at level 5, right around this fight, and the boss pays out the first guaranteed relic choice. |
 | Waves 6-9 | Hard | Wave modifiers begin (35% of waves), knights and cultists join, then shield bearers and priests. A fresh character with one relic and one ability tier is expected to die somewhere in here. |
 | Wave 10, second boss | A good fresh run | Reaching it at all unlocks the Graveyard. Beating it is a strong fresh run. |
-| Waves 11-15 | Needs a build | Cavalry, two-affix elites, tier 2 (level 10). Clearing wave 15 on Squire unlocks Knight: that is the goal a *developed* save is meant to reach, not a fresh one. |
+| Waves 11-15 | Needs a build | Cavalry, two-affix elites, tier 2 (level 10). Knight is open from the start (#203); a developed save is meant to clear wave 15 on Squire, not a fresh one. |
 | 15+ | Borrowed time | Enemy HP and damage grow quadratically (`WAVES.hp.quad`, `WAVES.dmg.quad`), so every build eventually loses, including sustain builds. |
 
 ### What permanent upgrades should do

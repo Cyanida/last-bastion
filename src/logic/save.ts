@@ -21,9 +21,12 @@ import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, rune
 import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
 import { keepRuns, readRunLog, type RunLog } from './runlog';
 import { recordTierRun, tierUnlockedFor } from './difficulty';
+import { championsFromV6, grantSignature, newChampion, readChampions, type Champion } from './champions';
+import { clearRewards, levelSkip, recordClear } from './world';
+import type { CrownReward, LevelReward, RealmId } from '../config/world';
 
-export const SAVE_VERSION = 6; // v0.7: the relic rework (compendium, Keep refund and new counters below)
-export const READABLE_VERSIONS = [2, 3, 4, 5, 6]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
+export const SAVE_VERSION = 7; // v0.10 (#193): champions, one per class (logic/champions.ts); v6 was v0.7's relic rework
+export const READABLE_VERSIONS = [2, 3, 4, 5, 6, 7]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
 
 /**
  * v0.6: Keep ranks that v0.5 sold and v0.6 took away or cut short: the Armory's four damage tracks, the top two ranks of HP and speed,
@@ -54,7 +57,7 @@ export function legacyRefund(meta: Record<string, unknown>): { gold: number; run
 }
 export const SAVE_KEY = 'lastbastion.save';
 /** v0.7: which game versions wrote a save format, for the backup list (Settings › Save data). */
-export const saveFormatLabel = (version: number): string => ({ 2: 'v0.2', 3: 'v0.3', 4: 'v0.4-v0.5', 5: 'v0.6', 6: 'v0.7' } as Record<number, string>)[version] ?? (version ? `save format ${version}` : 'unreadable');
+export const saveFormatLabel = (version: number): string => ({ 2: 'v0.2', 3: 'v0.3', 4: 'v0.4-v0.5', 5: 'v0.6', 6: 'v0.7-v0.9', 7: 'v0.10' } as Record<number, string>)[version] ?? (version ? `save format ${version}` : 'unreadable');
 export const LEGACY_BEST_KEY = 'lastbastion.best'; // v0.1: { [classId]: bestWave }
 
 export interface ClassRecord {
@@ -128,6 +131,7 @@ export interface Save {
   duos: DuoId[]; // v0.7: duos ever formed (the compendium shows them in full)
   cards: CardId[]; // v0.8 (#124): flash cards seen (an entry, not a format change: an older save has seen none)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
+  champions: Partial<Record<ClassId, Champion>>; // v0.10 (#193): one per class, once created (mastery, treasures, wins, Oaths and Endless stay in the per-class records above)
   settings: { arena: ArenaId; tier: number; quality: QualitySetting; textSize: TextSize; prerelease: boolean; manualAim: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
 }
 
@@ -170,6 +174,7 @@ export interface RunSummary {
   evolutions?: EvolutionId[]; // v0.6: taken this run
   duos?: DuoId[]; // v0.7: formed this run
   endlessScore?: number; // v0.6: 0 unless the run went on into Endless
+  realmLevel?: { realm: RealmId; level: number; cleared: boolean }; // v0.10 (#192): the realm level this run was; its head start doesn't count
 }
 
 const emptyClass = (): ClassRecord => ({ bestWave: 0, runs: 0, kills: 0, time: 0, xp: 0 });
@@ -192,7 +197,7 @@ export function defaultSave(): Save {
     palettes: [],
     talentPoints: 0,
     treasures: Object.fromEntries(CLASS_ORDER.map((id) => [id, emptyTreasure()])) as Record<ClassId, TreasureRecord>,
-    tierUnlocked: 0,
+    tierUnlocked: 1, // v0.10 (#203): Squire and Knight are open from the start (a value, not a format change; migrate lifts older saves)
     tierWaves: TIERS.map(() => 0),
     tierWins: TIERS.map(() => 0),
     counters: { ...zeroFeats(), kills: 0, bosses: 0, elites: 0, goldEarned: 0, flawlessBosses: 0, maxRelics: 0, sixSets: 0, maxDuos: 0, maxAwakened: 0, cursedWin: 0, maxAbilityUpgrades: 0, fastestWave10: 0, bossKinds: [], commanders: 0, actsCleared: 0, cursedActs: 0, dailies: 0, quests: 0, events: 0 },
@@ -207,6 +212,7 @@ export function defaultSave(): Save {
     oaths: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     contracts: { week: '', progress: Array(CONTRACTS_PER_WEEK).fill(0) },
     endless: Object.fromEntries(CLASS_ORDER.map((id) => [id, []])) as unknown as Record<ClassId, EndlessEntry[]>,
+    champions: {},
     settings: { arena: 'courtyard', tier: 0, quality: 'auto', textSize: 'normal', prerelease: false, manualAim: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
   };
 }
@@ -319,6 +325,8 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
       save.tierWins = TIERS.map((_, i) => Math.max(0, Math.floor(num((raw.tierWins as unknown[])[i]))));
     } else for (const r of save.runs) if (r.tier < TIERS.length) Object.assign(save, recordTierRun(save, r.tier, r.won ? r.wave : r.wave - 1, r.won));
     save.tierUnlocked = tierUnlockedFor(save.tierUnlocked, save);
+    // v6 -> v7 (#193): a champion for every class played, with every relic the save has picked (logic/champions.ts)
+    save.champions = version >= 7 ? readChampions(raw.champions) : championsFromV6(save.classes, save.relicPicks, save.wins, save.runs);
     if (isObj(raw.daily)) for (const [day, wave] of Object.entries(raw.daily)) if (/^\d{4}-\d{2}-\d{2}$/.test(day) && num(wave) > 0) save.daily[day] = num(wave);
     if (isObj(raw.settings)) {
       const s = raw.settings;
@@ -376,7 +384,15 @@ export const today = (now: Date): string => now.toISOString().slice(0, 10);
 
 /** Fold a run into the save: gold, class XP, records, counters, difficulty unlock. Achievements are evaluated separately.
  * The game passes the day and time (testMode's banked); without them (tests) the run is banked on no day. */
-export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number; contracts: Contract[] } {
+export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number; contracts: Contract[]; levelRewards: { level: LevelReward[]; crown: CrownReward[] } } {
+  // v0.10 (#192): a realm level counts only the waves it played and the levels grown in them, and its gold cap is its share of a full run
+  const lv = run.realmLevel;
+  const skip = lv ? levelSkip(lv.realm, lv.level) : { waves: 0, levels: 0, share: 1 };
+  const wavesPlayed = Math.max(0, run.wavesCleared - skip.waves);
+  // v0.10 (#205): wave deeds count the waves played; "in one run" deeds and Six of a Kind count only in the Last Bastion, where no loadout
+  // hands the relics out (decided: a run with no level, the full run the Last Bastion replaces, counts as one)
+  const bastion = !lv || lv.realm === 'lastBastion';
+  const perRun = (best: number, now: number): number => (bastion ? Math.max(best, now) : best);
   const curses = run.curses ?? [];
   const loadout = metaLoadout(save.meta);
   const curseMult = curseMultiplier(curses) + curses.length * loadout.curseBonus;
@@ -388,12 +404,12 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   const oathKept = run.won && (run.oath ?? 0) > save.oaths[run.classId] ? run.oath! : 0;
   const oath = oathKept ? oathReward(oathKept) : { runes: 0, gold: 0 };
   const win = { runes: run.won ? VICTORY.win.runes + (firstWin ? VICTORY.firstWin.runes : 0) + oath.runes : 0, gold: (firstWin ? VICTORY.firstWin.gold : 0) + oath.gold, classXp: run.won ? VICTORY.win.classXp + (firstWin ? VICTORY.firstWin.classXp : 0) : 0 };
-  const classXp = Math.round(classXpForRun({ wavesCleared: run.wavesCleared, bosses: run.bosses.length, level: run.level }, TIERS[run.tier]) * curseMult * (1 + (save.meta.classXp ?? 0) * META.classXp.perRank)) + win.classXp;
+  const classXp = Math.round(classXpForRun({ wavesCleared: wavesPlayed, bosses: run.bosses.length, level: run.level - skip.levels }, TIERS[run.tier]) * curseMult * (1 + (save.meta.classXp ?? 0) * META.classXp.perRank)) + win.classXp;
   const c = save.counters;
   const acts = run.actsCleared ?? 0;
   // v0.4: the Treasury's income multiplier, then the daily caps on what curses and the Daily Trial add (BALANCE.md)
   const dailyGold = save.dailyGold.date === date ? save.dailyGold : { date, curse: 0, trial: 0 };
-  const runCap = RUNES.runGoldCap + (save.meta.dailyCap ?? 0) * 400;
+  const runCap = (RUNES.runGoldCap + (save.meta.dailyCap ?? 0) * 400) * skip.share;
   let gold = Math.round(run.gold * loadout.goldIncome);
   if (gold > runCap) gold = Math.round(runCap + runCap * (1 - Math.exp(-(gold - runCap) / runCap))); // the same soft cap as relic stacking: at most twice the cap
   const curseCap = RUNES.dailyCaps.curseGold + loadout.dailyCap;
@@ -413,19 +429,24 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   // v0.6: the weekly contracts (their Runes are outside the caps too)
   const contracts = advanceContracts(save.contracts, weekKey(date), {
     classId: run.classId, kills: run.kills, elites: run.elites, bosses: run.bosses.length, quests: run.quests ?? 0, commanders: run.commanders ?? 0,
-    wave: run.wave, acts: acts, evolutions: run.evolutions?.length ?? 0, relics: run.relics.length,
+    wave: run.wave - skip.waves, acts: acts, evolutions: run.evolutions?.length ?? 0, relics: run.relics.length,
   });
   runes += contracts.runes;
   // v0.6: the Endless leaderboard (per class, best first); endlessRank is 1-based, 0 = not on it
   const entry: EndlessEntry | null = run.endlessScore ? { score: run.endlessScore, wave: run.wave, kills: run.kills, time: run.time, at } : null;
   const board = entry ? [...save.endless[run.classId], entry].sort((a, b) => b.score - a.score).slice(0, VICTORY.leaderboard) : save.endless[run.classId];
   const endlessRank = entry ? board.indexOf(entry) + 1 : 0;
-  const tierRecords = recordTierRun(save, run.tier, run.wavesCleared, run.won === true);
+  const tierRecords = recordTierRun(save, run.tier, wavesPlayed, run.won === true);
   const tierTop = tierUnlockedFor(save.tierUnlocked, tierRecords); // v0.8 (#79): TIER_UNLOCK, no longer only from the highest tier
   const tierUnlocked = tierTop > save.tierUnlocked;
   const relicPicks = { ...save.relicPicks };
   for (const id of run.relicsFound ?? run.relics) relicPicks[id] = (relicPicks[id] ?? 0) + 1; // v0.4: every pickup and tier-up counts
   // class feats are kept as "the best a single run managed", so an achievement can ask for something within one run
+  // v0.10 (#192): a cleared level goes on its champion's world progress, and pays its first-clear and crown rewards once (the screens offer the picks)
+  const champion = lv ? save.champions[run.classId] ?? newChampion(run.classId) : null;
+  const levelRewards = lv?.cleared && champion ? clearRewards(champion.world, lv.realm, lv.level, run.tier) : { level: [], crown: [] };
+  const cleared = lv?.cleared && champion ? { ...champion, world: recordClear(champion.world, lv.realm, lv.level, run.tier) } : null;
+  const champions = cleared ? { ...save.champions, [run.classId]: levelRewards.crown.some((r) => r.kind === 'signature') ? grantSignature(cleared, run.classId) : cleared } : save.champions; // #201: the Marches crown
   const feats = Object.fromEntries(FEAT_KEYS.map((k) => [k, Math.max(c[k], run.feats?.[k] ?? 0)])) as Record<FeatKey, number>;
   return {
     classXp,
@@ -436,6 +457,7 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
     endlessRank,
     oathKept,
     contracts: contracts.completed,
+    levelRewards,
     save: {
       ...save,
       gold: save.gold + gold,
@@ -443,9 +465,10 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
       dailyGold: { date, curse: dailyGold.curse + curseAllowed, trial: dailyGold.trial + (run.daily ? trialAllowed : 0) },
       classes: {
         ...save.classes,
-        [run.classId]: { bestWave: Math.max(prev.bestWave, run.wave), runs: prev.runs + 1, kills: prev.kills + run.kills, time: prev.time + run.time, xp: prev.xp + classXp },
+        [run.classId]: { bestWave: Math.max(prev.bestWave, run.wave - skip.waves), runs: prev.runs + 1, kills: prev.kills + run.kills, time: prev.time + run.time, xp: prev.xp + classXp },
       },
       relicPicks,
+      champions,
       treasures: run.treasure
         ? { ...save.treasures, [run.classId]: advanceChain(run.classId, save.treasures[run.classId], run.treasure, { unlocked: masteryBonus(prev.xp).treasureStep, difficulty: run.tier, acts }) }
         : save.treasures,
@@ -467,13 +490,13 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
         elites: c.elites + run.elites,
         goldEarned: c.goldEarned + run.gold,
         flawlessBosses: c.flawlessBosses + run.flawlessBosses,
-        maxRelics: Math.max(c.maxRelics, run.relics.length),
-        sixSets: c.sixSets + (Object.values(familySets(run.relics)).some((st) => st!.level === 6) ? 1 : 0),
-        maxDuos: Math.max(c.maxDuos, run.duos?.length ?? 0),
-        maxAwakened: Math.max(c.maxAwakened, Object.values(run.relicTiers ?? {}).filter((t) => t === 3).length),
+        maxRelics: perRun(c.maxRelics, run.relics.length),
+        sixSets: c.sixSets + (bastion && Object.values(familySets(run.relics)).some((st) => st!.level === 6) ? 1 : 0),
+        maxDuos: perRun(c.maxDuos, run.duos?.length ?? 0),
+        maxAwakened: perRun(c.maxAwakened, Object.values(run.relicTiers ?? {}).filter((t) => t === 3).length),
         cursedWin: run.won ? Math.max(c.cursedWin, run.relics.filter(isCursedRelic).length) : c.cursedWin,
-        maxAbilityUpgrades: Math.max(c.maxAbilityUpgrades, run.abilityUpgrades),
-        fastestWave10: run.wave10Time > 0 && (c.fastestWave10 === 0 || run.wave10Time < c.fastestWave10) ? run.wave10Time : c.fastestWave10,
+        maxAbilityUpgrades: perRun(c.maxAbilityUpgrades, run.abilityUpgrades),
+        fastestWave10: run.wave10Time > 0 && skip.waves === 0 && (c.fastestWave10 === 0 || run.wave10Time < c.fastestWave10) ? run.wave10Time : c.fastestWave10,
         bossKinds: [...new Set([...c.bossKinds, ...run.bosses])],
         commanders: c.commanders + (run.commanders ?? 0),
         actsCleared: Math.max(c.actsCleared, acts),
