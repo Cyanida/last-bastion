@@ -328,7 +328,7 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
 | Brimstone Oil | common | Attacks have a 25% → 35% chance to add a burn stack (20% of the hit per second) | **Hellfire**: ability hits add 2 burn stacks | Archer, Angel |
-| Emberheart | common | +6% → 8% damage for each burning enemy within 250 px (max 5) | **Kindled**: while 5 or more burning enemies are near, every hit adds a burn stack | any |
+| Emberheart | common | +60% → 80% damage for each burning enemy within 250 px (max 5) | **Kindled**: while 5 or more burning enemies are near, every hit adds a burn stack | any |
 | Salamander Scale | rare | Enemies at 3+ burn stacks take 25% → 35% more damage from you | **Scorched Earth**: an enemy that dies at full burn stacks leaves a fire patch for 3 s that adds burn stacks | Paladin, Viking |
 | Cinder Charm | common | A burning enemy you kill throws an ember at the nearest enemy: 1 → 2 burn stacks | **Ember Storm**: the ember splits in three | any |
 | Dragon's Tongue | legendary | Every 8 → 6 s your next attack also breathes a cone of fire: 3 → 4 burn stacks | **Wyrmfire**: the cone detonates every burn it touches for its remaining damage at once | Archer, Paladin |
@@ -340,8 +340,8 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
-| Frost Brand | common | Attacks have a 25% → 35% chance to chill | **Hoarfrost**: chilled enemies deal 20% less damage | Archer, Angel |
-| Winter's Grasp | common | Your signature ability chills everything it hits (2 → 3 chill) | **Deep Freeze**: enemies your ability freezes stay frozen 1 s longer | any |
+| Frost Brand | common | Attacks have a 90% → 100% chance to chill (1 chill) | **Hoarfrost**: chilled enemies deal 20% less damage | Archer, Angel |
+| Winter's Grasp | common | Your signature ability chills everything it hits (5 → 7 chill) | **Deep Freeze**: enemies your ability freezes stay frozen 1 s longer | any |
 | Shatterglass | rare | Your hits on frozen enemies always crit, with +25% → 40% crit damage | **Splinter**: a crit on a frozen enemy sprays 3 ice shards that chill | Archer, Viking |
 | Glacial Heart | rare | While 3 or more chilled enemies are near you, you take 15% → 20% less damage | **Cold Blood**: every freeze near you gives +20% attack speed for 2 s | any |
 | Everfrost Crown | legendary | Every 10 → 7 s a frost nova around you chills everything within 200 px (3 chill) | **Blizzard**: the nova leaves a freezing field for 3 s | any |
@@ -365,9 +365,9 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
-| Serrated Edge | common | Crits open 2 → 3 bleed stacks (10% of the hit per second each) | **Haemorrhage**: +20% crit damage against bleeding enemies | Archer, Viking |
+| Serrated Edge | common | Crits open 7 → 8 bleed stacks (100% of the hit per second each) | **Haemorrhage**: +20% crit damage against bleeding enemies | Archer, Viking |
 | Butcher's Hook | common | Bleeding enemies are slowed 15% → 20% and take 15% → 20% more damage from your attacks | **Gutting**: a bleeding enemy you kill passes its bleed to 2 enemies near it | Viking, Paladin |
-| Berserker Tooth | rare | +1% attack speed per 3% → 2% of HP missing (max 30% → 40%) | **Last Blood**: below 25% HP, every bleed you apply is doubled | Viking |
+| Berserker Tooth | rare | +10% → 15% attack speed, and +1% more per 0.1% → 0.08% of HP missing (max 80% → 100%) | **Last Blood**: below 25% HP, every bleed you apply is doubled | Viking |
 | Vampire Fang | rare | Hits on bleeding enemies heal 3% → 5% of the damage (under the relic healing cap) | **Thirst**: below half HP, doubled | any melee |
 | Blood Pact | legendary | +40% → 55% damage, but max HP is cut by 25% → 20% | **Covenant**: under half HP, kills restore 1% max HP | any |
 | Wolfskin Cloak *(Viking)* | rare | During Berserker Rage your hits add a bleed stack; +1 per 15 → 10 Rage | **Blood Frenzy**: bleeding enemies you kill during Rage give 5% attack speed for the rest of it (max 25%) | Viking |

@@ -1,5 +1,31 @@
 # Balance notes
 
+## v0.10: the starter commons (#196)
+
+Target: every starter common 3-35% of what it does where held (`npm run sim -- relics 8`, 40 runs, maxed saves; "Contribution from wave 21 on").
+Changed in `src/config/relics.ts` (tier I / II):
+- **Emberheart** +30% / 40% -> +60% / 80% damage per burning enemy.
+- **Frost Brand** 35% / 50% chance, 3 chill -> 90% / 100% chance, 1 chill (a chill that builds up to the freeze instead of freezing on the second proc).
+- **Serrated Edge** 3 / 4 bleed stacks at 60% -> 7 / 8 stacks at 100% of the hit per second (pass 3 added the seventh / eighth stack).
+- **Berserker Tooth** +1% attack speed per 1% / 0.75% of HP missing (max 60% / 75%) -> a flat +10% / 15% (pass 3, `flat`), and +1% more
+  per 0.1% / 0.08% missing (max 80% / 100%), so it works at full HP too.
+- **Winter's Grasp** unchanged (pass 1 tried 3 / 4 chill: 0.2%, and lost the freeze, so it went back to 5 / 7). Pass 3 changed what the share
+  measures instead: the damage an enemy takes while a relic's freeze holds it counts for that relic (`frozenHit.<relic>` in `g.vars`, read by
+  `scripts/relic-report.ts`), as a chill's extra damage and a Shatter already did.
+
+| Pass | Won | Power index (Acts II-III) | Emberheart | Frost Brand | Serrated Edge | Berserker Tooth | Winter's Grasp |
+|---|---|---|---|---|---|---|---|
+| Before | 35 | 1.86 | 2.5% | 1.1% | 2.1% | 0.3% | 0.0% |
+| Pass 1 | 33 | 1.89 | 5.0% | 2.4% | 2.9% | 1.0% | 0.2% |
+| Pass 2 | 34 | 1.90 | 4.5% | 3.4% | 2.9% | 0.9% | 0.0% |
+| Pass 3 | 34 | 1.85 | 4.7% | 4.9% | 2.9% | 2.6% | 7.6% |
+
+Pass 3 (8 / 11 / 9 / 11 / 6 runs holding each at wave 20): every set target still holds (6-set 11.8%, 1.56 duos, 3+ duos 11.8%, power
+index Act II 1.64, Act III 2.14). Emberheart, Frost Brand and Winter's Grasp are in the band. **Serrated Edge (2.9%) and Berserker Tooth
+(2.6%) stay just under 3%**, which is accepted: the bot is rarely hurt, so Berserker Tooth's missing-HP part still reads near zero, and
+more bleed stacks moved Serrated Edge no further than pass 1 did.
+The golden runs (`tests/v8-golden.test.ts`) were re-recorded for these changes.
+
 ## v0.8: the balance pass (#125)
 
 Measured on release/0.8.0 with every other v0.8 change in (the boss pool #99, arena families #100, enemy tiers #101, the capped Bone Colossus

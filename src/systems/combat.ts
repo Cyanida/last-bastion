@@ -184,6 +184,8 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   const curse = e.statuses.curse; // v0.7: what a relic's curse added is that relic's work
   if (curse?.by && dealt > 0) credit(g, g.player, curse.by as RelicKey, 'damage', dealt * (1 - 1 / damageTakenFactor(e.statuses)));
   if (chill && dealt > 0) credit(g, g.player, e.statuses.slow!.by as RelicKey, 'damage', dealt * (1 - 1 / chill)); // ...and a relic's chill (Frost, A8)
+  const held = e.frozenT > g.time ? (e.statuses.stun?.by as RelicKey | undefined) : undefined; // #196: what lands while a relic's freeze holds, for the sim's share
+  if (held && dealt > 0) g.vars[`frozenHit.${held}`] = (g.vars[`frozenHit.${held}`] ?? 0) + dealt;
   e.hp = Math.max(e.hpFloor, e.hp - amount); // v0.6: a boss phase that has not run its course holds at its threshold
   // numbers take the colour of their damage type; "!" marks a weakness, "-" a resistance
   damageNumber(g, e, amount, crit ? '#f2c94c' : source === 'relic' && relicContext.acting ? RELIC_COLOR : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');

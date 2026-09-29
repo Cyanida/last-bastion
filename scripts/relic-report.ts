@@ -17,18 +17,18 @@ import { createGame, type RunOptions } from '../src/game';
 import { familySets } from '../src/logic/relics';
 import { botStep } from '../src/sim/bot';
 
-interface Snap { stats: Record<string, RelicStat>; dealt: number; healed: number; taken: number; prevented: number }
+interface Snap { stats: Record<string, RelicStat>; frozen: Record<string, number>; dealt: number; healed: number; taken: number; prevented: number }
 interface RunRow {
   classId: ClassId; won: boolean; wave: number; held: number; duos: number; awakened: number; moments: Record<string, number>;
   levels: Partial<Record<FamilyId, number>>; // set level per family at the end
   sixes: FamilyId[]; // 6-sets at the end (v0.7.5: always 6 relics of the family; a duo adds no count)
   power: number | null; // relics' share of the damage dealt in waves 11-20
   power3: number | null; // ...and in waves 21-30, with the build complete
-  late: { shares: Record<string, number>; waves: number } | null; // each relic held at wave 20: its share (best of damage, healing, mitigation) from wave 21 on
+  late: { shares: Record<string, number>; waves: number } | null; // each relic held at wave 20: its share (best of damage, healing, mitigation) from wave 21 on; its damage counts what lands while its freeze holds (#196)
   bosses?: [string, number][]; // v0.7.5 (#95): each boss killed and how long it lived, in seconds
 }
 
-const snap = (g: Game): Snap => ({ stats: JSON.parse(JSON.stringify(g.player.relics.stats)), dealt: g.vars.dealt ?? 0, healed: g.vars.healed ?? 0, taken: g.vars.taken ?? 0, prevented: g.vars.prevented ?? 0 });
+const snap = (g: Game): Snap => ({ stats: JSON.parse(JSON.stringify(g.player.relics.stats)), frozen: Object.fromEntries(Object.entries(g.vars).filter(([k]) => k.startsWith('frozenHit.')).map(([k, v]) => [k.slice(10), v])), dealt: g.vars.dealt ?? 0, healed: g.vars.healed ?? 0, taken: g.vars.taken ?? 0, prevented: g.vars.prevented ?? 0 });
 const diff = (a: Snap, b: Snap, id: string) => {
   const s = b.stats[id] ?? { damage: 0, healing: 0, prevented: 0 };
   const t = a.stats[id] ?? { damage: 0, healing: 0, prevented: 0 };
@@ -69,7 +69,7 @@ function play(classId: ClassId, seed: number, opts: RunOptions, variant: number)
     const dealt = Math.max(1, end.dealt - at20.dealt);
     const healed = Math.max(1, end.healed - at20.healed);
     const hits = Math.max(1, end.taken - at20.taken + end.prevented - at20.prevented);
-    late = { shares: Object.fromEntries(heldAt20.map((id) => { const d = diff(at20!, end, id); return [id, Math.max(d.damage / dealt, d.healing / healed, d.prevented / hits)]; })), waves: g.wavesCleared - 20 };
+    late = { shares: Object.fromEntries(heldAt20.map((id) => { const d = diff(at20!, end, id); const held = (end.frozen[id] ?? 0) - (at20!.frozen[id] ?? 0); return [id, Math.max((d.damage + held) / dealt, d.healing / healed, d.prevented / hits)]; })), waves: g.wavesCleared - 20 };
   }
   const sets = familySets(r.held);
   return {
