@@ -288,7 +288,7 @@ export function summarizeRun(g: Game): RunSummary {
     wave10Time: g.wave10Time,
     commanders: g.commandersKilled,
     seed: g.seed,
-    actsCleared: Math.floor(g.wavesCleared / ACTS.length),
+    actsCleared: Math.floor(g.wavesCleared / ACTS.length) - Math.floor((g.startWave - 1) / ACTS.length), // #192: only Acts played whole, not a head start's
     curses: g.curses,
     oath: g.oath.level,
     daily: g.daily,
@@ -300,6 +300,7 @@ export function summarizeRun(g: Game): RunSummary {
     won: g.victory !== 'none',
     evolutions: g.evolutions,
     endlessScore: endlessScore(g),
+    realmLevel: g.level ? { realm: g.level.realm, level: g.level.level, cleared: g.level.cleared } : undefined,
     treasure: g.chain || g.treasure ? { found: g.chain?.found ?? 0, passed: g.chain?.passed ?? false, slain: g.chain?.slain ?? false, carried: g.treasure?.tier ?? 0 } : undefined,
   };
 }
