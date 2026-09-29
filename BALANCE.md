@@ -1,5 +1,33 @@
 # Balance notes
 
+## v0.10: two tuning passes toward rule 9 (#221)
+
+`npm run sim -- levels 6 1 marches,ironHold,lastBastion` (30 first tries a level on Knight with expected progress, as #207). Changed, in
+`src/config/world.ts`:
+- **A level step on enemies** (`WORLD.levelStep`, new; `logic/world levelStep`, folded into a level run's tier with the ring step and shown
+  in the level panel's Enemy HP): the Marches HP and damage ×0.85 on level 1 and ×0.9 on levels 2-7; a relic realm HP ×0.8 / 0.85 / 0.9 /
+  0.9 / 0.9 and damage ×0.85 / 0.9 / 0.9 / 0.9 / 0.9 by level. The Last Bastion keeps 1. On Knight every level stays above Squire.
+- **Late head-start boons** (`WORLD.headStart.lateRarity`, `lateFrom`): the levels from 11 on give epic boons (was rare), so a head start
+  keeps up with a run that played those waves and holds twice the relics. A trial with every boon epic put Marches 2-3 at +19-22% power.
+
+| Target (rule 9) | Before | Pass 1 |
+|---|---|---|
+| First-try clear about 95% at Marches level 1 | 80% | 97% |
+| About 90% at realm level 1 (Iron Hold) | 57% | 80% |
+| 55-60% at realm level 5 (Iron Hold) | 33% | 57% |
+| Power within ±15% of a continuous run | 4/10 levels; widest Marches 6 -21% | 10/10; widest Marches 6 -8% |
+| A 6-set in most crown-level clears | Marches 7 0%, Iron Hold 5 40% | Marches 7 0%, Iron Hold 5 35% |
+| Last Bastion (6-set in wins, before wave 10, duos, minutes) | 88%, 30%, 1.38 / 13%, 28.7 | unchanged (no level step, no head start) |
+| Relic moments per findable relic | Marches 0.50, Iron Hold 0.45 | 0.61, 0.51 |
+| A 5-wave / 10-wave level, minutes | 4.0 / 9.4 | 3.8 / 9.0 |
+| A realm clean / with retries (Iron Hold) | 32.6 / 50.9 | 31.7 / 39.9 |
+
+Per level, clear rate (before -> pass 1): Marches 80->97%, 20->50%, 23->27%, 17->47%, 17->47%, 23->47%, 13->13%; Iron Hold 57->80%,
+33->57%, 47->63%, 67->77%, 33->57%. Power gap: Marches +5, -3, -6, 0, -8, -6%; Iron Hold +5, -3, -4, -7%.
+
+Realm level 1 (80%) is still 10 points under its target, within the 20% the plan accepts. Pass 2 (to measure): realm level 1 HP ×0.7, and
+the Marches levels 3 and 7 at ×0.85.
+
 ## v0.10: realm levels and the plan's rule 9 targets (#207)
 
 The targets for the Road to the Crown ([docs/road-to-the-crown.md](docs/road-to-the-crown.md), rule 9), measured by `npm run sim -- levels`

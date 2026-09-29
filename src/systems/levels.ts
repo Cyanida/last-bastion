@@ -32,12 +32,12 @@ export interface LevelStart {
 export function headStart(g: Game, wave: number, opts: { level?: number; plan?: string[] } = {}): void {
   const p = g.player;
   const target = opts.level ?? headStartLevel(wave) + p.level - 1;
-  const { boons, rarity } = WORLD.headStart;
+  const { boons, rarity, lateRarity, lateFrom } = WORLD.headStart;
   for (let n = 0; p.level < target; n++) {
     p.level++;
     p.stats = applyGrowth(p.stats, p.cls.growth);
     const boon = boons[n % boons.length];
-    p.stats = applyStatUpgrade(p.stats, boon === 'attack' ? p.cls.attack.scaling : boon, rarity);
+    p.stats = applyStatUpgrade(p.stats, boon === 'attack' ? p.cls.attack.scaling : boon, p.level >= lateFrom ? lateRarity : rarity);
     const tier = tierForLevel(p.level);
     if (tier >= 0) g.pendingAbilityTiers.push(tier);
     const utilityTier = UTILITY.tiers.indexOf(p.level);
