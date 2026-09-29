@@ -70,4 +70,15 @@ export const WARDEN = {
   seal: { radius: 300, gaps: [3, 2, 2], life: 8 }, // around the player; gaps per phase
   sweep: { hands: 8, zones: 5, step: 55, delay: 0.4 }, // phase 2+: a clock hand of force, one hand every `delay` s
   close: { after: 2.5, radius: 175, gaps: 2, life: 5.5 }, // phase 3: a tighter circle closes in
+  /**
+   * #202: the Marches' crown boss (level 7) fights a third phase of his own, the Judgement: a second ring inside the first with one gap
+   * (find it, then one of the outer ring's), and rings of force rolling out from his hammer in place of the clock hands and the closing
+   * circle. His seals come quicker, his knights every other seal. Every phase also runs WORLD.crownBoss.minPhaseSeconds.
+   */
+  crown: {
+    specialCd: 6, // his seals in the Judgement (phases 1-2 keep his def's 7.5)
+    inner: { radius: 165, gaps: 1, life: 7 },
+    hammer: { rings: 3, step: 115, radius: 34, first: 1.0, gap: 0.5, damage: 0.8 }, // ring k lands at `first + (k-1) * gap` s, x his special damage
+    summonEvery: 2, // knights on every 2nd seal
+  },
 };
