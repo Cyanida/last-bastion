@@ -2,7 +2,7 @@ import { credit, relicContext } from './relicContext';
 import { ATTUNEMENT, FAMILIES, isFamily, RELIC_COLOR, type RelicKey } from '../config/relics';
 import { addWork } from '../logic/relics';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
-import { ARMOR, ARMOR_WEAR, DAMAGE_TYPES, PLATES, ENEMY_STATUS, STATUSES, TOWER_SHIELDS, type DamageType } from '../config/damage';
+import { ARMOR, ARMOR_WEAR, DAMAGE_TYPES, PLATES, ENEMY_STATUS, STATUSES, TOWER_SHIELDS, THORNS, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GOLD } from '../config/economy';
 import { GAME, RENDER, SKILL } from '../config/game';
@@ -17,7 +17,7 @@ import { goldDrop } from '../logic/economy';
 import { onSlab } from '../logic/presses';
 import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
-import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, throughPlates, throughResolve, throughTowerShield, typeMultiplier, type StatusApply } from '../logic/status';
+import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, thornsBite, throughPlates, throughResolve, throughTowerShield, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
 import { lastStand, zoneStruck } from './dodge';
@@ -139,6 +139,8 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   const chill = e.statuses.slow?.by ? 1 + e.statuses.slow.stacks * FAMILIES.frost.n.chillVuln : 0; // v0.7 A8: a relic's chill: +4% damage taken per stack
   amount *= typeMult * damageTakenFactor(e.statuses) * (chill || 1);
   if (e.def.boss && source !== 'hazard') amount *= g.player.mods.bossDamage;
+  const thorns = THORNS[e.def.id];
+  if (thorns) thornsBack(g, e, amount, source, tick, thorns); // #214: the blow as it arrives, before his shield turns any of it
   const plates = PLATES[e.def.id];
   if (plates && e.armorHp > 0) {
     // #212: iron plates count hits: each one breaks a plate (a status tick slips under them), and until they are gone every hit is dulled
@@ -225,6 +227,22 @@ function shieldBlock(g: Game, e: Enemy): void {
   sfx(g, 'block');
 }
 
+/** #214: a thorn bearer's spikes bite back at the champion for a blow he struck up close (logic/status thornsBite). */
+function thornsBack(g: Game, e: Enemy, blow: number, source: DamageSource, tick: boolean, cfg: NonNullable<(typeof THORNS)[keyof typeof THORNS]>): void {
+  const p = g.player;
+  const gap = Math.sqrt(dist2(p.x, p.y, e.x, e.y)) - e.r;
+  const bite = thornsBite(blow, { source, tick, gap, since: g.time - (e.thornsAt ?? -Infinity) }, p.stats.hp, cfg);
+  if (bite <= 0) return;
+  e.thornsAt = g.time;
+  const before = p.hp;
+  damagePlayer(g, bite, true, null, `${e.def.name}'s thorns`, true); // no attacker: the champion's own thorns and reflects don't answer back
+  g.vars['thorns.bites'] = (g.vars['thorns.bites'] ?? 0) + 1; // the play test and the sim read these
+  g.vars['thorns.taken'] = (g.vars['thorns.taken'] ?? 0) + Math.max(0, before - p.hp);
+  floatText(g, e.x, e.y - e.r - 14, 'THORNS', '#c7ced6', 13);
+  burst(g, (e.x + p.x) / 2, (e.y + p.y) / 2, '#96a1b2', 6, 180);
+  sfx(g, 'thorns');
+}
+
 /** #212: the last plate falls: he stands in his mail from now on (his bare sprite), and takes full damage. */
 function breakPlates(g: Game, e: Enemy): void {
   floatText(g, e.x, e.y - e.r - 22, 'ARMOR BROKEN', '#9a9aa0', 15);
@@ -273,7 +291,7 @@ function revive(g: Game): boolean {
 }
 
 /** `cause` names what hurt when it was not an enemy (the run log's cause of death). */
-export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, attacker: Enemy | null = null, cause = 'something unseen'): void {
+export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, attacker: Enemy | null = null, cause = 'something unseen', spare = false): void {
   const p = g.player;
   if (g.over || p.invulnT > 0) return;
   if (p.invulnerable) {
@@ -303,6 +321,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
     p.ward -= soak;
     taken -= soak;
   }
+  if (spare) taken = Math.min(taken, Math.max(0, p.hp - 1)); // #214: thorns hurt, but never take the last HP
   p.hp -= taken;
   p.flash = 0.12;
   g.bossHit = true;

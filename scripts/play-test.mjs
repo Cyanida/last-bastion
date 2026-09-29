@@ -1846,6 +1846,82 @@ await check('Iron Hold: shieldwalls march as Iron Shieldwalls with their flash c
   return { ok, detail: `run ${card.realm} ${card.level}: ${card.spawned} Iron Shieldwalls, ${card.plain} plain; card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${fight.closed}; ${fight.found ? `front swing ${fight.front.dealt.toFixed(1)} (${fight.front.blocks} clanks${fight.front.text ? ', BLOCKED' : ''}), back swing ${fight.back.dealt.toFixed(1)} (${fight.back.blocks} clanks); turned ${fight.turned} rad in ten ticks` : 'no Iron Shieldwall on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #214: the Iron Hold's thorn bearers: map -> the Iron Hold -> level 2 -> FIGHT; a shield bearer brought in as a wave brings him
+// marches as the Thorn Bearer with his own flash card, "Got it" closes it, and blows struck beside him bite the champion back, a sliver at a
+// time and never faster than the thorns' cooldown. Measured from a known state (full HP, beside him, thorns ready), counted per bite ----------
+await check('Iron Hold: a shield bearer marches as the Thorn Bearer, his flash card shows, and blows struck up close bite back (#214)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold level 1 cleared
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'thornBearer'); // every other card already seen, so his is the one that shows
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // a shield bearer comes in the way a wave brings one, in sight: the realm turns him into its own kind and his card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    const bites = { n: 0 };
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'thorns' && bites.n++), real(n));
+    }
+    window.__bites = bites;
+    g.player.invulnerable = true; // until the measurement starts
+    const b = lb.spawn('shieldBearer', g.player.x + 160, g.player.y);
+    window.__bearer = b;
+    for (let i = 0; i < 600 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    return { kind: b?.def.id, sprite: b?.def.sprite, id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g.level?.realm };
+  });
+  if (card.id) await p.click('[data-leave]');
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 3000 }).catch(() => {});
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player, b = window.__bearer;
+    const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+    // the known state: full HP, open to harm, standing beside him, his thorns ready, and he lives through the measurement
+    pl.invulnerable = false;
+    pl.hp = pl.stats.hp;
+    pl.x = b.x - 40;
+    pl.y = b.y;
+    b.thornsAt = undefined;
+    b.hpFloor = 1;
+    const max = pl.stats.hp, v = g.vars;
+    const bites = [];
+    let n0 = v['thorns.bites'] ?? 0, taken0 = v['thorns.taken'] ?? 0, texts = 0;
+    const sounds0 = window.__bites.n;
+    // the champion trades plain blows with him (no ability) until his thorns have bitten three times
+    for (let i = 0; i < 1200 && bites.length < 3 && !g.over && lb.game === g && lb.state === 'playing'; i++) {
+      lb.run(1, false, false);
+      const n = v['thorns.bites'] ?? 0;
+      if (n > n0) {
+        bites.push({ t: g.time, taken: (v['thorns.taken'] ?? 0) - taken0, n: n - n0 });
+        n0 = n;
+        taken0 = v['thorns.taken'] ?? 0;
+        if (g.texts.some((t) => t.text === 'THORNS')) texts++;
+      }
+    }
+    return { closed, max, bites, sounds: window.__bites.n - sounds0, texts, alive: !g.over };
+  });
+  await p.close();
+  const b = fight.bites;
+  const gaps = b.slice(1).map((x, i) => x.t - b[i].t);
+  const ok = card.realm === 'ironHold' && card.kind === 'thornBearer' && card.sprite === 'thornBearer' && card.id === 'thornBearer' && card.title === 'Thorn Bearer' && /bite back/.test(card.text ?? '')
+    && fight.closed && b.length === 3 && b.every((x) => x.n === 1 && x.taken > 0 && x.taken <= fight.max * 0.1) && gaps.every((d) => d >= 0.3)
+    && fight.sounds === 3 && fight.texts === 3 && fight.alive && errs.length === 0;
+  return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${fight.closed}; bites ${b.map((x) => `${x.taken.toFixed(1)}hp@${x.t.toFixed(2)}s`).join(', ') || 'NONE'} of ${fight.max} max HP, ${fight.sounds} sounds, ${fight.texts} THORNS texts${fight.alive ? '' : ', champion fell'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
 // From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
 // slots and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a

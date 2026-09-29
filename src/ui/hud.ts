@@ -2,7 +2,7 @@ import { EVOLUTIONS } from '../config/evolutions';
 import { buildState, evolutionIn } from '../systems/evolutions';
 import { SKILL } from '../config/game';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
-import { ARMOR, DAMAGE_TYPES, PLATES, RESISTS, STATUSES, TOWER_SHIELDS, type DamageType } from '../config/damage';
+import { ARMOR, DAMAGE_TYPES, PLATES, RESISTS, STATUSES, TOWER_SHIELDS, THORNS, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
 import { DUOS, FAMILIES, FAMILY_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
@@ -34,6 +34,7 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
   const armor = ARMOR[e.def.id];
   const plates = PLATES[e.def.id]; // #212
   const tower = TOWER_SHIELDS[e.def.id]; // #213
+  const thorns = THORNS[e.def.id]; // #214
   const statuses = activeStatuses(e.statuses).map((id) => `${STATUSES[id].name}${e.statuses[id]!.stacks > 1 ? ` ×${e.statuses[id]!.stacks}` : ''}`);
   html('h-inspect', `
     <b>${e.elite ? 'Elite ' : ''}${e.def.name}</b>${e.def.aura ? ' <em>commander</em>' : ''}
@@ -42,6 +43,7 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
     ${weak ? `<div>Weak to ${weak}</div>` : ''}${strong ? `<div>Resists ${strong}</div>` : ''}
     ${tower ? `<div>Iron shield: turns ${Math.round(tower.reduction * 100)}% of blows from the front. Strike his side or back</div>` : ''}
     ${plates ? `<div>${e.armorHp > 0 ? `Iron plates: ${e.armorHp} left, each hit breaks one` : 'Armor broken'}</div>` : ''}
+    ${thorns ? `<div>Thorns: a blow struck up close bites back ${Math.round(thorns.share * 100)}%</div>` : ''}
     ${armor ? `<div>${e.armorHp > 0 ? (armor.backBreak ? 'Shield up: strike it from behind' : `Armored: soaks ${Math.round(armor.reduction * 100)}% until broken`) : 'Armor broken'}</div>` : ''}
     ${e.def.aura ? `<div>Aura: ${e.def.aura.kind === 'heal' ? 'heals and rallies' : `+${Math.round((e.def.aura.value - 1) * 100)}% ${e.def.aura.kind}`} nearby allies</div>` : ''}
     ${statuses.length ? `<div>${statuses.join(' · ')}</div>` : ''}`);
