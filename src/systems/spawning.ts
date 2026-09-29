@@ -25,6 +25,7 @@ import { killEnemy } from './combat';
 import { createSquad } from './squads';
 import { REALMS } from '../config/world';
 import { levelBoss } from '../logic/world';
+import { crownHpFloor, isCrownFight } from '../logic/crownBoss';
 
 const MIN_SPAWN_DIST = 380;
 
@@ -68,6 +69,17 @@ function dressBoss(g: Game, e: Enemy): void {
   e.maxHp = e.hp = Math.round(e.hp * (b.hp ?? 1));
   e.damage *= b.damage ?? 1;
   g.banner = { text: b.rare ? `${b.name} · Rare` : b.name, t: 3 };
+}
+
+/** #202: a level's last-wave boss is its realm's crown boss when the level says so: its phases run their minimum time (systems/enemyAI). */
+function crownBoss(g: Game, e: Enemy): void {
+  const lv = g.level;
+  if (!lv || g.wave !== lv.last || !isCrownFight(REALMS[lv.realm].levels[lv.level - 1]?.boss)) return;
+  if (bossDef(g.bossesSeen[g.bossesSeen.length - 1] ?? '').from !== e.def.id) return;
+  e.crown = true;
+  e.phaseAt = g.time;
+  e.hpFloor = Math.max(e.hpFloor, crownHpFloor(e.maxHp, 1, e.def.phases ?? 2, 0)); // held from its first tick (enemyAI holdPhase)
+  g.banner = { text: `${e.def.name} · Crown boss`, t: 3 };
 }
 
 /** A squad arrives together, already in formation, facing the player. `at`: where (the v0.5 ambush), else an edge of the map. */
@@ -174,7 +186,10 @@ export function updateSpawning(g: Game, dt: number): void {
       const next = g.spawnQueue.shift()!;
       if (next.squad < 0) {
         const e = spawnEnemy(g, next.id, undefined, undefined, next.affixes);
-        if (e.def.boss) dressBoss(g, e);
+        if (e.def.boss) {
+          dressBoss(g, e);
+          crownBoss(g, e);
+        }
         g.spawnTimer += g.spawnInterval;
       } else {
         // the rest of the squad is right behind it in the queue

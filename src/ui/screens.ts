@@ -34,7 +34,7 @@ import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardTex
 import { nextTierRequirement } from '../logic/difficulty';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { keepStage } from '../logic/keep';
-import type { LevelReward, RealmId } from '../config/world';
+import type { CrownReward, LevelReward, RealmId } from '../config/world';
 import type { LevelPanel, RoadLevel } from '../logic/world';
 import { REALMS, WORLD } from '../config/world';
 import { fitLoadout, slotBlock, slotView, type SlotBlock } from '../logic/champions';
@@ -966,6 +966,23 @@ export function showRarePick(level: string, family: FamilyId, options: RelicId[]
   numberKeys(el, (a) => a === 'confirm' && !options.length && onPick(null));
 }
 
+/**
+ * v0.10 (#202): the Marches crowned for the first time: the champion's signature relic, in its gold frame. It is won already (the crown is
+ * banked with the run, logic/save applyRun), so the pick is one card: take it (click, tap, 1 or Enter) and go on to the results.
+ */
+export function showCrownPick(realm: string, champion: string, relic: RelicId, onTake: () => void): void {
+  const el = show(`
+    <div class="levelup rare-pick crown-pick">
+      ${choiceHead(`👑 ${realm} crowned`)}
+      <p class="sub">${esc(champion)} wins a signature relic: it joins your champion's relics, and a loadout may slot it beside the two class relics.</p>
+      <div class="cards">${relicCard(relic, 1, [], 'data-pick="0"', '<div class="num">1</div>')}</div>
+    </div>`);
+  let taken = false;
+  const take = () => { if (!taken) { taken = true; onTake(); } };
+  click(el, '[data-pick]', take);
+  numberKeys(el, (a) => a === 'confirm' && take());
+}
+
 export function showAbilityUpgrade(tier: number, options: readonly AbilityUpgradeId[], cls: ClassDef, onPick: (id: AbilityUpgradeId) => void): void {
   showTwoWay(`${cls.ability.name} — tier ${tier + 1}`, options.map((id) => ({ id, name: ABILITY_UPGRADES[id].name, desc: ABILITY_UPGRADES[id].desc })), (id) => onPick(id as AbilityUpgradeId));
 }
@@ -1185,6 +1202,7 @@ export interface RunResult {
   masteryNext: { name: string; need: number } | null; // the next mastery rank and the class XP still missing
   endless: { score: number; rank: number; board: EndlessEntry[] } | null; // the run went on into Endless
   road: string | null; // #200: a cleared realm level's realm: the second button goes back to its road (a lost level's goes to the champion screen)
+  crownRewards: CrownReward[]; // #202: what a first crown pays (the Marches: the signature relic, offered before this screen)
   levelRewards: LevelReward[]; // #200: what a cleared level's first clear pays (the Marches: a rare pick, offered before this screen)
 }
 

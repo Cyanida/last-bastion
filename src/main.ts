@@ -44,7 +44,7 @@ import { abilityAimRadius } from './systems/abilities';
 import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, showChampion, pickClass, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, showChampion, pickClass, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showCrownPick, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
 import { levelPanel, mapRealms, nextLevel, roadLevels, roadTier } from './logic/world';
 import { REALMS, WORLD, type LevelReward, type RealmId } from './config/world';
@@ -55,7 +55,7 @@ import type { LevelStart } from './systems/levels';
 import { isCompactLayout, textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
-import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
+import { RELIC_MOMENTS, SIGNATURE, TIER_NUMERALS } from './config/relics';
 import { BOOK_IDS } from './config/acts';
 import { looseRelics } from './logic/relics';
 import { TRAITS } from './config/traits';
@@ -678,6 +678,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
     road: g.level?.cleared ? REALMS[g.level.realm].name : null, // a cleared level goes back to its road; a lost one to the champion screen (endRun)
     levelRewards: result.levelRewards.level,
+    crownRewards: result.levelRewards.crown,
   };
 }
 
@@ -704,10 +705,12 @@ function endRun(g: Game): void {
   // game on this screen loses the pick (ponytail: a pending-reward field in the save would keep it; the save format isn't this issue's)
   const pick = r.levelRewards.find((x): x is Extract<LevelReward, { kind: 'rarePick' }> => x.kind === 'rarePick');
   const id = g.player.cls.id;
-  if (!lv || !pick) return results();
+  // #202: then a first Marches crown shows the signature relic it won (banked with the run already), and the results after it
+  const crowned = lv && r.crownRewards.some((x) => x.kind === 'signature') ? () => showCrownPick(REALMS[lv.realm].name, champOf(id).name, SIGNATURE.relic[id], results) : results;
+  if (!lv || !pick) return crowned();
   showRarePick(`${REALMS[lv.realm].name} · Level ${lv.level}`, pick.family, rarePickOptions(champOf(id), pick.family, pick.of), WORLD.keepLockedRunes, (relic) => {
     commit(relic ? { ...save, champions: { ...save.champions, [id]: grantRelic(champOf(id), relic) } } : { ...save, runes: save.runes + WORLD.keepLockedRunes });
-    results();
+    crowned();
   });
 }
 
