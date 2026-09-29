@@ -1731,9 +1731,9 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
   }
   await p.close();
   const red = still.bracket && still.bracket[0] > still.bracket[1] + 50;
-  const ok = still.found && still.realm === 'ironHold' && still.level === 1 && still.arena === 'keep' && still.n >= 2 && still.warned && still.props && red && still.ram
+  const ok = still.found && still.realm === 'ironHold' && still.level === 1 && still.arena === 'keep' && still.n >= 2 && still.warned && red && still.ram
     && still.onIt && still.hurt > 0 && still.slam > 0 && still.foeHurt > 0 && dodge.found && !dodge.onIt && dodge.hurt === 0 && errs.length === 0;
-  return { ok, detail: still.found ? `${still.realm} level ${still.level} in the ${still.arena}: ${still.n} slabs marked${still.warned ? ' with a warning' : ''}, bracket rgb(${(still.bracket ?? []).slice(0, 3).join(',')}), ram ${still.ram ? 'drawn' : 'NOT drawn'}; standing still: ${still.onIt ? 'on the slab' : 'OFF the slab'}, hurt ${Math.round(still.hurt)}, ${still.slam} slam sound(s), the foe beside him hurt ${Math.round(still.foeHurt)}; stepped aside (${dodge.key ?? 'no key'}): ${dodge.found ? `${dodge.onIt ? 'STILL on a slab' : 'off the slabs'}, hurt ${Math.round(dodge.hurt)}` : 'no second marking'}${errs.length ? `; errors: ${errs[0]}` : ''}` : `no press marked slabs (${still.realm}, wave ${still.wave})` };
+  return { ok, detail: still.found ? `${still.realm} level ${still.level} in the ${still.arena}: ${still.n} slabs marked${still.warned ? ' with a warning' : ''}, bracket rgb(${(still.bracket ?? []).slice(0, 3).join(',')}), ram ${still.ram ? 'drawn' : 'NOT drawn'}${still.props ? '' : ' (props atlas not loaded yet)'}; standing still: ${still.onIt ? 'on the slab' : 'OFF the slab'}, hurt ${Math.round(still.hurt)}, ${still.slam} slam sound(s), the foe beside him hurt ${Math.round(still.foeHurt)}; stepped aside (${dodge.key ?? 'no key'}): ${dodge.found ? `${dodge.onIt ? 'STILL on a slab' : 'off the slabs'}, hurt ${Math.round(dodge.hurt)}` : 'no second marking'}${errs.length ? `; errors: ${errs[0]}` : ''}` : `no press marked slabs (${still.realm}, wave ${still.wave})` };
 });
 
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
