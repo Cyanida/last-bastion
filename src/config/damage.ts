@@ -13,6 +13,7 @@ export const DAMAGE_TYPES: Record<DamageType, { name: string; color: string }> =
 export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>>>> = {
   wolf: { fire: 1.5, frost: 0.75 },
   knight: { frost: 1.25 }, // his armor (below) is his physical defence
+  ironKnight: { frost: 1.25 }, // #212: his plates (PLATES below) are his defence
   cultist: { shadow: 0.5, holy: 1.5, fire: 0.75 },
   shieldBearer: { physical: 0.85, fire: 1.25 },
   priest: { holy: 0.5, shadow: 1.5 },
@@ -44,6 +45,14 @@ export const ARMOR: Partial<Record<EnemyId, { frac: number; reduction: number; b
   cavalry: { frac: 0.3, reduction: 0.4 },
   shieldBearer: { frac: 0.3, reduction: 0.5, backBreak: true },
   mirrorKnight: { frac: 0.4, reduction: 0.5 },
+};
+/**
+ * #212: plate armor that counts hits, not damage (the Iron Hold's knights). While a plate is left every hit does `reduction` less, and
+ * every hit breaks a plate, plus one more for each full `heavy` share of max HP it carried, so a slow heavy hitter needs no more
+ * swings than a fast one. Damage over time slips under the plate: it is reduced and breaks none. At 0 plates he takes full damage.
+ */
+export const PLATES: Partial<Record<EnemyId, { plates: number; reduction: number; heavy: number }>> = {
+  ironKnight: { plates: 6, reduction: 0.75, heavy: 0.2 },
 };
 /** v0.7.3 (#59): how much of a blocked (shield bearer) or thrown-back (mirror knight) shot's damage wears the shield or mirror down. */
 export const ARMOR_WEAR = { block: 1, reflect: 0.5 };

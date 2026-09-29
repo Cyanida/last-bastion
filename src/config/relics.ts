@@ -209,6 +209,9 @@ export const RELICS = {
     awaken: ['Ember Storm', 'The ember splits in three.'], desc: (n) => `A burning enemy you kill throws an ember at the nearest enemy: ${n.stacks} burn stack${n.stacks > 1 ? 's' : ''}.` }),
   salamanderScale: relic({ name: 'Salamander Scale', rarity: 'rare', icon: '🦎', family: 'flame', n: { bonus: 0.35, stacks: 3 }, n2: { bonus: 0.5 }, a: { radius: 60, life: 3, dps: 8, power: 3 },
     awaken: ['Scorched Earth', (a) => `An enemy that dies at full burn stacks leaves a fire patch for ${a.life} s that adds burn stacks.`], desc: (n) => `Enemies at ${n.stacks}+ burn stacks take ${pct(n.bonus)} more damage from you.` }),
+  // v0.10 (#200): the Marches' new Flame rare, so its level 2 offers a pick of two; a burn source that needs no hit, for melee champions
+  emberMantle: relic({ name: 'Ember Mantle', rarity: 'rare', icon: '🧥', family: 'flame', n: { every: 1.5, radius: 120, stacks: 1, power: 5 }, n2: { every: 1 }, a: { every: 0.3, life: 2, radius: 40, dps: 6 },
+    awaken: ['Firewalk', (a) => `You leave a trail of fire (${a.dps} damage per second, for ${a.life} s).`], desc: (n) => `Every ${n.every} s, enemies within ${n.radius} px of you catch fire: ${n.stacks} burn stack.` }),
   dragonsTongue: relic({ name: "Dragon's Tongue", rarity: 'legendary', icon: '🐉', family: 'flame', n: { every: 6, stacks: 3, range: 230, arc: 0.9 }, n2: { every: 4, stacks: 4 },
     awaken: ['Wyrmfire', 'The cone detonates every burn it touches for its remaining damage at once.'], desc: (n) => `Every ${n.every} s your next attack also breathes a cone of fire: ${n.stacks} burn stacks.` }),
   fireArrows: relic({ name: 'Fire Arrows', rarity: 'rare', icon: '🏹', family: 'flame', classId: 'archer', n: { perFocus: 0.04 }, n2: { perFocus: 0.06 }, a: { radius: 110, life: 3, dps: 10 },

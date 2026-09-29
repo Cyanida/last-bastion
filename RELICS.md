@@ -409,7 +409,7 @@ the end for comparison.
 
 Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shines; every relic works for every class unless it names one.
 
-#### 🔥 Flame (5 + 3 class)
+#### 🔥 Flame (6 + 3 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -417,6 +417,7 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Emberheart | common | +60% → 80% damage for each burning enemy within 250 px (max 5) | **Kindled**: while 5 or more burning enemies are near, every hit adds a burn stack | any |
 | Salamander Scale | rare | Enemies at 3+ burn stacks take 25% → 35% more damage from you | **Scorched Earth**: an enemy that dies at full burn stacks leaves a fire patch for 3 s that adds burn stacks | Paladin, Viking |
 | Cinder Charm | common | A burning enemy you kill throws an ember at the nearest enemy: 1 → 2 burn stacks | **Ember Storm**: the ember splits in three | any |
+| Ember Mantle *(v0.10, #200)* | rare | Every 1.5 → 1 s, enemies within 120 px of you catch fire: 1 burn stack | **Firewalk**: you leave a trail of fire (6 damage per second, for 2 s) | Viking, Paladin |
 | Dragon's Tongue | legendary | Every 8 → 6 s your next attack also breathes a cone of fire: 3 → 4 burn stacks | **Wyrmfire**: the cone detonates every burn it touches for its remaining damage at once | Archer, Paladin |
 | Fire Arrows *(Archer)* | rare | Arrow Volley arrows each add a burn stack; burn damage +2% → 3% per Focus | **Rain of Cinders**: the Volley's area keeps burning for 3 s | Archer |
 | Sunfire Censer *(Angel)* | rare | Heavenly Radiance adds 1 + Grace/6 → Grace/4 burn stacks to everything it hits | **Solar Flare**: enemies killed by Radiance burst into fire (a Pyre explosion) | Angel |

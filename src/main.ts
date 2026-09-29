@@ -44,11 +44,11 @@ import { abilityAimRadius } from './systems/abilities';
 import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, showChampion, pickClass, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, showChampion, pickClass, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
 import { levelPanel, mapRealms, nextLevel, roadLevels, roadTier } from './logic/world';
-import { REALMS, WORLD, type RealmId } from './config/world';
-import { championBonus, championSlots, fitLoadout, freshRelics, newChampion, nextStop, type Champion } from './logic/champions';
+import { REALMS, WORLD, type LevelReward, type RealmId } from './config/world';
+import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, newChampion, nextStop, rarePickOptions, type Champion } from './logic/champions';
 import { TALENT_ROW_CAP } from './config/economy';
 import { talentsFor } from './config/talents';
 import type { LevelStart } from './systems/levels';
@@ -260,7 +260,10 @@ let fall: { classId: ClassId; realm: RealmId; level: number; tier: number; seed:
 const fellAt = (id: ClassId, realm: RealmId, level: number, tier: number): number | null =>
   fall && fall.classId === id && fall.realm === realm && fall.level === level && fall.tier === tier ? fall.wave : null;
 
-/** #197: a realm level with the champion's saved loadout for the realm (the level fits it to its slots) and its talent plan. */
+/**
+ * #197: a realm level with the champion's saved loadout for the realm (the level fits it to its slots) and its talent plan: the one way a
+ * level starts. A level lost this session (fall) plays again on the same seed until it is cleared (#200); a cleared one plays a fresh seed.
+ */
 function playLevel(id: ClassId, realm: RealmId, level: number, tier: number): void {
   const champ = champOf(id);
   const seed = fellAt(id, realm, level, tier) !== null ? fall!.seed : undefined;
@@ -304,6 +307,7 @@ function toChampion(at?: { realm: RealmId; level: number; tier: number }): void 
     back: toTitle,
   });
 }
+
 
 function toKeep(): void {
   menu();
@@ -670,13 +674,18 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
     goals: closestGoals(after, id, weekKey(today(new Date()))),
     relicShares: relicShares(g),
-    restart: g.daily ? `the Daily Trial ${g.daily}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
+    restart: g.daily ? `the Daily Trial ${g.daily}` : g.level ? `${REALMS[g.level.realm].name} · Level ${g.level.level}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
+    road: g.level?.cleared ? REALMS[g.level.realm].name : null, // a cleared level goes back to its road; a lost one to the champion screen (endRun)
+    levelRewards: result.levelRewards.level,
   };
 }
 
-/** v0.6 Quick Restart: the same class, traits and Oath (they live in the settings), or today's Daily Trial again. */
-const again = (g: Game): void => (g.daily ? toDaily() : g.level ? playLevel(g.player.cls.id, g.level.realm, g.level.level, g.tierIndex) : startRun(g.player.cls.id)); // #197: a level again, on its seed after a fall
+/**
+ * v0.6 Quick Restart: the same class, traits and Oath (they live in the settings), or today's Daily Trial again. #197/#200: a level again
+ * through playLevel, on the same seed after a fall (endRun remembers it) and a fresh one once it is cleared.
+ */
+const again = (g: Game): void => (g.daily ? toDaily() : g.level ? playLevel(g.player.cls.id, g.level.realm, g.level.level, g.tierIndex) : startRun(g.player.cls.id));
 
 /** Death, "end run", or banking a win: the run is banked. */
 function endRun(g: Game): void {
@@ -684,9 +693,22 @@ function endRun(g: Game): void {
   state = 'results';
   setTouchControls(false);
   startMenuMusic();
-  // #197: a level lost is remembered for its restart; one cleared forgets it. A level's results go home to the champion screen
+  // #197: a level lost is remembered for its restart; one cleared forgets it
   if (g.level) fall = g.level.cleared ? null : { classId: g.player.cls.id, realm: g.level.realm, level: g.level.level, tier: g.tierIndex, seed: g.seed, wave: Math.max(1, g.wave) }; // lost in the lull before wave 1 counts as wave 1
-  showResults(runResult(g, true), { retry: () => again(g), menu: g.level ? () => toChampion() : toSelect });
+  const r = runResult(g, true);
+  const lv = g.level, tier = g.tierIndex;
+  // a cleared level goes back to the realm road; a lost one to the champion screen on that level, whose RESTART plays its seed again
+  const home = lv ? (lv.cleared ? () => toRoad(lv.realm) : () => toChampion({ realm: lv.realm, level: lv.level, tier })) : toSelect;
+  const results = () => showResults(r, { retry: () => again(g), menu: home });
+  // #200: a Marches level's first clear lets the champion keep one of its family's rares. Its clear is banked already, so closing the
+  // game on this screen loses the pick (ponytail: a pending-reward field in the save would keep it; the save format isn't this issue's)
+  const pick = r.levelRewards.find((x): x is Extract<LevelReward, { kind: 'rarePick' }> => x.kind === 'rarePick');
+  const id = g.player.cls.id;
+  if (!lv || !pick) return results();
+  showRarePick(`${REALMS[lv.realm].name} · Level ${lv.level}`, pick.family, rarePickOptions(champOf(id), pick.family, pick.of), WORLD.keepLockedRunes, (relic) => {
+    commit(relic ? { ...save, champions: { ...save.champions, [id]: grantRelic(champOf(id), relic) } } : { ...save, runes: save.runes + WORLD.keepLockedRunes });
+    results();
+  });
 }
 
 function mute(): void {

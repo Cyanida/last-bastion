@@ -1544,6 +1544,111 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #200: a Marches level cleared: pick 1 of 2 rares of its family, it joins the champion, and the road opens on level 2 ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`Marches: level 1 cleared -> pick 1 of 2 Steel rares (${touch ? 'tap' : 'key 2'}), kept by the champion, back to the road on level 2 (Flame), at ${w}x${h} (#200)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).tap() : p.locator(sel).click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-marches');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('[data-fight]');
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    const opening = await p.evaluate(() => document.querySelector('[data-families]')?.textContent ?? '');
+    await p.evaluate(() => { window.__lb.game.level.cleared = true; }); // as if wave 5's boss fell: the level ends once its spoils are taken
+    await press('[data-pick="0"]');
+    await p.locator('.rare-pick').waitFor({ timeout: 5000 });
+    const pick = await p.evaluate(() => ({
+      head: document.querySelector('.rare-pick .kit-head')?.textContent.trim(),
+      cards: [...document.querySelectorAll('.rare-pick [data-pick]')].map((b) => { const r = b.getBoundingClientRect(); return { name: b.querySelector('h2').textContent, fam: b.querySelector('.fam').textContent, rarity: b.querySelector('.tag').textContent, inside: r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1 && r.top >= -1 }; }),
+    }));
+    if (touch) await p.locator('.rare-pick [data-pick="1"]').tap();
+    else await p.keyboard.press('2');
+    await p.locator('[data-menu]').waitFor({ timeout: 3000 });
+    const kept = await p.evaluate(() => { const s = window.__lb.save; const c = Object.values(s.champions).find((x) => x.world.marches); return { inv: c?.inventory ?? [], cleared: c?.world.marches ?? [] }; });
+    const menu = (await p.locator('[data-menu]').textContent()).trim();
+    const retry = (await p.locator('[data-retry]').textContent()).trim();
+    await press('[data-menu]');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    const road = await p.evaluate(() => ({ name: document.querySelector('.rr-name').textContent, text: document.querySelector('.rr-panel').textContent.replace(/\s+/g, ' '), open: [...document.querySelectorAll('.rr-flag')].map((f) => !f.disabled) }));
+    await p.close();
+    const second = pick.cards[1]?.name;
+    const ok = /Steel/.test(opening) && pick.head === 'The Marches · Level 1 cleared' && pick.cards.length === 2 && pick.cards.every((c) => /Steel/.test(c.fam) && /rare/.test(c.rarity) && c.inside)
+      && pick.cards[0].name !== second && kept.inv.length === 1 && kept.cleared[0] === 1 && /Back to the Marches/.test(menu) && /The Marches · Level 1/.test(retry)
+      && road.name === 'The Marches · Level 2' && road.open.slice(0, 3).join() === 'true,true,false' && /Flame relics featured/.test(road.text) && /Pick 1 of 2 Flame rares/.test(road.text) && errs.length === 0;
+    return { ok, detail: `opening "${opening.trim()}"; "${pick.head}": ${pick.cards.map((c) => `${c.name} (${c.fam.trim()}, ${c.inside ? 'in view' : 'off screen'})`).join(' / ')}; took ${second} -> inventory [${kept.inv.join()}], cleared ${kept.cleared.join('/')}; "${retry}" / "${menu}" -> "${road.name}"${/Pick 1 of 2 Flame rares/.test(road.text) ? ', Flame pick next' : ''}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #212: the Iron Hold's knights: map -> the Iron Hold -> level 3's panel names the Iron Knight -> level 2 -> FIGHT; he brings his own flash card,
+// "Got it" closes it, and in the fight every blow breaks one of his six plates with a clang until he stands bare in his mail ----------
+await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his flash card shows, blows break his plates one by one and he turns bare (#212)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [2] }, signature: true, lastBastion: false });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold levels 1-2 cleared
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'ironKnight'); // every other card already seen, so his is the one that shows
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-3'); // the first level whose featured foes (at most three) reach the knights' squads
+  await p.waitForTimeout(100);
+  const panel = await p.evaluate(() => ({ name: document.querySelector('.rr-name')?.textContent, text: document.querySelector('.rr-panel').textContent.replace(/\s+/g, ' ') }));
+  await p.click('.rr-flag.l-2'); // a shorter level with knights from its first wave: the fight
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // the bot plays the level (the real choice screens answered) until his flash card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb;
+    const clangs = { n: 0 };
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'clang' && clangs.n++), real(n));
+    }
+    window.__clangs = clangs;
+    lb.game.player.invulnerable = true;
+    for (let i = 0; i < 40000 && !document.querySelector('[data-card]') && lb.game && lb.state !== 'results'; i++) lb.run(1, false, true);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    const g = lb.game;
+    return { id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g?.level?.realm, level: g?.level?.level, plain: g?.enemies.filter((e) => e.def.id === 'knight').length };
+  });
+  if (card.id) await p.click('[data-leave]');
+  const fight = await p.evaluate(async () => {
+    await new Promise((r) => setTimeout(r, 100));
+    const lb = window.__lb, g = lb.game;
+    const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+    // follow the first Iron Knight on the field through the fight: his plates as the blows land, his sprite at the end
+    const knight = g.enemies.find((e) => e.def.id === 'ironKnight' && !e.dead);
+    if (!knight) return { closed, found: false };
+    const start = knight.armorHp, max = knight.armorMax, steps = [start];
+    // the champion stands his ground beside him and trades plain blows (no ability: one big cast may take every plate at once)
+    g.player.x = knight.x - 40;
+    g.player.y = knight.y;
+    for (let i = 0; i < 20000 && !knight.dead && knight.armorHp > 0 && lb.game === g; i++) {
+      lb.run(1, false, false);
+      if (knight.armorHp !== steps[steps.length - 1]) steps.push(knight.armorHp);
+    }
+    return { closed, found: true, start, max, steps, bare: knight.def.sprite, broken: knight.armorHp === 0, dead: knight.dead, clangs: window.__clangs.n };
+  });
+  await p.close();
+  const oneByOne = fight.found && fight.steps.slice(1).every((v, i) => v < fight.steps[i]) && fight.steps.length >= 3; // each blow takes a plate (a heavy one may take two)
+  const ok = panel.name === 'The Iron Hold · Level 3' && /Iron Knight/.test(panel.text) && !/Armored Knight/.test(panel.text)
+    && card.realm === 'ironHold' && card.level === 2 && card.id === 'ironKnight' && card.title === 'Iron Knight' && /Each hit breaks one/.test(card.text ?? '') && card.plain === 0
+    && fight.closed && fight.found && fight.start === 6 && fight.max === 6 && oneByOne && fight.broken && fight.bare === 'ironKnightBare' && fight.clangs > 0 && errs.length === 0;
+  return { ok, detail: `panel "${panel.name}" ${/Iron Knight/.test(panel.text) ? 'names the Iron Knight' : 'NO Iron Knight'}; run ${card.realm} ${card.level}, card ${card.id ?? 'NONE'} "${card.title ?? ''}", plain knights ${card.plain}; closed ${fight.closed}; ${fight.found ? `plates ${fight.steps.join('>')} of ${fight.max}, sprite ${fight.bare}, ${fight.clangs} clangs${fight.dead ? ', killed' : ''}` : 'no Iron Knight on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
 // From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
 // slots and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a
@@ -3414,6 +3519,96 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
     return { ok, detail: out.map((r) => `${r.arena}: ${r.features ? `features ${r.features.join('/') || 'none'}, ` : ''}telegraphs ${r.arts.join('/') || 'none'}${r.hand === null ? '' : `, hand ${r.hand ? 'drawn' : 'MISSING'}`}`).join('; ') };
   }),
 );
+
+// ---------- #210: the Great Keep as a fortress: its wings are rooms (forge, armory, chapel, barracks) that open by the start wave ----------
+// Test mode, the Great Keep: at wave 1 every gate is shut; at wave 6 (past the mid-Act boss) one wing is open by the start. Walked into with
+// the keyboard, the room names its feature ("Forge fires", not "Vents"), and its floor holds its own rigged furniture (anvils, weapon racks,
+// bunks), pixel for pixel from the props atlas.
+await check('Great Keep: a fortress whose wings are the forge, armory, chapel and barracks, one open by wave 6, walked into, furnished (#210)', async () => {
+  const start = (wave, seed) => inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+    return inPage(async ([wave, seed]) => {
+      const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait();
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-arena', 'keep');
+      set('tm-act', '1');
+      set('tm-wave', String(wave));
+      const g = window.__startTest(seed);
+      g.player.invulnerable = true;
+      for (let i = 0; i < 60 && !(lb.state === 'playing' && g.time > 0.3); i++) {
+        if (lb.state === 'choice') lb.run(1, false, 'input');
+        await wait(50);
+      }
+      const open = g.arena.regions.filter((r) => r.id !== 'core' && g.regionOpen[r.id]).map((r) => r.id);
+      return { arena: g.arena.id, open, names: g.arena.regions.filter((r) => r.id !== 'core' && r.id !== 'vault').map((r) => r.name), state: lb.state };
+    }, [wave, seed]);
+  });
+  const first = await start(1);
+  const later = await start(6, 3); // seed 3 opens the forge first: its fires go by their own name, not "Vents"
+  const wing = later.open[0];
+  // stand in the open wing's gate, on the core's side, and walk in with the key that points into the wing
+  const key = { north: 'KeyW', south: 'KeyS', east: 'KeyD', west: 'KeyA' }[wing];
+  await inPage((wing) => {
+    const g = window.__lb.game, r = g.arena.regions.find((q) => q.id === wing), core = g.arena.regions.find((q) => q.id === 'core').floor;
+    const gx = r.gate.x + r.gate.w / 2, gy = r.gate.y + r.gate.h / 2;
+    const x = wing === 'east' ? core.x + core.w - 30 : wing === 'west' ? core.x + 30 : gx;
+    const y = wing === 'south' ? core.y + core.h - 30 : wing === 'north' ? core.y + 30 : gy;
+    Object.assign(g.player, { x, y });
+    g.enemies.length = 0;
+    g.texts.length = 0;
+    window.__lb.run(1, false, 'input');
+  }, wing);
+  let walked = null;
+  if (key) {
+    await page.keyboard.down(key);
+    for (let i = 0; i < 12 && !walked?.seen; i++) {
+      walked = await inPage((wing) => {
+        const lb = window.__lb, g = lb.game;
+        g.enemies.length = 0;
+        lb.run(10, false, 'input');
+        return { seen: g.regionSeen.includes(wing), texts: g.texts.map((t) => t.text) };
+      }, wing);
+    }
+    await page.keyboard.up(key);
+  }
+  // the wing's furniture, read back from the baked ground against the atlas (src/render/props.json: row y, anchor x, anchor y, a solid pixel's y)
+  const props = await inPage(async (wing) => {
+    const lb = window.__lb, g = lb.game, r = g.arena.regions.find((q) => q.id === wing);
+    const img = new Image();
+    img.src = 'sprites/props.png';
+    await img.decode();
+    const atlas = document.createElement('canvas');
+    [atlas.width, atlas.height] = [img.width, img.height];
+    atlas.getContext('2d').drawImage(img, 0, 0);
+    const a = atlas.getContext('2d'), ground = lb.arenaCanvas(g.arena.id).getContext('2d');
+    const P = { pillar: [0, 38, 80, 50], anvil: [853, 38, 50, 50], rack: [925, 40, 81, 40], bunk: [1026, 38, 30, 20] };
+    const inWing = g.arena.obstacles.filter((o) => o.x >= r.floor.x && o.x <= r.floor.x + r.floor.w && o.y >= r.floor.y && o.y <= r.floor.y + r.floor.h);
+    const kinds = [...new Set(inWing.map((o) => o.kind))];
+    const drawn = inWing.filter((o) => {
+      const m = P[o.kind];
+      if (!m) return false;
+      const want = a.getImageData(m[1], m[0] + m[3], 1, 1).data;
+      const got = ground.getImageData(Math.round(o.x), Math.round(o.y + m[3] - m[2]), 1, 1).data;
+      return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
+    }).length;
+    return { kinds, count: inWing.length, drawn, name: r.name };
+  }, wing);
+  const want = { north: ['the forge', 'Forge fires', 'anvil'], east: ['the armory', 'Strongbox', 'rack'], south: ['the chapel', 'Shrine', 'pillar'], west: ['the barracks', 'Lair', 'bunk'] }[wing] ?? [];
+  const ok = first.arena === 'keep' && first.open.length === 0 && later.open.length === 1
+    && later.names.join() === 'the forge,the armory,the chapel,the barracks'
+    && walked?.seen === true && walked.texts.some((t) => t.includes(want[1]))
+    && props.name === want[0] && props.kinds.join() === want[2] && props.count === 4 && props.drawn === 4;
+  return { ok, detail: `wave 1: ${first.open.length} wings open; wave 6: ${later.open.join('/') || 'none'} open (${props.name}); walked in ${walked?.seen ? 'yes' : 'NO'}, it says "${walked?.texts.find((t) => t.includes(want[1])) ?? walked?.texts.join(' | ') ?? ''}"; furniture ${props.kinds.join('/')} x${props.count}, ${props.drawn} drawn from the atlas; wings: ${later.names.join(', ')}` };
+});
 
 
 // ---------- #194: one 6-set bonus a run: a test run holding six Flame and six Frost relics lights only one family's 6 ----------

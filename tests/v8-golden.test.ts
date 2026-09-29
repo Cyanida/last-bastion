@@ -30,8 +30,18 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #196 (v0.10): Emberheart, Frost Brand, Serrated Edge and Berserker Tooth are stronger, so every run that meets them
  * plays out differently on purpose; paladin:5 (now dead at wave 6) became paladin:9 and archer:5 variant 1 (now falls at the Act boss)
  * became archer:13 variant 1.
+ * Re-recorded for #200 (v0.10, on the merged code after #196): Ember Mantle, a new Flame rare, joins every class's pool on top of #196's
+ * tuned starter commons, so viking:98765, its curse run, angel:1234 and both Necromancer runs draw different relics on purpose (the same
+ * five runs #200 changed alone); #196's seed changes (paladin:9, archer:13 variant 1) still reach the Act boss and stand.
+ * Re-recorded for #210 (v0.11): the Great Keep's wings are rooms with fixed features (the forge's fires, the armory's strongbox, the
+ * chapel's shrine, the barracks' lair), so the four runs that reach the keep meet different wings on purpose.
+ * Re-recorded for v0.11 (merge of #210 and #212 on release/0.11.0, after #200 and #196 came in from release/0.10.0): the Great Keep's
+ * fixed wing rooms on top of the v0.10 relic changes move these runs' draws on purpose; each run still reaches the first Act boss.
  * Re-recorded for #217 (v0.11): four new Steel relics (Rivet Hammer, a starter common, plus Pavise, Reprisal Cuirass and Heart of the
  * Hold) join the relic pool, so every run's relic draws moved on purpose (archer:5 alone draws none of them); every seed still reaches the Act boss.
+ * Re-recorded for #217 on the merged code (after #196, #197, #200, #201, #205, #210 and #212 came into release/0.11.0): the four Steel
+ * relics on top of Ember Mantle, the tuned commons and the Great Keep's wing rooms move every run but archer:5 on purpose; each run
+ * still reaches the first Act boss.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -68,20 +78,20 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 
 // v0.8 #99 + #100 + #101: re-recorded on release/0.8.0 because boss draws, boss relic families and the Squire enemy roster changed on purpose
 const GOLDEN: Record<string, string> = {
-  'paladin:9': 'wave 16 kills 641 level 17 gold 2595 relics 6 hash ece95ac0',
+  'paladin:9': 'wave 15 kills 638 level 16 gold 2530 relics 6 hash 75119a9',
   'paladin:98765': 'wave 16 kills 644 level 17 gold 2703 relics 6 hash d731100d',
-  'viking:98765': 'wave 18 kills 786 level 18 gold 3447 relics 7 hash ae09dd94',
+  'viking:98765': 'wave 18 kills 811 level 18 gold 3433 relics 7 hash ea110cf7',
   'viking:5': 'wave 9 kills 269 level 10 gold 767 relics 4 hash 70af9ff',
-  'angel:1234': 'wave 19 kills 802 level 19 gold 3558 relics 6 hash 5ef6746c',
+  'angel:1234': 'wave 18 kills 784 level 18 gold 3259 relics 6 hash e195f8bb',
   'angel:98765': 'wave 14 kills 562 level 15 gold 2604 relics 5 hash fab8979b',
-  'necromancer:1234': 'wave 13 kills 466 level 14 gold 1723 relics 5 hash 79c1f573',
-  'necromancer:5': 'wave 20 kills 778 level 19 gold 3025 relics 9 hash faf69546',
+  'necromancer:1234': 'wave 9 kills 290 level 10 gold 835 relics 4 hash e8f55806',
+  'necromancer:5': 'wave 20 kills 784 level 19 gold 3030 relics 9 hash f256fb42',
   'archer:2027': 'wave 9 kills 289 level 10 gold 889 relics 3 hash e3214744',
   'archer:5': 'wave 9 kills 263 level 11 gold 869 relics 4 hash 5254d592',
-  'paladin:7 meta': 'wave 15 kills 557 level 18 gold 1842 relics 7 hash 3f0a9856',
+  'paladin:7 meta': 'wave 15 kills 596 level 18 gold 2217 relics 8 hash fe4c37bb',
   'viking:98765 curse': 'wave 17 kills 744 level 17 gold 4727 relics 7 hash aa1a88df',
   'angel:98765 oath 3': 'wave 13 kills 538 level 14 gold 2458 relics 4 hash 693ab727',
-  'archer:13 variant 1': 'wave 20 kills 921 level 19 gold 3638 relics 7 hash d3fe3613',
+  'archer:13 variant 1': 'wave 20 kills 965 level 20 gold 3767 relics 7 hash b7eea7b8',
 };
 
 describe('v0.8 golden runs', () => {

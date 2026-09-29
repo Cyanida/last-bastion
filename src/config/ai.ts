@@ -17,6 +17,7 @@ export const AI: Partial<Record<EnemyId, AiProfile>> = {
   crossbow: { reach: 'ranged', flank: 0, range: [170, 300], strafe: true, fleeBelow: 0.35, fleeToHealer: true },
   // walks straight at you. Armor does the thinking.
   knight: { reach: 'melee', flank: 0.15 },
+  ironKnight: { reach: 'melee', flank: 0.15 },
   cultist: { reach: 'melee', flank: 0.35, special: { id: 'fuse', cd: 0, range: 51 } },
   // never turns its shield away from you
   shieldBearer: { reach: 'melee', flank: 0 },
@@ -74,6 +75,7 @@ export const PATTERNS: Partial<Record<EnemyId, Pattern>> = {
   plagueDoctor: { kind: 'circle', from: 3, cd: 8, range: 420, windup: 1.2, damage: 1.2, count: 6, spread: 150, radius: 60, dtype: 'shadow' },
   priest: { kind: 'cross', from: 3, cd: 8, range: 450, windup: 1.0, damage: 1.0, count: 3, spread: 75, radius: 45, dtype: 'holy' },
   knight: { kind: 'slam', from: 3, cd: 6, range: 100, windup: 0.9, damage: 1.5, count: 1, spread: 0, radius: 110 },
+  ironKnight: { kind: 'slam', from: 3, cd: 6, range: 100, windup: 0.9, damage: 1.5, count: 1, spread: 0, radius: 110 },
   mirrorKnight: { kind: 'slam', from: 3, cd: 7, range: 110, windup: 0.9, damage: 1.5, count: 1, spread: 0, radius: 120 },
   boneCollector: { kind: 'slam', from: 3, cd: 7, range: 110, windup: 1.0, damage: 1.6, count: 1, spread: 0, radius: 120, dtype: 'shadow' },
   // bosses from Act III (the mid-Act bosses at 25 and 35, the Dragon at 30): one more thing to move for, on top of their script

@@ -2,7 +2,7 @@ import { EVOLUTIONS } from '../config/evolutions';
 import { buildState, evolutionIn } from '../systems/evolutions';
 import { SKILL } from '../config/game';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
-import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
+import { ARMOR, DAMAGE_TYPES, PLATES, RESISTS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
 import { DUOS, FAMILIES, FAMILY_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
@@ -32,12 +32,14 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
   const weak = list((m) => m > 1);
   const strong = list((m) => m < 1);
   const armor = ARMOR[e.def.id];
+  const plates = PLATES[e.def.id]; // #212
   const statuses = activeStatuses(e.statuses).map((id) => `${STATUSES[id].name}${e.statuses[id]!.stacks > 1 ? ` ×${e.statuses[id]!.stacks}` : ''}`);
   html('h-inspect', `
     <b>${e.elite ? 'Elite ' : ''}${e.def.name}</b>${e.def.aura ? ' <em>commander</em>' : ''}
     <div>${Math.ceil(e.hp)} / ${e.maxHp} HP${e.ai !== 'idle' && !e.def.boss ? ` · ${e.ai}` : ''}</div>
     ${e.affixes.length ? `<div>${e.affixes.map((a) => AFFIXES[a].name).join(' · ')}</div>` : ''}
     ${weak ? `<div>Weak to ${weak}</div>` : ''}${strong ? `<div>Resists ${strong}</div>` : ''}
+    ${plates ? `<div>${e.armorHp > 0 ? `Iron plates: ${e.armorHp} left, each hit breaks one` : 'Armor broken'}</div>` : ''}
     ${armor ? `<div>${e.armorHp > 0 ? (armor.backBreak ? 'Shield up: strike it from behind' : `Armored: soaks ${Math.round(armor.reduction * 100)}% until broken`) : 'Armor broken'}</div>` : ''}
     ${e.def.aura ? `<div>Aura: ${e.def.aura.kind === 'heal' ? 'heals and rallies' : `+${Math.round((e.def.aura.value - 1) * 100)}% ${e.def.aura.kind}`} nearby allies</div>` : ''}
     ${statuses.length ? `<div>${statuses.join(' · ')}</div>` : ''}`);
