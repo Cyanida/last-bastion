@@ -4726,6 +4726,55 @@ await check('Iron King: test mode starts the Iron Hold level 5; its crown boss: 
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; plates ${fight.plates.join('>')}, guard ${fight.guard}; phases at ${fight.phases.join(', ')} s, plate ${fight.armorAt2} at phase 2; decree zones ${fight.decree.join('/')}, rush ticks ${fight.rush.join('/')}, shield blocks ${fight.block.join('/')}, thorn bites ${fight.bites.join('/')} by phase; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #236: no boss ends two levels of a realm: Settings -> Test mode -> "Start at" a Marches level -> the opening pick -> its last wave ----------
+// Level 1 ends on the Black Knight (Act I's opener); level 5 used to draw him again. Now it ends on another boss, the same one on any seed.
+await check('Bosses: the Marches level 1 ends on the Black Knight; level 5 ends on another boss, the same on every seed (#236)', async () => {
+  const lastBoss = async (start, seed) => {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    if (!(await p.locator(`#tm-start option[value="${start}"]`).count())) return (await p.close(), null);
+    await p.locator('#tm-class').selectOption('paladin');
+    await p.locator('#tm-start').selectOption(start);
+    await p.evaluate((seed) => {
+      const now = Date.now; // test mode seeds from the clock
+      Date.now = () => seed;
+      try {
+        [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+      } finally {
+        Date.now = now;
+      }
+    }, seed);
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click();
+    const out = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.player.invulnerable = true;
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1; // straight on to the level's last wave
+      g.breather = 0.01;
+      let b = null;
+      for (let i = 0; i < 4000 && !b; i++) (lb.run(1, false, false), (b = g.enemies.find((e) => e.def.boss) ?? null));
+      return { wave: g.wave, last: g.level.last, name: b?.def.name ?? '', key: g.bossesSeen.at(-1) ?? '' };
+    });
+    const hud = await p.waitForFunction(() => document.getElementById('h-boss-name')?.textContent, null, { timeout: 5000 }).then((h) => h.jsonValue()).catch(() => '');
+    await p.close();
+    return { ...out, hud, errs: errs.length };
+  };
+  const l1 = await lastBoss('marches:1', 2654435761);
+  if (!l1) return { skip: true, detail: 'no realm-level start in this build' };
+  const l5 = await lastBoss('marches:5', 2654435761);
+  const l5b = await lastBoss('marches:5', 12345);
+  const ok = l1.wave === 5 && l1.key === 'blackKnight' && l5.wave === 25 && l5.key && l5.key !== 'blackKnight' && l5b.key === l5.key
+    && l5.hud.startsWith(l5.name) && l1.hud.startsWith(l1.name) && !l1.errs && !l5.errs && !l5b.errs;
+  return { ok, detail: `level 1 wave ${l1.wave}: ${l1.key} "${l1.hud}"; level 5 wave ${l5.wave}: ${l5.key} "${l5.hud}", on another seed ${l5b.key}` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
