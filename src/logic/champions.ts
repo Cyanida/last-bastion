@@ -44,7 +44,7 @@ export function readChampion(raw: unknown, classId: ClassId): Champion {
   c.inventory = relics(raw.inventory, (id) => ownable(classId, id));
   if (isObj(raw.loadouts))
     for (const r of REALM_IDS) {
-      const slots = relics(raw.loadouts[r], (id) => c.inventory.includes(id)).slice(0, WORLD.maxSlots);
+      const slots = fitLoadout(classId, relics(raw.loadouts[r], (id) => c.inventory.includes(id)), WORLD.maxSlots, r === 'lastBastion');
       if (slots.length) c.loadouts[r] = slots;
     }
   if (Array.isArray(raw.talentPlan)) c.talentPlan = [...new Set(raw.talentPlan)].filter((t): t is string => typeof t === 'string' && TALENT_BY_ID[t]?.classId === classId);
@@ -105,3 +105,33 @@ export function championBonus(meta: MetaRanks, classXp: number): { slots: number
 
 /** A level's starting slots for a champion with this Keep and class XP. */
 export const championSlots = (meta: MetaRanks, classXp: number, realm: RealmId, level: number): number => slotsFor(realm, level, championBonus(meta, classXp).slots);
+
+// ---------- #195: the slot rules (rule 4) ----------
+
+/** A relic's cost in slots: a legendary takes WORLD.loadout.legendarySlots. */
+export const slotCost = (id: RelicId): number => (relicDef(id).rarity === 'legendary' ? WORLD.loadout.legendarySlots : 1);
+
+/** Why a relic can't be slotted: the champion screen names it. */
+export type SlotBlock = 'cursed' | 'otherClass' | 'slotted' | 'slots' | 'family' | 'legendary' | 'classRelics';
+
+/**
+ * Why `id` can't join `loadout` in `slots` slots, or null when it fits (rule 4): no cursed relic, no other class's relic, at most 4 of one
+ * family, a legendary takes 2 slots and at most 1 goes in (2 in the Last Bastion, `finale`), at most 2 class relics. Duos are not limited.
+ */
+export function slotBlock(classId: ClassId, loadout: RelicId[], id: RelicId, slots: number, finale = false): SlotBlock | null {
+  const def = relicDef(id);
+  const rule = WORLD.loadout;
+  const count = (f: (d: ReturnType<typeof relicDef>) => boolean) => loadout.filter((r) => f(relicDef(r))).length;
+  if (isCursedRelic(id)) return 'cursed';
+  if (!ownable(classId, id)) return 'otherClass';
+  if (loadout.includes(id)) return 'slotted';
+  if (loadout.reduce((n, r) => n + slotCost(r), slotCost(id)) > slots) return 'slots';
+  if (def.family && count((d) => d.family === def.family) >= rule.perFamily) return 'family';
+  if (def.rarity === 'legendary' && count((d) => d.rarity === 'legendary') >= (finale ? rule.legendariesFinale : rule.legendaries)) return 'legendary';
+  if (def.classId && count((d) => !!d.classId) >= rule.classRelics) return 'classRelics';
+  return null;
+}
+
+/** A loadout cut to the rules for `slots` slots: in order, every relic that still fits. A level with fewer slots takes the first ones. */
+export const fitLoadout = (classId: ClassId, ids: RelicId[], slots: number, finale = false): RelicId[] =>
+  ids.reduce<RelicId[]>((out, id) => (slotBlock(classId, out, id, slots, finale) ? out : [...out, id]), []);
