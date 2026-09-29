@@ -159,7 +159,7 @@ export function nextStop(c: Champion, tier: number): { realm: RealmId; level: nu
  */
 export function slotView(classId: ClassId, loadout: RelicId[], slots: number, finale = false): { id: RelicId | null; second: boolean; live: boolean }[] {
   const goes = fitLoadout(classId, loadout, slots, finale);
-  const out = loadout.flatMap((id) => [{ id, second: false, live: goes.includes(id) }, ...(slotCost(id) > 1 ? [{ id, second: true, live: goes.includes(id) }] : [])]);
+  const out: { id: RelicId | null; second: boolean; live: boolean }[] = loadout.flatMap((id) => [{ id, second: false, live: goes.includes(id) }, ...(slotCost(id) > 1 ? [{ id, second: true, live: goes.includes(id) }] : [])]);
   const used = goes.reduce((n, id) => n + slotCost(id), 0);
   for (let i = 0, empty = WORLD.maxSlots - out.length; i < empty; i++) out.push({ id: null, second: false, live: i < slots - used });
   return out.slice(0, WORLD.maxSlots);
