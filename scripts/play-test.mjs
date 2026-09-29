@@ -1621,6 +1621,20 @@ await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his f
     for (let i = 0; i < 40000 && !document.querySelector('[data-card]') && lb.game && lb.state !== 'results'; i++) lb.run(1, false, true);
     const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
     const g = lb.game;
+    // the run waits under the card: a known state. Take the knight the card is about (or any whose plates are whole), read his plates now, and from
+    // here on log every blow that reaches them, the ones the real frames land after "Got it" too: each blow writes his plates, then his HP
+    const knight = [lb.spotlight, ...(g?.enemies ?? [])].find((e) => e && e.def.id === 'ironKnight' && !e.dead && e.armorHp === e.armorMax);
+    if (knight) {
+      const log = { start: knight.armorHp, blows: [] };
+      let plates = knight.armorHp, hp = knight.hp, pending = null;
+      Object.defineProperty(knight, 'armorHp', { configurable: true, get: () => plates, set: (v) => { pending = { from: plates, to: v }; plates = v; } });
+      Object.defineProperty(knight, 'hp', { configurable: true, get: () => hp, set: (v) => {
+        if (pending) log.blows.push({ ...pending, dealt: hp - v, killed: v <= knight.hpFloor, maxHp: knight.maxHp });
+        pending = null;
+        hp = v;
+      } });
+      window.__knight = { knight, log };
+    }
     return { id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g?.level?.realm, level: g?.level?.level, plain: g?.enemies.filter((e) => e.def.id === 'knight').length };
   });
   if (card.id) await p.click('[data-leave]');
@@ -1628,25 +1642,28 @@ await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his f
     await new Promise((r) => setTimeout(r, 100));
     const lb = window.__lb, g = lb.game;
     const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
-    // follow the first Iron Knight on the field through the fight: his plates as the blows land, his sprite at the end
-    const knight = g.enemies.find((e) => e.def.id === 'ironKnight' && !e.dead);
-    if (!knight) return { closed, found: false };
-    const start = knight.armorHp, max = knight.armorMax, steps = [start];
+    // follow that Iron Knight through the fight: his plates blow by blow, his sprite at the end
+    if (!window.__knight) return { closed, found: false };
+    const { knight, log } = window.__knight, max = knight.armorMax;
     // the champion stands his ground beside him and trades plain blows (no ability: one big cast may take every plate at once)
-    g.player.x = knight.x - 40;
-    g.player.y = knight.y;
     for (let i = 0; i < 20000 && !knight.dead && knight.armorHp > 0 && lb.game === g; i++) {
+      g.player.x = knight.x - 40;
+      g.player.y = knight.y;
       lb.run(1, false, false);
-      if (knight.armorHp !== steps[steps.length - 1]) steps.push(knight.armorHp);
     }
-    return { closed, found: true, start, max, steps, bare: knight.def.sprite, broken: knight.armorHp === 0, dead: knight.dead, clangs: window.__clangs.n };
+    // a blow's plates: one, plus one per full 20% of his max HP it carried (config/damage.ts PLATES: its HP damage is what the 75% the plates
+    // dull leaves, so 4x that is the blow); a tick (burn, bleed) breaks none. The killing blow's HP stops at 0, so it is not judged
+    const blows = log.blows.filter((b) => b.to < b.from).map((b) => ({ ...b, want: b.killed ? b.from - b.to : Math.min(b.from, 1 + Math.floor((4 * b.dealt) / (0.2 * b.maxHp) + 1e-9)) }));
+    const steps = [log.start, ...blows.map((b) => b.to)];
+    return { closed, found: true, start: log.start, max, steps, blows: blows.map((b) => `${b.from - b.to}${b.want !== b.from - b.to ? `(want ${b.want})` : ''}`), ruled: blows.every((b) => b.want === b.from - b.to), single: blows.filter((b) => b.from - b.to === 1).length, ticks: log.blows.length - blows.length, bare: knight.def.sprite, broken: knight.armorHp === 0, dead: knight.dead, clangs: window.__clangs.n };
   });
   await p.close();
-  const oneByOne = fight.found && fight.steps.slice(1).every((v, i) => v < fight.steps[i]) && fight.steps.length >= 3; // each blow takes a plate (a heavy one may take two)
+  // from six whole plates to none, blow by blow: each blow takes the plates the rule says (a heavy one may take two), most take exactly one
+  const oneByOne = fight.found && fight.ruled && fight.steps.slice(1).every((v, i) => v < fight.steps[i]) && fight.steps.length >= 4 && fight.single >= 2;
   const ok = panel.name === 'The Iron Hold · Level 3' && /Iron Knight/.test(panel.text) && !/Armored Knight/.test(panel.text)
     && card.realm === 'ironHold' && card.level === 2 && card.id === 'ironKnight' && card.title === 'Iron Knight' && /Each hit breaks one/.test(card.text ?? '') && card.plain === 0
     && fight.closed && fight.found && fight.start === 6 && fight.max === 6 && oneByOne && fight.broken && fight.bare === 'ironKnightBare' && fight.clangs > 0 && errs.length === 0;
-  return { ok, detail: `panel "${panel.name}" ${/Iron Knight/.test(panel.text) ? 'names the Iron Knight' : 'NO Iron Knight'}; run ${card.realm} ${card.level}, card ${card.id ?? 'NONE'} "${card.title ?? ''}", plain knights ${card.plain}; closed ${fight.closed}; ${fight.found ? `plates ${fight.steps.join('>')} of ${fight.max}, sprite ${fight.bare}, ${fight.clangs} clangs${fight.dead ? ', killed' : ''}` : 'no Iron Knight on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  return { ok, detail: `panel "${panel.name}" ${/Iron Knight/.test(panel.text) ? 'names the Iron Knight' : 'NO Iron Knight'}; run ${card.realm} ${card.level}, card ${card.id ?? 'NONE'} "${card.title ?? ''}", plain knights ${card.plain}; closed ${fight.closed}; ${fight.found ? `plates ${fight.steps.join('>')} of ${fight.max} (per blow ${fight.blows.join(',')}; ${fight.ticks} ticks), sprite ${fight.bare}, ${fight.clangs} clangs${fight.dead ? ', killed' : ''}` : 'no Iron Knight on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
