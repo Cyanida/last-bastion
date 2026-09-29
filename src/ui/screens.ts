@@ -34,8 +34,8 @@ import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardTex
 import { nextTierRequirement } from '../logic/difficulty';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { keepStage } from '../logic/keep';
-import type { LevelReward, RealmId } from '../config/world';
-import type { LevelPanel, RoadLevel } from '../logic/world';
+import type { CrownReward, LevelReward, RealmId } from '../config/world';
+import { parseTestLevel, testLevels, type LevelPanel, type RoadLevel } from '../logic/world';
 import { REALMS, WORLD } from '../config/world';
 import { fitLoadout, slotBlock, slotView, type SlotBlock } from '../logic/champions';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
@@ -55,7 +55,7 @@ import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
 import { GLOSSARY } from '../config/glossary';
-import { cardInfo, MECHANIC_CARDS, type CardId, type MechanicCard } from '../config/cards';
+import { cardInfo, iconCard, type CardId } from '../config/cards';
 import { AFFIXES, ELITES, type AffixId } from '../config/elites';
 import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
 import type { TestSetup } from '../systems/testMode';
@@ -966,6 +966,23 @@ export function showRarePick(level: string, family: FamilyId, options: RelicId[]
   numberKeys(el, (a) => a === 'confirm' && !options.length && onPick(null));
 }
 
+/**
+ * v0.10 (#202): the Marches crowned for the first time: the champion's signature relic, in its gold frame. It is won already (the crown is
+ * banked with the run, logic/save applyRun), so the pick is one card: take it (click, tap, 1 or Enter) and go on to the results.
+ */
+export function showCrownPick(realm: string, champion: string, relic: RelicId, onTake: () => void): void {
+  const el = show(`
+    <div class="levelup rare-pick crown-pick">
+      ${choiceHead(`👑 ${realm} crowned`)}
+      <p class="sub">${esc(champion)} wins a signature relic: it joins your champion's relics, and a loadout may slot it beside the two class relics.</p>
+      <div class="cards">${relicCard(relic, 1, [], 'data-pick="0"', '<div class="num">1</div>')}</div>
+    </div>`);
+  let taken = false;
+  const take = () => { if (!taken) { taken = true; onTake(); } };
+  click(el, '[data-pick]', take);
+  numberKeys(el, (a) => a === 'confirm' && take());
+}
+
 export function showAbilityUpgrade(tier: number, options: readonly AbilityUpgradeId[], cls: ClassDef, onPick: (id: AbilityUpgradeId) => void): void {
   showTwoWay(`${cls.ability.name} — tier ${tier + 1}`, options.map((id) => ({ id, name: ABILITY_UPGRADES[id].name, desc: ABILITY_UPGRADES[id].desc })), (id) => onPick(id as AbilityUpgradeId));
 }
@@ -1185,6 +1202,7 @@ export interface RunResult {
   masteryNext: { name: string; need: number } | null; // the next mastery rank and the class XP still missing
   endless: { score: number; rank: number; board: EndlessEntry[] } | null; // the run went on into Endless
   road: string | null; // #200: a cleared realm level's realm: the second button goes back to its road (a lost level's goes to the champion screen)
+  crownRewards: CrownReward[]; // #202: what a first crown pays (the Marches: the signature relic, offered before this screen)
   levelRewards: LevelReward[]; // #200: what a cleared level's first clear pays (the Marches: a rare pick, offered before this screen)
 }
 
@@ -1420,7 +1438,7 @@ export function showGlossary(onBack: () => void, cards: CardId[] = []): void {
       <h1 class="kit-head">${kit.ribbon('Glossary')}</h1>
       <p class="sub">The words the game uses, and what they mean. Tooltips underline them and explain them too.</p>
       ${kit.parch(`<dl>${[...GLOSSARY].sort((a, b) => a.name.localeCompare(b.name)).map((t) => `<dt>${t.name}</dt><dd>${t.def}</dd>`).join('')}</dl>
-      ${met.length ? `<h2>Foes and marks met</h2><dl class="cards-met">${met.map((c) => `<dt>${cardPicture(c.id)}${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}`, { cls: 'kit-scroll' })}
+      ${met.length ? `<h2>Flash cards seen</h2><dl class="cards-met">${met.map((c) => `<dt>${cardPicture(c.id)}${c.name}</dt><dd>${c.text}</dd>`).join('')}</dl>` : ''}`, { cls: 'kit-scroll' })}
     </div>`);
   click(el, '[data-back]', onBack);
   onActions((a) => (a === 'cancel' || a === 'pause') && onBack());
@@ -1439,7 +1457,7 @@ export interface CardPictureFoe {
  */
 function cardPicture(id: CardId, foe?: CardPictureFoe): string {
   const def = id in ENEMIES ? ENEMIES[id as EnemyId] : id === 'elite' ? foe?.def : undefined;
-  if (!def) return `<span class="card-pic icon">${MECHANIC_CARDS[id as MechanicCard].icon}</span>`;
+  if (!def) return `<span class="card-pic icon">${iconCard(id)?.icon ?? ''}</span>`;
   const elite = !!foe?.elite && foe.def === def;
   const spr = portraitSprite(def.sprite, def.scale + (elite ? ELITES.scaleBonus : 0), def.palette);
   const c = document.createElement('canvas');
@@ -1468,7 +1486,10 @@ export function showFlashCard(id: CardId, foe: CardPictureFoe | undefined, onDon
 const JUKEBOX_LAYERS = ['Sparse: a breather, the Merchant', 'Base: a wave', 'Second layer: a dense or dangerous fight', 'Boss: drums and a bass line'];
 const JUKEBOX_STINGERS: [Stinger, string][] = [['tier', 'Relic tier-up'], ['set', 'Set bonus'], ['duo', 'Duo formed'], ['evolution', 'Evolution'], ['phase', 'Boss phase']];
 
-/** v0.7.1 test mode (hidden): start a run at any Act, wave and arena with any champion, level, talents and relics (B5); and the music jukebox. */
+/**
+ * v0.7.1 test mode (hidden): start a run at any Act, wave and arena, or (#206) at any realm level, with any champion, level, talents and
+ * relics (B5); and the music jukebox.
+ */
 export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => void; play: (m: Mood) => void; stop: () => void; sting: (k: Stinger) => void; back: () => void }): void {
   const options = (items: [string, string][], chosen: string) => items.map(([v, label]) => `<option value="${v}" ${v === chosen ? 'selected' : ''}>${label}</option>`).join('');
   const arenas = (chosen: string) => options((Object.keys(ARENAS) as ArenaId[]).map((id) => [id, ARENAS[id].name]), chosen);
@@ -1482,6 +1503,7 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
       <h2>Start a run</h2>
       <div class="tm-grid">
         <label>Champion <select id="tm-class">${options(CLASS_ORDER.map((id) => [id, CLASSES[id].name]), setup.classId)}</select></label>
+        <label>Start at <select id="tm-start">${options([['', 'An Act and wave'], ...testLevels().map((l): [string, string] => [l.value, l.label])], setup.realmLevel ? `${setup.realmLevel.realm}:${setup.realmLevel.level}` : '')}</select></label>
         <label>Arena <select id="tm-arena">${arenas(setup.arena)}</select></label>
         <label>Act <input id="tm-act" type="number" min="1" max="${FINAL.act}" value="${setup.act}"></label>
         <label>Wave <input id="tm-wave" type="number" min="1" max="${ACTS.length}" value="${setup.wave}"></label>
@@ -1505,6 +1527,13 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
   }));
   const field = (id: string) => el.querySelector<HTMLInputElement>(`#${id}`)!;
   const num = (id: string, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number(field(id).value)) || lo));
+  // #206: a realm level brings its own waves and head start level (and its arena, once built): the Act, wave and level fields rest
+  const startAt = () => {
+    const level = !!parseTestLevel(field('tm-start').value);
+    for (const id of ['tm-act', 'tm-wave', 'tm-level']) field(id).disabled = level;
+  };
+  startAt();
+  field('tm-start').onchange = startAt;
   field('tm-class').onchange = () => {
     field('tm-talents').innerHTML = talents(field('tm-class').value as ClassId);
     field('tm-relics').innerHTML = relics(field('tm-class').value as ClassId);
@@ -1513,6 +1542,7 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
     classId: field('tm-class').value as ClassId, arena: field('tm-arena').value as ArenaId, act: num('tm-act', 1, FINAL.act), wave: num('tm-wave', 1, ACTS.length), level: num('tm-level', 1, 60),
     talents: [...el.querySelectorAll<HTMLInputElement>('#tm-talents input:checked')].map((i) => i.value),
     relics: Object.fromEntries([...el.querySelectorAll<HTMLSelectElement>('#tm-relics select')].filter((s) => s.value !== '0').map((s) => [s.dataset.relic, Number(s.value)])),
+    realmLevel: parseTestLevel(field('tm-start').value),
   }));
   // the jukebox: changes land on the next bar line, as in a run; a cue plays once, then the mood lets go of it
   let playing = false;

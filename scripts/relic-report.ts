@@ -5,6 +5,7 @@
  *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json>     maxed saves, the family-following bot, a win stops the run
  *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json> signature     ...every run holding the class's signature relic (#201)
  *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json> hold=<id>,<id> ...every run holding those relics from the start (#217)
+ *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json> loadout       ...each run the Last Bastion, with the loadout the bot fills (#207)
  *   npx vite-node scripts/relic-report.ts merge <out.json> ...                the tables
  *
  * Targets (the v0.7 brief): every relic 3-35% of what it does in the builds that hold it; a 6-set in about 15% of winning runs (#96, was a third); 1-2 duos
@@ -18,6 +19,7 @@ import type { Game, RelicStat } from '../src/core/types';
 import { createGame, type RunOptions } from '../src/game';
 import { familySets } from '../src/logic/relics';
 import { botStep } from '../src/sim/bot';
+import { expectedChampion, levelOptions } from '../src/sim/levels';
 
 interface Snap { stats: Record<string, RelicStat>; frozen: Record<string, number>; dealt: number; healed: number; taken: number; prevented: number }
 interface RunRow {
@@ -53,7 +55,7 @@ function play(classId: ClassId, seed: number, opts: RunOptions, variant: number)
   let heldAt20: string[] = [];
   const bossSeen = new Map<Game['enemies'][number], number>();
   const bosses: [string, number][] = [];
-  while (!g.over && g.time < 60 * 60 && g.victory === 'none') {
+  while (!g.over && g.time < 60 * 60 && g.victory === 'none' && !g.level?.cleared) {
     botStep(g, variant);
     for (const e of g.enemies) if (e.def.boss && !e.dead && !bossSeen.has(e)) bossSeen.set(e, g.time);
     for (const [e, t] of bossSeen) if (e.dead) (bosses.push([e.def.id, g.time - t]), bossSeen.delete(e));
@@ -75,7 +77,7 @@ function play(classId: ClassId, seed: number, opts: RunOptions, variant: number)
   }
   const sets = familySets(r.held);
   return {
-    classId, won: g.victory !== 'none', wave: g.wave, held: r.held.length, duos: r.duos.length,
+    classId, won: g.victory !== 'none' || !!g.level?.cleared, wave: g.wave, held: r.held.length, duos: r.duos.length,
     moments: Object.fromEntries(Object.entries(g.vars).filter(([k]) => k.startsWith('moments.')).map(([k, v]) => [k.slice(8), v])),
     awakened: r.held.filter((id) => (r.tiers[id] ?? 0) >= 3).length,
     levels: Object.fromEntries(FAMILY_IDS.filter((f) => sets[f]).map((f) => [f, sets[f]!.level])),
@@ -89,9 +91,11 @@ if (cmd === 'run') {
   const [classId, runsArg, out, extra] = args as [ClassId, string, string, string?];
   const maxed = Object.fromEntries(META_IDS.map((id) => [id, META[id].max]));
   const opts: RunOptions = { tier: 0, arena: 'courtyard', meta: maxed, classXp: MASTERY[MASTERY.length - 1].xp, treasure: 3, relics: extra === 'signature' ? [SIGNATURE.relic[classId]] : extra?.startsWith('hold=') ? (extra.slice(5).split(',') as RelicId[]) : undefined };
-  const rows = Array.from({ length: Number(runsArg) }, (_, i) => play(classId, 1000 + i * 7919, opts, i % 2));
+  // #207 loadout mode: the Last Bastion, the champion as it stands there (sim/levels expectedChampion) and the loadout the bot fills from it
+  const withLevel = (variant: number): RunOptions => (extra === 'loadout' ? levelOptions(classId, expectedChampion(classId, 'lastBastion', 1), 'lastBastion', 1, opts.tier ?? 0, variant, opts) : opts);
+  const rows = Array.from({ length: Number(runsArg) }, (_, i) => play(classId, 1000 + i * 7919, withLevel(i % 2), i % 2));
   writeFileSync(out, JSON.stringify(rows));
-  console.log(`${classId}: ${rows.length} runs, ${rows.filter((r) => r.won).length} won`);
+  console.log(`${classId}: ${rows.length} runs, ${rows.filter((r) => r.won).length} won${extra === 'loadout' ? ` · loadout ${withLevel(0).level!.relics!.join(', ')}` : ''}`);
 } else if (cmd === 'merge') {
   const rows: RunRow[] = args.flatMap((f) => JSON.parse(readFileSync(f, 'utf8')));
   const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);

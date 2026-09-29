@@ -9,9 +9,10 @@ import type { Enemy, Game } from '../core/types';
 import { addZone } from '../entities/hazards';
 import { nextState, type AiProfile, type AiState } from '../logic/fsm';
 import { slotPosition } from '../logic/squads';
+import { crownHpFloor } from '../logic/crownBoss';
 import { cleanse, isStunned, speedFactor } from '../logic/status';
 import { angleTo, chargeStart, chargeThrough, distTo, enraged, hitDamage, keepRange, move, moveTo, POISON, seek, shootAt, specialDamage, summon, touch, type Target } from './aiHelpers';
-import { burst, ring, shake } from './effects';
+import { burst, floatText, ring, shake } from './effects';
 import { SPECIALS } from './specials';
 import { aggroDist2 } from '../logic/quests';
 import { waypoint } from '../logic/regions';
@@ -378,8 +379,21 @@ function secondWind(g: Game, e: Enemy): void {
   sfx(g, 'warn');
 }
 
+/**
+ * #202: a crown boss's phase runs its minimum time (WORLD.crownBoss): until then its HP holds just above the next threshold, and in its
+ * last phase at 1. A blow that meets the hold says so, like the Usurper's.
+ */
+function holdPhase(g: Game, e: Enemy, phases: number): void {
+  e.hpFloor = crownHpFloor(e.maxHp, e.phase, phases, g.time - e.phaseAt);
+  if (e.hpFloor > 0 && e.hp <= e.hpFloor && e.flash > 0 && (g.vars['crown.firm'] ?? 0) <= g.time) {
+    g.vars['crown.firm'] = g.time + 1.2;
+    floatText(g, e.x, e.y - e.r - 24, 'UNBROKEN', '#e9c95a', 15);
+  }
+}
+
 function enterPhase(g: Game, e: Enemy, phase: number): void {
   e.phase = phase;
+  e.phaseAt = g.time;
   markPhase(g, `${e.def.name}: phase ${phase}`);
   emit(g, 'onBossPhase', { enemy: e, phase });
   e.special = Math.min(e.special, 1.2);
@@ -404,6 +418,7 @@ export function updateEnemies(g: Game, dt: number): void {
     if (e.def.boss) {
       const phases = e.def.phases ?? 2; // phase thresholds split the HP bar evenly: 2 phases -> 50%, 3 -> 66% and 33%
       if (e.phase < phases && e.hp <= e.maxHp * (1 - e.phase / phases)) enterPhase(g, e, e.phase + 1);
+      if (e.crown) holdPhase(g, e, phases);
     }
 
     e.speed = e.baseSpeed * moon * (g.vars.enemySpeed ?? 1) * (g.vars['relic.enemySpeed'] ?? 1) * speedFactor(e.statuses) * (enraged(e) ? AFFIXES.enraged.n.speed : 1) * (e.buffT > 0 ? e.buffSpd : 1) * (e.phase >= 2 ? (e.def.p2SpeedMult ?? 1) : 1) * (e.statuses.bleed ? 1 - (g.vars['relic.bleedSlow'] ?? 0) : 1); // v0.7: Butcher's Hook

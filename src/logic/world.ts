@@ -199,3 +199,20 @@ export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier
 }
 export type RoadLevel = ReturnType<typeof roadLevels>[number];
 export type LevelPanel = ReturnType<typeof levelPanel>;
+
+// ---------- #206: test mode starts any realm level ----------
+
+/** A realm level test mode can start, as its select shows it: `realm:level`, with the realm, level and waves. Every realm, built or not. */
+export const testLevels = (): { value: string; realm: RealmId; level: number; label: string }[] =>
+  REALM_IDS.flatMap((realm) => REALMS[realm].levels.map((lv, i) => ({
+    value: `${realm}:${i + 1}`, realm, level: i + 1,
+    label: `${REALMS[realm].name} · Level ${i + 1} (waves ${lv.waves[0]}–${lv.waves[1]})`,
+  })));
+
+/** Test mode's start select read back: a realm level, or null for a start at an Act and wave (anything it doesn't know). */
+export function parseTestLevel(value: string): { realm: RealmId; level: number } | null {
+  const [realm, n] = value.split(':');
+  const level = Number(n);
+  if (!(realm in REALMS) || !Number.isInteger(level) || level < 1 || level > REALMS[realm as RealmId].levels.length) return null;
+  return { realm: realm as RealmId, level };
+}
