@@ -1,5 +1,45 @@
 # Balance notes
 
+## v0.10: realm levels and the plan's rule 9 targets (#207)
+
+The targets for the Road to the Crown ([docs/road-to-the-crown.md](docs/road-to-the-crown.md), rule 9), measured by `npm run sim -- levels`
+(`src/sim/levels.ts`, `scripts/level-report.ts`). Each run is a **first try on Knight with expected progress**: the champion has first-cleared
+every earlier level (and crowned the realms that open this one), the bot taking the first option of each reward; no Keep ranks and no
+mastery, so the Keep's extra slots and levels are headroom on top. The bot fills the level's slots from that inventory under the slot rules
+(`botLoadout`: its signature relic, then one family toward a set, the featured family first). The Iron Hold stands in for "a relic realm"
+(its arena and bosses are not built yet, so it plays in the Great Keep with pool bosses). **Power** is a static index,
+sqrt(basic attack damage per second × effective HP), at the level's first wave, against a continuous Knight run revived on death at that
+wave; relic procs and sets are not in it.
+
+Measured on release/0.10.0 after #200 (`npm run sim -- levels 6 1 marches,ironHold,lastBastion`, 30 first tries a level, 959 s). No tuning
+yet: this is the baseline the release's balance pass works from.
+
+| Target (rule 9) | Measured | Missed by |
+|---|---|---|
+| First-try clear about 95% at Marches level 1 | 80% | 15 points |
+| About 90% at realm level 1 | 57% (Iron Hold) | 33 points |
+| 55-60% at realm level 5 | 30% (Iron Hold) | 25 points |
+| Power at a level's first wave within ±15% of a continuous run | 4 of 10 levels (Marches 2-3, Iron Hold 2-3); Marches 4 -16%, 5 -15%, 6 -21%, 7 -20%, Iron Hold 4 -18%, 5 -21% | up to 6 points past the band |
+| A 6-set in most crown-level clears | Marches 7 0%, Iron Hold 5 33% | Marches 7 by 50+ points; Iron Hold 5 by 17+ |
+| A 6-set in most Last Bastion wins | 88% | met |
+| No 6-set before wave 10 in the Last Bastion | 30% of runs have one | 30% |
+| 1-2 duos per Last Bastion win; 3+ in under 15% | 1.38; 13% | met |
+| Relic moments per findable relic 0.4-0.6 (a realm played through) | Marches 0.50, Iron Hold 0.45 | met |
+| A 5-wave level about 4 minutes, a 10-wave level 8-10 | 4.0 (2.2-5.7) and 9.3 (7.7-10.1) on average | met on average |
+| A realm about 35 minutes clean, 45 with retries | Iron Hold 32.6 / 53.0 | retries 8 minutes over |
+| The Last Bastion 35-45 minutes | 28.7 (a win) | 6 minutes under |
+| Every family's 6-set within ±15% of the class median; every relic 3-35% | not in this table: `npm run sim -- relics 3 loadout` | |
+
+Per level (clear rate, then minutes of a clear): Marches 80% 2.6, 20% 3.9, 23% 4.8, 17% 5.7, 17% 4.8, 23% 5.1, 13% 10.1; Iron Hold 57% 2.2,
+33% 3.2, 47% 7.7, 67% 9.3, 30% 10.1; the Last Bastion 27% 28.7. The fresh Knight bot is the weak point: past Marches level 1 it clears about
+a fifth of the Marches levels, and a plain Knight run by it rarely passes wave 10. The head start falls behind the continuous run from wave
+16 on: by then the continuous run has picked about twice the relics (5.6-11.5 against a loadout of 3-5), and its level-up cards beat the
+head start's fixed boons. In the Last Bastion a 5-slot loadout of one family plus the opening pick makes a 6-set before wave 10 in 30% of runs.
+
+`npm run sim -- relics [runs] loadout` runs the relic tables on the Last Bastion with the bot's loadout (maxed saves, 6 slots). A 1-run
+smoke on the same code: 2 of 5 won, both at a 6-set, power index 4.23 (a loadout's relics deal their share from wave 1, so the index is
+far over the 1.8-2.2 a run from zero reads).
+
 ## v0.10: the starter commons (#196)
 
 Target: every starter common 3-35% of what it does where held (`npm run sim -- relics 8`, 40 runs, maxed saves; "Contribution from wave 21 on").
