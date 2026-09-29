@@ -4645,6 +4645,53 @@ await check('Relics: Iron Halo, Legion Plate and Bodkin Points each work for the
   return { ok: out.every((o) => o.ok), detail: out.map((o) => o.text).join('; ') };
 });
 
+// ---------- #229: the Cinderlands' Flame relics: a test run holding all three (and two Flame commons/rares that light the first burns),
+// fought through the real input for 30 s ----------
+await check('Relics: Flashpowder, Pitch Pot and Crown of Cinders each do their work in a fight, and their HUD tiles say what they do (#229)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const ids = ['flashpowder', 'pitchPot', 'crownOfCinders'];
+    const seeds = ['brimstoneOil', 'emberMantle']; // the burns the three build on: an attack's chance to burn, the mantle's ring of fire
+    const start = await inPage(async ({ ids, seeds }) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), 'paladin');
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave and a level-1 champion, as #217's check
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), '1');
+      const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
+      for (const id of [...listed, ...seeds]) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
+      const g = window.__startTest();
+      g.player.deathless = true; // the run just never ends
+      await wait(300);
+      const tip = (id) => document.querySelector(`#h-relics .relic[data-id="${id}"]`)?.dataset.tip ?? '';
+      return { listed: listed.length, held: g.player.relics.held.filter((id) => ids.includes(id)).length, tips: ids.map(tip) };
+    }, { ids, seeds });
+    // the champion steps into the horde (arrow keys) and holds her ground for 30 s; every number below comes from real hits, ticks and kills
+    await page.keyboard.down('ArrowRight');
+    await inPage(() => window.__lb.run(60, false, 'input'));
+    await page.keyboard.up('ArrowRight');
+    let patches = 0;
+    for (let i = 0; i < 30; i++) patches = Math.max(patches, await inPage(() => (window.__lb.run(60, false, 'input'), window.__lb.game.fields.filter((f) => f.by === 'pitchPot').length)));
+    const fight = await inPage((ids) => {
+      const s = (id) => window.__lb.game.player.relics.stats[id]?.damage ?? 0;
+      return ids.map(s);
+    }, ids);
+    const said = [/flare/.test(start.tips[0]), /burning pitch/.test(start.tips[1]), /fire leaps on/.test(start.tips[2])];
+    const ok = start.listed === 3 && start.held === 3 && said.every(Boolean) && fight.every((d) => d > 0) && patches > 0;
+    const r = (v) => Math.round(v);
+    return { ok, detail: `test mode lists ${start.listed}/3, held ${start.held}; tiles say ${said.map((x) => (x ? 'yes' : 'NO')).join('/')}; flares ${r(fight[0])} dmg, pitch ${r(fight[1])} dmg (up to ${patches} patches), the crown's leaps ${r(fight[2])} dmg` };
+  }),
+);
+
 // ---------- #216: the Iron King: Settings -> Test mode -> "Start at" the Iron Hold's level 5 -> the opening pick -> its last wave ----------
 // The champion trades plain blows beside him (no ability, no bot moves, unhurt), so the fight goes the same way every run: phase 1 his
 // plate breaks blow by blow, his Decree lines land and his guard of Iron Knights comes; phase 2 he casts the plate off and raises the tower
