@@ -278,6 +278,51 @@ Half of that goes over as tier plus bar (`logic/relics.ts` `halfAttunement`):
 It costs 30 gold (+35% an Act; `MERCHANT.reforge`). A cursed relic has no family, so it cannot be reforged. A relic combined into a duo is not
 listed (v0.7.5). Reroll keeps the tier but not the family; Reforge keeps the family count but halves the attunement.
 
+## C1 · Signature relics (v0.10, [#201](https://github.com/Cyanida/last-bastion/issues/201)) — for approval
+
+One signature relic per champion, outside the families: the champion-specific rare the Marches crown gives (docs/road-to-the-crown.md,
+decisions log: "the champion-specific rare is a new signature relic"). Numbers in `config/relics.ts` (`SIGNATURE`, the five entries at the end of
+`RELICS`), behaviour in `systems/relicFamilies/signature.ts`.
+
+- **Outside the families.** Rare, gold (`SIGNATURE.color`), `signature: true` and no family: it counts toward no set, feeds no duo, the
+  family rule of an offer ignores it, and the Merchant cannot reforge it (like a cursed relic). Each is built on its class's signature ability.
+- **Won once, with the Marches crown.** The first Marches crown on any tier (`config/world.ts`) puts it in the champion's inventory
+  (`logic/champions.ts` `grantSignature`, applied when the run is banked). Save v7's `signature` flag says it is won; a save read with the
+  flag set always has it in the inventory.
+- **The pool follows the champion (#194).** It is never in a pool without a champion (the Daily Trial, the sims); once won, it is in the
+  champion's pool in every realm like the rest of its inventory, and offered 3× as often until first picked.
+- **Slot rules (#195).** It takes 1 slot and is not one of the 2 class relics, so a loadout may hold both class relics and the signature.
+- **Collection deeds.** Like the cursed relics it stays out of Curator, Devoted and Nothing Left to Find: it is a crown's reward, not a find.
+  The compendium lists the five under their own gold heading, and test mode offers the champion's own.
+
+| Champion | Relic | Effect (I → II) | Awakened (III) |
+|---|---|---|---|
+| Paladin | ⚜️ Oathkeeper's Seal | Divine Shield keeps the blows it turns away (up to 100% of max HP). When it ends it strikes every enemy within 180 px for 40 plus 150% → 200% of what it kept (+5% per point of Faith) | **Sanctified**: the strike also wards you for 6% of max HP |
+| Viking | 🪓 Jarl's Torc | During Berserker Rage your attacks cleave: 35% → 50% of each hit to every other enemy within 90 px of the target | **Saga's End**: every kill during Rage makes it last 0.3 s longer (up to 3 s a Rage) |
+| Angel | 🌟 Dawnstar | Heavenly Radiance calls 3 → 4 beams of dawn on the strongest enemies within 360 px: 60 (+5 per point of Grace) holy damage around each (60 px) | **Morning Hymn**: every beam that lands heals 1% of max HP (under the relic healing cap) |
+| Necromancer | 🏺 Phylactery | Raise Dead also raises 1 → 2 Bone Knights (120 HP, 14 damage) for 8 s | **Lich's Crown**: its Bone Knights burst for 30 shadow damage when they fall |
+| Archer | 🦅 Eagle Fletching | Every Arrow Volley arrow has a 30% → 40% chance to strike again for 80% of its hit | **Deadeye**: the second strike hits for 120% |
+
+Flat damage (the Seal's 40, the beams, the knights and their burst) grows with character level like every relic's
+(`RELIC_DAMAGE_PER_LEVEL`). The Phylactery's knights last 8 s, the length of Raise Dead's cooldown, because relic skeletons count toward the
+skeleton cap: a longer life would take the next cast's slots.
+
+**Measured.** `npm run sim -- relics 4 signature` (the relic sim with every run holding its class's signature relic from the start; maxed
+saves, 20 runs, 18 won). Share from wave 21 on, target 3-35%:
+
+| Relic | Runs held at wave 20 | Share |
+|---|---|---|
+| ⚜️ Oathkeeper's Seal | 4 | 13.0% |
+| 🌟 Dawnstar | 4 | 12.6% |
+| 🦅 Eagle Fletching | 4 | 11.6% |
+| 🪓 Jarl's Torc | 3 | 4.6% |
+| 🏺 Phylactery | 4 | 3.3% |
+
+All five sit inside the band, in the middle of the family rares (Salamander Scale 12.5%, Vampire Fang 12.4%), none near the 35% ceiling. The
+Torc and the Phylactery read low for the same reason Bone Chime reads high: the share sees the Torc's cleave but not the longer Rage of Saga's
+End, and the Phylactery's knights also soak hits the shares cannot see. The run's other targets hold as before (6-sets 16.7% of winning runs,
+1.28 duos); the power index reads 1.73 with 4 runs a class, as the sim's small samples do.
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
