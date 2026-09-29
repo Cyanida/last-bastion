@@ -1476,13 +1476,15 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       });
       const clouds = [...document.querySelectorAll('.wm-cloud')].map((c) => ({ id: c.className.match(/r-(\w+)/)[1], bg: getComputedStyle(c).backgroundImage, h: c.getBoundingClientRect().height }));
       const names = [...document.querySelectorAll('.wm-name')].filter((n) => n.getBoundingClientRect().width > 20 && /Cinzel/.test(getComputedStyle(n).fontFamily)).length;
-      return { realms, clouds, names, mapBg: getComputedStyle(map).backgroundImage, onScreen: box.top >= 0 && box.bottom <= innerHeight + 1 && box.right <= innerWidth + 1 && box.width > 300, note: document.querySelector('.wm-note').textContent };
+      return { realms, clouds, names, mapBg: getComputedStyle(map).backgroundImage, onScreen: box.top >= 0 && box.bottom <= innerHeight + 1 && box.right <= innerWidth + 1 && box.width > 300 };
     });
     const before = await look();
     const art = await p.evaluate(() => Promise.all(['/sprites/world-map.png', '/sprites/world-clouds.png'].map((src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i.naturalWidth); i.onerror = () => ok(0); i.src = src; }))));
     await press('.wm-realm.r-marches');
     await p.waitForTimeout(100);
-    const after = await look();
+    const after = { note: await p.locator('.realm-road .kit-head').textContent().catch(() => '') }; // #199: its road opens
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(100);
     await p.keyboard.press('Escape');
     await p.waitForTimeout(100);
     const title = await p.getByText('Take up arms').count();
@@ -1493,7 +1495,52 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       && before.realms.every((r) => r.opens === !r.open)
       && before.clouds.length === 8 && before.clouds.every((c) => shut.includes(c.id) && c.bg.includes('world-clouds') && c.h > 20) && before.mapBg.includes('world-map') && art.every((n) => n > 0)
       && before.names === 9 && before.onScreen && /The Marches/.test(after.note) && title > 0 && errs.length === 0;
-    return { ok, detail: `${before.realms.length} realms, open: ${open.join()}, ${before.clouds.length} under clouds (${before.realms.filter((r) => r.opens).length} say what opens them), ${before.names} names in Cinzel${before.onScreen ? '' : ' (map off screen)'}, art ${art.join('/')}; picked -> "${after.note}"; Esc -> ${title ? 'title' : '?'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    return { ok, detail: `${before.realms.length} realms, open: ${open.join()}, ${before.clouds.length} under clouds (${before.realms.filter((r) => r.opens).length} say what opens them), ${before.names} names in Cinzel${before.onScreen ? '' : ' (map off screen)'}, art ${art.join('/')}; picked -> road "${after.note.trim()}"; Esc, Esc -> ${title ? 'title' : '?'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #199: the realm road and the level panel: world map -> the Marches -> road -> level panel -> FIGHT starts level 1 ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`realm road: map -> the Marches -> its road, a Knight crown and back, the level panel, FIGHT starts level 1, ${touch ? 'tap' : 'click'} at ${w}x${h} (#199)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).tap() : p.locator(sel).click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-marches');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    const look = () => p.evaluate(() => {
+      const land = document.querySelector('.rr-land'), lb = land.getBoundingClientRect();
+      const flags = [...document.querySelectorAll('.rr-flag')].map((f) => { const r = f.getBoundingClientRect(); return { n: +f.dataset.level, open: !f.disabled, on: f.classList.contains('on'), inside: r.left + r.width / 2 >= lb.left && r.right - r.width / 2 <= lb.right && r.top >= lb.top - r.height && r.bottom <= lb.bottom + r.height }; });
+      const fight = document.querySelector('[data-fight]'), fb = fight.getBoundingClientRect();
+      const panel = document.querySelector('.rr-panel');
+      return {
+        flags, landBg: getComputedStyle(land).backgroundImage, name: document.querySelector('.rr-name').textContent, text: panel.textContent.replace(/\s+/g, ' '),
+        tiers: [...document.querySelectorAll('.rr-tier')].map((t) => (t.disabled ? '-' : t.classList.contains('on') ? 'X' : 'o')).join(''),
+        golds: document.querySelectorAll('.realm-road .kit-btn.gold').length, fight: !fight.disabled && fb.bottom <= innerHeight + 1 && fb.right <= innerWidth + 1 && document.elementFromPoint(fb.left + fb.width / 2, fb.top + fb.height / 2)?.closest('[data-fight]') === fight,
+        onScreen: (() => { const r = document.querySelector('.realm-road').getBoundingClientRect(); return r.top >= -1 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1; })(),
+      };
+    });
+    const road = await look();
+    await press('.rr-tier[data-tier="1"]');
+    await p.waitForTimeout(100);
+    const knight = await look();
+    await press('.rr-tier[data-tier="0"]');
+    await press('.rr-flag.l-1');
+    await p.waitForTimeout(100);
+    const squire = await look();
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, last: g.level?.last, start: g.startWave, tier: g.tierIndex, arena: g.arena.id } : null; });
+    await p.close();
+    const ok = road.flags.length === 7 && road.flags.every((f) => f.inside) && road.flags.map((f) => f.open).join() === 'true,false,false,false,false,false,false' && road.flags[0].on
+      && road.landBg.includes('world-map') && road.name === 'The Marches · Level 1' && road.tiers === 'Xo--' && road.golds === 1 && road.fight && road.onScreen
+      && /Head start\s*Level 1/.test(road.text) && /Slots\s*1/.test(road.text) && /Enemy HP\s*100%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
+      && knight.tiers === 'oX--' && /Enemy HP\s*145%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
+      && run?.realm === 'marches' && run.level === 1 && run.last === 5 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
+    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*145%/.test(knight.text) ? 'HP 145%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 

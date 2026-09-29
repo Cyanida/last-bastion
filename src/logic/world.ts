@@ -1,10 +1,12 @@
 // v0.10 (#190): what opens on the world map, a level's slots and ring step, and what a clear pays (config/world.ts)
 import { ACTS, FINAL } from '../config/acts';
 import { BOSSES, type BossKey } from '../config/bosses';
-import { TIER_UNLOCK } from '../config/economy';
-import { relicDef, type RelicId } from '../config/relics';
+import { SQUADS } from '../config/director';
+import { TIER_UNLOCK, TIERS } from '../config/economy';
+import { ENEMIES, type EnemyId } from '../config/enemies';
+import { FAMILIES, relicDef, type FamilyId, type RelicId } from '../config/relics';
 import { WAVES } from '../config/waves';
-import { REALM_IDS, REALMS, WORLD, type CrownReward, type EndBoss, type LevelReward, type RealmId } from '../config/world';
+import { REALM_IDS, REALMS, WORLD, WORLD_BOSSES, type CrownReward, type EndBoss, type LevelReward, type RealmId } from '../config/world';
 import { actBoss, actOf, bossForWave, type BossDraw } from './acts';
 import { expectedLevel } from './formulas';
 
@@ -123,3 +125,74 @@ export function opensText(realm: RealmId): string {
 /** The world map's realms, in REALM_IDS order: open, or still under clouds with what opens it. */
 export const mapRealms = (p: WorldProgress): { id: RealmId; name: string; open: boolean; opens: string }[] =>
   REALM_IDS.map((id) => ({ id, name: REALMS[id].name, open: realmOpen(p, id), opens: opensText(id) }));
+
+// ---------- #199: the realm road and the level panel ----------
+
+/** The road's flags: per level, whether it is open on `tier` and the tiers it is cleared on (a higher clear counts for the lower ones). */
+export const roadLevels = (p: WorldProgress, realm: RealmId, tier: number): { n: number; open: boolean; cleared: boolean[] }[] =>
+  REALMS[realm].levels.map((_, i) => ({ n: i + 1, open: levelOpen(p, realm, i + 1, tier), cleared: TIERS.map((_, t) => bestCleared(p, realm, t) >= i + 1) }));
+
+/** The level the road opens on: the first one not cleared on `tier`, or the last. */
+export const nextLevel = (p: WorldProgress, realm: RealmId, tier: number): number => Math.min(REALMS[realm].levels.length, bestCleared(p, realm, tier) + 1);
+
+/** The tier the road opens on: the one asked for if this realm has it open, else the highest open one below it. */
+export function roadTier(p: WorldProgress, realm: RealmId, want: number): number {
+  for (let t = Math.min(want, TIERS.length - 1); t > 0; t--) if (tierOpen(p, realm, t)) return t;
+  return 0;
+}
+
+/**
+ * The foes a level features: the squads that first march in its waves (members and commander), newest first; a level with no new
+ * squad shows the last ones in by then. Decided: at most `max`, so the panel stays a glance.
+ */
+export function featuredFoes(waves: [number, number], max = 3): EnemyId[] {
+  const inBy = SQUADS.filter((s) => s.from <= waves[1]);
+  const fresh = inBy.filter((s) => s.from >= waves[0]);
+  const ids = (fresh.length ? fresh : inBy).slice().reverse().flatMap((s) => [...(s.commander ? [s.commander] : []), ...s.members.map(([id]) => id)]);
+  return [...new Set(ids)].slice(0, max);
+}
+
+/** The end boss in words: a named one, or the draw on its wave (a mid-Act boss on a wave x5, the Act's boss on a wave x0). */
+export function bossName(end: EndBoss, wave: number): string {
+  if (end.boss === 'usurper') return ENEMIES.usurper.name;
+  const named = BOSSES[end.boss] ? (BOSSES[end.boss].name ?? ENEMIES[BOSSES[end.boss].from].name) : (WORLD_BOSSES as Record<string, { name: string }>)[end.boss]?.name;
+  return named ?? (wave % 10 === 5 ? 'A mid-Act boss' : 'An Act boss');
+}
+
+const familyName = (f?: FamilyId) => (f ? FAMILIES[f].name : 'a');
+const REWARD_TEXT: Record<LevelReward['kind'] | CrownReward['kind'], (r: LevelReward | CrownReward, family?: FamilyId) => string> = {
+  rarePick: (r) => `Pick 1 of ${(r as { of: number }).of} ${familyName((r as { family: FamilyId }).family)} rares`,
+  keepLocked: () => `Keep a locked relic of a family you held (or ${WORLD.keepLockedRunes} Runes)`,
+  classRelic: (_, f) => `Your class relic of ${familyName(f)}`,
+  win: () => 'The win',
+  signature: () => 'Your signature relic',
+  legendaryPick: (_, f) => `Pick 1 of 2 ${familyName(f)} legendaries`,
+  legendaryOther: (_, f) => `The other ${familyName(f)} legendary`,
+  title: () => 'A title',
+  palette: () => 'A palette',
+};
+
+/**
+ * Everything the level panel shows for `level` of `realm` on `tier`: the head start (with the Keep's and mastery's levels, `bonus`),
+ * slots, enemy HP against Squire in the Marches, the featured family and foes, the end boss, and what a clear pays now (empty once taken).
+ */
+export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier: number, bonus: { slots: number; levels: number } = { slots: 0, levels: 0 }) {
+  const def = REALMS[realm], lv = def.levels[level - 1];
+  const r = clearRewards(p, realm, level, tier);
+  return {
+    name: `${def.name} · Level ${level}`,
+    waves: lv.waves,
+    headStart: headStartLevel(lv.waves[0]) + bonus.levels,
+    slots: slotsFor(realm, level, bonus.slots),
+    enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * 100),
+    family: lv.family,
+    foes: featuredFoes(lv.waves).map((id) => ENEMIES[id].name),
+    boss: bossName(lv.boss, lv.waves[1]),
+    crownBoss: !!lv.boss.crown,
+    rewards: [...r.level, ...r.crown].map((x) => REWARD_TEXT[x.kind](x, def.family)),
+    tiers: TIERS.map((t, i) => ({ name: t.name, open: tierOpen(p, realm, i), cleared: bestCleared(p, realm, i) >= level })),
+    open: levelOpen(p, realm, level, tier),
+  };
+}
+export type RoadLevel = ReturnType<typeof roadLevels>[number];
+export type LevelPanel = ReturnType<typeof levelPanel>;

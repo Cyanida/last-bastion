@@ -44,10 +44,12 @@ import { abilityAimRadius } from './systems/abilities';
 import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
-import { mapRealms, saveWorldProgress } from './logic/world';
-import type { RealmId } from './config/world';
+import { levelPanel, mapRealms, nextLevel, roadLevels, roadTier, saveWorldProgress } from './logic/world';
+import { REALMS, type RealmId } from './config/world';
+import { championBonus } from './logic/champions';
+import type { LevelStart } from './systems/levels';
 import { isCompactLayout, textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
@@ -55,7 +57,7 @@ import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
 import { BOOK_IDS } from './config/acts';
 import { looseRelics } from './logic/relics';
 import { TRAITS } from './config/traits';
-import { CLASS_ORDER } from './config/classes';
+import { CLASS_ORDER, CLASSES } from './config/classes';
 import { MASTERY } from './config/economy';
 import { markBored } from './systems/runlog';
 import { buildState } from './systems/evolutions';
@@ -129,7 +131,7 @@ function toTitle(): void {
   onTitle = true;
   showTitle(
     { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(new Date()), best: save.daily[todayString(new Date())] ?? 0 }, title: save.title, contracts: titleContracts(), whatsNew: platform.whatsNew !== null },
-    { start: toSelect, map: () => toMap(null), daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings, whatsNew: toWhatsNew },
+    { start: toSelect, map: toMap, daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings, whatsNew: toWhatsNew },
   );
 }
 
@@ -215,10 +217,31 @@ function toSelect(): void {
   });
 }
 
-/** #198: the world map. Clicking an open realm is the realm road's hook (#199); until it lands, the map names the realm. */
-function toMap(picked: RealmId | null): void {
+/** #198: the world map; an open realm opens its road. */
+function toMap(): void {
   menu();
-  showWorldMap(mapRealms(saveWorldProgress(save)), picked, { realm: (id) => toMap(id), back: toTitle });
+  showWorldMap(mapRealms(saveWorldProgress(save)), { realm: (id) => toRoad(id), back: toTitle });
+}
+
+/**
+ * #199: the realm road and its level panel, for the class picked on the champion select (the champion screen, #197, takes this over).
+ * FIGHT starts the level through the level runner with the champion's loadout for the realm and its talent plan, on the picked tier.
+ */
+function toRoad(realm: RealmId, level?: number, tier?: number): void {
+  menu();
+  const id = pickedClass(save);
+  const champ = save.champions[id];
+  const progress = champ?.world ?? {};
+  const t = roadTier(progress, realm, tier ?? save.settings.tier);
+  const n = level ?? nextLevel(progress, realm, t);
+  const bonus = championBonus(save.meta, save.classes[id].xp);
+  const panel = levelPanel(progress, realm, n, t, bonus);
+  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champ?.name ?? CLASSES[id].name, road: roadLevels(progress, realm, t), panel }, {
+    level: (next) => toRoad(realm, next, t),
+    tier: (next) => toRoad(realm, undefined, next),
+    fight: () => panel.open && startRun(id, { tier: t, level: { realm, level: n, relics: (champ?.loadouts[realm] ?? []).slice(0, panel.slots), talentPlan: champ?.talentPlan } }),
+    back: toMap,
+  });
 }
 
 function toKeep(): void {
@@ -346,7 +369,7 @@ function toSaveDialog(): void {
 }
 
 // ---------- run ----------
-function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?: TestSetup } = {}): void {
+function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?: TestSetup; level?: LevelStart; tier?: number } = {}): void {
   initAudio();
   stopMenuMusic();
   clearOverlay();
@@ -358,7 +381,8 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?:
   const rec = save.treasures[id];
   game = opts.test ? createTestRun(opts.test, opts.seed ?? Date.now() >>> 0) : createGame(id, opts.seed ?? Date.now() >>> 0, {
     arena: d ? d.arena : save.settings.arena,
-    tier: d ? 0 : save.settings.tier,
+    tier: d ? 0 : opts.tier ?? save.settings.tier,
+    level: opts.level, // #199: a realm level from the road
     meta: save.meta,
     classXp: save.classes[id].xp,
     curses: d ? d.curses : save.settings.curses.filter((c) => unlockedCurses(save).includes(c)),
