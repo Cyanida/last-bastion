@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.9.0 — The new look
+
+Every menu is redrawn in one hand-made style: wood frames, parchment, brass buttons and ribbon headings, from the title screen to the last pop-up.
+
+- **The champion select**: a strip of champion tiles you can scroll, the chosen one on a stone pedestal with stat bars, abilities, families, treasure and record, and one gold Start button.
+- **The Keep is a castle**: six buildings in a walled courtyard that grow as you raise them, from ruin to gilded towers with banners; tap one to open it.
+- **Settings**: switches for on and off, sliders for Music and Effects, and the choice you picked pressed in.
+- **The results screen**: your stats on scrolling parchment, with the buttons always in view.
+- **The relic compendium and the glossary**: framed books, every relic in its rarity frame, found or not.
+- **Flash cards**: a framed card with a New or Boss ribbon and one Got it button.
+- **Every other screen too**: the pause menu, talents, level-ups, the shrine, the Merchant, the peddler, routes, relics, treasures, the quest board, the Chronicle, the Daily Trial, run history, mastery, save data and What's new all use the new look.
+- **One main button per screen**: the gold button is always the thing to do next.
+- **On a phone**: every restyled screen fits in landscape, with the main button in reach.
+
 ## v0.8.3 — Fixes from the 28-09 check
 
 A round of fixes from a full check of the game: foes that flickered or vanished, relics that counted wrong, and a handful of screens that misbehaved.
