@@ -133,6 +133,6 @@ export const EMBER_QUEEN = {
   reach: 720, // she casts only this close
   kindle: { count: [3, 4, 5], spread: 120, radius: 44, first: 1.0, gap: 0.3, damage: 0.9 }, // count by phase; the first on you, the rest on a ring `spread` round you, bursting `gap` s apart; x her special damage
   volley: { count: 5, spread: 0.8, windup: 0.55, damage: 0.5, range: 600 }, // a fan of bolts at you, x her hit damage
-  flare: { from: 2, rings: [2, 3, 3], step: 85, spacing: 62, radius: 34, first: 0.9, gap: 0.35, damage: 0.8 }, // every 3rd blow from phase `from`: rings by phase, `step` apart past her edge, a zone every `spacing` px round each, the near ring first; x her special damage
+  flare: { from: 2, rings: [0, 2, 3], step: 85, spacing: 62, radius: 34, first: 0.9, gap: 0.35, damage: 0.8 }, // every 3rd blow from phase `from`: rings by phase (none in phase 1), `step` apart past her edge, a zone every `spacing` px round each, the near ring first; x her special damage
   trail: { from: 3, every: 0.45, life: 3, radius: 26 }, // from phase 3 a patch of burning ground where she stands, every `every` s (her def's poolDps)
 };
