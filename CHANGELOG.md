@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.10.0 — Champions & the Marches
+
+The game becomes a journey: you raise a champion, carry their relics from level to level, and win the first realm, the Marches, on a map of the world.
+
+- **Champions**: one champion per class, each with an inventory of relics, a loadout, a talent plan and their own crowns; the champion screen shows them on a pedestal with their slots around them, PLAY and Restart.
+- **The world map**: a painted map with every realm under clouds; open a realm's road to see its levels, crowns, head start, slots, featured foes and rewards, then FIGHT.
+- **The Marches**: seven short levels on the Castle Courtyard, each featuring one relic family; a level's first clear lets you keep 1 of 2 of its rares, and the Warden, with a new third phase, guards the crown.
+- **Signature relics**: winning the Marches crown gives your champion a gold relic of their own, built on their signature ability: Oathkeeper's Seal, Jarl's Torc, Dawnstar, Phylactery and Eagle Fletching.
+- **Loadouts and slot rules**: pick which relics a champion brings into a level; at most 4 of one family, a legendary takes 2 slots, at most 2 class relics.
+- **Head starts**: a level that starts later in the run gives you the levels, abilities, boons and talents you would have earned, so every level is a fair fight.
+- **Death restarts the level**: falling in a level sends you back to try it again, not to the start of the world.
+- **Difficulty per realm**: Squire and Knight are open; Champion and Legend open realm by realm.
+- **The tutorial**: the first two Marches levels teach moving, relics, the ability, level-ups, the utility and statuses on flash cards, once each.
+- **The Daily Trial**: opens with the Marches crown; the same pool for everyone and no loadout. The old Classic run is gone.
+- **Fair rewards**: gold, XP and deeds count only the waves you played, first-clear rewards come once, and wave deeds count the waves you played.
+- **Every starter relic pulls its weight**: the weakest commons were raised, and the first levels of each realm ease you in.
+- **Your save carries over**: a champion for every class you played, every relic you picked kept, and the Keep's extra-slot upgrades turned into champion upgrades.
+- **Test mode**: start any level of any realm.
+
 ## v0.9.0 — The new look
 
 Every menu is redrawn in one hand-made style: wood frames, parchment, brass buttons and ribbon headings, from the title screen to the last pop-up.
