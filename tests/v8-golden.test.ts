@@ -35,6 +35,8 @@ import { simulateRun } from '../src/sim/bot';
  * five runs #200 changed alone); #196's seed changes (paladin:9, archer:13 variant 1) still reach the Act boss and stand.
  * Re-recorded for #210 (v0.11): the Great Keep's wings are rooms with fixed features (the forge's fires, the armory's strongbox, the
  * chapel's shrine, the barracks' lair), so the four runs that reach the keep meet different wings on purpose.
+ * Re-recorded for v0.11 (merge of #210 and #212 on release/0.11.0, after #200 and #196 came in from release/0.10.0): the Great Keep's
+ * fixed wing rooms on top of the v0.10 relic changes move these runs' draws on purpose; each run still reaches the first Act boss.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -75,13 +77,13 @@ const GOLDEN: Record<string, string> = {
   'paladin:98765': 'wave 15 kills 609 level 16 gold 2498 relics 7 hash 66d27dc9',
   'viking:98765': 'wave 18 kills 751 level 18 gold 3226 relics 7 hash 4e07099',
   'viking:5': 'wave 18 kills 676 level 18 gold 3636 relics 7 hash bb2efac8',
-  'angel:1234': 'wave 19 kills 795 level 19 gold 3616 relics 7 hash d415d65b',
+  'angel:1234': 'wave 19 kills 789 level 19 gold 3857 relics 6 hash 3503d90a',
   'angel:98765': 'wave 16 kills 719 level 18 gold 3540 relics 7 hash d5c6635c',
-  'necromancer:1234': 'wave 21 kills 846 level 20 gold 4310 relics 8 hash 5a6add30',
+  'necromancer:1234': 'wave 13 kills 481 level 14 gold 1869 relics 5 hash 925e7c9e',
   'necromancer:5': 'wave 19 kills 752 level 19 gold 3242 relics 7 hash f34eeb26',
   'archer:2027': 'wave 9 kills 301 level 10 gold 883 relics 4 hash 48aea908',
   'archer:5': 'wave 9 kills 263 level 11 gold 869 relics 4 hash 5254d592',
-  'paladin:7 meta': 'wave 16 kills 612 level 18 gold 2374 relics 7 hash d3995b55',
+  'paladin:7 meta': 'wave 15 kills 607 level 18 gold 2227 relics 7 hash b10a082d',
   'viking:98765 curse': 'wave 18 kills 815 level 18 gold 3846 relics 7 hash 33d1476c',
   'angel:98765 oath 3': 'wave 13 kills 527 level 14 gold 2529 relics 5 hash b4058e85',
   'archer:13 variant 1': 'wave 21 kills 1045 level 20 gold 4234 relics 7 hash 3678f2d6',
