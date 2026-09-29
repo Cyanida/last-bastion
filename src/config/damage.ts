@@ -132,4 +132,5 @@ export const ENEMY_STATUS: Partial<Record<EnemyId, { id: StatusId; stacks?: numb
   abbot: { id: 'poison', power: 5 },
   assassin: { id: 'bleed', stacks: 3, power: 2 },
   dragon: { id: 'burn', power: 2 },
+  cinderColossus: { id: 'burn', stacks: 2, power: 4 }, // #228: his phase-1 lesson, on all his hits: two of them and you are near the cap
 };

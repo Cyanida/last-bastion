@@ -44,6 +44,7 @@ export const BOSSES: Record<string, BossDef> = {
   // the realms' own bosses (#215)
   forgemaster: { from: 'forgemaster', slot: 'realm', weight: 0 },
   ironKing: { from: 'ironKing', slot: 'realm', weight: 0 }, // #216: the Iron Hold's crown boss
+  cinderColossus: { from: 'cinderColossus', slot: 'realm', weight: 0 }, // #228: the Cinderlands' crown boss
 };
 export type BossKey = string;
 
@@ -117,4 +118,24 @@ export const IRON_KING = {
   decree: { lines: [4, 4, 8], zones: 6, step: 76, first: 0.9, gap: 0.12, damage: 1 }, // lines by phase, `zones` each `step` apart past his edge (radius: his def's zoneRadius), landing `gap` s apart outward; x his special damage
   guardEvery: 3, // phase 1: his guard (his def's summon x summonCount) on every 3rd blow, the first included
   rushFrom: 2, // from this phase every other blow is a rush at you behind the shield (his def's chargeDist and chargeSpeed)
+};
+
+/**
+ * #228: the Cinder Colossus, the Cinderlands' crown boss (logic/cinderColossus.ts, systems/bosses.ts). A phase for each of the realm's
+ * lessons, each held at least WORLD.crownBoss.minPhaseSeconds: phase 1 burn stacks on you (every hit of his, blow or touch, puts
+ * config/damage.ts ENEMY_STATUS's burn on you: step out of the marks, or burn); phase 2 fire that spreads (every other blow he kindles the
+ * ground round you, and each fire creeps outward, away from him, patch by patch); phase 3 bursts of fire when foes die (any foe that falls
+ * within his heat bursts into a marked blast, and he calls a brood of Cultists to fall there). His other blows are his Slam: a fan of
+ * marked lines of fire from his edge outward, the middle one straight at you.
+ */
+export const CINDER_COLOSSUS = {
+  lessons: ['burn', 'spread', 'burst'] as const, // what each phase teaches
+  specialCd: [4.8, 4.4, 4], // by phase; his def's specialCd is the first blow
+  reach: 700, // he strikes only this close
+  slam: { lines: 3, spread: 0.42, zones: 5, step: 72, first: 1, gap: 0.12, damage: 1 }, // `lines` `spread` rad apart, `zones` each `step` apart past his edge (radius: his def's zoneRadius), landing `gap` s apart outward; x his special damage
+  kindleFrom: 2, // from this phase every other blow (the first of the phase included) kindles the ground instead
+  kindle: { seeds: 3, scatter: 170, radius: 52, delay: 1.1, damage: 0.6, every: 1.1, gens: 4, step: 78, fork: 0.7 }, // `seeds` marked embers, one on you, the rest `scatter` round you; each leaves a fire (his def's poolLife, poolDps) that spreads `step` further from him every `every` s, `gens` patches long, forking in two (`fork` rad apart) at the first step
+  burstFrom: 3, // from this phase a foe that falls in his heat bursts
+  burst: { reach: 380, radius: 66, delay: 0.7, damage: 0.6 }, // his heat's reach (from his centre); a marked blast where the foe fell, `delay` s later
+  broodEvery: 3, // phase 3: his brood (his def's summon x summonCount) on every 3rd blow, the first included
 };

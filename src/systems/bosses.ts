@@ -1,13 +1,15 @@
 import { FINAL } from '../config/acts';
-import { DRAGON, FORGEMASTER, IRON_KING, WARDEN } from '../config/bosses';
+import { CINDER_COLOSSUS, DRAGON, FORGEMASTER, IRON_KING, WARDEN } from '../config/bosses';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
-import { addZone, timer } from '../entities/hazards';
+import { addField, addZone, timer } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
 import { hammerZones, wardenMove, wardenSpecialCd } from '../logic/crownBoss';
 import { forgeCd, forgeMove, pressTiles, slamZones } from '../logic/forgemaster';
 import { decreeZones, kingCd, kingMove } from '../logic/ironKing';
+import { burstsIn, colossusCd, colossusMove, kindleSeeds, slamFan, spreadNext } from '../logic/cinderColossus';
+import { addListener } from '../core/events';
 import { angleTo, chargeStart, chargeThrough, distTo, hitDamage, keepRange, move, moveTo, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { pickTarget, registerBoss } from './enemyAI';
 import { burst, floatText, ring, shake } from './effects';
@@ -252,6 +254,73 @@ registerBoss('ironKing', (g, e, dt) => {
   g.banner = { text: 'The King’s decree', t: 1.2 };
   if (blow.guard) summon(g, e); // his guard of Iron Knights
   shake(g, 5);
+});
+
+// ---------------------------------------------------------------- #228: the Cinder Colossus, the Cinderlands' crown boss (config/bosses.ts CINDER_COLOSSUS)
+
+const COLOSSUS_PHASE: Record<number, string> = { 2: 'The Cinder Colossus kindles the ground', 3: 'The Cinder Colossus erupts' };
+const colossusPhase = new WeakMap<Enemy, number>(); // the phase whose change has been shown
+
+/** A patch of his fire (the Dragon's fire field: it burns and stacks the burn), then the next ones it spreads to, away from him. */
+const spreadFire = timer('colossus.spread', (g, a: { e: Enemy; x: number; y: number; angle: number; gen: number }) => {
+  if (a.e.dead) return; // his fire dies down with him: no new patches
+  addField(g, { x: a.x, y: a.y, r: CINDER_COLOSSUS.kindle.radius, hostile: true, ...fireField(g, a.e) });
+  burst(g, a.x, a.y, FIRE, 8, 120);
+  g.vars['colossus.patches'] = (g.vars['colossus.patches'] ?? 0) + 1;
+  for (const n of spreadNext(a.x, a.y, a.angle, a.gen)) spreadFire(g, CINDER_COLOSSUS.kindle.every, { e: a.e, x: n.x, y: n.y, angle: n.angle, gen: a.gen + 1 });
+});
+
+// phase 3: a foe that falls in his heat bursts into a marked blast of fire where it fell (an exploder that blew itself up has burst already)
+addListener((g, name, ev) => {
+  if (name !== 'onKill') return;
+  const { enemy: f, source } = ev as { enemy: Enemy; source: string };
+  if (f.def.boss || (f.def.behavior === 'exploder' && source === 'hazard')) return;
+  const c = g.enemies.find((e) => e.def.id === 'cinderColossus' && !e.dead);
+  if (!c || !burstsIn(c.phase, c.x, c.y, f.x, f.y)) return;
+  const b = CINDER_COLOSSUS.burst;
+  addZone(g, { x: f.x, y: f.y, r: b.radius, delay: b.delay, damage: specialDamage(c) * b.damage, hostile: true, color: FIRE, owner: c, dtype: 'fire' });
+  g.vars['colossus.bursts'] = (g.vars['colossus.bursts'] ?? 0) + 1;
+});
+
+registerBoss('cinderColossus', (g, e, dt) => {
+  const t = pickTarget(g, e);
+  const def = e.def;
+  // a new phase (enemyAI's enterPhase moved e.phase on): the next lesson, burn -> spread -> burst (logic/cinderColossus colossusLesson)
+  if (e.phase > (colossusPhase.get(e) ?? 1)) {
+    colossusPhase.set(e, e.phase);
+    e.combo = 0; // each phase opens with its own lesson
+    e.special = Math.min(e.special, 1);
+    g.banner = { text: COLOSSUS_PHASE[e.phase] ?? def.name, t: 2.4 };
+    markPhase(g, COLOSSUS_PHASE[e.phase] ?? def.name);
+    burst(g, e.x, e.y, FIRE, 30, 280);
+    ring(g, e.x, e.y, e.phase >= CINDER_COLOSSUS.burstFrom ? CINDER_COLOSSUS.burst.reach : 160, FIRE, 0.7);
+    sfx(g, 'boom');
+    shake(g, 10);
+  }
+  seek(e, t, e.speed, dt);
+  touch(g, e, t);
+  e.special -= dt;
+  if (e.special > 0 || distTo(e, g.player) > CINDER_COLOSSUS.reach) return;
+  e.special = colossusCd(e.phase);
+  sfx(g, 'warn');
+  const blow = colossusMove(e.phase, e.combo++);
+  const a = angleTo(e, g.player);
+  e.flip = Math.cos(a) < 0;
+  if (blow.kindle) {
+    // embers round you that land and catch: each fire creeps outward, away from him, patch by patch
+    const k = CINDER_COLOSSUS.kindle;
+    for (const s of kindleSeeds(g.player.x, g.player.y, a)) {
+      addZone(g, { x: s.x, y: s.y, r: k.radius, delay: k.delay, damage: specialDamage(e) * k.damage, hostile: true, color: FIRE, owner: e, dtype: 'fire' });
+      spreadFire(g, k.delay, { e, x: s.x, y: s.y, angle: Math.atan2(s.y - e.y, s.x - e.x), gen: 0 });
+    }
+    g.banner = { text: 'The ground catches', t: 1.2 };
+  } else {
+    // the Slam: a fan of fire lines from his edge, the middle one at you; every hit of his burns (config/damage.ts ENEMY_STATUS)
+    const s = CINDER_COLOSSUS.slam;
+    for (const z of slamFan(e.x, e.y, e.r, a)) addZone(g, { x: z.x, y: z.y, r: def.zoneRadius!, delay: z.delay, damage: specialDamage(e) * s.damage, hostile: true, color: FIRE, owner: e, dtype: 'fire' });
+    shake(g, 6);
+  }
+  if (blow.brood) summon(g, e); // his brood of Cultists, to fall in his heat
 });
 
 // ---------------------------------------------------------------- v0.6: the Usurper, the end of the run (config/acts.ts FINAL)

@@ -20,6 +20,7 @@ import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
 import { typeMultiplier } from '../logic/status';
 import { thornsOf, towerShieldOf } from '../logic/ironKing';
+import { CINDER_COLOSSUS } from '../config/bosses';
 import { uiScale } from '../ui/tooltip';
 
 export interface View {
@@ -766,6 +767,16 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
         ctx.lineTo(e.x + Math.cos(a) * (e.r + 13), e.y - 6 + Math.sin(a) * (e.r + 13));
       }
       ctx.stroke();
+    }
+    if (e.def.id === 'cinderColossus' && e.phase >= CINDER_COLOSSUS.burstFrom) {
+      // #228: his heat: a foe that falls inside this ring bursts into fire (one faint, slowly pulsing circle)
+      ctx.globalAlpha = 0.18 + 0.08 * Math.sin(g.time * 3);
+      ctx.strokeStyle = '#f08a1c';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, CINDER_COLOSSUS.burst.reach, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
     if (e.shield > 0) {
       ctx.globalAlpha = 0.25 + 0.5 * (e.shield / e.shieldMax);

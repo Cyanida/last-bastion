@@ -28,6 +28,7 @@ export type EnemyId =
   | 'warden'
   | 'forgemaster'
   | 'ironKing'
+  | 'cinderColossus'
   | 'blackKnight'
   | 'warlord'
   | 'lich'
@@ -287,6 +288,13 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     ...boss, id: 'ironKing', name: 'The Iron King', sprite: 'ironKing', behavior: 'chaser', phases: 3,
     hp: 1150, damage: 24, speed: 74, radius: 32, xp: 150, frontBlock: 1.2,
     specialCd: 5, windup: 0.9, specialMult: 1.4, zoneRadius: 40, chargeSpeed: 620, chargeDist: 440, summon: 'ironKnight', summonCount: 2, p2SpeedMult: 1.1,
+  },
+  // #228: the Cinderlands' crown boss (config/bosses.ts CINDER_COLOSSUS, systems/bosses.ts). A phase for each of the realm's lessons: burn
+  // stacks from his hits (config/damage.ts ENEMY_STATUS), fire that spreads, and bursts of fire when foes die in his heat
+  cinderColossus: {
+    ...boss, id: 'cinderColossus', name: 'The Cinder Colossus', sprite: 'cinderColossus', behavior: 'chaser', phases: 3,
+    hp: 1200, damage: 24, speed: 66, radius: 34, xp: 160,
+    specialCd: 4.8, windup: 1, specialMult: 1.4, zoneRadius: 42, poolLife: 4.5, poolDps: 10, summon: 'cultist', summonCount: 3, p2SpeedMult: 1.1,
   },
   // ---- v0.6: the end of the run (config/acts.ts FINAL, systems/bosses.ts) ----
   usurper: {
