@@ -34,7 +34,7 @@ import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardTex
 import { nextTierRequirement } from '../logic/difficulty';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { keepStage } from '../logic/keep';
-import type { RealmId } from '../config/world';
+import type { LevelReward, RealmId } from '../config/world';
 import { parseTestLevel, testLevels, type LevelPanel, type RoadLevel } from '../logic/world';
 import { REALMS, WORLD } from '../config/world';
 import { fitLoadout, slotBlock, slotView, type SlotBlock } from '../logic/champions';
@@ -950,6 +950,22 @@ export function showRelicOffer(
   numberKeys(el, (a) => a === 'reroll' && offer.rerolls > 0 && on.reroll());
 }
 
+/**
+ * v0.10 (#200): a Marches level's first clear: pick 1 of its featured family's rares for the champion to keep (its inventory, for later
+ * loadouts). No skip: the pick is the level's reward. With none left to give, one button takes the Runes instead.
+ */
+export function showRarePick(level: string, family: FamilyId, options: RelicId[], runes: number, onPick: (id: RelicId | null) => void): void {
+  const el = show(`
+    <div class="levelup rare-pick">
+      ${choiceHead(`${level} cleared`)}
+      <p class="sub">${options.length ? `Choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} rare to keep. It joins your champion's relics for every loadout.` : `You hold every ${FAMILIES[family].name} rare already.`}</p>
+      ${options.length ? `<div class="cards">${options.map((id, i) => relicCard(id, 1, [], `data-pick="${i}"`, `<div class="num">${i + 1}</div>`)).join('')}</div>` : `<div class="row">${kit.button(`Take ◆ ${runes} Runes`, { kind: 'gold', attrs: 'data-runes' })}</div>`}
+    </div>`);
+  click(el, '[data-pick]', (b) => onPick(options[Number(b.dataset.pick)]));
+  click(el, '[data-runes]', () => onPick(null));
+  numberKeys(el, (a) => a === 'confirm' && !options.length && onPick(null));
+}
+
 export function showAbilityUpgrade(tier: number, options: readonly AbilityUpgradeId[], cls: ClassDef, onPick: (id: AbilityUpgradeId) => void): void {
   showTwoWay(`${cls.ability.name} — tier ${tier + 1}`, options.map((id) => ({ id, name: ABILITY_UPGRADES[id].name, desc: ABILITY_UPGRADES[id].desc })), (id) => onPick(id as AbilityUpgradeId));
 }
@@ -1168,6 +1184,8 @@ export interface RunResult {
   wins: number; // the class's wins, this one included
   masteryNext: { name: string; need: number } | null; // the next mastery rank and the class XP still missing
   endless: { score: number; rank: number; board: EndlessEntry[] } | null; // the run went on into Endless
+  road: string | null; // #200: a cleared realm level's realm: the second button goes back to its road (a lost level's goes to the champion screen)
+  levelRewards: LevelReward[]; // #200: what a cleared level's first clear pays (the Marches: a rare pick, offered before this screen)
 }
 
 /**
@@ -1220,7 +1238,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
       ${buildHtml(r.build)}`, { cls: 'kit-scroll' })}
       <footer class="row">${deciding
         ? `${kit.button('Bank the win', { kind: 'gold', size: 'big', attrs: 'data-bank' })}${kit.button('March on into Endless', { kind: 'go', attrs: 'data-endless' })}${kit.button('Bank and restart', { attrs: `data-restart data-tip="Bank the win and start again at once: ${esc(r.restart)}"` })}`
-        : `${kit.button(`Quick restart · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button('Choose another champion', { attrs: 'data-menu' })}`}</footer>
+        : `${kit.button(`Quick restart · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button(r.road ? `Back to ${esc(r.road.replace(/^The /, 'the '))}` : 'Choose another champion', { attrs: 'data-menu' })}`}</footer>
     </div>`);
   if ('bank' in on) {
     click(el, '[data-endless]', on.endless);

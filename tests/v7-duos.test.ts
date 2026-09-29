@@ -75,7 +75,7 @@ describe('duo offers', () => {
   });
 
   it('taking a duo costs the pick; its two relics keep their family counts', () => {
-    const flame = RELIC_IDS.filter((id) => relicDef(id).family === 'flame' && !relicDef(id).classId); // 5, Brimstone Oil among them
+    const flame = RELIC_IDS.filter((id) => relicDef(id).family === 'flame' && !relicDef(id).classId && id !== 'emberMantle'); // 5, Brimstone Oil among them (#200's Ember Mantle left out)
     const g = game([...flame, 'frostBrand']);
     offerRelics(g, 3, 'boss');
     const held = g.player.relics.held.length;
