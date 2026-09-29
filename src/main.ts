@@ -661,7 +661,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
   const newRank = masteryRank(after.classes[id].xp);
   return {
     cls: g.player.cls, wave: g.wave, kills: g.kills, time: g.time, level: g.player.level,
-    best: after.classes[id].bestWave, newBest: g.wave > prevBest,
+    best: after.classes[id].bestWave, newBest: after.classes[id].bestWave > prevBest, // #205: a level's best counts the waves played
     gold: result.gold, goldRaw: Math.max(0, g.gold - g.goldStart), runes: result.runes, classXp: result.classXp, masteryRank: newRank,
     masteryName: newRank > prevRank ? MASTERY[newRank - 1].name : null,
     masteryNext: MASTERY[newRank] ? { name: MASTERY[newRank].name, need: Math.max(0, Math.round(MASTERY[newRank].xp - after.classes[id].xp)) } : null,
