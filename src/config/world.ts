@@ -158,4 +158,10 @@ export const WORLD = {
    * stat). Decided: at rare strength, about what the best of three rolled cards is worth.
    */
   headStart: { boons: ['attack', 'hp', 'atkSpd', 'secondary'] as const, rarity: 'rare' as const },
+  /**
+   * Rule 6 (#204): the Daily Trial is today's 40-wave run with the fixed pool and no loadout, open once any champion holds this realm's
+   * crown (any tier). Decided: a save that already took a Daily Trial keeps it open; the Armorer's offer and the Keepsake's free common
+   * are slots now, so a trial (no slots) opens with neither.
+   */
+  daily: { opensWith: 'marches' as RealmId, startRelics: false },
 };
