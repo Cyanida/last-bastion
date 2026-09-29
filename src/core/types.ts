@@ -309,6 +309,7 @@ export interface Minion extends Body {
   pathI?: number;
   relicBy?: RelicKey | FamilyId; // raised by this relic or set (relicCore.raiseSkeleton)
   frostLegion?: boolean; // Lich Lantern's Frost Legion has given it its burst
+  ironLegion?: boolean; // #218: Legion Plate's Iron Legion has given it its plate
 }
 
 export interface Projectile extends Body {
