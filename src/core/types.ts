@@ -239,6 +239,8 @@ export interface Enemy extends Body {
   resolve: number; // v0.7.5 (#95): a boss's recent damage taken, as of resolveT (logic/status throughResolve)
   resolveT: number;
   hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
+  crown: boolean; // #202: a realm's crown boss: every phase runs WORLD.crownBoss.minPhaseSeconds (logic/crownBoss)
+  phaseAt: number; // #202: when its current phase began (g.time)
   secondWind: number; // v0.6 Oath: a boss rises once more from the brink with this fraction of its HP; 0 = none (or spent)
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
   waypoint: { x: number; y: number } | null; // v0.5: the gate to walk to when the player is on another floor (logic/regions waypoint)
