@@ -35,7 +35,7 @@ import { nextTierRequirement } from '../logic/difficulty';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { keepStage } from '../logic/keep';
 import type { CrownReward, LevelReward, RealmId } from '../config/world';
-import type { LevelPanel, RoadLevel } from '../logic/world';
+import { parseTestLevel, testLevels, type LevelPanel, type RoadLevel } from '../logic/world';
 import { REALMS, WORLD } from '../config/world';
 import { fitLoadout, slotBlock, slotView, type SlotBlock } from '../logic/champions';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
@@ -1486,7 +1486,10 @@ export function showFlashCard(id: CardId, foe: CardPictureFoe | undefined, onDon
 const JUKEBOX_LAYERS = ['Sparse: a breather, the Merchant', 'Base: a wave', 'Second layer: a dense or dangerous fight', 'Boss: drums and a bass line'];
 const JUKEBOX_STINGERS: [Stinger, string][] = [['tier', 'Relic tier-up'], ['set', 'Set bonus'], ['duo', 'Duo formed'], ['evolution', 'Evolution'], ['phase', 'Boss phase']];
 
-/** v0.7.1 test mode (hidden): start a run at any Act, wave and arena with any champion, level, talents and relics (B5); and the music jukebox. */
+/**
+ * v0.7.1 test mode (hidden): start a run at any Act, wave and arena, or (#206) at any realm level, with any champion, level, talents and
+ * relics (B5); and the music jukebox.
+ */
 export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => void; play: (m: Mood) => void; stop: () => void; sting: (k: Stinger) => void; back: () => void }): void {
   const options = (items: [string, string][], chosen: string) => items.map(([v, label]) => `<option value="${v}" ${v === chosen ? 'selected' : ''}>${label}</option>`).join('');
   const arenas = (chosen: string) => options((Object.keys(ARENAS) as ArenaId[]).map((id) => [id, ARENAS[id].name]), chosen);
@@ -1500,6 +1503,7 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
       <h2>Start a run</h2>
       <div class="tm-grid">
         <label>Champion <select id="tm-class">${options(CLASS_ORDER.map((id) => [id, CLASSES[id].name]), setup.classId)}</select></label>
+        <label>Start at <select id="tm-start">${options([['', 'An Act and wave'], ...testLevels().map((l): [string, string] => [l.value, l.label])], setup.realmLevel ? `${setup.realmLevel.realm}:${setup.realmLevel.level}` : '')}</select></label>
         <label>Arena <select id="tm-arena">${arenas(setup.arena)}</select></label>
         <label>Act <input id="tm-act" type="number" min="1" max="${FINAL.act}" value="${setup.act}"></label>
         <label>Wave <input id="tm-wave" type="number" min="1" max="${ACTS.length}" value="${setup.wave}"></label>
@@ -1523,6 +1527,13 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
   }));
   const field = (id: string) => el.querySelector<HTMLInputElement>(`#${id}`)!;
   const num = (id: string, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number(field(id).value)) || lo));
+  // #206: a realm level brings its own waves and head start level (and its arena, once built): the Act, wave and level fields rest
+  const startAt = () => {
+    const level = !!parseTestLevel(field('tm-start').value);
+    for (const id of ['tm-act', 'tm-wave', 'tm-level']) field(id).disabled = level;
+  };
+  startAt();
+  field('tm-start').onchange = startAt;
   field('tm-class').onchange = () => {
     field('tm-talents').innerHTML = talents(field('tm-class').value as ClassId);
     field('tm-relics').innerHTML = relics(field('tm-class').value as ClassId);
@@ -1531,6 +1542,7 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
     classId: field('tm-class').value as ClassId, arena: field('tm-arena').value as ArenaId, act: num('tm-act', 1, FINAL.act), wave: num('tm-wave', 1, ACTS.length), level: num('tm-level', 1, 60),
     talents: [...el.querySelectorAll<HTMLInputElement>('#tm-talents input:checked')].map((i) => i.value),
     relics: Object.fromEntries([...el.querySelectorAll<HTMLSelectElement>('#tm-relics select')].filter((s) => s.value !== '0').map((s) => [s.dataset.relic, Number(s.value)])),
+    realmLevel: parseTestLevel(field('tm-start').value),
   }));
   // the jukebox: changes land on the next bar line, as in a run; a cue plays once, then the mood lets go of it
   let playing = false;

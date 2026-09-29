@@ -2,6 +2,7 @@ import { ACTS } from '../config/acts';
 import type { ArenaId } from '../config/arenas';
 import type { ClassId } from '../config/classes';
 import type { RelicId } from '../config/relics';
+import type { RealmId } from '../config/world';
 import { TALENT_BY_ID } from '../config/talents';
 import type { Game } from '../core/types';
 import { createGame, summarizeRun } from '../game';
@@ -10,6 +11,7 @@ import { todayString } from '../logic/acts';
 import { addRelic } from './relics';
 import { talentPointsForLevel } from '../logic/talents';
 import { headStart } from './levels';
+import { spendTalent } from './talents';
 
 /**
  * v0.7.1 test mode (hidden: tap the version in Settings five times, or ?dev=1): start a run anywhere, with a chosen class, level and
@@ -23,18 +25,35 @@ export interface TestSetup {
   level: number;
   talents: string[];
   relics: Partial<Record<RelicId, number>>; // B5: held from the start, at this tier (1-3)
+  realmLevel?: { realm: RealmId; level: number } | null; // #206: start this realm level instead (act, wave and level are then the level's own)
 }
 
 export const isTestRun = (g: Game) => g.vars.test === 1;
 
 export function createTestRun(s: TestSetup, seed: number): Game {
-  const g = createGame(s.classId, seed, { arena: s.arena });
+  const plan = [...s.talents].sort((a, b) => TALENT_BY_ID[a].row - TALENT_BY_ID[b].row);
+  const g = s.realmLevel ? levelRun(s, seed, plan) : createGame(s.classId, seed, { arena: s.arena });
   g.vars.test = 1;
-  g.talentPoints += Math.max(0, s.talents.length - talentPointsForLevel(s.level)); // every chosen talent is paid for, even at a low level
-  // #191: the head start a level gets (queued picks, the boon bundle), at the chosen level, spending along the chosen talents
-  headStart(g, (s.act - 1) * ACTS.length + s.wave, { level: s.level, plan: [...s.talents].sort((a, b) => TALENT_BY_ID[a].row - TALENT_BY_ID[b].row) });
+  if (!s.realmLevel) {
+    g.talentPoints += Math.max(0, s.talents.length - talentPointsForLevel(s.level)); // every chosen talent is paid for, even at a low level
+    // #191: the head start a level gets (queued picks, the boon bundle), at the chosen level, spending along the chosen talents
+    headStart(g, (s.act - 1) * ACTS.length + s.wave, { level: s.level, plan });
+  }
   for (const [id, tier] of Object.entries(s.relics ?? {})) addRelic(g, id as RelicId, 'other', tier);
   g.breather = 0.01; // the chosen wave comes next
+  return g;
+}
+
+/**
+ * #206: a realm level as the realm road starts it (createGame's RunOptions.level: its arena, ring step, head start at its first wave with
+ * the pace's level, slots, opening pick and end boss), spending along the chosen talents. Test runs start bare: no loadout, Keep or
+ * mastery. Every chosen talent is paid for, as at an Act and wave; one the tree cannot take stays a point.
+ */
+function levelRun(s: TestSetup, seed: number, plan: string[]): Game {
+  const g = createGame(s.classId, seed, { arena: s.arena, level: { realm: s.realmLevel!.realm, level: s.realmLevel!.level, talentPlan: plan } });
+  const extra = Math.max(0, plan.length - talentPointsForLevel(g.player.level));
+  g.talentPoints += extra;
+  for (const id of plan) if (g.talentPoints > 0 && !g.player.talents.includes(id)) spendTalent(g, id);
   return g;
 }
 

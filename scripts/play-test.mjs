@@ -3761,6 +3761,41 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #206: test mode starts any realm level: Settings -> Test mode -> "Start at" a realm level -> the level's run ----------
+// On its own page (test mode keeps its last setup, and the other test-mode checks start at an Act and wave): the Iron Hold's level 4
+// (not built yet: its realm, ring step and waves, in the arena chosen), through the level's own head start, with its opening pick
+await check('test mode: "Start at" a realm level starts that level through its head start, with its opening pick (#206)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+  await p.locator('#tm-class').selectOption('viking');
+  await p.locator('#tm-arena').selectOption('keep');
+  const disabled = () => p.evaluate(() => ['tm-act', 'tm-wave', 'tm-level'].map((id) => document.getElementById(id).disabled).join());
+  const before = await disabled();
+  const label = await p.locator('#tm-start option[value="ironHold:4"]').textContent();
+  await p.locator('#tm-start').selectOption('ironHold:4');
+  const after = await disabled();
+  await p.getByRole('button', { name: /start test run/i }).click();
+  await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-families]'), null, { timeout: 5000 }).catch(() => {});
+  const run = await p.evaluate(() => {
+    const g = window.__lb.game;
+    return g && { test: g.vars.test, realm: g.level?.realm, level: g.level?.level, last: g.level?.last, start: g.startWave, wave: g.wave, act: g.act, lv: g.player.level, arena: g.arena.id,
+      picks: g.pendingAbilityTiers.length, offer: g.player.relics.offers[0]?.from, families: document.querySelector('[data-families]')?.textContent.trim() ?? '', hud: document.body.innerText.includes('TEST') };
+  });
+  await p.locator('[data-pick="0"]').click().catch(() => {});
+  const held = await p.evaluate(() => window.__lb.game.player.relics.held.length);
+  await p.close();
+  const ok = before === 'false,false,false' && after === 'true,true,true' && /Iron Hold · Level 4 \(waves 21–30\)/.test(label ?? '')
+    && run?.test === 1 && run.realm === 'ironHold' && run.level === 4 && run.last === 30 && run.start === 21 && [20, 21].includes(run.wave) && run.act === 3 && run.lv === 19 && run.arena === 'keep' // wave 21 may already have begun
+    && run.picks > 0 && run.offer === 'start' && /Steel/.test(run.families) && run.hud && held === 1 && errs.length === 0;
+  return { ok, detail: `"${label}"; act/wave/level disabled ${before} -> ${after}; run: ${run ? `test ${run.test}, ${run.realm} level ${run.level}, waves ${run.start}-${run.last} (on wave ${run.wave}, Act ${run.act}), lv ${run.lv}, ${run.arena}, ${run.picks} queued ability picks, offer from ${run.offer} "${run.families}", TEST tag ${run.hud}` : 'none'}; picked -> ${held} held${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
