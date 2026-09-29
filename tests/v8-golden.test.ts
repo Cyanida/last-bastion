@@ -27,11 +27,14 @@ import { simulateRun } from '../src/sim/bot';
  * archer:5 plays out a little differently on purpose; each part alone left it unchanged.
  * Re-recorded for #194 (v0.10): relic offers no longer lean 1.6x toward held families (1.0), so viking:98765, its curse run and
  * paladin:7 meta draw different relics on purpose.
+ * Re-recorded for #196 (v0.10): Emberheart, Frost Brand, Serrated Edge and Berserker Tooth are stronger, so every run that meets them
+ * plays out differently on purpose; paladin:5 (now dead at wave 6) became paladin:9 and archer:5 variant 1 (now falls at the Act boss)
+ * became archer:13 variant 1.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
 const RUNS: Record<string, GoldenRun> = {
-  'paladin:5': { cls: 'paladin', seed: 5 }, // #182: 1234 now dies before the Act boss
+  'paladin:9': { cls: 'paladin', seed: 9 }, // #182: 1234 now dies before the Act boss; #196: so does 5
   'paladin:98765': { cls: 'paladin', seed: 98765 },
   'viking:98765': { cls: 'viking', seed: 98765 },
   'viking:5': { cls: 'viking', seed: 5 },
@@ -44,7 +47,7 @@ const RUNS: Record<string, GoldenRun> = {
   'paladin:7 meta': { cls: 'paladin', seed: 7, opts: { meta: { hp: 3, moveSpd: 3, startLevel: 1, startGold: 5, pickup: 5, xp: 5, talentPoint: 2, rerolls: 2, utilityCd: 3 } } },
   'viking:98765 curse': { cls: 'viking', seed: 98765, opts: { curses: ['ironHorde'] } },
   'angel:98765 oath 3': { cls: 'angel', seed: 98765, opts: { oath: 3 } },
-  'archer:5 variant 1': { cls: 'archer', seed: 5, variant: 1 },
+  'archer:13 variant 1': { cls: 'archer', seed: 13, variant: 1 }, // #196: seed 5 now falls at the Act boss
 };
 const SECONDS = 720; // past the first Act boss, so the Merchant and the route fork are in it
 
@@ -63,20 +66,20 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 
 // v0.8 #99 + #100 + #101: re-recorded on release/0.8.0 because boss draws, boss relic families and the Squire enemy roster changed on purpose
 const GOLDEN: Record<string, string> = {
-  'paladin:5': 'wave 15 kills 489 level 15 gold 1776 relics 6 hash ae9285a2',
-  'paladin:98765': 'wave 15 kills 624 level 16 gold 2572 relics 7 hash f3d3f678',
-  'viking:98765': 'wave 18 kills 817 level 18 gold 3380 relics 7 hash 90869862',
+  'paladin:9': 'wave 15 kills 636 level 17 gold 2511 relics 6 hash 90cf3d22',
+  'paladin:98765': 'wave 15 kills 609 level 16 gold 2498 relics 7 hash 66d27dc9',
+  'viking:98765': 'wave 18 kills 811 level 18 gold 3374 relics 7 hash 892a0879',
   'viking:5': 'wave 18 kills 676 level 18 gold 3636 relics 7 hash bb2efac8',
-  'angel:1234': 'wave 19 kills 813 level 19 gold 3527 relics 5 hash fc083d36',
-  'angel:98765': 'wave 16 kills 727 level 18 gold 3513 relics 7 hash 7a7f8010',
+  'angel:1234': 'wave 18 kills 763 level 18 gold 3004 relics 5 hash d2783c3b',
+  'angel:98765': 'wave 16 kills 719 level 18 gold 3540 relics 7 hash d5c6635c',
   'necromancer:1234': 'wave 9 kills 290 level 10 gold 864 relics 4 hash 709acac7',
   'necromancer:5': 'wave 19 kills 724 level 19 gold 3196 relics 7 hash 1ae406b6',
   'archer:2027': 'wave 9 kills 301 level 10 gold 883 relics 4 hash 48aea908',
-  'archer:5': 'wave 21 kills 933 level 20 gold 5641 relics 9 hash 4a88a4f7',
+  'archer:5': 'wave 9 kills 263 level 11 gold 869 relics 4 hash 5254d592',
   'paladin:7 meta': 'wave 16 kills 612 level 18 gold 2374 relics 7 hash d3995b55',
-  'viking:98765 curse': 'wave 18 kills 771 level 18 gold 3828 relics 7 hash 3469127d',
+  'viking:98765 curse': 'wave 18 kills 773 level 18 gold 3811 relics 7 hash 61aafd5d',
   'angel:98765 oath 3': 'wave 13 kills 527 level 14 gold 2529 relics 5 hash b4058e85',
-  'archer:5 variant 1': 'wave 14 kills 452 level 14 gold 2356 relics 5 hash 6a889c6',
+  'archer:13 variant 1': 'wave 20 kills 966 level 20 gold 4419 relics 7 hash df881b25',
 };
 
 describe('v0.8 golden runs', () => {
