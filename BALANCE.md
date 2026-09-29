@@ -10,23 +10,32 @@
 - **Late head-start boons** (`WORLD.headStart.lateRarity`, `lateFrom`): the levels from 11 on give epic boons (was rare), so a head start
   keeps up with a run that played those waves and holds twice the relics. A trial with every boon epic put Marches 2-3 at +19-22% power.
 
-| Target (rule 9) | Before | Pass 1 |
-|---|---|---|
-| First-try clear about 95% at Marches level 1 | 80% | 97% |
-| About 90% at realm level 1 (Iron Hold) | 57% | 80% |
-| 55-60% at realm level 5 (Iron Hold) | 33% | 57% |
-| Power within ±15% of a continuous run | 4/10 levels; widest Marches 6 -21% | 10/10; widest Marches 6 -8% |
-| A 6-set in most crown-level clears | Marches 7 0%, Iron Hold 5 40% | Marches 7 0%, Iron Hold 5 35% |
-| Last Bastion (6-set in wins, before wave 10, duos, minutes) | 88%, 30%, 1.38 / 13%, 28.7 | unchanged (no level step, no head start) |
-| Relic moments per findable relic | Marches 0.50, Iron Hold 0.45 | 0.61, 0.51 |
-| A 5-wave / 10-wave level, minutes | 4.0 / 9.4 | 3.8 / 9.0 |
-| A realm clean / with retries (Iron Hold) | 32.6 / 50.9 | 31.7 / 39.9 |
+| Target (rule 9) | Before | Pass 1 | Pass 2 |
+|---|---|---|---|
+| First-try clear about 95% at Marches level 1 | 80% | 97% | 97% |
+| About 90% at realm level 1 (Iron Hold) | 57% | 80% | 80% |
+| 55-60% at realm level 5 (Iron Hold) | 33% | 57% | 57% |
+| Power within ±15% of a continuous run | 4/10 levels; widest Marches 6 -21% | 10/10; widest Marches 6 -8% | 10/10; widest Marches 6 -8% |
+| A 6-set in most crown-level clears | Marches 7 0%, Iron Hold 5 40% | Marches 7 0%, Iron Hold 5 35% | Marches 7 0%, Iron Hold 5 35% |
+| Last Bastion (6-set in wins, before wave 10, duos, minutes) | 88%, 30%, 1.38 / 13%, 28.7 | unchanged (no level step, no head start) | unchanged |
+| Relic moments per findable relic | Marches 0.50, Iron Hold 0.45 | 0.61, 0.51 | 0.62, 0.51 |
+| A 5-wave / 10-wave level, minutes | 4.0 / 9.4 | 3.8 / 9.0 | 3.8 / 8.9 |
+| A realm clean / with retries (Iron Hold) | 32.6 / 50.9 | 31.7 / 39.9 | 31.7 / 39.8 |
 
 Per level, clear rate (before -> pass 1): Marches 80->97%, 20->50%, 23->27%, 17->47%, 17->47%, 23->47%, 13->13%; Iron Hold 57->80%,
 33->57%, 47->63%, 67->77%, 33->57%. Power gap: Marches +5, -3, -6, 0, -8, -6%; Iron Hold +5, -3, -4, -7%.
 
-Realm level 1 (80%) is still 10 points under its target, within the 20% the plan accepts. Pass 2 (to measure): realm level 1 HP ×0.7, and
-the Marches levels 3 and 7 at ×0.85.
+**Pass 2** (measured again before it on the merged branch: the pass 1 numbers, unchanged): realm level 1 HP ×0.7 (was 0.8), and the
+Marches levels 3 and 7 HP and damage ×0.85 (was 0.9). On Knight realm level 1 still sits above Squire (145% × 0.7 = 102%).
+
+Per level, clear rate (pass 1 -> pass 2): Marches 97->97%, 50->50%, 27->30%, 47->47%, 47->47%, 47->47%, 13->13%; Iron Hold 80->80%,
+57->57%, 63->63%, 77->77%, 57->57%. Realm level 1 did not move: its falls are the bot's archer on 3 seeds in 6 and one angel, all at
+wave 5's mid-Act boss, where a lighter HP step changes little (the bot underrates the Archer, AGENTS.md). Marches level 7 stays at 13%.
+
+Still missed after two passes (the plan's gate rule: reported, not tuned further): realm level 1 80% vs about 90% (11% under, within the
+20% the plan accepts); and, not moved by this issue's levers, a 6-set in crown-level clears (Marches 7 0%, Iron Hold 5 35% vs most), the
+Last Bastion's 6-set before wave 10 (30% of runs vs none) and its length (28.7 minutes vs 35-45), the Marches' relic moments (0.62 vs
+0.4-0.6) and a realm's clean time (Iron Hold 31.7 vs about 35 minutes).
 
 ## v0.10: realm levels and the plan's rule 9 targets (#207)
 

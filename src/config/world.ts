@@ -154,12 +154,12 @@ export const WORLD = {
   /**
    * #221 (rule 9): enemy HP and damage by a level's place in its realm, on top of the tier and the ring step (logic/world levelStep). A
    * level is a short run whose head start holds fewer relics than a run that played the waves before, so its foes ease to meet the
-   * first-try clear rates. Decided: the Last Bastion is a whole run and keeps 1. Each stays over Squire's on Knight (a tier step still
+   * first-try clear rates. Pass 2 eases realm level 1's HP and the Marches levels 3 and 7 (the dips) most. Decided: the Last Bastion is a whole run and keeps 1. Each stays over Squire's on Knight (a tier step still
    * outweighs it).
    */
   levelStep: {
-    marches: { hp: [0.85, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9], damage: [0.85, 0.9, 0.9, 0.9, 0.9, 0.9, 0.9] },
-    realm: { hp: [0.8, 0.85, 0.9, 0.9, 0.9], damage: [0.85, 0.9, 0.9, 0.9, 0.9] },
+    marches: { hp: [0.85, 0.9, 0.85, 0.9, 0.9, 0.9, 0.85], damage: [0.85, 0.9, 0.85, 0.9, 0.9, 0.9, 0.85] },
+    realm: { hp: [0.7, 0.85, 0.9, 0.9, 0.9], damage: [0.85, 0.9, 0.9, 0.9, 0.9] },
   },
   /** Rule 6: the Last Bastion's elite foes and limits. */
   finale: { minAffixes: 2, eliteCap: 0.35, eliteChanceMult: 1.5, armorersChoice: false, merchantRelics: false },
