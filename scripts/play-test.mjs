@@ -1625,6 +1625,10 @@ await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his f
     // here on log every blow that reaches them, the ones the real frames land after "Got it" too: each blow writes his plates, then his HP
     const knight = [lb.spotlight, ...(g?.enemies ?? [])].find((e) => e && e.def.id === 'ironKnight' && !e.dead && e.armorHp === e.armorMax);
     if (knight) {
+      // four times his HP, so a champion whose opening pick hits hard still lands light blows (one plate each); heavy blows are
+      // still judged by the rule below, against his (new) max HP
+      knight.maxHp *= 4;
+      knight.hp = knight.maxHp;
       const log = { start: knight.armorHp, blows: [] };
       let plates = knight.armorHp, hp = knight.hp, pending = null;
       Object.defineProperty(knight, 'armorHp', { configurable: true, get: () => plates, set: (v) => { pending = { from: plates, to: v }; plates = v; } });
