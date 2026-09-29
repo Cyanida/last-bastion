@@ -34,6 +34,7 @@ import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardTex
 import { nextTierRequirement } from '../logic/difficulty';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { keepStage } from '../logic/keep';
+import type { RealmId } from '../config/world';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
@@ -144,7 +145,7 @@ export interface TitleInfo {
   whatsNew: boolean; // v0.7.1: this build has a What's new screen
 }
 
-export function showTitle(info: TitleInfo, on: { start: () => void; daily: () => void; keep: () => void; chronicle: () => void; settings: () => void; whatsNew: () => void }): void {
+export function showTitle(info: TitleInfo, on: { start: () => void; map: () => void; daily: () => void; keep: () => void; chronicle: () => void; settings: () => void; whatsNew: () => void }): void {
   // #184: the title screen is the new look's prototype: the UI kit (kit.css, built by kit.ts) and the rig's icon atlas
   const el = show(`
     <div class="title kit-title">
@@ -158,6 +159,7 @@ export function showTitle(info: TitleInfo, on: { start: () => void; daily: () =>
       ${kit.button('Take up arms', { kind: 'gold', size: 'big', attrs: 'data-go="start"' })}
       <div class="row">
         ${info.daily.date ? kit.button(`Daily Trial${info.daily.best ? ` · best ${info.daily.best}` : ''}`, { kind: 'go', attrs: 'data-go="daily"' }) : ''}
+        ${kit.button('World map', { icon: 'map', attrs: 'data-go="map"' })}
         ${kit.button('The Keep', { icon: 'keep', attrs: 'data-go="keep"' })}
         ${kit.button('Chronicle', { icon: 'crown', attrs: 'data-go="chronicle"' })}
         ${kit.button('Settings', { icon: 'settings', attrs: 'data-go="settings"' })}
@@ -170,6 +172,27 @@ export function showTitle(info: TitleInfo, on: { start: () => void; daily: () =>
   click(el, '[data-go]', (b) => on[b.dataset.go as keyof typeof on]());
   click(el, '[data-notice]', () => info.notice?.action());
   onActions((a) => a === 'confirm' && on.start());
+}
+
+/**
+ * #198: the world map, painted by the map painter (tools/art/ui/world.ts: the map, a cloud layer per realm and their places in
+ * world-map.css). A realm still shut sits under its clouds; an open one is a button. `picked` names the realm last chosen until the
+ * realm road (#199) takes over that click.
+ */
+export function showWorldMap(realms: { id: RealmId; name: string; open: boolean; opens: string }[], picked: RealmId | null, on: { realm: (id: RealmId) => void; back: () => void }): void {
+  const name = realms.find((r) => r.id === picked)?.name;
+  const el = show(`
+    <div class="kit-frame world-map">
+      <header class="kit-head">${kit.closeButton('back', { attrs: 'data-back' })}${kit.ribbon(`${kit.icon('map')} The World`, { attrs: 'role="heading" aria-level="1"' })}</header>
+      <div class="wm-map">
+        ${realms.filter((r) => !r.open).map((r) => `<i class="wm-cloud r-${r.id}"></i>`).join('')}
+        ${realms.map((r) => `<button class="wm-realm r-${r.id}${r.open ? ' open' : ''}" data-realm="${r.id}" aria-label="${esc(r.open ? r.name : `${r.name}, under clouds. ${r.opens}`)}"${r.open ? '' : ' disabled'}><span class="wm-name">${esc(r.name)}</span>${r.open ? '' : `<span class="wm-opens">${esc(r.opens)}</span>`}</button>`).join('')}
+      </div>
+      ${kit.parch(name ? `<b>${esc(name)}</b>: its road comes next.` : 'Choose an open realm. The others wait under the clouds until you win their way.', { cls: 'wm-note' })}
+    </div>`);
+  click(el, '[data-back]', () => on.back());
+  click(el, '.wm-realm.open', (b) => on.realm(b.dataset.realm as RealmId));
+  onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
 export interface SettingsInfo {

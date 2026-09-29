@@ -93,3 +93,20 @@ export function keepLockedOptions(held: RelicId[], locked: RelicId[]): RelicId[]
   const families = new Set(held.map((id) => relicDef(id).family).filter((f) => f));
   return locked.filter((id) => families.has(relicDef(id).family));
 }
+
+/**
+ * #198: the world progress a save holds. Save v7 (another issue) adds it; until then, and for any save without it, the progress is
+ * empty, so only the Marches are open. Wire the save's field in here once it lands.
+ */
+export const saveWorldProgress = (save: object): WorldProgress => (save as { world?: WorldProgress }).world ?? {};
+
+/** What opens a shut realm, in words for the map: "Opens with 5 crowns, one from the Frozen Pass or the Stormspire". */
+export function opensText(realm: RealmId): string {
+  const { crowns, fromRing } = REALMS[realm].opens;
+  const from = fromRing ? REALM_IDS.filter((r) => REALMS[r].ring === fromRing[0]).map((r) => REALMS[r].name.replace(/^The /, 'the ')) : [];
+  return `Opens with ${crowns} crown${crowns === 1 ? '' : 's'}${fromRing ? `, ${fromRing[1] === 1 ? 'one' : fromRing[1]} from ${from.join(' or ')}` : ''}`;
+}
+
+/** The world map's realms, in REALM_IDS order: open, or still under clouds with what opens it. */
+export const mapRealms = (p: WorldProgress): { id: RealmId; name: string; open: boolean; opens: string }[] =>
+  REALM_IDS.map((id) => ({ id, name: REALMS[id].name, open: realmOpen(p, id), opens: opensText(id) }));
