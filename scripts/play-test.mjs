@@ -3269,6 +3269,36 @@ await check('Relics: with six Flame and six Frost relics held, only one family r
   }),
 );
 
+// ---------- #196: the starter commons: Berserker Tooth speeds you up at full HP, Serrated Edge opens 7 bleed stacks ----------
+await check("Relics: at full HP a test run with Berserker Tooth already attacks 10% faster, and its HUD tile and Serrated Edge's say so (#196)", () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), 'viking');
+      for (const id of ['berserkerTooth', 'serratedEdge']) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      await wait(400); // a few ticks: the tooth's bonus and the HUD tiles
+      const tip = (id) => document.querySelector(`#h-relics .relic[data-id="${id}"]`)?.dataset.tip ?? '';
+      const tooth = tip('berserkerTooth'), edge = tip('serratedEdge');
+      const full = g.player.hp >= g.player.stats.hp, spd = g.player.relics.dyn.atkSpd ?? 0;
+      const ok = full && Math.abs(spd - 0.1) < 1e-6 && /\+10% attack speed/.test(tooth) && /7 bleed stacks/.test(edge);
+      const line = (t, re) => t.split('\n').find((l) => re.test(l)) ?? t.split('\n')[0];
+      return { ok, detail: `HP ${full ? 'full' : 'not full'}, relic attack speed +${Math.round(spd * 100)}%; tooth: "${line(tooth, /attack speed/)}"; edge: "${line(edge, /bleed/)}"` };
+    });
+  }),
+);
+
 // ---------- #167: no frame in the sprite gallery is cut off at its cell: nothing opaque on a cell's edge ----------
 await check('Sprite gallery: no frame of any sheet is cut off at the edge of its cell; the Warlord swings and falls in full (#167)', () =>
   inPage(() => location.reload()).then(async () => {
