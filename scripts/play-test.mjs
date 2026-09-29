@@ -1592,7 +1592,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const second = pick.cards[1]?.name;
     const ok = /Steel/.test(opening) && pick.head === 'The Marches · Level 1 cleared' && pick.cards.length === 2 && pick.cards.every((c) => /Steel/.test(c.fam) && /rare/.test(c.rarity) && c.inside)
-      && pick.cards[0].name !== second && kept.inv.length === 1 && kept.cleared[0] === 1 && /Back to the Marches/.test(menu) && /The Marches · Level 1/.test(retry)
+      && pick.cards[0].name !== second && kept.inv.length === 1 && kept.cleared[0] === 1 && /Back to the Marches/.test(menu) && retry === 'Onward · The Marches · Level 2'
       && road.name === 'The Marches · Level 2' && road.open.slice(0, 3).join() === 'true,true,false' && /Flame relics featured/.test(road.text) && /Pick 1 of 2 Flame rares/.test(road.text) && errs.length === 0;
     return { ok, detail: `opening "${opening.trim()}"; "${pick.head}": ${pick.cards.map((c) => `${c.name} (${c.fam.trim()}, ${c.inside ? 'in view' : 'off screen'})`).join(' / ')}; took ${second} -> inventory [${kept.inv.join()}], cleared ${kept.cleared.join('/')}; "${retry}" / "${menu}" -> "${road.name}"${/Pick 1 of 2 Flame rares/.test(road.text) ? ', Flame pick next' : ''}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
@@ -4332,6 +4332,9 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   want(again.level === 2 && again.seed === fell.seed && again.held.join() === fell.held.join() && again.cleared && again.wave === again.last, `restart ${JSON.stringify(again)}`);
   log.push(`level 2 holding level 1's ${one.end.join()}: "${slain.head}" at wave ${fell.wave}, "${after.next}" -> ${after.play} on the ${again.seed === fell.seed ? 'same' : 'OTHER'} seed with the same relics, cleared`);
   await rarePick(2);
+  await p.locator('.results [data-retry]').waitFor({ timeout: 3000 });
+  const onward = (await p.locator('.results [data-retry]').textContent()).trim();
+  want(onward === 'Onward · The Marches · Level 3', `after level 2 the gold button says "${onward}"`); // #237: the run goes on
   // levels 3-7 by the road, every relic won in the loadout
   const base = [1, 1, 2, 2, 3, 3, 4];
   let before = again.end; // #237: each level goes on holding what the level before ended with

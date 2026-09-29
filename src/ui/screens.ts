@@ -1152,6 +1152,7 @@ export interface RunResult {
   goals: Goal[]; // v0.6: the three closest goals, after this run
   contracts: Contract[]; // weekly contracts this run completed
   restart: string; // what Quick Restart keeps: "Viking · Stalwart · Oath 3"
+  onward?: boolean; // #237: a cleared level goes on into the realm run's next level (`restart` names it) instead
   relicShares: { id: RelicKey; tier: number; from: RelicSource; damage: number; healing: number; mitigation: number }[]; // v0.7: which relics carried the run
   wins: number; // the class's wins, this one included
   masteryNext: { name: string; need: number } | null; // the next mastery rank and the class XP still missing
@@ -1211,7 +1212,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
       ${buildHtml(r.build)}`, { cls: 'kit-scroll' })}
       <footer class="row">${deciding
         ? `${kit.button('Bank the win', { kind: 'gold', size: 'big', attrs: 'data-bank' })}${kit.button('March on into Endless', { kind: 'go', attrs: 'data-endless' })}${kit.button('Bank and restart', { attrs: `data-restart data-tip="Bank the win and start again at once: ${esc(r.restart)}"` })}`
-        : `${kit.button(`Quick restart · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button(r.road ? `Back to ${esc(r.road.replace(/^The /, 'the '))}` : r.daily ? 'Back to the title' : 'Choose another champion', { attrs: 'data-menu' })}`}</footer>
+        : `${kit.button(`${r.onward ? 'Onward' : 'Quick restart'} · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button(r.road ? `Back to ${esc(r.road.replace(/^The /, 'the '))}` : r.daily ? 'Back to the title' : 'Choose another champion', { attrs: 'data-menu' })}`}</footer>
     </div>`);
   if ('bank' in on) {
     click(el, '[data-endless]', on.endless);

@@ -662,9 +662,10 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
     goals: closestGoals(after, id, weekKey(today(new Date()))),
     relicShares: relicShares(g),
-    restart: g.daily ? `the Daily Trial ${g.daily}` : g.level ? `${REALMS[g.level.realm].name} · Level ${g.level.level}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
+    restart: g.daily ? `the Daily Trial ${g.daily}` : g.level ? `${REALMS[g.level.realm].name} · Level ${g.level.cleared && g.level.level < REALMS[g.level.realm].levels.length ? g.level.level + 1 : g.level.level}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
     road: g.level?.cleared ? REALMS[g.level.realm].name : null, // a cleared level goes back to its road; a lost one to the champion screen (endRun)
+    onward: !!g.level?.cleared && g.level.level < REALMS[g.level.realm].levels.length, // #237: its realm run goes on at the next level
     levelRewards: result.levelRewards.level,
     crownRewards: result.levelRewards.crown,
   };
@@ -674,7 +675,8 @@ function runResult(g: Game, commitIt: boolean): RunResult {
  * v0.6 Quick Restart: today's Daily Trial again. #197/#200: a level again through playLevel, on the same seed after a fall (endRun
  * remembers it) and a fresh one once it is cleared. #204: there is no Classic run to restart any more; anything else opens the champion.
  */
-const again = (g: Game): void => (g.daily ? toDaily() : g.level ? playLevel(g.player.cls.id, g.level.realm, g.level.level, g.tierIndex) : toChampion());
+const again = (g: Game): void =>
+  g.daily ? toDaily() : g.level ? playLevel(g.player.cls.id, g.level.realm, g.level.cleared ? runLevel(champOf(g.player.cls.id), g.level.realm, g.tierIndex) : g.level.level, g.tierIndex) : toChampion(); // #237: a clear goes on from its checkpoint
 
 /** Death, "end run", or banking a win: the run is banked. */
 function endRun(g: Game): void {
