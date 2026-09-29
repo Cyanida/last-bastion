@@ -1,6 +1,6 @@
 import type { ClassId } from '../config/classes';
 import { ATTUNEMENT, DUO_IDS, DUOS, FAMILIES, FAMILY_IDS, SET_LEVELS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_POOL, RELIC_WEIGHTS, relicDef, SIGNATURE, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
-import { pickWeighted } from '../core/math';
+import { angleDiff, pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng, SeededRng } from '../core/types';
 import { isMultiplicative } from './mods';
 import { mulberry32 } from '../core/math';
@@ -264,3 +264,21 @@ export function relicCardLine(id: RelicId, count: number, o: { upgrade: boolean;
   if (o.evolution) parts.push('✦ evolution');
   return parts.join(' · ');
 }
+
+// ---------------------------------------------------------------- v0.11 (#217): the Iron Hold's Steel relics
+
+/** Pavise: an attacker at (dx, dy) from the player is in front when it stands within `arcDeg` degrees of where the player last struck. */
+export const inFront = (facing: number, dx: number, dy: number, arcDeg: number): boolean =>
+  (dx !== 0 || dy !== 0) && angleDiff(Math.atan2(dy, dx), facing) <= (arcDeg * Math.PI) / 180;
+
+/** Rivet Hammer: counts one attack hit; every `every`th drives a rivet (and the count starts again). */
+export function rivetStep(count: number, every: number): { count: number; rivet: boolean } {
+  const next = count + 1;
+  return next >= every ? { count: 0, rivet: true } : { count: next, rivet: false };
+}
+
+/** Reprisal Cuirass: what it keeps after a hit of `amount`, never more than `cap` (in HP). */
+export const keepReprisal = (kept: number, amount: number, cap: number): number => Math.min(cap, kept + Math.max(0, amount));
+
+/** Heart of the Hold: its thorns, per armor stack held (already grown with level). */
+export const holdThorns = (stacks: number, perStack: number): number => Math.max(0, stacks) * perStack;

@@ -35,10 +35,12 @@ function golden({ cls, seed, level, variant = 0 }: GoldenLevel): string {
 
 // recorded on release/0.10.0 after #200; no fresh bot clears Marches level 7 on Knight yet (plan rule 9's tuning comes later), so its runs
 // pin the head start, the loadout and the fight up to the fall
+// Re-recorded for #217 (v0.11): Rivet Hammer joins the starter pool as a Steel common, so level 1's relic draws (and its three runs) changed on
+// purpose; level 7's runs hold their loadout and did not move.
 const GOLDEN: Record<string, string> = {
-  'marches 1 paladin:1': 'cleared wave 5 kills 105 level 6 loadout - relics 3 hash 3be46872',
-  'marches 1 archer:2': 'cleared wave 5 kills 105 level 5 loadout - relics 3 hash 39df3efd',
-  'marches 1 angel:4 variant 1': 'cleared wave 5 kills 106 level 6 loadout - relics 3 hash b25051e8',
+  'marches 1 paladin:1': 'cleared wave 5 kills 98 level 5 loadout - relics 1 hash 49afc03f',
+  'marches 1 archer:2': 'cleared wave 5 kills 105 level 5 loadout - relics 3 hash 3aeb6cc5',
+  'marches 1 angel:4 variant 1': 'cleared wave 5 kills 102 level 6 loadout - relics 3 hash e9719a3a',
   'marches 7 paladin:1': 'fell wave 32 kills 257 level 24 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash ed61f5ec',
   'marches 7 angel:1': 'fell wave 33 kills 412 level 25 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash 7aa2e40a',
   'marches 7 viking:2 variant 1': 'fell wave 34 kills 474 level 25 loadout tempestEye+anvilHeart+salamanderScale+berserkerTooth relics 5 hash 987dccdc',

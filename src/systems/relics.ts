@@ -165,7 +165,7 @@ export function updateRelics(g: Game, dt: number): void {
   relicContext.acting = null;
   for (const id of r.held) if ((r.attune[id] ?? 0) >= 1 && relicTier(r.tiers, id) < RELIC_MAX_TIER) tierUp(g, p, id);
   // armor stacks (Steel): +3% armor each, gone `fade` seconds after the last one was gained
-  if (p.armorStacks > 0 && g.time - p.armorStackT > FAMILIES.steel.n.fade) p.armorStacks = 0;
+  if (p.armorStacks > 0 && g.time - p.armorStackT > FAMILIES.steel.n.fade && !(r.tiers.heartOfTheHold ?? 0)) p.armorStacks = 0; // #217: Heart of the Hold keeps them
   if (p.armorStacks > 0) r.dyn.armor = (r.dyn.armor ?? 0) + p.armorStacks * FAMILIES.steel.n.stackArmor;
   r.totals = foldRelicMods(r.static, r.dyn);
   combineMods(p.mods, totalsToMods(r.totals));
