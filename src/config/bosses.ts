@@ -9,10 +9,11 @@ import type { QuestKind } from './quests';
  *   has been met. The arena's own rotation (config/arenas.ts) weighs `arenaBias` times more. Act I keeps its arena's opener.
  * - 'act': the wave x0 boss, in table order (Act I, II, III, then round again in Endless).
  * - `rare`: low weight and only from `fromAct` on: a strong one. `quest`: only drawn in an Act where that quest was taken.
+ * - 'realm' (#215): never drawn; only a realm level that names it as its end boss (config/world.ts) brings it.
  */
 export interface BossDef {
   from: EnemyId;
-  slot: 'mid' | 'act';
+  slot: 'mid' | 'act' | 'realm';
   weight: number; // mid-Act draw weight
   name?: string;
   palette?: number; // render/sprites SPRITE_PALETTES
@@ -40,6 +41,8 @@ export const BOSSES: Record<string, BossDef> = {
   dragon: { from: 'dragon', slot: 'act', weight: 0 },
   warden: { from: 'warden', slot: 'act', weight: 0 },
   ashWyrm: { from: 'dragon', slot: 'act', weight: 0, name: 'The Ash Wyrm', palette: 1, hp: 1.15, damage: 1.1 },
+  // the realms' own bosses (#215)
+  forgemaster: { from: 'forgemaster', slot: 'realm', weight: 0 },
 };
 export type BossKey = string;
 
@@ -81,4 +84,20 @@ export const WARDEN = {
     hammer: { rings: 3, step: 115, radius: 34, first: 1.0, gap: 0.5, damage: 0.8 }, // ring k lands at `first + (k-1) * gap` s, x his special damage
     summonEvery: 2, // knights on every 2nd seal
   },
+};
+
+/**
+ * #215: the Forgemaster, the Iron Hold's level-3 boss (logic/forgemaster.ts, systems/bosses.ts). Three phases like an Act boss, since his
+ * level ends on an Act's last wave; no minimum phase time (that is the crown boss's). Phase 1: his hammer comes down in a marked arc in
+ * front of him. From phase 2 every other blow is his forge presses instead: a checkerboard of marked tiles round you that slam one colour,
+ * then the other (step onto a tile that just struck), and the hammer throws a fan of sparks too. Phase 3: a third press stroke, quicker
+ * blows, and the hammer leaves molten slag. His plate (config/damage.ts PLATES) is reforged whole at each new phase.
+ */
+export const FORGEMASTER = {
+  specialCd: [5.5, 5, 4.2], // by phase; his def's specialCd is the first blow
+  reach: 640, // he swings and presses only this close
+  slam: { zones: 5, arc: 1.5, reach: 62, radius: 46, damage: 1 }, // the hammer: zones on an arc `reach` past his edge, x his special damage
+  sparks: { count: 5, spread: 0.7, windup: 0.5, damage: 0.45, range: 560 }, // phase 2+: bolts after the hammer, x his hit damage
+  press: { size: 5, cell: 92, radius: 50, first: 1.1, gap: 0.9, damage: 0.8, strokes: [0, 2, 3] }, // tiles size x size round you; strokes by phase
+  slagFrom: 3, // the hammer's zones leave burning slag (his def's poolLife, poolDps) from this phase
 };

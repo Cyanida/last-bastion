@@ -24,6 +24,7 @@ export type EnemyId =
   | 'boneCollector'
   | 'dragon'
   | 'warden'
+  | 'forgemaster'
   | 'blackKnight'
   | 'warlord'
   | 'lich'
@@ -258,6 +259,13 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     ...boss, id: 'warden', name: 'The Warden', sprite: 'warden', behavior: 'chaser', phases: 3,
     hp: 1050, damage: 22, speed: 80, radius: 30, xp: 120,
     specialCd: 7.5, windup: 1.0, specialMult: 1.5, zoneRadius: 46, summon: 'knight', summonCount: 2, p2SpeedMult: 1.1,
+  },
+  // #215: the Iron Hold's level-3 boss (config/bosses.ts FORGEMASTER, systems/bosses.ts). His plate breaks blow by blow (config/damage.ts
+  // PLATES) and he reforges it at every new phase; his hammer, his sparks and his forge presses
+  forgemaster: {
+    ...boss, id: 'forgemaster', name: 'The Forgemaster', sprite: 'forgemaster', behavior: 'chaser', phases: 3,
+    hp: 1000, damage: 22, speed: 70, radius: 30, xp: 120,
+    specialCd: 5.5, windup: 0.9, specialMult: 1.4, zoneRadius: 46, projSpeed: 330, poolLife: 4, poolDps: 12, p2SpeedMult: 1.1,
   },
   // ---- v0.6: the end of the run (config/acts.ts FINAL, systems/bosses.ts) ----
   usurper: {
