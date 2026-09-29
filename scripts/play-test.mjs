@@ -3672,52 +3672,6 @@ await check("Relics: at full HP a test run with Berserker Tooth already attacks 
   }),
 );
 
-// ---------- #217: the Iron Hold's Steel relics: a test run holding all four, fought through the real input for 30 s ----------
-await check('Relics: Rivet Hammer, Pavise, Reprisal Cuirass and Heart of the Hold each do their work in a fight, and their HUD tiles say what they do (#217)', () =>
-  inPage(() => location.reload()).then(async () => {
-    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
-    const ids = ['rivetHammer', 'pavise', 'reprisalCuirass', 'heartOfTheHold'];
-    const start = await inPage(async (ids) => {
-      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-      const set = (el, v) => {
-        el.value = v;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
-      };
-      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
-      await wait(150);
-      document.querySelector('[data-act="test"]').click();
-      await wait(100);
-      set(document.getElementById('tm-class'), 'paladin');
-      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave and a level-1 champion: the horde reaches her and hits
-      set(document.getElementById('tm-wave'), '5');
-      set(document.getElementById('tm-level'), '1');
-      const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
-      for (const id of listed) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
-      const g = window.__startTest();
-      g.player.deathless = true; // hits land and are counted, the run just never ends
-      await wait(300);
-      const tip = (id) => document.querySelector(`#h-relics .relic[data-id="${id}"]`)?.dataset.tip ?? '';
-      return { listed: listed.length, held: g.player.relics.held.filter((id) => ids.includes(id)).length, tips: ids.map(tip) };
-    }, ids);
-    // the champion steps toward the horde (arrow keys) and holds her ground for 30 s: every number below comes from real hits
-    await page.keyboard.down('ArrowRight');
-    await inPage(() => window.__lb.run(60, false, 'input'));
-    await page.keyboard.up('ArrowRight');
-    await inPage(() => window.__lb.run(1800, false, 'input'));
-    const fight = await inPage((ids) => {
-      const p = window.__lb.game.player, s = (id) => p.relics.stats[id] ?? { damage: 0, prevented: 0 };
-      return { rivet: s(ids[0]).damage, pavise: s(ids[1]).prevented, reprisal: s(ids[2]).damage, heart: s(ids[3]).damage, stacks: p.armorStacks };
-    }, ids);
-    const [rivet, pavise, reprisal, heart] = start.tips;
-    const said = [/rivet/i.test(rivet), /in front of you/.test(pavise), /full force/.test(reprisal), /never fade/.test(heart)];
-    const worked = fight.rivet > 0 && fight.pavise > 0 && fight.reprisal > 0 && fight.heart > 0 && fight.stacks > 0;
-    const ok = start.listed === 4 && start.held === 4 && said.every(Boolean) && worked;
-    const r = (v) => Math.round(v);
-    return { ok, detail: `test mode lists ${start.listed}/4, held ${start.held}; tiles say ${said.map((x) => (x ? 'yes' : 'NO')).join('/')}; rivets ${r(fight.rivet)} dmg, Pavise turned away ${r(fight.pavise)}, reprisals ${r(fight.reprisal)} dmg, Heart thorns ${r(fight.heart)} dmg, ${fight.stacks} armor stacks` };
-  }),
-);
-
 // ---------- #167: no frame in the sprite gallery is cut off at its cell: nothing opaque on a cell's edge ----------
 await check('Sprite gallery: no frame of any sheet is cut off at the edge of its cell; the Warlord swings and falls in full (#167)', () =>
   inPage(() => location.reload()).then(async () => {
@@ -3788,6 +3742,52 @@ await check('Frame cache: the sprite gallery adds nothing to it; a run through A
     return { ok: ok && all.size <= all.cap && all.misses === all.size, detail: `gallery added ${gallery} frames${played ? '' : ' (and did not play)'}; run: ${run.size}/${run.cap} frames, ${run.misses} misses, hit rate ${(rate * 100).toFixed(2)}%; the checks before: ${all.size} frames, ${all.misses} misses` };
   });
 });
+
+// ---------- #217: the Iron Hold's Steel relics: a test run holding all four, fought through the real input for 30 s ----------
+await check('Relics: Rivet Hammer, Pavise, Reprisal Cuirass and Heart of the Hold each do their work in a fight, and their HUD tiles say what they do (#217)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const ids = ['rivetHammer', 'pavise', 'reprisalCuirass', 'heartOfTheHold'];
+    const start = await inPage(async (ids) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), 'paladin');
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave and a level-1 champion: the horde reaches her and hits
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), '1');
+      const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
+      for (const id of listed) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land and are counted, the run just never ends
+      await wait(300);
+      const tip = (id) => document.querySelector(`#h-relics .relic[data-id="${id}"]`)?.dataset.tip ?? '';
+      return { listed: listed.length, held: g.player.relics.held.filter((id) => ids.includes(id)).length, tips: ids.map(tip) };
+    }, ids);
+    // the champion steps toward the horde (arrow keys) and holds her ground for 30 s: every number below comes from real hits
+    await page.keyboard.down('ArrowRight');
+    await inPage(() => window.__lb.run(60, false, 'input'));
+    await page.keyboard.up('ArrowRight');
+    await inPage(() => window.__lb.run(1800, false, 'input'));
+    const fight = await inPage((ids) => {
+      const p = window.__lb.game.player, s = (id) => p.relics.stats[id] ?? { damage: 0, prevented: 0 };
+      return { rivet: s(ids[0]).damage, pavise: s(ids[1]).prevented, reprisal: s(ids[2]).damage, heart: s(ids[3]).damage, stacks: p.armorStacks };
+    }, ids);
+    const [rivet, pavise, reprisal, heart] = start.tips;
+    const said = [/rivet/i.test(rivet), /in front of you/.test(pavise), /full force/.test(reprisal), /never fade/.test(heart)];
+    const worked = fight.rivet > 0 && fight.pavise > 0 && fight.reprisal > 0 && fight.heart > 0 && fight.stacks > 0;
+    const ok = start.listed === 4 && start.held === 4 && said.every(Boolean) && worked;
+    const r = (v) => Math.round(v);
+    return { ok, detail: `test mode lists ${start.listed}/4, held ${start.held}; tiles say ${said.map((x) => (x ? 'yes' : 'NO')).join('/')}; rivets ${r(fight.rivet)} dmg, Pavise turned away ${r(fight.pavise)}, reprisals ${r(fight.reprisal)} dmg, Heart thorns ${r(fight.heart)} dmg, ${fight.stacks} armor stacks` };
+  }),
+);
 
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
