@@ -215,9 +215,9 @@ export const RELICS = {
     awaken: ['Pillar of Dawn', 'While the shield holds, burning enemies touching you take their burn damage again every second.'], desc: (n) => `Divine Shield's burst adds ${n.base} + Faith/${n.per} burn stacks.` }),
 
   // ---------------------------------------------------------------- ❄️ Frost
-  frostBrand: relic({ name: 'Frost Brand', rarity: 'common', icon: '❄️', family: 'frost', n: { chance: 0.6, chill: 2 }, n2: { chance: 0.8 }, a: { reduce: 0.2 },
+  frostBrand: relic({ name: 'Frost Brand', rarity: 'common', icon: '❄️', family: 'frost', n: { chance: 0.9, chill: 1 }, n2: { chance: 1 }, a: { reduce: 0.2 },
     awaken: ['Hoarfrost', (a) => `Chilled enemies deal ${pct(a.reduce)} less damage.`], desc: (n) => `Attacks have a ${pct(n.chance)} chance to chill.` }),
-  wintersGrasp: relic({ name: "Winter's Grasp", rarity: 'common', icon: '🧤', family: 'frost', n: { chill: 3 }, n2: { chill: 4 }, a: { time: 1 },
+  wintersGrasp: relic({ name: "Winter's Grasp", rarity: 'common', icon: '🧤', family: 'frost', n: { chill: 5 }, n2: { chill: 7 }, a: { time: 1 },
     awaken: ['Deep Freeze', (a) => `Enemies your ability freezes stay frozen ${a.time} s longer.`], desc: (n) => `Your signature ability chills everything it hits (${n.chill} chill).` }),
   shatterglass: relic({ name: 'Shatterglass', rarity: 'rare', icon: '🔹', family: 'frost', n: { critDamage: 0.25 }, n2: { critDamage: 0.4 }, a: { shards: 3, reach: 180, damage: 10, chill: 1 },
     awaken: ['Splinter', (a) => `A crit on a frozen enemy sprays ${a.shards} ice shards that chill.`], desc: (n) => `Your hits on frozen enemies always crit, with +${pct(n.critDamage)} crit damage.` }),
@@ -249,11 +249,11 @@ export const RELICS = {
     awaken: ['Thunder God', (a) => `Kills during Rage extend it by ${a.perRage} s × Rage (up to double length).`], desc: (n) => `During Berserker Rage every ${n.every}th hit chains to another enemy for 50% + ${pct(n.perRage)} per Rage.` }),
 
   // ---------------------------------------------------------------- 🩸 Blood
-  serratedEdge: relic({ name: 'Serrated Edge', rarity: 'common', icon: '🩹', family: 'blood', n: { stacks: 5, power: 0.8 }, n2: { stacks: 6 }, a: { critDamage: 0.2 },
+  serratedEdge: relic({ name: 'Serrated Edge', rarity: 'common', icon: '🩹', family: 'blood', n: { stacks: 6, power: 1 }, n2: { stacks: 7 }, a: { critDamage: 0.2 },
     awaken: ['Haemorrhage', (a) => `+${pct(a.critDamage)} crit damage against bleeding enemies.`], desc: (n) => `Crits open ${n.stacks} bleed stacks (${pct(n.power)} of the hit per second each).` }),
   butchersHook: relic({ name: "Butcher's Hook", rarity: 'common', icon: '🪝', family: 'blood', n: { slow: 0.15, bonus: 0.15 }, n2: { slow: 0.2, bonus: 0.2 }, a: { count: 2, range: 180 },
     awaken: ['Gutting', (a) => `A bleeding enemy you kill passes its bleed to ${a.count} enemies near it.`], desc: (n) => `Bleeding enemies are ${pct(n.slow)} slower and take ${pct(n.bonus)} more damage from your attacks.` }),
-  berserkerTooth: relic({ name: 'Berserker Tooth', rarity: 'rare', icon: '🦷', family: 'blood', n: { per: 0.2, max: 0.8 }, n2: { per: 0.15, max: 1 }, a: { below: 0.25, mult: 2 },
+  berserkerTooth: relic({ name: 'Berserker Tooth', rarity: 'rare', icon: '🦷', family: 'blood', n: { per: 0.1, max: 0.8 }, n2: { per: 0.08, max: 1 }, a: { below: 0.25, mult: 2 },
     awaken: ['Last Blood', (a) => `Below ${pct(a.below)} HP every bleed you apply is doubled.`], desc: (n) => `+1% attack speed for every ${n.per}% of HP missing (up to ${pct(n.max)}).` }),
   vampireFang: relic({ name: 'Vampire Fang', rarity: 'rare', icon: '🧛', family: 'blood', n: { leech: 0.03 }, n2: { leech: 0.05 }, a: { below: 0.5, mult: 2 },
     awaken: ['Thirst', 'Below half HP it heals twice as much.'], desc: (n) => `Hits on bleeding enemies heal you ${pct(n.leech)} of the damage.` }),

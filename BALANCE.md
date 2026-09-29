@@ -1,5 +1,26 @@
 # Balance notes
 
+## v0.10: the starter commons (#196, in progress)
+
+Target: every starter common 3-35% of what it does where held (`npm run sim -- relics 8`, 40 runs, maxed saves; "Contribution from wave 21 on").
+Changed in `src/config/relics.ts` (tier I / II):
+- **Emberheart** +30% / 40% -> +60% / 80% damage per burning enemy.
+- **Frost Brand** 35% / 50% chance, 3 chill -> 90% / 100% chance, 1 chill (a chill that builds up to the freeze instead of freezing on the second proc).
+- **Serrated Edge** 3 / 4 bleed stacks at 60% -> 6 / 7 stacks at 100% of the hit per second.
+- **Berserker Tooth** +1% attack speed per 1% / 0.75% of HP missing (max 60% / 75%) -> per 0.1% / 0.08% (max 80% / 100%).
+- **Winter's Grasp** unchanged (pass 1 tried 3 / 4 chill: 0.2%, and lost the freeze, so it went back to 5 / 7).
+
+| Pass | Won | Power index (Acts II-III) | Emberheart | Frost Brand | Serrated Edge | Berserker Tooth | Winter's Grasp |
+|---|---|---|---|---|---|---|---|
+| Before | 35 | 1.86 | 2.5% | 1.1% | 2.1% | 0.3% | 0.0% |
+| Pass 1 | 33 | 1.89 | 5.0% | 2.4% | 2.9% | 1.0% | 0.2% |
+| Pass 2 | 34 | 1.90 | 4.5% | 3.4% | 2.9% | 0.9% | 0.0% |
+
+Every set target still holds after pass 2 (6-set 14.7%, 1.56 duos, 3+ duos 11.8%). Emberheart and Frost Brand are in the band; Serrated Edge
+sits just under it. **Berserker Tooth and Winter's Grasp miss by far more than 20%**, and numbers alone will not fix them: the bot is rarely
+hurt, so a missing-HP bonus reads near zero, and Winter's Grasp's 5 chill freezes on the spot, so its work (the freeze) is never credited
+(only a chill's extra damage and a Shatter are). Both need a logic change (or a change to what the share measures), not more tuning.
+
 ## v0.8: the balance pass (#125)
 
 Measured on release/0.8.0 with every other v0.8 change in (the boss pool #99, arena families #100, enemy tiers #101, the capped Bone Colossus
