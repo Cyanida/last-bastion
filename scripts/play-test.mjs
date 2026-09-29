@@ -1943,6 +1943,109 @@ await check('Iron Hold: a shield bearer marches as the Thorn Bearer, his flash c
   return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${fight.closed}; bites ${b.map((x) => `${x.taken.toFixed(1)}hp@${x.t.toFixed(2)}s`).join(', ') || 'NONE'} of ${fight.max} max HP, ${fight.sounds} sounds, ${fight.texts} THORNS texts${fight.alive ? '' : ', champion fell'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #225: the Cinderlands' torchbearers: map -> the Cinderlands -> level 2 -> FIGHT; a peasant brought in as a wave brings him
+// marches as the Torchbearer with his own flash card, "Got it" closes it, and his blows stack burn on the champion, shown on the HUD. Once
+// he stops landing them the stacks fall off one at a time while the fire ticks HP away; fed again, E (the utility) puts the burn out ----------
+await check('Cinderlands: a peasant marches as the Torchbearer, his flash card shows, his blows stack burn on the HUD that falls off a stack at a time, and E puts it out (#225)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], cinderlands: [1] }, signature: true, lastBastion: false });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Cinderlands level 1 cleared
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'torchbearer'); // every other card already seen, so his is the one that shows
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-cinderlands');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // a peasant comes in the way a wave brings one, in sight: the realm turns him into its own kind and his card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    g.player.invulnerable = true; // until the measurement starts
+    const b = lb.spawn('peasant', g.player.x + 160, g.player.y);
+    window.__torch = b;
+    for (let i = 0; i < 600 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    return { kind: b?.def.id, sprite: b?.def.sprite, id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g.level?.realm };
+  });
+  if (card.id) await p.click('[data-leave]');
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 3000 }).catch(() => {});
+  // the known state: full HP, open to harm, him beside the champion and living through it; every other foe stunned and held far off
+  const stack = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player, b = window.__torch;
+    const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+    window.__hold = (keep) => {
+      for (const e of g.enemies) if (e !== keep) Object.assign(e, { x: pl.x + 700, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 };
+    };
+    pl.invulnerable = false;
+    pl.hp = pl.stats.hp;
+    pl.x = b.x - 30;
+    pl.y = b.y;
+    b.hpFloor = b.maxHp; // the champion's blows don't fell him before he has landed his
+    for (let i = 0; i < 1800 && (pl.statuses.burn?.stacks ?? 0) < 3 && !g.over && lb.game === g && lb.state === 'playing'; i++) {
+      window.__hold(b);
+      lb.run(1, false, false);
+      pl.hp = Math.max(pl.hp, pl.stats.hp * 0.6); // he must not fall while the stacks build
+    }
+    return { closed, stacks: pl.statuses.burn?.stacks ?? 0, decay: pl.statuses.burn?.decay ?? 0 };
+  });
+  // the HUD shows the stacks
+  await p.waitForFunction(() => /Burning ×\d/.test(document.getElementById('h-status')?.textContent ?? ''), null, { timeout: 3000 }).catch(() => {});
+  const hud = await p.evaluate(() => document.getElementById('h-status')?.textContent ?? '');
+  // he stops landing blows: the stacks fall off one at a time, the fire ticking HP away as they go
+  const fall = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player, b = window.__torch;
+    const steps = [];
+    const start = pl.statuses.burn?.stacks ?? 0;
+    let last = start, lost = 0, hp;
+    window.__hold(null);
+    hp = pl.hp;
+    for (let i = 0; i < 900 && last > 0 && !g.over && lb.game === g && lb.state === 'playing'; i++) {
+      window.__hold(null);
+      lb.run(1, false, false);
+      if (pl.hp < hp) lost += hp - pl.hp;
+      hp = pl.hp;
+      const n = pl.statuses.burn?.stacks ?? 0;
+      if (n !== last) steps.push({ n, t: g.time });
+      last = n;
+    }
+    // fed again: back beside him until two stacks burn
+    delete b.statuses.stun;
+    b.x = pl.x + 30;
+    b.y = pl.y;
+    for (let i = 0; i < 1800 && (pl.statuses.burn?.stacks ?? 0) < 2 && !g.over && lb.game === g && lb.state === 'playing'; i++) {
+      window.__hold(b);
+      lb.run(1, false, false);
+      pl.hp = Math.max(pl.hp, pl.stats.hp * 0.6);
+    }
+    pl.utilityCd = 0;
+    return { start, steps, lost, again: pl.statuses.burn?.stacks ?? 0, level: pl.level, smothered: g.vars['burn.smothered'] ?? 0 };
+  });
+  // E, the utility key: the burn is put out
+  await p.keyboard.down('KeyE');
+  const put = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    lb.run(2, false, 'input');
+    return { burn: pl.statuses.burn?.stacks ?? 0, smothered: g.vars['burn.smothered'] ?? 0, cast: pl.utilityCd > 0, text: g.texts.some((t) => t.text === 'PUT OUT'), alive: !g.over };
+  });
+  await p.keyboard.up('KeyE');
+  await p.close();
+  const s = fall.steps;
+  const gaps = s.slice(1).map((x, i) => x.t - s[i].t);
+  const ok = card.realm === 'cinderlands' && card.kind === 'torchbearer' && card.sprite === 'torchbearer' && card.id === 'torchbearer' && card.title === 'Torchbearer' && /burn/.test(card.text ?? '')
+    && stack.closed && stack.stacks >= 3 && stack.decay > 0 && /Burning ×\d/.test(hud)
+    && fall.start >= 3 && s.length === fall.start && s.every((x, i) => x.n === fall.start - 1 - i) && gaps.every((d) => Math.abs(d - stack.decay) < 0.1) && fall.lost > 0
+    && fall.again >= 2 && put.cast && put.burn === 0 && put.smothered - fall.smothered >= 2 && put.text && put.alive && errs.length === 0;
+  return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${stack.closed}; ${stack.stacks} stacks, HUD "${hud}"; from ${fall.start} fell ${s.map((x) => `${x.n}@${x.t.toFixed(2)}s`).join(' ') || 'NONE'}, ${fall.lost.toFixed(1)} HP burnt; fed again to ${fall.again} at level ${fall.level}; E cast ${put.cast}, ${put.smothered - fall.smothered} put out, ${put.burn} left${put.alive ? '' : ', champion fell'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
 // From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
 // slots and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a
