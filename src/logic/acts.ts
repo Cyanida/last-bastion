@@ -44,11 +44,13 @@ export interface BossDraw {
 export function bossForWave(wave: number, draw: BossDraw): BossKey | null {
   if (wave % WAVES.bossEvery !== 0) return null;
   const act = actOf(wave);
-  if (isActEnd(wave)) return act === FINAL.act ? FINAL.boss : ACT_BOSSES[(act - 1) % ACT_BOSSES.length];
+  if (isActEnd(wave)) return act === FINAL.act ? FINAL.boss : actBoss(act);
   return pickMidBoss(act, draw, waveRng(draw.seed ^ 0xb055, wave));
 }
 
 const ACT_BOSSES = Object.keys(BOSSES).filter((k) => BOSSES[k].slot === 'act');
+/** The Act boss of `act` in table order, round again past Act III (never the Usurper). */
+export const actBoss = (act: number): BossKey => ACT_BOSSES[(act - 1) % ACT_BOSSES.length];
 const MID_BOSSES = Object.keys(BOSSES).filter((k) => BOSSES[k].slot === 'mid');
 
 /**

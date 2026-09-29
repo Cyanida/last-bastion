@@ -422,7 +422,8 @@ function openChoice(g: Game): void {
       skip: () => void (choose(g, { c: 'relicSkip' }), resume()),
       reroll: () => void (choose(g, { c: 'relicReroll' }), openChoice(g)),
     });
-  } else if (g.pendingAbilityTiers.length > 0) {
+  } else if (g.level?.cleared) endRun(g); // #191: a cleared level ends once its spoils are taken (the realm road shows what it pays)
+  else if (g.pendingAbilityTiers.length > 0) {
     const tier = g.pendingAbilityTiers[0];
     showAbilityUpgrade(tier, upgradeOptions(g.player.cls.id, tier), g.player.cls, (id) => {
       choose(g, { c: 'abilityUpgrade', id });
@@ -509,7 +510,7 @@ function sacredLines(g: Game): { name: string; desc: string }[] {
   return news.length ? [...out, { name: '🧩 Treasure quest this run', desc: news.join(' · ') }] : out;
 }
 
-const hasChoice = (g: Game) => g.victory === 'pending' || g.pendingShrine !== null || g.player.relics.offers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant || g.pendingRoute !== null;
+const hasChoice = (g: Game) => g.victory === 'pending' || !!g.level?.cleared || g.pendingShrine !== null || g.player.relics.offers.length > 0 || g.pendingAbilityTiers.length > 0 || g.pendingUtilityTiers.length > 0 || g.pendingBoard || g.pendingShop || g.pendingLevelUps > 0 || g.pendingMerchant || g.pendingRoute !== null;
 
 /** A screen opened from the pause menu (Talents, Glossary, Treasures) is up: its own Esc goes back to the pause menu, so this one must not resume. */
 let pauseSub = false;

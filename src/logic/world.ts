@@ -1,6 +1,33 @@
 // v0.10 (#190): what opens on the world map, a level's slots and ring step, and what a clear pays (config/world.ts)
+import { ACTS, FINAL } from '../config/acts';
+import { BOSSES, type BossKey } from '../config/bosses';
 import { relicDef, type RelicId } from '../config/relics';
-import { REALM_IDS, REALMS, WORLD, type CrownReward, type LevelReward, type RealmId } from '../config/world';
+import { WAVES } from '../config/waves';
+import { REALM_IDS, REALMS, WORLD, type CrownReward, type EndBoss, type LevelReward, type RealmId } from '../config/world';
+import { actBoss, actOf, bossForWave, type BossDraw } from './acts';
+import { expectedLevel } from './formulas';
+
+// ---------- #191: the level runner's rules (systems/levels.ts plays them) ----------
+
+/**
+ * The head start's level at a level's first wave: the level the pace expects once wave `wave - 1` is cleared (BALANCE.md's "level at
+ * the end of wave"). Decided: rounded, so 1, 6, 11, 15, 19, 21, 24 at waves 1, 6, 11, 16, 21, 26, 31.
+ */
+export const headStartLevel = (wave: number): number => Math.round(expectedLevel(wave));
+
+/** Wings open by a start wave: the one this Act's mid-Act boss opens, once it is behind. Decided: quest wings are not counted. */
+export const wingsOpenBy = (wave: number): number => ((wave - 1) % ACTS.length >= WAVES.bossEvery ? 1 : 0);
+
+/**
+ * A level's end boss on its last wave: a named one (config/bosses.ts), the Usurper, or the usual draw for 'pool' and for a realm boss not
+ * built yet. Outside the Last Bastion a wave-40 draw is an Act boss, never the Usurper.
+ */
+export function levelBoss(end: EndBoss, wave: number, draw: BossDraw): BossKey | null {
+  if (end.boss === 'usurper') return FINAL.boss;
+  if (BOSSES[end.boss]) return end.boss;
+  const key = bossForWave(wave, draw);
+  return key === FINAL.boss ? actBoss(actOf(wave)) : key;
+}
 
 /** One champion's world progress: per realm, the highest level cleared on each tier (index into config/economy TIERS). */
 export type WorldProgress = Partial<Record<RealmId, number[]>>;

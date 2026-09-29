@@ -23,6 +23,8 @@ import { ACTS } from '../config/acts';
 import { actTheme } from './acts';
 import { killEnemy } from './combat';
 import { createSquad } from './squads';
+import { REALMS } from '../config/world';
+import { levelBoss } from '../logic/world';
 
 const MIN_SPAWN_DIST = 380;
 
@@ -93,7 +95,9 @@ export function questsTakenThisAct(g: Game): QuestKind[] {
 
 function startWave(g: Game): void {
   g.wave++;
-  const key = bossForWave(g.wave, { seed: g.seed, arena: g.arena.id, seen: g.bossesSeen, quests: questsTakenThisAct(g) });
+  const draw = { seed: g.seed, arena: g.arena.id, seen: g.bossesSeen, quests: questsTakenThisAct(g) };
+  const lv = g.level;
+  const key = lv && g.wave === lv.last ? levelBoss(REALMS[lv.realm].levels[lv.level - 1].boss, g.wave, draw) : bossForWave(g.wave, draw); // #191: a level ends on its realm's boss
   if (key) g.bossesSeen.push(key);
   const boss = key ? bossDef(key).from : null;
   const plan = directWave({
@@ -157,7 +161,7 @@ function pullStragglers(g: Game, dt: number): void {
 }
 
 export function updateSpawning(g: Game, dt: number): void {
-  if (g.pendingMerchant) return; // between Acts: nothing spawns until the Merchant has been visited
+  if (g.pendingMerchant || g.level?.cleared) return; // between Acts: nothing spawns until the Merchant has been visited; a cleared level is over
   if (g.breather > 0) {
     g.breather -= dt;
     if (g.breather <= 0) startWave(g);
@@ -192,7 +196,8 @@ export function updateSpawning(g: Game, dt: number): void {
     g.vars.stragglers = 0;
     g.breather = !cleared ? 0.01 : curseValue(g.curses, 'noRespite', 'breather', WAVES.breather);
     const noMerchant = g.oath.n.noMerchant === g.act; // v0.6 Oath (Empty Road): no Merchant in this Act, straight on to the fork
-    if (isActEnd(g.wave)) {
+    if (g.level && g.wave >= g.level.last && g.victory === 'none') g.level.cleared = true; // #191: the level ends here, before any Merchant or fork (the Last Bastion's win is the victory)
+    else if (isActEnd(g.wave)) {
       if (noMerchant) g.pendingRoute = routeChoices(g.seed, g.act, g.arena.id);
       else g.pendingMerchant = true; // the UI (or the bot) visits the Merchant, then picks a route
     } else if (g.route?.focus === 'merchant' && g.wave % ACTS.length === ROUTES.merchant.midWave && !noMerchant) (g.pendingMerchant = true), (g.midMerchant = true), (g.vars.caravanRelic = caravanSellsRelic(g.player.relics.rng) ? 1 : 0); // v0.6 Merchant path; v0.8.1 #144: a relic or books
@@ -206,6 +211,6 @@ export function updateSpawning(g: Game, dt: number): void {
     g.levelAtWave.push(g.player.level); // for the simulation's pace report
     gainXp(g, waveClearXp(g.wave));
     floatText(g, g.player.x, g.player.y - 60, `+${bonus} gold`, '#c9a227', 15);
-    g.banner = { text: cleared ? 'Wave cleared' : 'They keep coming', t: 1.5 };
+    g.banner = g.level?.cleared ? { text: 'Level cleared', t: 3 } : { text: cleared ? 'Wave cleared' : 'They keep coming', t: 1.5 };
   }
 }

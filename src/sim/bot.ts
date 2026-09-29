@@ -248,7 +248,7 @@ export function botStep(g: Game, variant = 0, out?: Command[]): void {
 /** A whole run by the bot. A win is banked on the spot, unless `endless`: then it goes on past the Usurper until it dies or runs out of time. */
 export function simulateRun(classId: ClassId, seed: number, opts: RunOptions = {}, variant = 0, maxSeconds = 45 * 60, endless = false): RunSummary {
   const g = createGame(classId, seed, opts);
-  while (!g.over && g.time < maxSeconds) {
+  while (!g.over && !g.level?.cleared && g.time < maxSeconds) {
     if (g.victory === 'pending') {
       if (!endless) break;
       step(g, [choiceCommand(g, { c: 'endless' })], false);

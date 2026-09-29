@@ -401,6 +401,9 @@ You are the main AI for Last Bastion (github.com/Cyanida/last-bastion). This pla
 - ◆ **The Marches' featured families** (#190), levels 1-7: Steel, Flame, Blood, Storm, Frost, Holy, Grave. Levels 1-6 end on a pool boss; level 7 is the Warden as crown boss.
 - ◆ **Unnamed bosses** (#190): the Barrowvale's level-1 boss is the Plague Abbot and its level-3 boss "the Gravedigger"; first bosses where the plan names none: Frozen Pass the Frost Lich, Stormspire the Warlord, Hallowed Reach the Heretic, Crimson Fields the Headsman.
 - ◆ **Small rules** (#190): a crown boss phase lasts at least 12 s; a level cleared with no family relic held pays 2 Runes in place of a locked relic; "the family you held" means every family among the relics held at the end; the Last Bastion's opening pick draws from any family.
+- ◆ **The head start** (#191): its level is the pace's level once the wave before is cleared, rounded (1, 6, 11, 15, 19, 21, 24; 19 where the table above says 18, since the pace is 18.5 there); the Keep's and mastery's start levels stay on top. Each skipped level gives one boon of a bundle cycling the class's attack stat, HP, attack speed and its secondary stat, at rare strength (about what the best of three rolled cards is worth).
+- ◆ **Wings by the start wave** (#191): a start past the Act's mid-Act boss opens the one wing that boss opens; quest wings are not counted.
+- ◆ **A realm boss not built yet** (#191) is stood in for by the usual draw, and a wave-40 draw outside the Last Bastion is an Act boss, never the Usurper. A realm arena not built yet falls back to the chosen arena. The elite boss's and crown boss's extra phases come with their content issues.
 - ✓ **28-09:** no approval gates that stop the build; releases stacked on each other's branches up to v1.0.0 (see the top).
 
 ---

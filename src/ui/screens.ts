@@ -736,10 +736,10 @@ const REFUND_NOTES: Record<string, string> = {
   'v0.6': "<b>The Keep was rebuilt for v0.6:</b> the Armory's damage drills became new ways to start a run, and the top ranks of a few tracks were cut.",
   'v0.7': "<b>The Chapel changed with v0.7's relics:</b> Reliquary Guard now gives rerolls at relic moments (two ranks at most), the Reliquary Vault a fourth choice at wave bosses; a third Guard rank is handed back.",
 };
-const RELIC_SOURCE_NAMES: Record<RelicSource, string> = { boss: 'a boss', lair: 'a lair', strongbox: 'a strongbox', quest: 'a quest', merchant: 'the Merchant', start: 'the start', other: '-' };
+const RELIC_SOURCE_NAMES: Record<RelicSource, string> = { boss: 'a boss', lair: 'a lair', strongbox: 'a strongbox', quest: 'a quest', merchant: 'the Merchant', start: 'the start', loadout: 'your loadout', other: '-' };
 /** #100: the families an arena's bosses drop, e.g. "🔥 Flame · ✨ Holy · 🛡️ Steel". */
 const familyList = (ids: readonly FamilyId[]) => ids.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' · ');
-const MOMENT_TITLES: Record<RelicSource, string> = { boss: 'Spoils of the fallen', lair: "The lair's hoard", strongbox: 'A strongbox', quest: 'A reward for your quest', merchant: "The merchant's pick", start: "The Armorer's choice", other: 'A relic' };
+const MOMENT_TITLES: Record<RelicSource, string> = { boss: 'Spoils of the fallen', lair: "The lair's hoard", strongbox: 'A strongbox', quest: 'A reward for your quest', merchant: "The merchant's pick", start: "The Armorer's choice", loadout: 'Your loadout', other: 'A relic' };
 
 /**
  * v0.7: a relic moment: pick one of three, reroll the three (a moment's rerolls are few), or skip it for gold and a Rune shard. Each card says

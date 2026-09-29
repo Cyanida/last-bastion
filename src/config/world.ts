@@ -153,4 +153,9 @@ export const WORLD = {
   ringStep: { hp: [1, 1.07, 1.14, 1.21, 1.28], damage: [1, 1.04, 1.08, 1.12, 1.16] },
   /** Rule 6: the Last Bastion's elite foes and limits. */
   finale: { minAffixes: 2, eliteCap: 0.35, eliteChanceMult: 1.5, armorersChoice: false, merchantRelics: false },
+  /**
+   * Rule 3 (#191): the head start's missing level-up boons, one per level skipped, taken round this cycle ('attack': the class's attack
+   * stat). Decided: at rare strength, about what the best of three rolled cards is worth.
+   */
+  headStart: { boons: ['attack', 'hp', 'atkSpd', 'secondary'] as const, rarity: 'rare' as const },
 };
