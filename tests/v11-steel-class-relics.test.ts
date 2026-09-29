@@ -9,6 +9,7 @@ import { createMinion } from '../src/entities/actors';
 import { slotBlock } from '../src/logic/champions';
 import { bodkinShare, bodkinStep, championPool, haloStacks, perStack, relicPoolFor } from '../src/logic/relics';
 import { damagePlayer } from '../src/systems/combat';
+import { updateAbility } from '../src/systems/abilities';
 import { armorStacksMax } from '../src/systems/relicCore';
 import { addRelic, offerRelics, resolveRelicOffer, updateRelics } from '../src/systems/relics';
 import { spawnEnemy } from '../src/systems/spawning';
@@ -78,16 +79,18 @@ describe('the Iron Hold class relics (#218): the model', () => {
 });
 
 describe('what each one does', () => {
-  it('Iron Halo: Heavenly Radiance gives 1 + Grace/5 armor stacks, and its hits strike for damage per stack', () => {
+  it('Iron Halo: Heavenly Radiance gives 1 + Grace/5 armor stacks, and its burst strikes for damage per stack', () => {
     const { g, foe } = arena('angel', ['ironHalo']);
     const p = g.player;
-    emit(g, 'onAbilityUsed', { cooldown: 16 });
-    expect(p.armorStacks).toBe(Math.min(armorStacksMax(p), haloStacks(p.stats.secondary, 5)));
     hit(g, foe, 'attack');
-    expect(lost(foe)).toBe(0); // only Radiance's hits
     hit(g, foe, 'ability');
-    expect(lost(foe)).toBeGreaterThan(0);
-    expect(stat(g, 'ironHalo').damage).toBeGreaterThan(0);
+    expect(lost(foe)).toBe(0); // no cast, no strike
+    // a real cast: Radiance's own hits land before onAbilityUsed, with no stacks held yet; the halo's strike must still land on this cast
+    p.abilityCd = 0;
+    g.input.ability = true;
+    updateAbility(g, 1 / 60);
+    expect(p.armorStacks).toBe(Math.min(armorStacksMax(p), haloStacks(p.stats.secondary, 5)));
+    expect(stat(g, 'ironHalo').damage).toBeGreaterThan(0); // (relic damage per stack grows with level, and holy bites a knight harder)
   });
 
   it('Iron Halo awakened (Aureole): Radiance heals more per armor stack', () => {

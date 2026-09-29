@@ -191,12 +191,13 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     onAbilityUsed(g, _ev, p) {
       const ability = p.cls.ability;
       if (ability.id !== 'heavenlyRadiance') return;
-      gainArmorStacks(g, p, haloStacks(sOf(p), nOf(p, 'ironHalo').per)); // before Radiance's hits land (onHit below), so its first cast strikes too
-      if (awakened(p, 'ironHalo')) relicHeal(g, p, perStack(attackDamage(scale.heavenlyRadiance(ability, sOf(p)).heal, p.stats.int), p.armorStacks, aOf('ironHalo').heal), true); // Aureole
-    },
-    onHit(g, ev, p) {
-      if (ev.source !== 'ability' || ev.enemy.dead || p.armorStacks <= 0) return;
-      damageEnemy(g, ev.enemy, relicDamage(p, nOf(p, 'ironHalo').damage) * p.armorStacks, false, 0, 0, 'relic', 'holy');
+      const s = scale.heavenlyRadiance(ability, sOf(p));
+      gainArmorStacks(g, p, haloStacks(sOf(p), nOf(p, 'ironHalo').per));
+      // the strike rides this cast's burst, with the stacks it just gave: onAbilityUsed comes after Radiance's own hits have landed, and
+      // the stacks fade (4 s) long before the next cast, so striking from onHit left Iron Halo at 0 damage in play (#218)
+      const dmg = relicDamage(p, nOf(p, 'ironHalo').damage) * p.armorStacks;
+      for (const e of g.hash.query(p.x, p.y, s.radius, [])) if (!e.dead) damageEnemy(g, e, dmg, false, 0, 0, 'relic', 'holy');
+      if (awakened(p, 'ironHalo')) relicHeal(g, p, perStack(attackDamage(s.heal, p.stats.int), p.armorStacks, aOf('ironHalo').heal), true); // Aureole
     },
   },
 

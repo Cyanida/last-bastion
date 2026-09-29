@@ -395,13 +395,16 @@ and `hold=reprisalCuirass,vampireFang` for the duo (4 Paladin and 4 Viking runs)
 | Relic | Runs held at wave 20 | Share |
 |---|---|---|
 | ⚖️ Iron Tithe (with its two sources) | 8 | 26.0% |
-| 💫 Iron Halo | 6 | 18.1% |
+| 💫 Iron Halo | 6 | 4.2% |
 | ⛓️ Legion Plate | 6 | 12.6% |
 | 📌 Bodkin Points | 6 | 7.8% |
 
 All four sit inside the band on their first numbers. A duo's row counts its two sources' work as its own (#96), so Iron Tithe's 26% is the
 cuirass's reprisals, the fang's leech and the tithe's bleed and heal together; the cuirass read 9.3% in the runs where it stood alone. The power index
 read 2.04 (Act II 1.86, Act III 2.25), inside its band.
+Iron Halo was measured again after its strike moved onto the cast itself: it used to strike from Radiance's hits, which land before the
+cast gives its stacks, so it only ever struck with stacks from elsewhere (the 18.1% first read was that, in maxed builds full of Steel);
+now each cast strikes everything in Radiance's radius once, with the stacks it just gave (6 Angel runs, 6 won).
 
 ## A0b · The new relic list (approved, revision 2)
 
