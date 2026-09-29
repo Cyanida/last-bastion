@@ -3477,7 +3477,7 @@ await check("Relics: at full HP a test run with Berserker Tooth already attacks 
   }),
 );
 
-// ---------- #217: the Iron Hold's Steel relics: a test run holding all four, fought through the real input for 25 s ----------
+// ---------- #217: the Iron Hold's Steel relics: a test run holding all four, fought through the real input for 30 s ----------
 await check('Relics: Rivet Hammer, Pavise, Reprisal Cuirass and Heart of the Hold each do their work in a fight, and their HUD tiles say what they do (#217)', () =>
   inPage(() => location.reload()).then(async () => {
     await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
@@ -3494,6 +3494,9 @@ await check('Relics: Rivet Hammer, Pavise, Reprisal Cuirass and Heart of the Hol
       document.querySelector('[data-act="test"]').click();
       await wait(100);
       set(document.getElementById('tm-class'), 'paladin');
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave and a level-1 champion: the horde reaches her and hits
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), '1');
       const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
       for (const id of listed) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
       const g = window.__startTest();
@@ -3502,11 +3505,11 @@ await check('Relics: Rivet Hammer, Pavise, Reprisal Cuirass and Heart of the Hol
       const tip = (id) => document.querySelector(`#h-relics .relic[data-id="${id}"]`)?.dataset.tip ?? '';
       return { listed: listed.length, held: g.player.relics.held.filter((id) => ids.includes(id)).length, tips: ids.map(tip) };
     }, ids);
-    // the champion walks into the horde (arrow keys) and fights it for 25 s: every number below comes from real hits
+    // the champion steps toward the horde (arrow keys) and holds her ground for 30 s: every number below comes from real hits
     await page.keyboard.down('ArrowRight');
-    await inPage(() => window.__lb.run(300, false, 'input'));
+    await inPage(() => window.__lb.run(60, false, 'input'));
     await page.keyboard.up('ArrowRight');
-    await inPage(() => window.__lb.run(1200, false, 'input'));
+    await inPage(() => window.__lb.run(1800, false, 'input'));
     const fight = await inPage((ids) => {
       const p = window.__lb.game.player, s = (id) => p.relics.stats[id] ?? { damage: 0, prevented: 0 };
       return { rivet: s(ids[0]).damage, pavise: s(ids[1]).prevented, reprisal: s(ids[2]).damage, heart: s(ids[3]).damage, stacks: p.armorStacks };

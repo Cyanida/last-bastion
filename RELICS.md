@@ -323,6 +323,47 @@ Torc and the Phylactery read low for the same reason Bone Chime reads high: the 
 End, and the Phylactery's knights also soak hits the shares cannot see. The run's other targets hold as before (6-sets 16.7% of winning runs,
 1.28 duos); the power index reads 1.73 with 4 runs a class, as the sim's small samples do.
 
+## C2 · The Iron Hold's Steel relics (v0.11, [#217](https://github.com/Cyanida/last-bastion/issues/217))
+
+Four of the Iron Hold's seven new Steel relics (docs/road-to-the-crown.md, "The Iron Hold" and v0.11.0 item 4): a common, two rares and
+the family's second legendary. The Iron Hold teaches armor you break, shields that block from the front and thorns that hit back, and each
+relic takes one of those lessons for the player. Numbers in `config/relics.ts` (the four entries after Ironhide), behaviour in
+`systems/relicFamilies/steel.ts`, the pure rules (the front arc, the rivet count, what the cuirass keeps, the thorns per stack) in
+`logic/relics.ts`. The class relics for the Angel, Necromancer and Archer and the new Steel duo are #218.
+
+| Relic | Rarity | Effect (I → II) | Awakened (III) |
+|---|---|---|---|
+| 🔩 Rivet Hammer | common | Every 4th → 3rd attack hit drives a rivet: +22 → 28 damage (grows with level) and an armor stack | **Sunder**: a rivet breaks the armor or shield of the enemy it strikes (not a boss's) |
+| 🚪 Pavise | rare | 25% → 35% chance to block a hit from an enemy in front of you (within 60° of where you last struck) | **Riposte**: a block from the front strikes the attacker for 3× the hit |
+| 🦔 Reprisal Cuirass | rare | Every hit that comes at you, blocked or not, is kept at full force (up to 25% of max HP); your next attack hit adds 8× → 10× that as damage | **Vengeance**: the reprisal also strikes every enemy within 90 px of the target for 50% of it |
+| 🏰 Heart of the Hold | legendary | Armor stacks never fade and you hold 3 more; a hit you take or block gives an armor stack, and the attacker takes 8 → 12 damage per stack you hold (grows with level) | **Iron Keep**: at full armor stacks, hits take 20% less damage |
+
+- **Where they are found.** Rivet Hammer is a common, so it joins the starter pool: every run finds it from the start (16 commons now). The
+  rares and the legendary are in the Iron Hold's pool (the realm's whole family) and, once kept, in the champion's inventory; the runs
+  without a champion (the Daily Trial, the sims) find all four. Heart of the Hold is the second Steel legendary, so the Iron Hold's Knight
+  crown ("pick 1 of 2 Steel legendaries") offers it beside Unbreakable.
+- **Slot rules.** Heart of the Hold takes 2 slots and is the loadout's one legendary; all four count toward the 4 Steel relics a loadout may
+  hold.
+- **The front** is where you last struck (the way a player faces in a fight), so the Pavise guards the foe you fight and not the one behind
+  you. A block counts as work for Bulwark, Thorn Mail's Briar Plate and Heart of the Hold like any other block.
+- **Reprisal Cuirass keeps the hit's full force**, before armor, ward or a block: kept after armor, it read 0.6% in the sim, as a maxed save
+  takes little of what comes at it.
+
+**Measured.** `npm run sim -- relics 3 hold=<id>` (new: every run holds the named relic from the start; maxed saves, 15 runs each, 14 won).
+Share from wave 21 on, target 3-35%:
+
+| Relic | Runs held at wave 20 | Share |
+|---|---|---|
+| 🚪 Pavise | 14 | 24.3% |
+| 🏰 Heart of the Hold | 14 | 13.8% |
+| 🦔 Reprisal Cuirass | 14 | 6.5% |
+| 🔩 Rivet Hammer | 14 | 5.8% |
+
+All four sit inside the band. The Pavise stands with Tower Shield (17-21% in the same runs), the other blocker; the first tuning (30% → 40%)
+read 29.7%, close to the ceiling, so it came down. Rivet Hammer's first numbers (16 → 20 damage) read 4.2% and were raised. Heart of the
+Hold's share counts only its thorns and Iron Keep: the armor of its extra, unfading stacks is not credited to it. The power index stayed in
+its band in every run (1.80-2.00).
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
@@ -441,7 +482,7 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Deathmask | common | Cursed enemies deal 15% → 20% less damage | **Mark of the Grave**: a cursed enemy you kill leaves a corpse that bursts in shadow after 1 s | any |
 | Bone Chime *(Necromancer)* | rare | Minions inherit 50% → 70% of your attack speed, plus 2% → 3% per Soul Power | **Death Knell**: every 20th minion hit tolls the chime: a shadow burst around that minion | Necromancer |
 
-#### 🛡️ Steel (5 + 2 class)
+#### 🛡️ Steel (9 + 2 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -452,6 +493,10 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Unbreakable | legendary | Once every 30 → 20 s, a hit that would take more than 25% of your HP is blocked | **Adamant**: after it blocks, +50% armor for 4 s | any |
 | Aegis of the Faithful *(Paladin)* | rare | When Divine Shield ends you gain armor stacks: 1 per 5 → 4 Faith | **Consecrated Steel**: while at full armor stacks, Divine Shield's burst is 50% larger | Paladin |
 | Ironhide *(Viking)* | rare | Berserker Rage gives an armor stack every 2 → 1.5 s | **Unstoppable**: during Rage, blocked hits heal 2% max HP | Viking |
+| Rivet Hammer *(v0.11)* | common | Every 4th → 3rd attack hit drives a rivet: +22 → 28 damage (grows with level) and an armor stack | **Sunder**: a rivet breaks the armor or shield of the enemy it strikes (not a boss's) | any |
+| Pavise *(v0.11)* | rare | 25% → 35% chance to block a hit from an enemy in front of you (within 60° of where you strike) | **Riposte**: a block from the front strikes the attacker for 3× the hit | any |
+| Reprisal Cuirass *(v0.11)* | rare | Every hit that comes at you, blocked or not, is kept at full force (up to 25% of max HP); your next attack hit adds 8× → 10× that as damage | **Vengeance**: the reprisal also strikes every enemy within 90 px of the target for 50% of it | any |
+| Heart of the Hold *(v0.11)* | legendary | Armor stacks never fade and you hold 3 more; a hit you take or block gives an armor stack, and the attacker takes 8 → 12 damage per stack you hold (grows with level) | **Iron Keep**: at full armor stacks, hits take 20% less damage | any |
 
 ### Duo relics (12)
 
