@@ -396,6 +396,47 @@ await check('menus: the compendium, glossary and flash cards in the kit, every r
   return { ok: seen.every((s) => s.ok), detail: seen.map((s) => s.detail).join(' · ') };
 });
 
+// #189: every menu and choice screen left in the old look is in the kit now. The screen tour (lib/screen-tour.mjs) plays through all
+// twenty by their real buttons, with the mouse at 1280x720 and by touch in phone landscape; each has its heading on the ribbon, no old
+// button, chip or dialog left, at most one gold main button, and a framed screen fits the window (the choice screens' cards may scroll
+// down, never sideways); on touch every kit button is at least 44 px.
+await check('menus: every screen in the kit, played through at 1280x720 and phone landscape (#189)', async () => {
+  const { tour } = await import('./lib/screen-tour.mjs');
+  const seen = [];
+  for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => !e.message.includes('screen tour') && errs.push(e.message)); // the crash report's own error is the point
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const screens = [];
+    const { skipped } = await tour(p, async (name) => {
+      screens.push(await p.evaluate((name) => {
+        const root = document.getElementById('crash') ?? document.getElementById('overlay');
+        const screen = root.querySelector('.kit-screen') ?? root.querySelector('.levelup');
+        if (!screen) return { name, why: 'not in the kit' };
+        const old = root.querySelectorAll('.btn, .chip, .dialog, h1.small').length;
+        const ribbon = screen.querySelector('.kit-head .kit-ribbon')?.textContent.trim();
+        const loose = [...screen.querySelectorAll('button')].filter((b) => !b.matches('.kit-btn, .kit-close, .card, .talent')).length;
+        const gold = screen.querySelectorAll('.kit-btn.gold').length;
+        const r = screen.getBoundingClientRect();
+        const framed = screen.classList.contains('kit-screen');
+        const fits = r.left >= -1 && r.right <= innerWidth + 1 && (!framed || (r.top >= -1 && r.bottom <= innerHeight + 1));
+        const small = matchMedia('(pointer: coarse)').matches ? [...screen.querySelectorAll('.kit-btn, .kit-close')].filter((b) => b.offsetParent && b.getBoundingClientRect().height < 44).length : 0;
+        const why = [!ribbon && 'no ribbon', old && `${old} old-style`, loose && `${loose} loose buttons`, gold > 1 && `${gold} gold`, !fits && 'off screen', small && `${small} under 44 px`].filter(Boolean).join('/');
+        return { name, why };
+      }, name));
+    }, { touch });
+    await p.close();
+    const bad = screens.filter((s) => s.why);
+    seen.push({
+      ok: screens.length === 20 && !bad.length && !skipped.length && !errs.length,
+      detail: `${w}x${h}${touch ? ' touch' : ''}: ${screens.length - bad.length}/${screens.length} in the kit${bad.length ? ` (${bad.map((s) => `${s.name}: ${s.why}`).join(', ')})` : ''}${skipped.length ? `, skipped ${skipped.join(', ')}` : ''}${errs.length ? `, errors: ${errs[0]}` : ''}`,
+    });
+  }
+  return { ok: seen.every((s) => s.ok), detail: seen.map((s) => s.detail).join(' · ') };
+});
+
 // #138: the champions are drawn on a grid twice as fine, and show at the same size as before on the class select
 await check('class select: champions on the finer grid keep their size, at one scale, standing on one line (#156)', () =>
   inPage(async () => {
@@ -1253,7 +1294,7 @@ await check('an error in a frame: the overlay, Continue, the run goes on', () =>
     });
     await P.wait(400);
     const crash = document.getElementById('crash');
-    const shown = { overlay: !!crash, text: crash?.innerText.includes('Something went wrong') && crash.querySelector('pre').textContent.includes('play-test crash'), state: lb.state };
+    const shown = { overlay: !!crash, text: crash?.textContent.includes('Something went wrong') && crash.querySelector('pre').textContent.includes('play-test crash'), state: lb.state };
     if (!crash) return { ok: false, detail: `no overlay, state ${lb.state}` };
     await P.click('#crash [data-continue]');
     await P.click('[data-resume]');
@@ -1456,7 +1497,7 @@ await check('import: a save with markup stays text', () =>
       await P.wait(150);
       seen.push(!!document.getElementById('xss'));
       const titles = [...document.querySelectorAll('[data-equip]')].map((b) => b.textContent.trim());
-      btn('Back').click();
+      document.querySelector('[data-back]').click(); // #189: the Chronicle's back disc
       await P.wait(150);
       btn('The Keep').click();
       await P.wait(150);
