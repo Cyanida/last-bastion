@@ -423,14 +423,14 @@ describe('unlock conditions', () => {
     expect(withAchievements(save).earned.map((a) => a.id)).toContain('wave20all');
   });
 
-  it('clearing wave 15 on your highest tier unlocks the next, and only then', () => {
-    expect(applyRun(defaultSave(), run({ wavesCleared: 14 })).tierUnlocked).toBe(false);
-    const up = applyRun(defaultSave(), run({ wavesCleared: 15 }));
+  it('Knight is open from the start; a win on your highest tier opens the next (#203)', () => {
+    expect(defaultSave().tierUnlocked).toBe(1);
+    expect(applyRun(defaultSave(), run({ wavesCleared: 40, won: true, tier: 0 })).tierUnlocked).toBe(false);
+    const up = applyRun(defaultSave(), run({ wavesCleared: 40, won: true, tier: 1 }));
     expect(up.tierUnlocked).toBe(true);
-    expect(up.save.tierUnlocked).toBe(1);
-    expect(applyRun(up.save, run({ wavesCleared: 15, tier: 0 })).tierUnlocked).toBe(false); // must be on the new tier
+    expect(up.save.tierUnlocked).toBe(2);
     const top = { ...defaultSave(), tierUnlocked: TIERS.length - 1 };
-    expect(applyRun(top, run({ wavesCleared: 15, tier: TIERS.length - 1 })).save.tierUnlocked).toBe(TIERS.length - 1);
+    expect(applyRun(top, run({ wavesCleared: 40, won: true, tier: TIERS.length - 1 })).save.tierUnlocked).toBe(TIERS.length - 1);
   });
 });
 

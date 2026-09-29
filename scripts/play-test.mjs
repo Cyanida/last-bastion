@@ -2010,8 +2010,8 @@ await check('Gallows: a cursed run earns its bonus, the results show it', () =>
   }),
 );
 
-// #79: the difficulty select says what opens each locked tier, and the Watchtower no longer locks one
-await check('difficulty: a locked tier names what opens it, and Knight opens with no Watchtower', () =>
+// #79, #203: the difficulty select says what opens each locked tier; Squire and Knight are open in a fresh save
+await check('difficulty: Knight is open in a fresh save, a locked tier names the win that opens it (#203)', () =>
   inPage(async () => {
     localStorage.removeItem('lastbastion.save');
     location.reload();
@@ -2023,16 +2023,11 @@ await check('difficulty: a locked tier names what opens it, and Knight opens wit
       document.querySelector('[data-go="start"]').click();
       await wait();
       const fresh = [1, 2, 3].map((i) => (btn(i).disabled ? btn(i).dataset.tip : 'open'));
-      lb.save.tierUnlocked = 1; // wave 15 cleared on Squire; the Watchtower stays a ruin
-      lb.save.buildings.watchtower = 0;
-      btn(0).click(); // redraws the select
-      await wait();
       btn(1).click();
       await wait();
       const picked = btn(1).classList.contains('on') && lb.save.settings.tier === 1;
       const champ = btn(2).dataset.tip;
-      const ok = fresh[0] === 'Locked — clear wave 15 on Squire' && fresh[1] === 'Locked — clear wave 30 on Knight and win a run on Squire'
-        && fresh[2] === 'Locked — win a run on Champion' && picked && btn(2).disabled && champ.includes('win a run on Squire');
+      const ok = fresh[0] === 'open' && fresh[1] === 'Locked — win a run on Knight' && fresh[2] === 'Locked — win a run on Champion' && picked && btn(2).disabled;
       return { ok, detail: `fresh ${JSON.stringify(fresh)} · Knight picked ${picked} · Champion "${champ}"` };
     });
   }),

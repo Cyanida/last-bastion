@@ -405,6 +405,7 @@ You are the main AI for Last Bastion (github.com/Cyanida/last-bastion). This pla
 - ◆ **Wings by the start wave** (#191): a start past the Act's mid-Act boss opens the one wing that boss opens; quest wings are not counted.
 - ◆ **A realm boss not built yet** (#191) is stood in for by the usual draw, and a wave-40 draw outside the Last Bastion is an Act boss, never the Usurper. A realm arena not built yet falls back to the chosen arena. The elite boss's and crown boss's extra phases come with their content issues.
 - ◆ **Save v7** (#193): a v6 save counts relic picks for the whole account, so every class it played becomes a champion holding every relic the account picked (less other classes' class relics and the cursed ones); its last logged run's talents become its talent plan; a class with a win gets the Last Bastion open by a flag, not a crown. Loadouts are kept per realm (a level with fewer slots takes the first ones). The Keep ranks stay bought and change meaning (no refund); the Seasoned mastery rank adds a head-start level like Veteran Levies. Relics found in a run don't enter the inventory; rewards do.
+- ◆ **Difficulty outside a realm** (#203): a run with no realm opens Champion with a win on Knight and Legend with a win on Champion; a save keeps every tier it already opened. The knight deed ("Dubbed a Knight") counts the highest tier won (Knight, Champion, Legend), since Knight being open earns nothing.
 - ✓ **28-09:** no approval gates that stop the build; releases stacked on each other's branches up to v1.0.0 (see the top).
 
 ---
