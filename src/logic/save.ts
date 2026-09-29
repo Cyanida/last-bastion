@@ -21,9 +21,10 @@ import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, rune
 import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
 import { keepRuns, readRunLog, type RunLog } from './runlog';
 import { recordTierRun, tierUnlockedFor } from './difficulty';
+import { championsFromV6, readChampions, type Champion } from './champions';
 
-export const SAVE_VERSION = 6; // v0.7: the relic rework (compendium, Keep refund and new counters below)
-export const READABLE_VERSIONS = [2, 3, 4, 5, 6]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
+export const SAVE_VERSION = 7; // v0.10 (#193): champions, one per class (logic/champions.ts); v6 was v0.7's relic rework
+export const READABLE_VERSIONS = [2, 3, 4, 5, 6, 7]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
 
 /**
  * v0.6: Keep ranks that v0.5 sold and v0.6 took away or cut short: the Armory's four damage tracks, the top two ranks of HP and speed,
@@ -54,7 +55,7 @@ export function legacyRefund(meta: Record<string, unknown>): { gold: number; run
 }
 export const SAVE_KEY = 'lastbastion.save';
 /** v0.7: which game versions wrote a save format, for the backup list (Settings › Save data). */
-export const saveFormatLabel = (version: number): string => ({ 2: 'v0.2', 3: 'v0.3', 4: 'v0.4-v0.5', 5: 'v0.6', 6: 'v0.7' } as Record<number, string>)[version] ?? (version ? `save format ${version}` : 'unreadable');
+export const saveFormatLabel = (version: number): string => ({ 2: 'v0.2', 3: 'v0.3', 4: 'v0.4-v0.5', 5: 'v0.6', 6: 'v0.7-v0.9', 7: 'v0.10' } as Record<number, string>)[version] ?? (version ? `save format ${version}` : 'unreadable');
 export const LEGACY_BEST_KEY = 'lastbastion.best'; // v0.1: { [classId]: bestWave }
 
 export interface ClassRecord {
@@ -128,6 +129,7 @@ export interface Save {
   duos: DuoId[]; // v0.7: duos ever formed (the compendium shows them in full)
   cards: CardId[]; // v0.8 (#124): flash cards seen (an entry, not a format change: an older save has seen none)
   endless: Record<ClassId, EndlessEntry[]>; // v0.6: each class's best Endless runs, best first (VICTORY.leaderboard)
+  champions: Partial<Record<ClassId, Champion>>; // v0.10 (#193): one per class, once created (mastery, treasures, wins, Oaths and Endless stay in the per-class records above)
   settings: { arena: ArenaId; tier: number; quality: QualitySetting; textSize: TextSize; prerelease: boolean; manualAim: boolean; curses: CurseId[]; trait: TraitId; trait2: TraitId; oath: number; palettes: Partial<Record<ClassId, number>> };
 }
 
@@ -207,6 +209,7 @@ export function defaultSave(): Save {
     oaths: Object.fromEntries(CLASS_ORDER.map((id) => [id, 0])) as Record<ClassId, number>,
     contracts: { week: '', progress: Array(CONTRACTS_PER_WEEK).fill(0) },
     endless: Object.fromEntries(CLASS_ORDER.map((id) => [id, []])) as unknown as Record<ClassId, EndlessEntry[]>,
+    champions: {},
     settings: { arena: 'courtyard', tier: 0, quality: 'auto', textSize: 'normal', prerelease: false, manualAim: false, curses: [], trait: 'none', trait2: 'none', oath: 0, palettes: {} },
   };
 }
@@ -319,6 +322,8 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
       save.tierWins = TIERS.map((_, i) => Math.max(0, Math.floor(num((raw.tierWins as unknown[])[i]))));
     } else for (const r of save.runs) if (r.tier < TIERS.length) Object.assign(save, recordTierRun(save, r.tier, r.won ? r.wave : r.wave - 1, r.won));
     save.tierUnlocked = tierUnlockedFor(save.tierUnlocked, save);
+    // v6 -> v7 (#193): a champion for every class played, with every relic the save has picked (logic/champions.ts)
+    save.champions = version >= 7 ? readChampions(raw.champions) : championsFromV6(save.classes, save.relicPicks, save.wins, save.runs);
     if (isObj(raw.daily)) for (const [day, wave] of Object.entries(raw.daily)) if (/^\d{4}-\d{2}-\d{2}$/.test(day) && num(wave) > 0) save.daily[day] = num(wave);
     if (isObj(raw.settings)) {
       const s = raw.settings;
