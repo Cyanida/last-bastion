@@ -68,6 +68,7 @@ export interface RealmDef {
   arena: WorldArenaId;
   family?: FamilyId; // a relic realm's family
   foes?: Partial<Record<EnemyId, EnemyId>>; // #212: the realm's variants: a foe that marches in its levels as its own kind (logic/world.ts realmFoe)
+  hazard?: 'presses'; // #211: the realm's own hazard in its arena, on top of the arena's (the Iron Hold's forge presses, config/arenas.ts PRESSES)
   teaches: string;
   release: string;
   levels: LevelDef[];
@@ -104,6 +105,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
     name: 'The Iron Hold', ring: 2, opens: { crowns: 1 }, arena: 'keep', family: 'steel', release: '0.11.0',
     teaches: 'Armor you break, shields that block from the front, thorns that hit back',
     foes: { knight: 'ironKnight' },
+    hazard: 'presses',
     levels: relicRealmLevels('steel', 'warden', 'forgemaster', 'ironKing'), crown: RELIC_CROWN,
   },
   barrowvale: {

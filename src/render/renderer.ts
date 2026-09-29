@@ -284,6 +284,37 @@ function drawClosedRegions(ctx: Ctx, g: Game, cx: number, cy: number, vw: number
   }
 }
 /** #159: a lit iron bar of the portcullis, in the rig's dark steel ramp: outline, body, a highlight on the top and left edges. */
+/**
+ * #211: a forge press's marked slab and its ram. The slab glows hotter as the slam nears (its inner square grows to the edge), its
+ * corners bracketed; the ram's shadow darkens on it while the ram comes down from above, slow and then fast, and lands at k = 1.
+ */
+function pressSlab(ctx: Ctx, x: number, y: number, size: number, k: number, time: number): void {
+  const h = size / 2 - 3;
+  ctx.fillStyle = '#a3282a';
+  ctx.globalAlpha = 0.16 + 0.06 * Math.sin(time * 18);
+  ctx.fillRect(x - h, y - h, h * 2, h * 2);
+  ctx.globalAlpha = 0.32;
+  ctx.fillRect(x - h * k, y - h * k, h * 2 * k, h * 2 * k);
+  ctx.globalAlpha = 0.15 + 0.45 * k; // the ram's shadow
+  ctx.fillStyle = '#0f1118';
+  ctx.fillRect(x - h * (0.5 + 0.4 * k), y - h * (0.35 + 0.3 * k), h * (1 + 0.8 * k), h * (0.7 + 0.6 * k));
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = '#e0683f';
+  const c = 14, t = 3; // corner brackets
+  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const cx = x + sx * h, cy = y + sy * h;
+    ctx.fillRect(sx < 0 ? cx : cx - c, sy < 0 ? cy : cy - t, c, t);
+    ctx.fillRect(sx < 0 ? cx : cx - t, sy < 0 ? cy : cy - c, t, c);
+  }
+  ctx.globalAlpha = Math.min(1, k * 4);
+  const lift = 150 * (1 - k * k); // slow, then fast
+  if (!drawProp(ctx, 'press', x, y + 18 - lift, 1)) {
+    ctx.fillStyle = '#252a33';
+    ctx.fillRect(x - 32, y - 20 - lift, 64, 38);
+  }
+  ctx.globalAlpha = 1;
+}
+
 function ironBar(ctx: Ctx, x: number, y: number, w: number, h: number): void {
   ctx.fillStyle = '#0f1118';
   ctx.fillRect(x, y, w, h);
@@ -555,7 +586,9 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   for (const zn of g.zones) {
     if (!visible(zn.x, zn.y, zn.r + 320)) continue;
     const k = clamp(zn.t / zn.delay, 0, 1);
-    if (zn.arrow) {
+    if (zn.slab) {
+      if (zn.hostile) pressSlab(ctx, zn.x, zn.y, zn.slab, k, g.time);
+    } else if (zn.arrow) {
       ctx.strokeStyle = 'rgba(232,226,208,0.25)';
       ctx.lineWidth = 1;
       disc(ctx, zn.x, zn.y, zn.r * 0.5);

@@ -346,7 +346,8 @@ export interface Zone extends Body {
   leaveField: { life: number; dps: number; color: string; dtype?: DamageType; apply?: StatusApply } | null; // what stays behind after detonation
   dtype: DamageType;
   source: DamageSource; // a friendly zone's damage: 'ability', or 'hazard' for the arena's own (braziers, the gatehouse)
-  art?: 'hands' | 'fire'; // #159: an arena hazard's telegraph shows its rigged prop rising in the circle
+  art?: 'hands' | 'fire' | 'press'; // #159: an arena hazard's telegraph shows its rigged prop rising in the circle (#211: a press's ram lowering)
+  slab?: number; // #211: a square zone, a marked flagstone slab this many px wide (logic/presses.ts onSlab); r is half of it
 }
 
 /** Lasting area: fire, poison, consecrated ground. Ticks every GAME.fieldTick seconds. */
@@ -542,6 +543,8 @@ export interface Game {
   flawlessBosses: number;
   wave10Time: number; // 0 = not reached
   hazardT: number;
+  pressT: number; // #211: seconds to the next forge press slam (the Iron Hold)
+  presses: number; // #211: slams so far this run (every other one is a cross, late on)
   // --- v0.3 ---
   seed: number; // run seed: the director derives every wave from it
   squads: Squad[];

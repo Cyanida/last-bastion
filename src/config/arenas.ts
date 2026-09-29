@@ -143,4 +143,13 @@ export const ARENAS = Object.fromEntries(Object.entries(AUTHORED).map(([id, def]
 /** The arenas a run can start in, and that Acts rotate through. The Last Bastion is only ever Act IV (config/acts.ts FINAL). */
 /** #182: seconds before an arena's first hazard, at the run's start and again in each new Act's arena. */
 export const HAZARD_GRACE = 5;
+/** #211: a flagstone floor's slab, in px (render/arena.ts lays them from the map's corner): the forge presses mark whole slabs. */
+export const FLAGSTONE = 80;
+/**
+ * #211: the Iron Hold's forge presses (logic/presses.ts, systems/arena.ts). Every `every` s a press marks the slabs round the player
+ * (`line` of them through the player's slab; from wave `crossFrom` every other slam is a cross of five), lowers its ram for `delay` s
+ * and slams: `damage` (scaled with the wave like enemy damage) to whoever stands on a marked slab, x`foeMult` to foes, like the
+ * braziers, so luring the horde under them pays. The first slam comes `grace` s into the level. Only in the realm's own arena.
+ */
+export const PRESSES = { every: 8, delay: 1.5, grace: 8, line: 3, crossFrom: 11, damage: 18, foeMult: 3 };
 export const ARENA_IDS: ArenaId[] = ['courtyard', 'graveyard', 'keep'];

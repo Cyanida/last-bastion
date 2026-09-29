@@ -1,4 +1,4 @@
-import type { ArenaDef, Obstacle } from '../config/arenas';
+import { FLAGSTONE, type ArenaDef, type Obstacle } from '../config/arenas';
 import { WING_IDS, type FeatureKind, type Rect } from '../config/regions';
 import { mulberry32 } from '../core/math';
 import type { Rng } from '../core/types';
@@ -74,7 +74,7 @@ function tiles(ctx: Ctx, def: ArenaDef, rng: Rng): void {
       }
     }
   } else if (theme.tile === 'flagstone') {
-    const cell = 80;
+    const cell = FLAGSTONE; // #211: the forge presses mark these slabs
     for (let y = 0; y < h; y += cell) {
       for (let x = 0; x < w; x += cell) {
         stone(ctx, x + 2, y + 2, cell - 4, cell - 4, pick(), rng, 3);
