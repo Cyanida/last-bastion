@@ -3609,12 +3609,14 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.locator('[data-pick]').first().waitFor({ timeout: 5000 });
     const opening = await p.evaluate(() => ({ pick: document.querySelectorAll('[data-pick]').length, card: !!document.querySelector('[data-card]'), level: window.__lb.game.level?.level }));
     await press('[data-pick="0"]');
-    // then the quest board, set out as it is; the move card follows once the run is on
-    for (let i = 0; i < 6 && !(await p.locator('[data-card]').count()); i++) {
-      if ((await p.evaluate(() => window.__lb.state)) === 'choice') await press('[data-pick], [data-leave]');
-      await p.waitForTimeout(200);
+    // then the quest board, set out as it is; the move card follows once the run is on. #208: under load the card can come up between
+    // two looks, so only a screen's own button is answered here (never the card's Got it), with time to spare for slow frames
+    const answer = p.locator(':is([data-pick], [data-leave]):not([data-card] *)').first();
+    for (let i = 0; i < 40 && !(await p.locator('[data-card]').count()); i++) {
+      if ((await p.evaluate(() => window.__lb.state)) === 'choice' && (await answer.count())) await (touch ? answer.tap({ timeout: 2000 }) : answer.click({ timeout: 2000 })).catch(() => {});
+      await p.waitForTimeout(150);
     }
-    await p.locator('[data-card="move"]').waitFor({ timeout: 5000 }).catch(() => {});
+    await p.locator('[data-card="move"]').waitFor({ timeout: 10000 }).catch(() => {});
     const look = () => p.evaluate(() => {
       const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
       if (!c) return null;
@@ -3631,8 +3633,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const held = (await p.evaluate(() => window.__lb.game.tick)) === tick0;
     if (touch) await p.locator('[data-card] [data-leave]').tap();
     else await p.keyboard.press('Enter');
-    await p.waitForTimeout(150);
-    const closed = await p.evaluate(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing');
+    const closed = await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 3000 }).then(() => true, () => false);
     // then play on (the bot moves; run() answers each screen and card through its button): note every card and when it came
     const seen = await p.evaluate((tut) => {
       const lb = window.__lb, g = lb.game, out = [];
