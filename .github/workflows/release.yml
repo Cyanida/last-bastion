@@ -35,9 +35,15 @@ jobs:
       - name: Create the GitHub release
         # Created here, not by electron-builder: its two publishers (installer + update metadata) race to create it
         # and the loser's uploads are dropped.
+        # Patch tags sit on the patch branch head, not on main's merge commit, so generated notes miss this release's own
+        # pull request and the next release lists it instead. Drop every release PR line (title "vX.Y.Z ...") and put ours first.
         run: |
           if [[ "$TAG" == *-* ]]; then KIND="--prerelease"; else KIND="--latest"; fi
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "Last Bastion $TAG" --generate-notes $KIND
+          gh release view "$TAG" >/dev/null 2>&1 && exit 0
+          NOTES=$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$TAG" --jq .body | grep -vE "^\* v[0-9]+\.[0-9]+\.[0-9]+ |^## What's Changed$" | cat -s || true)
+          PR=$(gh pr list -R "$GITHUB_REPOSITORY" --state merged --base main --search "$TAG in:title" --json number,title --jq "map(select(.title | startswith(\"$TAG \")))[0].number // empty")
+          if [ -n "$PR" ]; then NOTES="Release pull request: #$PR"$'\n\n'"$NOTES"; fi
+          gh release create "$TAG" --title "Last Bastion $TAG" --notes "$NOTES" $KIND
       - name: Build installer and publish
         # Code signing would go here: CSC_LINK (base64 .pfx) and CSC_KEY_PASSWORD from repository secrets.
         run: |
