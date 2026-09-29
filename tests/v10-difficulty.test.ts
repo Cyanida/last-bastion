@@ -54,6 +54,8 @@ describe('v0.10 #203: difficulty', () => {
     expect([fin.gold, fin.eliteMult]).toEqual([TIERS[1].gold, TIERS[1].eliteMult]);
     const oath = createGame('paladin', 7, { tier: 0, oath: 3, realm: 'frozenPass' }).tier; // Oath and ring stack
     expect(oath.enemyHp).toBeCloseTo(createGame('paladin', 7, { tier: 0, oath: 3 }).tier.enemyHp * ringStep('frozenPass').hp);
+    const lvl = createGame('paladin', 7, { tier: 1, level: { realm: 'frozenPass', level: 1 } }).tier; // a level run uses its own realm (#191)
+    expect(lvl.enemyHp).toBeCloseTo(TIERS[1].enemyHp * ringStep('frozenPass').hp);
   });
 
   it('the knight deed counts wins on Knight, Champion and Legend', () => {
