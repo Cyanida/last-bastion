@@ -1,4 +1,6 @@
 import './ui/style.css';
+import './ui/kit.css'; // #184: the new look's UI kit
+import * as kit from './ui/kit';
 import { ARENAS, type ArenaId } from './config/arenas';
 import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
@@ -831,6 +833,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
         return save;
       },
       quality,
+      kit, // #185: the play test and the kit sheet preview build components with the UI kit's helpers
       cardIds: CARD_IDS, // v0.8 (#124): the perf test marks every flash card seen
       get spotlight() {
         return spotlightOn(); // #133: the play test checks the spotlight is on the card's foe

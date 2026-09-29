@@ -50,7 +50,10 @@ export const keyTip = (id: RelicKey, tier: number, held: RelicKey[] = []): strin
 /** v0.7.1 B6: a relic's style: its rarity, or cursed (purple). */
 export const relicClass = (id: RelicId): string => (isCursedRelic(id) ? 'cursed' : relicDef(id).rarity);
 
-export const tierBadge = (tier: number): string => (tier > 1 ? `<i class="tier">${TIER_NUMERALS[tier]}</i>` : '');
+/** #187: the kit's rarity frame for a relic: a champion's own relic is class green, a cursed one keeps its rarity (legendary). */
+export const relicRarity = (id: RelicId): 'common' | 'rare' | 'legendary' | 'class' => (relicDef(id).classId ? 'class' : relicDef(id).rarity);
+
+export const tierBadge =(tier: number): string => (tier > 1 ? `<i class="tier">${TIER_NUMERALS[tier]}</i>` : '');
 
 /** A relic in a list: icon, name, tier, and the tooltip. */
 export function relicLine(id: RelicId, tier: number, held: RelicId[]): string {
