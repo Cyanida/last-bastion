@@ -1649,6 +1649,93 @@ await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his f
   return { ok, detail: `panel "${panel.name}" ${/Iron Knight/.test(panel.text) ? 'names the Iron Knight' : 'NO Iron Knight'}; run ${card.realm} ${card.level}, card ${card.id ?? 'NONE'} "${card.title ?? ''}", plain knights ${card.plain}; closed ${fight.closed}; ${fight.found ? `plates ${fight.steps.join('>')} of ${fight.max}, sprite ${fight.bare}, ${fight.clangs} clangs${fight.dead ? ', killed' : ''}` : 'no Iron Knight on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #211: the Iron Hold's forge presses: map -> the Iron Hold -> level 1 -> FIGHT. The bot plays until a press marks the slabs round the
+// champion (a warning sound, the slabs bracketed and the ram drawn over them); standing still, the ram slams him with its own sound and a foe
+// on a marked slab is hurt too; at the next marking the champion steps off the line with the keyboard and the slam misses him ----------
+await check('Iron Hold: forge presses mark the slabs round you and lower a ram; stand still and it slams you and the foe beside you, step aside and it misses (#211)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [2] }, signature: true, lastBastion: false });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)]));
+    lb.save.cards = [...lb.cardIds]; // every flash card seen: nothing stops the fight
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-1');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // the bot plays (the real choice screens answered), unhurt, until a press marks slabs; `wait` then tracks the slabs
+  const setup = `
+    const lb = window.__lb, g = lb.game, p = g.player, S = 80;
+    const marked = () => g.zones.filter((z) => z.slab && z.hostile);
+    const onSlab = (z, b) => Math.hypot(Math.max(Math.abs(b.x - z.x) - S / 2, 0), Math.max(Math.abs(b.y - z.y) - S / 2, 0)) < b.r;
+    const wait = () => { p.invulnerable = true; for (let i = 0; i < 40000 && !marked().length && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, true); p.invulnerable = false; return marked(); };`;
+  const still = await p.evaluate(`(() => { ${setup}
+    const sounds = (window.__press = { warn: 0, slam: 0 });
+    const real = lb.view.sfx;
+    lb.view.sfx = (n) => ((n in sounds && sounds[n]++), real(n));
+    const zs = wait();
+    if (!zs.length) return { found: false, realm: g.level?.realm, wave: g.wave };
+    const warned = sounds.warn > 0;
+    // a foe on a marked slab beside the champion's (the others sent far off), tough enough to live through it
+    const mine = zs.find((z) => onSlab(z, p)), other = zs.find((z) => z !== mine);
+    const [foe, ...rest] = g.enemies.filter((e) => !e.dead);
+    for (const e of rest) Object.assign(e, { x: p.x + 3000, y: p.y });
+    if (foe && other) Object.assign(foe, { x: other.x, y: other.y, hp: 1e6, maxHp: 1e6 });
+    // halfway down: the slab's corner bracket and the ram are drawn
+    for (let i = 0; i < 1000 && zs[0].t < zs[0].delay * 0.8; i++) { lb.run(1, false, false); if (foe && other) Object.assign(foe, { x: other.x, y: other.y }); }
+    g.shake = 0;
+    lb.draw();
+    const c = document.getElementById('game').getContext('2d'), cam = lb.camera();
+    const px = (wx, wy) => [...c.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data];
+    const bracket = px(mine.x - S / 2 + 4, mine.y - S / 2 + 4), ramOn = px(mine.x, mine.y - 20);
+    const keep = g.zones;
+    g.zones = g.zones.filter((z) => !z.slab);
+    lb.draw();
+    const ramOff = px(mine.x, mine.y - 20);
+    g.zones = keep;
+    // stand still: the ram lands
+    const slams = sounds.slam;
+    let onIt = false, hp = p.hp, foeHp = foe?.hp ?? 0; // as the ram lands: the tick the slabs go
+    for (let i = 0; i < 1000 && marked().length; i++) { onIt = onSlab(mine, p); hp = p.hp; foeHp = foe?.hp ?? 0; lb.run(1, false, false); if (foe && other && marked().length) Object.assign(foe, { x: other.x, y: other.y }); }
+    return { found: true, realm: g.level?.realm, level: g.level?.level, arena: g.arena.id, n: zs.length, warned, onIt, hurt: hp - p.hp, foeHurt: foe && other ? foeHp - foe.hp : -1, slam: sounds.slam - slams,
+      bracket, ram: ramOn.join() !== ramOff.join(), props: lb.props() };
+  })()`);
+  // the next marking: step off the line with the keyboard (a line across: up or down, towards the open floor; a line down: left or right)
+  let dodge = { found: false };
+  if (still.found) {
+    const key = await p.evaluate(`(() => { ${setup}
+      const zs = wait();
+      if (!zs.length) return null;
+      const across = zs.every((z) => z.y === zs[0].y), mid = g.bounds;
+      return across ? (p.y > mid.y + mid.h / 2 ? 'KeyW' : 'KeyS') : (p.x > mid.x + mid.w / 2 ? 'KeyA' : 'KeyD');
+    })()`);
+    if (key) {
+      await p.keyboard.down(key);
+      dodge = await p.evaluate(`(() => { ${setup}
+        const zs = marked(), hp0 = p.hp;
+        for (const e of g.enemies) Object.assign(e, { x: p.x + 3000, y: p.y }); // nothing else to hurt him
+        let onIt = true, hp = p.hp;
+        for (let i = 0; i < 1000 && marked().length; i++) { onIt = zs.some((z) => onSlab(z, p)); hp = p.hp; lb.run(1, false, 'input'); }
+        return { found: true, key: '${key}', onIt, hurt: hp - p.hp, start: hp0 };
+      })()`);
+      await p.keyboard.up(key);
+    }
+  }
+  await p.close();
+  const red = still.bracket && still.bracket[0] > still.bracket[1] + 50;
+  const ok = still.found && still.realm === 'ironHold' && still.level === 1 && still.arena === 'keep' && still.n >= 2 && still.warned && still.props && red && still.ram
+    && still.onIt && still.hurt > 0 && still.slam > 0 && still.foeHurt > 0 && dodge.found && !dodge.onIt && dodge.hurt === 0 && errs.length === 0;
+  return { ok, detail: still.found ? `${still.realm} level ${still.level} in the ${still.arena}: ${still.n} slabs marked${still.warned ? ' with a warning' : ''}, bracket rgb(${(still.bracket ?? []).slice(0, 3).join(',')}), ram ${still.ram ? 'drawn' : 'NOT drawn'}; standing still: ${still.onIt ? 'on the slab' : 'OFF the slab'}, hurt ${Math.round(still.hurt)}, ${still.slam} slam sound(s), the foe beside him hurt ${Math.round(still.foeHurt)}; stepped aside (${dodge.key ?? 'no key'}): ${dodge.found ? `${dodge.onIt ? 'STILL on a slab' : 'off the slabs'}, hurt ${Math.round(dodge.hurt)}` : 'no second marking'}${errs.length ? `; errors: ${errs[0]}` : ''}` : `no press marked slabs (${still.realm}, wave ${still.wave})` };
+});
+
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
 // From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
 // slots and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a
