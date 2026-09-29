@@ -52,7 +52,7 @@ export const ENEMY_CARDS: Record<EnemyId, string> = {
   ironKnight: 'Iron plates shrug off blows. Each hit breaks one: keep swinging.',
   cultist: 'Runs at you and explodes. Kill it before it arrives.',
   shieldBearer: 'Blocks arrows from the front. Hit it from the side.',
-  thornBearer: 'Spiked shield: blows struck up close bite back. Strike from range, or make each blow count.',
+  thornBearer: 'Spiked shield: blows struck up close bite back. Strike from range.',
   priest: 'Heals the horde. Hunt him down first.',
   cavalry: 'Winds up, then charges in a line. Step out of it.',
   bannerman: 'Commander: foes near him hit harder. Kill him first.',
