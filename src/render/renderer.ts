@@ -3,7 +3,7 @@ import { AFFIXES, ELITES } from '../config/elites';
 import { GAME, RENDER } from '../config/game';
 import { MODIFIERS } from '../config/waves';
 import { clamp, TAU } from '../core/math';
-import { PLATES, STATUSES } from '../config/damage';
+import { PLATES, STATUSES, TOWER_SHIELDS } from '../config/damage';
 import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
@@ -711,6 +711,14 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.arc(e.x, e.y - 6, e.r + 6, e.angle - 1, e.angle + 1);
+      ctx.stroke();
+    }
+    if (TOWER_SHIELDS[e.def.id]) {
+      // #213: the iron tower shield is always up: an iron rim over the front it covers, which swings round slowly as he turns
+      ctx.strokeStyle = '#96a1b2';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y - 6, e.r + 6, e.angle - e.def.frontBlock!, e.angle + e.def.frontBlock!);
       ctx.stroke();
     }
     if (e.shield > 0) {

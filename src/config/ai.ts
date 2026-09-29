@@ -33,6 +33,7 @@ export const AI: Partial<Record<EnemyId, AiProfile>> = {
   siegeTower: { reach: 'support', flank: 0, range: [200, 270], special: { id: 'deploy', cd: 6, range: 9999 } },
   assassin: { reach: 'melee', flank: 1, special: { id: 'ambush', cd: 7, range: 520, minRange: 110 }, retreatAfterSpecial: 1.6, fleeBelow: 0.3 },
   shieldwall: { reach: 'melee', flank: 0 },
+  ironShieldwall: { reach: 'melee', flank: 0 }, // #213: his facing turns slowly (config/damage.ts TOWER_SHIELDS)
   boneCollector: { reach: 'melee', flank: 0.2, special: { id: 'collect', cd: 1.5, range: 9999 } },
   bannerman: { reach: 'support', flank: 0, range: [200, 300] },
   drummer: { reach: 'support', flank: 0, range: [220, 320] },

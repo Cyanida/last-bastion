@@ -21,6 +21,7 @@ export type EnemyId =
   | 'siegeTower'
   | 'assassin'
   | 'shieldwall'
+  | 'ironShieldwall'
   | 'boneCollector'
   | 'dragon'
   | 'warden'
@@ -192,6 +193,12 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   shieldwall: {
     ...base, id: 'shieldwall', name: 'Shieldwall Spearman', sprite: 'shieldwall', behavior: 'chaser',
     hp: 60, damage: 11, speed: 54, radius: 13, xp: 4, knockbackResist: 0.7, frontBlock: 1.2, wall: { radius: 72, neighbors: 2, reduction: 0.8 },
+  },
+  // #213: the Iron Hold's shieldwall. An iron tower shield that is always up, line or no line (config/damage.ts TOWER_SHIELDS), on a man
+  // who turns slowly: step round him and strike his side or back
+  ironShieldwall: {
+    ...base, id: 'ironShieldwall', name: 'Iron Shieldwall', sprite: 'ironShieldwall', behavior: 'chaser',
+    hp: 64, damage: 12, speed: 50, radius: 13, xp: 5, knockbackResist: 0.8, frontBlock: 1.2,
   },
   // goes for the corpses before he goes for you, and every one makes him bigger. The Necromancer's rival.
   boneCollector: {

@@ -17,6 +17,7 @@ const SOUNDS = {
   wave: { wave: 'sawtooth', f0: 110, f1: 220, dur: 0.5, vol: 0.1 },
   xp: { wave: 'sine', f0: 900, f1: 1300, dur: 0.05, vol: 0.04 },
   clang: { wave: 'square', f0: 1500, f1: 950, dur: 0.06, vol: 0.05 }, // #212: a blow breaks an iron plate
+  block: { wave: 'triangle', f0: 620, f1: 380, dur: 0.08, vol: 0.07 }, // #213: an iron tower shield turns a blow
 } satisfies Record<string, { wave: Wave; f0: number; f1: number; dur: number; vol: number }>;
 export type SfxName = keyof typeof SOUNDS;
 /** v0.7.1: the music ducks under these for a moment. */

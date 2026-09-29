@@ -65,6 +65,7 @@ export const ENEMY_CARDS: Record<EnemyId, string> = {
   siegeTower: 'Unloads troops until it is destroyed.',
   assassin: 'Vanishes and stabs from behind. Keep moving.',
   shieldwall: 'Near untouchable from the front in a line. Flank it.',
+  ironShieldwall: 'His iron shield turns blows from the front. He turns slowly: step round him.',
   boneCollector: 'Eats corpses and grows. Kill him early.',
   siegeCamp: 'Musters troops until you tear it down.',
   plagueCart: 'Rolls across the field leaking poison.',

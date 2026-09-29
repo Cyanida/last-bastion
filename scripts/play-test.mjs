@@ -1649,6 +1649,99 @@ await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his f
   return { ok, detail: `panel "${panel.name}" ${/Iron Knight/.test(panel.text) ? 'names the Iron Knight' : 'NO Iron Knight'}; run ${card.realm} ${card.level}, card ${card.id ?? 'NONE'} "${card.title ?? ''}", plain knights ${card.plain}; closed ${fight.closed}; ${fight.found ? `plates ${fight.steps.join('>')} of ${fight.max}, sprite ${fight.bare}, ${fight.clangs} clangs${fight.dead ? ', killed' : ''}` : 'no Iron Knight on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #213: the Iron Hold's shieldwalls: map -> the Iron Hold -> level 2 -> FIGHT; the director's shieldwall squad marches in as Iron
+// Shieldwalls with their own flash card, "Got it" closes it, and then, from a known state (him alone, the champion put in front of him, then
+// behind him, then at his side), a real swing at his shield is turned with BLOCKED and a clank, the same swing lands in full on his back,
+// and he turns toward the side slowly instead of at once. No real-time sampling: every number is one swing or ten ticks ----------
+await check('Iron Hold: shieldwalls march as Iron Shieldwalls with their flash card; the iron shield turns a swing at his front, the same swing lands in full on his back, and he turns slowly (#213)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold level 1 cleared
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'ironShieldwall'); // every other card already seen, so his is the one that shows
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  const card = await p.evaluate(() => {
+    const lb = window.__lb;
+    const blocks = { n: 0 };
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'block' && blocks.n++), real(n));
+    }
+    window.__blocks = blocks;
+    lb.game.player.invulnerable = true;
+    // the level's first wave is drawn; the director's shieldwall squad (config/director.ts, five spearmen) goes to the head of its queue as
+    // plain shieldwalls, so the game's own spawning has to turn them into the Iron Hold's
+    for (let i = 0; i < 5000 && lb.game && !lb.game.spawnQueue.length; i++) lb.run(1, false, false);
+    const g = lb.game;
+    const squad = g.squadPlans.push({ template: 'shieldwall', formation: 'line', spacing: 30, holdUntil: 70 }) - 1;
+    g.spawnQueue.unshift(...[0, 1, 2, 3, 4].map(() => ({ id: 'shieldwall', affixes: [], squad, commander: false })));
+    g.spawnTimer = 0;
+    lb.run(1, false, false);
+    const spawned = g.enemies.filter((e) => e.squad && e.slot >= 0 && e.def.id === 'ironShieldwall').length;
+    const plain = g.enemies.filter((e) => e.def.id === 'shieldwall').length;
+    // the champion stands; the line marches at him until his card opens
+    for (let i = 0; i < 20000 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    return { id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g.level?.realm, level: g.level?.level, spawned, plain };
+  });
+  if (card.id) await p.click('[data-leave]');
+  const fight = await p.evaluate(async () => {
+    await new Promise((r) => setTimeout(r, 100));
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+    const walls = () => g.enemies.filter((e) => e.def.id === 'ironShieldwall' && !e.dead);
+    // until the line breaks formation to fight (a state, not a clock): in formation they face the march, not the champion
+    for (let i = 0; i < 5000 && walls().some((e) => e.ai === 'regroup') && lb.game === g; i++) lb.run(1, false, false);
+    const w = walls()[0];
+    if (!w) return { closed, found: false };
+    const arc = lb.enemyDef('ironShieldwall').frontBlock;
+    // a known state: he stands alone (everything else is cleared away), and the champion is put beside him, facing him
+    for (const o of g.enemies) if (o !== w) o.dead = true;
+    lb.run(1, false, false);
+    const swing = (side) => {
+      w.hp = w.maxHp;
+      const a = w.angle + side;
+      pl.x = w.x + Math.cos(a) * (w.r + pl.r + 4);
+      pl.y = w.y + Math.sin(a) * (w.r + pl.r + 4);
+      pl.attackTimer = 0;
+      const b0 = window.__blocks.n, texts0 = g.texts.filter((t) => t.text === 'BLOCKED').length;
+      for (let i = 0; i < 30 && w.hp === w.maxHp && !w.dead; i++) lb.run(1, false, false); // one swing: until it lands
+      return { dealt: w.maxHp - Math.max(0, w.hp), blocks: window.__blocks.n - b0, text: g.texts.filter((t) => t.text === 'BLOCKED').length > texts0 };
+    };
+    const front = swing(0);
+    const back = swing(Math.PI);
+    // at his side, out of his shield's arc: ten ticks later he has turned toward the champion, but only part of the way
+    w.hp = w.maxHp;
+    const side = Math.PI / 2;
+    const a0 = w.angle;
+    pl.x = w.x + Math.cos(a0 + side) * 60;
+    pl.y = w.y + Math.sin(a0 + side) * 60;
+    pl.attackTimer = 99;
+    lb.run(10, false, false);
+    const d = Math.abs(Math.atan2(Math.sin(w.angle - a0), Math.cos(w.angle - a0)));
+    return { closed, found: true, arc, front, back, turned: +d.toFixed(3) };
+  });
+  await p.close();
+  const ok = card.realm === 'ironHold' && card.level === 2 && card.spawned === 5 && card.plain === 0
+    && card.id === 'ironShieldwall' && card.title === 'Iron Shieldwall' && /turns slowly/.test(card.text ?? '')
+    && fight.closed && fight.found && fight.front.blocks > 0 && fight.front.text && fight.back.blocks === 0 && !fight.back.text
+    && fight.front.dealt > 0 && fight.back.dealt > 0 && fight.front.dealt < fight.back.dealt * 0.5
+    && fight.turned > 0 && fight.turned < fight.arc / 2 && errs.length === 0;
+  return { ok, detail: `run ${card.realm} ${card.level}: ${card.spawned} Iron Shieldwalls, ${card.plain} plain; card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${fight.closed}; ${fight.found ? `front swing ${fight.front.dealt.toFixed(1)} (${fight.front.blocks} clanks${fight.front.text ? ', BLOCKED' : ''}), back swing ${fight.back.dealt.toFixed(1)} (${fight.back.blocks} clanks); turned ${fight.turned} rad in ten ticks` : 'no Iron Shieldwall on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
 // From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
 // slots and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a
