@@ -1210,7 +1210,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
       ${buildHtml(r.build)}`, { cls: 'kit-scroll' })}
       <footer class="row">${deciding
         ? `${kit.button('Bank the win', { kind: 'gold', size: 'big', attrs: 'data-bank' })}${kit.button('March on into Endless', { kind: 'go', attrs: 'data-endless' })}${kit.button('Bank and restart', { attrs: `data-restart data-tip="Bank the win and start again at once: ${esc(r.restart)}"` })}`
-        : `${kit.button(`Quick restart · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button(r.road ? `Back to ${esc(r.road.replace(/^The /, 'the '))}` : 'Choose another champion', { attrs: 'data-menu' })}`}</footer>
+        : `${kit.button(`Quick restart · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button(r.road ? `Back to ${esc(r.road.replace(/^The /, 'the '))}` : r.daily ? 'Back to the title' : 'Choose another champion', { attrs: 'data-menu' })}`}</footer>
     </div>`);
   if ('bank' in on) {
     click(el, '[data-endless]', on.endless);

@@ -131,7 +131,9 @@ export async function tour(page, at, { touch = false } = {}) {
   };
   if (await has('[data-go="whatsNew"]')) await menu('whatsnew', ['[data-go="whatsNew"]'], ['[data-back]']);
   else skipped.push('whatsnew (no What’s new on this build)');
-  await menu('daily', ['[data-go="daily"]'], ['[data-back]']);
+  // #204: the trial opens with the Marches crown; a save that already took one keeps it open (then the title again, with it open)
+  await page.evaluate(() => { if (window.__lb?.save?.daily) window.__lb.save.daily['2000-01-01'] ??= 1; });
+  await menu('daily', ['[data-go="settings"]', '.settings [data-act="back"]', '[data-go="daily"]'], ['[data-back]']);
   await menu('history', ['[data-go="keep"]', '[data-history]'], ['[data-back]']);
   await menu('treasures', ['[data-treasures]'], ['[data-back]']);
   await menu('chronicle', ['[data-chronicle]'], ['[data-back]']);
