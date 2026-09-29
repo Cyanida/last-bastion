@@ -20,6 +20,8 @@ export interface Armoured {
   mace?: boolean; // a flanged mace instead of the greatsword
   hammer?: boolean; // #215: a forge hammer (a square iron head, its face glowing in `fx`) instead of the greatsword
   apron?: Material; // #215: a smith's apron over the breastplate and the mail skirt
+  tower?: boolean; // #216: a tall iron tower shield (plate, a `trim` rim, ridge and boss, spiked with `accent` studs) instead of the heater
+  spiked?: boolean; // #216: spikes on the pauldrons and poleyns, in `trim`
   special: 'charge' | 'slam';
   h?: number; // cell height, for a boss too tall for the default 100
   regal?: boolean; // the Usurper: a broad ermine-collared cloak to the ground and heavier pauldrons
@@ -88,9 +90,16 @@ function armoured(c: Armoured, p: Pose): Figure {
   c.head(f, torso.child(0.8 * S, -20 * S, p.head), p);
 
   const shield = torso.child((-8.6 + p.shield[0]) * S, (-7 + p.shield[1]) * S, p.shieldA);
-  f.part(shield, sc([[-6.4, -8], [6.4, -8], [6.6, -1], [4.6, 4], [0, 9], [-4.6, 4], [-6.6, -1]]), c.plate, 6);
-  f.part(shield, sc([[-5.2, -6.8], [5.2, -6.8], [5.3, -1.2], [3.6, 3.2], [0, 7.4], [-3.6, 3.2], [-5.3, -1.2]]), c.accent, 6.1, { trim: [c.trim, 1] });
-  f.part(shield, sc([[-5, -2.4], [0, 1.6], [5, -2.4], [5, 0], [0, 4.2], [-5, 0]]), c.plate, 6.2, { profile: 'flat' }); // chevron
+  if (c.tower) {
+    const studs: Px[] = [[-4.6, -10], [4.6, -10], [-4.9, 0], [4.9, 0], [-4.6, 9], [4.6, 9]].map(([x, y]) => [x * S, y * S, c.accent, 6]);
+    f.part(shield, sc([[-6.6, -12.5], [6.6, -12.5], [7, 9.5], [0, 13.5], [-7, 9.5]]), c.plate, 6, { trim: [c.trim, 1.2], details: studs }); // the tower shield
+    f.part(shield, sc([[-0.7, -11.5], [0.7, -11.5], [0.7, 12], [-0.7, 12]]), c.trim, 6.1, { profile: 'flat' }); // its ridge
+    f.part(shield, E(0, -0.5, 2.4, 2.6), c.trim, 6.2); // boss
+  } else {
+    f.part(shield, sc([[-6.4, -8], [6.4, -8], [6.6, -1], [4.6, 4], [0, 9], [-4.6, 4], [-6.6, -1]]), c.plate, 6);
+    f.part(shield, sc([[-5.2, -6.8], [5.2, -6.8], [5.3, -1.2], [3.6, 3.2], [0, 7.4], [-3.6, 3.2], [-5.3, -1.2]]), c.accent, 6.1, { trim: [c.trim, 1] });
+    f.part(shield, sc([[-5, -2.4], [0, 1.6], [5, -2.4], [5, 0], [0, 4.2], [-5, 0]]), c.plate, 6.2, { profile: 'flat' }); // chevron
+  }
 
   const sh = torso.at(5.6 * S, -15.6 * S);
   const fist: Pt = [sh[0] + p.fist[0] * S, sh[1] + p.fist[1] * S];
@@ -114,6 +123,10 @@ function armoured(c: Armoured, p: Pose): Figure {
   } else f.part(sw, sc([[-2.2, -3], [2.2, -3], [2, -24], [0, -28.5], [-2, -24]]), c.blade, zs + 0.05, { details: Array.from({ length: 18 }, (_, k) => [0.1, -(k + 4) * S - 0.5, c.blade, 2] as Px) }); // greatsword
   f.part(sw, E(0.3, 0.6, 3, 2.9), c.plate, za + 0.4, { details: [-0.6, 0.6, 1.8].map((y) => [1.8 * S, y * S, c.plate, 1] as Px) }); // gauntlet
   f.part(new Bone(sh[0], sh[1], torso.a * 0.65 + up.a * 0.35), E(0.5, 0.2, 5 * pd, 4.2 * pd), c.plate, za + 0.5, { trim: [c.trim, 1] }); // pauldron
+  if (c.spiked) {
+    const pb = new Bone(sh[0], sh[1], torso.a * 0.65 + up.a * 0.35);
+    for (const x of [-3, 0.5, 4]) f.part(pb, sc([[x - 1.1, -3.4], [x + 1.1, -3.4], [x + 0.2, -7.4]]), c.trim, za + 0.55, { profile: 'flat' }); // spikes on the pauldron
+  }
 
   if (p.smear) {
     const [[f0, a0], [f1, a1]] = p.smear;

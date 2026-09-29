@@ -1527,10 +1527,34 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = road.flags.length === 7 && road.flags.every((f) => f.inside) && road.flags.map((f) => f.open).join() === 'true,false,false,false,false,false,false' && road.flags[0].on
       && road.landBg.includes('world-map') && road.name === 'The Marches · Level 1' && road.tiers === 'Xo--' && road.golds === 1 && road.fight && road.onScreen
-      && /Head start\s*Level 1/.test(road.text) && /Slots\s*1/.test(road.text) && /Enemy HP\s*100%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
-      && knight.tiers === 'oX--' && /Enemy HP\s*145%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
+      && /Head start\s*Level 1/.test(road.text) && /Slots\s*1/.test(road.text) && /Enemy HP\s*85%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
+      && knight.tiers === 'oX--' && /Enemy HP\s*123%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
       && run?.realm === 'marches' && run.level === 1 && run.last === 5 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
-    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*145%/.test(knight.text) ? 'HP 145%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*123%/.test(knight.text) ? 'HP 123%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #221: the level step: the panel's Enemy HP on Knight is what the level fights at, eased on level 1 of the Marches ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`level step: the Marches level 1 on Knight shows Enemy HP 123% (Knight 145% eased) and FIGHT plays it at that HP, ${touch ? 'tap' : 'click'} at ${w}x${h} (#221)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).tap() : p.locator(sel).click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-marches');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('.rr-tier[data-tier="1"]');
+    await p.waitForTimeout(100);
+    const shown = (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ').match(/Enemy HP\s*(\d+)%/)?.[1];
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100) } : null; });
+    await p.close();
+    const ok = shown === '123' && run?.level === 1 && run.tier === 1 && run.hp === 123 && errs.length === 0;
+    return { ok, detail: `panel Enemy HP ${shown ?? '?'}%; run: ${run ? `level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
@@ -4395,6 +4419,87 @@ await check('Relics: Iron Halo, Legion Plate and Bodkin Points each work for the
     out.push({ ok, text: `${c.classId}: lists ${start.listed.join('+') || 'none'}, held ${start.held}, tile ${c.says.test(start.tip) ? 'yes' : 'NO'}, ${Math.round(damage)} dmg, up to ${stacks} armor stacks` });
   }
   return { ok: out.every((o) => o.ok), detail: out.map((o) => o.text).join('; ') };
+});
+
+// ---------- #216: the Iron King: Settings -> Test mode -> "Start at" the Iron Hold's level 5 -> the opening pick -> its last wave ----------
+// The champion trades plain blows beside him (no ability, no bot moves, unhurt), so the fight goes the same way every run: phase 1 his
+// plate breaks blow by blow, his Decree lines land and his guard of Iron Knights comes; phase 2 he casts the plate off and raises the tower
+// shield (blows at his front ring off it, so the champion steps round to his back) and rushes; phase 3 the thorns bite a blow struck up
+// close and the Decree is a star of 8 lines. Each phase holds its 12 s as a crown boss's does, and his fall clears the level.
+await check('Iron King: test mode starts the Iron Hold level 5; its crown boss: plate, then shield (blocked in front), then thorns, each phase 12 s, level cleared (#216)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="ironHold:5"]').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption('keep');
+  await p.locator('#tm-start').selectOption('ironHold:5');
+  await p.evaluate(() => {
+    // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    const sounds = { block: [0, 0, 0] };
+    let k = null;
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'block' && k && sounds.block[k.phase - 1]++), real(n));
+    }
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 40, the level's last
+    g.breather = 0.01;
+    const out = { wave: 0, id: '', crown: false, banner: '', plates: [], decree: [0, 0, 0], rush: [0, 0, 0], guard: 0, phases: [], armorAt2: -1, bites: [0, 0, 0], dead: false };
+    const seen = new WeakSet();
+    let bitAt;
+    for (let i = 0; i < 90000 && lb.state !== 'results' && !(k?.dead && g.level.cleared); i++) {
+      g.player.invulnerable = true;
+      if (k && !k.dead) {
+        // phase 1 and 3: a step off his front edge; phase 2: at his front until the shield has rung, then round at his back
+        const back = k.phase === 2 && sounds.block[1] > 0;
+        const a = back ? k.angle + Math.PI : k.phase === 2 ? k.angle : Math.PI;
+        g.player.x = k.x + Math.cos(a) * (k.r + 16);
+        g.player.y = k.y + Math.sin(a) * (k.r + 16);
+      }
+      lb.run(1, false, false);
+      k ??= g.enemies.find((e) => e.def.boss) ?? null;
+      if (!k) continue;
+      if (!out.id) (out.id = k.def.id), (out.wave = g.wave), (out.crown = k.crown), (out.banner = g.banner?.text ?? ''), out.plates.push(k.armorHp);
+      if (k.phase > out.phases.length + 1) {
+        out.phases.push(+g.time.toFixed(1));
+        if (k.phase === 2) out.armorAt2 = k.armorHp;
+      }
+      if (out.phases.length === 0 && k.armorHp !== out.plates[out.plates.length - 1]) out.plates.push(k.armorHp);
+      const mine = g.zones.filter((z) => z.owner === k && !seen.has(z)); // the zones one Decree set this tick
+      for (const z of mine) seen.add(z);
+      out.decree[k.phase - 1] = Math.max(out.decree[k.phase - 1], mine.length);
+      if (k.state === 1) out.rush[k.phase - 1]++;
+      out.guard = Math.max(out.guard, g.enemies.filter((e) => e.def.id === 'ironKnight' && !e.dead).length);
+      if (k.thornsAt !== undefined && k.thornsAt !== bitAt) (bitAt = k.thornsAt), out.bites[k.phase - 1]++; // his own thorns (the wave's thorn bearers bite too)
+      if (k.dead) out.dead = true;
+    }
+    return { ...out, block: sounds.block, cleared: !!g.level?.cleared, test: g.vars.test };
+  });
+  await p.close();
+  const oneByOne = fight.plates.length >= 3 && fight.plates.slice(1).every((v, i) => v < fight.plates[i]);
+  const long = fight.phases.length === 2 && fight.phases[1] - fight.phases[0] >= 12;
+  const ok = fight.test === 1 && fight.wave === 40 && fight.id === 'ironKing' && fight.crown && fight.banner === 'The Iron King · Crown boss' && fight.plates[0] === 8 && oneByOne
+    && fight.guard >= 2 && fight.decree[0] === 24 && fight.decree[2] === 48 && fight.rush[0] === 0 && fight.rush[1] > 0 && long && fight.armorAt2 === 0
+    && fight.block[0] === 0 && fight.block[1] > 0 && fight.bites[1] === 0 && fight.bites[2] > 0 && fight.dead && fight.cleared && errs.length === 0;
+  return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; plates ${fight.plates.join('>')}, guard ${fight.guard}; phases at ${fight.phases.join(', ')} s, plate ${fight.armorAt2} at phase 2; decree zones ${fight.decree.join('/')}, rush ticks ${fight.rush.join('/')}, shield blocks ${fight.block.join('/')}, thorn bites ${fight.bites.join('/')} by phase; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 await check('no console errors', async () => {

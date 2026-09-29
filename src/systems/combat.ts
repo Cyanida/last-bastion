@@ -17,6 +17,7 @@ import { goldDrop } from '../logic/economy';
 import { onSlab } from '../logic/presses';
 import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
+import { thornsOf, towerShieldOf } from '../logic/ironKing';
 import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, thornsBite, throughPlates, throughResolve, throughTowerShield, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
@@ -139,7 +140,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   const chill = e.statuses.slow?.by ? 1 + e.statuses.slow.stacks * FAMILIES.frost.n.chillVuln : 0; // v0.7 A8: a relic's chill: +4% damage taken per stack
   amount *= typeMult * damageTakenFactor(e.statuses) * (chill || 1);
   if (e.def.boss && source !== 'hazard') amount *= g.player.mods.bossDamage;
-  const thorns = THORNS[e.def.id];
+  const thorns = thornsOf(e.def.id, e.phase); // #216: the Iron King's only in his thorns phase
   if (thorns) thornsBack(g, e, amount, source, tick, thorns); // #214: the blow as it arrives, before his shield turns any of it
   const plates = PLATES[e.def.id];
   if (plates && e.armorHp > 0) {
@@ -172,7 +173,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   // shieldwall: while the line holds, anything that comes at the pavises from the front barely scratches
   const wall = e.def.wall;
   if (wall && e.charged && (kx !== 0 || ky !== 0) && !fromBehind(kx, ky, e.angle)) amount *= 1 - wall.reduction;
-  const tower = TOWER_SHIELDS[e.def.id];
+  const tower = towerShieldOf(e.def.id, e.phase); // #216: the Iron King's only in his shield phase
   if (tower) {
     // #213: the iron tower shield is always up: a blow at his front is turned, one from the side or behind lands in full
     const hit = throughTowerShield(amount, kx, ky, e.angle, e.def.frontBlock ?? 0, tower.reduction);
@@ -460,6 +461,7 @@ function wearArmor(g: Game, e: Enemy, amount: number): void {
 /** Shield bearers stop projectiles that come at their front. */
 function blockedByShield(e: Enemy, vx: number, vy: number): boolean {
   if (!e.def.frontBlock) return false;
+  if (TOWER_SHIELDS[e.def.id] && !towerShieldOf(e.def.id, e.phase)) return false; // #216: the Iron King's shield is down outside its phase
   if (e.def.wall && !e.charged) return false; // a shieldwall spearman on his own is just a man with a plank
   if (ARMOR[e.def.id]?.backBreak && e.armorHp <= 0) return false; // shield broken
   return angleDiff(Math.atan2(-vy, -vx), e.angle) < e.def.frontBlock;

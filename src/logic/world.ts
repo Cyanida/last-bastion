@@ -83,6 +83,13 @@ export function ringStep(realm: RealmId): { hp: number; damage: number } {
   return { hp: WORLD.ringStep.hp[i], damage: WORLD.ringStep.damage[i] };
 }
 
+/** #221: enemy HP and damage multipliers for a level's place in its realm (WORLD.levelStep); the Last Bastion keeps 1. */
+export function levelStep(realm: RealmId, level: number): { hp: number; damage: number } {
+  if (realm === 'lastBastion') return { hp: 1, damage: 1 };
+  const s = realm === 'marches' ? WORLD.levelStep.marches : WORLD.levelStep.realm;
+  return { hp: s.hp[level - 1] ?? 1, damage: s.damage[level - 1] ?? 1 };
+}
+
 /** What clearing `level` on `tier` pays, judged by the progress before it: the level's reward on its first clear on any tier, the crown's on a first crown. */
 export function clearRewards(p: WorldProgress, realm: RealmId, level: number, tier: number): { level: LevelReward[]; crown: CrownReward[] } {
   const def = REALMS[realm];
@@ -187,7 +194,7 @@ export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier
     waves: lv.waves,
     headStart: headStartLevel(lv.waves[0]) + bonus.levels,
     slots: slotsFor(realm, level, bonus.slots),
-    enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * 100),
+    enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * levelStep(realm, level).hp * 100),
     family: lv.family,
     foes: featuredFoes(lv.waves).map((id) => ENEMIES[realmFoe(realm, id)].name), // #212: as they march there
     boss: bossName(lv.boss, lv.waves[1]),

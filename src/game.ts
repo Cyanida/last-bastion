@@ -9,7 +9,7 @@ import { GAME } from './config/game';
 import { RELIC_MOMENTS, relicDef, type RelicId } from './config/relics';
 import { TREASURES } from './config/treasures';
 import type { RealmId } from './config/world';
-import { ringStep, slotsFor } from './logic/world';
+import { levelStep, ringStep, slotsFor } from './logic/world';
 import { fitLoadout } from './logic/champions';
 import { FREE_REROLLS } from './config/upgrades';
 import { WAVES } from './config/waves';
@@ -86,11 +86,12 @@ export interface RunOptions {
 /** The difficulty tier with an Oath's numbers folded in, so every place that reads the tier sees them. */
 const withOath = (t: TierDef, o: OathStack): TierDef => (o.level ? { ...t, enemyHp: t.enemyHp * o.n.hp, enemyDmg: t.enemyDmg * o.n.damage, eliteMult: t.eliteMult * o.n.eliteMult } : t);
 
-/** v0.10 (#203): a realm's ring step on the tier's enemy HP and damage, the same way. */
-const withRing = (t: TierDef, realm?: RealmId): TierDef => {
+/** v0.10 (#203): a realm's ring step on the tier's enemy HP and damage, the same way; a level adds its place in the realm (#221). */
+const withRing = (t: TierDef, realm?: RealmId, level?: LevelStart): TierDef => {
   if (!realm) return t;
   const r = ringStep(realm);
-  return { ...t, enemyHp: t.enemyHp * r.hp, enemyDmg: t.enemyDmg * r.damage };
+  const l = level ? levelStep(level.realm, level.level) : { hp: 1, damage: 1 };
+  return { ...t, enemyHp: t.enemyHp * r.hp * l.hp, enemyDmg: t.enemyDmg * r.damage * l.damage };
 };
 
 export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}): Game {
@@ -132,7 +133,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     shake: 0,
     pendingLevelUps: 0,
     arena,
-    tier: withRing(withOath(TIERS[opts.tier ?? 0], oath), opts.realm ?? opts.level?.realm),
+    tier: withRing(withOath(TIERS[opts.tier ?? 0], oath), opts.realm ?? opts.level?.realm, opts.level),
     tierIndex: opts.tier ?? 0,
     modifier: null,
     fields: [],
