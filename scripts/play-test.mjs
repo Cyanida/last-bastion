@@ -4347,6 +4347,87 @@ await check('Relics: Rivet Hammer, Pavise, Reprisal Cuirass and Heart of the Hol
   }),
 );
 
+// ---------- #216: the Iron King: Settings -> Test mode -> "Start at" the Iron Hold's level 5 -> the opening pick -> its last wave ----------
+// The champion trades plain blows beside him (no ability, no bot moves, unhurt), so the fight goes the same way every run: phase 1 his
+// plate breaks blow by blow, his Decree lines land and his guard of Iron Knights comes; phase 2 he casts the plate off and raises the tower
+// shield (blows at his front ring off it, so the champion steps round to his back) and rushes; phase 3 the thorns bite a blow struck up
+// close and the Decree is a star of 8 lines. Each phase holds its 12 s as a crown boss's does, and his fall clears the level.
+await check('Iron King: test mode starts the Iron Hold level 5; its crown boss: plate, then shield (blocked in front), then thorns, each phase 12 s, level cleared (#216)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="ironHold:5"]').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption('keep');
+  await p.locator('#tm-start').selectOption('ironHold:5');
+  await p.evaluate(() => {
+    // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    const sounds = { block: [0, 0, 0] };
+    let k = null;
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'block' && k && sounds.block[k.phase - 1]++), real(n));
+    }
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 40, the level's last
+    g.breather = 0.01;
+    const out = { wave: 0, id: '', crown: false, banner: '', plates: [], decree: [0, 0, 0], rush: [0, 0, 0], guard: 0, phases: [], armorAt2: -1, bites: [0, 0, 0], dead: false };
+    const seen = new WeakSet();
+    let bitAt;
+    for (let i = 0; i < 90000 && lb.state !== 'results' && !(k?.dead && g.level.cleared); i++) {
+      g.player.invulnerable = true;
+      if (k && !k.dead) {
+        // phase 1 and 3: a step off his front edge; phase 2: at his front until the shield has rung, then round at his back
+        const back = k.phase === 2 && sounds.block[1] > 0;
+        const a = back ? k.angle + Math.PI : k.phase === 2 ? k.angle : Math.PI;
+        g.player.x = k.x + Math.cos(a) * (k.r + 16);
+        g.player.y = k.y + Math.sin(a) * (k.r + 16);
+      }
+      lb.run(1, false, false);
+      k ??= g.enemies.find((e) => e.def.boss) ?? null;
+      if (!k) continue;
+      if (!out.id) (out.id = k.def.id), (out.wave = g.wave), (out.crown = k.crown), (out.banner = g.banner?.text ?? ''), out.plates.push(k.armorHp);
+      if (k.phase > out.phases.length + 1) {
+        out.phases.push(+g.time.toFixed(1));
+        if (k.phase === 2) out.armorAt2 = k.armorHp;
+      }
+      if (out.phases.length === 0 && k.armorHp !== out.plates[out.plates.length - 1]) out.plates.push(k.armorHp);
+      const mine = g.zones.filter((z) => z.owner === k && !seen.has(z)); // the zones one Decree set this tick
+      for (const z of mine) seen.add(z);
+      out.decree[k.phase - 1] = Math.max(out.decree[k.phase - 1], mine.length);
+      if (k.state === 1) out.rush[k.phase - 1]++;
+      out.guard = Math.max(out.guard, g.enemies.filter((e) => e.def.id === 'ironKnight' && !e.dead).length);
+      if (k.thornsAt !== undefined && k.thornsAt !== bitAt) (bitAt = k.thornsAt), out.bites[k.phase - 1]++; // his own thorns (the wave's thorn bearers bite too)
+      if (k.dead) out.dead = true;
+    }
+    return { ...out, block: sounds.block, cleared: !!g.level?.cleared, test: g.vars.test };
+  });
+  await p.close();
+  const oneByOne = fight.plates.length >= 3 && fight.plates.slice(1).every((v, i) => v < fight.plates[i]);
+  const long = fight.phases.length === 2 && fight.phases[1] - fight.phases[0] >= 12;
+  const ok = fight.test === 1 && fight.wave === 40 && fight.id === 'ironKing' && fight.crown && fight.banner === 'The Iron King · Crown boss' && fight.plates[0] === 8 && oneByOne
+    && fight.guard >= 2 && fight.decree[0] === 24 && fight.decree[2] === 48 && fight.rush[0] === 0 && fight.rush[1] > 0 && long && fight.armorAt2 === 0
+    && fight.block[0] === 0 && fight.block[1] > 0 && fight.bites[1] === 0 && fight.bites[2] > 0 && fight.dead && fight.cleared && errs.length === 0;
+  return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; plates ${fight.plates.join('>')}, guard ${fight.guard}; phases at ${fight.phases.join(', ')} s, plate ${fight.armorAt2} at phase 2; decree zones ${fight.decree.join('/')}, rush ticks ${fight.rush.join('/')}, shield blocks ${fight.block.join('/')}, thorn bites ${fight.bites.join('/')} by phase; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
