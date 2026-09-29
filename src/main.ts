@@ -10,7 +10,7 @@ import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLev
 import { addListener, type EventName } from './core/events';
 import { moodOf, type Stinger } from './logic/runMusic';
 import { showWhatsNewNow } from './logic/whatsNew';
-import { nextCard, statusSeen, tutorialCard } from './logic/cards';
+import { inTutorial, nextCard, statusSeen, tutorialCard } from './logic/cards';
 import { CARD_IDS, CARDS, type CardId } from './config/cards';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
@@ -778,7 +778,7 @@ function afterStep(g: Game): void {
 
 /** #60: the Marches' levels 1 and 2 teach the basics on flash cards (logic/cards tutorialCard). Returns whether a card opened. */
 function tutorial(g: Game, choice: boolean): boolean {
-  if (!g.level || isTestRun(g)) return false;
+  if (!g.level || !inTutorial(g.level) || isTestRun(g)) return false; // everywhere else: nothing to build
   const p = g.player;
   const id = tutorialCard({
     realm: g.level.realm,
