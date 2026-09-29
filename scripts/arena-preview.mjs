@@ -1,7 +1,7 @@
 /**
  * #210: pictures of an arena for review.   node scripts/arena-preview.mjs <arena> <out-prefix>   (after `npm run build`)
  * Writes <out-prefix>-map.png (the whole baked map, every wing drawn open, at half size) and <out-prefix>-play.png (a test-mode run
- * at wave 16 with the wings opened by then, the champion in the first wing that opened, at 1280x720).
+ * at Act I wave 10 with the wing opened by then, the champion in the first wing that opened, at 1280x720).
  */
 import { chromium } from 'playwright';
 import { writeFileSync } from 'node:fs';
@@ -31,7 +31,7 @@ const map = await page.evaluate(async (arena) => {
     el.dispatchEvent(new Event('change', { bubbles: true }));
   };
   set('tm-arena', arena);
-  set('tm-wave', '16');
+  set('tm-wave', '10');
   const now = Date.now;
   Date.now = () => 2654435761;
   [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
