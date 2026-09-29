@@ -29,10 +29,11 @@ describe('the Marches: seven levels', () => {
     expect(rarePickOptions(c, 'flame', 2)).toContain('emberMantle');
   });
 
-  it('a rare the champion owns is not offered again; with both owned the pick is empty (it pays Runes)', () => {
+  it('a rare the champion owns is not offered again; with every one owned the pick is empty (it pays Runes)', () => {
     const c = { ...newChampion('viking'), inventory: ['salamanderScale'] as RelicId[] };
-    expect(rarePickOptions(c, 'flame', 2)).toEqual(['emberMantle']);
-    expect(rarePickOptions(grantRelic(c, 'emberMantle'), 'flame', 2)).toEqual([]);
+    expect(rarePickOptions(c, 'flame', 2)).toEqual(['emberMantle', 'flashpowder']); // v0.12 (#229): the Cinderlands' rares come next
+    expect(rarePickOptions(grantRelic(grantRelic(c, 'emberMantle'), 'flashpowder'), 'flame', 2)).toEqual(['pitchPot']);
+    expect(rarePickOptions(['emberMantle', 'flashpowder', 'pitchPot'].reduce((ch, id) => grantRelic(ch, id as RelicId), c), 'flame', 2)).toEqual([]);
   });
 
   it('the pick joins the inventory once', () => {

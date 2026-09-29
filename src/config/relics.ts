@@ -220,6 +220,13 @@ export const RELICS = {
     awaken: ['Solar Flare', 'Enemies killed by Radiance burst into fire (a Pyre explosion).'], desc: (n) => `Heavenly Radiance adds 1 + Grace/${n.per} burn stacks to everything it hits.` }),
   radiantBrand: relic({ name: 'Radiant Brand', rarity: 'rare', icon: '☀️', family: 'flame', classId: 'paladin', n: { base: 2, per: 5 }, n2: { per: 4 }, a: { every: 1, reach: 40 },
     awaken: ['Pillar of Dawn', 'While the shield holds, burning enemies touching you take their burn damage again every second.'], desc: (n) => `Divine Shield's burst adds ${n.base} + Faith/${n.per} burn stacks.` }),
+  // v0.12 (#229): the Cinderlands' Flame relics: bursts of fire, fire that spreads over the floor, burns that pass on when foes die
+  flashpowder: relic({ name: 'Flashpowder', rarity: 'rare', icon: '🧨', family: 'flame', n: { every: 1, stacks: 3, radius: 90, damage: 20, power: 4 }, n2: { every: 0.7, damage: 26 }, a: { stacks: 3 },
+    awaken: ['Chain Reaction', (a) => `Enemies a flare brings up to ${a.stacks} burn stacks flare too (one link).`], desc: (n) => `Once every ${n.every} s, a hit of yours on an enemy at ${n.stacks}+ burn stacks makes it flare: ${n.damage} fire damage (grows with level) to every enemy within ${n.radius} px, and a burn stack on each.` }),
+  pitchPot: relic({ name: 'Pitch Pot', rarity: 'rare', icon: '🛢️', family: 'flame', n: { every: 2, max: 4, radius: 38, life: 3, dps: 6, power: 3, reach: 360 }, n2: { every: 1.5, max: 6 },
+    awaken: ['Tar Pit', 'An enemy that dies in burning pitch bursts into fire (a Pyre explosion).'], desc: (n) => `Every ${n.every} s, burning enemies near you drip burning pitch at their feet: a fire patch for ${n.life} s (${n.dps} damage per second, grows with level) that sets a burn stack (up to ${n.max} patches).` }),
+  crownOfCinders: relic({ name: 'Crown of Cinders', rarity: 'legendary', icon: '🎇', family: 'flame', n: { radius: 110, damage: 12 }, n2: { radius: 140, damage: 16 }, a: { reach: 200, extra: 1 },
+    awaken: ['Conflagration', (a) => `The fire leaps up to ${a.reach} px and adds ${a.extra} more burn stack.`], desc: (n) => `When a burning enemy dies its fire leaps on: every enemy within ${n.radius} px catches its burn stacks and takes ${n.damage} fire damage (grows with level).` }),
 
   // ---------------------------------------------------------------- ❄️ Frost
   frostBrand: relic({ name: 'Frost Brand', rarity: 'common', icon: '❄️', family: 'frost', n: { chance: 0.9, chill: 1 }, n2: { chance: 1 }, a: { reduce: 0.2 },
