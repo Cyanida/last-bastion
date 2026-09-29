@@ -164,14 +164,14 @@ export function showTitle(info: TitleInfo, on: { start: () => void; map: () => v
  * world-map.css). A realm still shut sits under its clouds; an open one is a button. `picked` names the realm last chosen until the
  * realm road (#199) takes over that click.
  */
-export function showWorldMap(realms: { id: RealmId; name: string; open: boolean }[], picked: RealmId | null, on: { realm: (id: RealmId) => void; back: () => void }): void {
+export function showWorldMap(realms: { id: RealmId; name: string; open: boolean; opens: string }[], picked: RealmId | null, on: { realm: (id: RealmId) => void; back: () => void }): void {
   const name = realms.find((r) => r.id === picked)?.name;
   const el = show(`
     <div class="kit-frame world-map">
       <header class="kit-head">${kit.closeButton('back', { attrs: 'data-back' })}${kit.ribbon(`${kit.icon('map')} The World`, { attrs: 'role="heading" aria-level="1"' })}</header>
       <div class="wm-map">
         ${realms.filter((r) => !r.open).map((r) => `<i class="wm-cloud r-${r.id}"></i>`).join('')}
-        ${realms.map((r) => `<button class="wm-realm r-${r.id}${r.open ? ' open' : ''}" data-realm="${r.id}" aria-label="${esc(r.open ? r.name : `${r.name}, under clouds`)}"${r.open ? '' : ' disabled'}><span class="wm-name">${esc(r.name)}</span></button>`).join('')}
+        ${realms.map((r) => `<button class="wm-realm r-${r.id}${r.open ? ' open' : ''}" data-realm="${r.id}" aria-label="${esc(r.open ? r.name : `${r.name}, under clouds. ${r.opens}`)}"${r.open ? '' : ' disabled'}><span class="wm-name">${esc(r.name)}</span>${r.open ? '' : `<span class="wm-opens">${esc(r.opens)}</span>`}</button>`).join('')}
       </div>
       ${kit.parch(name ? `<b>${esc(name)}</b>: its road comes next.` : 'Choose an open realm. The others wait under the clouds until you win their way.', { cls: 'wm-note' })}
     </div>`);

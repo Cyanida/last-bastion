@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { REALM_IDS, REALMS } from '../src/config/world';
-import { mapRealms, recordClear, saveWorldProgress } from '../src/logic/world';
+import { mapRealms, opensText, recordClear, saveWorldProgress } from '../src/logic/world';
 import { buildWorld, worldPaths } from '../tools/art/ui/world';
 
 describe('#198 the world map', () => {
@@ -14,6 +14,12 @@ describe('#198 the world map', () => {
   it('the Marches crown opens ring 2', () => {
     const p = REALMS.marches.levels.reduce((q, _, i) => recordClear(q, 'marches', i + 1, 0), saveWorldProgress({}));
     expect(mapRealms(saveWorldProgress({ world: p })).filter((r) => r.open).map((r) => r.id)).toEqual(['marches', 'ironHold', 'barrowvale', 'cinderlands']);
+  });
+
+  it('a shut realm says what opens it', () => {
+    expect(opensText('ironHold')).toBe('Opens with 1 crown');
+    expect(opensText('frozenPass')).toBe('Opens with 2 crowns');
+    expect(opensText('lastBastion')).toBe('Opens with 5 crowns, one from the Frozen Pass or the Stormspire');
   });
 
   it('the committed map art is up to date, with clouds and a hit area for every realm', { timeout: 120000 }, () => {

@@ -73,6 +73,13 @@ export function keepLockedOptions(held: RelicId[], locked: RelicId[]): RelicId[]
  */
 export const saveWorldProgress = (save: object): WorldProgress => (save as { world?: WorldProgress }).world ?? {};
 
-/** The world map's realms, in REALM_IDS order: open, or still under clouds. */
-export const mapRealms = (p: WorldProgress): { id: RealmId; name: string; open: boolean }[] =>
-  REALM_IDS.map((id) => ({ id, name: REALMS[id].name, open: realmOpen(p, id) }));
+/** What opens a shut realm, in words for the map: "Opens with 5 crowns, one from the Frozen Pass or the Stormspire". */
+export function opensText(realm: RealmId): string {
+  const { crowns, fromRing } = REALMS[realm].opens;
+  const from = fromRing ? REALM_IDS.filter((r) => REALMS[r].ring === fromRing[0]).map((r) => REALMS[r].name.replace(/^The /, 'the ')) : [];
+  return `Opens with ${crowns} crown${crowns === 1 ? '' : 's'}${fromRing ? `, ${fromRing[1] === 1 ? 'one' : fromRing[1]} from ${from.join(' or ')}` : ''}`;
+}
+
+/** The world map's realms, in REALM_IDS order: open, or still under clouds with what opens it. */
+export const mapRealms = (p: WorldProgress): { id: RealmId; name: string; open: boolean; opens: string }[] =>
+  REALM_IDS.map((id) => ({ id, name: REALMS[id].name, open: realmOpen(p, id), opens: opensText(id) }));

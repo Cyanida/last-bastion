@@ -1426,7 +1426,8 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       const realms = [...document.querySelectorAll('.wm-realm')].map((b) => {
         const r = b.getBoundingClientRect();
         const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height * 0.7); // below the name ribbon
-        return { id: b.dataset.realm, open: !b.disabled, inside: r.left >= box.left - 1 && r.right <= box.right + 1 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1, reach: hit === b };
+        const o = b.querySelector('.wm-opens'), ob = o?.getBoundingClientRect();
+        return { id: b.dataset.realm, open: !b.disabled, opens: o ? /^Opens with \d crowns?/.test(o.textContent) && ob.width > 20 && ob.left >= box.left - 1 && ob.right <= box.right + 1 : false, inside: r.left >= box.left - 1 && r.right <= box.right + 1 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1, reach: hit === b };
       });
       const clouds = [...document.querySelectorAll('.wm-cloud')].map((c) => ({ id: c.className.match(/r-(\w+)/)[1], bg: getComputedStyle(c).backgroundImage, h: c.getBoundingClientRect().height }));
       const names = [...document.querySelectorAll('.wm-name')].filter((n) => n.getBoundingClientRect().width > 20 && /Cinzel/.test(getComputedStyle(n).fontFamily)).length;
@@ -1444,9 +1445,10 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const open = before.realms.filter((r) => r.open).map((r) => r.id);
     const shut = before.realms.filter((r) => !r.open).map((r) => r.id);
     const ok = before.realms.length === 9 && open.join() === 'marches' && before.realms.every((r) => r.inside) && before.realms.find((r) => r.id === 'marches').reach
+      && before.realms.every((r) => r.opens === !r.open)
       && before.clouds.length === 8 && before.clouds.every((c) => shut.includes(c.id) && c.bg.includes('world-clouds') && c.h > 20) && before.mapBg.includes('world-map') && art.every((n) => n > 0)
       && before.names === 9 && before.onScreen && /The Marches/.test(after.note) && title > 0 && errs.length === 0;
-    return { ok, detail: `${before.realms.length} realms, open: ${open.join()}, ${before.clouds.length} under clouds, ${before.names} names in Cinzel${before.onScreen ? '' : ' (map off screen)'}, art ${art.join('/')}; picked -> "${after.note}"; Esc -> ${title ? 'title' : '?'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    return { ok, detail: `${before.realms.length} realms, open: ${open.join()}, ${before.clouds.length} under clouds (${before.realms.filter((r) => r.opens).length} say what opens them), ${before.names} names in Cinzel${before.onScreen ? '' : ' (map off screen)'}, art ${art.join('/')}; picked -> "${after.note}"; Esc -> ${title ? 'title' : '?'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
