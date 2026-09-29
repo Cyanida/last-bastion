@@ -347,7 +347,7 @@ await check('menus: the compendium, glossary and flash cards in the kit, every r
       const rim = (id) => getComputedStyle(frame(id)).borderTopColor;
       return {
         n: rows.length,
-        framed: rows.filter((r) => r.firstElementChild?.matches('.kit-rarity.common, .kit-rarity.rare, .kit-rarity.legendary, .kit-rarity.class')).length,
+        framed: rows.filter((r) => r.firstElementChild?.matches('.kit-rarity.common, .kit-rarity.rare, .kit-rarity.legendary, .kit-rarity.class, .kit-rarity.signature')).length, // #201: the signature relics in gold
         found: rows.filter((r) => !r.classList.contains('locked')).map((r) => `${r.querySelector('.kit-row-body > b').textContent} ${r.firstElementChild.classList[1]}`),
         glyph: frame('dragonsTongue').textContent === '🐉',
         colours: new Set(['brimstoneOil', 'dragonsTongue', 'fireArrows'].map(rim)).size,
