@@ -41,6 +41,9 @@ export function levelSkip(realm: RealmId, level: number): { waves: number; level
   return { waves: first - 1, levels: headStartLevel(first) - 1, share: (last - first + 1) / (FINAL.act * ACTS.length) };
 }
 
+/** #212: the foe that marches in `realm`'s levels in place of `id` (its realm variant), else `id` itself. No realm: the plain foe. */
+export const realmFoe = (realm: RealmId | undefined, id: EnemyId): EnemyId => (realm && REALMS[realm].foes?.[id]) || id;
+
 /** One champion's world progress: per realm, the highest level cleared on each tier (index into config/economy TIERS). */
 export type WorldProgress = Partial<Record<RealmId, number[]>>;
 
@@ -186,7 +189,7 @@ export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier
     slots: slotsFor(realm, level, bonus.slots),
     enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * 100),
     family: lv.family,
-    foes: featuredFoes(lv.waves).map((id) => ENEMIES[id].name),
+    foes: featuredFoes(lv.waves).map((id) => ENEMIES[realmFoe(realm, id)].name), // #212: as they march there
     boss: bossName(lv.boss, lv.waves[1]),
     crownBoss: !!lv.boss.crown,
     rewards: [...r.level, ...r.crown].map((x) => REWARD_TEXT[x.kind](x, def.family)),

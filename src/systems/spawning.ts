@@ -24,7 +24,7 @@ import { actTheme } from './acts';
 import { killEnemy } from './combat';
 import { createSquad } from './squads';
 import { REALMS } from '../config/world';
-import { levelBoss } from '../logic/world';
+import { levelBoss, realmFoe } from '../logic/world';
 
 const MIN_SPAWN_DIST = 380;
 
@@ -34,6 +34,7 @@ function edgePoint(g: Game): { x: number; y: number } {
 }
 
 export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = []): Enemy {
+  id = realmFoe(g.level?.realm, id); // #212: in a realm's levels its variants march in place of the plain foe (the Iron Hold's knights)
   const at = x === undefined || y === undefined ? edgePoint(g) : { x, y };
   if (affixes.length && affixes.length < g.oath.n.affixes) {
     // v0.6 Oath (Thrice-Marked): every elite is topped up to three affixes, never the same one twice

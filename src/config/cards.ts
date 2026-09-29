@@ -25,6 +25,7 @@ export const ENEMY_CARDS: Record<EnemyId, string> = {
   wolf: 'Fast. Crouches, then leaps: step aside.',
   crossbow: 'Shoots from range. Close in or dodge the bolts.',
   knight: 'Slow and tough. Barely flinches.',
+  ironKnight: 'Iron plates shrug off blows. Each hit breaks one: keep swinging.',
   cultist: 'Runs at you and explodes. Kill it before it arrives.',
   shieldBearer: 'Blocks arrows from the front. Hit it from the side.',
   priest: 'Heals the horde. Hunt him down first.',

@@ -2,7 +2,7 @@ import { credit, relicContext } from './relicContext';
 import { ATTUNEMENT, FAMILIES, isFamily, RELIC_COLOR, type RelicKey } from '../config/relics';
 import { addWork } from '../logic/relics';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
-import { ARMOR, ARMOR_WEAR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
+import { ARMOR, ARMOR_WEAR, DAMAGE_TYPES, PLATES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GOLD } from '../config/economy';
 import { GAME, RENDER, SKILL } from '../config/game';
@@ -16,7 +16,7 @@ import { addField, fireProjectile, recycleProjectile } from '../entities/hazards
 import { goldDrop } from '../logic/economy';
 import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
-import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, throughResolve, typeMultiplier, type StatusApply } from '../logic/status';
+import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, throughPlates, throughResolve, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
 import { lastStand, zoneStruck } from './dodge';
@@ -127,7 +127,7 @@ export function applyStatus(e: Enemy, s: Status | null, g?: Game): void {
  * Returns the damage that reached the enemy's HP. kx/ky is a knockback impulse, and also tells which way the hit travelled.
  * Order: resistance / weakness -> Cursed -> elite barrier -> armor -> HP.
  */
-export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx = 0, ky = 0, source: DamageSource = 'attack', type: DamageType = 'physical'): number {
+export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx = 0, ky = 0, source: DamageSource = 'attack', type: DamageType = 'physical', tick = false): number {
   if (e.dead) return 0;
   if (e.warded) {
     if (e.flash <= 0) floatText(g, e.x, e.y - e.r - 20, 'WARDED', '#e9c95a', 14); // at most once per flash, or it floods the screen
@@ -138,6 +138,15 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   const chill = e.statuses.slow?.by ? 1 + e.statuses.slow.stacks * FAMILIES.frost.n.chillVuln : 0; // v0.7 A8: a relic's chill: +4% damage taken per stack
   amount *= typeMult * damageTakenFactor(e.statuses) * (chill || 1);
   if (e.def.boss && source !== 'hazard') amount *= g.player.mods.bossDamage;
+  const plates = PLATES[e.def.id];
+  if (plates && e.armorHp > 0) {
+    // #212: iron plates count hits: each one breaks a plate (a status tick slips under them), and until they are gone every hit is dulled
+    const hit = throughPlates(amount, e.armorHp, e.maxHp, plates, !tick);
+    if (hit.plates < e.armorHp) sfx(g, 'clang');
+    amount = hit.dealt;
+    e.armorHp = hit.plates;
+    if (hit.broke) breakPlates(g, e);
+  }
   const armor = ARMOR[e.def.id];
   if (armor && e.armorHp > 0) {
     if (armor.backBreak) {
@@ -199,6 +208,17 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   emit(g, 'onHit', { enemy: e, amount, crit, source });
   if (e.hp <= 0) killEnemy(g, e, source);
   return dealt;
+}
+
+/** #212: the last plate falls: he stands in his mail from now on (his bare sprite), and takes full damage. */
+function breakPlates(g: Game, e: Enemy): void {
+  floatText(g, e.x, e.y - e.r - 22, 'ARMOR BROKEN', '#9a9aa0', 15);
+  burst(g, e.x, e.y, '#9a9aa0', 18, 240);
+  shake(g, 5);
+  if (e.def.sprite === 'ironKnight') {
+    e.def = { ...e.def, sprite: 'ironKnightBare' };
+    e.spr = null; // the letter-grid fallback is cached per enemy
+  }
 }
 
 /** Damage of a player attack or ability with the given base and scaling stat, crit rolled from Dexterity. */
@@ -537,7 +557,7 @@ export function updateFields(g: Game, dt: number): void {
           if (e.dead) continue;
           const outer = relicContext.acting;
           relicContext.acting = f.by ?? outer; // a relic's field (Scorched Earth) credits its relic
-          damageEnemy(g, e, f.dps * GAME.fieldTick, false, 0, 0, f.by ? 'relic' : 'ability', f.dtype);
+          damageEnemy(g, e, f.dps * GAME.fieldTick, false, 0, 0, f.by ? 'relic' : 'ability', f.dtype, true); // a tick: it breaks no plates (#212)
           if (f.apply) applyStatus(e, { apply: [f.apply] }, g);
           relicContext.acting = outer;
         }
