@@ -1544,6 +1544,95 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
+// From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
+// slots and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a
+// common fills the slot and shows its set chip, the plan gets a talent on the tree, the Map
+// tab opens the world map and comes back; PLAY starts level 1 with the slotted relic and the plan; a level ended early comes home as
+// "fell at wave N" with RESTART, which plays the level again on the same seed
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`champion screen: pedestal, six slots, sets, inventory, talent plan, the Map tab, PLAY and RESTART on the same seed, ${touch ? 'tap' : 'click'} at ${w}x${h} (#197)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await p.evaluate(() => {
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue', 'everfrostCrown'], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false } };
+    });
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const look = () => p.evaluate(() => {
+      const scr = document.querySelector('.champion-screen'), box = scr.getBoundingClientRect();
+      const play = document.querySelector('[data-play]'), pb = play.getBoundingClientRect();
+      const fig = document.querySelector('.cs-hero [data-figure] canvas');
+      const champ = window.__lb.save.champions.paladin;
+      return {
+        fits: box.top >= -1 && box.left >= -1 && box.bottom <= innerHeight + 1 && box.right <= innerWidth + 1,
+        figure: !!fig && fig.getBoundingClientRect().height > 40,
+        slots: [...document.querySelectorAll('.cs-slot')].map((s) => (s.classList.contains('empty') ? (s.classList.contains('idle') ? '-' : 'o') : 'R')).join(''),
+        sets: [...document.querySelectorAll('.cs-set')].map((c) => c.textContent.trim()).join(','),
+        inv: document.querySelectorAll('.cs-relic').length,
+        blocked: [...document.querySelectorAll('.cs-relic.blocked')].map((b) => b.dataset.relic).join(','),
+        why: document.querySelector('.cs-why').textContent,
+        plan: document.querySelectorAll('.cs-plan li').length,
+        play: play.textContent.trim(), playReach: pb.bottom <= innerHeight + 1 && document.elementFromPoint(pb.left + pb.width / 2, pb.top + pb.height / 2)?.closest('[data-play]') === play,
+        next: document.querySelector('.cs-next').textContent.replace(/\s+/g, ' ').trim(),
+        tabs: [...document.querySelectorAll('.kit-tab')].map((t) => (t.classList.contains('on') ? 'X' : 'o')).join(''),
+        greens: document.querySelectorAll('.champion-screen .kit-btn.go').length,
+        loadout: (champ.loadouts.marches ?? []).join(','), savedPlan: champ.talentPlan.length,
+      };
+    });
+    const first = await look();
+    await press('.cs-relic[data-relic="dragonsTongue"]');
+    const slotted = await look();
+    await press('.cs-relic[data-relic="everfrostCrown"]'); // a second legendary: the rules say no
+    const refused = await look();
+    await press('.cs-slot[data-unslot="dragonsTongue"]');
+    await press('.cs-relic[data-relic="brimstoneOil"]');
+    const common = await look();
+    await press('[data-plan]');
+    await press('.talent.open');
+    await press('.kit-screen.talents [data-back]');
+    const planned = await look();
+    await press('.kit-tab[data-tab="map"]');
+    const map = await p.locator('.wm-map').count();
+    await p.keyboard.press('Escape');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await press('[data-play]');
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, seed: g.seed, held: g.player.relics.held.join(','), talents: g.player.talents.length } : null; });
+    // the opening screens (a pick, then the quest board, left as it is), then the pause menu's End run: the level is lost
+    await p.waitForFunction(() => window.__lb.state === 'choice', null, { timeout: 5000 }).catch(() => {});
+    for (let i = 0; i < 8 && (await p.evaluate(() => window.__lb.state)) === 'choice'; i++) {
+      const answer = p.locator('[data-pick], [data-leave]');
+      await answer.first().waitFor({ timeout: 3000 }).catch(() => {});
+      if (await answer.count()) await press(await p.locator('[data-pick]').count() ? '[data-pick]' : '[data-leave]');
+      await p.waitForTimeout(200);
+    }
+    await p.waitForFunction(() => window.__lb.state === 'playing', null, { timeout: 5000 }).catch(() => {});
+    await p.keyboard.press('Escape');
+    await press('[data-quit]');
+    await press('[data-menu]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const fell = await look();
+    await press('[data-play]');
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const again = await p.evaluate(() => { const g = window.__lb.game; return g ? { level: g.level?.level, seed: g.seed } : null; });
+    await p.close();
+    const ok = first.fits && first.figure && first.slots === 'o-----' && first.inv === 4 && first.blocked === '' && first.play === 'Play' && first.playReach && first.greens === 1 && first.tabs === 'oXooo'
+      && /The Marches · Level 1/.test(first.next) && /1 slot/.test(first.next) && first.sets === ''
+      && slotted.slots === 'RRo---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === ''
+      && /everfrost crown: at most 1 legendary/i.test(refused.why) && refused.loadout === 'dragonsTongue'
+      && common.slots === 'R-----' && common.loadout === 'brimstoneOil' && common.sets === '1'
+      && planned.plan === 1 && planned.savedPlan === 1 && map === 1
+      && run?.realm === 'marches' && run.level === 1 && run.held.split(',')[0] === 'brimstoneOil' && run.talents === 0 // level 1's head start has no point to spend yet
+      && /Restart/i.test(fell.play) && /fell at wave \d+/.test(fell.next) && again?.level === 1 && again.seed === run.seed && errs.length === 0;
+    return { ok, detail: `slots ${first.slots}, ${first.inv} relics, "${first.next}", ${first.play}${first.playReach ? '' : ' (out of reach)'}, tabs ${first.tabs}; Dragon's Tongue -> ${slotted.slots} (sets ${slotted.sets || '-'}, blocked ${slotted.blocked || '-'}); Everfrost -> "${refused.why}"; out, Brimstone -> ${common.slots}; plan ${planned.plan}; map ${map ? 'opens' : '?'}; run ${run ? `${run.realm} ${run.level}, held ${run.held}` : 'none'}; after a fall "${fell.next}" ${fell.play} -> level ${again?.level} seed ${again?.seed === run?.seed ? 'same' : 'new'}${first.fits ? '' : ' (off screen)'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 // ---------- v0.8.3 (#182): a new pixel ratio (another monitor) re-sizes the canvas, so the arena stays sharp ----------
 await check('DPR: moving to a sharper screen re-sizes the canvas to its pixels (#182)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
