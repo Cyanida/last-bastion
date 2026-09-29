@@ -16,6 +16,7 @@ export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>
   ironKnight: { frost: 1.25 }, // #212: his plates (PLATES below) are his defence
   cultist: { shadow: 0.5, holy: 1.5, fire: 0.75 },
   shieldBearer: { physical: 0.85, fire: 1.25 },
+  thornBearer: { physical: 0.85, fire: 1.25 }, // #214: the shield bearer's, spikes and all
   priest: { holy: 0.5, shadow: 1.5 },
   chaplain: { holy: 0.5, shadow: 1.5 },
   cavalry: { frost: 1.3 },
@@ -44,6 +45,7 @@ export const ARMOR: Partial<Record<EnemyId, { frac: number; reduction: number; b
   knight: { frac: 0.5, reduction: 0.6 },
   cavalry: { frac: 0.3, reduction: 0.4 },
   shieldBearer: { frac: 0.3, reduction: 0.5, backBreak: true },
+  thornBearer: { frac: 0.3, reduction: 0.5, backBreak: true },
   mirrorKnight: { frac: 0.4, reduction: 0.5 },
 };
 /**
@@ -53,6 +55,14 @@ export const ARMOR: Partial<Record<EnemyId, { frac: number; reduction: number; b
  */
 export const PLATES: Partial<Record<EnemyId, { plates: number; reduction: number; heavy: number }>> = {
   ironKnight: { plates: 6, reduction: 0.75, heavy: 0.2 },
+};
+/**
+ * #214: thorns that hit back (the Iron Hold's Thorn Bearers). A blow of the champion's own (his attack or an ability, not a status or field
+ * tick, a relic's proc, a minion or the arena) that lands while he stands within `reach` of the bearer's edge bites him for `share` of
+ * the blow, at most `cap` of his max HP, at most once per `cd` seconds per bearer. Armor and blocks apply; thorns never take his last HP.
+ */
+export const THORNS: Partial<Record<EnemyId, { share: number; cap: number; reach: number; cd: number }>> = {
+  thornBearer: { share: 0.2, cap: 0.05, reach: 100, cd: 0.35 },
 };
 /** v0.7.3 (#59): how much of a blocked (shield bearer) or thrown-back (mirror knight) shot's damage wears the shield or mirror down. */
 export const ARMOR_WEAR = { block: 1, reflect: 0.5 };

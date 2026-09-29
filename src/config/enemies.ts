@@ -8,6 +8,7 @@ export type EnemyId =
   | 'ironKnight'
   | 'cultist'
   | 'shieldBearer'
+  | 'thornBearer'
   | 'priest'
   | 'cavalry'
   | 'bannerman'
@@ -141,6 +142,11 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   shieldBearer: {
     ...base, id: 'shieldBearer', name: 'Shield Bearer', sprite: 'shieldBearer', behavior: 'chaser',
     hp: 70, damage: 12, speed: 58, radius: 14, xp: 4, knockbackResist: 0.6, frontBlock: 1.1,
+  },
+  // #214: the Iron Hold's shield bearer. The same shield, spiked: a blow struck at him up close bites back (config/damage.ts THORNS)
+  thornBearer: {
+    ...base, id: 'thornBearer', name: 'Thorn Bearer', sprite: 'thornBearer', behavior: 'chaser',
+    hp: 70, damage: 12, speed: 56, radius: 14, xp: 5, knockbackResist: 0.6, frontBlock: 1.1,
   },
   // pressures slow killers: keeps the horde topped up until you hunt him down
   priest: {

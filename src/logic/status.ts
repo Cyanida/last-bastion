@@ -1,3 +1,4 @@
+import type { DamageSource } from '../core/types';
 import { ARMOR, BACK_ARC, PLATES, BOSS_RESOLVE, RESISTS, STATUS_TUNING, STATUSES, type DamageType, type StatusId } from '../config/damage';
 import type { EnemyId } from '../config/enemies';
 
@@ -96,6 +97,17 @@ export function throughPlates(amount: number, plates: number, maxHp: number, cfg
   const broken = breaks && amount > 0 ? 1 + Math.floor(amount / (cfg.heavy * maxHp)) : 0;
   const left = Math.max(0, plates - broken);
   return { dealt: amount * (1 - cfg.reduction), plates: left, broke: left === 0 && broken > 0 };
+}
+
+/**
+ * #214: what a thorn bearer's spikes (config/damage.ts THORNS) bite back for one hit on it: `share` of the blow, at most `cap` of the
+ * champion's `maxHp`. Only his own blows count (an attack or an ability, not a tick), struck from within `reach` of the bearer's edge
+ * (`gap`: the distance from the champion to that edge), and at most once per `cd` seconds (`since`: seconds since the last bite).
+ */
+export function thornsBite(blow: number, hit: { source: DamageSource; tick: boolean; gap: number; since: number }, maxHp: number, cfg: { share: number; cap: number; reach: number; cd: number }): number {
+  if (blow <= 0 || hit.tick || (hit.source !== 'attack' && hit.source !== 'ability')) return 0;
+  if (hit.gap > cfg.reach || hit.since < cfg.cd) return 0;
+  return Math.min(blow * cfg.share, cfg.cap * maxHp);
 }
 
 /**

@@ -21,6 +21,7 @@ export const AI: Partial<Record<EnemyId, AiProfile>> = {
   cultist: { reach: 'melee', flank: 0.35, special: { id: 'fuse', cd: 0, range: 51 } },
   // never turns its shield away from you
   shieldBearer: { reach: 'melee', flank: 0 },
+  thornBearer: { reach: 'melee', flank: 0 },
   priest: { reach: 'support', flank: 0, range: [210, 330], special: { id: 'heal', cd: 2.5, range: 9999 }, fleeBelow: 0.4 },
   // rides a long telegraphed charge, wheels away, charges again
   cavalry: { reach: 'melee', flank: 0.5, special: { id: 'lunge', cd: 3.5, range: 380, minRange: 110 }, retreatAfterSpecial: 1.3 },
