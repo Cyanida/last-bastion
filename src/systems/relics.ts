@@ -4,7 +4,7 @@ import { sfx } from '../sim/view';
 import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
 import { combineMods, isMultiplicative } from '../logic/mods';
-import { attuneAll, duoPartner, duoTier, familyPool, foldRelicMods, joinTiers, looseRelics, readyDuos, relicCardLine, relicModTotals, relicTier, rollOffer, totalsToMods } from '../logic/relics';
+import { attuneAll, duoPartner, duoTier, familyPool, foldRelicMods, joinTiers, looseRelics, readyDuos, relicCardLine, relicModTotals, relicTier, rollWithLocked, sixOpen, totalsToMods } from '../logic/relics';
 import { floatText, ring } from './effects';
 import { relicContext } from './relicContext';
 import { credit, familySets, type RelicHooks } from './relicCore';
@@ -183,6 +183,7 @@ export function addRelic(g: Game, id: RelicId, from: RelicSource = 'other', tier
   r.dirty = true;
   r.found.push(id);
   r.from[id] ??= from;
+  r.fresh = r.fresh.filter((f) => f !== id); // #194: the 3x weight lasts until it is first picked
   HOOKS[id]?.acquire?.(g, g.player);
   floatText(g, g.player.x, g.player.y - 50, relicDef(id).name, '#c9a227', 16);
   sfx(g, 'levelup');
@@ -250,7 +251,7 @@ export function relicPreview(p: Player, id: RelicId): string[] {
   const fam = familyOf(id);
   if (fam) {
     const n = r.sets[fam]?.count ?? 0;
-    const set = (SET_LEVELS as readonly number[]).includes(n + 1) ? `: ${FAMILIES[fam].sets[(n + 1) as SetLevel][0]}` : '';
+    const set = (SET_LEVELS as readonly number[]).includes(n + 1) ? (n + 1 === 6 && !sixOpen(r.sets, fam) ? ': no 6 bonus (another family has it this run)' : `: ${FAMILIES[fam].sets[(n + 1) as SetLevel][0]}`) : '';
     lines.push(`${FAMILIES[fam].icon} ${FAMILIES[fam].name} ${n} → ${n + 1}${set}`);
   } else lines.push('☠ Cursed: no family or set; awakening it lifts the curse');
   const duo = duoOf(id);
@@ -269,7 +270,7 @@ export function relicOfferLine(p: Player, id: RelicId, evolution: boolean): stri
   const duo = duoOf(id);
   const partner = duo && DUOS[duo].from.find((s) => s !== id)!;
   const completes = !!duo && !!partner && r.held.includes(partner) && !r.duos.includes(duo) && !r.duos.some((d) => DUOS[d].from.includes(partner));
-  return relicCardLine(id, fam ? (r.sets[fam]?.count ?? 0) : 0, { upgrade: r.held.includes(id), duo: completes, evolution });
+  return relicCardLine(id, fam ? (r.sets[fam]?.count ?? 0) : 0, { upgrade: r.held.includes(id), duo: completes, evolution, noSix: !!fam && !sixOpen(r.sets, fam) });
 }
 
 /**
@@ -292,20 +293,25 @@ export function relicShares(g: Game, p: Player = g.player): { id: RelicKey; tier
 /** Rerolls a moment starts with: the base, the Cursed Luck trait, the Keep's Reliquary Guard, the Elite path's Act. */
 export const momentRerolls = (g: Game): number => RELIC_MOMENTS.rerolls + (g.vars['trait.rerolls'] ?? 0) + (g.vars['keep.relicRerolls'] ?? 0) + (g.route?.focus === 'elite' ? ROUTES.elite.rerolls : 0);
 
-/** A moment's options; `families` (#100: a boss's arena) narrows the pool to them while they can fill it. */
-function roll(p: Player, pool: RelicId[], n: number, families?: FamilyId[], exclude = p.relics.offers.flatMap((o) => o.options)): RelicId[] {
+/**
+ * A moment's options; `families` (#100: a boss's arena) narrows the pool to them while they can fill it. v0.10 (#194): the opening pick and a
+ * boss inside a realm (`from`) show one of the champion's locked relics while any is left.
+ */
+function roll(p: Player, pool: RelicId[], n: number, families?: FamilyId[], exclude = p.relics.offers.flatMap((o) => o.options), from?: RelicSource): RelicId[] {
   const r = p.relics;
-  return rollOffer(families ? familyPool(pool, r.held, families, n, exclude) : pool, r.held, r.rng, n, familyOf, RELIC_MOMENTS.heldFamilyWeight, exclude);
+  const narrow = families ? familyPool(pool, r.held, families, n, exclude) : pool;
+  const locked = from === 'boss' || from === 'start' ? r.locked : [];
+  return rollWithLocked(narrow, locked, r.held, r.rng, n, familyOf, RELIC_MOMENTS.heldFamilyWeight, exclude, r.fresh);
 }
 
 /**
  * v0.7: queue a relic moment for a player: a pick of `count` (RELIC_MOMENTS). `pool` narrows it (the Merchant sells one rarity).
  * Every relic choice is an action on a player's own state, so in co-op any player can have their own moment.
  */
-export function offerRelics(g: Game, count = RELIC_MOMENTS.choices, from: RelicSource = 'other', p: Player = g.player, pool = p.relics.pool): void {
+export function offerRelics(g: Game, count = RELIC_MOMENTS.choices, from: RelicSource = 'other', p: Player = g.player, pool = p.relics.pool, only?: FamilyId[]): void {
   const cursed = cursedCard(g, p, from);
-  const families = from === 'boss' ? ARENA_FAMILIES[g.arena.id] : undefined;
-  const options = roll(p, pool, cursed ? count - 1 : count, families);
+  const families = only ?? (from === 'boss' ? ARENA_FAMILIES[g.arena.id] : undefined); // `only`: the opening pick's family (#194)
+  const options = roll(p, pool, cursed ? count - 1 : count, families, undefined, from);
   if (cursed) options.splice(2, 0, cursed); // the third card (the last, if the pool ran short)
   // v0.7 A5: the first completed duo not already on a queued moment comes along as a gold fourth card (one a moment), at a wave boss (A8)
   const duo = RELIC_MOMENTS.duoAt.includes(from) ? readyDuos(p.relics).find((d) => !p.relics.offers.some((o) => o.duo === d)) : undefined;
@@ -370,7 +376,7 @@ export function rerollRelicOffer(g: Game, p: Player = g.player): boolean {
   const pool = offer.from === 'merchant' ? p.relics.pool.filter((id) => relicDef(id).rarity === relicDef(offer.options[0]).rarity) : p.relics.pool;
   const others = p.relics.offers.slice(1).flatMap((o) => o.options);
   const cursed = offer.options.filter(isCursedRelic); // B6: a cursed third card stays
-  const options = roll(p, pool, offer.options.length - cursed.length, offer.families, [...others, ...offer.options]);
+  const options = roll(p, pool, offer.options.length - cursed.length, offer.families, [...others, ...offer.options], offer.from);
   if (!options.length) return false;
   options.splice(2, 0, ...cursed);
   offer.options = options;

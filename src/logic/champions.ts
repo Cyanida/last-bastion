@@ -88,6 +88,9 @@ export function championsFromV6(
   return out;
 }
 
+/** v0.10 (#194): a champion's relics never picked on this save (`picks`: save.relicPicks), offered 3x as often until first picked (rule 5). */
+export const freshRelics = (c: Champion, picks: Partial<Record<RelicId, number>>): RelicId[] => c.inventory.filter((id) => !(picks[id] ?? 0));
+
 /** The Last Bastion also opens for a champion carried over with a win; every other realm by its crowns. */
 export const championRealmOpen = (c: Champion, realm: RealmId): boolean => (realm === 'lastBastion' && c.lastBastion) || realmOpen(c.world, realm);
 

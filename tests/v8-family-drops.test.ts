@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ARENAS, type ArenaId } from '../src/config/arenas';
 import { CLASSES, type ClassId } from '../src/config/classes';
-import { ARENA_FAMILIES, FAMILY_IDS, preferredFamilies, relicDef, type RelicId } from '../src/config/relics';
+import { ARENA_FAMILIES, FAMILY_IDS, RELIC_IDS, relicDef, type RelicId } from '../src/config/relics';
 import { createGame } from '../src/game';
 import { familyPool, relicPoolFor } from '../src/logic/relics';
 import { offerRelics, rerollRelicOffer } from '../src/systems/relics';
@@ -41,16 +41,16 @@ describe('#100: arenas drop only their families at a boss', () => {
   });
 
   it('falls back to the whole pool when the families run dry, so a pick is always full', () => {
-    const pool = relicPoolFor('paladin', []);
+    const pool = relicPoolFor('paladin');
     const held = pool.filter((id) => ['flame', 'holy', 'steel'].includes(relicDef(id).family!));
     expect(familyPool(pool, held, ['flame', 'holy', 'steel'], 3)).toBe(pool);
     expect(familyPool(pool, [], ['flame'], 3).every((id) => relicDef(id).family === 'flame')).toBe(true);
   });
 
-  it('every class can still find all six relics of each preferred family (other moments are open)', () => {
+  it('every class can still find all six relics of each family its class relics are in (other moments are open)', () => {
     for (const cls of Object.keys(CLASSES) as ClassId[]) {
-      const pool = relicPoolFor(cls, []);
-      for (const f of preferredFamilies(cls)) expect(pool.filter((id) => relicDef(id).family === f).length).toBeGreaterThanOrEqual(6);
+      const pool = relicPoolFor(cls);
+      for (const f of FAMILY_IDS.filter((x) => RELIC_IDS.some((id) => relicDef(id).classId === cls && relicDef(id).family === x))) expect(pool.filter((id) => relicDef(id).family === f).length).toBeGreaterThanOrEqual(6);
     }
   });
 

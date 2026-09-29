@@ -22,7 +22,7 @@ import { accountPerks, masteryBonus, metaLoadout, startingStats, type MetaRanks 
 import { TALENT_ROW_CAP } from './config/economy';
 import { applyGrowth } from './logic/formulas';
 import { combineMods, neutralMods } from './logic/mods';
-import { relicPoolFor, relicStream, rollRelics } from './logic/relics';
+import { championPool, lockedIn, relicPoolFor, relicStream, rollRelics } from './logic/relics';
 import { newRunLog } from './logic/runlog';
 import type { RunSummary } from './logic/save';
 import type { TreasureRecord } from './logic/treasures';
@@ -33,7 +33,7 @@ import { updateEffects } from './systems/effects';
 import { updateEnemies } from './systems/enemyAI';
 import { updateMinions } from './systems/minions';
 import { updateEnemyPhysics, updatePickups, updatePlayerMovement } from './systems/movement';
-import { addRelic, updateRelics } from './systems/relics';
+import { addRelic, offerRelics, updateRelics } from './systems/relics';
 import { applyTrait, talentPassives } from './systems/talents';
 import { initRegions, updateRegions } from './systems/regions';
 import { initQuests, updateQuests } from './systems/quests';
@@ -49,7 +49,7 @@ import './systems/bosses'; // registers the Act bosses' scripts
 import { updateSquads } from './systems/squads';
 import { updateStatuses } from './systems/status';
 import { headStart, type LevelStart } from './systems/levels';
-import { REALMS } from './config/world';
+import { REALMS, WORLD } from './config/world';
 
 /** Everything a run takes from outside: the player's choices on the select screen and their permanent progress. */
 export interface RunOptions {
@@ -57,7 +57,8 @@ export interface RunOptions {
   tier?: number;
   meta?: MetaRanks; // Keep upgrades
   classXp?: number; // mastery
-  lockedRelics?: RelicId[];
+  inventory?: RelicId[]; // v0.10 (#194): the champion's relics; with one the pool follows it (logic/relics championPool). None: every relic
+  fresh?: RelicId[]; // v0.10 (#194): inventory relics it has never picked (logic/champions freshRelics), offered 3x as often
   curses?: CurseId[];
   trait?: TraitId; // v0.4 starting trait
   trait2?: TraitId; // v0.6: a second one, with the Second Banner
@@ -217,7 +218,9 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     level: null,
     over: false,
   };
-  Object.assign(g.player.relics, { pool: relicPoolFor(classId, opts.lockedRelics ?? []), rng: relicStream(seed, 0) });
+  // v0.10 (#194): a champion's pool follows its inventory and the realm's family (the Marches: the level's featured one)
+  const pool = opts.inventory ? championPool(classId, opts.inventory, levelDef?.family) : relicPoolFor(classId);
+  Object.assign(g.player.relics, { pool, locked: opts.inventory ? lockedIn(pool, opts.inventory) : [], fresh: opts.fresh ?? [], rng: relicStream(seed, 0) });
   // curses that are plain numbers live in g.vars; the rest are read where they matter (spawning, director)
   g.vars.damageTaken = curseValue(curses, 'glassBones', 'damage');
   g.vars.enemySpeed = curseValue(curses, 'frenzy', 'speed');
@@ -246,13 +249,14 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     if (pick) addRelic(g, pick, 'start');
   }
   if (opts.noRelics) g.player.relics.pool = [];
-  if (loadout.startRelic) {
+  if (opts.level && levelDef) offerRelics(g, WORLD.openingPick, 'start', g.player, g.player.relics.pool, levelDef.family && [levelDef.family]); // #194: the opening pick (rule 4), in place of Armorer's offer
+  else if (loadout.startRelic) {
     // v0.6 Armorer's Choice: the run opens on a choice of three common relics
     const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
     const choice = rollRelics(commons, g.player.relics.held, g.rng, RELIC_MOMENTS.choices); // #191: never one already slotted
     if (choice.length) (g.player.relics.offers.push({ from: 'start', options: choice, rerolls: RELIC_MOMENTS.rerolls }), (g.vars.armorerOffer = 1));
   }
-  if (mastery.relic) {
+  if (mastery.relic && !opts.level) { // in a level the Keepsake is a slot (logic/champions championBonus)
     const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
     const [gift] = rollRelics(commons, g.player.relics.held, g.rng, 1);
     if (gift) addRelic(g, gift, 'start');

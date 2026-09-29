@@ -66,6 +66,8 @@ export interface RelicState {
   attune: Partial<Record<RelicId, number>>; // v0.7 A4: progress to the next tier, 0..1 (config ATTUNEMENT)
   work: Partial<Record<RelicId, number>>; // attunement from work this wave (capped at ATTUNEMENT.workCap)
   pool: RelicId[]; // unlocked and allowed for this class
+  locked: RelicId[]; // v0.10 (#194): pool relics the champion hasn't unlocked (a realm's family): the opening pick and realm bosses offer one
+  fresh: RelicId[]; // v0.10 (#194): unlocked relics never picked yet, offered RELIC_MOMENTS.newRelicWeight times as often
   offers: RelicOffer[]; // queued moments, oldest first
   found: RelicId[]; // every pickup and tier-up this run, for the compendium
   from: Record<string, RelicSource>; // where each held relic came from

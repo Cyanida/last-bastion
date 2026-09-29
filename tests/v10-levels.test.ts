@@ -80,7 +80,7 @@ describe('levels: the head start (#191)', () => {
     expect(g.player.talents).toEqual(plan.slice(0, 2));
   });
 
-  it('slotted relics come after the growth, at the level tier, from the loadout; the Armorer never offers one', () => {
+  it('slotted relics come after the growth, at the level tier, from the loadout; the opening pick (#194) never offers one', () => {
     const g = createGame('angel', 3, { level: { realm: 'ironHold', level: 4, relics: ['brimstoneOil', 'bloodPact'] }, meta: { startRelic: 1 } });
     const r = g.player.relics;
     expect(r.held).toEqual(['brimstoneOil', 'bloodPact']);
@@ -89,8 +89,8 @@ describe('levels: the head start (#191)', () => {
     expect(g.arena.id).toBe('keep'); // the Iron Hold's arena
     expect(g.player.hp).toBe(g.player.stats.hp); // Blood Pact's cut is taken off the grown HP
     expect(g.player.level).toBe(headStartLevel(21));
-    const armorer = r.offers.find((o) => o.from === 'start')!;
-    expect(armorer.options.every((id) => relicDef(id).rarity === 'common' && !r.held.includes(id))).toBe(true);
+    const opening = r.offers.find((o) => o.from === 'start')!;
+    expect(opening.options.every((id) => relicDef(id).family === 'steel' && !r.held.includes(id))).toBe(true); // the Iron Hold's family
   });
 });
 
