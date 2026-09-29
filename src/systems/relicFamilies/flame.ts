@@ -72,6 +72,26 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     },
   },
 
+  emberMantle: {
+    tick(g, dt, p) {
+      const n = nOf(p, 'emberMantle');
+      if ((g.vars['mantle.t'] = (g.vars['mantle.t'] ?? 0) + dt) >= n.every) {
+        g.vars['mantle.t'] = 0;
+        const near = g.hash.query(p.x, p.y, n.radius, []);
+        for (const e of near) addBurn(g, p, e, n.stacks, relicDamage(p, n.power));
+        if (near.length) {
+          flash(g, p, 'emberMantle'); // its burn's ticks are credited to it as they land (systems/status.ts)
+          burst(g, p.x, p.y, F.color, 10, 200);
+        }
+      }
+      if (!awakened(p, 'emberMantle')) return;
+      const a = aOf('emberMantle');
+      if ((g.vars['mantle.walk'] = (g.vars['mantle.walk'] ?? 0) + dt) < a.every) return;
+      g.vars['mantle.walk'] = 0;
+      addField(g, { x: p.x, y: p.y, r: a.radius, life: a.life, dps: relicDamage(p, a.dps), hostile: false, color: F.color, dtype: 'fire' }); // Firewalk
+    },
+  },
+
   dragonsTongue: {
     tick(g, dt) {
       g.vars['dragon.t'] = (g.vars['dragon.t'] ?? 0) + dt;
