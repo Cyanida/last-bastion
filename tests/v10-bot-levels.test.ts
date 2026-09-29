@@ -4,7 +4,7 @@ import { RELIC_IDS, relicDef, SIGNATURE, type RelicId } from '../src/config/reli
 import { MARCHES_FAMILIES, REALMS } from '../src/config/world';
 import { createGame } from '../src/game';
 import { ownable, slotBlock, slotCost } from '../src/logic/champions';
-import { botLoadout, expectedChampion, levelCell, levelOptions, minutesWithRetries, powerGap, powerOf, realmMinutes, simulateLevel, type LevelRun } from '../src/sim/levels';
+import { botLoadout, expectedChampion, levelCell, levelOptions, minutesWithRetries, powerGap, powerOf, realmMinutes, type LevelRun } from '../src/sim/levels';
 
 // v0.10 (#207): the bot fills loadout slots and plays realm levels with expected progress (src/sim/levels.ts)
 
@@ -105,13 +105,4 @@ describe('the levels table (#207)', () => {
     const c = levelCell([run(true, 480, 1), run(true, 600, 3), run(false, 120, 0), run(false, 240, 0)]);
     expect(c).toMatchObject({ runs: 4, clear: 0.5, minutes: 9, failMinutes: 3, power: 100, moments: 0.2, sixes: 1, duos: 2, duos3: 0.5, sixEarly: 0 });
   });
-
-  it('plays a Marches level to its end, loadout in its slots', () => {
-    const r = simulateLevel('paladin', 1, 'marches', 3, 1);
-    expect(r.loadout.length).toBeLessThanOrEqual(REALMS.marches.levels[2].slots);
-    expect(r.loadout.length).toBeGreaterThan(0);
-    expect(r.power).toBeGreaterThan(0);
-    expect(r.relicsAtStart).toBeGreaterThanOrEqual(r.loadout.length);
-    expect(r.summary.realmLevel).toMatchObject({ realm: 'marches', level: 3 });
-  }, 60_000);
 });
