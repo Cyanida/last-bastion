@@ -3588,6 +3588,75 @@ await check('Frame cache: the sprite gallery adds nothing to it; a run through A
   });
 });
 
+// ---------- #202: the Marches crowned: level 7's Warden as the crown boss (each phase held 12 s, his Judgement last), the Grave pick, then the signature relic ----------
+// From the title through the map and the road to level 7 (levels 1-6 cleared), the bot fights wave 40 with a strong blow on every swing, so
+// only the crown's hold keeps him up. Then the level's Grave rare (key 1 or a tap) and the crown's gold card (Enter or a tap).
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`Marches crown: level 7's Warden holds each phase 12 s and ends in his Judgement; the Grave pick, then the gold signature relic (${touch ? 'tap' : 'Enter'}), at ${w}x${h} (#202)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await p.evaluate(() => {
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, talentPlan: [], world: { marches: [6] }, signature: false, lastBastion: false } };
+    });
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-marches');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    const road = await p.evaluate(() => ({ name: document.querySelector('.rr-name').textContent, text: document.querySelector('.rr-panel').textContent.replace(/\s+/g, ' ') }));
+    await press('[data-fight]');
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await press('[data-pick="0"]');
+    const fight = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.player.stats.str *= 40;
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 40, the crown boss's wave
+      g.breather = 0.01;
+      const out = { crown: false, banner: '', born: -1, phases: [], end: -1, judgement: false, judged: false, unbroken: false };
+      let warden = null;
+      for (let i = 0; i < 30000 && lb.state !== 'results'; i++) {
+        g.player.invulnerable = true; // every tick: the Paladin's own ability ends it
+        lb.run(1, false, true);
+        warden ??= g.enemies.find((e) => e.def.id === 'warden') ?? null;
+        if (!warden) continue;
+        if (out.born < 0) (out.born = g.time), (out.crown = warden.crown), (out.banner = g.banner?.text ?? '');
+        const at = +(g.time - out.born).toFixed(2);
+        if (out.phases.length < warden.phase - 1) out.phases.push(at);
+        if (g.banner?.text === 'The Warden’s judgement') out.judgement = true;
+        if (g.banner?.text === 'Judged') out.judged = true; // a seal of the Judgement: the ring inside the ring
+        if (g.texts.some((t) => t.text === 'UNBROKEN')) out.unbroken = true;
+        if (warden.dead && out.end < 0) out.end = at;
+      }
+      return { ...out, cleared: !!g.level?.cleared, state: lb.state };
+    });
+    await p.locator('.rare-pick').first().waitFor({ timeout: 5000 });
+    const grave = await p.evaluate(() => ({ head: document.querySelector('.rare-pick .kit-head')?.textContent.trim(), fams: [...document.querySelectorAll('.rare-pick [data-pick]')].map((b) => b.querySelector('.fam').textContent) }));
+    if (touch) await p.locator('.rare-pick [data-pick="0"]').tap();
+    else await p.keyboard.press('1');
+    await p.locator('.crown-pick').waitFor({ timeout: 3000 });
+    const crown = await p.evaluate(() => {
+      const b = document.querySelector('.crown-pick [data-pick]'), r = b.getBoundingClientRect();
+      return { head: document.querySelector('.crown-pick .kit-head')?.textContent.trim(), cards: document.querySelectorAll('.crown-pick [data-pick]').length, name: b.querySelector('h2').textContent, fam: b.querySelector('.fam').textContent, gold: b.classList.contains('signature'), inside: r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1 && r.top >= -1 && r.left >= -1 };
+    });
+    if (touch) await p.locator('.crown-pick [data-pick="0"]').tap();
+    else await p.keyboard.press('Enter');
+    await p.locator('[data-menu]').waitFor({ timeout: 3000 });
+    const champ = await p.evaluate(() => window.__lb.save.champions.paladin);
+    await p.close();
+    const [p2, p3] = fight.phases, min = 11.9;
+    const held = p2 >= min && p3 - p2 >= min && fight.end - p3 >= min;
+    const ok = road.name === 'The Marches · Level 7' && /Your signature relic/.test(road.text) && fight.crown && fight.banner === 'The Warden · Crown boss' && held && fight.judgement && fight.judged && fight.unbroken && fight.cleared
+      && /The Marches · Level 7 cleared/.test(grave.head) && grave.fams.length === 2 && grave.fams.every((f) => /Grave/.test(f))
+      && /The Marches crowned/.test(crown.head) && crown.cards === 1 && crown.name === "Oathkeeper's Seal" && /Signature/.test(crown.fam) && crown.gold && crown.inside
+      && champ.signature === true && champ.inventory.includes('oathkeepersSeal') && champ.inventory.length === 2 && champ.world.marches[0] === 7 && errs.length === 0;
+    return { ok, detail: `"${road.name}"; ${fight.crown ? 'crown' : 'plain'} Warden ("${fight.banner}"), phase 2 at ${p2} s, phase 3 at ${p3} s, fell at ${fight.end} s${fight.unbroken ? ', UNBROKEN shown' : ''}${fight.judgement ? ', Judgement' : ''}${fight.judged ? ' seals' : ''}, level ${fight.cleared ? 'cleared' : 'not cleared'}; "${grave.head}" (${grave.fams.map((f) => f.trim()).join('/')}); "${crown.head}": ${crown.name} (${crown.fam.trim()}${crown.gold ? ', gold' : ''}${crown.inside ? '' : ', off screen'}); inventory [${champ.inventory.join()}], signature ${champ.signature}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
