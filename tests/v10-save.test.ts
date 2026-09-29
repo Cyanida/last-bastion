@@ -7,8 +7,8 @@ import { oldSave } from './fixtures/saves';
 
 /** #193: save v7 keeps a champion per class; a v6 save migrates without losing a relic. */
 describe('save v7: champions (#193)', () => {
-  it('is format 7, and a new save has no champions yet', () => {
-    expect(SAVE_VERSION).toBe(7);
+  it('is format 7 (8 since v0.11, #237), and a new save has no champions yet', () => {
+    expect(SAVE_VERSION).toBe(8);
     expect(saveFormatLabel(7)).toBe('v0.10');
     expect(defaultSave().champions).toEqual({});
   });

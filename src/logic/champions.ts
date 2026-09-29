@@ -7,6 +7,7 @@ import { TALENT_BY_ID } from '../config/talents';
 import { REALM_IDS, REALMS, WORLD, type RealmId } from '../config/world';
 import { masteryBonus, type MetaRanks } from './economy';
 import type { RunLog } from './runlog';
+import { readRealmRun, type RealmRun } from './realmRun';
 import { isCrowned, nextLevel, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
 
 export interface Champion {
@@ -17,6 +18,7 @@ export interface Champion {
   world: WorldProgress; // levels cleared and crowns, per realm and tier (logic/world.ts)
   signature: boolean; // its signature relic is won (the Marches crown); the relic itself is the class's own
   lastBastion: boolean; // the Last Bastion is open whatever its crowns: a class that won a v6 run
+  runs: Partial<Record<RealmId, RealmRun>>; // v0.11 (#237, save v8): its unfinished realm runs, one per realm, at their checkpoints
 }
 
 export const MAX_NAME = 24;
@@ -25,7 +27,7 @@ export const championName = (v: unknown, classId: ClassId): string =>
   (typeof v === 'string' ? v.replace(/[^\p{L}\p{N} '’.-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME) : '') || CLASSES[classId].name;
 
 export const newChampion = (classId: ClassId, name?: string): Champion => ({
-  name: championName(name, classId), inventory: [], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false,
+  name: championName(name, classId), inventory: [], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false, runs: {},
 });
 
 /** A relic a champion can own: not cursed, and not another class's class relic. */
@@ -59,6 +61,11 @@ export function readChampion(raw: unknown, classId: ClassId): Champion {
   c.signature = raw.signature === true;
   if (c.signature && !c.inventory.includes(SIGNATURE.relic[classId])) c.inventory.push(SIGNATURE.relic[classId]); // #201: won, so owned
   c.lastBastion = raw.lastBastion === true;
+  if (isObj(raw.runs))
+    for (const r of REALM_IDS) {
+      const run = readRealmRun(raw.runs[r], r);
+      if (run) c.runs[r] = run;
+    }
   return c;
 }
 
