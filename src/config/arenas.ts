@@ -1,10 +1,10 @@
 import { mulberry32 } from '../core/math';
 import type { EnemyId } from './enemies';
 import { GAME } from './game';
-import { expandArena, type RegionDef } from './regions';
+import { expandArena, type RegionDef, type WingDef, type WingId } from './regions';
 
 export type ArenaId = 'courtyard' | 'graveyard' | 'keep' | 'bastion';
-export type ObstacleKind = 'tomb' | 'tree' | 'pillar' | 'brazier' | 'throne';
+export type ObstacleKind = 'tomb' | 'tree' | 'pillar' | 'brazier' | 'throne' | 'anvil' | 'rack' | 'bunk'; // #210: the anvil, weapon rack and bunk furnish the Great Keep's wings
 export interface Obstacle {
   kind: ObstacleKind;
   x: number;
@@ -39,6 +39,7 @@ export interface ArenaDef {
   bosses: EnemyId[]; // boss rotation for every 5th wave
   corpseLifeMult: number;
   regions?: RegionDef[]; // v0.5: filled in by expandArena (config/regions.ts)
+  wings?: Record<WingId, WingDef>; // #210: named wings (a fortress's rooms) with a fixed feature each; without, the wings are sides of the map
   final?: { throne: { x: number; y: number }; flames: { x: number; y: number }[] }; // v0.6: the Usurper's throne and his Royal Flames (the Last Bastion only)
 }
 
@@ -96,8 +97,8 @@ const AUTHORED: Record<ArenaId, ArenaDef> = {
   keep: {
     id: 'keep',
     name: 'The Great Keep',
-    desc: 'A pillared hall. Tight, loud, and lit by fire.',
-    feature: 'Braziers flare on a rhythm and burn friend and foe alike — lure the horde through them.',
+    desc: 'The Iron Hold’s fortress: a pillared hall lit by fire, with a forge, an armory, barracks and a chapel behind its gates.',
+    feature: 'Braziers flare on a rhythm and burn friend and foe alike — lure the horde through them. Each wing is always the same room.',
     w: 1700, h: 1200, wall,
     theme: { tile: 'flagstone', mortar: '#2c2622', stones: ['#6a5f55', '#5f554c', '#72665b', '#594f47'], patch: 'rgba(120,30,30,0.35)', wall: '#2e2a2a', wallTop: '#4a4340' },
     obstacles: [
@@ -110,6 +111,13 @@ const AUTHORED: Record<ArenaId, ArenaDef> = {
     hazard: { kind: 'braziers', every: 6, radius: 115, delay: 1.2, damage: 22 },
     bosses: ['inquisitor', 'blackKnight', 'abbot'],
     corpseLifeMult: 1,
+    // #210: the fortress's rooms. Each holds the feature that suits it, so the Great Keep has the same four features as every arena.
+    wings: {
+      north: { name: 'the forge', feature: 'hazard', label: 'Forge fires', prop: 'anvil', floor: 'soot' },
+      east: { name: 'the armory', feature: 'chest', label: 'Strongbox', prop: 'rack', floor: 'plank' },
+      south: { name: 'the chapel', feature: 'shrine', label: 'Shrine', prop: 'pillar', floor: 'runner' },
+      west: { name: 'the barracks', feature: 'lair', label: 'Lair', prop: 'bunk', floor: 'plank' },
+    },
   },
   // v0.6: Act IV, always. Never a starting arena (not in ARENA_IDS).
   bastion: {

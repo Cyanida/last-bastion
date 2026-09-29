@@ -1,4 +1,4 @@
-import type { ArenaDef, Obstacle } from './arenas';
+import type { ArenaDef, Obstacle, ObstacleKind } from './arenas';
 
 /**
  * Map expansion (v0.5): every arena is its old floor (the core) with four wings around it behind gates, and a hidden vault
@@ -50,6 +50,19 @@ export const FEATURES: Record<FeatureKind, { name: string; icon: string; desc: s
   hazard: { name: 'Vents', icon: '♨️', desc: 'Scalding vents guard a forgotten cache of gold.' },
 };
 
+/**
+ * #210: a fortress's wing is a room with a name, not just a side of the map: it always holds the same feature (the forge's fires are
+ * the vents, the barracks' sleeper is the lair), its floor has its own look, and it is furnished with its own prop instead of the core's
+ * scatter. The order the wings open in stays rolled per Act, and they open by the start wave like every arena's (logic/world wingsOpenBy).
+ */
+export interface WingDef {
+  name: string; // "the forge": the banner when its gate opens says it
+  feature: FeatureKind;
+  label: string; // the feature under this wing's name: "Forge fires" for the forge's vents
+  prop: ObstacleKind; // the furniture scattered on its floor
+  floor: 'soot' | 'plank' | 'runner'; // render/arena.ts lays it over the arena's tiles
+}
+
 /** Shrine blessings: permanent for the run, one of REGIONS.shrineBlessings offered. Plain mods, folded into the run's base mods. */
 export const BLESSINGS = {
   valor: { name: 'Blessing of Valor', desc: '+12% damage.', mods: { damage: 1.12 } },
@@ -98,7 +111,7 @@ export function expandArena(def: ArenaDef): ArenaDef {
   };
   const regions: RegionDef[] = [
     { id: 'core', name: WING_NAMES.core, floor: core, gate: null },
-    ...(['north', 'east', 'south', 'west', 'vault'] as const).map((id) => ({ id, name: WING_NAMES[id], floor: floors[id], gate: gates[id], hidden: id === 'vault' || undefined })),
+    ...(['north', 'east', 'south', 'west', 'vault'] as const).map((id) => ({ id, name: (id !== 'vault' && def.wings?.[id].name) || WING_NAMES[id], floor: floors[id], gate: gates[id], hidden: id === 'vault' || undefined })),
   ];
   const shift = <T extends { x: number; y: number }>(o: T): T => ({ ...o, x: o.x + d, y: o.y + d });
   const shifted = def.obstacles.map(shift);
@@ -107,12 +120,13 @@ export function expandArena(def: ArenaDef): ArenaDef {
   if (scatterKind) {
     for (const id of WING_IDS) {
       const f = floors[id];
+      const prop = def.wings?.[id].prop; // #210: a named wing's own furniture, at the same spots, drawn for the core scatter's radius
       for (let i = 0; i < 4; i++) {
         // fixed, even spots along the wing, clear of its gate and its feature (the centre)
         const t = (i + 0.5) / 4;
         const x = f.w > f.h ? f.x + f.w * (i < 2 ? t * 0.8 : 0.2 + t * 0.8) : f.x + f.w * (i % 2 ? 0.25 : 0.75);
         const y = f.w > f.h ? f.y + f.h * (i % 2 ? 0.28 : 0.72) : f.y + f.h * (i < 2 ? t * 0.8 : 0.2 + t * 0.8);
-        wingObstacles.push({ kind: scatterKind.kind, x, y, r: scatterKind.r });
+        wingObstacles.push({ kind: prop ?? scatterKind.kind, x, y, r: scatterKind.r });
       }
     }
   }

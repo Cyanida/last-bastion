@@ -1,4 +1,4 @@
-import { FEATURES, WING_IDS, type FeatureKind, type Rect, type RegionDef, type RegionId, type WingId } from '../config/regions';
+import { FEATURES, WING_IDS, type FeatureKind, type Rect, type RegionDef, type RegionId, type WingDef, type WingId } from '../config/regions';
 import { clamp, mulberry32 } from '../core/math';
 import type { Rng } from '../core/types';
 
@@ -121,8 +121,11 @@ export function floorPoint(floors: Rect[], rng: Rng, inset = 80): { x: number; y
   return { x: f.x + inset + rng() * Math.max(0, f.w - 2 * inset), y: f.y + inset + rng() * Math.max(0, f.h - 2 * inset) };
 }
 
-/** Per Act: which feature each wing holds, and the order the wings open in. Seeded, so a Daily Trial's map is the same for everyone. */
-export function rollWings(seed: number, act: number): { features: Record<WingId, FeatureKind>; order: WingId[] } {
+/**
+ * Per Act: which feature each wing holds, and the order the wings open in. Seeded, so a Daily Trial's map is the same for everyone.
+ * #210: `fixed` (a fortress's named wings) sets the features; the order is rolled from the same draws either way.
+ */
+export function rollWings(seed: number, act: number, fixed?: Record<WingId, FeatureKind>): { features: Record<WingId, FeatureKind>; order: WingId[] } {
   const rng = mulberry32((Math.imul(seed | 0, 0x27d4eb2d) ^ Math.imul(act, 0x165667b1)) >>> 0);
   const kinds = Object.keys(FEATURES) as FeatureKind[];
   const shuffle = <T>(xs: readonly T[]): T[] => {
@@ -134,6 +137,13 @@ export function rollWings(seed: number, act: number): { features: Record<WingId,
     return a;
   };
   const shuffled = shuffle(kinds);
-  const features = Object.fromEntries(WING_IDS.map((id, i) => [id, shuffled[i]])) as Record<WingId, FeatureKind>;
+  const features = fixed ? { ...fixed } : (Object.fromEntries(WING_IDS.map((id, i) => [id, shuffled[i]])) as Record<WingId, FeatureKind>);
   return { features, order: shuffle(WING_IDS) };
 }
+
+/** #210: each named wing's fixed feature, or undefined for an arena whose wings are rolled. */
+export const fixedFeatures = (wings?: Record<WingId, WingDef>): Record<WingId, FeatureKind> | undefined =>
+  wings && (Object.fromEntries(WING_IDS.map((id) => [id, wings[id].feature])) as Record<WingId, FeatureKind>);
+
+/** #210: what a wing's feature is called there: the named wing's label ("Forge fires"), else the feature's own name. */
+export const featureLabel = (kind: FeatureKind, wing: WingId, wings?: Record<WingId, WingDef>): string => (wings?.[wing].feature === kind ? wings[wing].label : FEATURES[kind].name);
