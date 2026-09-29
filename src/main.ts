@@ -10,15 +10,15 @@ import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLev
 import { addListener, type EventName } from './core/events';
 import { moodOf, type Stinger } from './logic/runMusic';
 import { showWhatsNewNow } from './logic/whatsNew';
-import { nextCard } from './logic/cards';
-import { CARD_IDS, CARDS } from './config/cards';
+import { nextCard, statusSeen, tutorialCard } from './logic/cards';
+import { CARD_IDS, CARDS, type CardId } from './config/cards';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
 import { registerServiceWorker } from './core/pwa';
 import { begin, end, frameDone, overlayText, perf, resetHistory, setEnabled as setPerfOverlay, summary } from './core/perf';
 import { particleBudget, quality, sampleFrame, setQuality } from './core/quality';
 import { backupSave, loadSave, prefs, readBackups, restoreBackup, storeSave, wipeSave } from './core/storage';
-import type { Game } from './core/types';
+import type { Enemy, Game } from './core/types';
 import { createGame } from './game';
 import { banked, createTestRun, isTestRun, type TestSetup } from './systems/testMode';
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
@@ -66,7 +66,7 @@ import { buildState } from './systems/evolutions';
 import { recipeLines, setRecipeBuild } from './ui/relicText';
 import { endlessScore } from './systems/victory';
 import { peddlerPrice, peddlerTokenPrice } from './systems/events';
-import { utilityUpgradeOptions } from './systems/utility';
+import { utilityUnlocked, utilityUpgradeOptions } from './systems/utility';
 
 type State = 'menu' | 'playing' | 'choice' | 'paused' | 'results';
 
@@ -770,21 +770,43 @@ function afterStep(g: Game): void {
   else {
     checkToasts(g);
     chainToasts(g);
-    if (hasChoice(g)) openChoice(g);
-    else flashCard(g);
+    if (hasChoice(g)) {
+      if (!tutorial(g, true)) openChoice(g); // #60: the level-up card comes before its screen, which opens once it is closed
+    } else flashCard(g);
   }
+}
+
+/** #60: the Marches' levels 1 and 2 teach the basics on flash cards (logic/cards tutorialCard). Returns whether a card opened. */
+function tutorial(g: Game, choice: boolean): boolean {
+  if (!g.level || isTestRun(g)) return false;
+  const p = g.player;
+  const id = tutorialCard({
+    realm: g.level.realm,
+    level: g.level.level,
+    tick: g.tick,
+    held: p.relics.held.length,
+    setLevel: Math.max(0, ...Object.values(p.relics.sets).map((s) => s?.level ?? 0)),
+    utility: utilityUnlocked(p),
+    levelUp: g.pendingLevelUps > 0,
+    status: !choice && statusSeen(g.enemies, p.x, p.y, p.statuses),
+  }, save.cards, choice);
+  if (!id) return false;
+  openCard(id);
+  return true;
 }
 
 /** v0.8 (#124): a card the first time a foe, a boss or a mechanic is met; the run waits under it. A test run leaves no trace, so it shows none. */
 function flashCard(g: Game): void {
-  if (g.tick % CARDS.checkEvery || isTestRun(g)) return;
+  if (g.tick % CARDS.checkEvery || isTestRun(g) || tutorial(g, false)) return;
   const met = nextCard(g.enemies, g.player.x, g.player.y, save.cards);
-  if (!met) return;
-  const { id, foe } = met;
+  if (met) openCard(met.id, met.foe);
+}
+
+function openCard(id: CardId, foe?: Enemy): void {
   commit({ ...save, cards: [...save.cards, id] }); // seen as soon as it shows: a reload never shows it twice
   state = 'choice';
   setTouchControls(false);
-  setSpotlight(foe); // #133: the arena dims round the foe while its card is open
+  setSpotlight(foe ?? null); // #133: the arena dims round the foe while its card is open (a tutorial card has none)
   showFlashCard(id, foe, (pause) => {
     setSpotlight(null);
     resume();

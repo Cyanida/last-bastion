@@ -13,11 +13,35 @@ export const CARDS = {
 };
 
 export type MechanicCard = 'elite' | 'telegraph';
-export type CardId = EnemyId | MechanicCard;
+export type TutorialCard = 'move' | 'relics' | 'ability' | 'levelUp' | 'utility' | 'sets' | 'status';
+export type CardId = EnemyId | MechanicCard | TutorialCard;
 
 export const MECHANIC_CARDS: Record<MechanicCard, { name: string; text: string; icon: string }> = {
   elite: { name: 'Elite', icon: '★', text: 'Orange outline: tougher, with extra powers. Worth more gold.' },
   telegraph: { name: 'Marked attack', icon: '⚠', text: 'A glow shows where it lands. Step out late for a perfect dodge.' },
+};
+
+/**
+ * v0.10 (#60, docs/road-to-the-crown.md item 10): the tutorial is the Marches' levels 1 and 2, taught on the same flash cards. Each basic
+ * shows the moment it first comes up there (logic/cards tutorialCard): moving once the opening pick is taken, relics once one is held, the
+ * ability a few seconds in, a level-up before its screen, the utility when it unlocks, a set bonus when one lights, a status when one is
+ * seen. Seen once, never again (save.cards), like every card; other realms and full runs never show them.
+ */
+export const TUTORIAL = {
+  realm: 'marches' as const,
+  levels: 2, // levels 1..this are the tutorial
+  relicsAfter: 120, // ticks into the level before the relics card (two seconds: after the move card, not on top of it)
+  abilityAfter: 480, // ticks into the level before the ability card (eight seconds: the first foes are close by then)
+};
+
+export const TUTORIAL_CARDS: Record<TutorialCard, { name: string; text: string; icon: string }> = {
+  move: { name: 'Move and fight', icon: '🏃', text: 'Move with WASD, the arrows or your left thumb. Attacks are automatic.' },
+  relics: { name: 'Relics', icon: '💎', text: 'Lasting powers, each of a family. Two of one family give a set bonus.' },
+  ability: { name: 'Signature ability', icon: '✨', text: 'Space, right mouse or your right thumb casts it. Then it recharges.' },
+  levelUp: { name: 'Level up', icon: '⬆', text: 'Fallen foes give XP. Each level, pick one of the upgrades offered.' },
+  utility: { name: 'Utility ability', icon: '💨', text: 'A second ability: E, Shift or the small button. It has its own timer.' },
+  sets: { name: 'Set bonus', icon: '🔗', text: 'Two relics of one family light its set bonus. Four and six add more.' },
+  status: { name: 'Status effects', icon: '🔥', text: 'Burning hurts over time, Chilled slows. The Glossary lists every status.' },
 };
 
 export const ENEMY_CARDS: Record<EnemyId, string> = {
@@ -54,7 +78,13 @@ export const ENEMY_CARDS: Record<EnemyId, string> = {
   royalFlame: 'While one burns, the Usurper cannot be hurt.',
 };
 
-export const CARD_IDS = [...(Object.keys(ENEMY_CARDS) as EnemyId[]), ...(Object.keys(MECHANIC_CARDS) as MechanicCard[])] as CardId[];
+export const CARD_IDS = [...(Object.keys(ENEMY_CARDS) as EnemyId[]), ...(Object.keys(MECHANIC_CARDS) as MechanicCard[]), ...(Object.keys(TUTORIAL_CARDS) as TutorialCard[])] as CardId[];
 
-export const cardInfo = (id: CardId): { name: string; text: string; boss: boolean } =>
-  id in MECHANIC_CARDS ? { ...MECHANIC_CARDS[id as MechanicCard], boss: false } : { name: ENEMIES[id as EnemyId].name, text: ENEMY_CARDS[id as EnemyId], boss: ENEMIES[id as EnemyId].boss };
+/** A card drawn as an icon (a mechanic or a tutorial basic), or undefined for a foe's card (drawn as its sprite). */
+export const iconCard = (id: CardId): { name: string; text: string; icon: string } | undefined =>
+  id in MECHANIC_CARDS ? MECHANIC_CARDS[id as MechanicCard] : id in TUTORIAL_CARDS ? TUTORIAL_CARDS[id as TutorialCard] : undefined;
+
+export const cardInfo = (id: CardId): { name: string; text: string; boss: boolean } => {
+  const c = iconCard(id);
+  return c ? { name: c.name, text: c.text, boss: false } : { name: ENEMIES[id as EnemyId].name, text: ENEMY_CARDS[id as EnemyId], boss: ENEMIES[id as EnemyId].boss };
+};
