@@ -553,3 +553,59 @@
 .compact .flash-card .kit-parch { grid-area: text; padding: 6px 10px; }
 .compact .flash-card .kit-btn { grid-area: go; justify-self: center; }
 .compact .flash-card .kit-parch h2 { font-size: 18px; }
+
+/* ---------- #189: the in-run choices and the last menus in the kit ----------
+   The choice screens (level-up, relic moments, both upgrades, the shrine, the quest board, the peddler, the Merchant, the fork) keep
+   their cards, drawn as kit cards: parchment with a dark wood edge on a solid lip, the rim in the card's rarity or kind (--r), the number
+   a brass stud; the heading on the ribbon. The menus left (pause, talents, run history, treasures, mastery, Chronicle, save data, Daily
+   Trial, What's new, test mode, the crash report) are .kit-screen, as Settings. */
+.levelup > .kit-head { margin-bottom: 6px; }
+.levelup > .kit-head .kit-ribbon { font-size: 22px; }
+.levelup .sub { color: var(--kit-light); text-shadow: 0 2px 3px #000; }
+.levelup .card.boon {
+  --r: var(--kit-brass-dark);
+  border: 3px solid var(--r);
+  outline: none;
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px var(--kit-wood-edge), inset 0 0 14px rgba(110, 70, 30, 0.35), 0 5px 0 var(--kit-wood-edge), 0 8px 14px rgba(0, 0, 0, 0.55);
+}
+.levelup .card.boon:hover { outline: none; filter: brightness(1.06); }
+.levelup .card.boon:focus-visible { outline: 3px solid var(--kit-brass-light); outline-offset: 3px; }
+.levelup .card.boon:disabled { filter: grayscale(0.7) brightness(0.8); cursor: not-allowed; transform: none; }
+.levelup .card.boon.on { box-shadow: 0 0 0 3px var(--kit-brass-light), 0 0 18px rgba(246, 217, 122, 0.8), 0 5px 0 var(--kit-wood-edge); }
+.levelup .boon.rare, .levelup .relic-card.rare { --r: #6f9fe0; }
+.levelup .boon.epic, .levelup .relic-card.legendary { --r: #f0913a; }
+.levelup .relic-card.cursed { --r: #9b59d0; }
+.levelup .boon.talent, .levelup .route.pilgrim { --r: #6fc26b; }
+.levelup .boon.tradeoff, .levelup .route.elite { --r: #a3282a; }
+.levelup .boon.special, .levelup .boon.evolution, .levelup .route.merchant { --r: #f6d97a; }
+.levelup .route.siege { --r: #9b917d; }
+.levelup .boon.evolution { box-shadow: 0 0 0 2px var(--kit-wood-edge), 0 0 26px rgba(242, 201, 76, 0.65), 0 5px 0 var(--kit-wood-edge); }
+.levelup .boon .num {
+  width: 26px;
+  height: 26px;
+  font: 800 14px/22px var(--kit-num);
+  color: #3a1f0b;
+  background: radial-gradient(circle at 38% 35%, var(--kit-brass-light), var(--kit-brass) 45%, var(--kit-brass-dark));
+  border: 2px solid var(--kit-wood-edge);
+}
+.levelup > .kit-btn { display: flex; width: fit-content; margin: 8px auto 0; } /* on a line of its own, under the Merchant's list too */
+.levelup > .row { margin-top: 8px; }
+.levelup .row { gap: 12px; }
+.levelup .heldlist { display: inline-block; margin: 0 0 12px; padding: 10px; }
+.levelup .heldlist .kit-parch { display: flex; flex-direction: column; gap: 6px; }
+.held .kit-btn.small { padding: 4px 9px 3px; font-size: 12px; }
+.compact .levelup > .kit-head .kit-ribbon { font-size: 15px; padding: 4px 18px 3px; }
+
+.kit-screen.pause, .kit-screen.daily, .kit-screen.crash { width: min(580px, calc(96 * var(--vw))); }
+.kit-screen.pause > footer { flex-direction: column; }
+.kit-screen.pause .build { margin: 0 auto; }
+.kit-screen .kit-scroll > .stats.wide { margin: 4px 0; }
+.kit-btn.danger { --lip: #2a0710; background: linear-gradient(#e0683f, #a3282a 30%, #7a1a24); border-color: #2a0710; }
+.chronicle .kit-choice, .save-data .kit-choice { justify-content: flex-start; margin-bottom: 4px; }
+.history .run { margin: 10px 0; padding: 8px 12px; border: 2px solid var(--kit-brass-dark); border-radius: 8px; background: rgba(255, 255, 255, 0.18); }
+.testmode .kit-scroll > .row { margin: 8px 0; }
+/* a menu over a run on a phone covers the HUD whole: it takes the full height, not the space under the wave plate (as the books, #187) */
+.compact #hud:not(.hidden) ~ #overlay:has(> .kit-screen) { align-items: safe center; padding-top: max(16px, env(safe-area-inset-top)); }
+.compact .kit-screen.pause > footer { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.compact .kit-screen.pause > footer .row { display: contents; }
