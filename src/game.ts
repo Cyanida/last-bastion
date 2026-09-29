@@ -9,7 +9,8 @@ import { GAME } from './config/game';
 import { RELIC_MOMENTS, relicDef, type RelicId } from './config/relics';
 import { TREASURES } from './config/treasures';
 import type { RealmId } from './config/world';
-import { ringStep } from './logic/world';
+import { ringStep, slotsFor } from './logic/world';
+import { fitLoadout } from './logic/champions';
 import { FREE_REROLLS } from './config/upgrades';
 import { WAVES } from './config/waves';
 import { compact, mulberry32 } from './core/math';
@@ -241,7 +242,9 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
   if (opts.level && levelDef) {
     headStart(g, levelDef.waves[0], { plan: opts.level.talentPlan });
     g.level = { realm: opts.level.realm, level: opts.level.level, last: levelDef.waves[1], cleared: false };
-    for (const id of opts.level.relics ?? []) addRelic(g, id, 'loadout', levelDef.relicTier); // after the growth: an acquire hook (Blood Pact's HP cut) sees the grown stats
+    const slots = slotsFor(opts.level.realm, opts.level.level, (loadout.startRelic ? 1 : 0) + (mastery.relic ? 1 : 0)); // as championSlots counts them
+    const slotted = fitLoadout(classId, opts.level.relics ?? [], slots, opts.level.realm === 'lastBastion'); // #195: the slot rules
+    for (const id of slotted) addRelic(g, id, 'loadout', levelDef.relicTier); // after the growth: an acquire hook (Blood Pact's HP cut) sees the grown stats
   }
   for (const id of opts.relics ?? []) addRelic(g, id, 'other', opts.relicTier ?? 1);
   for (let i = 0; i < (opts.relicPicks ?? 0); i++) {
