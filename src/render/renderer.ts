@@ -3,7 +3,7 @@ import { AFFIXES, ELITES } from '../config/elites';
 import { GAME, RENDER } from '../config/game';
 import { MODIFIERS } from '../config/waves';
 import { clamp, TAU } from '../core/math';
-import { STATUSES } from '../config/damage';
+import { PLATES, STATUSES } from '../config/damage';
 import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
@@ -766,6 +766,11 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.fillRect(e.x - w / 2, e.y - e.r - 30, w, 3);
       ctx.fillStyle = '#9a9aa0';
       ctx.fillRect(e.x - w / 2, e.y - e.r - 30, (w * e.armorHp) / e.armorMax, 3);
+      if (PLATES[e.def.id]) {
+        // #212: iron plates count hits, so the bar is cut into one notch per plate
+        ctx.fillStyle = '#1a1614';
+        for (let i = 1; i < e.armorMax; i++) ctx.fillRect(Math.round(e.x - w / 2 + (w * i) / e.armorMax), e.y - e.r - 30, 1, 3);
+      }
     }
     // v0.6: how the player's attack fares against it, without hovering: up = weak to it, down = resists it, a cross = next to immune
     const mult = typeMultiplier(e.def.id, attackType);

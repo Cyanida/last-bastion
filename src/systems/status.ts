@@ -31,7 +31,7 @@ export function updateStatuses(g: Game, dt: number): void {
         // v0.7: a burn, bleed or poison a relic put on is that relic's damage (the relic that applied it last)
         const by = STATUS_IDS.map((id) => (STATUSES[id].dot === type ? e.statuses[id]?.by : undefined)).find(Boolean) as RelicKey | undefined;
         relicContext.acting = by ?? null;
-        const dealt = damageEnemy(g, e, amount, false, 0, 0, 'hazard', type);
+        const dealt = damageEnemy(g, e, amount, false, 0, 0, 'hazard', type, true); // a tick: it breaks no plates (#212)
         relicContext.acting = null;
         if (by) credit(g, g.player, by, 'damage', dealt);
       });

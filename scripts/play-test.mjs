@@ -1544,6 +1544,66 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #212: the Iron Hold's knights: map -> the Iron Hold -> level 2's panel names the Iron Knight -> FIGHT; he brings his own flash card,
+// "Got it" closes it, and in the fight every blow breaks one of his six plates with a clang until he stands bare in his mail ----------
+await check('Iron Hold: level 2 names the Iron Knight, his flash card shows, blows break his plates one by one and he turns bare (#212)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold level 1 cleared
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'ironKnight'); // every other card already seen, so his is the one that shows
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  const panel = await p.evaluate(() => ({ name: document.querySelector('.rr-name')?.textContent, text: document.querySelector('.rr-panel').textContent.replace(/\s+/g, ' ') }));
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // the bot plays the level (the real choice screens answered) until his flash card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb;
+    const clangs = { n: 0 };
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'clang' && clangs.n++), real(n));
+    }
+    window.__clangs = clangs;
+    lb.game.player.invulnerable = true;
+    for (let i = 0; i < 40000 && !document.querySelector('[data-card]') && lb.game && lb.state !== 'results'; i++) lb.run(1, false, true);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    const g = lb.game;
+    return { id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g?.level?.realm, level: g?.level?.level, plain: g?.enemies.filter((e) => e.def.id === 'knight').length };
+  });
+  if (card.id) await p.click('[data-leave]');
+  const fight = await p.evaluate(async () => {
+    await new Promise((r) => setTimeout(r, 100));
+    const lb = window.__lb, g = lb.game;
+    const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+    // follow the first Iron Knight on the field through the fight: his plates as the blows land, his sprite at the end
+    const knight = g.enemies.find((e) => e.def.id === 'ironKnight' && !e.dead);
+    if (!knight) return { closed, found: false };
+    const start = knight.armorHp, max = knight.armorMax, steps = [start];
+    for (let i = 0; i < 20000 && !knight.dead && knight.armorHp > 0 && lb.game === g; i++) {
+      lb.run(1, false, true);
+      if (knight.armorHp !== steps[steps.length - 1]) steps.push(knight.armorHp);
+    }
+    return { closed, found: true, start, max, steps, bare: knight.def.sprite, broken: knight.armorHp === 0, dead: knight.dead, clangs: window.__clangs.n };
+  });
+  await p.close();
+  const oneByOne = fight.found && fight.steps.slice(1).every((v, i) => v < fight.steps[i]) && fight.steps.length >= 3; // each blow takes a plate (a heavy one may take two)
+  const ok = panel.name === 'The Iron Hold · Level 2' && /Iron Knight/.test(panel.text) && !/Armored Knight/.test(panel.text)
+    && card.realm === 'ironHold' && card.level === 2 && card.id === 'ironKnight' && card.title === 'Iron Knight' && /Each hit breaks one/.test(card.text ?? '') && card.plain === 0
+    && fight.closed && fight.found && fight.start === 6 && fight.max === 6 && oneByOne && fight.broken && fight.bare === 'ironKnightBare' && fight.clangs > 0 && errs.length === 0;
+  return { ok, detail: `panel "${panel.name}" ${/Iron Knight/.test(panel.text) ? 'names the Iron Knight' : 'NO Iron Knight'}; run ${card.realm} ${card.level}, card ${card.id ?? 'NONE'} "${card.title ?? ''}", plain knights ${card.plain}; closed ${fight.closed}; ${fight.found ? `plates ${fight.steps.join('>')} of ${fight.max}, sprite ${fight.bare}, ${fight.clangs} clangs${fight.dead ? ', killed' : ''}` : 'no Iron Knight on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
 // From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
 // slots and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a

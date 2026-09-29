@@ -5,6 +5,7 @@ export type EnemyId =
   | 'wolf'
   | 'crossbow'
   | 'knight'
+  | 'ironKnight'
   | 'cultist'
   | 'shieldBearer'
   | 'priest'
@@ -126,6 +127,11 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   knight: {
     ...base, id: 'knight', name: 'Armored Knight', sprite: 'knight', behavior: 'chaser',
     hp: 120, damage: 18, speed: 52, radius: 15, xp: 5, knockbackResist: 0.85, attackCd: 1.1,
+  },
+  // #212: the Iron Hold's knight. His plate counts hits, not damage (config/damage.ts PLATES): break it with many blows, then he is soft
+  ironKnight: {
+    ...base, id: 'ironKnight', name: 'Iron Knight', sprite: 'ironKnight', behavior: 'chaser',
+    hp: 110, damage: 18, speed: 50, radius: 15, xp: 6, knockbackResist: 0.9, attackCd: 1.2,
   },
   cultist: {
     ...base, id: 'cultist', name: 'Cultist', sprite: 'cultist', behavior: 'exploder',

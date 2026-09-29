@@ -1,4 +1,4 @@
-import { ARMOR, BACK_ARC, BOSS_RESOLVE, RESISTS, STATUS_TUNING, STATUSES, type DamageType, type StatusId } from '../config/damage';
+import { ARMOR, BACK_ARC, PLATES, BOSS_RESOLVE, RESISTS, STATUS_TUNING, STATUSES, type DamageType, type StatusId } from '../config/damage';
 import type { EnemyId } from '../config/enemies';
 
 /** Pure status-effect and damage-type rules, shared by enemies, the player and minions. */
@@ -88,6 +88,17 @@ export function throughArmor(amount: number, armorHp: number, reduction: number)
 }
 
 /**
+ * #212: a hit on plate armor (config/damage.ts PLATES). While a plate is left the hit does `reduction` less; a hit (`breaks`: not a
+ * status tick) breaks one plate, plus one per full `heavy` share of `maxHp` it carried. At 0 plates it lands in full.
+ */
+export function throughPlates(amount: number, plates: number, maxHp: number, cfg: { reduction: number; heavy: number }, breaks = true): { dealt: number; plates: number; broke: boolean } {
+  if (plates <= 0) return { dealt: amount, plates: 0, broke: false };
+  const broken = breaks && amount > 0 ? 1 + Math.floor(amount / (cfg.heavy * maxHp)) : 0;
+  const left = Math.max(0, plates - broken);
+  return { dealt: amount * (1 - cfg.reduction), plates: left, broke: left === 0 && broken > 0 };
+}
+
+/**
  * v0.7.5 (#95): a hit on a boss through its resolve (BOSS_RESOLVE). `load` is the damage it took lately (as of time `t`), draining at
  * `perSec` of its max HP a second; what lands past the `burst` allowance does `excess` of itself, up to `cap` in all. Returns the
  * damage and the new load.
@@ -107,4 +118,5 @@ export function fromBehind(kx: number, ky: number, facing: number): boolean {
   return Math.min(d, Math.PI * 2 - d) < BACK_ARC;
 }
 
-export const armorFor = (id: EnemyId, maxHp: number) => (ARMOR[id] ? Math.round(maxHp * ARMOR[id]!.frac) : 0);
+/** The armor bar an enemy starts with: an ARMOR soak pool in HP, or #212's PLATES as a count of plates. */
+export const armorFor = (id: EnemyId, maxHp: number) => (PLATES[id] ? PLATES[id]!.plates : ARMOR[id] ? Math.round(maxHp * ARMOR[id]!.frac) : 0);
