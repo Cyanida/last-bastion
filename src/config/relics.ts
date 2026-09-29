@@ -314,12 +314,12 @@ export const RELICS = {
   ironhide: relic({ name: 'Ironhide', rarity: 'rare', icon: '🐗', family: 'steel', classId: 'viking', n: { every: 2 }, n2: { every: 1.5 }, a: { heal: 0.02 },
     awaken: ['Unstoppable', (a) => `During Rage, blocked hits heal ${pct(a.heal)} of your max HP.`], desc: (n) => `Berserker Rage gives an armor stack every ${n.every} s.` }),
   // v0.11 (#217): the Iron Hold's Steel relics: armor you break, shields that block from the front, thorns that hit back
-  rivetHammer: relic({ name: 'Rivet Hammer', rarity: 'common', icon: '🔩', family: 'steel', n: { every: 4, damage: 16 }, n2: { every: 3, damage: 20 },
+  rivetHammer: relic({ name: 'Rivet Hammer', rarity: 'common', icon: '🔩', family: 'steel', n: { every: 4, damage: 22 }, n2: { every: 3, damage: 28 },
     awaken: ['Sunder', "A rivet breaks the armor or shield of the enemy it strikes (not a boss's)."], desc: (n) => `Every ${ord(n.every)} attack hit drives a rivet: +${n.damage} damage (grows with level) and an armor stack.` }),
-  pavise: relic({ name: 'Pavise', rarity: 'rare', icon: '🚪', family: 'steel', n: { chance: 0.3, arc: 60 }, n2: { chance: 0.4 }, a: { mult: 3 },
+  pavise: relic({ name: 'Pavise', rarity: 'rare', icon: '🚪', family: 'steel', n: { chance: 0.25, arc: 60 }, n2: { chance: 0.35 }, a: { mult: 3 },
     awaken: ['Riposte', (a) => `A block from the front strikes the attacker for ${a.mult}× the hit.`], desc: (n) => `${pct(n.chance)} chance to block a hit from an enemy in front of you (within ${n.arc}° of where you strike).` }),
-  reprisalCuirass: relic({ name: 'Reprisal Cuirass', rarity: 'rare', icon: '🦔', family: 'steel', n: { mult: 1.5, cap: 0.25 }, n2: { mult: 2 }, a: { radius: 90, frac: 0.5 },
-    awaken: ['Vengeance', (a) => `The reprisal also strikes every enemy within ${a.radius} px of the target for ${pct(a.frac)} of it.`], desc: (n) => `Hits you take or block are kept (up to ${pct(n.cap)} of your max HP); your next attack hit adds ${pct(n.mult)} of them as damage.` }),
+  reprisalCuirass: relic({ name: 'Reprisal Cuirass', rarity: 'rare', icon: '🦔', family: 'steel', n: { mult: 8, cap: 0.25 }, n2: { mult: 10 }, a: { radius: 90, frac: 0.5 },
+    awaken: ['Vengeance', (a) => `The reprisal also strikes every enemy within ${a.radius} px of the target for ${pct(a.frac)} of it.`], desc: (n) => `Every hit that comes at you, blocked or not, is kept at full force (up to ${pct(n.cap)} of your max HP); your next attack hit adds ${n.mult}× that as damage.` }),
   heartOfTheHold: relic({ name: 'Heart of the Hold', rarity: 'legendary', icon: '🏰', family: 'steel', n: { extra: 3, per: 8 }, n2: { per: 12 }, a: { cut: 0.2 },
     awaken: ['Iron Keep', (a) => `At full armor stacks, hits take ${pct(a.cut)} less damage.`], desc: (n) => `Your armor stacks never fade and you hold ${n.extra} more. A hit you take or block gives an armor stack, and the attacker takes ${n.per} damage per stack you hold (grows with level).` }),
 

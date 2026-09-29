@@ -144,10 +144,8 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   },
 
   reprisalCuirass: {
-    onDamageTaken(g, ev, p) {
-      g.vars['reprisal.kept'] = keepReprisal(g.vars['reprisal.kept'] ?? 0, ev.amount, p.stats.hp * nOf(p, 'reprisalCuirass').cap);
-    },
-    onBlock(g, ev, p) {
+    onIncoming(g, ev, p) {
+      // the hit's full force, before armor, ward or a block: at the damage taken after armor it read 0.6% in the sim (#217)
       g.vars['reprisal.kept'] = keepReprisal(g.vars['reprisal.kept'] ?? 0, ev.amount, p.stats.hp * nOf(p, 'reprisalCuirass').cap);
     },
     onHit(g, ev, p) {

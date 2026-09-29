@@ -29,11 +29,11 @@ const tick = (g: Game) => {
 };
 
 describe('family rules (RELICS.md, revision 2)', () => {
-  it('50 family relics: 5 any class can find in every family, and 3 class relics per class, in three families', () => {
+  it('54 family relics: 5 any class can find in every family (Steel 9 with the Iron Hold, #217), and 3 class relics per class, in three families', () => {
     const family = RELIC_IDS.filter((id) => !relicDef(id).cursed && !relicDef(id).signature); // v0.7.1 B6: the cursed relics stand outside the families (v7-cursed.test.ts); #201: so do the signature relics
-    expect(family).toHaveLength(50);
+    expect(family).toHaveLength(54);
     for (const id of family) expect(FAMILY_IDS, id).toContain(relicDef(id).family);
-    for (const f of FAMILY_IDS) expect(anyClass(f), f).toHaveLength(5);
+    for (const f of FAMILY_IDS) expect(anyClass(f), f).toHaveLength(f === 'steel' ? 9 : 5); // v0.11 (#217): the Iron Hold's common, two rares and legendary
     for (const c of CLASS_ORDER) {
       const own = family.filter((id) => relicDef(id).classId === c).map((id) => relicDef(id).family);
       expect(new Set(own).size, c).toBe(3);
@@ -44,7 +44,7 @@ describe('family rules (RELICS.md, revision 2)', () => {
     for (const c of CLASS_ORDER) {
       const pool = relicPoolFor(c);
       const own = (f: FamilyId) => RELIC_IDS.some((id) => relicDef(id).classId === c && relicDef(id).family === f);
-      for (const f of FAMILY_IDS) expect(pool.filter((id) => relicDef(id).family === f).length, `${c} ${f}`).toBe(own(f) ? 6 : 5);
+      for (const f of FAMILY_IDS) expect(pool.filter((id) => relicDef(id).family === f).length, `${c} ${f}`).toBe((own(f) ? 6 : 5) + (f === 'steel' ? 4 : 0)); // v0.11 (#217): the Iron Hold's four
     }
   });
 
