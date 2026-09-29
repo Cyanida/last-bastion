@@ -35,11 +35,12 @@ function golden({ cls, seed, level, variant = 0 }: GoldenLevel): string {
 
 // re-recorded for #221 (rule 9's tuning: the level step on enemies, epic head-start boons from level 11; gameplay changed on purpose),
 // and again on release/0.11.0 with #217's Rivet Hammer in the starter pool (level 1's relic draws changed on purpose);
-// these seeds still fall on Marches level 7 on Knight, so its runs pin the head start, the loadout and the fight up to the fall
+// re-recorded again for #218 (v0.11): the Archer's and the Angel's Steel class relics join their pools, so their level 1 draws (and those two
+// runs) moved, gameplay changed on purpose, and the Angel's once more when Iron Halo's strike moved onto the cast; these seeds still fall on Marches level 7 on Knight, so its runs pin the head start, the loadout and the fight up to the fall
 const GOLDEN: Record<string, string> = {
   'marches 1 paladin:1': 'cleared wave 5 kills 105 level 6 loadout - relics 3 hash fdf9ffdb',
-  'marches 1 archer:2': 'cleared wave 5 kills 105 level 5 loadout - relics 3 hash 3805bec1',
-  'marches 1 angel:4 variant 1': 'cleared wave 5 kills 102 level 5 loadout - relics 3 hash add2be37',
+  'marches 1 archer:2': 'cleared wave 5 kills 105 level 5 loadout - relics 3 hash 2f77b214',
+  'marches 1 angel:4 variant 1': 'cleared wave 5 kills 107 level 6 loadout - relics 3 hash d27e0983',
   'marches 7 paladin:1': 'fell wave 32 kills 254 level 24 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash e1d5adef',
   'marches 7 angel:1': 'fell wave 31 kills 221 level 24 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash ca941fbf',
   'marches 7 viking:2 variant 1': 'fell wave 30 kills 90 level 24 loadout tempestEye+anvilHeart+salamanderScale+berserkerTooth relics 5 hash 963f0a60',
