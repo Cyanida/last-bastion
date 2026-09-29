@@ -1544,6 +1544,46 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #200: a Marches level cleared: pick 1 of 2 rares of its family, it joins the champion, and the road opens on level 2 ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`Marches: level 1 cleared -> pick 1 of 2 Steel rares (${touch ? 'tap' : 'key 2'}), kept by the champion, back to the road on level 2 (Flame), at ${w}x${h} (#200)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).tap() : p.locator(sel).click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-marches');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('[data-fight]');
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    const opening = await p.evaluate(() => document.querySelector('[data-families]')?.textContent ?? '');
+    await p.evaluate(() => { window.__lb.game.level.cleared = true; }); // as if wave 5's boss fell: the level ends once its spoils are taken
+    await press('[data-pick="0"]');
+    await p.locator('.rare-pick').waitFor({ timeout: 5000 });
+    const pick = await p.evaluate(() => ({
+      head: document.querySelector('.rare-pick .kit-head')?.textContent.trim(),
+      cards: [...document.querySelectorAll('.rare-pick [data-pick]')].map((b) => { const r = b.getBoundingClientRect(); return { name: b.querySelector('h2').textContent, fam: b.querySelector('.fam').textContent, rarity: b.querySelector('.tag').textContent, inside: r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1 && r.top >= -1 }; }),
+    }));
+    if (touch) await p.locator('.rare-pick [data-pick="1"]').tap();
+    else await p.keyboard.press('2');
+    await p.locator('[data-menu]').waitFor({ timeout: 3000 });
+    const kept = await p.evaluate(() => { const s = window.__lb.save; const c = Object.values(s.champions).find((x) => x.world.marches); return { inv: c?.inventory ?? [], cleared: c?.world.marches ?? [] }; });
+    const menu = (await p.locator('[data-menu]').textContent()).trim();
+    const retry = (await p.locator('[data-retry]').textContent()).trim();
+    await press('[data-menu]');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    const road = await p.evaluate(() => ({ name: document.querySelector('.rr-name').textContent, text: document.querySelector('.rr-panel').textContent.replace(/\s+/g, ' '), open: [...document.querySelectorAll('.rr-flag')].map((f) => !f.disabled) }));
+    await p.close();
+    const second = pick.cards[1]?.name;
+    const ok = /Steel/.test(opening) && pick.head === 'The Marches · Level 1 cleared' && pick.cards.length === 2 && pick.cards.every((c) => /Steel/.test(c.fam) && /rare/.test(c.rarity) && c.inside)
+      && pick.cards[0].name !== second && kept.inv.length === 1 && kept.cleared[0] === 1 && /Back to the Marches/.test(menu) && /The Marches · Level 1/.test(retry)
+      && road.name === 'The Marches · Level 2' && road.open.slice(0, 3).join() === 'true,true,false' && /Flame relics featured/.test(road.text) && /Pick 1 of 2 Flame rares/.test(road.text) && errs.length === 0;
+    return { ok, detail: `opening "${opening.trim()}"; "${pick.head}": ${pick.cards.map((c) => `${c.name} (${c.fam.trim()}, ${c.inside ? 'in view' : 'off screen'})`).join(' / ')}; took ${second} -> inventory [${kept.inv.join()}], cleared ${kept.cleared.join('/')}; "${retry}" / "${menu}" -> "${road.name}"${/Pick 1 of 2 Flame rares/.test(road.text) ? ', Flame pick next' : ''}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 // ---------- v0.8.3 (#182): a new pixel ratio (another monitor) re-sizes the canvas, so the arena stays sharp ----------
 await check('DPR: moving to a sharper screen re-sizes the canvas to its pixels (#182)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });

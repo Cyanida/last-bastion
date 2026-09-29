@@ -29,22 +29,22 @@ const tick = (g: Game) => {
 };
 
 describe('family rules (RELICS.md, revision 2)', () => {
-  it('50 family relics: 5 any class can find in every family, and 3 class relics per class, in three families', () => {
+  it('51 family relics: 5 any class can find in every family (6 in Flame since #200), and 3 class relics per class, in three families', () => {
     const family = RELIC_IDS.filter((id) => !relicDef(id).cursed); // v0.7.1 B6: the cursed relics stand outside the families (v7-cursed.test.ts)
-    expect(family).toHaveLength(50);
+    expect(family).toHaveLength(51);
     for (const id of family) expect(FAMILY_IDS, id).toContain(relicDef(id).family);
-    for (const f of FAMILY_IDS) expect(anyClass(f), f).toHaveLength(5);
+    for (const f of FAMILY_IDS) expect(anyClass(f), f).toHaveLength(f === 'flame' ? 6 : 5); // #200: the Marches' new Flame rare
     for (const c of CLASS_ORDER) {
       const own = RELIC_IDS.filter((id) => relicDef(id).classId === c).map((id) => relicDef(id).family);
       expect(new Set(own).size, c).toBe(3);
     }
   });
 
-  it('a class finds 6 relics in a family of its class relics and 5 in any other', () => {
+  it('a class finds 6 relics in a family of its class relics and 5 in any other (one more in Flame)', () => {
     for (const c of CLASS_ORDER) {
       const pool = relicPoolFor(c);
       const own = (f: FamilyId) => RELIC_IDS.some((id) => relicDef(id).classId === c && relicDef(id).family === f);
-      for (const f of FAMILY_IDS) expect(pool.filter((id) => relicDef(id).family === f).length, `${c} ${f}`).toBe(own(f) ? 6 : 5);
+      for (const f of FAMILY_IDS) expect(pool.filter((id) => relicDef(id).family === f).length, `${c} ${f}`).toBe((own(f) ? 6 : 5) + (f === 'flame' ? 1 : 0));
     }
   });
 
@@ -61,7 +61,7 @@ describe('set thresholds', () => {
     expect(familySets(flame.slice(0, 1)).flame).toEqual({ count: 1, level: 0 });
     expect(familySets(flame.slice(0, 3)).flame!.level).toBe(2);
     expect(familySets(flame.slice(0, 5)).flame!.level).toBe(4);
-    expect(familySets([...flame, 'fireArrows']).flame).toEqual({ count: 6, level: 6 });
+    expect(familySets([...flame.slice(0, 5), 'fireArrows']).flame).toEqual({ count: 6, level: 6 });
   });
 
   it('a player\'s set levels follow what they hold', () => {

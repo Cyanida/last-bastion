@@ -2,7 +2,7 @@
 // the champion screen, the slot rules and the level runner build on this shape.
 import { CLASSES, CLASS_ORDER, type ClassId } from '../config/classes';
 import { META, TIERS } from '../config/economy';
-import { isCursedRelic, RELIC_IDS, relicDef, type RelicId } from '../config/relics';
+import { isCursedRelic, RELIC_IDS, relicDef, type FamilyId, type RelicId } from '../config/relics';
 import { TALENT_BY_ID } from '../config/talents';
 import { REALM_IDS, REALMS, WORLD, type RealmId } from '../config/world';
 import { masteryBonus, type MetaRanks } from './economy';
@@ -138,3 +138,15 @@ export function slotBlock(classId: ClassId, loadout: RelicId[], id: RelicId, slo
 /** A loadout cut to the rules for `slots` slots: in order, every relic that still fits. A level with fewer slots takes the first ones. */
 export const fitLoadout = (classId: ClassId, ids: RelicId[], slots: number, finale = false): RelicId[] =>
   ids.reduce<RelicId[]>((out, id) => (slotBlock(classId, out, id, slots, finale) ? out : [...out, id]), []);
+
+// ---------- #200: the Marches' rare pick ----------
+
+/**
+ * A Marches level's first-clear pick (its 'rarePick' reward): the family's rares any class can find that the champion doesn't own yet,
+ * `of` at most. Decided: none left (a v6 save brought them all) pays WORLD.keepLockedRunes Runes instead, as a keep-locked level does.
+ */
+export const rarePickOptions = (c: Champion, family: FamilyId, of: number): RelicId[] =>
+  RELIC_IDS.filter((id) => { const d = relicDef(id); return d.family === family && d.rarity === 'rare' && !d.classId && !c.inventory.includes(id); }).slice(0, of);
+
+/** A reward relic joins the champion's inventory (relics found in a run never do). */
+export const grantRelic = (c: Champion, id: RelicId): Champion => (c.inventory.includes(id) ? c : { ...c, inventory: [...c.inventory, id] });

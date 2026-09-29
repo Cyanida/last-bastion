@@ -44,11 +44,11 @@ import { abilityAimRadius } from './systems/abilities';
 import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
 import { levelPanel, mapRealms, nextLevel, roadLevels, roadTier, saveWorldProgress } from './logic/world';
-import { REALMS, type RealmId } from './config/world';
-import { championBonus, freshRelics } from './logic/champions';
+import { REALMS, WORLD, type LevelReward, type RealmId } from './config/world';
+import { championBonus, championSlots, freshRelics, grantRelic, rarePickOptions } from './logic/champions';
 import type { LevelStart } from './systems/levels';
 import { isCompactLayout, textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
@@ -239,9 +239,16 @@ function toRoad(realm: RealmId, level?: number, tier?: number): void {
   showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champ?.name ?? CLASSES[id].name, road: roadLevels(progress, realm, t), panel }, {
     level: (next) => toRoad(realm, next, t),
     tier: (next) => toRoad(realm, undefined, next),
-    fight: () => panel.open && startRun(id, { tier: t, level: { realm, level: n, relics: (champ?.loadouts[realm] ?? []).slice(0, panel.slots), talentPlan: champ?.talentPlan } }),
+    fight: () => panel.open && startLevel(id, realm, n, t),
     back: toMap,
   });
+}
+
+/** A realm level for `id`'s champion: its loadout for the realm cut to the level's slots, and its talent plan. */
+function startLevel(id: ClassId, realm: RealmId, level: number, tier: number, seed?: number): void {
+  const champ = save.champions[id];
+  const slots = championSlots(save.meta, save.classes[id].xp, realm, level);
+  startRun(id, { tier, seed, level: { realm, level, relics: (champ?.loadouts[realm] ?? []).slice(0, slots), talentPlan: champ?.talentPlan } });
 }
 
 function toKeep(): void {
@@ -609,13 +616,19 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
     goals: closestGoals(after, id, weekKey(today(new Date()))),
     relicShares: relicShares(g),
-    restart: g.daily ? `the Daily Trial ${g.daily}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
+    restart: g.daily ? `the Daily Trial ${g.daily}` : g.level ? `${REALMS[g.level.realm].name} · Level ${g.level.level}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
+    road: g.level ? REALMS[g.level.realm].name : null,
+    levelRewards: result.levelRewards.level,
   };
 }
 
-/** v0.6 Quick Restart: the same class, traits and Oath (they live in the settings), or today's Daily Trial again. */
-const again = (g: Game): void => (g.daily ? toDaily() : startRun(g.player.cls.id));
+/**
+ * v0.6 Quick Restart: the same class, traits and Oath (they live in the settings), or today's Daily Trial again. #200: a level again, on
+ * the same seed until it is cleared (rule 3: death restarts that level with the same opening offers).
+ */
+const again = (g: Game): void =>
+  g.daily ? toDaily() : g.level ? startLevel(g.player.cls.id, g.level.realm, g.level.level, g.tierIndex, g.level.cleared ? undefined : g.seed) : startRun(g.player.cls.id);
 
 /** Death, "end run", or banking a win: the run is banked. */
 function endRun(g: Game): void {
@@ -623,7 +636,18 @@ function endRun(g: Game): void {
   state = 'results';
   setTouchControls(false);
   startMenuMusic();
-  showResults(runResult(g, true), { retry: () => again(g), menu: toSelect });
+  const r = runResult(g, true);
+  const lv = g.level;
+  const results = () => showResults(r, { retry: () => again(g), menu: lv ? () => toRoad(lv.realm) : toSelect });
+  // #200: a Marches level's first clear lets the champion keep one of its family's rares. Its clear is banked already, so closing the
+  // game on this screen loses the pick (ponytail: a pending-reward field in the save would keep it; the save format isn't this issue's)
+  const pick = r.levelRewards.find((x): x is Extract<LevelReward, { kind: 'rarePick' }> => x.kind === 'rarePick');
+  const id = g.player.cls.id, champ = save.champions[id];
+  if (!lv || !pick || !champ) return results();
+  showRarePick(`${REALMS[lv.realm].name} · Level ${lv.level}`, pick.family, rarePickOptions(champ, pick.family, pick.of), WORLD.keepLockedRunes, (relic) => {
+    commit(relic ? { ...save, champions: { ...save.champions, [id]: grantRelic(champ, relic) } } : { ...save, runes: save.runes + WORLD.keepLockedRunes });
+    results();
+  });
 }
 
 function mute(): void {
