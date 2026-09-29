@@ -3,7 +3,7 @@ import type { Enemy, Game, Player } from '../../core/types';
 import { addField } from '../../entities/hazards';
 import { damageEnemy, nearestEnemy } from '../combat';
 import { burst, line } from '../effects';
-import { flares, leapStacks, pitchDrips } from '../../logic/relics';
+import { leapStacks, pitchDrips, spark } from '../../logic/relics';
 import { addBurn, aOf, attackHit, awakened, bonus, burnStacks, cone, flash, maxBurn, nOf, nova, relicDamage, type RelicHooks, sOf } from '../relicCore';
 
 /**
@@ -189,9 +189,11 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       // a hit of yours (an attack, an ability, a hit your minions land with Legion), not a relic's burst or a burn's tick
       if (!attackHit(p, ev.source) && ev.source !== 'ability') return;
       const n = nOf(p, 'flashpowder');
-      if (!flares(burnStacks(ev.enemy), n.stacks, g.time, g.vars['powder.t'] ?? -99, n.every)) return;
+      const does = spark(burnStacks(ev.enemy), n.stacks, g.time, g.vars['powder.t'] ?? -99, n.every);
+      if (!does || ev.enemy.dead) return;
       g.vars['powder.t'] = g.time;
-      flare(g, p, ev.enemy, true);
+      if (does === 'flare') flare(g, p, ev.enemy, true);
+      else if (ev.enemy.hp > 0) addBurn(g, p, ev.enemy, n.light, relicDamage(p, n.power)); // not burning enough yet: the powder lights it for the next spark
     },
   },
 
@@ -201,8 +203,8 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if ((g.vars['pitch.t'] = (g.vars['pitch.t'] ?? 0) + dt) < n.every) return;
       g.vars['pitch.t'] = 0;
       const laid = g.fields.reduce((c, f) => c + (f.by === 'pitchPot' ? 1 : 0), 0);
-      const burning = g.hash.query(p.x, p.y, n.reach, []).filter((e) => !e.dead && burnStacks(e) > 0);
-      for (const e of pitchDrips(burning, p.x, p.y, n.reach, n.max - laid, (o) => inPitch(g, o))) {
+      const near = g.hash.query(p.x, p.y, n.reach, []).filter((e) => !e.dead);
+      for (const e of pitchDrips(near, (o) => burnStacks(o) > 0, p.x, p.y, n.reach, n.max - laid, (o) => inPitch(g, o))) {
         addField(g, { x: e.x, y: e.y, r: n.radius, life: n.life, dps: relicDamage(p, n.dps), hostile: false, color: F.color, dtype: 'fire', apply: { id: 'burn', stacks: 1, power: relicDamage(p, n.power) } });
         burst(g, e.x, e.y, F.color, 6, 120);
       }
@@ -213,6 +215,9 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   },
 
   crownOfCinders: {
+    onHit(g, ev, p) {
+      if (attackHit(p, ev.source) && ev.enemy.hp > 0 && burnStacks(ev.enemy) === 0) addBurn(g, p, ev.enemy, 1, relicDamage(p, nOf(p, 'crownOfCinders').power));
+    },
     onKill(g, ev, p) {
       // the dead enemy's burn is still on it when onKill runs (killEnemy clears nothing), so its stacks and power pass on as they were
       const b = ev.enemy.statuses.burn;

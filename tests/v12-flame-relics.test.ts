@@ -5,7 +5,7 @@ import { REALMS } from '../src/config/world';
 import type { Enemy, Game } from '../src/core/types';
 import { createGame } from '../src/game';
 import { rarePickOptions, newChampion, slotBlock, slotCost } from '../src/logic/champions';
-import { championPool, flares, isStarterRelic, leapStacks, pitchDrips, relicPoolFor } from '../src/logic/relics';
+import { championPool, isStarterRelic, leapStacks, pitchDrips, relicPoolFor, spark } from '../src/logic/relics';
 import { applyStatus, damageEnemy, updateFields } from '../src/systems/combat';
 import { addRelic, updateRelics } from '../src/systems/relics';
 import { spawnEnemy } from '../src/systems/spawning';
@@ -67,13 +67,16 @@ describe('the Cinderlands Flame relics (#229): the model', () => {
   });
 
   it('the pure rules: when a hit flares, which enemies drip pitch, what the leap passes on', () => {
-    expect(flares(3, 3, 5, 3.9, 1)).toBe(true);
-    expect(flares(2, 3, 5, 0, 1)).toBe(false); // not enough stacks
-    expect(flares(5, 3, 5, 4.5, 1)).toBe(false); // too soon
+    expect(spark(2, 2, 5, 3.9, 1)).toBe('flare');
+    expect(spark(1, 2, 5, 0, 1)).toBe('light'); // not burning enough: the powder lights it
+    expect(spark(5, 2, 5, 4.5, 1)).toBeNull(); // too soon
     const foes = [{ x: 300, y: 0 }, { x: 50, y: 0 }, { x: 100, y: 0 }, { x: 900, y: 0 }];
-    expect(pitchDrips(foes, 0, 0, 360, 2, () => false)).toEqual([foes[1], foes[2]]); // nearest first, as many as are free
-    expect(pitchDrips(foes, 0, 0, 360, 5, (e) => e === foes[1])).toEqual([foes[2], foes[0]]); // one already in pitch, one out of reach
-    expect(pitchDrips(foes, 0, 0, 360, 0, () => false)).toEqual([]);
+    type F = (typeof foes)[number];
+    const all = () => true, none = () => false;
+    expect(pitchDrips(foes, all, 0, 0, 360, 2, none)).toEqual([foes[1], foes[2]]); // nearest first, as many as are free
+    expect(pitchDrips(foes, (e: F) => e === foes[0], 0, 0, 360, 5, none)).toEqual([foes[1], foes[0]]); // the fling at the nearest, then the burning
+    expect(pitchDrips(foes, all, 0, 0, 360, 5, (e: F) => e === foes[1])).toEqual([foes[2], foes[0]]); // one already in pitch, one out of reach
+    expect(pitchDrips(foes, all, 0, 0, 360, 0, none)).toEqual([]);
     expect(leapStacks(3, 0)).toBe(3);
     expect(leapStacks(3, 1)).toBe(4);
     expect(leapStacks(0, 1)).toBe(0);
@@ -81,15 +84,17 @@ describe('the Cinderlands Flame relics (#229): the model', () => {
 });
 
 describe('what each one does, through the real hit, kill and tick paths', () => {
-  it('Flashpowder: an attack hit on an enemy at 3+ burn stacks flares round it, once a second; abilities count, relic bursts do not', () => {
+  it('Flashpowder: once a second a hit sparks: it lights an enemy, then a hit on it at 2+ stacks flares round it; abilities count, relic bursts do not', () => {
     const { g, foes } = arena('flashpowder', [[60, 0], [110, 0], [60, 60]]);
     const [lit, a, b] = foes;
-    ignite(g, lit, 2);
-    damageEnemy(g, lit, 10, false, 0, 0, 'attack');
-    expect(a.hp).toBe(a.maxHp); // 2 stacks: no flare
-    ignite(g, lit, 1);
     damageEnemy(g, lit, 10, false, 0, 0, 'relic');
-    expect(a.hp).toBe(a.maxHp); // a relic's own damage never sets it off
+    expect(burning(lit)).toBe(0); // a relic's own damage never sparks
+    damageEnemy(g, lit, 10, false, 0, 0, 'attack');
+    expect(burning(lit)).toBe(2); // lit
+    expect(a.hp).toBe(a.maxHp);
+    damageEnemy(g, lit, 10, false, 0, 0, 'attack');
+    expect(a.hp).toBe(a.maxHp); // within its second
+    g.time += 1;
     damageEnemy(g, lit, 10, false, 0, 0, 'attack');
     expect(a.hp).toBeLessThan(a.maxHp);
     expect(b.hp).toBeLessThan(b.maxHp);
@@ -135,6 +140,14 @@ describe('what each one does, through the real hit, kill and tick paths', () => 
     expect(patches()).toHaveLength(1);
   });
 
+  it('Pitch Pot: with nothing burning it flings its pitch at the nearest enemy', () => {
+    const { g, foes } = arena('pitchPot', [[200, 0], [100, 0]]);
+    for (let i = 0; i < 62; i++) frame(g);
+    const pits = g.fields.filter((f) => f.by === 'pitchPot');
+    expect(pits.map((f) => f.x)).toEqual([foes[1].x]);
+    expect(burning(foes[1])).toBeGreaterThan(0);
+  });
+
   it('Pitch Pot: at most 4 patches at once', () => {
     const at = Array.from({ length: 6 }, (_, i): [number, number] => [Math.cos(i) * 150, Math.sin(i) * 150]);
     const { g, foes } = arena('pitchPot', at);
@@ -171,6 +184,18 @@ describe('what each one does, through the real hit, kill and tick paths', () => 
     expect(far.hp).toBe(far.maxHp);
     expect(burning(far)).toBe(0);
     expect(stat(g, 'crownOfCinders').damage).toBeGreaterThan(0);
+  });
+
+  it('Crown of Cinders: an attack hit sets an enemy that is not burning alight, one stack; a killing blow or a burning enemy gets none', () => {
+    const { g, foes } = arena('crownOfCinders', [[60, 0], [300, 0]]);
+    damageEnemy(g, foes[0], 10, false, 0, 0, 'attack');
+    expect(burning(foes[0])).toBe(1);
+    damageEnemy(g, foes[0], 10, false, 0, 0, 'attack');
+    expect(burning(foes[0])).toBe(1);
+    damageEnemy(g, foes[0], 10, false, 0, 0, 'ability');
+    expect(burning(foes[0])).toBe(1);
+    damageEnemy(g, foes[1], 1e6, false, 0, 0, 'attack');
+    expect(burning(foes[1])).toBe(0);
   });
 
   it('Crown of Cinders: a burn tick that kills passes the fire on too (the burn is still on the enemy when it dies)', () => {

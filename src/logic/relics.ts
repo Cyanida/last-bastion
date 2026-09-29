@@ -302,17 +302,22 @@ export function bodkinStep(count: number, every: number, armorPiercer: boolean):
 
 // ---------------------------------------------------------------- v0.12 (#229): the Cinderlands' Flame relics
 
-/** Flashpowder: a hit makes its enemy flare when it burns at `need`+ stacks and the last flare was at least `every` s ago. */
-export const flares = (stacks: number, need: number, now: number, last: number, every: number): boolean => stacks >= need && now - last >= every;
+/**
+ * Flashpowder: what a hit does once the powder's clock (`every` s since the last spark) is ready: an enemy at `need`+ burn stacks flares,
+ * any other is lit; before then, nothing.
+ */
+export const spark = (stacks: number, need: number, now: number, last: number, every: number): 'flare' | 'light' | null =>
+  now - last < every ? null : stacks >= need ? 'flare' : 'light';
 
 /**
- * Pitch Pot: which burning enemies drip pitch this time: the nearest to (x, y) within `reach` first, one patch each, never one already
- * standing in pitch, and no more than the patches still free.
+ * Pitch Pot: who gets a patch this time: the nearest enemy to (x, y) within `reach` (the pot's fling), then every burning one, nearest
+ * first; one patch each, never on one already standing in pitch, and no more than the patches still free.
  */
-export function pitchDrips<T extends { x: number; y: number }>(burning: T[], x: number, y: number, reach: number, free: number, inPitch: (e: T) => boolean): T[] {
+export function pitchDrips<T extends { x: number; y: number }>(near: T[], burning: (e: T) => boolean, x: number, y: number, reach: number, free: number, inPitch: (e: T) => boolean): T[] {
   if (free <= 0) return [];
   const d2 = (e: T) => (e.x - x) ** 2 + (e.y - y) ** 2;
-  return burning.filter((e) => d2(e) <= reach * reach && !inPitch(e)).sort((a, b) => d2(a) - d2(b)).slice(0, free);
+  const byDistance = near.filter((e) => d2(e) <= reach * reach).sort((a, b) => d2(a) - d2(b));
+  return byDistance.filter((e, i) => (i === 0 || burning(e)) && !inPitch(e)).slice(0, free);
 }
 
 /** Crown of Cinders: the burn stacks a neighbour catches from a burning enemy that dies (the awakening adds `extra`). */
