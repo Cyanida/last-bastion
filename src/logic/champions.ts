@@ -4,10 +4,11 @@ import { CLASSES, CLASS_ORDER, type ClassId } from '../config/classes';
 import { META, TIERS } from '../config/economy';
 import { isCursedRelic, RELIC_IDS, relicDef, SIGNATURE, type FamilyId, type RelicId } from '../config/relics';
 import { TALENT_BY_ID } from '../config/talents';
-import { REALM_IDS, REALMS, WORLD, type RealmId } from '../config/world';
+import { REALM_IDS, REALMS, WORLD, type CrownReward, type LevelReward, type RealmId } from '../config/world';
 import { masteryBonus, type MetaRanks } from './economy';
+import { championPool, lockedIn } from './relics';
 import type { RunLog } from './runlog';
-import { isCrowned, nextLevel, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
+import { isCrowned, keepLockedOptions, nextLevel, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
 
 export interface Champion {
   name: string;
@@ -182,3 +183,44 @@ export const rarePickOptions = (c: Champion, family: FamilyId, of: number): Reli
 
 /** A reward relic joins the champion's inventory (relics found in a run never do). */
 export const grantRelic = (c: Champion, id: RelicId): Champion => (c.inventory.includes(id) ? c : { ...c, inventory: [...c.inventory, id] });
+
+// ---------- #219: a relic realm's rewards ----------
+
+/**
+ * A relic realm level's 'keepLocked' pick: the champion's locked relics of the families held when the level ended (logic/world
+ * keepLockedOptions), WORLD.keepLockedOf at most, the ones it held first (the pick keeps one of them). Decided: rares only, since the
+ * crown gives the legendaries and level 3 the class relic. Empty: the level pays WORLD.keepLockedRunes Runes instead.
+ */
+export function keepLockedPick(c: Champion, classId: ClassId, family: FamilyId | undefined, held: RelicId[], of = WORLD.keepLockedOf): RelicId[] {
+  const locked = lockedIn(championPool(classId, c.inventory, family), c.inventory).filter((id) => { const d = relicDef(id); return d.rarity === 'rare' && !d.classId && !d.signature; });
+  const opts = keepLockedOptions(held, locked);
+  return [...opts.filter((id) => held.includes(id)), ...opts.filter((id) => !held.includes(id))].slice(0, of);
+}
+
+/** The champion's class relic of a family (every class has one per family), or null. */
+export const classRelicOf = (classId: ClassId, family: FamilyId | undefined): RelicId | null =>
+  RELIC_IDS.find((id) => relicDef(id).family === family && relicDef(id).classId === classId) ?? null;
+
+/** A family's legendaries (two per realm family): the Knight crown's pick is those the champion doesn't own yet. */
+export const legendaryPickOptions = (c: Champion, family: FamilyId | undefined): RelicId[] =>
+  RELIC_IDS.filter((id) => relicDef(id).family === family && relicDef(id).rarity === 'legendary' && !relicDef(id).classId && !c.inventory.includes(id));
+
+/**
+ * The relics a clear's rewards give with no choice, as `c` stood before it: the signature relic (the Marches crown), the class relic of
+ * the realm's family (level 3), and the Champion crown's "other" legendary (the first one it doesn't own: the Knight crown's pick took the
+ * other). One already owned (a v6 save brought it) gives nothing.
+ */
+export function rewardRelics(c: Champion, classId: ClassId, family: FamilyId | undefined, rewards: (LevelReward | CrownReward)[]): RelicId[] {
+  const out: RelicId[] = [];
+  for (const r of rewards) {
+    const id = r.kind === 'signature' ? (c.signature ? null : SIGNATURE.relic[classId]) : r.kind === 'classRelic' ? classRelicOf(classId, family) : r.kind === 'legendaryOther' ? legendaryPickOptions(c, family)[0] ?? null : null;
+    if (id && !c.inventory.includes(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+/** Bank a clear's rewards with no choice (rewardRelics); the picks (a rare, a locked relic, a legendary) come on their screens. */
+export function grantRewards(c: Champion, classId: ClassId, family: FamilyId | undefined, rewards: (LevelReward | CrownReward)[]): Champion {
+  const got = rewardRelics(c, classId, family, rewards).reduce((ch, id) => grantRelic(ch, id), c);
+  return rewards.some((r) => r.kind === 'signature') ? { ...got, signature: true } : got; // #201: the signature relic is won
+}

@@ -48,19 +48,19 @@ import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspe
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, showChampion, pickClass, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showCrownPick, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
 import { levelPanel, mapRealms, nextLevel, roadLevels, roadTier } from './logic/world';
-import { REALMS, WORLD, type LevelReward, type RealmId } from './config/world';
-import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, newChampion, nextStop, rarePickOptions, type Champion } from './logic/champions';
+import { REALMS, WORLD, type RealmId } from './config/world';
+import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, keepLockedPick, legendaryPickOptions, newChampion, nextStop, rarePickOptions, rewardRelics, type Champion } from './logic/champions';
 import { TALENT_ROW_CAP } from './config/economy';
 import { talentsFor } from './config/talents';
 import type { LevelStart } from './systems/levels';
 import { isCompactLayout, textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
-import { RELIC_MOMENTS, SIGNATURE, TIER_NUMERALS } from './config/relics';
+import { FAMILIES, RELIC_MOMENTS, relicDef, TIER_NUMERALS, type RelicId } from './config/relics';
 import { BOOK_IDS } from './config/acts';
 import { looseRelics } from './logic/relics';
 import { TRAITS } from './config/traits';
-import { CLASS_ORDER } from './config/classes';
+import { CLASS_ORDER, CLASSES } from './config/classes';
 import { MASTERY } from './config/economy';
 import { markBored } from './systems/runlog';
 import { buildState } from './systems/evolutions';
@@ -680,22 +680,44 @@ function endRun(g: Game): void {
   startMenuMusic();
   // #197: a level lost is remembered for its restart; one cleared forgets it
   if (g.level) fall = g.level.cleared ? null : { classId: g.player.cls.id, realm: g.level.realm, level: g.level.level, tier: g.tierIndex, seed: g.seed, wave: Math.max(1, g.wave) }; // lost in the lull before wave 1 counts as wave 1
+  const champAtEnd = save.champions[g.player.cls.id] ?? null, held = [...g.player.relics.held]; // #219: the rewards judge the champion before the clear
   const r = runResult(g, true);
   const lv = g.level, tier = g.tierIndex;
   // a cleared level goes back to the realm road; a lost one to the champion screen on that level, whose RESTART plays its seed again
   const home = lv ? (lv.cleared ? () => toRoad(lv.realm) : () => toChampion({ realm: lv.realm, level: lv.level, tier })) : toTitle; // #204: a Daily Trial goes home
   const results = () => showResults(r, { retry: () => again(g), menu: home });
-  // #200: a Marches level's first clear lets the champion keep one of its family's rares. Its clear is banked already, so closing the
-  // game on this screen loses the pick (ponytail: a pending-reward field in the save would keep it; the save format isn't this issue's)
-  const pick = r.levelRewards.find((x): x is Extract<LevelReward, { kind: 'rarePick' }> => x.kind === 'rarePick');
+  // #200: a Marches level's first clear lets the champion keep one of its family's rares, and #219 a relic realm's levels 1, 2 and 4 one
+  // of its locked relics, its Knight crown one of its two legendaries. Its clear is banked already, so closing the game on a pick loses it
+  // (ponytail: a pending-reward field in the save would keep it; the save format isn't this issue's). The rewards with no choice (the
+  // signature relic, the class relic, the Champion crown's other legendary) are banked with the run and shown on one gold card each.
   const id = g.player.cls.id;
-  // #202: then a first Marches crown shows the signature relic it won (banked with the run already), and the results after it
-  const crowned = lv && r.crownRewards.some((x) => x.kind === 'signature') ? () => showCrownPick(REALMS[lv.realm].name, champOf(id).name, SIGNATURE.relic[id], results) : results;
-  if (!lv || !pick) return crowned();
-  showRarePick(`${REALMS[lv.realm].name} · Level ${lv.level}`, pick.family, rarePickOptions(champOf(id), pick.family, pick.of), WORLD.keepLockedRunes, (relic) => {
-    commit(relic ? { ...save, champions: { ...save.champions, [id]: grantRelic(champOf(id), relic) } } : { ...save, runes: save.runes + WORLD.keepLockedRunes });
-    crowned();
-  });
+  if (!lv) return results();
+  const realm = REALMS[lv.realm], family = realm.family, before = champAtEnd ?? newChampion(id);
+  const level = `${realm.name} · Level ${lv.level}`, crownHead = `👑 ${realm.name} crowned`;
+  const keep = (relic: RelicId | null) => commit(relic ? { ...save, champions: { ...save.champions, [id]: grantRelic(champOf(id), relic) } } : { ...save, runes: save.runes + WORLD.keepLockedRunes });
+  const steps: ((next: () => void) => void)[] = [];
+  for (const x of [...r.levelRewards, ...r.crownRewards]) {
+    if (x.kind === 'rarePick') steps.push((next) => showRarePick(level, x.family, rarePickOptions(champOf(id), x.family, x.of), WORLD.keepLockedRunes, (relic) => (keep(relic), next())));
+    else if (x.kind === 'keepLocked' && family)
+      steps.push((next) => showRarePick(level, family, keepLockedPick(champOf(id), id, family, held, WORLD.keepLockedOf), WORLD.keepLockedRunes, (relic) => (keep(relic), next()), {
+        sub: `Choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} relic you had yet to win, to keep. It joins your champion's relics for every loadout.`,
+        empty: `You held no ${FAMILIES[family].name} relic still to win when it ended.`,
+      }));
+    else if (x.kind === 'legendaryPick' && family)
+      steps.push((next) => showRarePick(level, family, legendaryPickOptions(champOf(id), family), WORLD.keepLockedRunes, (relic) => (keep(relic), next()), {
+        head: crownHead, cls: 'legendary-pick', empty: `You hold both ${FAMILIES[family].name} legendaries already.`,
+        sub: `The ${r.tier} crown: choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} legendary to keep. The Champion's crown gives the other.`,
+      }));
+  }
+  // the rewards with no choice, as they were banked (logic/champions rewardRelics, judged by the champion before this clear)
+  const banked = rewardRelics(before, id, family, [...r.levelRewards, ...r.crownRewards]);
+  for (const relic of banked) {
+    const d = relicDef(relic);
+    steps.push((next) => showCrownPick(realm.name, champOf(id).name, relic, next, d.signature ? {} : d.classId
+      ? { head: `${level} cleared`, cls: 'class-pick', sub: `The ${CLASSES[id].name}'s ${FAMILIES[d.family!].icon} ${FAMILIES[d.family!].name} class relic is won: it joins your champion's relics for every loadout.` }
+      : { head: crownHead, sub: `The ${r.tier} crown gives the other ${FAMILIES[d.family!].icon} ${FAMILIES[d.family!].name} legendary: it joins your champion's relics.` }));
+  }
+  steps.reduceRight<() => void>((next, step) => () => step(next), results)();
 }
 
 function mute(): void {

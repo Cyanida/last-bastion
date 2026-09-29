@@ -149,6 +149,7 @@ export const WORLD = {
   maxSlots: 6, // Armorer's Choice and the Keepsake mastery rank each add a slot, up to this
   openingPick: 3, // every level opens with a pick of 1 from this many relics of its family
   keepLockedRunes: 2, // Decided: a keep-a-locked-relic level cleared holding no family relic pays this many Runes
+  keepLockedOf: 2, // #219 Decided: a keep-locked level shows a pick of 1 of this many rares (like a Marches level's), the ones held at the end first
   crownBoss: { phases: 3, minPhaseSeconds: 12 }, // Decided: 12 s per phase, so a crown boss can't be burst through a phase
   /** Rule 4: loadout limits (the slot rules issue enforces them). */
   loadout: { perFamily: 4, legendarySlots: 2, legendaries: 1, legendariesFinale: 2, classRelics: 2 },

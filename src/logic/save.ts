@@ -21,9 +21,9 @@ import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, rune
 import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
 import { keepRuns, readRunLog, type RunLog } from './runlog';
 import { recordTierRun, tierUnlockedFor } from './difficulty';
-import { championsFromV6, grantSignature, newChampion, readChampions, type Champion } from './champions';
+import { championsFromV6, grantRewards, newChampion, readChampions, type Champion } from './champions';
 import { clearRewards, levelSkip, recordClear } from './world';
-import type { CrownReward, LevelReward, RealmId } from '../config/world';
+import { REALMS, type CrownReward, type LevelReward, type RealmId } from '../config/world';
 
 export const SAVE_VERSION = 7; // v0.10 (#193): champions, one per class (logic/champions.ts); v6 was v0.7's relic rework
 export const READABLE_VERSIONS = [2, 3, 4, 5, 6, 7]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
@@ -446,7 +446,8 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   const champion = lv ? save.champions[run.classId] ?? newChampion(run.classId) : null;
   const levelRewards = lv?.cleared && champion ? clearRewards(champion.world, lv.realm, lv.level, run.tier) : { level: [], crown: [] };
   const cleared = lv?.cleared && champion ? { ...champion, world: recordClear(champion.world, lv.realm, lv.level, run.tier) } : null;
-  const champions = cleared ? { ...save.champions, [run.classId]: levelRewards.crown.some((r) => r.kind === 'signature') ? grantSignature(cleared, run.classId) : cleared } : save.champions; // #201: the Marches crown
+  // #201, #219: the rewards with no choice (the signature relic, a realm's class relic, the other legendary) are banked with the run
+  const champions = cleared ? { ...save.champions, [run.classId]: grantRewards(cleared, run.classId, REALMS[lv!.realm].family, [...levelRewards.level, ...levelRewards.crown]) } : save.champions;
   const feats = Object.fromEntries(FEAT_KEYS.map((k) => [k, Math.max(c[k], run.feats?.[k] ?? 0)])) as Record<FeatKey, number>;
   return {
     classXp,
