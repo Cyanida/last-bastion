@@ -4,7 +4,7 @@ import type { ClassId } from './classes';
 
 /**
  * v0.7 relics (RELICS.md, approved revision 2): seven families, each with one core mechanic and set bonuses at 2, 4 and 6 relics held.
- * Every relic belongs to one family; class relics (three per class, one in each of its preferred families) are only offered to their class.
+ * Every relic belongs to one family; class relics (three per class) are only offered to their class.
  * v0.7.1 B6: the six cursed relics are the exception: no family, far stronger, with a curse that their awakening lifts (CURSED below).
  * A relic grows by attunement (A4): tier II strengthens its numbers, tier III awakens it (an extra behaviour with its own name).
  * Numbers live here; the behaviour is in systems/relicFamilies/<family>.ts.
@@ -53,8 +53,10 @@ export const RELIC_MOMENTS = {
   choices: 3,
   rerolls: 1,
   skip: { gold: 30, goldPerAct: 30, shards: 1 },
-  heldFamilyWeight: 1.6, // #96: a duo no longer counts toward 6-sets; 1 gave 7.7% of winning runs a 6-set, 1.6 gives ~15% (Jesse's target)
-  classRelicWeight: 0.5, // A8: class relics come half as often (a straight 6-set in a preferred family needs its class relic)
+  heldFamilyWeight: 1, // v0.10 (#194): was 1.6 for #96's 15% 6-set target, which is retired (rule 4: the lean drops to 1.0)
+  classRelicWeight: 0.5, // A8: class relics come half as often
+  newRelicWeight: 3, // v0.10 (#194): a relic the champion unlocked and never picked is offered this many times as often (rule 5)
+  sixSets: 1, // v0.10 (#194): one family reaches its 6-set bonus in a run; any other stops at its 4 (rule 4)
   duoAt: ['boss', 'lair'] as string[], // A8: the moments that can carry a ready duo (at every moment, duos completed most 6-sets)
   merchantPerVisit: 1, // the Merchant sells one relic moment a visit between Acts (not at the Merchant path's caravan): at most 3 a run
 };
@@ -62,7 +64,7 @@ export const RELIC_MOMENTS = {
 /**
  * #100: the families each arena's bosses drop. A boss moment offers only relics of its arena's families (plus a cursed third card or a ready
  * duo), and so do its rerolls, so a boss can't be rerolled into any build. Lairs, quests, strongboxes, the Merchant and the run start stay
- * open, so every class can still gather a 6-set of its preferred families. Every family is some arena's; a boss falls back to the whole
+ * open. Every family is some arena's; a boss falls back to the whole
  * pool when too few of its families' relics are left to fill the pick.
  */
 export const ARENA_FAMILIES: Record<ArenaId, FamilyId[]> = {
@@ -123,12 +125,12 @@ export const RELIC_STACKING = {
 export const RELIC_COLOR = '#d9a8ff';
 
 /**
- * The families. `preferredBy`: the classes that can max it with straight pieces (5 relics any class finds + that class's own class relic).
+ * The families. v0.10 (#194): no family is preferred by a class any more (docs/road-to-the-crown.md rule 5).
  * Set bonus numbers are read by systems/relicFamilies/<family>.ts; `...PerS` numbers grow with the class's secondary stat.
  */
 export const FAMILIES = {
   flame: {
-    name: 'Flame', icon: '🔥', color: '#e8793a', mechanic: 'Burn stacks and fire bursts', preferredBy: ['paladin', 'angel', 'archer'],
+    name: 'Flame', icon: '🔥', color: '#e8793a', mechanic: 'Burn stacks and fire bursts',
     sets: {
       2: ['Stoked', 'Burns stack one higher, and burn damage grows 3% per point of your secondary stat.'],
       4: ['Pyre', 'Burning enemies explode on death: 20% of their max HP (+1% per point of your secondary stat) around them.'],
@@ -137,7 +139,7 @@ export const FAMILIES = {
     n: { stacksBonus: 1, burnPerS: 0.03, pyreFrac: 0.2, pyrePerS: 0.01, pyreRadius: 90, spreadEvery: 2, spreadRange: 160 },
   },
   frost: {
-    name: 'Frost', icon: '❄️', color: '#8ec9e8', mechanic: 'Chill (a relic\'s chill: +4% damage taken per stack), freeze, shatter', preferredBy: ['angel', 'necromancer', 'archer'],
+    name: 'Frost', icon: '❄️', color: '#8ec9e8', mechanic: 'Chill (a relic\'s chill: +4% damage taken per stack), freeze, shatter',
     sets: {
       2: ['Biting Cold', 'Chill builds 50% faster.'],
       4: ['Shatter', 'Frozen enemies shatter when killed: 30% of their max HP (+1% per point of your secondary stat) to enemies around them.'],
@@ -146,7 +148,7 @@ export const FAMILIES = {
     n: { chillVuln: 0.04, chillMult: 1.5, shatterFrac: 0.3, shatterPerS: 0.01, shatterRadius: 110, trailEvery: 0.3, trailLife: 2, trailRadius: 45, touchFreeze: 0.6, touchCd: 3, near: 300 },
   },
   storm: {
-    name: 'Storm', icon: '⚡', color: '#f2e6a0', mechanic: 'Chains and speed', preferredBy: ['viking', 'archer'],
+    name: 'Storm', icon: '⚡', color: '#f2e6a0', mechanic: 'Chains and speed',
     sets: {
       2: ['Arc', 'Every 4th hit chains to a second enemy for full damage (every 3rd from 15 in your secondary stat).'],
       4: ['Thunderstrike', 'Crits call a lightning strike: 50% of the hit to everything around the target.'],
@@ -155,7 +157,7 @@ export const FAMILIES = {
     n: { arcEvery: 4, arcEveryAt15: 3, arcMult: 1, arcRange: 170, strikeMult: 0.5, strikeRadius: 60, rangeMult: 1.5, streakKills: 10, streakWindow: 5 },
   },
   blood: {
-    name: 'Blood', icon: '🩸', color: '#c23a2e', mechanic: 'Bleed, and HP for power', preferredBy: ['viking'],
+    name: 'Blood', icon: '🩸', color: '#c23a2e', mechanic: 'Bleed, and HP for power',
     sets: {
       2: ['Open Wounds', 'Every bleed you apply adds two stacks more.'],
       4: ['Bloodlust', '+1% damage for every 2% of HP missing (max 50%), and killing a bleeding enemy heals 1% of your max HP.'],
@@ -164,7 +166,7 @@ export const FAMILIES = {
     n: { extraStacks: 2, perMissing: 0.5, lustMax: 0.5, killHeal: 0.01, hpCost: 0.2 },
   },
   holy: {
-    name: 'Holy', icon: '✨', color: '#f0d77a', mechanic: 'Healing, ward and blessing', preferredBy: ['paladin', 'angel', 'necromancer'],
+    name: 'Holy', icon: '✨', color: '#f0d77a', mechanic: 'Healing, ward and blessing',
     sets: {
       2: ['Blessed', 'Healing also grants ward: 25% of the heal (your ward holds up to 15% of your max HP, +1% per point of your secondary stat).'],
       4: ['Radiance', 'Overhealing becomes a holy pulse around you: twice the overheal as damage.'],
@@ -173,7 +175,7 @@ export const FAMILIES = {
     n: { wardShare: 0.25, wardMax: 0.15, wardMaxPerS: 0.01, pulseMult: 2, pulseRadius: 150, wardMaxMult: 2 },
   },
   grave: {
-    name: 'Grave', icon: '💀', color: '#9a7fc0', mechanic: 'Corpses, summons and curse', preferredBy: ['necromancer'],
+    name: 'Grave', icon: '💀', color: '#9a7fc0', mechanic: 'Corpses, summons and curse',
     sets: {
       2: ['Charnel', 'Corpses last twice as long, and walking over one attunes your Grave relics.'],
       4: ['Undying Host', 'Every 10th kill raises a skeleton for you, whatever your class (max 3, +1 per 10 in your secondary stat).'],
@@ -182,7 +184,7 @@ export const FAMILIES = {
     n: { corpseMult: 2, every: 10, max: 3, maxPer10S: 1, hp: 50, damage: 10, life: 20 },
   },
   steel: {
-    name: 'Steel', icon: '🛡️', color: '#a8b0bc', mechanic: 'Armor stacks, block, thorns', preferredBy: ['paladin', 'viking'],
+    name: 'Steel', icon: '🛡️', color: '#a8b0bc', mechanic: 'Armor stacks, block, thorns',
     sets: {
       2: ['Bulwark', 'Blocking or taking a hit gives an armor stack (+3% armor each, 5 at most, +1 per 10 in your secondary stat; they fade 4 s after the last).'],
       4: ['Spiked', 'Thorns: an enemy that hits you takes 4 × your armor % of the hit back.'],
@@ -190,7 +192,7 @@ export const FAMILIES = {
     },
     n: { stackArmor: 0.03, stacksMax: 5, stacksPer10S: 1, fade: 4, thornsMult: 4, quakePerStack: 20, quakeRadius: 160 },
   },
-} satisfies Record<FamilyId, { name: string; icon: string; color: string; mechanic: string; preferredBy: ClassId[]; sets: Record<2 | 4 | 6, [string, string]>; n: Record<string, number> }>;
+} satisfies Record<FamilyId, { name: string; icon: string; color: string; mechanic: string; sets: Record<2 | 4 | 6, [string, string]>; n: Record<string, number> }>;
 export const FAMILY_IDS = Object.keys(FAMILIES) as FamilyId[];
 export const SET_LEVELS = [2, 4, 6] as const;
 export type SetLevel = (typeof SET_LEVELS)[number];
@@ -327,6 +329,12 @@ export const RELICS = {
 
 export type RelicId = keyof typeof RELICS;
 export const RELIC_IDS = Object.keys(RELICS) as RelicId[];
+/**
+ * v0.10 (#194, docs/road-to-the-crown.md rule 5): what a champion's run finds besides its inventory and a realm's family. Every common is the
+ * starter pool, open to every run. `open`: the three relics deeds used to unlock, open to every run until their realm crowns ship (Holy,
+ * Grave, Storm).
+ */
+export const RELIC_POOL = { open: ['phoenixFeather', 'soulLantern', 'stormcallersHorn'] as RelicId[] };
 export const relicDef = (id: RelicId): RelicDef => RELICS[id];
 /** v0.7.1 B6: the cursed relics (no family), and whether a relic is one. */
 export const isCursedRelic = (id: RelicId): boolean => RELICS[id].cursed === true;
@@ -349,8 +357,6 @@ export const relicDesc = (id: RelicId, tier: number): string => {
   return tier >= RELIC_MAX_TIER ? `${text} Awakened, ${def.awaken.name}: ${def.awaken.desc}` : text;
 };
 
-/** The families this class prefers (it can max them with straight pieces), in the order of FAMILY_IDS. */
-export const preferredFamilies = (classId: ClassId): FamilyId[] => FAMILY_IDS.filter((f) => (FAMILIES[f].preferredBy as readonly ClassId[]).includes(classId));
 
 /**
  * v0.7 A5 duo relics (RELICS.md): hold both source relics (of two families) and a relic moment offers the duo as a gold fourth card that

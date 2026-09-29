@@ -23,7 +23,7 @@ import { createGame } from './game';
 import { banked, createTestRun, isTestRun, type TestSetup } from './systems/testMode';
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
 import { upgradeOptions } from './logic/abilityUpgrades';
-import { lockedArenas, lockedRelics, rewardText, tierKey, unlockedCurses, withAchievements } from './logic/achievements';
+import { lockedArenas, rewardText, tierKey, unlockedCurses, withAchievements } from './logic/achievements';
 import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from './logic/acts';
 import { oathCap } from './logic/oaths';
 import { closestGoals } from './logic/goals';
@@ -361,7 +361,6 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?:
     tier: d ? 0 : save.settings.tier,
     meta: save.meta,
     classXp: save.classes[id].xp,
-    lockedRelics: lockedRelics(save),
     curses: d ? d.curses : save.settings.curses.filter((c) => unlockedCurses(save).includes(c)),
     daily: d?.date,
     trait: d ? 'none' : save.settings.trait, // the Daily Trial is the same for everyone

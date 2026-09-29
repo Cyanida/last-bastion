@@ -68,15 +68,15 @@ describe('a duo combines its two relics into one (#96)', () => {
 
   it('every class can still reach a 6-set with the relics it can find', () => {
     for (const c of Object.keys(CLASSES) as ClassId[]) {
-      const sets = familySets(relicPoolFor(c, []));
+      const sets = familySets(relicPoolFor(c));
       expect(FAMILY_IDS.some((f) => sets[f]?.level === 6), c).toBe(true);
     }
   });
 });
 
 describe('offers lean toward held families, so a 6-set stays reachable (#96)', () => {
-  it('the game\'s lean shows two cards of your family clearly more often than no lean', () => {
-    expect(RELIC_MOMENTS.heldFamilyWeight).toBeGreaterThan(1);
+  it('a lean shows two cards of your family clearly more often than no lean; the game leans 1.0 since #194', () => {
+    expect(RELIC_MOMENTS.heldFamilyWeight).toBe(1);
     const held = RELIC_IDS.filter((id) => familyOf(id) === 'flame').slice(0, 3);
     const doubles = (lean: number) => { // one held-family card is guaranteed anyway; the lean shows in the second
       const rng = mulberry32(96);
@@ -84,6 +84,6 @@ describe('offers lean toward held families, so a 6-set stays reachable (#96)', (
       for (let i = 0; i < 2000; i++) if (rollOffer([...RELIC_IDS], held, rng, 3, familyOf, lean).filter((id) => familyOf(id) === 'flame').length >= 2) n++;
       return n;
     };
-    expect(doubles(RELIC_MOMENTS.heldFamilyWeight)).toBeGreaterThan(doubles(1) * 1.3);
+    expect(doubles(1.6)).toBeGreaterThan(doubles(1) * 1.3);
   });
 });

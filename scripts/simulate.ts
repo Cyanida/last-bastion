@@ -29,7 +29,7 @@ import { ACTS } from '../src/config/acts';
 import { RUN_LOG } from '../src/config/game';
 import { actMinutes, quietStretches } from '../src/logic/runlog';
 import type { RunOptions } from '../src/game';
-import { lockedRelics, withAchievements } from '../src/logic/achievements';
+import { withAchievements } from '../src/logic/achievements';
 import { accountLevel, buildingLevel, metaCost, totalKeepCost } from '../src/logic/economy';
 import { expectedLevel } from '../src/logic/formulas';
 import { applyRun, buyBuilding, buyMeta, defaultSave } from '../src/logic/save';
@@ -69,7 +69,7 @@ if (mode === 'economy') {
   for (let i = 1; i <= runs; i++) {
     const classId = CLASS_ORDER[(i - 1) % CLASS_ORDER.length];
     const result = simulateRun(classId, 5000 + i, {
-      tier, arena, meta: save.meta, classXp: save.classes[classId].xp, lockedRelics: lockedRelics(save),
+      tier, arena, meta: save.meta, classXp: save.classes[classId].xp,
       accountLevel: accountLevel(CLASS_ORDER.map((c) => save.classes[c].xp)), libraryLevel: buildingLevel(save.buildings, 'library'),
       bonusTalentPoints: save.talentPoints, // v0.4: deeds pay permanent talent points
     }, i % 2);

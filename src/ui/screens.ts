@@ -3,7 +3,7 @@ import { ACHIEVEMENTS, CATEGORIES, tierReward, type AchievementCategory, type Ac
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
 import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
-import { ARENA_FAMILIES, FAMILIES, FAMILY_IDS, preferredFamilies, type FamilyId, type Rarity, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS } from '../config/relics';
+import { ARENA_FAMILIES, FAMILIES, FAMILY_IDS, type FamilyId, type Rarity, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS } from '../config/relics';
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
 import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
@@ -316,7 +316,6 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       <div class="hero-text">
         <div class="ability"><b>${c.ability.name}</b><p>${c.ability.desc}</p></div>
         <div class="ability"><b>${c.secondary.name}</b><p>${c.secondary.desc}</p></div>
-        <div class="fam-line" data-tip="${esc(`Can max these relic families: ${preferredFamilies(c.id).map((f) => FAMILIES[f].name).join(', ')}. Every family is open to every class; these reach their 6-set with straight pieces.`)}">Families:${preferredFamilies(c.id).map((f) => `<span class="fam-chip" style="--fam:${FAMILIES[f].color}">${FAMILIES[f].icon} ${FAMILIES[f].name}</span>`).join('')}</div>
         ${treasure}
         ${save.wins[c.id] ? `<div class="oath-line">⚜ ${save.oaths[c.id] ? `Oath ${save.oaths[c.id]} kept` : 'No Oath kept yet'}${sworn ? ` · this run: <b>${oathOf(c.id) ? `Oath ${oathOf(c.id)}` : 'custom'}</b>` : ''}</div>` : ''}
         <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
@@ -619,7 +618,7 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
     const last = a.tiers[a.tiers.length - 1].target;
     const cur = Math.min(last, a.progress(save));
     const marks = a.tiers.slice(0, -1).map((t) => `<i style="left:${(t.target / last) * 100}%"></i>`).join('');
-    const unlock = a.unlocks?.arena ? `Unlocks arena: ${ARENAS[a.unlocks.arena].name}` : a.unlocks?.relic ? `Unlocks relic: ${relicDef(a.unlocks.relic).name}` : a.unlocks?.curse ? `Unlocks curse: ${CURSES[a.unlocks.curse].name}` : '';
+    const unlock = a.unlocks?.arena ? `Unlocks arena: ${ARENAS[a.unlocks.arena].name}` : a.unlocks?.curse ? `Unlocks curse: ${CURSES[a.unlocks.curse].name}` : '';
     const pips = a.tiers.map((_, i) => `<i class="${i < tier ? 'on' : ''}" data-tip="${esc(`${TIER_NAMES[i]}: ${a.tiers[i].target} · ${tierRewardText(tierReward(a, i + 1))}`)}">${i < tier ? '✔' : '·'}</i>`).join('');
     return `<div class="ach ${tier > 0 ? 'done' : ''}">
       <div><b>${tier > 0 ? '✔ ' : ''}${secret ? '???' : a.name}${tier > 0 ? ` <em class="badge">${TIER_NAMES[tier - 1]}</em>` : ''}</b>
@@ -775,11 +774,12 @@ export function showRelicOffer(
   on: { take: (id: RelicId | DuoId) => void; skip: () => void; reroll: () => void },
 ): void {
   const { options } = offer;
+  const opening = offer.from === 'start' && !!offer.families; // #194: a level's opening pick of its family (the Armorer's offer has none)
   const el = show(`
     <div class="levelup">
-      ${choiceHead(MOMENT_TITLES[offer.from])}
+      ${choiceHead(opening ? 'Your opening pick' : MOMENT_TITLES[offer.from])}
       <p class="sub">Choose a relic · ${held.length} carried</p>
-      ${offer.families ? `<p class="sub" data-families>This arena's bosses drop only ${familyList(offer.families)}</p>` : ''}
+      ${offer.families ? `<p class="sub" data-families>${opening ? `This level opens on ${familyList(offer.families)}` : `This arena's bosses drop only ${familyList(offer.families)}`}</p>` : ''}
       <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div><div class="preview">${esc(info.line(id))}</div>`, ['', 'For this build:', ...info.preview(id)])).join('')}${offer.duo ? duoCard(offer.duo, `data-pick="${options.length}"`, `<div class="num">${options.length + 1}</div>`) : ''}</div>
       <div class="row">
         ${kit.button(`Reroll (R) · ${offer.rerolls} left`, { attrs: 'data-reroll', disabled: offer.rerolls <= 0 })}
@@ -1029,7 +1029,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
   const unlocks = [
     ...(r.tierUnlocked ? [`<div class="unlock">⚔ Difficulty unlocked: <b>${r.tierUnlocked}</b></div>`] : []),
     ...r.contracts.map((c) => `<div class="unlock">📜 Weekly contract done: <b>${c.text}</b> <em>${R} +${c.runes}</em></div>`),
-    ...r.earned.map((e) => `<div class="unlock">🏆 <b>${e.def.name} · ${TIER_NAMES[e.tier - 1]}</b> — ${e.def.desc} <em>${tierRewardText(e.reward)}</em>${e.tier === 1 && e.def.unlocks?.arena ? ` <em>New arena: ${ARENAS[e.def.unlocks.arena].name}</em>` : ''}${e.tier === 1 && e.def.unlocks?.relic ? ` <em>New relic: ${relicDef(e.def.unlocks.relic).name}</em>` : ''}</div>`),
+    ...r.earned.map((e) => `<div class="unlock">🏆 <b>${e.def.name} · ${TIER_NAMES[e.tier - 1]}</b> — ${e.def.desc} <em>${tierRewardText(e.reward)}</em>${e.tier === 1 && e.def.unlocks?.arena ? ` <em>New arena: ${ARENAS[e.def.unlocks.arena].name}</em>` : ''}</div>`),
   ].join('');
   // #186: the results in the kit: a framed screen with its heading on the ribbon, the run on parchment (it scrolls), and the
   // buttons in a footer that stays in view. One main button: Quick restart, or Bank the win at the Usurper; Endless is a go.
@@ -1167,8 +1167,7 @@ export function showCompendium(save: Save, onBack: () => void): void {
   };
   const family = (f: (typeof FAMILY_IDS)[number]) => {
     const fam = FAMILIES[f];
-    const prefer = (fam.preferredBy as readonly string[]).map((c) => CLASSES[c as keyof typeof CLASSES].name).join(', ');
-    return `<h2 style="--fam:${fam.color}">${kit.icon(f)}${fam.name}</h2><p class="hint">${fam.mechanic}. ${([2, 4, 6] as const).map((l) => `<b>${l} ${fam.sets[l][0]}</b>: ${fam.sets[l][1]}`).join(' ')} Can be maxed by: ${prefer}.</p>
+    return `<h2 style="--fam:${fam.color}">${kit.icon(f)}${fam.name}</h2><p class="hint">${fam.mechanic}. ${([2, 4, 6] as const).map((l) => `<b>${l} ${fam.sets[l][0]}</b>: ${fam.sets[l][1]}`).join(' ')}</p>
       <div class="comp-grid">${RELIC_IDS.filter((id) => relicDef(id).family === f).map(card).join('')}</div>`;
   };
   // a duo or an evolution: its icon in the gold (signature) frame once discovered, a greyed ? until then

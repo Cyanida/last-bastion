@@ -25,6 +25,8 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #182: the Aegis of Dawn's dome now lasts exactly as long as the shield (paladin:7 meta evolves it).
  * Re-recorded for #182 (merge of its three parts): with enemy bolts carrying their shooter and delayed actions dropped at a new Act,
  * archer:5 plays out a little differently on purpose; each part alone left it unchanged.
+ * Re-recorded for #194 (v0.10): relic offers no longer lean 1.6x toward held families (1.0), so viking:98765, its curse run and
+ * paladin:7 meta draw different relics on purpose.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -63,7 +65,7 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 const GOLDEN: Record<string, string> = {
   'paladin:5': 'wave 15 kills 489 level 15 gold 1776 relics 6 hash ae9285a2',
   'paladin:98765': 'wave 15 kills 624 level 16 gold 2572 relics 7 hash f3d3f678',
-  'viking:98765': 'wave 18 kills 768 level 18 gold 3312 relics 7 hash c53f8959',
+  'viking:98765': 'wave 18 kills 817 level 18 gold 3380 relics 7 hash 90869862',
   'viking:5': 'wave 18 kills 676 level 18 gold 3636 relics 7 hash bb2efac8',
   'angel:1234': 'wave 19 kills 813 level 19 gold 3527 relics 5 hash fc083d36',
   'angel:98765': 'wave 16 kills 727 level 18 gold 3513 relics 7 hash 7a7f8010',
@@ -71,8 +73,8 @@ const GOLDEN: Record<string, string> = {
   'necromancer:5': 'wave 19 kills 724 level 19 gold 3196 relics 7 hash 1ae406b6',
   'archer:2027': 'wave 9 kills 301 level 10 gold 883 relics 4 hash 48aea908',
   'archer:5': 'wave 21 kills 933 level 20 gold 5641 relics 9 hash 4a88a4f7',
-  'paladin:7 meta': 'wave 15 kills 610 level 18 gold 2340 relics 7 hash c8be6d59',
-  'viking:98765 curse': 'wave 18 kills 808 level 18 gold 3899 relics 7 hash 2ec27a7e',
+  'paladin:7 meta': 'wave 16 kills 612 level 18 gold 2374 relics 7 hash d3995b55',
+  'viking:98765 curse': 'wave 18 kills 771 level 18 gold 3828 relics 7 hash 3469127d',
   'angel:98765 oath 3': 'wave 13 kills 527 level 14 gold 2529 relics 5 hash b4058e85',
   'archer:5 variant 1': 'wave 14 kills 452 level 14 gold 2356 relics 5 hash 6a889c6',
 };

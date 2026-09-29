@@ -417,8 +417,6 @@
 .facts small { font: 800 10px var(--kit-num); letter-spacing: 0.06em; text-transform: uppercase; color: var(--kit-brass-dark); }
 .hero-text .ability b { font: 800 14px var(--kit-num); color: var(--kit-brass-dark); }
 .hero-text .ability p { margin: 1px 0 6px; }
-.hero .fam-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 13px; }
-.hero .fam-line .fam-chip { font-size: 12px; padding: 1px 5px; }
 .hero .treasure-chip { margin: 6px 0 0; }
 .hero .oath-line { font-size: 13px; color: var(--kit-brass-dark); margin-top: 4px; }
 .hero .best { text-align: left; font-size: 13px; margin-top: 6px; }
