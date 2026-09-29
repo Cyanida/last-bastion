@@ -3455,6 +3455,96 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
   }),
 );
 
+// ---------- #210: the Great Keep as a fortress: its wings are rooms (forge, armory, chapel, barracks) that open by the start wave ----------
+// Test mode, the Great Keep: at wave 1 every gate is shut; at wave 6 (past the mid-Act boss) one wing is open by the start. Walked into with
+// the keyboard, the room names its feature ("Forge fires", not "Vents"), and its floor holds its own rigged furniture (anvils, weapon racks,
+// bunks), pixel for pixel from the props atlas.
+await check('Great Keep: a fortress whose wings are the forge, armory, chapel and barracks, one open by wave 6, walked into, furnished (#210)', async () => {
+  const start = (wave, seed) => inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+    return inPage(async ([wave, seed]) => {
+      const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait();
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-arena', 'keep');
+      set('tm-act', '1');
+      set('tm-wave', String(wave));
+      const g = window.__startTest(seed);
+      g.player.invulnerable = true;
+      for (let i = 0; i < 60 && !(lb.state === 'playing' && g.time > 0.3); i++) {
+        if (lb.state === 'choice') lb.run(1, false, 'input');
+        await wait(50);
+      }
+      const open = g.arena.regions.filter((r) => r.id !== 'core' && g.regionOpen[r.id]).map((r) => r.id);
+      return { arena: g.arena.id, open, names: g.arena.regions.filter((r) => r.id !== 'core' && r.id !== 'vault').map((r) => r.name), state: lb.state };
+    }, [wave, seed]);
+  });
+  const first = await start(1);
+  const later = await start(6, 3); // seed 3 opens the forge first: its fires go by their own name, not "Vents"
+  const wing = later.open[0];
+  // stand in the open wing's gate, on the core's side, and walk in with the key that points into the wing
+  const key = { north: 'KeyW', south: 'KeyS', east: 'KeyD', west: 'KeyA' }[wing];
+  await inPage((wing) => {
+    const g = window.__lb.game, r = g.arena.regions.find((q) => q.id === wing), core = g.arena.regions.find((q) => q.id === 'core').floor;
+    const gx = r.gate.x + r.gate.w / 2, gy = r.gate.y + r.gate.h / 2;
+    const x = wing === 'east' ? core.x + core.w - 30 : wing === 'west' ? core.x + 30 : gx;
+    const y = wing === 'south' ? core.y + core.h - 30 : wing === 'north' ? core.y + 30 : gy;
+    Object.assign(g.player, { x, y });
+    g.enemies.length = 0;
+    g.texts.length = 0;
+    window.__lb.run(1, false, 'input');
+  }, wing);
+  let walked = null;
+  if (key) {
+    await page.keyboard.down(key);
+    for (let i = 0; i < 12 && !walked?.seen; i++) {
+      walked = await inPage((wing) => {
+        const lb = window.__lb, g = lb.game;
+        g.enemies.length = 0;
+        lb.run(10, false, 'input');
+        return { seen: g.regionSeen.includes(wing), texts: g.texts.map((t) => t.text) };
+      }, wing);
+    }
+    await page.keyboard.up(key);
+  }
+  // the wing's furniture, read back from the baked ground against the atlas (src/render/props.json: row y, anchor x, anchor y, a solid pixel's y)
+  const props = await inPage(async (wing) => {
+    const lb = window.__lb, g = lb.game, r = g.arena.regions.find((q) => q.id === wing);
+    const img = new Image();
+    img.src = 'sprites/props.png';
+    await img.decode();
+    const atlas = document.createElement('canvas');
+    [atlas.width, atlas.height] = [img.width, img.height];
+    atlas.getContext('2d').drawImage(img, 0, 0);
+    const a = atlas.getContext('2d'), ground = lb.arenaCanvas(g.arena.id).getContext('2d');
+    const P = { pillar: [0, 38, 80, 50], anvil: [853, 38, 50, 50], rack: [925, 40, 81, 40], bunk: [1026, 38, 30, 20] };
+    const inWing = g.arena.obstacles.filter((o) => o.x >= r.floor.x && o.x <= r.floor.x + r.floor.w && o.y >= r.floor.y && o.y <= r.floor.y + r.floor.h);
+    const kinds = [...new Set(inWing.map((o) => o.kind))];
+    const drawn = inWing.filter((o) => {
+      const m = P[o.kind];
+      if (!m) return false;
+      const want = a.getImageData(m[1], m[0] + m[3], 1, 1).data;
+      const got = ground.getImageData(Math.round(o.x), Math.round(o.y + m[3] - m[2]), 1, 1).data;
+      return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
+    }).length;
+    return { kinds, count: inWing.length, drawn, name: r.name };
+  }, wing);
+  const want = { north: ['the forge', 'Forge fires', 'anvil'], east: ['the armory', 'Strongbox', 'rack'], south: ['the chapel', 'Shrine', 'pillar'], west: ['the barracks', 'Lair', 'bunk'] }[wing] ?? [];
+  const ok = first.arena === 'keep' && first.open.length === 0 && later.open.length === 1
+    && later.names.join() === 'the forge,the armory,the chapel,the barracks'
+    && walked?.seen === true && walked.texts.some((t) => t.includes(want[1]))
+    && props.name === want[0] && props.kinds.join() === want[2] && props.count === 4 && props.drawn === 4;
+  return { ok, detail: `wave 1: ${first.open.length} wings open; wave 6: ${later.open.join('/') || 'none'} open (${props.name}); walked in ${walked?.seen ? 'yes' : 'NO'}, it says "${walked?.texts.find((t) => t.includes(want[1])) ?? walked?.texts.join(' | ') ?? ''}"; furniture ${props.kinds.join('/')} x${props.count}, ${props.drawn} drawn from the atlas; wings: ${later.names.join(', ')}` };
+});
+
 
 // ---------- #194: one 6-set bonus a run: a test run holding six Flame and six Frost relics lights only one family's 6 ----------
 await check('Relics: with six Flame and six Frost relics held, only one family reaches its 6-set bonus; the other stops at its 4 (#194)', () =>

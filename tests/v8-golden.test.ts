@@ -33,6 +33,8 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #200 (v0.10, on the merged code after #196): Ember Mantle, a new Flame rare, joins every class's pool on top of #196's
  * tuned starter commons, so viking:98765, its curse run, angel:1234 and both Necromancer runs draw different relics on purpose (the same
  * five runs #200 changed alone); #196's seed changes (paladin:9, archer:13 variant 1) still reach the Act boss and stand.
+ * Re-recorded for #210 (v0.11): the Great Keep's wings are rooms with fixed features (the forge's fires, the armory's strongbox, the
+ * chapel's shrine, the barracks' lair), so the four runs that reach the keep meet different wings on purpose.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -69,7 +71,7 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 
 // v0.8 #99 + #100 + #101: re-recorded on release/0.8.0 because boss draws, boss relic families and the Squire enemy roster changed on purpose
 const GOLDEN: Record<string, string> = {
-  'paladin:9': 'wave 15 kills 636 level 17 gold 2511 relics 6 hash 90cf3d22',
+  'paladin:9': 'wave 15 kills 619 level 16 gold 2465 relics 6 hash 2d69e7ac',
   'paladin:98765': 'wave 15 kills 609 level 16 gold 2498 relics 7 hash 66d27dc9',
   'viking:98765': 'wave 18 kills 751 level 18 gold 3226 relics 7 hash 4e07099',
   'viking:5': 'wave 18 kills 676 level 18 gold 3636 relics 7 hash bb2efac8',
@@ -82,7 +84,7 @@ const GOLDEN: Record<string, string> = {
   'paladin:7 meta': 'wave 16 kills 612 level 18 gold 2374 relics 7 hash d3995b55',
   'viking:98765 curse': 'wave 18 kills 815 level 18 gold 3846 relics 7 hash 33d1476c',
   'angel:98765 oath 3': 'wave 13 kills 527 level 14 gold 2529 relics 5 hash b4058e85',
-  'archer:13 variant 1': 'wave 20 kills 966 level 20 gold 4419 relics 7 hash df881b25',
+  'archer:13 variant 1': 'wave 21 kills 1045 level 20 gold 4234 relics 7 hash 3678f2d6',
 };
 
 describe('v0.8 golden runs', () => {
