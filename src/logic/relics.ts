@@ -1,5 +1,5 @@
 import type { ClassId } from '../config/classes';
-import { ATTUNEMENT, DUO_IDS, DUOS, FAMILIES, FAMILY_IDS, SET_LEVELS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
+import { ATTUNEMENT, DUO_IDS, DUOS, FAMILIES, FAMILY_IDS, SET_LEVELS, RELIC_MOMENTS, RELIC_IDS, RELIC_MAX_TIER, RELIC_POOL, RELIC_WEIGHTS, relicDef, relicMods, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { pickWeighted } from '../core/math';
 import type { Mods, RelicState, Rng, SeededRng } from '../core/types';
 import { isMultiplicative } from './mods';
@@ -11,7 +11,7 @@ export const relicStream = (seed: number, player: number): SeededRng => mulberry
 
 /** An empty relic state; createGame fills in the pool and the stream. */
 export const emptyRelics = (): RelicState => ({
-  held: [], tiers: {}, attune: {}, work: {}, pool: [], offers: [], found: [], from: {}, stats: {}, rng: mulberry32(0),
+  held: [], tiers: {}, attune: {}, work: {}, pool: [], locked: [], fresh: [], offers: [], found: [], from: {}, stats: {}, rng: mulberry32(0),
   static: {}, dyn: {}, totals: {}, dirty: true, sets: {}, duos: [], cursedAct: 0, raw: {}, warded: [], streak: [],
 });
 
@@ -63,10 +63,24 @@ export function attuneAll(r: RelicState, amount: number): void {
   for (const id of r.held) if ((r.tiers[id] ?? 0) < RELIC_MAX_TIER) r.attune[id] = (r.attune[id] ?? 0) + amount;
 }
 
-/** Relics this class may find: everything unlocked, minus other classes' relics. */
-export function relicPoolFor(classId: ClassId, locked: RelicId[]): RelicId[] {
-  return RELIC_IDS.filter((id) => !locked.includes(id) && !relicDef(id).cursed && (relicDef(id).classId ?? classId) === classId); // v0.7.1: cursed relics come by their own rule
+/** Every relic this class may find, less other classes' relics: the fixed pool of a run without a champion (the Daily Trial, the sims). */
+export function relicPoolFor(classId: ClassId): RelicId[] {
+  return RELIC_IDS.filter((id) => !relicDef(id).cursed && (relicDef(id).classId ?? classId) === classId); // v0.7.1: cursed relics come by their own rule
 }
+
+/** v0.10 (#194): a relic every champion's run finds whatever it owns: a starter common, or one of RELIC_POOL.open. */
+export const isStarterRelic = (id: RelicId): boolean => relicDef(id).rarity === 'common' || RELIC_POOL.open.includes(id);
+
+/**
+ * v0.10 (#194, rule 5): a champion's pool: the starter relics, its inventory, and inside a realm (`family`: the realm's family, or the Marches
+ * level's featured one) that whole family, locked or not.
+ */
+export function championPool(classId: ClassId, inventory: RelicId[], family?: FamilyId): RelicId[] {
+  return relicPoolFor(classId).filter((id) => isStarterRelic(id) || inventory.includes(id) || (!!family && relicDef(id).family === family));
+}
+
+/** v0.10 (#194): the relics of a pool the champion hasn't unlocked yet: neither a starter relic nor in its inventory. */
+export const lockedIn = (pool: RelicId[], inventory: RelicId[]): RelicId[] => pool.filter((id) => !isStarterRelic(id) && !inventory.includes(id));
 
 export const relicTier = (tiers: RelicTiers, id: RelicId): number => tiers[id] ?? 0;
 
@@ -93,17 +107,18 @@ export function rollRelics(pool: RelicId[], held: RelicId[], rng: Rng, n: number
 }
 
 /**
- * v0.7: one relic moment's options, never a held relic. Weighted by rarity and `lean` times more for a family already held;
+ * v0.7: one relic moment's options, never a held relic. Weighted by rarity, `lean` times more for a family already held, and (v0.10, #194)
+ * RELIC_MOMENTS.newRelicWeight times more for a `fresh` relic (unlocked and never picked);
  * once any family is held, at least one option comes from a held family and at least one from a family not held, when the pool allows.
  * `familyOf` returns undefined for relics without a family (the rule ignores them). The order is shuffled, so the rule's picks are not
  * always the first cards.
  */
 export function rollOffer(
-  pool: RelicId[], held: RelicId[], rng: Rng, n: number, familyOf: (id: RelicId) => string | undefined, lean = 1, exclude: RelicId[] = [],
+  pool: RelicId[], held: RelicId[], rng: Rng, n: number, familyOf: (id: RelicId) => string | undefined, lean = 1, exclude: RelicId[] = [], fresh: RelicId[] = [],
 ): RelicId[] {
   const heldFamilies = new Set(held.map(familyOf).filter((f): f is string => !!f));
   const all = pool.filter((id) => !held.includes(id) && !exclude.includes(id))
-    .map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] * (relicDef(id).classId ? RELIC_MOMENTS.classRelicWeight : 1) * (heldFamilies.has(familyOf(id) ?? '') ? lean : 1) }));
+    .map((id) => ({ value: id, weight: RELIC_WEIGHTS[relicDef(id).rarity] * (relicDef(id).classId ? RELIC_MOMENTS.classRelicWeight : 1) * (heldFamilies.has(familyOf(id) ?? '') ? lean : 1) * (fresh.includes(id) ? RELIC_MOMENTS.newRelicWeight : 1) }));
   const out: RelicId[] = [];
   const take = (from: typeof all) => {
     if (!from.length || out.length >= n) return;
@@ -124,6 +139,20 @@ export function rollOffer(
 }
 
 /**
+ * v0.10 (#194, rule 4 and 5): a moment with one `locked` relic among its options while one is left to offer (the opening pick, a realm boss),
+ * at a random place; the rest rolled as rollOffer does.
+ */
+export function rollWithLocked(
+  pool: RelicId[], locked: RelicId[], held: RelicId[], rng: Rng, n: number, familyOf: (id: RelicId) => string | undefined, lean = 1, exclude: RelicId[] = [], fresh: RelicId[] = [],
+): RelicId[] {
+  const [lock] = rollOffer(locked, held, rng, 1, familyOf, lean, exclude, fresh); // from all of them: a boss's arena families may not hold the realm's
+  if (!lock) return rollOffer(pool, held, rng, n, familyOf, lean, exclude, fresh);
+  const out = rollOffer(pool, held, rng, n - 1, familyOf, lean, [...exclude, lock], fresh);
+  out.splice(Math.floor(rng() * (out.length + 1)), 0, lock);
+  return out;
+}
+
+/**
  * #100: a boss moment's pool, only relics of `families`; the whole pool when fewer than `n` of them are left to offer (none held or excluded).
  */
 export function familyPool(pool: RelicId[], held: RelicId[], families: readonly string[], n: number, exclude: RelicId[] = []): RelicId[] {
@@ -134,16 +163,29 @@ export function familyPool(pool: RelicId[], held: RelicId[], families: readonly 
 /** v0.7 (RELICS.md): a family's count and set level. */
 export interface SetState { count: number; level: 0 | SetLevel }
 
-/** Family counts and set levels. v0.7.5 (#96): a duo adds nothing; the two relics it combined keep counting toward their own families. */
+/**
+ * Family counts and set levels. v0.7.5 (#96): a duo adds nothing; the two relics it combined keep counting toward their own families.
+ * v0.10 (#194): only the first RELIC_MOMENTS.sixSets families to hold 6 (in pickup order) reach the 6 bonus; any other stops at its 4.
+ */
 export function familySets(held: RelicId[]): Partial<Record<FamilyId, SetState>> {
   const out: Partial<Record<FamilyId, SetState>> = {};
+  const counts: Partial<Record<FamilyId, number>> = {};
+  const six: FamilyId[] = [];
+  for (const id of held) {
+    const f = relicDef(id).family;
+    if (f && (counts[f] = (counts[f] ?? 0) + 1) === 6 && six.length < RELIC_MOMENTS.sixSets) six.push(f);
+  }
   for (const f of FAMILY_IDS) {
-    const count = held.filter((id) => relicDef(id).family === f).length;
+    const count = counts[f] ?? 0;
     if (!count) continue;
-    out[f] = { count, level: count >= 6 ? 6 : count >= 4 ? 4 : count >= 2 ? 2 : 0 };
+    out[f] = { count, level: count >= 6 && six.includes(f) ? 6 : count >= 4 ? 4 : count >= 2 ? 2 : 0 };
   }
   return out;
 }
+
+/** v0.10 (#194): whether `family` can still reach its 6 bonus, or another family has taken the run's 6-sets. */
+export const sixOpen = (sets: Partial<Record<FamilyId, SetState>>, family: FamilyId): boolean =>
+  FAMILY_IDS.filter((f) => f !== family && sets[f]?.level === 6).length < RELIC_MOMENTS.sixSets;
 
 /** Soft cap: face value up to the cap, diminishing returns past it (the excess is squeezed into at most half the cap again). */
 export function softCap(sum: number, cap: number): number {
@@ -207,12 +249,13 @@ export const relicModsCombined = (held: RelicId[], tiers: RelicTiers): Partial<M
 /**
  * #98: a relic offer card's one compact line under its effect: the family count it raises (★ set bonus when that reaches one), and ✦ marks
  * for a duo it completes or an evolution it is one step from. The long form of each is in the card's tooltip. `count` is the family's
- * count now; an upgrade of a held relic (`upgrade`) leaves it as it is.
+ * count now; an upgrade of a held relic (`upgrade`) leaves it as it is. `noSix` (#194): another family has the run's 6 bonus.
  */
-export function relicCardLine(id: RelicId, count: number, o: { upgrade: boolean; duo: boolean; evolution: boolean }): string {
+export function relicCardLine(id: RelicId, count: number, o: { upgrade: boolean; duo: boolean; evolution: boolean; noSix?: boolean }): string {
   const fam = relicDef(id).family;
   const next = o.upgrade ? count : count + 1;
-  const parts = [fam ? `${FAMILIES[fam].icon} ${FAMILIES[fam].name} ${o.upgrade ? count : `${count} → ${next}`}${!o.upgrade && (SET_LEVELS as readonly number[]).includes(next) ? ' ★ set bonus' : ''}` : '☠ no family'];
+  const bonus = (SET_LEVELS as readonly number[]).includes(next) && !(next === 6 && o.noSix);
+  const parts = [fam ? `${FAMILIES[fam].icon} ${FAMILIES[fam].name} ${o.upgrade ? count : `${count} → ${next}`}${!o.upgrade && bonus ? ' ★ set bonus' : ''}` : '☠ no family'];
   if (o.duo) parts.push('✦ duo');
   if (o.evolution) parts.push('✦ evolution');
   return parts.join(' · ');

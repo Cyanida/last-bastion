@@ -458,30 +458,15 @@ await check('class select: champions on the finer grid keep their size, at one s
   }),
 );
 
-// #176: the relic-family names on a class card sit in a readable chip, not bare family-coloured text on parchment
-await check('class select: family names on the cards are readable (#176)', () =>
+// #194: preferred families are gone: a class card names no relic families (#176's chips went with them)
+await check('class select: no class card names preferred relic families (#194)', () =>
   inPage(async () => {
     const P = window.__play;
     await P.click('[data-go="start"]');
-    const parse = (s) => s.match(/[\d.]+/g).map(Number);
-    const luminance = ([r, g, b]) => {
-      const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
-      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-    };
-    const contrast = (a, b) => {
-      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-      return (hi + 0.05) / (lo + 0.05);
-    };
-    const chips = [...document.querySelectorAll('.fam-line .fam-chip')];
-    const worst = chips.map((chip) => {
-      const cs = getComputedStyle(chip);
-      const [r, g, b, a = 1] = parse(cs.backgroundColor);
-      const bg = [r, g, b].map((c) => c * a + 255 * (1 - a)); // composited over white, the card's lightest possible background: a lower bound on the real contrast
-      return contrast(parse(cs.color), bg);
-    });
+    const cards = document.querySelectorAll('.hero, .card').length;
+    const named = [...document.querySelectorAll('.fam-line')].length + (/Families:|Can max these relic families/.test(document.body.innerHTML) ? 1 : 0);
     await P.click('[data-back]');
-    const ok = chips.length > 0 && worst.every((c) => c >= 4.5); // WCAG AA for normal-size text
-    return { ok, detail: `${chips.length} chips, worst contrast ${Math.min(...worst).toFixed(2)}` };
+    return { ok: cards > 0 && named === 0, detail: `${cards} cards, ${named} family lines` };
   }),
 );
 
@@ -1491,13 +1476,15 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       });
       const clouds = [...document.querySelectorAll('.wm-cloud')].map((c) => ({ id: c.className.match(/r-(\w+)/)[1], bg: getComputedStyle(c).backgroundImage, h: c.getBoundingClientRect().height }));
       const names = [...document.querySelectorAll('.wm-name')].filter((n) => n.getBoundingClientRect().width > 20 && /Cinzel/.test(getComputedStyle(n).fontFamily)).length;
-      return { realms, clouds, names, mapBg: getComputedStyle(map).backgroundImage, onScreen: box.top >= 0 && box.bottom <= innerHeight + 1 && box.right <= innerWidth + 1 && box.width > 300, note: document.querySelector('.wm-note').textContent };
+      return { realms, clouds, names, mapBg: getComputedStyle(map).backgroundImage, onScreen: box.top >= 0 && box.bottom <= innerHeight + 1 && box.right <= innerWidth + 1 && box.width > 300 };
     });
     const before = await look();
     const art = await p.evaluate(() => Promise.all(['/sprites/world-map.png', '/sprites/world-clouds.png'].map((src) => new Promise((ok) => { const i = new Image(); i.onload = () => ok(i.naturalWidth); i.onerror = () => ok(0); i.src = src; }))));
     await press('.wm-realm.r-marches');
     await p.waitForTimeout(100);
-    const after = await look();
+    const after = { note: await p.locator('.realm-road .kit-head').textContent().catch(() => '') }; // #199: its road opens
+    await p.keyboard.press('Escape');
+    await p.waitForTimeout(100);
     await p.keyboard.press('Escape');
     await p.waitForTimeout(100);
     const title = await p.getByText('Take up arms').count();
@@ -1508,7 +1495,52 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       && before.realms.every((r) => r.opens === !r.open)
       && before.clouds.length === 8 && before.clouds.every((c) => shut.includes(c.id) && c.bg.includes('world-clouds') && c.h > 20) && before.mapBg.includes('world-map') && art.every((n) => n > 0)
       && before.names === 9 && before.onScreen && /The Marches/.test(after.note) && title > 0 && errs.length === 0;
-    return { ok, detail: `${before.realms.length} realms, open: ${open.join()}, ${before.clouds.length} under clouds (${before.realms.filter((r) => r.opens).length} say what opens them), ${before.names} names in Cinzel${before.onScreen ? '' : ' (map off screen)'}, art ${art.join('/')}; picked -> "${after.note}"; Esc -> ${title ? 'title' : '?'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    return { ok, detail: `${before.realms.length} realms, open: ${open.join()}, ${before.clouds.length} under clouds (${before.realms.filter((r) => r.opens).length} say what opens them), ${before.names} names in Cinzel${before.onScreen ? '' : ' (map off screen)'}, art ${art.join('/')}; picked -> road "${after.note.trim()}"; Esc, Esc -> ${title ? 'title' : '?'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #199: the realm road and the level panel: world map -> the Marches -> road -> level panel -> FIGHT starts level 1 ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`realm road: map -> the Marches -> its road, a Knight crown and back, the level panel, FIGHT starts level 1, ${touch ? 'tap' : 'click'} at ${w}x${h} (#199)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).tap() : p.locator(sel).click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-marches');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    const look = () => p.evaluate(() => {
+      const land = document.querySelector('.rr-land'), lb = land.getBoundingClientRect();
+      const flags = [...document.querySelectorAll('.rr-flag')].map((f) => { const r = f.getBoundingClientRect(); return { n: +f.dataset.level, open: !f.disabled, on: f.classList.contains('on'), inside: r.left + r.width / 2 >= lb.left && r.right - r.width / 2 <= lb.right && r.top >= lb.top - r.height && r.bottom <= lb.bottom + r.height }; });
+      const fight = document.querySelector('[data-fight]'), fb = fight.getBoundingClientRect();
+      const panel = document.querySelector('.rr-panel');
+      return {
+        flags, landBg: getComputedStyle(land).backgroundImage, name: document.querySelector('.rr-name').textContent, text: panel.textContent.replace(/\s+/g, ' '),
+        tiers: [...document.querySelectorAll('.rr-tier')].map((t) => (t.disabled ? '-' : t.classList.contains('on') ? 'X' : 'o')).join(''),
+        golds: document.querySelectorAll('.realm-road .kit-btn.gold').length, fight: !fight.disabled && fb.bottom <= innerHeight + 1 && fb.right <= innerWidth + 1 && document.elementFromPoint(fb.left + fb.width / 2, fb.top + fb.height / 2)?.closest('[data-fight]') === fight,
+        onScreen: (() => { const r = document.querySelector('.realm-road').getBoundingClientRect(); return r.top >= -1 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1; })(),
+      };
+    });
+    const road = await look();
+    await press('.rr-tier[data-tier="1"]');
+    await p.waitForTimeout(100);
+    const knight = await look();
+    await press('.rr-tier[data-tier="0"]');
+    await press('.rr-flag.l-1');
+    await p.waitForTimeout(100);
+    const squire = await look();
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, last: g.level?.last, start: g.startWave, tier: g.tierIndex, arena: g.arena.id } : null; });
+    await p.close();
+    const ok = road.flags.length === 7 && road.flags.every((f) => f.inside) && road.flags.map((f) => f.open).join() === 'true,false,false,false,false,false,false' && road.flags[0].on
+      && road.landBg.includes('world-map') && road.name === 'The Marches · Level 1' && road.tiers === 'Xo--' && road.golds === 1 && road.fight && road.onScreen
+      && /Head start\s*Level 1/.test(road.text) && /Slots\s*1/.test(road.text) && /Enemy HP\s*100%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
+      && knight.tiers === 'oX--' && /Enemy HP\s*145%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
+      && run?.realm === 'marches' && run.level === 1 && run.last === 5 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
+    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*145%/.test(knight.text) ? 'HP 145%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
@@ -3205,6 +3237,37 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
   }),
 );
 
+
+// ---------- #194: one 6-set bonus a run: a test run holding six Flame and six Frost relics lights only one family's 6 ----------
+await check('Relics: with six Flame and six Frost relics held, only one family reaches its 6-set bonus; the other stops at its 4 (#194)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), 'angel'); // the Angel finds six of each: its class relics are Flame and Frost ones
+      const ids = ['brimstoneOil', 'emberheart', 'cinderCharm', 'salamanderScale', 'dragonsTongue', 'sunfireCenser', 'frostBrand', 'wintersGrasp', 'shatterglass', 'glacialHeart', 'everfrostCrown', 'frostwardHalo'];
+      for (const id of ids) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      await wait(400); // the HUD draws the family row
+      const tip = (icon) => [...document.querySelectorAll('#h-families .fam-chip')].find((c) => c.textContent.startsWith(icon))?.dataset.tip ?? '';
+      const flame = tip('🔥'), frost = tip('❄️');
+      const six = [/Inferno/.test(flame), /Rimewalker/.test(frost)];
+      const four = [/Pyre/.test(flame), /Shatter/.test(frost)];
+      const ok = g.player.relics.held.length === 12 && six.filter(Boolean).length === 1 && four.every(Boolean);
+      return { ok, detail: `${g.player.relics.held.length} held; Flame: "${flame.split('\n')[0]}"; Frost: "${frost.split('\n')[0]}"` };
+    });
+  }),
+);
 
 // ---------- #167: no frame in the sprite gallery is cut off at its cell: nothing opaque on a cell's edge ----------
 await check('Sprite gallery: no frame of any sheet is cut off at the edge of its cell; the Warlord swings and falls in full (#167)', () =>

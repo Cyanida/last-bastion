@@ -3,7 +3,7 @@ import { ACHIEVEMENTS, CATEGORIES, tierReward, type AchievementCategory, type Ac
 import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
 import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
-import { ARENA_FAMILIES, FAMILIES, FAMILY_IDS, preferredFamilies, type FamilyId, type Rarity, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS } from '../config/relics';
+import { ARENA_FAMILIES, FAMILIES, FAMILY_IDS, type FamilyId, type Rarity, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS } from '../config/relics';
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
 import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
@@ -35,6 +35,7 @@ import { nextTierRequirement } from '../logic/difficulty';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { keepStage } from '../logic/keep';
 import type { RealmId } from '../config/world';
+import type { LevelPanel, RoadLevel } from '../logic/world';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
@@ -179,8 +180,7 @@ export function showTitle(info: TitleInfo, on: { start: () => void; map: () => v
  * world-map.css). A realm still shut sits under its clouds; an open one is a button. `picked` names the realm last chosen until the
  * realm road (#199) takes over that click.
  */
-export function showWorldMap(realms: { id: RealmId; name: string; open: boolean; opens: string }[], picked: RealmId | null, on: { realm: (id: RealmId) => void; back: () => void }): void {
-  const name = realms.find((r) => r.id === picked)?.name;
+export function showWorldMap(realms: { id: RealmId; name: string; open: boolean; opens: string }[], on: { realm: (id: RealmId) => void; back: () => void }): void {
   const el = show(`
     <div class="kit-frame world-map">
       <header class="kit-head">${kit.closeButton('back', { attrs: 'data-back' })}${kit.ribbon(`${kit.icon('map')} The World`, { attrs: 'role="heading" aria-level="1"' })}</header>
@@ -188,10 +188,58 @@ export function showWorldMap(realms: { id: RealmId; name: string; open: boolean;
         ${realms.filter((r) => !r.open).map((r) => `<i class="wm-cloud r-${r.id}"></i>`).join('')}
         ${realms.map((r) => `<button class="wm-realm r-${r.id}${r.open ? ' open' : ''}" data-realm="${r.id}" aria-label="${esc(r.open ? r.name : `${r.name}, under clouds. ${r.opens}`)}"${r.open ? '' : ' disabled'}><span class="wm-name">${esc(r.name)}</span>${r.open ? '' : `<span class="wm-opens">${esc(r.opens)}</span>`}</button>`).join('')}
       </div>
-      ${kit.parch(name ? `<b>${esc(name)}</b>: its road comes next.` : 'Choose an open realm. The others wait under the clouds until you win their way.', { cls: 'wm-note' })}
+      ${kit.parch('Choose an open realm. The others wait under the clouds until you win their way.', { cls: 'wm-note' })}
     </div>`);
   click(el, '[data-back]', () => on.back());
   click(el, '.wm-realm.open', (b) => on.realm(b.dataset.realm as RealmId));
+  onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
+}
+
+const TIER_CROWNS = ['crown-squire', 'crown-knight', 'crown-champion', 'crown-legend'] as const;
+
+/**
+ * #199: the realm road, the realm's part of the painted map with a flag per level (a lock on one not open yet, the crown of the highest
+ * tier it is cleared on), and the level panel for the picked flag: tier crowns, head start, slots, enemy HP, the featured family and
+ * foes, the end boss, what a first clear pays, and FIGHT, the screen's one gold button.
+ */
+export function showRealmRoad(
+  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel },
+  on: { level: (n: number) => void; tier: (t: number) => void; fight: () => void; back: () => void },
+): void {
+  const { realm, panel: pn } = info;
+  const flag = (l: RoadLevel) => {
+    const best = l.cleared.lastIndexOf(true);
+    return `<button class="rr-flag r-${realm} l-${l.n}${l.n === info.level ? ' on' : ''}" data-level="${l.n}" aria-label="Level ${l.n}${l.open ? '' : ', not open yet'}"${l.open ? '' : ' disabled'}>${l.open ? (best >= 0 ? kit.icon(TIER_CROWNS[best]) : '') : kit.icon('lock')}</button>`;
+  };
+  const tier = (t: LevelPanel['tiers'][number], i: number) =>
+    `<button class="rr-tier${i === info.tier ? ' on' : ''}${t.cleared ? ' cleared' : ''}" data-tier="${i}" aria-pressed="${i === info.tier}" title="${t.name}${t.cleared ? ': cleared' : t.open ? '' : ': not open yet'}"${t.open ? '' : ' disabled'}>${kit.icon(t.open ? TIER_CROWNS[i] : 'lock')}<span>${t.name}</span></button>`;
+  const fact = (label: string, value: string | number) => `<span class="rr-fact"><small>${label}</small><b>${value}</b></span>`;
+  const el = show(`
+    <div class="kit-frame realm-road">
+      <header class="kit-head">${kit.closeButton('back', { attrs: 'data-back' })}${kit.ribbon(`${kit.icon('map')} ${esc(info.realmName)}`, { attrs: 'role="heading" aria-level="1"' })}</header>
+      <div class="rr-land r-${realm}">${info.road.map(flag).join('')}</div>
+      ${kit.parch(`
+        <div class="rr-top">${kit.ribbon(esc(pn.name), { cls: 'rr-name' })}<div class="rr-tiers">${pn.tiers.map(tier).join('')}</div></div>
+        <div class="rr-body">
+          <div class="rr-facts">
+            ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${fact('Head start', `Level ${pn.headStart}`)}${fact('Slots', pn.slots)}${fact('Enemy HP', `${pn.enemyHp}%`)}
+          </div>
+          <div class="rr-foes">
+            ${pn.family ? `<p>${kit.icon(pn.family)} <b>${FAMILIES[pn.family].name}</b> relics featured</p>` : ''}
+            <p><small>Foes</small> ${esc(pn.foes.join(', '))}</p>
+            <p><small>${pn.crownBoss ? 'Crown boss' : 'End boss'}</small> <b>${esc(pn.boss)}</b></p>
+          </div>
+          <div class="rr-rewards">
+            <small>${pn.rewards.length ? 'First clear' : 'Replay'}</small>
+            ${pn.rewards.length ? `<ul>${pn.rewards.map((r) => `<li>${kit.icon('crown')}${esc(r)}</li>`).join('')}</ul>` : '<p>First-clear rewards taken: a replay pays gold and XP for the waves played.</p>'}
+          </div>
+        </div>
+        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}</span>${kit.button('Fight!', { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !pn.open })}</div>`, { cls: 'rr-panel' })}
+    </div>`);
+  click(el, '[data-back]', () => on.back());
+  click(el, '.rr-flag', (b) => on.level(Number(b.dataset.level)));
+  click(el, '.rr-tier', (b) => on.tier(Number(b.dataset.tier)));
+  click(el, '[data-fight]', () => on.fight());
   onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
 }
 
@@ -266,6 +314,8 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
 
 /** #146: the champion picked on the class select; kept while its options re-render the screen. Starts as the last one played. */
 let selectedClass: ClassId | undefined;
+/** The class picked on the champion select (at first the last one played). #199: the realm road fights with it until the champion screen lands. */
+export const pickedClass = (save: Save): ClassId => (selectedClass ??= save.runs.at(-1)?.classId ?? CLASS_ORDER[0]);
 /** #182: the seed typed on the class select, kept while its options re-render the screen; Back or Start clears it. */
 let seedText = '';
 
@@ -278,7 +328,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
   const oathMax = Math.max(...CLASS_ORDER.map((id) => oathCap(save.wins[id], save.oaths[id])));
   const oathOf = (id: ClassId) => Math.min(save.settings.oath, oathCap(save.wins[id], save.oaths[id]));
   const sworn = save.settings.oath > 0 && oathMax > 0;
-  selectedClass ??= save.runs.at(-1)?.classId ?? CLASS_ORDER[0];
+  pickedClass(save);
   const roster = CLASS_ORDER.map((id) => CLASSES[id]);
   const paletteOf = (c: ClassDef) => {
     const palettes = [...new Set([...masteryBonus(save.classes[c.id].xp).palettes, ...save.palettes])].sort(); // mastery's own plus the account-wide ones from deeds
@@ -316,7 +366,6 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
       <div class="hero-text">
         <div class="ability"><b>${c.ability.name}</b><p>${c.ability.desc}</p></div>
         <div class="ability"><b>${c.secondary.name}</b><p>${c.secondary.desc}</p></div>
-        <div class="fam-line" data-tip="${esc(`Can max these relic families: ${preferredFamilies(c.id).map((f) => FAMILIES[f].name).join(', ')}. Every family is open to every class; these reach their 6-set with straight pieces.`)}">Families:${preferredFamilies(c.id).map((f) => `<span class="fam-chip" style="--fam:${FAMILIES[f].color}">${FAMILIES[f].icon} ${FAMILIES[f].name}</span>`).join('')}</div>
         ${treasure}
         ${save.wins[c.id] ? `<div class="oath-line">⚜ ${save.oaths[c.id] ? `Oath ${save.oaths[c.id]} kept` : 'No Oath kept yet'}${sworn ? ` · this run: <b>${oathOf(c.id) ? `Oath ${oathOf(c.id)}` : 'custom'}</b>` : ''}</div>` : ''}
         <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
@@ -372,7 +421,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
             ${opt('+', `data-oath="${save.settings.oath + 1}"`, { disabled: save.settings.oath >= oathMax })}</div>
             <span class="hint">${save.settings.oath ? `${OATHS[save.settings.oath - 1].desc} Every Oath below it holds too. A class that has not kept Oath ${save.settings.oath - 1} swears its highest.` : 'Win with a class to swear its first Oath. Every level adds one hardship; keeping one pays.'}</span></div>` : ''}
           <div class="pick seed"><span class="label">Seed</span><input id="seed" maxlength="24" placeholder="random" value="${esc(seedText)}" autocomplete="off" spellcheck="false" data-tip="Type a seed from a results screen to replay that run." /></div>`, { cls: 'run-frame' })}
-        ${kit.button(`Start as ${CLASSES[selectedClass].name}`, { kind: 'gold', size: 'big', attrs: 'data-start' })}
+        ${kit.button(`Start as ${CLASSES[pickedClass(save)].name}`, { kind: 'gold', size: 'big', attrs: 'data-start' })}
       </div>
     </div>`);
   el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => {
@@ -619,7 +668,7 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
     const last = a.tiers[a.tiers.length - 1].target;
     const cur = Math.min(last, a.progress(save));
     const marks = a.tiers.slice(0, -1).map((t) => `<i style="left:${(t.target / last) * 100}%"></i>`).join('');
-    const unlock = a.unlocks?.arena ? `Unlocks arena: ${ARENAS[a.unlocks.arena].name}` : a.unlocks?.relic ? `Unlocks relic: ${relicDef(a.unlocks.relic).name}` : a.unlocks?.curse ? `Unlocks curse: ${CURSES[a.unlocks.curse].name}` : '';
+    const unlock = a.unlocks?.arena ? `Unlocks arena: ${ARENAS[a.unlocks.arena].name}` : a.unlocks?.curse ? `Unlocks curse: ${CURSES[a.unlocks.curse].name}` : '';
     const pips = a.tiers.map((_, i) => `<i class="${i < tier ? 'on' : ''}" data-tip="${esc(`${TIER_NAMES[i]}: ${a.tiers[i].target} · ${tierRewardText(tierReward(a, i + 1))}`)}">${i < tier ? '✔' : '·'}</i>`).join('');
     return `<div class="ach ${tier > 0 ? 'done' : ''}">
       <div><b>${tier > 0 ? '✔ ' : ''}${secret ? '???' : a.name}${tier > 0 ? ` <em class="badge">${TIER_NAMES[tier - 1]}</em>` : ''}</b>
@@ -775,11 +824,12 @@ export function showRelicOffer(
   on: { take: (id: RelicId | DuoId) => void; skip: () => void; reroll: () => void },
 ): void {
   const { options } = offer;
+  const opening = offer.from === 'start' && !!offer.families; // #194: a level's opening pick of its family (the Armorer's offer has none)
   const el = show(`
     <div class="levelup">
-      ${choiceHead(MOMENT_TITLES[offer.from])}
+      ${choiceHead(opening ? 'Your opening pick' : MOMENT_TITLES[offer.from])}
       <p class="sub">Choose a relic · ${held.length} carried</p>
-      ${offer.families ? `<p class="sub" data-families>This arena's bosses drop only ${familyList(offer.families)}</p>` : ''}
+      ${offer.families ? `<p class="sub" data-families>${opening ? `This level opens on ${familyList(offer.families)}` : `This arena's bosses drop only ${familyList(offer.families)}`}</p>` : ''}
       <div class="cards">${options.map((id, i) => relicCard(id, (tiers[id] ?? 0) + 1, held, `data-pick="${i}"`, `<div class="num">${i + 1}</div><div class="preview">${esc(info.line(id))}</div>`, ['', 'For this build:', ...info.preview(id)])).join('')}${offer.duo ? duoCard(offer.duo, `data-pick="${options.length}"`, `<div class="num">${options.length + 1}</div>`) : ''}</div>
       <div class="row">
         ${kit.button(`Reroll (R) · ${offer.rerolls} left`, { attrs: 'data-reroll', disabled: offer.rerolls <= 0 })}
@@ -1029,7 +1079,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
   const unlocks = [
     ...(r.tierUnlocked ? [`<div class="unlock">⚔ Difficulty unlocked: <b>${r.tierUnlocked}</b></div>`] : []),
     ...r.contracts.map((c) => `<div class="unlock">📜 Weekly contract done: <b>${c.text}</b> <em>${R} +${c.runes}</em></div>`),
-    ...r.earned.map((e) => `<div class="unlock">🏆 <b>${e.def.name} · ${TIER_NAMES[e.tier - 1]}</b> — ${e.def.desc} <em>${tierRewardText(e.reward)}</em>${e.tier === 1 && e.def.unlocks?.arena ? ` <em>New arena: ${ARENAS[e.def.unlocks.arena].name}</em>` : ''}${e.tier === 1 && e.def.unlocks?.relic ? ` <em>New relic: ${relicDef(e.def.unlocks.relic).name}</em>` : ''}</div>`),
+    ...r.earned.map((e) => `<div class="unlock">🏆 <b>${e.def.name} · ${TIER_NAMES[e.tier - 1]}</b> — ${e.def.desc} <em>${tierRewardText(e.reward)}</em>${e.tier === 1 && e.def.unlocks?.arena ? ` <em>New arena: ${ARENAS[e.def.unlocks.arena].name}</em>` : ''}</div>`),
   ].join('');
   // #186: the results in the kit: a framed screen with its heading on the ribbon, the run on parchment (it scrolls), and the
   // buttons in a footer that stays in view. One main button: Quick restart, or Bank the win at the Usurper; Endless is a go.
@@ -1167,8 +1217,7 @@ export function showCompendium(save: Save, onBack: () => void): void {
   };
   const family = (f: (typeof FAMILY_IDS)[number]) => {
     const fam = FAMILIES[f];
-    const prefer = (fam.preferredBy as readonly string[]).map((c) => CLASSES[c as keyof typeof CLASSES].name).join(', ');
-    return `<h2 style="--fam:${fam.color}">${kit.icon(f)}${fam.name}</h2><p class="hint">${fam.mechanic}. ${([2, 4, 6] as const).map((l) => `<b>${l} ${fam.sets[l][0]}</b>: ${fam.sets[l][1]}`).join(' ')} Can be maxed by: ${prefer}.</p>
+    return `<h2 style="--fam:${fam.color}">${kit.icon(f)}${fam.name}</h2><p class="hint">${fam.mechanic}. ${([2, 4, 6] as const).map((l) => `<b>${l} ${fam.sets[l][0]}</b>: ${fam.sets[l][1]}`).join(' ')}</p>
       <div class="comp-grid">${RELIC_IDS.filter((id) => relicDef(id).family === f).map(card).join('')}</div>`;
   };
   // a duo or an evolution: its icon in the gold (signature) frame once discovered, a greyed ? until then

@@ -157,6 +157,9 @@ sold, rerolled or reforged. Every class still reaches a 6-set: each of its three
 First measure (`sim -- relics 4`, 20 runs, 13 won): 6-sets in 7.7% of winning runs (was 41-65%, mostly completed with a duo), 1.00 duos a winning run, power index 2.04. Jesse's new target
 (on #96): a 6-set in **about 15% of winning runs**, rarer than before but a noticeable power-up. Offers now lean 1.6× toward the families
 you hold (`RELIC_MOMENTS.heldFamilyWeight`, was 1): 6-sets in 15.4% of winning runs, still 1.00 duos and a power index of 2.04 (BALANCE.md).
+**v0.10 (#194, docs/road-to-the-crown.md rules 4 and 5):** the 15% target and the preferred families are retired. The lean is back to 1.0,
+only one family reaches its 6-set bonus in a run (a second stops at its 4), and a champion's pool is the starter commons, its inventory and,
+inside a realm, that realm's family (`logic/relics.ts` `championPool`, `familySets`).
 
 ## A7 · Keep, achievements, migration (built)
 

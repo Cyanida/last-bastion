@@ -44,7 +44,7 @@ export interface AchievementDef {
   progress: (s: Save) => number;
   hidden?: boolean; // only its hint is shown until the bronze tier is earned
   hint?: string;
-  unlocks?: { arena?: ArenaId; relic?: RelicId; curse?: CurseId }; // granted with the bronze tier
+  unlocks?: { arena?: ArenaId; curse?: CurseId }; // granted with the bronze tier
 }
 
 /** Per-run class feats, recorded by systems/feats.ts and kept as "best run" counters in the save. */
@@ -58,6 +58,13 @@ export const tierReward = (a: AchievementDef, tier: number): AchievementReward =
 });
 
 /** Rising targets; `rewards` is keyed by tier number (1 = bronze). Every tier pays Runes whether or not it is listed. */
+/**
+ * v0.10 (#194, rule 8): the three deeds that unlocked Phoenix Feather, Soul Lantern and Stormcaller's Horn pay these extra Runes (and a title)
+ * instead; the relics are open to every run until their realm crowns ship. Decided: a legendary is worth more than a keep-a-locked-relic
+ * level's 2 Runes (config/world WORLD.keepLockedRunes).
+ */
+const ACHIEVEMENT_RELIC_RUNES = 3;
+
 const tiers = (targets: number[], rewards: Record<number, AchievementReward> = {}): AchievementTier[] => targets.map((target, i) => ({ target, reward: rewards[i + 1] ?? {} }));
 
 const classes = (s: Save) => CLASS_ORDER.map((id) => s.classes[id]);
@@ -71,7 +78,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // ---------------------------------------------------------------- survival
   { id: 'wave10', name: 'Holding the Line', desc: 'Reach wave 10, 12 and 15 with any class.', category: 'survival', tiers: tiers([10, 12, 15], { 1: { trait: 'pilgrim' }, 3: { title: 'the Steadfast', talentPoint: 1 } }), progress: bestWave, unlocks: { arena: 'graveyard', curse: 'timedWaves' } },
   { id: 'wave20', name: 'Unbroken', desc: 'Reach wave 20, 25 and 30 with any class.', category: 'survival', tiers: tiers([20, 25, 30], { 3: { title: 'the Unbroken', palette: 1 } }), progress: bestWave },
-  { id: 'wave20all', name: 'Five Banners', desc: 'Reach wave 20 with all five classes.', category: 'survival', tiers: tiers([5], { 1: { title: 'Banner-Bearer' } }), progress: (s) => classes(s).filter((c) => c.bestWave >= 20).length, unlocks: { relic: 'stormcallersHorn' } }, // v0.7: Conqueror's Crown left with the stat relics
+  { id: 'wave20all', name: 'Five Banners', desc: 'Reach wave 20 with all five classes.', category: 'survival', tiers: tiers([5], { 1: { title: 'Banner-Bearer', runes: ACHIEVEMENT_RELIC_RUNES } }), progress: (s) => classes(s).filter((c) => c.bestWave >= 20).length }, // v0.10 (#194): Runes, no longer Stormcaller's Horn (open to all until the Stormspire crown)
   { id: 'fiveMarches', name: 'Five Marches', desc: 'Reach wave 10 with three, four and all five classes.', category: 'survival', tiers: tiers([3, 4, 5]), progress: (s) => classes(s).filter((c) => c.bestWave >= 10).length },
   { id: 'allClasses', name: 'Jack of All Arms', desc: 'Finish a run with every class.', category: 'survival', tiers: tiers([5]), progress: (s) => classes(s).filter((c) => c.runs > 0).length },
   { id: 'veteran', name: 'Veteran', desc: 'Finish 25, 100 and 250 runs.', category: 'survival', tiers: tiers([25, 100, 250], { 3: { title: 'the Tireless' } }), progress: (s) => classes(s).reduce((n, c) => n + c.runs, 0) },
@@ -87,11 +94,11 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // ---------------------------------------------------------------- combat
   { id: 'firstBlood', name: 'First Blood', desc: 'Slay 100, 500 and 2,000 enemies.', category: 'combat', tiers: tiers([100, 500, 2000], { 3: { title: 'Blooded' } }), progress: (s) => s.counters.kills, unlocks: { curse: 'ironHorde' } },
   { id: 'slayer', name: 'Butcher of the Bastion', desc: 'Slay 5,000, 20,000 and 50,000 enemies.', category: 'combat', tiers: tiers([5000, 20000, 50000], { 3: { title: 'the Butcher' } }), progress: (s) => s.counters.kills },
-  { id: 'eliteHunter', name: 'Elite Hunter', desc: 'Slay 50, 250 and 1,000 elite enemies.', category: 'combat', tiers: tiers([50, 250, 1000], { 1: { trait: 'cursedLuck' }, 3: { title: 'Elitebane' } }), progress: (s) => s.counters.elites, unlocks: { relic: 'soulLantern' } },
+  { id: 'eliteHunter', name: 'Elite Hunter', desc: 'Slay 50, 250 and 1,000 elite enemies.', category: 'combat', tiers: tiers([50, 250, 1000], { 1: { trait: 'cursedLuck', title: 'Lantern-Bearer', runes: ACHIEVEMENT_RELIC_RUNES }, 3: { title: 'Elitebane' } }), progress: (s) => s.counters.elites }, // v0.10 (#194): Runes and a title, no longer Soul Lantern
   { id: 'bossSlayer', name: 'Giant Killer', desc: 'Defeat a boss.', category: 'combat', tiers: tiers([1]), progress: (s) => s.counters.bosses, unlocks: { curse: 'glassBones' } },
   { id: 'bossHunter', name: 'Boss Hunter', desc: 'Defeat 5, 25 and 100 bosses.', category: 'combat', tiers: tiers([5, 25, 100], { 3: { title: 'Kingsbane' } }), progress: (s) => s.counters.bosses, unlocks: { arena: 'keep', curse: 'blind' } },
   { id: 'rogues', name: "Rogues' Gallery", desc: 'Defeat all five different bosses.', category: 'combat', tiers: tiers([5], { 1: { palette: 2 } }), progress: (s) => s.counters.bossKinds.length },
-  { id: 'flawless', name: 'Untouchable', desc: 'Defeat 1, 10 and 25 bosses without taking damage while they live.', category: 'combat', tiers: tiers([1, 10, 25], { 1: { trait: 'duelist' }, 3: { title: 'the Untouched' } }), progress: (s) => s.counters.flawlessBosses, unlocks: { relic: 'phoenixFeather' } },
+  { id: 'flawless', name: 'Untouchable', desc: 'Defeat 1, 10 and 25 bosses without taking damage while they live.', category: 'combat', tiers: tiers([1, 10, 25], { 1: { trait: 'duelist', title: 'Phoenix-Touched', runes: ACHIEVEMENT_RELIC_RUNES }, 3: { title: 'the Untouched' } }), progress: (s) => s.counters.flawlessBosses }, // v0.10 (#194): Runes and a title, no longer Phoenix Feather
   { id: 'commanders', name: 'Cut Off the Head', desc: 'Slay 10, 50 and 200 commanders.', category: 'combat', tiers: tiers([10, 50, 200], { 3: { title: 'Headtaker' } }), progress: (s) => s.counters.commanders, unlocks: { curse: 'eliteCommanders' } },
   { id: 'championKills', name: "Champion's Tally", desc: 'Slay 2,000, 6,000 and 15,000 enemies with a single champion.', category: 'combat', tiers: tiers([2000, 6000, 15000], { 3: { title: 'Warlord' } }), progress: (s) => top(classes(s).map((c) => c.kills)) },
   { id: 'evenHand', name: 'Even Hand', desc: 'Slay 250, 1,000 and 3,000 enemies with every champion.', category: 'combat', tiers: tiers([250, 1000, 3000], { 3: { title: 'the Even-Handed' } }), progress: (s) => Math.min(...classes(s).map((c) => c.kills)) },
