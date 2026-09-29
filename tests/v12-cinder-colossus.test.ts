@@ -120,7 +120,7 @@ describe('the Cinder Colossus as the Cinderlands crown boss (#228)', () => {
     const mine = g.zones.filter((z) => z.owner === c);
     expect(mine).toHaveLength(CINDER_COLOSSUS.slam.lines * CINDER_COLOSSUS.slam.zones);
     p.invulnerable = false;
-    p.iframes = 0;
+    p.iFrames = 0;
     for (const z of mine) z.t = z.delay; // land them all at once
     const hp = p.hp;
     c.x = p.x + 400; // step him back so only his marks touch you
