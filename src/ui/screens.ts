@@ -1,8 +1,8 @@
 import { ABILITY_UPGRADES, type AbilityUpgradeId } from '../config/abilityUpgrades';
 import { ACHIEVEMENTS, CATEGORIES, tierReward, type AchievementCategory, type AchievementDef } from '../config/achievements';
-import { ARENA_IDS, ARENAS, type ArenaId } from '../config/arenas';
+import { ARENAS, type ArenaId } from '../config/arenas';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
-import { CURSE_IDS, CURSES, type CurseId } from '../config/curses';
+import { CURSES } from '../config/curses';
 import { ARENA_FAMILIES, FAMILIES, FAMILY_IDS, type FamilyId, type Rarity, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS } from '../config/relics';
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
@@ -30,12 +30,11 @@ import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { latchGamepad, onAction } from '../input';
 import type { Action } from '../input/mapping';
-import { earnedTier, earnedTitles, gateOf, lockedArenas, lockedCurses, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
-import { nextTierRequirement } from '../logic/difficulty';
+import { earnedTier, earnedTitles, rewardText as tierRewardText, tierOf, type EarnedTier } from '../logic/achievements';
 import { accountLevel, buildingLevel, buildingOf, masteryBonus, masteryRank, metaCost, rankCap, rewardText } from '../logic/economy';
 import { keepStage } from '../logic/keep';
 import type { CrownReward, LevelReward, RealmId } from '../config/world';
-import { parseTestLevel, testLevels, type LevelPanel, type RoadLevel } from '../logic/world';
+import { bestCleared, parseTestLevel, testLevels, type LevelPanel, type RoadLevel } from '../logic/world';
 import { REALMS, WORLD } from '../config/world';
 import { fitLoadout, slotBlock, slotView, type SlotBlock } from '../logic/champions';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
@@ -49,8 +48,7 @@ import { requirementText } from '../logic/evolutions';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
 import { drawSheetFrame, outlineSprite, portraitSprite, SHEETS, SPRITE_PALETTES } from '../render/sprites';
 import { frameAt, type AnimName } from '../logic/animation';
-import { OATHS } from '../config/oaths';
-import { oathCap, oathReward } from '../logic/oaths';
+import { oathReward } from '../logic/oaths';
 import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
@@ -142,7 +140,7 @@ export interface TitleInfo {
   mobile: boolean;
   buildDate: string;
   notice: { text: string; button: string; action: () => void } | null; // "new version available"
-  daily: { date: string; best: number };
+  daily: { date: string; best: number; open: boolean; opens: string }; // #204: shut until the Marches crown, with what opens it
   title: string | null; // v0.4: the equipped title (Chronicle)
   contracts: { text: string; progress: number; target: number; runes: number }[]; // v0.6: this week's
   whatsNew: boolean; // v0.7.1: this build has a What's new screen
@@ -161,7 +159,8 @@ export function showTitle(info: TitleInfo, on: { start: () => void; champion: ()
       ${info.notice ? kit.parch(`<span>${info.notice.text}</span>${kit.button(info.notice.button, { size: 'small', attrs: 'data-notice' })}`, { cls: 'notice' }) : ''}
       ${kit.button('Take up arms', { kind: 'gold', size: 'big', attrs: 'data-go="start"' })}
       <div class="row">
-        ${info.daily.date ? kit.button(`Daily Trial${info.daily.best ? ` · best ${info.daily.best}` : ''}`, { kind: 'go', attrs: 'data-go="daily"' }) : ''}
+        ${!info.daily.date ? '' : info.daily.open ? kit.button(`Daily Trial${info.daily.best ? ` · best ${info.daily.best}` : ''}`, { kind: 'go', attrs: 'data-go="daily"' })
+          : kit.button(`Daily Trial<small class="lock-note">${esc(info.daily.opens)}</small>`, { icon: 'lock', cls: 'daily-locked', disabled: true, attrs: `data-go="daily" aria-label="${esc(`Daily Trial, shut. ${info.daily.opens}`)}"` })}
         ${kit.button('Champion', { icon: 'champion', attrs: 'data-go="champion"' })}
         ${kit.button('World map', { icon: 'map', attrs: 'data-go="map"' })}
         ${kit.button('The Keep', { icon: 'keep', attrs: 'data-go="keep"' })}
@@ -424,18 +423,17 @@ let selectedClass: ClassId | undefined;
 export const pickedClass = (save: Save): ClassId => (selectedClass ??= save.runs.at(-1)?.classId ?? CLASS_ORDER[0]);
 /** #197: the champion screen's arrows pick the champion too. */
 export const pickClass = (id: ClassId): void => void (selectedClass = id);
-/** #182: the seed typed on the class select, kept while its options re-render the screen; Back or Start clears it. */
-let seedText = '';
-
 /** #156: the rigged champions' portrait scale on the class cards: the Paladin's figure (120 px at scale 6) shows at 84 px. */
 const PORTRAIT_K = 0.7;
 
-export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: string) => void; back: () => void; settings: (arena: ArenaId, tier: number) => void; curse: (id: CurseId) => void; trait: (id: TraitId) => void; palette: (id: ClassId, n: number) => void; treasure: (id: ClassId) => void; oath: (level: number) => void }): void {
-  const locked = lockedArenas(save);
-  // v0.6 Oath ladder: open once any class has won; each class swears at most one above the highest it has kept
-  const oathMax = Math.max(...CLASS_ORDER.map((id) => oathCap(save.wins[id], save.oaths[id])));
-  const oathOf = (id: ClassId) => Math.min(save.settings.oath, oathCap(save.wins[id], save.oaths[id]));
-  const sworn = save.settings.oath > 0 && oathMax > 0;
+/** #204: the champion select's main button: it opens the champion screen. */
+const startLabel = (id: ClassId) => `Onward as ${CLASSES[id].name}`;
+
+/**
+ * #65: the champion select. #204: the Classic run is gone, and with it the run's options (arena, difficulty, curses, trait, Oath, seed):
+ * picking a champion here opens its champion screen, where its levels are played. Its colours and its treasure are still chosen here.
+ */
+export function showClassSelect(save: Save, on: { pick: (id: ClassId) => void; back: () => void; palette: (id: ClassId, n: number) => void; treasure: (id: ClassId) => void }): void {
   pickedClass(save);
   const roster = CLASS_ORDER.map((id) => CLASSES[id]);
   const paletteOf = (c: ClassDef) => {
@@ -475,38 +473,17 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
         <div class="ability"><b>${c.ability.name}</b><p>${c.ability.desc}</p></div>
         <div class="ability"><b>${c.secondary.name}</b><p>${c.secondary.desc}</p></div>
         ${treasure}
-        ${save.wins[c.id] ? `<div class="oath-line">⚜ ${save.oaths[c.id] ? `Oath ${save.oaths[c.id]} kept` : 'No Oath kept yet'}${sworn ? ` · this run: <b>${oathOf(c.id) ? `Oath ${oathOf(c.id)}` : 'custom'}</b>` : ''}</div>` : ''}
+        ${save.wins[c.id] ? `<div class="oath-line">⚜ ${save.oaths[c.id] ? `Oath ${save.oaths[c.id]} kept` : 'No Oath kept yet'}</div>` : ''}
+        <div class="road-line">${kit.icon('map')} ${roadLine(c.id)}</div>
         <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
       </div>
     </div>`;
   };
-  // #65: the run's options as small kit buttons; the picked one has the brass ring, a locked one its lock
-  const opt = (label: string, attrs: string, o: { on?: boolean; locked?: boolean; disabled?: boolean; cls?: string } = {}) =>
-    kit.button(label, { size: 'small', cls: `opt${o.on ? ' on' : ''}${o.cls ? ` ${o.cls}` : ''}`, attrs, icon: o.locked ? 'lock' : undefined, disabled: o.locked || o.disabled });
-  const arenaBtn = (id: ArenaId) => {
-    const a = ARENAS[id];
-    const gate = locked.includes(id) ? gateOf({ arena: id }) : undefined;
-    return opt(a.name, `data-arena="${id}" data-tip="${esc(gate ? `Locked — ${gate.desc}` : `${a.desc} ${a.feature} Boss relics: ${familyList(ARENA_FAMILIES[id])}.`)}"`, { on: save.settings.arena === id, locked: !!gate });
-  };
-  const tierBtn = (i: number) => {
-    const t = TIERS[i];
-    const lockedTier = i > save.tierUnlocked;
-    const tip = lockedTier ? `Locked — ${nextTierRequirement(i, save) || `unlock ${TIERS[i - 1].name} first`}` : `Enemy HP ×${t.enemyHp}, damage ×${t.enemyDmg}, elites ×${t.eliteMult} · gold ×${t.gold}, class XP ×${t.classXp} · ${i ? `new foes: ${WAVES.tierRoster[i].map((id) => ENEMIES[id].name).join(', ')}` : 'the basic foes'}`;
-    return opt(t.name, `data-tier="${i}" data-tip="${esc(tip)}"`, { on: save.settings.tier === i, locked: lockedTier });
-  };
-  const lockedC = lockedCurses(save);
-  const curseBtn = (id: CurseId) => {
-    const c = CURSES[id];
-    const gate = lockedC.includes(id) ? gateOf({ curse: id }) : undefined;
-    const tip = gate ? `Locked — ${gate.desc}` : `${c.desc} +${Math.round(c.bonus * 100)}% gold and class XP.`;
-    return opt(c.name, `data-curse="${id}" data-tip="${esc(sworn ? 'An Oath brings its own curses. Free curses are for custom runs.' : tip)}"`, { on: save.settings.curses.includes(id) && !sworn, locked: !!gate, disabled: sworn, cls: 'curse' });
-  };
-  const traitBtn = (id: TraitId) => {
-    const t = TRAITS[id];
-    const need = t.unlock.achievement ? ACHIEVEMENTS.find((a) => a.id === t.unlock.achievement) : undefined;
-    const lockedT = need !== undefined && !save.achievements.includes(need.id);
-    const tip = lockedT ? `Locked — ${need!.name}: ${need!.desc}` : t.desc;
-    return opt(lockedT ? t.name : `${t.icon} ${t.name}`, `data-trait="${id}" data-tip="${esc(tip)}"`, { on: save.settings.trait === id || (id !== 'none' && save.settings.trait2 === id), locked: lockedT, cls: 'trait' });
+  // #204: how far the champion has come on the road (the Marches, its first realm)
+  const roadLine = (id: ClassId) => {
+    const w = save.champions[id]?.world ?? {};
+    const n = REALMS.marches.levels.length, done = bestCleared(w, 'marches', 0);
+    return done >= n ? `${REALMS.marches.name}: crowned` : `${REALMS.marches.name}: ${done ? `${done} of ${n} levels cleared` : 'not yet begun'}`;
   };
   // #65: the champion select in the kit: the roster strip and the chosen champion on the left, the run's options on the right, one gold Start
   const el = show(`
@@ -518,18 +495,8 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
           ${kit.frame(`<div class="roster">${roster.map(tile).join('')}</div>`, { cls: 'roster-frame' })}
           ${kit.frame(kit.parch(roster.map(hero).join('')), { cls: 'hero-frame' })}
         </div>
-        ${kit.frame(`
-          <div class="pick"><span class="label">Arena</span><div>${ARENA_IDS.map(arenaBtn).join('')}</div></div>
-          <div class="pick"><span class="label">Difficulty</span><div>${TIERS.map((_, i) => tierBtn(i)).join('')}</div></div>
-          <div class="pick curses"><span class="label">Curses <span class="mult" data-tip="Every curse adds to the gold and class XP this run earns.">gold &amp; XP ×${curseMultiplier(save.settings.curses).toFixed(2)}</span></span><div>${CURSE_IDS.map(curseBtn).join('')}</div></div>
-          <div class="pick traits"><span class="label">Trait</span><div>${TRAIT_IDS.map(traitBtn).join('')}</div></div>
-          ${oathMax ? `<div class="pick oath"><span class="label">Oath</span><div>
-            ${opt('−', `data-oath="${save.settings.oath - 1}"`, { disabled: save.settings.oath <= 0 })}
-            <b data-tip="${esc(save.settings.oath ? OATHS.slice(0, save.settings.oath).map((o, i) => `${i + 1}. ${o.name}: ${o.desc}`).join('\n') : 'A custom run: choose your own curses.')}">${save.settings.oath ? `Oath ${save.settings.oath}: ${OATHS[save.settings.oath - 1].name}` : 'No Oath (custom run)'}</b>
-            ${opt('+', `data-oath="${save.settings.oath + 1}"`, { disabled: save.settings.oath >= oathMax })}</div>
-            <span class="hint">${save.settings.oath ? `${OATHS[save.settings.oath - 1].desc} Every Oath below it holds too. A class that has not kept Oath ${save.settings.oath - 1} swears its highest.` : 'Win with a class to swear its first Oath. Every level adds one hardship; keeping one pays.'}</span></div>` : ''}
-          <div class="pick seed"><span class="label">Seed</span><input id="seed" maxlength="24" placeholder="random" value="${esc(seedText)}" autocomplete="off" spellcheck="false" data-tip="Type a seed from a results screen to replay that run." /></div>`, { cls: 'run-frame' })}
-        ${kit.button(`Start as ${CLASSES[pickedClass(save)].name}`, { kind: 'gold', size: 'big', attrs: 'data-start' })}
+        ${kit.frame(kit.parch(`<h2>The road</h2><p>A champion fights the realms level by level. Choose one here, then fill its relic slots and play its next level from the champion screen.</p>`), { cls: 'run-frame' })}
+        ${kit.button(startLabel(pickedClass(save)), { kind: 'gold', size: 'big', attrs: 'data-start' })}
       </div>
     </div>`);
   el.querySelectorAll<HTMLElement>('[data-sprite]').forEach((slot) => {
@@ -553,32 +520,19 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId, seed: stri
     on.palette(cls as ClassId, Number(n));
   }));
   click(el, '[data-treasure]', (chip) => on.treasure(chip.dataset.treasure as ClassId));
-  const seedIn = el.querySelector<HTMLInputElement>('#seed')!;
-  seedIn.oninput = () => (seedText = seedIn.value);
-  const start = () => {
-    seedText = '';
-    on.pick(selectedClass!, seedIn.value);
-  };
-  // #146: a card selects its champion (no re-render, so the keyboard focus stays on it); a second click on it, or Start, begins the run
+  const start = () => on.pick(selectedClass!);
+  // #146: a card selects its champion (no re-render, so the keyboard focus stays on it); a second click on it, or Start, opens it
   click(el, '[data-class]', (b) => {
     if (b.dataset.class === selectedClass) return start();
     selectedClass = b.dataset.class as ClassId;
     el.querySelectorAll('[data-class]').forEach((c) => c.classList.toggle('on', c === b));
     el.querySelectorAll<HTMLElement>('[data-hero]').forEach((h) => (h.hidden = h.dataset.hero !== selectedClass)); // #65: its details
-    el.querySelector('[data-start]')!.textContent = `Start as ${CLASSES[selectedClass].name}`;
+    el.querySelector('[data-start]')!.textContent = startLabel(selectedClass);
   });
   click(el, '[data-start]', start);
-  // Enter or the pad's confirm starts the run, unless a focused button takes the key itself
-  onActions((a) => a === 'confirm' && !(document.activeElement instanceof HTMLButtonElement) && start());
-  click(el, '[data-curse]', (b) => on.curse(b.dataset.curse as CurseId));
-  click(el, '[data-trait]', (b) => on.trait(b.dataset.trait as TraitId));
-  click(el, '[data-oath]', (b) => on.oath(Number(b.dataset.oath)));
-  click(el, '[data-arena]', (b) => on.settings(b.dataset.arena as ArenaId, save.settings.tier));
-  click(el, '[data-tier]', (b) => on.settings(save.settings.arena, Number(b.dataset.tier)));
-  click(el, '[data-back]', () => {
-    seedText = '';
-    on.back();
-  });
+  // Enter or the pad's confirm opens the champion, unless a focused button takes the key itself
+  onActions((a) => (a === 'confirm' ? !(document.activeElement instanceof HTMLButtonElement) && start() : (a === 'cancel' || a === 'pause') && on.back()));
+  click(el, '[data-back]', () => on.back());
 }
 
 /** #67: the building whose panel is open, so it stays open while ranks are bought (the Keep redraws after each). */
@@ -1256,7 +1210,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
       ${buildHtml(r.build)}`, { cls: 'kit-scroll' })}
       <footer class="row">${deciding
         ? `${kit.button('Bank the win', { kind: 'gold', size: 'big', attrs: 'data-bank' })}${kit.button('March on into Endless', { kind: 'go', attrs: 'data-endless' })}${kit.button('Bank and restart', { attrs: `data-restart data-tip="Bank the win and start again at once: ${esc(r.restart)}"` })}`
-        : `${kit.button(`Quick restart · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button(r.road ? `Back to ${esc(r.road.replace(/^The /, 'the '))}` : 'Choose another champion', { attrs: 'data-menu' })}`}</footer>
+        : `${kit.button(`Quick restart · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button(r.road ? `Back to ${esc(r.road.replace(/^The /, 'the '))}` : r.daily ? 'Back to the title' : 'Choose another champion', { attrs: 'data-menu' })}`}</footer>
     </div>`);
   if ('bank' in on) {
     click(el, '[data-endless]', on.endless);
@@ -1406,6 +1360,7 @@ export function showDaily(setup: DailySetup, best: number, onStart: () => void, 
         <div><span>Champion</span><b>${CLASSES[setup.classId].name}</b></div>
         <div><span>Arena</span><b>${ARENAS[setup.arena].name}</b></div>
         <div><span>Curses</span><b>${setup.curses.map((c) => CURSES[c].name).join(' · ')}</b></div>
+        <div><span>Relics</span><b>Every relic its class can find · no loadout</b></div>
         <div><span>Gold &amp; class XP</span><b>×${curseMultiplier(setup.curses).toFixed(2)}</b></div>
         <div><span>Your best today</span><b>${best ? `wave ${best}` : '—'}</b></div>
       </div>`,

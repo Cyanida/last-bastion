@@ -23,16 +23,16 @@ import { createGame } from './game';
 import { banked, createTestRun, isTestRun, type TestSetup } from './systems/testMode';
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
 import { upgradeOptions } from './logic/abilityUpgrades';
-import { lockedArenas, rewardText, tierKey, unlockedCurses, withAchievements } from './logic/achievements';
-import { dailySetup, formatSeed, parseSeed, todayString, type DailySetup } from './logic/acts';
-import { oathCap } from './logic/oaths';
+import { rewardText, tierKey, withAchievements } from './logic/achievements';
+import { dailySetup, formatSeed, todayString, type DailySetup } from './logic/acts';
+import { dailyOpen, dailyOpensText } from './logic/daily';
 import { closestGoals } from './logic/goals';
 import { currentProgress, weekKey, weeklyContracts } from './logic/contracts';
 import { nextAct, reforgeChoices } from './systems/acts';
 import { questTake } from './systems/quests';
 import { spawnEnemy } from './systems/spawning';
 import { densestCluster, resolveAim } from './logic/aim';
-import { masteryBonus, masteryRank, metaLoadout, rerollCost, accountLevel, buildingLevel } from './logic/economy';
+import { masteryBonus, masteryRank, rerollCost, accountLevel, buildingLevel } from './logic/economy';
 import { buyMeta, defaultSave, type Save, buyBuilding, today } from './logic/save';
 import { buildArena, loadProps, propsLoaded } from './render/arena';
 import { ENEMIES, type EnemyId } from './config/enemies';
@@ -133,7 +133,7 @@ function toTitle(): void {
   menu();
   onTitle = true;
   showTitle(
-    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(new Date()), best: save.daily[todayString(new Date())] ?? 0 }, title: save.title, contracts: titleContracts(), whatsNew: platform.whatsNew !== null },
+    { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(new Date()), best: save.daily[todayString(new Date())] ?? 0, open: dailyOpen(save), opens: dailyOpensText() }, title: save.title, contracts: titleContracts(), whatsNew: platform.whatsNew !== null },
     { start: toSelect, champion: () => toChampion(), map: () => toMap(toTitle), daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings, whatsNew: toWhatsNew },
   );
 }
@@ -160,8 +160,12 @@ function toChronicle(back: () => void): void {
   });
 }
 
-/** Same seed, class, arena and curses for everyone on a given date. Locks do not apply: it is a fixed challenge. */
+/**
+ * Same seed, class, arena and curses for everyone on a given date. Locks do not apply: it is a fixed challenge. #204: the fixed pool, no
+ * loadout, and shut until the Marches crown (the title says what opens it).
+ */
 function toDaily(): void {
+  if (!dailyOpen(save)) return toTitle();
   initAudio();
   menu();
   const setup = dailySetup(todayString(new Date()));
@@ -174,41 +178,16 @@ function setNotice(next: TitleInfo['notice']): void {
   if (onTitle) toTitle();
 }
 
+/** #65: the champion select. #204: no Classic run any more: a champion picked here opens its champion screen. */
 function toSelect(): void {
   initAudio();
   menu();
   showClassSelect(save, {
-    pick: (id, seedText) => startRun(id, { seed: parseSeed(seedText) ?? undefined }),
+    pick: (id) => (pickClass(id), toChampion()),
     back: toTitle,
-    curse(id) {
-      if (!unlockedCurses(save).includes(id)) return;
-      const on = save.settings.curses;
-      commit({ ...save, settings: { ...save.settings, curses: on.includes(id) ? on.filter((c) => c !== id) : [...on, id] } });
-      toSelect();
-    },
-    settings(arena, tier) {
-      if (lockedArenas(save).includes(arena) || tier > save.tierUnlocked) return;
-      commit({ ...save, settings: { ...save.settings, arena, tier } });
-      toSelect();
-    },
-    oath(level) {
-      const max = Math.max(...CLASS_ORDER.map((id) => oathCap(save.wins[id], save.oaths[id])));
-      commit({ ...save, settings: { ...save.settings, oath: Math.max(0, Math.min(max, level)) } });
-      toSelect();
-    },
     palette(id, n) {
       if (n !== 0 && !masteryBonus(save.classes[id].xp).palettes.includes(n) && !save.palettes.includes(n)) return;
       commit({ ...save, settings: { ...save.settings, palettes: { ...save.settings.palettes, [id]: n } } });
-      toSelect();
-    },
-    trait(id) {
-      const need = TRAITS[id].unlock.achievement;
-      if (need && !save.achievements.includes(need)) return;
-      // v0.6: with the Second Banner two traits can be on; a third choice replaces the newer one
-      const slots = metaLoadout(save.meta).traitSlots;
-      const on = [save.settings.trait, save.settings.trait2].filter((t) => t !== 'none');
-      const next = id === 'none' ? [] : on.includes(id) ? on.filter((t) => t !== id) : [...on, id].slice(-slots);
-      commit({ ...save, settings: { ...save.settings, trait: next[0] ?? 'none', trait2: next[1] ?? 'none' } });
       toSelect();
     },
     treasure(id) {
@@ -446,18 +425,20 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?:
   const d = opts.daily;
   const rec = save.treasures[id];
   game = opts.test ? createTestRun(opts.test, opts.seed ?? Date.now() >>> 0) : createGame(id, opts.seed ?? Date.now() >>> 0, {
-    arena: d ? d.arena : save.settings.arena,
+    arena: d ? d.arena : save.settings.arena, // a level plays its realm's arena
     tier: d ? 0 : opts.tier ?? save.settings.tier,
     level: opts.level, // #199: a realm level from the road
     inventory: opts.level ? save.champions[id]?.inventory : undefined, // #194: a level's pool follows the champion
     fresh: opts.level && save.champions[id] ? freshRelics(save.champions[id]!, save.relicPicks) : undefined,
     meta: save.meta,
     classXp: save.classes[id].xp,
-    curses: d ? d.curses : save.settings.curses.filter((c) => unlockedCurses(save).includes(c)),
+    // #204: a run is a level or the Daily Trial now. The Classic select's curses, traits and Oath stay in the save's settings for the
+    // Last Bastion, but no run takes them: nothing on screen could switch them off
+    curses: d ? d.curses : [],
     daily: d?.date,
-    trait: d ? 'none' : save.settings.trait, // the Daily Trial is the same for everyone
-    trait2: d ? 'none' : save.settings.trait2,
-    oath: d ? 0 : Math.min(save.settings.oath, oathCap(save.wins[id], save.oaths[id])), // v0.6: a class swears at most one above its highest kept
+    trait: 'none',
+    trait2: 'none',
+    oath: 0,
     accountLevel: accountLevel(CLASS_ORDER.map((c) => save.classes[c].xp)),
     libraryLevel: buildingLevel(save.buildings, 'library'),
     palette: save.settings.palettes[id] ?? 0,
@@ -685,10 +666,10 @@ function runResult(g: Game, commitIt: boolean): RunResult {
 }
 
 /**
- * v0.6 Quick Restart: the same class, traits and Oath (they live in the settings), or today's Daily Trial again. #197/#200: a level again
- * through playLevel, on the same seed after a fall (endRun remembers it) and a fresh one once it is cleared.
+ * v0.6 Quick Restart: today's Daily Trial again. #197/#200: a level again through playLevel, on the same seed after a fall (endRun
+ * remembers it) and a fresh one once it is cleared. #204: there is no Classic run to restart any more; anything else opens the champion.
  */
-const again = (g: Game): void => (g.daily ? toDaily() : g.level ? playLevel(g.player.cls.id, g.level.realm, g.level.level, g.tierIndex) : startRun(g.player.cls.id));
+const again = (g: Game): void => (g.daily ? toDaily() : g.level ? playLevel(g.player.cls.id, g.level.realm, g.level.level, g.tierIndex) : toChampion());
 
 /** Death, "end run", or banking a win: the run is banked. */
 function endRun(g: Game): void {
@@ -702,7 +683,7 @@ function endRun(g: Game): void {
   const r = runResult(g, true);
   const lv = g.level, tier = g.tierIndex;
   // a cleared level goes back to the realm road; a lost one to the champion screen on that level, whose RESTART plays its seed again
-  const home = lv ? (lv.cleared ? () => toRoad(lv.realm) : () => toChampion({ realm: lv.realm, level: lv.level, tier })) : toSelect;
+  const home = lv ? (lv.cleared ? () => toRoad(lv.realm) : () => toChampion({ realm: lv.realm, level: lv.level, tier })) : toTitle; // #204: a Daily Trial goes home
   const results = () => showResults(r, { retry: () => again(g), menu: home });
   // #200: a Marches level's first clear lets the champion keep one of its family's rares. Its clear is banked already, so closing the
   // game on this screen loses the pick (ponytail: a pending-reward field in the save would keep it; the save format isn't this issue's)

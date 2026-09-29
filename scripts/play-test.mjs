@@ -73,6 +73,23 @@ async function check(name, fn) {
   }
 }
 const inPage = (fn, arg) => page.evaluate(fn, arg);
+/**
+ * #204: the Daily Trial is the one full 40-wave run left on the menus (the Classic run is gone). Opened as a save that already took a
+ * trial keeps it (a check's own save has no Marches crown), then begun from the title through its own screen, as a player does.
+ */
+const beginDaily = (p = page) => p.evaluate(async () => {
+  const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+  lb.save.daily['2000-01-01'] ??= 1;
+  document.querySelector('[data-go="settings"]').click(); // the title again, now with the trial open
+  await wait();
+  document.querySelector('.settings [data-act="back"]').click();
+  await wait();
+  document.querySelector('[data-go="daily"]').click();
+  await wait();
+  document.querySelector('.kit-screen.daily [data-start]').click();
+  await wait(200);
+  return lb.game?.daily ?? null;
+});
 
 // helpers inside the page: step the game, open a screen, click through it
 await inPage(() => {
@@ -206,7 +223,7 @@ await check('menus: the UI kit helpers build the title and every component works
 // #186: Settings and the results in the kit, on PC and phone landscape, played through their controls: the framed screen with its
 // ribbon, choices as pressed wood buttons, the Sound switch, the Effects slider by keyboard, the back disc; then a real run ended from
 // the pause menu, its results framed with the one gold main button, the atlas's gold icon, everything in the window, and the wood
-// button on to the class select. Mouse on PC, touch taps on the phone.
+// button home (#204: the run is the Daily Trial, and it goes back to the title). Mouse on PC, touch taps on the phone.
 await check('Settings and results: the UI kit, their controls work, all in the window at 1280x720 and 844x390 (#186)', async () => {
   const seen = [];
   for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
@@ -265,10 +282,8 @@ await check('Settings and results: the UI kit, their controls work, all in the w
     await p.keyboard.press('ArrowRight');
     await press('.settings [data-act="back"]');
     const title = await p.locator('[data-go="start"]').count();
-    // a real run, ended from the pause menu
-    await press('[data-go="start"]');
-    await p.evaluate(() => document.querySelector('[data-class="viking"]').click());
-    await p.evaluate(() => document.querySelector('[data-start]')?.click());
+    // a real run (#204: the Daily Trial), ended from the pause menu
+    await beginDaily(p);
     await p.waitForFunction(() => window.__lb.state !== 'menu'); // the quest board comes first
     await p.evaluate(() => { // the bot answers the screens; stop mid-fight, where Esc pauses
       const lb = window.__lb;
@@ -291,12 +306,12 @@ await check('Settings and results: the UI kit, their controls work, all in the w
     });
     const fitsRes = await inside('.kit-screen.results');
     await press('[data-menu]');
-    const select = await p.evaluate(() => !!document.querySelector('[data-class="viking"]') && !document.querySelector('.kit-screen.results'));
+    const select = await p.evaluate(() => !!document.querySelector('.kit-title [data-go="daily"]') && !document.querySelector('.kit-screen.results')); // #204: a trial goes home
     await p.close();
     const ok = set.frame && set.ribbon === 'Settings' && set.choices && set.switches >= 3 && set.sliders === 2 && fitsSet && large &&
       soundBefore === 'On' && soundAfter === 'Off' && !checked && fxBefore !== fxAfter && title > 0 &&
       res.ribbon === 'The run ends' && res.main && res.menu && res.icon && res.seed && fitsRes && select && errs.length === 0;
-    seen.push({ ok, detail: `${w}x${h}: settings ${set.frame}/${set.ribbon}, choices ${set.choices}, ${set.switches} switches, ${set.sliders} sliders, fits ${fitsSet}, Large ${large}, sound ${soundBefore}->${soundAfter}, effects ${fxBefore}->${fxAfter}, back ${title > 0}; results "${res.ribbon}", gold main ${res.main}, wood ${res.menu}, icon ${res.icon}, fits ${fitsRes}, to select ${select}${errs.length ? `, errors: ${errs[0]}` : ''}` });
+    seen.push({ ok, detail: `${w}x${h}: settings ${set.frame}/${set.ribbon}, choices ${set.choices}, ${set.switches} switches, ${set.sliders} sliders, fits ${fitsSet}, Large ${large}, sound ${soundBefore}->${soundAfter}, effects ${fxBefore}->${fxAfter}, back ${title > 0}; results "${res.ribbon}", gold main ${res.main}, wood ${res.menu}, icon ${res.icon}, fits ${fitsRes}, home ${select}${errs.length ? `, errors: ${errs[0]}` : ''}` });
   }
   return { ok: seen.every((x) => x.ok), detail: seen.map((x) => x.detail).join(' | ') };
 });
@@ -362,11 +377,9 @@ await check('menus: the compendium, glossary and flash cards in the kit, every r
     const terms = await p.evaluate(() => ({ terms: document.querySelectorAll('.glossary .kit-parch > dl:first-child dt').length, met: document.querySelectorAll('.glossary .cards-met dt .card-pic').length }));
     await press('.glossary [data-back]');
     const fromGloss = await heading();
-    // a real run by the real screens: the first foe brings its flash card
+    // a real run by the real screens (#204: the Daily Trial): the first foe brings its flash card
     await press('[data-back]');
-    await press('[data-go="start"]');
-    await press('[data-class="viking"]');
-    await press('[data-start]');
+    await beginDaily(p);
     await p.waitForFunction(() => !!window.__lb.game); // the run is on (its quest board up); the loop below answers it, as a run's checks do
     const card = await p.evaluate(() => {
       const lb = window.__lb;
@@ -470,27 +483,9 @@ await check('class select: no class card names preferred relic families (#194)',
   }),
 );
 
-// #182: picking an option re-renders the class select; the seed typed there stays until Back
-await check('class select: a typed seed survives picking an option, Back clears it (#182)', () =>
-  inPage(async () => {
-    const P = window.__play;
-    await P.click('[data-go="start"]');
-    const seed = document.querySelector('#seed');
-    seed.value = 'KEEPME';
-    seed.dispatchEvent(new Event('input'));
-    await P.click('[data-tier]:not([disabled])');
-    const kept = document.querySelector('#seed').value;
-    await P.click('[data-back]');
-    await P.click('[data-go="start"]');
-    const after = document.querySelector('#seed').value;
-    await P.click('[data-back]');
-    return { ok: kept === 'KEEPME' && after === '', detail: `after an option: "${kept}", after Back: "${after}"` };
-  }),
-);
-
 // #65: the title and the champion select in the new look, at 1280x720 and in phone landscape, played with the mouse: the title's kit
 // buttons fit the screen; Take up arms opens the roster strip, a tile picks its champion and shows it on the pedestal with stat bars
-// and facts, an option takes the brass ring, the one gold Start names the champion and stays in reach, the round Back goes home
+// and facts, the one gold button names the champion and stays in reach, the round Back goes home. #204: no Classic run options are left
 await check('menus: the title and the champion select in the new look, at 1280x720 and phone landscape (#65)', async () => {
   const seen = [];
   for (const [w, h] of [[1280, 720], [844, 390]]) {
@@ -535,13 +530,8 @@ await check('menus: the title and the champion select in the new look, at 1280x7
     const pal = await look();
     await page.click('[data-class="viking"]'); // a tile picks the champion: the pedestal and Start follow, no run starts
     const vik = await look();
-    await page.locator('[data-trait="glassCannon"]').scrollIntoViewIfNeeded();
-    await page.click('[data-trait="glassCannon"]'); // an option re-renders the screen: the champion stays, the option takes the ring
-    const ring = await inPage(() => {
-      const b = document.querySelector('[data-trait="glassCannon"]');
-      return { on: b.classList.contains('on') && b.classList.contains('kit-btn') && getComputedStyle(b).boxShadow.includes('0px 0px 0px 2px'), trait: window.__lb.save.settings.trait, still: document.querySelector('.kit-select .card.champ.on')?.dataset.class };
-    });
-    await page.click('[data-trait="none"]');
+    // #204: the Classic run's options went with it: no arena, difficulty, curse, trait, Oath or seed; the road's words in their place
+    const ring = await inPage(() => ({ on: !document.querySelector('.kit-select :is([data-arena], [data-tier], [data-curse], [data-trait], [data-oath], #seed)'), trait: document.querySelector('.kit-select .run-frame h2')?.textContent, still: document.querySelector('.kit-select .card.champ.on')?.dataset.class }));
     await page.locator('[data-back]').scrollIntoViewIfNeeded();
     await page.click('[data-back]');
     const home = await inPage(() => window.__lb.state === 'menu' && !!document.querySelector('.kit-title [data-go="start"]'));
@@ -551,11 +541,11 @@ await check('menus: the title and the champion select in the new look, at 1280x7
   const ok = seen.every(({ w, title, pal, vik, ring, home }) =>
     title.kit && title.settingsIcon && title.fits
     && pal.tiles === 5 && pal.on === 'paladin' && pal.hero === 'paladin' && pal.figure && pal.bars.length === 7 && pal.bars[0] >= 99 && pal.bars.every((b) => b > 0 && b <= 100)
-    && pal.facts === 'Attack/Reach/Armor/Regen/Cooldown' && pal.start === 'Start as Paladin' && pal.gold === 1 && pal.inReach && pal.back && pal.ribbon && !pal.wide
-    && vik.on === 'viking' && vik.hero === 'viking' && vik.start === 'Start as Viking' && vik.inReach
-    && ring.on && ring.trait === 'glassCannon' && ring.still === 'viking' && home
+    && pal.facts === 'Attack/Reach/Armor/Regen/Cooldown' && pal.start === 'Onward as Paladin' && pal.gold === 1 && pal.inReach && pal.back && pal.ribbon && !pal.wide
+    && vik.on === 'viking' && vik.hero === 'viking' && vik.start === 'Onward as Viking' && vik.inReach
+    && ring.on && ring.trait === 'The road' && ring.still === 'viking' && home
     && (w < 1000 || !pal.scrolls)); // at 1280x720 the whole screen fits without scrolling
-  return { ok, detail: seen.map(({ w, h, title, pal, vik, ring, home }) => `${w}x${h}: title kit ${title.kit}/settings icon ${title.settingsIcon}/fits ${title.fits}; ${pal.tiles} tiles, ${pal.on} on the pedestal (${pal.hero}), bars ${pal.bars.join(' ')}, facts ${pal.facts}, "${pal.start}", ${pal.gold} gold button, in reach ${pal.inReach}, scrolls ${pal.scrolls}, wide ${pal.wide}; tile -> ${vik.hero} "${vik.start}"; option ring ${ring.on} (${ring.trait}, ${ring.still} kept); Back home ${home}`).join(' | ') };
+  return { ok, detail: seen.map(({ w, h, title, pal, vik, ring, home }) => `${w}x${h}: title kit ${title.kit}/settings icon ${title.settingsIcon}/fits ${title.fits}; ${pal.tiles} tiles, ${pal.on} on the pedestal (${pal.hero}), bars ${pal.bars.join(' ')}, facts ${pal.facts}, "${pal.start}", ${pal.gold} gold button, in reach ${pal.inReach}, scrolls ${pal.scrolls}, wide ${pal.wide}; tile -> ${vik.hero} "${vik.start}"; no run options ${ring.on} ("${ring.trait}", ${ring.still} on); Back home ${home}`).join(' | ') };
 });
 
 // ---------- a test run from the real Test mode screen ----------
@@ -2046,9 +2036,7 @@ await check('deeds: six relics held in a Marches level leave Reliquarian at 0; i
   const level = await holdAndQuit();
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
-  await p.click('[data-go="start"]');
-  await p.evaluate(() => document.querySelector('[data-class="viking"]').click());
-  await p.evaluate(() => document.querySelector('[data-start]')?.click());
+  await beginDaily(p); // #204: the full run left on the menus
   const full = await holdAndQuit();
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
@@ -2568,7 +2556,7 @@ await check("Usurper: the last phase holds a few seconds, he attacks through it,
 });
 
 // ---------- v0.7.5 (#109): the Gallows pays in a cursed run, and the results screen shows it ----------
-await check('Gallows: a cursed run earns its bonus, the results show it', () =>
+await check('Gallows: a cursed run (the Daily Trial) earns its bonus, the results show it', () =>
   inPage(async () => {
     localStorage.removeItem('lastbastion.save');
     location.reload();
@@ -2583,12 +2571,13 @@ await check('Gallows: a cursed run earns its bonus, the results show it', () =>
         await wait();
       } }; // the reload dropped window.__play
       lb.save.meta.curseBonus = 3; // three ranks of the Gallows, as if bought at the Keep
-      lb.save.achievements.push('firstBlood'); // it unlocks the Iron Horde curse
-      await P.click('[data-go="start"]');
-      await P.click('[data-curse="ironHorde"]');
-      const shown = Number(document.querySelector('.select .mult').textContent.match(/×([\d.]+)/)[1]); // curses alone, without the Gallows
-      await P.click('[data-class="viking"]');
-      document.querySelector('[data-start]')?.click(); // #146: the card selects (unless it already was), Start begins the run
+      // #204: the cursed run left is the Daily Trial (two curses), open as a save that already took one keeps it
+      lb.save.daily['2000-01-01'] = 1;
+      await P.click('[data-go="settings"]');
+      await P.click('.settings [data-act="back"]');
+      await P.click('[data-go="daily"]');
+      const shown = Number([...document.querySelectorAll('.kit-screen.daily .stats > div')].find((d) => /Gold/.test(d.firstElementChild?.textContent))?.textContent.match(/×([\d.]+)/)[1]); // curses alone, without the Gallows
+      await P.click('.kit-screen.daily [data-start]');
       await P.wait(200);
       const g = lb.game, mult = g.vars.curseMult;
       g.player.invulnerable = true;
@@ -2599,37 +2588,17 @@ await check('Gallows: a cursed run earns its bonus, the results show it', () =>
       await P.click('[data-quit]');
       await P.wait(300);
       const line = [...document.querySelectorAll('div')].find((d) => d.firstElementChild?.textContent === 'Curses')?.innerText ?? '';
-      const ok = g.curses.length === 1 && mult > shown + 0.1 && line.includes(`×${mult.toFixed(2)}`);
+      const ok = g.curses.length === 2 && !!g.daily && mult > shown + 0.1 && line.includes(`×${mult.toFixed(2)}`);
       return { ok, detail: `select ×${shown}, run ×${mult.toFixed(2)}, results "${line.replace(/\s+/g, ' ')}"` };
     });
   }),
 );
 
-// #79, #203: the difficulty select says what opens each locked tier; Squire and Knight are open in a fresh save
-await check('difficulty: Knight is open in a fresh save, a locked tier names the win that opens it (#203)', () =>
-  inPage(async () => {
-    localStorage.removeItem('lastbastion.save');
-    location.reload();
-  }).then(async () => {
-    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
-    return inPage(async () => {
-      const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
-      const btn = (i) => document.querySelector(`[data-tier="${i}"]`);
-      document.querySelector('[data-go="start"]').click();
-      await wait();
-      const fresh = [1, 2, 3].map((i) => (btn(i).disabled ? btn(i).dataset.tip : 'open'));
-      btn(1).click();
-      await wait();
-      const picked = btn(1).classList.contains('on') && lb.save.settings.tier === 1;
-      const champ = btn(2).dataset.tip;
-      const ok = fresh[0] === 'open' && fresh[1] === 'Locked — win a run on Knight' && fresh[2] === 'Locked — win a run on Champion' && picked && btn(2).disabled;
-      return { ok, detail: `fresh ${JSON.stringify(fresh)} · Knight picked ${picked} · Champion "${champ}"` };
-    });
-  }),
-);
+// #79, #203: the Classic select's difficulty row went with it (#204); the realm road's tier crowns (Squire and Knight open, the rest
+// locked) are checked with the road (#199)
 
 // #101: each difficulty adds enemy types; the tier's tip names them, and a Knight run fields no Champion or Legend type
-await check('difficulty: Knight names its new foes, and its waves bring none from the tiers above', () =>
+await check('difficulty: the waves of a Knight run bring no foes from the tiers above', () =>
   inPage(async () => {
     localStorage.removeItem('lastbastion.save');
     location.reload();
@@ -2637,15 +2606,9 @@ await check('difficulty: Knight names its new foes, and its waves bring none fro
     await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
     return inPage(async () => {
       const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
-      lb.save.tierUnlocked = 1; // as if wave 15 was cleared on Squire
-      document.querySelector('[data-go="start"]').click();
-      await wait();
-      const tipOf = (i) => document.querySelector(`[data-tier="${i}"]`)?.dataset.tip ?? '';
-      document.querySelector('[data-tier="1"]').click();
-      await wait();
-      const tips = [tipOf(0), tipOf(1)];
-      document.querySelector('[data-class="viking"]').click();
-      document.querySelector('[data-start]')?.click(); // #146: the card selects, Start begins the run
+      // #204: the Classic select (and its tier tips) is gone; a run on Knight by the test handle, as the perf test starts one
+      lb.save.settings.tier = 1;
+      lb.start('viking');
       await wait(200);
       const g = lb.game;
       g.player.invulnerable = true;
@@ -2657,8 +2620,8 @@ await check('difficulty: Knight names its new foes, and its waves bring none fro
         for (const e of g.enemies) seen.add(e.def.id);
       }
       const above = ['shieldwall', 'siegeTower'].filter((id) => seen.has(id));
-      const ok = g.tierIndex === 1 && tips[0].includes('the basic foes') && /new foes: Hound Master, Mirror Knight/.test(tips[1]) && seen.size > 3 && above.length === 0;
-      return { ok, detail: `tier ${g.tierIndex}, waves to ${g.wave}, seen ${[...seen].join(', ')}${above.length ? `, above: ${above}` : ''} · "${tips[1].split('· ').pop()}"` };
+      const ok = g.tierIndex === 1 && seen.size > 3 && above.length === 0;
+      return { ok, detail: `tier ${g.tierIndex}, waves to ${g.wave}, seen ${[...seen].join(', ')}${above.length ? `, above: ${above}` : ''}` };
     });
   }),
 );
@@ -2670,13 +2633,9 @@ await check('flash card: a new foe shows one with its sprite and a spotlight on 
     location.reload();
   }).then(async () => {
     await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    await beginDaily(); // #204: the Daily Trial, the full run left on the menus
     const first = await inPage(async () => {
       const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
-      document.querySelector('[data-go="start"]').click();
-      await wait();
-      document.querySelector('[data-class="viking"]').click();
-      document.querySelector('[data-start]')?.click(); // #146: the card selects, Start begins the run
-      await wait(200);
       const g = lb.game;
       g.player.invulnerable = true;
       for (let i = 0; i < 3000 && !document.querySelector('[data-card]'); i++) lb.run(1, false, true);
@@ -2882,8 +2841,9 @@ await check('text size: Larger keeps the desktop layout on a desktop window', as
   return { ok, detail: `1000x700 at Larger: compact=${tall.compact} scaled=${tall.scaled}; 1000x500 at Normal: compact=${short.compact}` };
 });
 
-// #146: a class card only selects its champion; Start (or a second click on the chosen card) begins the run
-await check('class select: a card selects, a click beside a swatch starts nothing, Enter selects then starts, Start begins the run', async () => {
+// #146: a class card only selects its champion; Start (or a second click on the chosen card) opens it. #204: no run begins there any
+// more: the chosen champion's screen opens, with the Archer on its pedestal and no run started
+await check('class select: a card selects, a click beside a swatch starts nothing, Enter selects then opens the champion screen, no run begins (#204)', async () => {
   await inPage(() => {
     localStorage.removeItem('lastbastion.save');
     location.reload();
@@ -2906,14 +2866,14 @@ await check('class select: a card selects, a click beside a swatch starts nothin
   await page.keyboard.press('Enter'); // selects the Archer
   await page.waitForTimeout(100);
   const keyed = await look();
-  await page.keyboard.press('Enter'); // the chosen card again: the run begins
-  await page.waitForFunction(() => window.__lb.state !== 'menu');
-  const run = await inPage(() => ({ state: window.__lb.state, cls: window.__lb.game?.player.cls.id }));
-  const ok = first.state === 'menu' && first.on.length === 1 && first.start.startsWith("Start as ")
-    && missed.state === 'menu' && missed.on.join() === 'viking' && missed.start === 'Start as Viking'
+  await page.keyboard.press('Enter'); // the chosen card again: its champion screen opens
+  await page.waitForSelector('.champion-screen', { timeout: 3000 }).catch(() => {});
+  const run = await inPage(() => ({ state: window.__lb.state, game: !!window.__lb.game, cls: document.querySelector('.champion-screen .cs-pick .kit-ribbon')?.textContent }));
+  const ok = first.state === 'menu' && first.on.length === 1 && first.start.startsWith("Onward as ")
+    && missed.state === 'menu' && missed.on.join() === 'viking' && missed.start === 'Onward as Viking'
     && recoloured.state === 'menu' && recoloured.on.join() === 'viking' && recoloured.palette === 1
-    && keyed.state === 'menu' && keyed.on.join() === 'archer' && keyed.start === 'Start as Archer'
-    && run.cls === 'archer' && run.state !== 'menu';
+    && keyed.state === 'menu' && keyed.on.join() === 'archer' && keyed.start === 'Onward as Archer'
+    && run.cls === 'Archer' && run.state === 'menu' && !run.game;
   return { ok, detail: `first ${JSON.stringify(first)}, beside swatch ${JSON.stringify(missed)}, on swatch ${JSON.stringify(recoloured)}, Enter ${JSON.stringify(keyed)}, Enter again ${JSON.stringify(run)}` };
 });
 
@@ -2926,10 +2886,7 @@ await check('ballista: the aim reticle is the size of the bolt it fires', async 
   await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
   await inPage(async () => {
     const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
-    document.querySelector('[data-go="start"]').click();
-    await wait();
-    document.querySelector('[data-class="archer"]').click();
-    document.querySelector('[data-start]')?.click(); // #146: the card selects, Start begins the run
+    window.__lb.start('archer'); // #204: an Archer's run by the test handle (the Classic select is gone; the trial's class is the day's)
     await wait(200);
     const g = window.__lb.game;
     g.player.invulnerable = true;
@@ -4040,11 +3997,9 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       await p.evaluate((tut) => { const lb = window.__lb; lb.save.cards.splice(0, lb.save.cards.length, ...lb.cardIds.filter((id) => !tut.includes(id))); }, TUTORIAL);
     };
     const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
-    // a full run: the bot plays a while and no tutorial card comes up
+    // a full run (#204: the Daily Trial): the bot plays a while and no tutorial card comes up
     await fresh();
-    await press('[data-go="start"]');
-    await press('[data-class="viking"]');
-    await press('[data-start]');
+    await beginDaily(p);
     await p.waitForFunction(() => !!window.__lb.game);
     const full = await p.evaluate(() => {
       const lb = window.__lb, cards = [];
@@ -4193,6 +4148,50 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       && /The Marches crowned/.test(crown.head) && crown.cards === 1 && crown.name === "Oathkeeper's Seal" && /Signature/.test(crown.fam) && crown.gold && crown.inside
       && champ.signature === true && champ.inventory.includes('oathkeepersSeal') && champ.inventory.length === 2 && champ.world.marches[0] === 7 && errs.length === 0;
     return { ok, detail: `"${road.name}"; ${fight.crown ? 'crown' : 'plain'} Warden ("${fight.banner}"), phase 2 at ${p2} s, phase 3 at ${p3} s, fell at ${fight.end} s${fight.unbroken ? ', UNBROKEN shown' : ''}${fight.judgement ? ', Judgement' : ''}${fight.judged ? ' seals' : ''}, level ${fight.cleared ? 'cleared' : 'not cleared'}; "${grave.head}" (${grave.fams.map((f) => f.trim()).join('/')}); "${crown.head}": ${crown.name} (${crown.fam.trim()}${crown.gold ? ', gold' : ''}${crown.inside ? '' : ', off screen'}); inventory [${champ.inventory.join()}], signature ${champ.signature}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #204: the Daily Trial is shut until the Marches crown, and says so; crowned, it is today's run with the fixed pool and no loadout ----------
+// A fresh save: the title's trial is a locked button naming what opens it, and a click on it opens nothing. Then the champion holds the
+// Marches crown (as #202's check wins it), a loadout for the Marches, Armorer's Choice and the Keepsake: the title opens the trial, and its
+// run holds no relic and offers no Armorer's pick (both are slots now), finds relics outside the champion's inventory, and plays no level.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`Daily Trial: shut with "Opens with the Marches crown" on a new save; crowned, ${touch ? 'a tap' : 'a click'} begins today's run with the fixed pool and no loadout, at ${w}x${h} (#204)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    const title = () => p.evaluate(() => {
+      const b = document.querySelector('.kit-title [data-go="daily"]'), r = b?.getBoundingClientRect();
+      return b && { disabled: b.disabled, lock: !!b.querySelector('.kit-icon.i-lock'), note: b.querySelector('.lock-note')?.textContent ?? '', inside: r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight + 1 };
+    });
+    const shut = await title();
+    await p.locator('.kit-title [data-go="daily"]').click({ force: true }); // a disabled button: nothing opens
+    await p.waitForTimeout(100);
+    const stayed = await p.evaluate(() => window.__lb.state === 'menu' && !document.querySelector('.kit-screen.daily') && !!document.querySelector('.kit-title'));
+    await p.evaluate(() => {
+      const s = window.__lb.save;
+      s.champions = { ...s.champions, viking: { name: 'Sigrun', inventory: ['brimstoneOil'], loadouts: { marches: ['brimstoneOil'] }, talentPlan: [], world: { marches: [7] }, signature: false, lastBastion: false } };
+      s.meta.startRelic = 1; // Armorer's Choice
+      s.classes.viking.xp = 1e6; // mastery up to the Keepsake
+    });
+    await press('[data-go="settings"]');
+    await press('.settings [data-act="back"]');
+    const open = await title();
+    await press('.kit-title [data-go="daily"]');
+    await p.locator('.kit-screen.daily [data-start]').waitFor({ timeout: 3000 });
+    await press('.kit-screen.daily [data-start]');
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 });
+    const run = await p.evaluate(() => {
+      const g = window.__lb.game, d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return { daily: g.daily === today, level: !!g.level, held: g.player.relics.held.length, armorer: g.player.relics.offers.some((o) => o.from === 'start'), pool: g.player.relics.pool.length, wider: g.player.relics.pool.some((id) => !window.__lb.save.champions.viking.inventory.includes(id) && window.__lb.game.player.relics.pool.length > 0), curses: g.curses.length };
+    });
+    await p.close();
+    const ok = !!shut && shut.disabled && shut.lock && shut.note === 'Opens with the Marches crown' && shut.inside && stayed
+      && !!open && !open.disabled && !open.lock && !open.note && run.daily && !run.level && run.held === 0 && !run.armorer && run.pool > 30 && run.wider && run.curses === 2 && errs.length === 0;
+    return { ok, detail: `shut: ${shut ? `disabled ${shut.disabled}, lock ${shut.lock}, "${shut.note}", inside ${shut.inside}` : 'NO BUTTON'}, a click opens nothing ${stayed}; crowned: open ${open ? !open.disabled : 'NO BUTTON'}; run: today's ${run.daily}, level ${run.level}, ${run.held} held, Armorer's pick ${run.armorer}, pool ${run.pool} relics (beyond the inventory ${run.wider}), ${run.curses} curses${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 

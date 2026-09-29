@@ -51,6 +51,7 @@ import { updateSquads } from './systems/squads';
 import { updateStatuses } from './systems/status';
 import { headStart, type LevelStart } from './systems/levels';
 import { REALMS, WORLD } from './config/world';
+import { startRelicGifts } from './logic/daily';
 
 /** Everything a run takes from outside: the player's choices on the select screen and their permanent progress. */
 export interface RunOptions {
@@ -255,13 +256,13 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
   }
   if (opts.noRelics) g.player.relics.pool = [];
   if (opts.level && levelDef) offerRelics(g, WORLD.openingPick, 'start', g.player, g.player.relics.pool, levelDef.family && [levelDef.family]); // #194: the opening pick (rule 4), in place of Armorer's offer
-  else if (loadout.startRelic) {
+  else if (loadout.startRelic && startRelicGifts({ level: false, daily: !!opts.daily })) {
     // v0.6 Armorer's Choice: the run opens on a choice of three common relics
     const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
     const choice = rollRelics(commons, g.player.relics.held, g.rng, RELIC_MOMENTS.choices); // #191: never one already slotted
     if (choice.length) (g.player.relics.offers.push({ from: 'start', options: choice, rerolls: RELIC_MOMENTS.rerolls }), (g.vars.armorerOffer = 1));
   }
-  if (mastery.relic && !opts.level) { // in a level the Keepsake is a slot (logic/champions championBonus)
+  if (mastery.relic && startRelicGifts({ level: !!opts.level, daily: !!opts.daily })) { // in a level the Keepsake is a slot (logic/champions championBonus); #204: a trial has none
     const commons = g.player.relics.pool.filter((id) => relicDef(id).rarity === 'common');
     const [gift] = rollRelics(commons, g.player.relics.held, g.rng, 1);
     if (gift) addRelic(g, gift, 'start');
