@@ -1689,8 +1689,8 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
     const [foe, ...rest] = g.enemies.filter((e) => !e.dead);
     for (const e of rest) Object.assign(e, { x: p.x + 3000, y: p.y });
     if (foe && other) Object.assign(foe, { x: other.x, y: other.y, hp: 1e6, maxHp: 1e6 });
-    // halfway down: the slab's corner bracket and the ram are drawn
-    for (let i = 0; i < 1000 && zs[0].t < zs[0].delay * 0.8; i++) { lb.run(1, false, false); if (foe && other) Object.assign(foe, { x: other.x, y: other.y }); }
+    // hands off the keys: he stands still. Halfway down: the slab's corner bracket and the ram are drawn
+    for (let i = 0; i < 1000 && zs[0].t < zs[0].delay * 0.8; i++) { lb.run(1, false, 'input'); if (foe && other) Object.assign(foe, { x: other.x, y: other.y }); }
     g.shake = 0;
     lb.draw();
     const c = document.getElementById('game').getContext('2d'), cam = lb.camera();
@@ -1704,7 +1704,7 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
     // stand still: the ram lands
     const slams = sounds.slam;
     let onIt = false, hp = p.hp, foeHp = foe?.hp ?? 0; // as the ram lands: the tick the slabs go
-    for (let i = 0; i < 1000 && marked().length; i++) { onIt = onSlab(mine, p); hp = p.hp; foeHp = foe?.hp ?? 0; lb.run(1, false, false); if (foe && other && marked().length) Object.assign(foe, { x: other.x, y: other.y }); }
+    for (let i = 0; i < 1000 && marked().length; i++) { onIt = onSlab(mine, p); hp = p.hp; foeHp = foe?.hp ?? 0; lb.run(1, false, 'input'); if (foe && other && marked().length) Object.assign(foe, { x: other.x, y: other.y }); }
     return { found: true, realm: g.level?.realm, level: g.level?.level, arena: g.arena.id, n: zs.length, warned, onIt, hurt: hp - p.hp, foeHurt: foe && other ? foeHp - foe.hp : -1, slam: sounds.slam - slams,
       bracket, ram: ramOn.join() !== ramOff.join(), props: lb.props() };
   })()`);
