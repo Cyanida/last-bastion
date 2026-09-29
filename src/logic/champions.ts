@@ -154,15 +154,24 @@ export const fitLoadout = (classId: ClassId, ids: RelicId[], slots: number, fina
 
 // ---------- #197: the champion screen ----------
 
+/** #237: the realm run standing at `level` of `realm` on `tier` (its checkpoint), if the champion has one. */
+export const runAt = (c: Champion, realm: RealmId, level: number, tier: number): RealmRun | undefined => {
+  const run = c.runs[realm];
+  return run && run.level === level && run.tier === tier ? run : undefined;
+};
+
+/** #237: the level a realm goes on at on `tier`: its run's checkpoint, else the first level not cleared. */
+export const runLevel = (c: Champion, realm: RealmId, tier: number): number => (c.runs[realm]?.tier === tier ? c.runs[realm]!.level : nextLevel(c.world, realm, tier));
+
 /**
  * The level the champion screen's PLAY starts: the first realm (REALM_IDS order) open to the champion and not crowned on the tier it
- * would play, at its first level not cleared. Decided: with every open realm crowned, the last open one's last level (a replay).
+ * would play, at its first level not cleared (#237: or its realm run's checkpoint). Decided: with every open realm crowned, the last open one's last level (a replay).
  */
 export function nextStop(c: Champion, tier: number): { realm: RealmId; level: number; tier: number } {
   const open = REALM_IDS.filter((r) => championRealmOpen(c, r));
   const realm = open.find((r) => !isCrowned(c.world, r, roadTier(c.world, r, tier))) ?? open[open.length - 1];
   const t = roadTier(c.world, realm, tier);
-  return { realm, level: nextLevel(c.world, realm, t), tier: t };
+  return { realm, level: runLevel(c, realm, t), tier: t };
 }
 
 /**

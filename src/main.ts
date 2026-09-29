@@ -47,12 +47,13 @@ import { initTooltips } from './ui/tooltip';
 import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, showChampion, pickClass, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showCrownPick, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
-import { levelPanel, mapRealms, nextLevel, roadLevels, roadTier } from './logic/world';
+import { levelPanel, mapRealms, roadLevels, roadTier } from './logic/world';
 import { REALMS, WORLD, type LevelReward, type RealmId } from './config/world';
-import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, newChampion, nextStop, rarePickOptions, type Champion } from './logic/champions';
+import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, newChampion, nextStop, rarePickOptions, runAt, runLevel, type Champion } from './logic/champions';
+import { checkpoint, newRealmRun } from './logic/realmRun';
 import { TALENT_ROW_CAP } from './config/economy';
 import { talentsFor } from './config/talents';
-import type { LevelStart } from './systems/levels';
+import { takeCarry, type LevelStart } from './systems/levels';
 import { isCompactLayout, textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
@@ -216,10 +217,11 @@ function toRoad(realm: RealmId, level?: number, tier?: number): void {
   const id = pickedClass(save);
   const progress = champOf(id).world;
   const t = roadTier(progress, realm, tier ?? save.settings.tier);
-  const n = level ?? nextLevel(progress, realm, t);
+  const n = level ?? runLevel(champOf(id), realm, t); // #237: the realm run's checkpoint, else the first level not cleared
   const bonus = championBonus(save.meta, save.classes[id].xp);
   const panel = levelPanel(progress, realm, n, t, bonus);
-  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champOf(id).name, road: roadLevels(progress, realm, t), panel, fell: fellAt(id, realm, n, t) }, {
+  const carry = runAt(champOf(id), realm, n, t)?.carry;
+  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champOf(id).name, road: roadLevels(progress, realm, t), panel, fell: fellAt(id, realm, n, t), run: carry && { level: carry.level, relics: carry.relics.held.length } }, {
     level: (next) => toRoad(realm, next, t),
     tier: (next) => toRoad(realm, undefined, next),
     fight: () => panel.open && playLevel(id, realm, n, t),
@@ -233,21 +235,24 @@ const champOf = (id: ClassId): Champion => save.champions[id] ?? newChampion(id)
 const setChampion = (id: ClassId, c: Champion) => commit({ ...save, champions: { ...save.champions, [id]: c } });
 
 /**
- * #197: a level lost this session: rule 3's restart plays it again on the same seed, so the same opening offers. Decided: kept in memory,
- * not in the save (its format belongs to the release), so a reload plays a fresh seed.
+ * #197: a level lost this session, for the wave it fell at. #237: its restart comes from the realm run's checkpoint in the save (the same
+ * seed and the state it entered with), so it survives a reload.
  */
-let fall: { classId: ClassId; realm: RealmId; level: number; tier: number; seed: number; wave: number } | null = null;
+let fall: { classId: ClassId; realm: RealmId; level: number; tier: number; wave: number } | null = null;
 const fellAt = (id: ClassId, realm: RealmId, level: number, tier: number): number | null =>
   fall && fall.classId === id && fall.realm === realm && fall.level === level && fall.tier === tier ? fall.wave : null;
 
 /**
  * #197: a realm level with the champion's saved loadout for the realm (the level fits it to its slots) and its talent plan: the one way a
- * level starts. A level lost this session (fall) plays again on the same seed until it is cleared (#200); a cleared one plays a fresh seed.
+ * level starts. #237: a realm is one run. The level its run stands at goes on from that checkpoint (a death plays it again from there, on
+ * the same seed); any other level starts the realm's run afresh there, replacing the one in progress (#242 asks first). Decided: until
+ * #242's Continue / Start over, a fresh start past level 1 (a save from before v0.11, a replay) keeps the head start.
  */
 function playLevel(id: ClassId, realm: RealmId, level: number, tier: number): void {
   const champ = champOf(id);
-  const seed = fellAt(id, realm, level, tier) !== null ? fall!.seed : undefined;
-  startRun(id, { seed, tier, level: { realm, level, relics: champ.loadouts[realm] ?? [], talentPlan: champ.talentPlan } });
+  const run = runAt(champ, realm, level, tier) ?? { ...newRealmRun(tier, Date.now() >>> 0), level };
+  if (champ.runs[realm] !== run) setChampion(id, { ...champ, runs: { ...champ.runs, [realm]: run } });
+  startRun(id, { seed: run.seed, tier, level: { realm, level, relics: champ.loadouts[realm] ?? [], talentPlan: champ.talentPlan, carry: run.carry } });
 }
 
 /**
@@ -679,8 +684,15 @@ function endRun(g: Game): void {
   showHud(false); // the run is over: at a phone's height a HUD left up pushes the results and a level's rare pick below the fold
   startMenuMusic();
   // #197: a level lost is remembered for its restart; one cleared forgets it
-  if (g.level) fall = g.level.cleared ? null : { classId: g.player.cls.id, realm: g.level.realm, level: g.level.level, tier: g.tierIndex, seed: g.seed, wave: Math.max(1, g.wave) }; // lost in the lull before wave 1 counts as wave 1
+  if (g.level) fall = g.level.cleared ? null : { classId: g.player.cls.id, realm: g.level.realm, level: g.level.level, tier: g.tierIndex, wave: Math.max(1, g.wave) }; // lost in the lull before wave 1 counts as wave 1
   const r = runResult(g, true);
+  // #237: a cleared level is the realm run's checkpoint: the next level goes on from the run as it stands (the last one ends the run)
+  const run = g.level?.cleared ? runAt(champOf(g.player.cls.id), g.level.realm, g.level.level, g.tierIndex) : null;
+  if (run && run.seed === g.seed) {
+    const c = champOf(g.player.cls.id), { [g.level!.realm]: _done, ...rest } = c.runs;
+    const next = checkpoint(run, g.level!.realm, takeCarry(g), Date.now() >>> 0);
+    setChampion(g.player.cls.id, { ...c, runs: next ? { ...rest, [g.level!.realm]: next } : rest });
+  }
   const lv = g.level, tier = g.tierIndex;
   // a cleared level goes back to the realm road; a lost one to the champion screen on that level, whose RESTART plays its seed again
   const home = lv ? (lv.cleared ? () => toRoad(lv.realm) : () => toChampion({ realm: lv.realm, level: lv.level, tier })) : toTitle; // #204: a Daily Trial goes home

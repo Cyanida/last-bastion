@@ -201,11 +201,12 @@ const TIER_CROWNS = ['crown-squire', 'crown-knight', 'crown-champion', 'crown-le
 
 /**
  * #199: the realm road, the realm's part of the painted map with a flag per level (a lock on one not open yet, the crown of the highest
- * tier it is cleared on), and the level panel for the picked flag: tier crowns, head start, slots, enemy HP, the featured family and
+ * tier it is cleared on), and the level panel for the picked flag: tier crowns, head start and slots (#237: or the realm run's level and
+ * relics kept, when it goes on from a checkpoint), enemy HP, the featured family and
  * foes, the end boss, what a first clear pays, and FIGHT, the screen's one gold button.
  */
 export function showRealmRoad(
-  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null },
+  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null; run?: { level: number; relics: number } | null },
   on: { level: (n: number) => void; tier: (t: number) => void; fight: () => void; loadout: () => void; back: () => void },
 ): void {
   const { realm, panel: pn } = info;
@@ -224,7 +225,7 @@ export function showRealmRoad(
         <div class="rr-top">${kit.ribbon(esc(pn.name), { cls: 'rr-name' })}<div class="rr-tiers">${pn.tiers.map(tier).join('')}</div></div>
         <div class="rr-body">
           <div class="rr-facts">
-            ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${fact('Head start', `Level ${pn.headStart}`)}${fact('Slots', pn.slots)}${fact('Enemy HP', `${pn.enemyHp}%`)}
+            ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${info.run ? `${fact('Run level', `Level ${info.run.level}`)}${fact('Relics kept', info.run.relics)}` : `${fact('Head start', `Level ${pn.headStart}`)}${fact('Slots', pn.slots)}`}${fact('Enemy HP', `${pn.enemyHp}%`)}
           </div>
           <div class="rr-foes">
             ${pn.family ? `<p>${kit.icon(pn.family)} <b>${FAMILIES[pn.family].name}</b> relics featured</p>` : ''}

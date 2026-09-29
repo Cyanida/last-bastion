@@ -74,12 +74,12 @@ describe('realm runs: checkpoints and the carry (#237)', () => {
     expect(applyRun(defaultSave(), s).classXp).toBeGreaterThanOrEqual(0);
   });
 
-  it('save v8: a v7 save loads with no realm run in progress; a stored run that could not go on is dropped', () => {
+  it('save v8: a v7 save loads with no realm run in progress; a stored run is read back to what it can hold', () => {
     const v7 = oldSave('v0.10.0');
     const s = migrate(v7);
     expect(Object.keys(s.champions).length).toBeGreaterThan(0);
     for (const c of Object.values(s.champions)) expect(c!.runs).toEqual({});
-    expect(readRealmRun({ level: 3, tier: 1, seed: 4 }, 'marches')).toBeNull(); // a later level with no carry
+    expect(readRealmRun({ level: 3, tier: 1, seed: 4, carry: 'x' }, 'marches')).toEqual({ level: 3, tier: 1, seed: 4, carry: null }); // a fresh start there
     expect(readRealmRun({ level: 9, tier: 1, seed: 4 }, 'marches')).toBeNull();
     expect(readRealmRun({ level: 1, tier: 1, seed: 4 }, 'marches')).toEqual({ level: 1, tier: 1, seed: 4, carry: null });
     const bad = checkpoint(newRealmRun(1, 1), 'marches', takeCarry(level1()), 3)!;

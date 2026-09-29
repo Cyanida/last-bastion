@@ -4228,7 +4228,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 // slain", then the champion screen says where it fell, and RESTART plays level 2 again on the same seed, which the bot clears. Levels
 // 3-7 each go road -> Loadout (every relic won slotted; the level's own slots are live, the rest idle) -> PLAY, holding the live ones,
 // played out to the level's last wave and its rare; level 7's crown Warden falls and the crown's gold card (Enter) gives the signature.
-await check('journey: a new champion, its loadout slots, the map, the realm road, level 1 cleared, a fall in level 2 and its restart, levels 3-7 and the Marches crown pick, click and keys at 1280x720 (#208)', async () => {
+await check('journey: a new champion, its loadout slots, the map, the realm road, level 1 cleared, its relics kept into level 2 after a reload, a fall in level 2 and its restart from the checkpoint, levels 3-7 carrying the run, and the Marches crown pick, click and keys at 1280x720 (#208, #237)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const errs = [];
   p.on('pageerror', (e) => errs.push(e.message));
@@ -4254,7 +4254,7 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
       }
       lb.run(1, false, !fall);
     }
-    return { held, state: lb.state, cleared: !!g.level?.cleared, over: g.over, wave: g.wave, last: g.level?.last, level: g.level?.level, seed: g.seed };
+    return { held, end: [...g.player.relics.held], state: lb.state, cleared: !!g.level?.cleared, over: g.over, wave: g.wave, last: g.level?.last, level: g.level?.level, seed: g.seed, gold: g.gold, plevel: g.player.level };
   }, fall);
   const opening = async () => { // the level's opening pick
     await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
@@ -4295,11 +4295,19 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   const won = (await screen()).champ;
   want(won.inventory.length === 1 && won.world.marches?.[0] === 1, `after level 1 ${JSON.stringify(won)}`);
   log.push(`map ${open} -> "${road1}" -> cleared waves 1-${one.wave}, took a ${steel.fams[0]} rare`);
-  // back on the road at level 2; Loadout slots the rare, PLAY
-  await press('[data-menu]');
+  // #237: level 1 cleared is the realm run's checkpoint, in the save: after a reload the road goes on at level 2 with level 1's relics kept
+  const kept = await p.evaluate(() => window.__lb.save.champions.viking?.runs?.marches ?? null);
+  want(kept?.level === 2 && kept.carry?.relics.held.join() === one.end.join() && kept.carry.level === one.plevel && kept.carry.gold === one.gold, `checkpoint ${JSON.stringify(kept && { level: kept.level, held: kept.carry?.relics.held })} after level 1 held ${one.end.join()}`);
+  await p.reload();
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await press('[data-go="map"]');
+  await press('.wm-realm.r-marches');
   await p.locator('.rr-panel').waitFor({ timeout: 3000 });
   const road2 = (await p.locator('.rr-name').textContent()).trim();
-  want(road2 === 'The Marches · Level 2', `road after level 1 "${road2}"`);
+  const facts2 = await p.evaluate(() => document.querySelector('.rr-facts').textContent.replace(/\s+/g, ' ').trim());
+  want(road2 === 'The Marches · Level 2' && facts2.includes(`Relics kept ${one.end.length}`) && facts2.includes(`Run level Level ${one.plevel}`) && !/Head start/.test(facts2), `road after level 1 and a reload "${road2}" (${facts2})`);
+  log.push(`reloaded: "${road2}", ${facts2}`);
+  // Loadout slots the rare (it goes in at level 1 only), PLAY
   await press('[data-loadout]');
   await p.locator('.champion-screen').waitFor({ timeout: 3000 });
   const bare = await screen();
@@ -4310,7 +4318,7 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   await opening();
   // the fall: at 1 HP and standing still, the first blow that lands ends it
   const fell = await playOut(true);
-  want(fell.over && fell.level === 2 && fell.state === 'results' && fell.held[0] === won.inventory[0], `the fall ${JSON.stringify(fell)}`);
+  want(fell.over && fell.level === 2 && fell.state === 'results' && fell.held.slice(0, one.end.length).join() === one.end.join() && !fell.held.includes(won.inventory[0]), `the fall ${JSON.stringify(fell)}: level 1 held ${one.end.join()}`);
   await p.locator('.results [data-retry]').waitFor({ timeout: 3000 });
   const slain = await p.evaluate(() => ({ head: document.querySelector('.results .kit-head').textContent.trim(), retry: document.querySelector('[data-retry]').textContent.trim() }));
   want(slain.head === 'Thou art slain' && slain.retry === 'Quick restart · The Marches · Level 2', `results ${JSON.stringify(slain)}`);
@@ -4321,11 +4329,12 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   await press('[data-play]');
   await opening();
   const again = await playOut(false);
-  want(again.level === 2 && again.seed === fell.seed && again.cleared && again.wave === again.last, `restart ${JSON.stringify(again)}`);
-  log.push(`level 2 with ${fell.held[0]}: "${slain.head}" at wave ${fell.wave}, "${after.next}" -> ${after.play} on the ${again.seed === fell.seed ? 'same' : 'OTHER'} seed, cleared`);
+  want(again.level === 2 && again.seed === fell.seed && again.held.join() === fell.held.join() && again.cleared && again.wave === again.last, `restart ${JSON.stringify(again)}`);
+  log.push(`level 2 holding level 1's ${one.end.join()}: "${slain.head}" at wave ${fell.wave}, "${after.next}" -> ${after.play} on the ${again.seed === fell.seed ? 'same' : 'OTHER'} seed with the same relics, cleared`);
   await rarePick(2);
   // levels 3-7 by the road, every relic won in the loadout
   const base = [1, 1, 2, 2, 3, 3, 4];
+  let before = again.end; // #237: each level goes on holding what the level before ended with
   for (let n = 3; n <= 7; n++) {
     await p.locator('[data-menu]').waitFor({ timeout: 3000 });
     await press('[data-menu]');
@@ -4344,7 +4353,8 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
     await press('[data-play]');
     await opening();
     const run = await playOut(false);
-    want(run.level === n && run.cleared && run.wave === run.last && run.held.slice(0, live).join() === loadout.slice(0, live).join(), `level ${n} ${JSON.stringify(run)}`);
+    want(run.level === n && run.cleared && run.wave === run.last && run.held.slice(0, before.length).join() === before.join(), `level ${n} ${JSON.stringify(run)}: held before ${before.join()}`);
+    before = run.end;
     log.push(`L${n} ${lo.slots} held ${run.held.length}`);
     await rarePick(n);
   }
@@ -4358,7 +4368,7 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   await p.locator('[data-menu]').waitFor({ timeout: 3000 });
   const end = (await screen()).champ;
   await p.close();
-  want(/The Marches crowned/.test(crown.head) && crown.cards === 1 && crown.name === "Jarl's Torc" && crown.gold && end.signature && end.inventory.includes('jarlsTorc') && end.world.marches[0] === 7, `crown ${JSON.stringify(crown)}, champion ${JSON.stringify(end)}`);
+  want(/The Marches crowned/.test(crown.head) && crown.cards === 1 && crown.name === "Jarl's Torc" && crown.gold && end.signature && end.inventory.includes('jarlsTorc') && end.world.marches[0] === 7 && !end.runs.marches, `crown ${JSON.stringify(crown)}, champion ${JSON.stringify(end)}`); // #237: the last level ends the run
   want(errs.length === 0, `errors: ${errs[0]}`);
   log.push(`"${crown.head}": ${crown.name}${crown.gold ? ' (gold)' : ''}, ${end.inventory.length} relics, signature ${end.signature}`);
   return { ok: bad.length === 0, detail: `${log.join('; ')}${bad.length ? `; WRONG: ${bad.join(' | ')}` : ''}` };
