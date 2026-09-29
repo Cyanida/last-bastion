@@ -48,7 +48,7 @@ import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSe
 import { crashReport } from './logic/crash';
 import { levelPanel, mapRealms, nextLevel, roadLevels, roadTier, saveWorldProgress } from './logic/world';
 import { REALMS, type RealmId } from './config/world';
-import { championBonus } from './logic/champions';
+import { championBonus, freshRelics } from './logic/champions';
 import type { LevelStart } from './systems/levels';
 import { isCompactLayout, textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
@@ -383,6 +383,8 @@ function startRun(id: ClassId, opts: { seed?: number; daily?: DailySetup; test?:
     arena: d ? d.arena : save.settings.arena,
     tier: d ? 0 : opts.tier ?? save.settings.tier,
     level: opts.level, // #199: a realm level from the road
+    inventory: opts.level ? save.champions[id]?.inventory : undefined, // #194: a level's pool follows the champion
+    fresh: opts.level && save.champions[id] ? freshRelics(save.champions[id]!, save.relicPicks) : undefined,
     meta: save.meta,
     classXp: save.classes[id].xp,
     curses: d ? d.curses : save.settings.curses.filter((c) => unlockedCurses(save).includes(c)),
