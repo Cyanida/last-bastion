@@ -33,15 +33,15 @@ function golden({ cls, seed, level, variant = 0 }: GoldenLevel): string {
   return `${r.cleared ? 'cleared' : 'fell'} wave ${s.wavesCleared} kills ${s.kills} level ${s.level} loadout ${r.loadout.join('+') || '-'} relics ${s.relicsFound?.length ?? 0} hash ${fnv(JSON.stringify(s))}`;
 }
 
-// recorded on release/0.10.0 after #200; no fresh bot clears Marches level 7 on Knight yet (plan rule 9's tuning comes later), so its runs
-// pin the head start, the loadout and the fight up to the fall
+// re-recorded for #221 (rule 9's tuning: the level step on enemies, epic head-start boons from level 11; gameplay changed on purpose);
+// these seeds still fall on Marches level 7 on Knight, so its runs pin the head start, the loadout and the fight up to the fall
 const GOLDEN: Record<string, string> = {
-  'marches 1 paladin:1': 'cleared wave 5 kills 105 level 6 loadout - relics 3 hash 3be46872',
-  'marches 1 archer:2': 'cleared wave 5 kills 105 level 5 loadout - relics 3 hash 39df3efd',
-  'marches 1 angel:4 variant 1': 'cleared wave 5 kills 106 level 6 loadout - relics 3 hash b25051e8',
-  'marches 7 paladin:1': 'fell wave 32 kills 257 level 24 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash ed61f5ec',
-  'marches 7 angel:1': 'fell wave 33 kills 412 level 25 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash 7aa2e40a',
-  'marches 7 viking:2 variant 1': 'fell wave 34 kills 474 level 25 loadout tempestEye+anvilHeart+salamanderScale+berserkerTooth relics 5 hash 987dccdc',
+  'marches 1 paladin:1': 'cleared wave 5 kills 105 level 6 loadout - relics 3 hash e0a2f123',
+  'marches 1 archer:2': 'cleared wave 5 kills 105 level 5 loadout - relics 2 hash 73a0765c',
+  'marches 1 angel:4 variant 1': 'cleared wave 5 kills 108 level 6 loadout - relics 4 hash d3f461f',
+  'marches 7 paladin:1': 'fell wave 32 kills 254 level 24 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash e1d5adef',
+  'marches 7 angel:1': 'fell wave 31 kills 221 level 24 loadout salamanderScale+anvilHeart+berserkerTooth+tempestEye relics 5 hash ca941fbf',
+  'marches 7 viking:2 variant 1': 'fell wave 30 kills 90 level 24 loadout tempestEye+anvilHeart+salamanderScale+berserkerTooth relics 5 hash 963f0a60',
 };
 
 describe('v0.10 golden level runs (#207)', () => {
