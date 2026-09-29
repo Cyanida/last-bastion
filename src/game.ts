@@ -171,6 +171,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     hazardT: HAZARD_GRACE,
     pressT: PRESSES.grace,
     presses: 0,
+    lavaT: 0,
     seed,
     squads: [],
     squadPlans: [],

@@ -59,6 +59,16 @@ export const THEMES: Record<ArenaId, Theme> = {
     lead: 'horn',
     boss: { midi: 43, hits: [[0, 1], [1, 0.6], [2, 0.8], [3, 0.6], [3.5, 0.5]] },
   },
+  // #223: the Ember Forge, until the Cinderlands' own theme: the keep's march in a Phrygian minor, a hammer on the anvil for the drum
+  emberForge: {
+    name: 'The Ember Forge', root: 4, mode: PHRYGIAN, bpm: 80, meter: 4,
+    chords: [0, 1, 3, 0, 5, 1, 6, 0], // i bII iv i | VI bII vii i
+    drone: 'drone', pad: 'horn',
+    pulse: { voice: 'bell', steps: [0, null, null, 2, null, null, 1, null] }, // the anvil's ring
+    perc: { midi: 43, hits: [[0, 0.8], [0.5, 0.3], [2, 0.7], [2.5, 0.3]] }, // hammer blows in pairs
+    lead: 'horn',
+    boss: { midi: 40, hits: [[0, 1], [0.5, 0.5], [1, 0.7], [2, 0.9], [2.5, 0.5], [3, 0.7]] },
+  },
   bastion: {
     name: 'The Last Bastion', root: 2, mode: MINOR, bpm: 92, meter: 4,
     chords: [0, 5, 3, 4, 0, 5, 6, 4], // i VI iv v | i VI VII v: never quite comes home
