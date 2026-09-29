@@ -693,6 +693,7 @@ function endRun(g: Game): void {
   if (isTestRun(g)) return toTestMode(); // v0.7.1: a test run leaves no trace and goes back to where it was set up
   state = 'results';
   setTouchControls(false);
+  showHud(false); // the run is over: at a phone's height a HUD left up pushes the results and a level's rare pick below the fold
   startMenuMusic();
   // #197: a level lost is remembered for its restart; one cleared forgets it
   if (g.level) fall = g.level.cleared ? null : { classId: g.player.cls.id, realm: g.level.realm, level: g.level.level, tier: g.tierIndex, seed: g.seed, wave: Math.max(1, g.wave) }; // lost in the lull before wave 1 counts as wave 1
