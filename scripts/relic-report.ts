@@ -3,6 +3,7 @@
  * parallel and merges them; by hand:
  *
  *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json>     maxed saves, the family-following bot, a win stops the run
+ *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json> signature     ...every run holding the class's signature relic (#201)
  *   npx vite-node scripts/relic-report.ts merge <out.json> ...                the tables
  *
  * Targets (the v0.7 brief): every relic 3-35% of what it does in the builds that hold it; a 6-set in about 15% of winning runs (#96, was a third); 1-2 duos
@@ -11,24 +12,24 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { CLASS_ORDER, type ClassId } from '../src/config/classes';
 import { MASTERY, META, META_IDS } from '../src/config/economy';
-import { DUO_IDS, FAMILIES, FAMILY_IDS, isDuo, isFamily, keyName, RELIC_IDS, relicDef, type FamilyId, type RelicKey } from '../src/config/relics';
+import { DUO_IDS, FAMILIES, FAMILY_IDS, isDuo, isFamily, keyName, RELIC_IDS, relicDef, SIGNATURE, type FamilyId, type RelicKey } from '../src/config/relics';
 import type { Game, RelicStat } from '../src/core/types';
 import { createGame, type RunOptions } from '../src/game';
 import { familySets } from '../src/logic/relics';
 import { botStep } from '../src/sim/bot';
 
-interface Snap { stats: Record<string, RelicStat>; dealt: number; healed: number; taken: number; prevented: number }
+interface Snap { stats: Record<string, RelicStat>; frozen: Record<string, number>; dealt: number; healed: number; taken: number; prevented: number }
 interface RunRow {
   classId: ClassId; won: boolean; wave: number; held: number; duos: number; awakened: number; moments: Record<string, number>;
   levels: Partial<Record<FamilyId, number>>; // set level per family at the end
   sixes: FamilyId[]; // 6-sets at the end (v0.7.5: always 6 relics of the family; a duo adds no count)
   power: number | null; // relics' share of the damage dealt in waves 11-20
   power3: number | null; // ...and in waves 21-30, with the build complete
-  late: { shares: Record<string, number>; waves: number } | null; // each relic held at wave 20: its share (best of damage, healing, mitigation) from wave 21 on
+  late: { shares: Record<string, number>; waves: number } | null; // each relic held at wave 20: its share (best of damage, healing, mitigation) from wave 21 on; its damage counts what lands while its freeze holds (#196)
   bosses?: [string, number][]; // v0.7.5 (#95): each boss killed and how long it lived, in seconds
 }
 
-const snap = (g: Game): Snap => ({ stats: JSON.parse(JSON.stringify(g.player.relics.stats)), dealt: g.vars.dealt ?? 0, healed: g.vars.healed ?? 0, taken: g.vars.taken ?? 0, prevented: g.vars.prevented ?? 0 });
+const snap = (g: Game): Snap => ({ stats: JSON.parse(JSON.stringify(g.player.relics.stats)), frozen: Object.fromEntries(Object.entries(g.vars).filter(([k]) => k.startsWith('frozenHit.')).map(([k, v]) => [k.slice(10), v])), dealt: g.vars.dealt ?? 0, healed: g.vars.healed ?? 0, taken: g.vars.taken ?? 0, prevented: g.vars.prevented ?? 0 });
 const diff = (a: Snap, b: Snap, id: string) => {
   const s = b.stats[id] ?? { damage: 0, healing: 0, prevented: 0 };
   const t = a.stats[id] ?? { damage: 0, healing: 0, prevented: 0 };
@@ -69,7 +70,7 @@ function play(classId: ClassId, seed: number, opts: RunOptions, variant: number)
     const dealt = Math.max(1, end.dealt - at20.dealt);
     const healed = Math.max(1, end.healed - at20.healed);
     const hits = Math.max(1, end.taken - at20.taken + end.prevented - at20.prevented);
-    late = { shares: Object.fromEntries(heldAt20.map((id) => { const d = diff(at20!, end, id); return [id, Math.max(d.damage / dealt, d.healing / healed, d.prevented / hits)]; })), waves: g.wavesCleared - 20 };
+    late = { shares: Object.fromEntries(heldAt20.map((id) => { const d = diff(at20!, end, id); const held = (end.frozen[id] ?? 0) - (at20!.frozen[id] ?? 0); return [id, Math.max((d.damage + held) / dealt, d.healing / healed, d.prevented / hits)]; })), waves: g.wavesCleared - 20 };
   }
   const sets = familySets(r.held);
   return {
@@ -84,9 +85,9 @@ function play(classId: ClassId, seed: number, opts: RunOptions, variant: number)
 
 const [cmd, ...args] = process.argv.slice(2);
 if (cmd === 'run') {
-  const [classId, runsArg, out] = args as [ClassId, string, string];
+  const [classId, runsArg, out, extra] = args as [ClassId, string, string, string?];
   const maxed = Object.fromEntries(META_IDS.map((id) => [id, META[id].max]));
-  const opts: RunOptions = { tier: 0, arena: 'courtyard', meta: maxed, classXp: MASTERY[MASTERY.length - 1].xp, treasure: 3 };
+  const opts: RunOptions = { tier: 0, arena: 'courtyard', meta: maxed, classXp: MASTERY[MASTERY.length - 1].xp, treasure: 3, relics: extra === 'signature' ? [SIGNATURE.relic[classId]] : undefined };
   const rows = Array.from({ length: Number(runsArg) }, (_, i) => play(classId, 1000 + i * 7919, opts, i % 2));
   writeFileSync(out, JSON.stringify(rows));
   console.log(`${classId}: ${rows.length} runs, ${rows.filter((r) => r.won).length} won`);
@@ -140,7 +141,7 @@ Relic moments a winning run met: ${avg(won.map((r) => Object.values(r.moments).r
     const held = late.filter((r) => id in r.late!.shares);
     return { id, n: held.length, share: avg(held.map((r) => r.late!.shares[id])) };
   }).filter((t) => t.n > 0).sort((a, b) => b.share - a.share);
-  for (const t of table) console.log(`| ${keyName(t.id)} | ${isDuo(t.id) ? 'duo' : isFamily(t.id) ? 'set bonuses' : (relicDef(t.id).family ? FAMILIES[relicDef(t.id).family!].name : 'cursed')} | ${t.n} | ${pct(t.share)} | ${isFamily(t.id) ? '' : t.share < 0.03 ? '**under 3%**' : t.share > 0.35 ? '**over 35%**' : ''} |`);
+  for (const t of table) console.log(`| ${keyName(t.id)} | ${isDuo(t.id) ? 'duo' : isFamily(t.id) ? 'set bonuses' : (relicDef(t.id).family ? FAMILIES[relicDef(t.id).family!].name : relicDef(t.id).signature ? 'signature' : 'cursed')} | ${t.n} | ${pct(t.share)} | ${isFamily(t.id) ? '' : t.share < 0.03 ? '**under 3%**' : t.share > 0.35 ? '**over 35%**' : ''} |`);
   const unseen = keys.filter((id) => !isFamily(id) && !table.some((t) => t.id === id));
   if (unseen.length) console.log(`\nNot held at wave 20 in any run: ${unseen.map(keyName).join(', ')}.`);
 }

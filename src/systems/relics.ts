@@ -17,13 +17,14 @@ import { STEEL_RELICS, STEEL_SETS } from './relicFamilies/steel';
 import { STORM_RELICS, STORM_SETS } from './relicFamilies/storm';
 import { DUO_HOOKS } from './relicFamilies/duos';
 import { CURSED_RELICS } from './relicFamilies/cursed';
+import { SIGNATURE_RELICS } from './relicFamilies/signature';
 
 /**
  * v0.7 relic engine (RELICS.md): relic moments and offers, per-relic contribution, and the dispatch of every held relic's hooks and every
  * reached set bonus. The behaviour of each relic and set lives in systems/relicFamilies/<family>.ts; the shared mechanics in relicCore.ts.
  * Hooks run inside one another's damage (a relic reacting to a relic): the chain stops at RELIC_STACKING.procDepth.
  */
-export const HOOKS: Partial<Record<RelicId, RelicHooks>> = { ...FLAME_RELICS, ...FROST_RELICS, ...STORM_RELICS, ...BLOOD_RELICS, ...HOLY_RELICS, ...GRAVE_RELICS, ...STEEL_RELICS, ...CURSED_RELICS };
+export const HOOKS: Partial<Record<RelicId, RelicHooks>> = { ...FLAME_RELICS, ...FROST_RELICS, ...STORM_RELICS, ...BLOOD_RELICS, ...HOLY_RELICS, ...GRAVE_RELICS, ...STEEL_RELICS, ...CURSED_RELICS, ...SIGNATURE_RELICS };
 const SETS: Record<FamilyId, Partial<Record<SetLevel, RelicHooks>>> = { flame: FLAME_SETS, frost: FROST_SETS, storm: STORM_SETS, blood: BLOOD_SETS, holy: HOLY_SETS, grave: GRAVE_SETS, steel: STEEL_SETS };
 
 /** Calls one hook of a relic or a set, telling it whose it is. */

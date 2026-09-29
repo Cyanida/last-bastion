@@ -44,11 +44,13 @@ import { abilityAimRadius } from './systems/abilities';
 import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, showChampion, pickClass, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
-import { levelPanel, mapRealms, nextLevel, roadLevels, roadTier, saveWorldProgress } from './logic/world';
+import { levelPanel, mapRealms, nextLevel, roadLevels, roadTier } from './logic/world';
 import { REALMS, WORLD, type LevelReward, type RealmId } from './config/world';
-import { championBonus, championSlots, freshRelics, grantRelic, rarePickOptions } from './logic/champions';
+import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, newChampion, nextStop, rarePickOptions, type Champion } from './logic/champions';
+import { TALENT_ROW_CAP } from './config/economy';
+import { talentsFor } from './config/talents';
 import type { LevelStart } from './systems/levels';
 import { isCompactLayout, textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
@@ -57,7 +59,7 @@ import { RELIC_MOMENTS, TIER_NUMERALS } from './config/relics';
 import { BOOK_IDS } from './config/acts';
 import { looseRelics } from './logic/relics';
 import { TRAITS } from './config/traits';
-import { CLASS_ORDER, CLASSES } from './config/classes';
+import { CLASS_ORDER } from './config/classes';
 import { MASTERY } from './config/economy';
 import { markBored } from './systems/runlog';
 import { buildState } from './systems/evolutions';
@@ -131,7 +133,7 @@ function toTitle(): void {
   onTitle = true;
   showTitle(
     { gold: save.gold, runes: save.runes, label: `V${platform.version.replace(/\.\d+$/, (p) => (p === '.0' ? '' : p))} · ${platform.name}`, mobile: platform.touch, buildDate: `${platform.buildDate} · v${platform.version}`, notice, daily: { date: todayString(new Date()), best: save.daily[todayString(new Date())] ?? 0 }, title: save.title, contracts: titleContracts(), whatsNew: platform.whatsNew !== null },
-    { start: toSelect, map: toMap, daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings, whatsNew: toWhatsNew },
+    { start: toSelect, champion: () => toChampion(), map: () => toMap(toTitle), daily: toDaily, keep: toKeep, chronicle: () => toChronicle(toTitle), settings: toSettings, whatsNew: toWhatsNew },
   );
 }
 
@@ -217,39 +219,95 @@ function toSelect(): void {
   });
 }
 
-/** #198: the world map; an open realm opens its road. */
-function toMap(): void {
+/** #198: the world map, for the picked champion's progress; an open realm opens its road. #197: Back goes where the map was opened from. */
+let mapBack: () => void = toTitle;
+function toMap(back = mapBack): void {
   menu();
-  showWorldMap(mapRealms(saveWorldProgress(save)), { realm: (id) => toRoad(id), back: toTitle });
+  mapBack = back;
+  showWorldMap(mapRealms(champOf(pickedClass(save)).world), { realm: (id) => toRoad(id), back });
 }
 
 /**
- * #199: the realm road and its level panel, for the class picked on the champion select (the champion screen, #197, takes this over).
- * FIGHT starts the level through the level runner with the champion's loadout for the realm and its talent plan, on the picked tier.
+ * #199: the realm road and its level panel, for the picked champion. FIGHT starts the level through the level runner with the champion's
+ * loadout for the realm and its talent plan, on the picked tier; #197: Loadout opens the champion screen on this level.
  */
 function toRoad(realm: RealmId, level?: number, tier?: number): void {
   menu();
   const id = pickedClass(save);
-  const champ = save.champions[id];
-  const progress = champ?.world ?? {};
+  const progress = champOf(id).world;
   const t = roadTier(progress, realm, tier ?? save.settings.tier);
   const n = level ?? nextLevel(progress, realm, t);
   const bonus = championBonus(save.meta, save.classes[id].xp);
   const panel = levelPanel(progress, realm, n, t, bonus);
-  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champ?.name ?? CLASSES[id].name, road: roadLevels(progress, realm, t), panel }, {
+  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champOf(id).name, road: roadLevels(progress, realm, t), panel, fell: fellAt(id, realm, n, t) }, {
     level: (next) => toRoad(realm, next, t),
     tier: (next) => toRoad(realm, undefined, next),
-    fight: () => panel.open && startLevel(id, realm, n, t),
-    back: toMap,
+    fight: () => panel.open && playLevel(id, realm, n, t),
+    loadout: () => toChampion({ realm, level: n, tier: t }),
+    back: () => toMap(),
   });
 }
 
-/** A realm level for `id`'s champion: its loadout for the realm cut to the level's slots, and its talent plan. */
-function startLevel(id: ClassId, realm: RealmId, level: number, tier: number, seed?: number): void {
-  const champ = save.champions[id];
-  const slots = championSlots(save.meta, save.classes[id].xp, realm, level);
-  startRun(id, { tier, seed, level: { realm, level, relics: (champ?.loadouts[realm] ?? []).slice(0, slots), talentPlan: champ?.talentPlan } });
+/** #197: a class's champion; one never played gets a fresh one (saved once its screen opens). */
+const champOf = (id: ClassId): Champion => save.champions[id] ?? newChampion(id);
+const setChampion = (id: ClassId, c: Champion) => commit({ ...save, champions: { ...save.champions, [id]: c } });
+
+/**
+ * #197: a level lost this session: rule 3's restart plays it again on the same seed, so the same opening offers. Decided: kept in memory,
+ * not in the save (its format belongs to the release), so a reload plays a fresh seed.
+ */
+let fall: { classId: ClassId; realm: RealmId; level: number; tier: number; seed: number; wave: number } | null = null;
+const fellAt = (id: ClassId, realm: RealmId, level: number, tier: number): number | null =>
+  fall && fall.classId === id && fall.realm === realm && fall.level === level && fall.tier === tier ? fall.wave : null;
+
+/**
+ * #197: a realm level with the champion's saved loadout for the realm (the level fits it to its slots) and its talent plan: the one way a
+ * level starts. A level lost this session (fall) plays again on the same seed until it is cleared (#200); a cleared one plays a fresh seed.
+ */
+function playLevel(id: ClassId, realm: RealmId, level: number, tier: number): void {
+  const champ = champOf(id);
+  const seed = fellAt(id, realm, level, tier) !== null ? fall!.seed : undefined;
+  startRun(id, { seed, tier, level: { realm, level, relics: champ.loadouts[realm] ?? [], talentPlan: champ.talentPlan } });
 }
+
+/**
+ * #197: the champion screen: the picked champion on its pedestal, the loadout for the level it plays next (`at`: a level from the road's
+ * Loadout button), the inventory, the talent plan, PLAY, and the main tabs.
+ */
+function toChampion(at?: { realm: RealmId; level: number; tier: number }): void {
+  menu();
+  const id = pickedClass(save);
+  if (!save.champions[id]) setChampion(id, newChampion(id)); // made the first time its screen opens
+  const champ = champOf(id);
+  const { realm, level, tier } = at ?? nextStop(champ, save.settings.tier);
+  const finale = realm === 'lastBastion';
+  const loadout = champ.loadouts[realm] ?? [];
+  const again = () => toChampion(at);
+  const saveLoadout = (ids: typeof loadout) => {
+    setChampion(id, { ...champOf(id), loadouts: { ...champOf(id).loadouts, [realm]: fitLoadout(id, ids, WORLD.maxSlots, finale) } });
+    again();
+  };
+  showChampion({
+    classId: id, name: champ.name, palette: save.settings.palettes[id] ?? 0, gold: save.gold, runes: save.runes, realm, realmName: REALMS[realm].name,
+    level, tier, slots: championSlots(save.meta, save.classes[id].xp, realm, level), loadout, inventory: champ.inventory, plan: champ.talentPlan, fell: fellAt(id, realm, level, tier),
+  }, {
+    slot: (r) => saveLoadout([...loadout, r]),
+    unslot: (r) => saveLoadout(loadout.filter((x) => x !== r)),
+    plan: () => {
+      const lib = buildingLevel(save.buildings, 'library');
+      showTalents({ classId: id, taken: champ.talentPlan, points: talentsFor(id).length, rowCap: TALENT_ROW_CAP[Math.min(TALENT_ROW_CAP.length - 1, lib)], plan: true }, {
+        spend: (t) => (setChampion(id, { ...champOf(id), talentPlan: [...champOf(id).talentPlan, t] }), true),
+        back: again,
+      });
+    },
+    clearPlan: () => (setChampion(id, { ...champOf(id), talentPlan: [] }), again()),
+    play: () => playLevel(id, realm, level, tier),
+    champ: (step) => (pickClass(CLASS_ORDER[(CLASS_ORDER.indexOf(id) + step + CLASS_ORDER.length) % CLASS_ORDER.length]), toChampion()),
+    tab: (t) => (t === 'map' ? toMap(again) : t === 'keep' ? toKeep() : t === 'relics' ? showCompendium(save, again) : t === 'deeds' ? toChronicle(again) : again()),
+    back: toTitle,
+  });
+}
+
 
 function toKeep(): void {
   menu();
@@ -607,7 +665,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
   const newRank = masteryRank(after.classes[id].xp);
   return {
     cls: g.player.cls, wave: g.wave, kills: g.kills, time: g.time, level: g.player.level,
-    best: after.classes[id].bestWave, newBest: g.wave > prevBest,
+    best: after.classes[id].bestWave, newBest: after.classes[id].bestWave > prevBest, // #205: a level's best counts the waves played
     gold: result.gold, goldRaw: Math.max(0, g.gold - g.goldStart), runes: result.runes, classXp: result.classXp, masteryRank: newRank,
     masteryName: newRank > prevRank ? MASTERY[newRank - 1].name : null,
     masteryNext: MASTERY[newRank] ? { name: MASTERY[newRank].name, need: Math.max(0, Math.round(MASTERY[newRank].xp - after.classes[id].xp)) } : null,
@@ -618,17 +676,16 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     relicShares: relicShares(g),
     restart: g.daily ? `the Daily Trial ${g.daily}` : g.level ? `${REALMS[g.level.realm].name} · Level ${g.level.level}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
-    road: g.level ? REALMS[g.level.realm].name : null,
+    road: g.level?.cleared ? REALMS[g.level.realm].name : null, // a cleared level goes back to its road; a lost one to the champion screen (endRun)
     levelRewards: result.levelRewards.level,
   };
 }
 
 /**
- * v0.6 Quick Restart: the same class, traits and Oath (they live in the settings), or today's Daily Trial again. #200: a level again, on
- * the same seed until it is cleared (rule 3: death restarts that level with the same opening offers).
+ * v0.6 Quick Restart: the same class, traits and Oath (they live in the settings), or today's Daily Trial again. #197/#200: a level again
+ * through playLevel, on the same seed after a fall (endRun remembers it) and a fresh one once it is cleared.
  */
-const again = (g: Game): void =>
-  g.daily ? toDaily() : g.level ? startLevel(g.player.cls.id, g.level.realm, g.level.level, g.tierIndex, g.level.cleared ? undefined : g.seed) : startRun(g.player.cls.id);
+const again = (g: Game): void => (g.daily ? toDaily() : g.level ? playLevel(g.player.cls.id, g.level.realm, g.level.level, g.tierIndex) : startRun(g.player.cls.id));
 
 /** Death, "end run", or banking a win: the run is banked. */
 function endRun(g: Game): void {
@@ -636,16 +693,20 @@ function endRun(g: Game): void {
   state = 'results';
   setTouchControls(false);
   startMenuMusic();
+  // #197: a level lost is remembered for its restart; one cleared forgets it
+  if (g.level) fall = g.level.cleared ? null : { classId: g.player.cls.id, realm: g.level.realm, level: g.level.level, tier: g.tierIndex, seed: g.seed, wave: Math.max(1, g.wave) }; // lost in the lull before wave 1 counts as wave 1
   const r = runResult(g, true);
-  const lv = g.level;
-  const results = () => showResults(r, { retry: () => again(g), menu: lv ? () => toRoad(lv.realm) : toSelect });
+  const lv = g.level, tier = g.tierIndex;
+  // a cleared level goes back to the realm road; a lost one to the champion screen on that level, whose RESTART plays its seed again
+  const home = lv ? (lv.cleared ? () => toRoad(lv.realm) : () => toChampion({ realm: lv.realm, level: lv.level, tier })) : toSelect;
+  const results = () => showResults(r, { retry: () => again(g), menu: home });
   // #200: a Marches level's first clear lets the champion keep one of its family's rares. Its clear is banked already, so closing the
   // game on this screen loses the pick (ponytail: a pending-reward field in the save would keep it; the save format isn't this issue's)
   const pick = r.levelRewards.find((x): x is Extract<LevelReward, { kind: 'rarePick' }> => x.kind === 'rarePick');
-  const id = g.player.cls.id, champ = save.champions[id];
-  if (!lv || !pick || !champ) return results();
-  showRarePick(`${REALMS[lv.realm].name} · Level ${lv.level}`, pick.family, rarePickOptions(champ, pick.family, pick.of), WORLD.keepLockedRunes, (relic) => {
-    commit(relic ? { ...save, champions: { ...save.champions, [id]: grantRelic(champ, relic) } } : { ...save, runes: save.runes + WORLD.keepLockedRunes });
+  const id = g.player.cls.id;
+  if (!lv || !pick) return results();
+  showRarePick(`${REALMS[lv.realm].name} · Level ${lv.level}`, pick.family, rarePickOptions(champOf(id), pick.family, pick.of), WORLD.keepLockedRunes, (relic) => {
+    commit(relic ? { ...save, champions: { ...save.champions, [id]: grantRelic(champOf(id), relic) } } : { ...save, runes: save.runes + WORLD.keepLockedRunes });
     results();
   });
 }

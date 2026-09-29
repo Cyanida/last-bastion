@@ -7,7 +7,7 @@ describe('#187 the compendium in the kit', () => {
   it('every relic has a rarity frame: a champion’s own is class green, the rest their rarity', () => {
     for (const id of RELIC_IDS) {
       const r = relicDef(id);
-      expect(relicRarity(id)).toBe(r.classId ? 'class' : r.rarity);
+      expect(relicRarity(id)).toBe(r.signature ? 'signature' : r.classId ? 'class' : r.rarity); // #201: a signature relic is gold
     }
     expect(RELIC_IDS.some((id) => relicRarity(id) === 'class')).toBe(true);
   });

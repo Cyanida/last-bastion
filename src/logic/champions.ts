@@ -2,12 +2,12 @@
 // the champion screen, the slot rules and the level runner build on this shape.
 import { CLASSES, CLASS_ORDER, type ClassId } from '../config/classes';
 import { META, TIERS } from '../config/economy';
-import { isCursedRelic, RELIC_IDS, relicDef, type FamilyId, type RelicId } from '../config/relics';
+import { isCursedRelic, RELIC_IDS, relicDef, SIGNATURE, type FamilyId, type RelicId } from '../config/relics';
 import { TALENT_BY_ID } from '../config/talents';
 import { REALM_IDS, REALMS, WORLD, type RealmId } from '../config/world';
 import { masteryBonus, type MetaRanks } from './economy';
 import type { RunLog } from './runlog';
-import { realmOpen, slotsFor, type WorldProgress } from './world';
+import { isCrowned, nextLevel, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
 
 export interface Champion {
   name: string;
@@ -57,6 +57,7 @@ export function readChampion(raw: unknown, classId: ClassId): Champion {
       if (best.length) c.world[r] = best;
     }
   c.signature = raw.signature === true;
+  if (c.signature && !c.inventory.includes(SIGNATURE.relic[classId])) c.inventory.push(SIGNATURE.relic[classId]); // #201: won, so owned
   c.lastBastion = raw.lastBastion === true;
   return c;
 }
@@ -87,6 +88,10 @@ export function championsFromV6(
   }
   return out;
 }
+
+/** #201: the Marches crown's reward: the champion's signature relic joins its inventory (once). */
+export const grantSignature = (c: Champion, classId: ClassId): Champion =>
+  c.signature ? c : { ...c, signature: true, inventory: [...c.inventory, SIGNATURE.relic[classId]] };
 
 /** v0.10 (#194): a champion's relics never picked on this save (`picks`: save.relicPicks), offered 3x as often until first picked (rule 5). */
 export const freshRelics = (c: Champion, picks: Partial<Record<RelicId, number>>): RelicId[] => c.inventory.filter((id) => !(picks[id] ?? 0));
@@ -120,6 +125,7 @@ export type SlotBlock = 'cursed' | 'otherClass' | 'slotted' | 'slots' | 'family'
 /**
  * Why `id` can't join `loadout` in `slots` slots, or null when it fits (rule 4): no cursed relic, no other class's relic, at most 4 of one
  * family, a legendary takes 2 slots and at most 1 goes in (2 in the Last Bastion, `finale`), at most 2 class relics. Duos are not limited.
+ * #201: the signature relic takes 1 slot and is not one of the class relics (it has no family either).
  */
 export function slotBlock(classId: ClassId, loadout: RelicId[], id: RelicId, slots: number, finale = false): SlotBlock | null {
   const def = relicDef(id);
@@ -131,13 +137,39 @@ export function slotBlock(classId: ClassId, loadout: RelicId[], id: RelicId, slo
   if (loadout.reduce((n, r) => n + slotCost(r), slotCost(id)) > slots) return 'slots';
   if (def.family && count((d) => d.family === def.family) >= rule.perFamily) return 'family';
   if (def.rarity === 'legendary' && count((d) => d.rarity === 'legendary') >= (finale ? rule.legendariesFinale : rule.legendaries)) return 'legendary';
-  if (def.classId && count((d) => !!d.classId) >= rule.classRelics) return 'classRelics';
+  if (def.classId && !def.signature && count((d) => !!d.classId && !d.signature) >= rule.classRelics) return 'classRelics';
   return null;
 }
 
 /** A loadout cut to the rules for `slots` slots: in order, every relic that still fits. A level with fewer slots takes the first ones. */
 export const fitLoadout = (classId: ClassId, ids: RelicId[], slots: number, finale = false): RelicId[] =>
   ids.reduce<RelicId[]>((out, id) => (slotBlock(classId, out, id, slots, finale) ? out : [...out, id]), []);
+
+// ---------- #197: the champion screen ----------
+
+/**
+ * The level the champion screen's PLAY starts: the first realm (REALM_IDS order) open to the champion and not crowned on the tier it
+ * would play, at its first level not cleared. Decided: with every open realm crowned, the last open one's last level (a replay).
+ */
+export function nextStop(c: Champion, tier: number): { realm: RealmId; level: number; tier: number } {
+  const open = REALM_IDS.filter((r) => championRealmOpen(c, r));
+  const realm = open.find((r) => !isCrowned(c.world, r, roadTier(c.world, r, tier))) ?? open[open.length - 1];
+  const t = roadTier(c.world, realm, tier);
+  return { realm, level: nextLevel(c.world, realm, t), tier: t };
+}
+
+/**
+ * The six slots around the pedestal for a saved loadout: each relic in its slot (a legendary also fills the next one, `second`), then the
+ * empty ones. `live`: the relic goes into a level with `slots` slots (fitLoadout, so one that no longer fits is left out and a later one
+ * still goes in), or the empty slot is one of the level's.
+ */
+export function slotView(classId: ClassId, loadout: RelicId[], slots: number, finale = false): { id: RelicId | null; second: boolean; live: boolean }[] {
+  const goes = fitLoadout(classId, loadout, slots, finale);
+  const out: { id: RelicId | null; second: boolean; live: boolean }[] = loadout.flatMap((id) => [{ id, second: false, live: goes.includes(id) }, ...(slotCost(id) > 1 ? [{ id, second: true, live: goes.includes(id) }] : [])]);
+  const used = goes.reduce((n, id) => n + slotCost(id), 0);
+  for (let i = 0, empty = WORLD.maxSlots - out.length; i < empty; i++) out.push({ id: null, second: false, live: i < slots - used });
+  return out.slice(0, WORLD.maxSlots);
+}
 
 // ---------- #200: the Marches' rare pick ----------
 

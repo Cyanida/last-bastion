@@ -21,12 +21,12 @@ export function relicTip(id: RelicId, tier: number, held: RelicId[] = []): strin
   const r = relicDef(id);
   const fam = r.family && FAMILIES[r.family];
   const count = held.filter((h) => relicDef(h).family === r.family).length;
-  const lines = [`${r.name} · ${fam ? `${fam.icon} ${fam.name} · ${r.rarity}` : '☠ cursed'}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}${tier > 0 ? ` · tier ${TIER_NUMERALS[tier]} of ${TIER_NUMERALS[RELIC_MAX_TIER]}` : ''}`];
+  const lines = [`${r.name} · ${fam ? `${fam.icon} ${fam.name} · ${r.rarity}` : r.signature ? '👑 signature' : '☠ cursed'}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}${tier > 0 ? ` · tier ${TIER_NUMERALS[tier]} of ${TIER_NUMERALS[RELIC_MAX_TIER]}` : ''}`];
   lines.push(relicDesc(id, Math.max(1, tier)));
   if (tier > 0 && tier < RELIC_MAX_TIER) lines.push('Attunes as it does its work (the bar under it): damage, healing or protection through it, and a little every wave and elite.');
   if (tier < 2) lines.push(`Tier II: ${relicDesc(id, 2)}`);
   if (tier < RELIC_MAX_TIER) lines.push(`Awakens at tier III, ${r.awaken.name}: ${r.awaken.desc}`);
-  lines.push(fam ? `${fam.name} (${fam.mechanic}), ${count} held: ${([2, 4, 6] as const).map((n) => `${n} ${fam.sets[n][0]}`).join(' · ')}` : 'A cursed relic: no family, so it counts toward no set bonus. Awakening it lifts the curse.');
+  lines.push(fam ? `${fam.name} (${fam.mechanic}), ${count} held: ${([2, 4, 6] as const).map((n) => `${n} ${fam.sets[n][0]}`).join(' · ')}` : r.signature ? "A signature relic: its champion's own, won with the Marches crown. No family, so it counts toward no set bonus; a loadout slots it beside its 2 class relics." : 'A cursed relic: no family, so it counts toward no set bonus. Awakening it lifts the curse.');
   const duo = duoOf(id);
   if (duo) lines.push(`Duo: with ${relicDef(DUOS[duo].from.find((s) => s !== id)!).name} it forms ${DUOS[duo].icon} ${DUOS[duo].name}`);
   lines.push(...recipeLines({ relic: id }));
@@ -47,11 +47,11 @@ export function duoTip(id: DuoId, tier = 0): string {
 export const keyTip = (id: RelicKey, tier: number, held: RelicKey[] = []): string =>
   isDuo(id) ? duoTip(id, tier) : isFamily(id) ? `${FAMILIES[id].name} set bonuses: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[id].sets[n][0]}`).join(' · ')}` : relicTip(id, tier, held.filter((k): k is RelicId => !isDuo(k) && !isFamily(k)));
 
-/** v0.7.1 B6: a relic's style: its rarity, or cursed (purple). */
-export const relicClass = (id: RelicId): string => (isCursedRelic(id) ? 'cursed' : relicDef(id).rarity);
+/** v0.7.1 B6: a relic's style: its rarity, or cursed (purple); #201: a signature relic is gold. */
+export const relicClass = (id: RelicId): string => (isCursedRelic(id) ? 'cursed' : relicDef(id).signature ? 'signature' : relicDef(id).rarity);
 
-/** #187: the kit's rarity frame for a relic: a champion's own relic is class green, a cursed one keeps its rarity (legendary). */
-export const relicRarity = (id: RelicId): 'common' | 'rare' | 'legendary' | 'class' => (relicDef(id).classId ? 'class' : relicDef(id).rarity);
+/** #187: the kit's rarity frame for a relic: a champion's own relic is class green (#201: its signature relic gold), a cursed one keeps its rarity (legendary). */
+export const relicRarity = (id: RelicId): 'common' | 'rare' | 'legendary' | 'class' | 'signature' => (relicDef(id).signature ? 'signature' : relicDef(id).classId ? 'class' : relicDef(id).rarity);
 
 export const tierBadge =(tier: number): string => (tier > 1 ? `<i class="tier">${TIER_NUMERALS[tier]}</i>` : '');
 

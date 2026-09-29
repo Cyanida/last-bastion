@@ -21,7 +21,7 @@ import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, rune
 import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
 import { keepRuns, readRunLog, type RunLog } from './runlog';
 import { recordTierRun, tierUnlockedFor } from './difficulty';
-import { championsFromV6, newChampion, readChampions, type Champion } from './champions';
+import { championsFromV6, grantSignature, newChampion, readChampions, type Champion } from './champions';
 import { clearRewards, levelSkip, recordClear } from './world';
 import type { CrownReward, LevelReward, RealmId } from '../config/world';
 
@@ -389,6 +389,10 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   const lv = run.realmLevel;
   const skip = lv ? levelSkip(lv.realm, lv.level) : { waves: 0, levels: 0, share: 1 };
   const wavesPlayed = Math.max(0, run.wavesCleared - skip.waves);
+  // v0.10 (#205): wave deeds count the waves played; "in one run" deeds and Six of a Kind count only in the Last Bastion, where no loadout
+  // hands the relics out (decided: a run with no level, the full run the Last Bastion replaces, counts as one)
+  const bastion = !lv || lv.realm === 'lastBastion';
+  const perRun = (best: number, now: number): number => (bastion ? Math.max(best, now) : best);
   const curses = run.curses ?? [];
   const loadout = metaLoadout(save.meta);
   const curseMult = curseMultiplier(curses) + curses.length * loadout.curseBonus;
@@ -441,7 +445,8 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   // v0.10 (#192): a cleared level goes on its champion's world progress, and pays its first-clear and crown rewards once (the screens offer the picks)
   const champion = lv ? save.champions[run.classId] ?? newChampion(run.classId) : null;
   const levelRewards = lv?.cleared && champion ? clearRewards(champion.world, lv.realm, lv.level, run.tier) : { level: [], crown: [] };
-  const champions = lv?.cleared && champion ? { ...save.champions, [run.classId]: { ...champion, world: recordClear(champion.world, lv.realm, lv.level, run.tier) } } : save.champions;
+  const cleared = lv?.cleared && champion ? { ...champion, world: recordClear(champion.world, lv.realm, lv.level, run.tier) } : null;
+  const champions = cleared ? { ...save.champions, [run.classId]: levelRewards.crown.some((r) => r.kind === 'signature') ? grantSignature(cleared, run.classId) : cleared } : save.champions; // #201: the Marches crown
   const feats = Object.fromEntries(FEAT_KEYS.map((k) => [k, Math.max(c[k], run.feats?.[k] ?? 0)])) as Record<FeatKey, number>;
   return {
     classXp,
@@ -460,7 +465,7 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
       dailyGold: { date, curse: dailyGold.curse + curseAllowed, trial: dailyGold.trial + (run.daily ? trialAllowed : 0) },
       classes: {
         ...save.classes,
-        [run.classId]: { bestWave: Math.max(prev.bestWave, run.wave), runs: prev.runs + 1, kills: prev.kills + run.kills, time: prev.time + run.time, xp: prev.xp + classXp },
+        [run.classId]: { bestWave: Math.max(prev.bestWave, run.wave - skip.waves), runs: prev.runs + 1, kills: prev.kills + run.kills, time: prev.time + run.time, xp: prev.xp + classXp },
       },
       relicPicks,
       champions,
@@ -485,13 +490,13 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
         elites: c.elites + run.elites,
         goldEarned: c.goldEarned + run.gold,
         flawlessBosses: c.flawlessBosses + run.flawlessBosses,
-        maxRelics: Math.max(c.maxRelics, run.relics.length),
-        sixSets: c.sixSets + (Object.values(familySets(run.relics)).some((st) => st!.level === 6) ? 1 : 0),
-        maxDuos: Math.max(c.maxDuos, run.duos?.length ?? 0),
-        maxAwakened: Math.max(c.maxAwakened, Object.values(run.relicTiers ?? {}).filter((t) => t === 3).length),
+        maxRelics: perRun(c.maxRelics, run.relics.length),
+        sixSets: c.sixSets + (bastion && Object.values(familySets(run.relics)).some((st) => st!.level === 6) ? 1 : 0),
+        maxDuos: perRun(c.maxDuos, run.duos?.length ?? 0),
+        maxAwakened: perRun(c.maxAwakened, Object.values(run.relicTiers ?? {}).filter((t) => t === 3).length),
         cursedWin: run.won ? Math.max(c.cursedWin, run.relics.filter(isCursedRelic).length) : c.cursedWin,
-        maxAbilityUpgrades: Math.max(c.maxAbilityUpgrades, run.abilityUpgrades),
-        fastestWave10: run.wave10Time > 0 && (c.fastestWave10 === 0 || run.wave10Time < c.fastestWave10) ? run.wave10Time : c.fastestWave10,
+        maxAbilityUpgrades: perRun(c.maxAbilityUpgrades, run.abilityUpgrades),
+        fastestWave10: run.wave10Time > 0 && skip.waves === 0 && (c.fastestWave10 === 0 || run.wave10Time < c.fastestWave10) ? run.wave10Time : c.fastestWave10,
         bossKinds: [...new Set([...c.bossKinds, ...run.bosses])],
         commanders: c.commanders + (run.commanders ?? 0),
         actsCleared: Math.max(c.actsCleared, acts),

@@ -347,7 +347,7 @@ await check('menus: the compendium, glossary and flash cards in the kit, every r
       const rim = (id) => getComputedStyle(frame(id)).borderTopColor;
       return {
         n: rows.length,
-        framed: rows.filter((r) => r.firstElementChild?.matches('.kit-rarity.common, .kit-rarity.rare, .kit-rarity.legendary, .kit-rarity.class')).length,
+        framed: rows.filter((r) => r.firstElementChild?.matches('.kit-rarity.common, .kit-rarity.rare, .kit-rarity.legendary, .kit-rarity.class, .kit-rarity.signature')).length, // #201: the signature relics in gold
         found: rows.filter((r) => !r.classList.contains('locked')).map((r) => `${r.querySelector('.kit-row-body > b').textContent} ${r.firstElementChild.classList[1]}`),
         glyph: frame('dragonsTongue').textContent === '🐉',
         colours: new Set(['brimstoneOil', 'dragonsTongue', 'fireArrows'].map(rim)).size,
@@ -1584,6 +1584,137 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
+// From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
+// slots and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a
+// common fills the slot and shows its set chip, the plan gets a talent on the tree, the Map
+// tab opens the world map and comes back; PLAY starts level 1 with the slotted relic and the plan; a level ended early comes home as
+// "fell at wave N" with RESTART, which plays the level again on the same seed
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`champion screen: pedestal, six slots, sets, inventory, talent plan, the Map tab, PLAY and RESTART on the same seed, ${touch ? 'tap' : 'click'} at ${w}x${h} (#197)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await p.evaluate(() => {
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue', 'everfrostCrown'], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false } };
+    });
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const look = () => p.evaluate(() => {
+      const scr = document.querySelector('.champion-screen'), box = scr.getBoundingClientRect();
+      const play = document.querySelector('[data-play]'), pb = play.getBoundingClientRect();
+      const fig = document.querySelector('.cs-hero [data-figure] canvas');
+      const champ = window.__lb.save.champions.paladin;
+      return {
+        fits: box.top >= -1 && box.left >= -1 && box.bottom <= innerHeight + 1 && box.right <= innerWidth + 1,
+        figure: !!fig && fig.getBoundingClientRect().height > 40,
+        slots: [...document.querySelectorAll('.cs-slot')].map((s) => (s.classList.contains('empty') ? (s.classList.contains('idle') ? '-' : 'o') : 'R')).join(''),
+        sets: [...document.querySelectorAll('.cs-set')].map((c) => c.textContent.trim()).join(','),
+        inv: document.querySelectorAll('.cs-relic').length,
+        blocked: [...document.querySelectorAll('.cs-relic.blocked')].map((b) => b.dataset.relic).join(','),
+        why: document.querySelector('.cs-why').textContent,
+        plan: document.querySelectorAll('.cs-plan li').length,
+        play: play.textContent.trim(), playReach: pb.bottom <= innerHeight + 1 && document.elementFromPoint(pb.left + pb.width / 2, pb.top + pb.height / 2)?.closest('[data-play]') === play,
+        next: document.querySelector('.cs-next').textContent.replace(/\s+/g, ' ').trim(),
+        tabs: [...document.querySelectorAll('.kit-tab')].map((t) => (t.classList.contains('on') ? 'X' : 'o')).join(''),
+        greens: document.querySelectorAll('.champion-screen .kit-btn.go').length,
+        loadout: (champ.loadouts.marches ?? []).join(','), savedPlan: champ.talentPlan.length,
+      };
+    });
+    const first = await look();
+    await press('.cs-relic[data-relic="dragonsTongue"]');
+    const slotted = await look();
+    await press('.cs-relic[data-relic="everfrostCrown"]'); // a second legendary: the rules say no
+    const refused = await look();
+    await press('.cs-slot[data-unslot="dragonsTongue"]');
+    await press('.cs-relic[data-relic="brimstoneOil"]');
+    const common = await look();
+    await press('[data-plan]');
+    await press('.talent.open');
+    await press('.kit-screen.talents [data-back]');
+    const planned = await look();
+    await press('.kit-tab[data-tab="map"]');
+    const map = await p.locator('.wm-map').count();
+    await p.keyboard.press('Escape');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await press('[data-play]');
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, seed: g.seed, held: g.player.relics.held.join(','), talents: g.player.talents.length } : null; });
+    // the opening screens (a pick, then the quest board, left as it is), then the pause menu's End run: the level is lost
+    await p.waitForFunction(() => window.__lb.state === 'choice', null, { timeout: 5000 }).catch(() => {});
+    for (let i = 0; i < 8 && (await p.evaluate(() => window.__lb.state)) === 'choice'; i++) {
+      const answer = p.locator('[data-pick], [data-leave]');
+      await answer.first().waitFor({ timeout: 3000 }).catch(() => {});
+      if (await answer.count()) await press(await p.locator('[data-pick]').count() ? '[data-pick]' : '[data-leave]');
+      await p.waitForTimeout(200);
+    }
+    await p.waitForFunction(() => window.__lb.state === 'playing', null, { timeout: 5000 }).catch(() => {});
+    await p.keyboard.press('Escape');
+    await press('[data-quit]');
+    await press('[data-menu]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const fell = await look();
+    await press('[data-play]');
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const again = await p.evaluate(() => { const g = window.__lb.game; return g ? { level: g.level?.level, seed: g.seed } : null; });
+    await p.close();
+    const ok = first.fits && first.figure && first.slots === 'o-----' && first.inv === 4 && first.blocked === '' && first.play === 'Play' && first.playReach && first.greens === 1 && first.tabs === 'oXooo'
+      && /The Marches · Level 1/.test(first.next) && /1 slot/.test(first.next) && first.sets === ''
+      && slotted.slots === 'RRo---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === ''
+      && /everfrost crown: at most 1 legendary/i.test(refused.why) && refused.loadout === 'dragonsTongue'
+      && common.slots === 'R-----' && common.loadout === 'brimstoneOil' && common.sets === '1'
+      && planned.plan === 1 && planned.savedPlan === 1 && map === 1
+      && run?.realm === 'marches' && run.level === 1 && run.held.split(',')[0] === 'brimstoneOil' && run.talents === 0 // level 1's head start has no point to spend yet
+      && /Restart/i.test(fell.play) && /fell at wave \d+/.test(fell.next) && again?.level === 1 && again.seed === run.seed && errs.length === 0;
+    return { ok, detail: `slots ${first.slots}, ${first.inv} relics, "${first.next}", ${first.play}${first.playReach ? '' : ' (out of reach)'}, tabs ${first.tabs}; Dragon's Tongue -> ${slotted.slots} (sets ${slotted.sets || '-'}, blocked ${slotted.blocked || '-'}); Everfrost -> "${refused.why}"; out, Brimstone -> ${common.slots}; plan ${planned.plan}; map ${map ? 'opens' : '?'}; run ${run ? `${run.realm} ${run.level}, held ${run.held}` : 'none'}; after a fall "${fell.next}" ${fell.play} -> level ${again?.level} seed ${again?.seed === run?.seed ? 'same' : 'new'}${first.fits ? '' : ' (off screen)'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #205: a realm level's relics don't count for "in one run" deeds; a full run's do, and the Chronicle says so ----------
+await check('deeds: six relics held in a Marches level leave Reliquarian at 0; in a full run it is earned; the Chronicle says "full run" (#205)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const six = ['brimstoneOil', 'emberheart', 'cinderCharm', 'salamanderScale', 'dragonsTongue', 'frostBrand'];
+  // hold six relics mid-fight, then Esc and quit from the pause menu: the run is banked
+  const holdAndQuit = async () => {
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 });
+    await p.evaluate((ids) => {
+      const lb = window.__lb;
+      for (let i = 0; i < 400 && !(i > 60 && lb.state === 'playing'); i++) lb.run(1, false, true);
+      lb.game.player.invulnerable = true;
+      lb.game.player.relics.held.push(...ids.filter((id) => !lb.game.player.relics.held.includes(id)));
+    }, six);
+    await p.keyboard.press('Escape');
+    await p.click('[data-quit]');
+    await p.locator('.kit-screen.results').waitFor({ timeout: 3000 });
+    return p.evaluate(() => ({ held: window.__lb.save.counters.maxRelics, deed: window.__lb.save.achievements.includes('collector') }));
+  };
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-marches');
+  await p.click('[data-fight]');
+  const level = await holdAndQuit();
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.click('[data-go="start"]');
+  await p.evaluate(() => document.querySelector('[data-class="viking"]').click());
+  await p.evaluate(() => document.querySelector('[data-start]')?.click());
+  const full = await holdAndQuit();
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.click('[data-go="chronicle"]');
+  await p.waitForTimeout(150);
+  const row = await p.evaluate(() => [...document.querySelectorAll('.ach')].find((a) => a.textContent.includes('Reliquarian'))?.textContent.replace(/\s+/g, ' ') ?? '');
+  await p.close();
+  const ok = level.held === 0 && !level.deed && full.held >= 6 && full.deed && /in one full run/.test(row) && /✔ Reliquarian/.test(row) && errs.length === 0;
+  return { ok, detail: `level: best held ${level.held}, deed ${level.deed}; full run: best held ${full.held}, deed ${full.deed}; Chronicle "${row.slice(0, 90)}"${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- v0.8.3 (#182): a new pixel ratio (another monitor) re-sizes the canvas, so the arena stays sharp ----------
 await check('DPR: moving to a sharper screen re-sizes the canvas to its pixels (#182)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
@@ -1890,6 +2021,53 @@ await check('Bone Colossus: capped over many Raise Deads, skeletons stay beside 
   const last = seen.at(-1);
   const ok = seen.every((s) => s.colossi === 1 && s.bones > 0 && s.fused <= 10) && last.fused === 10 && last.damage > 0 && last.damage < 5000;
   return { ok, detail: `after ${seen.length} casts: ${last.bones} skeletons, Colossus ×${last.fused}, ${Math.round(last.damage)} dmg (first ${Math.round(seen[0].damage)})` };
+});
+
+// ---------- #201: the signature relics: gold in the compendium, a test run holds the Phylactery, Raise Dead brings its Bone Knight ----------
+await check('Relics: five gold signature relics in the compendium; the Phylactery raises a Bone Knight with Raise Dead (#201)', async () => {
+  const cp = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await cp.goto(`http://localhost:${PORT}/`);
+  await cp.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await cp.locator('[data-go="keep"]').click();
+  await cp.getByRole('button', { name: 'Relic compendium' }).click();
+  const comp = await cp.evaluate(() => {
+    const head = [...document.querySelectorAll('.compendium h2')].find((h) => /Signature/.test(h.textContent));
+    const grid = head?.nextElementSibling?.nextElementSibling;
+    return { head: !!head, gold: grid ? grid.querySelectorAll('.comp-card > .kit-rarity.signature').length : 0 };
+  });
+  await cp.close();
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  const run = await inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const cls = document.getElementById('tm-class');
+    cls.value = 'necromancer';
+    cls.dispatchEvent(new Event('change', { bubbles: true }));
+    await wait();
+    const s = document.querySelector('select[data-relic="phylactery"]');
+    if (!s) return { listed: false };
+    s.value = '1';
+    s.dispatchEvent(new Event('change', { bubbles: true }));
+    const g = window.__startTest();
+    g.player.invulnerable = true;
+    g.breather = 1e9; // no wave: nothing kills the knight before it is counted
+    window.__lb.draw();
+    const chip = document.querySelector('#hud .relic.signature, .relic.signature');
+    return { listed: true, held: g.player.relics.held.includes('phylactery'), chip: !!chip && /Phylactery/.test(chip.dataset.tip ?? '') };
+  });
+  await page.keyboard.down('Space');
+  await inPage(() => window.__lb.run(2, false, 'input'));
+  await page.keyboard.up('Space');
+  const knights = await inPage(() => window.__lb.game.minions.filter((m) => m.relicBy === 'phylactery').length);
+  const ok = comp.head && comp.gold === 5 && run.listed && run.held && run.chip && knights === 1;
+  return { ok, detail: `compendium: signature section ${comp.head}, ${comp.gold} gold frames; test mode lists it ${run.listed}, held ${run.held}, gold HUD chip ${run.chip}; Bone Knights after Raise Dead: ${knights}` };
 });
 
 // ---------- #182: the Aegis of Dawn's dome goes when Divine Shield is detonated early ----------
@@ -3305,6 +3483,36 @@ await check('Relics: with six Flame and six Frost relics held, only one family r
       const four = [/Pyre/.test(flame), /Shatter/.test(frost)];
       const ok = g.player.relics.held.length === 12 && six.filter(Boolean).length === 1 && four.every(Boolean);
       return { ok, detail: `${g.player.relics.held.length} held; Flame: "${flame.split('\n')[0]}"; Frost: "${frost.split('\n')[0]}"` };
+    });
+  }),
+);
+
+// ---------- #196: the starter commons: Berserker Tooth speeds you up at full HP, Serrated Edge opens 7 bleed stacks ----------
+await check("Relics: at full HP a test run with Berserker Tooth already attacks 10% faster, and its HUD tile and Serrated Edge's say so (#196)", () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    return inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), 'viking');
+      for (const id of ['berserkerTooth', 'serratedEdge']) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
+      const g = window.__startTest();
+      g.player.invulnerable = true;
+      await wait(400); // a few ticks: the tooth's bonus and the HUD tiles
+      const tip = (id) => document.querySelector(`#h-relics .relic[data-id="${id}"]`)?.dataset.tip ?? '';
+      const tooth = tip('berserkerTooth'), edge = tip('serratedEdge');
+      const full = g.player.hp >= g.player.stats.hp, spd = g.player.relics.dyn.atkSpd ?? 0;
+      const ok = full && Math.abs(spd - 0.1) < 1e-6 && /\+10% attack speed/.test(tooth) && /7 bleed stacks/.test(edge);
+      const line = (t, re) => t.split('\n').find((l) => re.test(l)) ?? t.split('\n')[0];
+      return { ok, detail: `HP ${full ? 'full' : 'not full'}, relic attack speed +${Math.round(spd * 100)}%; tooth: "${line(tooth, /attack speed/)}"; edge: "${line(edge, /bleed/)}"` };
     });
   }),
 );
