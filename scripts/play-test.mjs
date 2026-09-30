@@ -6921,6 +6921,14 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
           if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) bad.push(`${screen}: "${name(els[i])}" over "${name(els[j])}"`);
         }
       }
+      for (const [one, other] of [['.kit-screen > .sub', '.kit-head .kit-close']]) { // a screen's line under its heading and its back button
+        for (const a of shown(one)) for (const b of shown(other)) {
+          const words = document.createRange(); // the text's own lines, not the paragraph's full-width box
+          words.selectNodeContents(a);
+          const o = b.getBoundingClientRect();
+          if ([...words.getClientRects()].some((r) => r.left < o.right - 1 && o.left < r.right - 1 && r.top < o.bottom - 1 && o.top < r.bottom - 1)) bad.push(`${screen}: "${name(a)}" under the back button`);
+        }
+      }
       for (const [sel, box] of [['.wm-name, .wm-opens', '.wm-map'], ['.keep-plate', '.keep-yard'], ['.champ-rec, .champ-name', '.card.champ'], ['.rr-go:not([hidden]) > *', '.rr-panel']]) {
         for (const e of shown(sel)) {
           const r = e.getBoundingClientRect(), o = e.closest(box).getBoundingClientRect();
