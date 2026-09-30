@@ -67,6 +67,8 @@ function golden({ cls, seed, level, variant = 0, realm = 'marches', run }: Golde
 // (config/world.ts levelStep.own, levelWaves.own). No other run moved: the Marches and the Iron Hold keep their numbers
 // re-recorded for #249: the Iron Hold fields its shieldwall squads on every difficulty, Knight included, so the realm run's level 2 (waves
 // 9-16) meets them, at REALMS.ironHold.fieldsWeight (its waves changed on purpose; this seed now falls in its last wave); the Marches' runs and the Iron Hold's level 1 (before the squad's wave 9) are unchanged
+// re-recorded for #259: a level whose road features the Iron Shieldwall brings a squad of them for sure (logic/world featuredSquads), so the
+// realm run's level 2 gets one on a wave from 9-11 (its waves changed on purpose; this seed now clears it); every other run is unchanged
 const GOLDEN: Record<string, string> = {
   'marches 1 paladin:1': 'cleared wave 6 kills 215 level 1 loadout - relics 2 hash de859cbc',
   'marches 1 archer:2': 'cleared wave 6 kills 222 level 1 loadout - relics 3 hash 67f5b3b3',
@@ -76,7 +78,7 @@ const GOLDEN: Record<string, string> = {
   'marches 7 viking:2 variant 1': 'fell wave 35 kills 92 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash bb177c82',
   'iron hold 1 viking:1': 'cleared wave 8 kills 350 level 8 loadout jarlsTorc+anvilHeart+salamanderScale relics 6 hash 362abe41',
   'iron hold 1 archer:3 variant 1': 'fell wave 3 kills 120 level 8 loadout eagleFletching+anvilHeart+salamanderScale relics 5 hash ef72703d',
-  'iron hold run 1-2 paladin:5': 'cleared wave 8 kills 363 level 8 loadout oathkeepersSeal+anvilHeart+salamanderScale relics 6 hash 165cac3b / fell wave 16 kills 522 level 9 loadout - relics 3 hash 115da2c0',
+  'iron hold run 1-2 paladin:5': 'cleared wave 8 kills 363 level 8 loadout oathkeepersSeal+anvilHeart+salamanderScale relics 6 hash 165cac3b / cleared wave 16 kills 505 level 9 loadout - relics 3 hash 66558620',
   'cinderlands 1 viking:1': 'cleared wave 8 kills 356 level 8 loadout jarlsTorc+salamanderScale+anvilHeart relics 6 hash cdefd7c1',
   'cinderlands 1 archer:3 variant 1': 'fell wave 5 kills 222 level 8 loadout eagleFletching+salamanderScale+anvilHeart relics 5 hash b459822e',
   'cinderlands run 1-2 paladin:5': 'cleared wave 8 kills 371 level 8 loadout oathkeepersSeal+salamanderScale+anvilHeart relics 7 hash 953f535e / cleared wave 16 kills 540 level 9 loadout - relics 3 hash eb4a7466',

@@ -1,5 +1,34 @@
 # Balance notes
 
+## v0.12: a featured squad comes for sure (#259)
+
+Since #249 the Iron Hold's road names the Iron Shieldwall from level 2 on, but on Squire and Knight his squad comes at a quarter of its
+weight (`fieldsWeight`), and a playtest's full Squire levels 2 and 3 brought none. Now a level whose road features one of its realm's
+`fields` foes brings one squad of it for sure, on every tier: on a wave drawn per seed from the level's first `WORLD.featuredSquad.within`
+(3) waves where the squad is fielded (levels 2-5: waves 9-11, 17-19, 25-27, 33-35), out of that wave's squad budget (it takes a rolled
+squad's place); any more come at the quarter weight as before.
+
+`npm run sim -- levels 8 1 ironHold` (Knight, 40 first tries a level, the realm as one run), before on release/0.12.0 (6f12a4d) and
+after. First-try clear rate and a clear's median minutes; "within 20%" is of the target.
+
+| Level | Waves | Target | Before | After | Pass: from the loose foes' budget instead |
+|---|---|---|---|---|---|
+| Iron Hold 1 | 1-8 | 90% | 93%, 4.6 | 93%, 4.6 | 93%, 4.6 |
+| Iron Hold 2 | 9-16 | 82% | 73%, 5.7 | 85%, 5.6 | 85%, 5.6 |
+| Iron Hold 3 | 17-24 | 73% | 73%, 5.8 | 78%, 5.9 | 78%, 5.8 |
+| Iron Hold 4 | 25-32 | 65% | 75%, 7.0 | 70%, 6.8 | 70%, 6.7 |
+| Iron Hold 5 | 33-40 | 55-60% | 55%, 7.8 | 50%, 7.9 | 48%, 7.8 |
+
+A realm clean / with retries: 32.1 / 41.8 minutes before, 32.0 / 41.7 after. Per class, first tries cleared of 8 (after): level 2
+paladin 7, viking 8, angel 8, necromancer 8, archer 3 (before 6, 8, 8, 6, 1); level 5 5, 3, 7, 5, 0 (before 5, 2, 8, 6, 1). Level 2
+moved 12 points, more than a few: it is now 3 over its target, within its band (66-98%), where before it was 9 under. Levels 3-5 moved
+5 points each, level 5 to 50%, 5 under its 55-60% and within 20% of it. The rates carry about 8 points of noise at 40 tries, and taking
+the squad from the loose foes instead (the rolled squads kept) measured the same, so nothing else was retuned. Levels 2-5 on Squire
+bring the squad on every seed (tests/v12-featured-squad.test.ts, and the play check on five seeds).
+
+The golden realm run of the Iron Hold's levels 1-2 (tests/v10-level-golden.test.ts) was re-recorded: its level 2 (Knight) gets the
+featured squad. The Marches' runs, the Cinderlands' and the Iron Hold's level 1 are unchanged.
+
 ## v0.12: the Cinderlands' balance pass (#232)
 
 The release's last issue: every class through every level of the Cinderlands on Knight, against rule 9, with the bot playing the

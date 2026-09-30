@@ -120,7 +120,8 @@ export function directWave(input: DirectorInput): DirectedWave {
     const templates = SQUADS.filter((t) => wave >= t.from && squadOnTier(t, input.tier, input.fields)).map((t) => ({ value: t, weight: t.weight * (t.commander ? bias(t.commander) : 1) * bias(t.members[0][0]) * (squadOnTier(t, input.tier) ? 1 : (input.fieldsWeight ?? 1)) }));
     const squadChance = Math.min(0.95, (sq.chance + sq.perWave * (wave - sq.fromWave) + DIRECTOR.actBias.squadChance[actIdx(wave)]) * (input.squadMult ?? 1));
     let squadBudget = budget * (sq.maxShare + DIRECTOR.actBias.maxShare[actIdx(wave)]);
-    // #259: a featured squad comes for sure, out of the same squad budget (it takes a rolled squad's place rather than adding one)
+    // #259: a featured squad comes for sure, out of the squad budget : it takes a rolled squad's place rather than adding one
+    // (taken from the loose foes instead, the rolled squads kept, Knight measured the same: BALANCE.md)
     for (const t of SQUADS.filter((s) => input.featured?.includes(s.id))) {
       const cost = squadCost(t);
       squadBudget -= cost;
