@@ -2069,12 +2069,12 @@ await check('Cinderlands: a peasant marches as the Torchbearer, his flash card s
   p.on('pageerror', (e) => errs.push(e.message));
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
-  await p.evaluate(() => {
-    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], cinderlands: [1] }, signature: true, lastBastion: false });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], cinderlands: [1] }, signature: true, lastBastion: false, runs: { cinderlands: run } });
     const lb = window.__lb;
-    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Cinderlands level 1 cleared
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Cinderlands level 1 cleared, its realm run at level 2 (#237)
     lb.save.cards = lb.cardIds.filter((id) => id !== 'torchbearer'); // every other card already seen, so his is the one that shows
-  });
+  }, { ...runAt(2), carry: { ...runAt(2).carry, level: 6 } }); // level 6, as a run that cleared level 1 stands: the utility (E) is unlocked
   await p.click('[data-go="map"]');
   await p.click('.wm-realm.r-cinderlands');
   await p.locator('.rr-panel').waitFor({ timeout: 3000 });
