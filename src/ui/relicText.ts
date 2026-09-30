@@ -22,7 +22,7 @@ export function recipeLines(what: { relic?: RelicId; talent?: string }): string[
  * glance, so the numbers per tier and the awakening are in the compendium (the ⓘ on a card opens its page there). `full`: the HUD's tile
  * keeps them (no card, and the one place a run shows them), with what attunement brings next.
  */
-export function relicTip(id: RelicId, tier: number, held: RelicId[] = [], full = false): string {
+export function relicTip(id: RelicId, tier: number, held: RelicId[] = [], full = false, card = false): string {
   const r = relicDef(id);
   const fam = r.family && FAMILIES[r.family];
   const count = held.filter((h) => relicDef(h).family === r.family).length;
@@ -37,7 +37,7 @@ export function relicTip(id: RelicId, tier: number, held: RelicId[] = [], full =
   const duo = duoOf(id);
   if (duo) lines.push(`Duo: with ${relicDef(DUOS[duo].from.find((s) => s !== id)!).name} it forms ${DUOS[duo].icon} ${DUOS[duo].name}`);
   lines.push(...recipeLines({ relic: id }));
-  if (!full) lines.push(FULL_TEXT);
+  if (!full && !card) lines.push(FULL_TEXT); // #251: on a card the ⓘ is right there
   return lines.join('\n');
 }
 const FULL_TEXT = 'ⓘ Every tier and the awakening: the relic compendium.';

@@ -869,6 +869,37 @@ await check('relic offer: a short line and tier chips, the ⓘ opens its compend
   return { ok, detail: `cards ${setup.map((c) => `"${c.p}" (${c.p.length}, ${c.chips} chips${c.info ? ', ⓘ' : ''}${c.long ? ', LONG' : ''}${c.fits ? '' : ', DOES NOT FIT'})`).join('; ')}; ⓘ page ${opened.page} (${opened.tiers} tier lines: "${opened.text}"), still picking ${opened.state}/${opened.offers}; Esc closed ${!closed.page}; smallest font card ${cardFont.min}px (${cardFont.at}), page ${pageFont.min}px` };
 });
 
+await check('relic offer: hovering a card opens a short tooltip beside or above it, never over the card or the Reroll / Skip buttons (#251)', async () => {
+  const ready = await inPage(() => {
+    const P = window.__play, rel = window.__lb.game.player.relics;
+    rel.offers.push({ from: 'lair', options: ['heartOfTheHold', 'reprisalCuirass', 'thunderDrum', 'guardiansAegis'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 1, duo: null });
+    return P.toChoice();
+  });
+  if (!ready) return { ok: false, detail: 'no relic offer' };
+  const seen = [];
+  for (const n of [0, 1, 2]) {
+    await page.mouse.move(2, 2);
+    await page.locator(`[data-pick="${n}"] h2`).hover();
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#tooltip') ?? document.body).display === 'block', null, { timeout: 2000 }).catch(() => {});
+    seen.push(await inPage((n) => {
+      const box = (el) => { const r = el.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom }; };
+      const hit = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+      const tip = document.querySelector('#tooltip');
+      if (!tip || getComputedStyle(tip).display !== 'block') return { shown: false };
+      const t = box(tip), card = document.querySelector(`[data-pick="${n}"]`);
+      const others = [...document.querySelectorAll('[data-reroll], [data-skip], .relic-card')].filter((el) => el !== card || true);
+      const over = others.filter((el) => hit(t, box(el)) && el === card).length;
+      const btns = [...document.querySelectorAll('[data-reroll], [data-skip]')].filter((el) => hit(t, box(el))).length;
+      const own = [...card.querySelectorAll('h2, p, .tier-chips, .tag')].filter((el) => hit(t, box(el))).length;
+      return { shown: true, h: Math.round(t.b - t.t), over, btns, own, inside: t.l >= 0 && t.t >= 0 && t.r <= innerWidth && t.b <= innerHeight, vw: innerWidth };
+    }, n));
+  }
+  await page.mouse.move(2, 2);
+  await inPage(() => window.__play.click('[data-skip]'));
+  const ok = seen.every((x) => x.shown && x.over === 0 && x.btns === 0 && x.own === 0 && x.inside && x.h <= 250);
+  return { ok, detail: seen.map((x, i) => x.shown ? `card ${i + 1}: tooltip ${x.h}px tall at ${x.vw}px wide, over the card ${x.over}, over buttons ${x.btns}, over its text ${x.own}, ${x.inside ? 'on screen' : 'OFF SCREEN'}` : `card ${i + 1}: no tooltip`).join('; ') };
+});
+
 await check('relic offer: take a relic', () =>
   inPage(async () => {
     const P = window.__play, rel = window.__lb.game.player.relics;
