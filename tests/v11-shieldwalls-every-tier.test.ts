@@ -43,6 +43,20 @@ describe('the Iron Hold fields its shieldwalls on every tier (#249)', () => {
     expect(walls(SQUIRE, iron, 1, 8)).toBe(0); // the squad's own first wave (9) still holds: level 1 teaches the knights
   });
 
+  it('below Champion a fielded squad comes at fieldsWeight; Champion and Legend keep their weight', () => {
+    const w = REALMS.ironHold.fieldsWeight!;
+    expect(w).toBeGreaterThan(0);
+    expect(w).toBeLessThanOrEqual(1);
+    const count = (tier: number, fieldsWeight?: number) => {
+      let n = 0;
+      for (let seed = 1; seed <= 20; seed++) for (let wave = 9; wave <= 40; wave++) n += directWave({ seed, wave, tier, fields: iron, fieldsWeight }).squads.filter((s) => s.template === 'shieldwall').length;
+      return n;
+    };
+    expect(count(SQUIRE, w)).toBeGreaterThan(0);
+    expect(count(SQUIRE, w)).toBeLessThan(count(SQUIRE));
+    for (const wave of [9, 25, 38]) expect(directWave({ seed: 5, wave, tier: 2, fields: iron, fieldsWeight: w })).toEqual(directWave({ seed: 5, wave, tier: 2 }));
+  });
+
   it('outside the Iron Hold the waves are what they were', () => {
     for (const wave of [9, 20, 33]) expect(directWave({ seed: 3, wave, tier: SQUIRE, fields: undefined })).toEqual(directWave({ seed: 3, wave, tier: SQUIRE }));
   });

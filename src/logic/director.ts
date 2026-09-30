@@ -19,6 +19,7 @@ export interface DirectorInput {
   eliteMult?: number; // difficulty tier
   tier?: number; // v0.8 (#101): the difficulty tier's roster (WAVES.tierRoster); none = every type
   fields?: readonly EnemyId[]; // #249: types fielded on every tier here (a realm's own foes in its levels, logic/world levelFields)
+  fieldsWeight?: number; // #249: a multiplier on a squad's weight when it comes only thanks to `fields` (config/world.ts fieldsWeight)
   themeBias?: Partial<Record<EnemyId, number>>; // the current Act's theme
   budgetMult?: number; // curses
   squadMult?: number;
@@ -115,7 +116,7 @@ export function directWave(input: DirectorInput): DirectedWave {
   const squads: SquadPlan[] = [];
   const sq = DIRECTOR.squads;
   if (wave >= sq.fromWave) {
-    const templates = SQUADS.filter((t) => wave >= t.from && squadOnTier(t, input.tier, input.fields)).map((t) => ({ value: t, weight: t.weight * (t.commander ? bias(t.commander) : 1) * bias(t.members[0][0]) }));
+    const templates = SQUADS.filter((t) => wave >= t.from && squadOnTier(t, input.tier, input.fields)).map((t) => ({ value: t, weight: t.weight * (t.commander ? bias(t.commander) : 1) * bias(t.members[0][0]) * (squadOnTier(t, input.tier) ? 1 : (input.fieldsWeight ?? 1)) }));
     const squadChance = Math.min(0.95, (sq.chance + sq.perWave * (wave - sq.fromWave) + DIRECTOR.actBias.squadChance[actIdx(wave)]) * (input.squadMult ?? 1));
     let squadBudget = budget * (sq.maxShare + DIRECTOR.actBias.maxShare[actIdx(wave)]);
     while (templates.length > 0 && squads.length < sq.maxPerWave && rng() < squadChance) {

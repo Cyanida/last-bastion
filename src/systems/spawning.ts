@@ -136,6 +136,7 @@ function startWave(g: Game): void {
     eliteMult: g.tier.eliteMult * (g.route?.focus === 'elite' ? ROUTES.elite.eliteMult : 1) * (g.vars['relic.eliteMult'] ?? 1), // v0.6 Elite path; v0.7.1 Tyrant's Banner
     tier: g.tierIndex, // v0.8 (#101): the difficulty's roster
     fields: levelFields(lv), // #249: a realm's own foes come on every difficulty
+    fieldsWeight: lv ? REALMS[lv.realm].fieldsWeight : undefined,
     themeBias: actTheme(g).bias, // v0.6: the route's theme
     budgetMult: curseValue(g.curses, 'swarm', 'budget') * pacingBudget(g.wave, bossWave) * lw.foes, // v0.5: breathers and heavy waves (WAVES.pacing)
     boss: bossWave,

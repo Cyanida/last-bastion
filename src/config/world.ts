@@ -67,6 +67,7 @@ export interface RealmDef {
   family?: FamilyId; // a relic realm's family
   foes?: Partial<Record<EnemyId, EnemyId>>; // #212: the realm's variants: a foe that marches in its levels as its own kind (logic/world.ts realmFoe)
   fields?: EnemyId[]; // #249: foes its levels field on every difficulty, whatever the tier roster says (config/waves.ts tierRoster): the realm's own foes are its lesson
+  fieldsWeight?: number; // #249: how often a squad of `fields` comes on a tier below its own: a multiplier on its squad weight (config/director.ts SQUADS); its own tiers keep 1
   hazard?: 'presses'; // #211: the realm's own hazard in its arena, on top of the arena's (the Iron Hold's forge presses, config/arenas.ts PRESSES)
   teaches: string;
   release: string;
@@ -108,6 +109,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
     teaches: 'Armor you break, shields that block from the front, thorns that hit back',
     foes: { knight: 'ironKnight', shieldwall: 'ironShieldwall', shieldBearer: 'thornBearer' }, // #214: thorn bearers
     fields: ['shieldwall'], // #249: a Champion foe elsewhere; here Squire and Knight (the tiers the realm opens with) meet its shieldwall squads too
+    fieldsWeight: 0.25, // #249: at full weight (and at 0.5) they crowded the Knight tier's other squads out and level 4 cleared 80% against 65%; at 0.25 it is 78%, level 5 60% (BALANCE.md)
     hazard: 'presses',
     levels: relicRealmLevels('steel', 'warden', 'forgemaster', 'ironKing'), crown: RELIC_CROWN,
     legend: { title: 'Ironsworn', palette: 6 }, // #219 Decided: the plan names neither
