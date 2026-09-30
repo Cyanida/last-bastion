@@ -1,4 +1,5 @@
 import { ABILITY_TRACKS } from '../config/abilityUpgrades';
+import { FLAGSTONE } from '../config/arenas';
 import { UTILITY_TRACKS } from '../config/utility';
 import { branchPlan, canTakeTalent } from '../logic/talents';
 import type { ClassId } from '../config/classes';
@@ -68,6 +69,16 @@ export function botInput(g: Game): Intent {
       danger = true;
       zx += ((p.x - z.x) / d) * 5;
       zy += ((p.y - z.y) / d) * 5;
+    }
+  }
+
+  // #224: and off a slab the spreading fire holds, kindling or burning
+  for (const f of g.flames) {
+    const d = Math.hypot(p.x - f.x, p.y - f.y) || 1;
+    if (d < FLAGSTONE / 2 + 30) {
+      danger = true;
+      zx += ((p.x - f.x) / d) * 5;
+      zy += ((p.y - f.y) / d) * 5;
     }
   }
 

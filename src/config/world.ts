@@ -64,7 +64,7 @@ export interface RealmDef {
   arena: WorldArenaId;
   family?: FamilyId; // a relic realm's family
   foes?: Partial<Record<EnemyId, EnemyId>>; // #212: the realm's variants: a foe that marches in its levels as its own kind (logic/world.ts realmFoe)
-  hazard?: 'presses'; // #211: the realm's own hazard in its arena, on top of the arena's (the Iron Hold's forge presses, config/arenas.ts PRESSES)
+  hazard?: 'presses' | 'fire'; // #211: the realm's own hazard in its arena, on top of the arena's (the Iron Hold's forge presses, config/arenas.ts PRESSES; #224: the Cinderlands' spreading fire, SPREADING_FIRE)
   teaches: string;
   release: string;
   levels: LevelDef[];
@@ -115,6 +115,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
     name: 'The Cinderlands', ring: 2, opens: { crowns: 1 }, arena: 'emberForge', family: 'flame', release: '0.12.0',
     teaches: 'Fire that spreads, burn stacks on you, bursts of fire when foes die',
     foes: { peasant: 'torchbearer' }, // #225: torchbearers
+    hazard: 'fire', // #224: fire that spreads from the lava
     levels: relicRealmLevels('flame', 'inquisitor', 'emberQueen', 'cinderColossus'), crown: RELIC_CROWN,
   },
   frozenPass: {

@@ -157,7 +157,7 @@ const AUTHORED: Record<ArenaId, ArenaDef> = {
       { kind: 'anvil', x: 1240, y: 650, r: 30 },
       ...[[300, 185], [1500, 185], [300, 1115], [1500, 1115]].map(([x, y]) => ({ kind: 'crucible' as const, x, y, r: 28 })),
     ],
-    hazard: null, // its lava burns all the time (LAVA); #224's spreading fire is the realm's own hazard on top
+    hazard: null, // its lava burns all the time (LAVA); the spreading fire (#224, SPREADING_FIRE) is the realm's own hazard on top
     lava: lavaChannels(1800, 1300),
     bosses: ['inquisitor', 'warlord', 'blackKnight'],
     corpseLifeMult: 1,
@@ -201,4 +201,14 @@ export const FLAGSTONE = 80;
  * braziers, so luring the horde under them pays. The first slam comes `grace` s into the level. Only in the realm's own arena.
  */
 export const PRESSES = { every: 8, delay: 1.5, grace: 8, line: 3, crossFrom: 11, damage: 18, foeMult: 3 };
+/**
+ * #224: the Cinderlands' spreading fire (logic/spreadingFire.ts, systems/arena.ts). Every `every` s the fire catches on the slab at the
+ * lava's bank nearest the player (from wave `twoFrom` on two slabs, `apart` slabs or more from each other) and creeps to where the
+ * player stood then, and on round that spot, a slab every `step` s, `reach` slabs in all. A slab kindles for `kindle` s (the warning:
+ * it does no harm yet), then burns for `life` s: `dps` a second (scaled with the wave like enemy damage) to the player standing on it,
+ * x`foeMult` to foes, like the lava, so luring the horde over it pays. The first fire catches `grace` s into the level. Only in the
+ * realm's own arena. Measured with the bot (`npm run sim -- levels`): a longer trail (7 slabs, 4 s) or a burn stack a tick each cost
+ * it a fifth of its level-1 clears, these numbers none.
+ */
+export const SPREADING_FIRE = { every: 10, grace: 10, reach: 5, step: 0.8, kindle: 0.8, life: 3, dps: 8, foeMult: 2, twoFrom: 11, apart: 4 };
 export const ARENA_IDS: ArenaId[] = ['courtyard', 'graveyard', 'keep'];

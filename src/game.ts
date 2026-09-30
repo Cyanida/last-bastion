@@ -1,5 +1,5 @@
 import { oathStack, type OathStack } from './logic/oaths';
-import { ARENAS, HAZARD_GRACE, PRESSES, type ArenaId } from './config/arenas';
+import { ARENAS, HAZARD_GRACE, PRESSES, SPREADING_FIRE, type ArenaId } from './config/arenas';
 import { CLASSES, type ClassId } from './config/classes';
 import type { CurseId } from './config/curses';
 import { TIERS, type TierDef } from './config/economy';
@@ -174,6 +174,10 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     pressT: PRESSES.grace,
     presses: 0,
     lavaT: 0,
+    fireT: SPREADING_FIRE.grace,
+    fireTickT: 0,
+    flames: [],
+    fireFronts: [],
     seed,
     squads: [],
     squadPlans: [],

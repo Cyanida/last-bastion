@@ -19,7 +19,7 @@ export const lavaTick = (dps: number, tick: number, scale: number, foeMult: numb
 
 /**
  * #224's hook: the points along the channels' banks, `step` px apart, both sides, where the spreading fire can catch from the lava.
- * Nothing reads it yet; the spreading fire (#224) seeds its flames here.
+ * The spreading fire (#224, logic/spreadingFire.ts bankSlabs) catches on the slabs under them.
  */
 export function lavaBanks(channels: readonly Rect[], step: number): { x: number; y: number }[] {
   const out: { x: number; y: number }[] = [];
