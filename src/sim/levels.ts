@@ -172,12 +172,18 @@ export function continuousPower(classId: ClassId, seed: number, waves: number[],
 // ---------- the levels table (scripts/level-report.ts) ----------
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+/** The middle value (the mean of the middle two for an even count); 0 for none. */
+export function median(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
+  return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : 0;
+}
 
 /** One level's first tries, summed up: clear rate, minutes of a clear and of a failed try, power and relics at its first wave, moments per findable relic. */
 export interface LevelCell {
   realm: RealmId; level: number; waves: [number, number]; runs: number;
   clear: number; // share of first tries cleared
   minutes: number; // a clear, on average
+  median: number; // #243: a clear's median minutes, which rule 9's level times are held against
   failMinutes: number; // a failed try, on average (0 when none failed)
   power: number; // powerOf at the first wave
   relicsAtStart: number;
@@ -196,6 +202,7 @@ export function levelCell(rows: Omit<LevelRun, 'summary'>[]): LevelCell {
     realm, level, waves: REALMS[realm].levels[level - 1].waves, runs: rows.length,
     clear: won.length / rows.length,
     minutes: avg(won.map((r) => r.time)) / 60,
+    median: median(won.map((r) => r.time)) / 60,
     failMinutes: avg(lost.map((r) => r.time)) / 60,
     power: avg(rows.filter((r) => r.power !== null).map((r) => r.power!)),
     relicsAtStart: avg(rows.map((r) => r.relicsAtStart)),

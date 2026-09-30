@@ -66,8 +66,8 @@ describe('#210 the Great Keep as a fortress', () => {
     }
   });
 
-  it('opens a wing by the start wave like every arena: none at an Act\'s first wave, one past its mid-Act boss', () => {
-    // the Iron Hold's levels start at waves 1, 6, 11, 21 and 31
-    expect(REALMS.ironHold.levels.map((l) => wingsOpenBy(l.waves[0]))).toEqual([0, 1, 0, 0, 0]);
+  it('opens a wing by the start wave like every arena: none in an Act\'s first half, one in its second', () => {
+    // the Iron Hold's levels start at waves 1, 9, 17, 25 and 33 (#243)
+    expect(REALMS.ironHold.levels.map((l) => wingsOpenBy(l.waves[0]))).toEqual([0, 1, 1, 0, 0]);
   });
 });

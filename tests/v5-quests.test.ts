@@ -84,7 +84,7 @@ describe('the quest board and the events are seeded', () => {
 
 describe('breather pacing', () => {
   it('waves 3 and 8 of an Act are breathers, 4 and 9 heavy, boss waves neither', () => {
-    expect([1, 3, 4, 5, 8, 9, 10, 13, 14, 18, 19, 20].map(pacingOf)).toEqual([null, 'breather', 'heavy', null, 'breather', 'heavy', null, 'breather', 'heavy', 'breather', 'heavy', null]);
+    expect([1, 3, 4, 5, 8, 9, 10, 13, 14, 18, 19, 20].map((w) => pacingOf(w))).toEqual([null, 'breather', 'heavy', null, 'breather', 'heavy', null, 'breather', 'heavy', 'breather', 'heavy', null]);
     expect(pacingBudget(3)).toBe(WAVES.pacing.breatherBudget);
     expect(pacingBudget(9)).toBe(WAVES.pacing.heavyBudget);
     expect(pacingBudget(7)).toBe(1);

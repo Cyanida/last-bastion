@@ -31,7 +31,7 @@ describe('champion levels: XP, the cap and the curve (#238)', () => {
   });
 
   it('a level costs more XP than the one before, up to a ceiling; XP past the cap waits for the next crown', () => {
-    expect([1, 2, 3].map(xpToNext)).toEqual([140, 280, 420]);
+    expect([1, 2, 3].map(xpToNext)).toEqual([180, 360, 540]); // #243: fitted to the longer levels
     expect(xpToNext(20)).toBe(CHAMPION.xp.most);
     expect(levelForXp(xpForLevel(4))).toBe(4);
     expect(levelForXp(xpForLevel(4) - 1)).toBe(3);
@@ -43,7 +43,7 @@ describe('champion levels: XP, the cap and the curve (#238)', () => {
   });
 
   it('the Marches pay about a level per level: 8 or 9 at the crown, as enemy scaling expects', () => {
-    expect([1, 2, 3, 4, 5, 6, 7].map((l) => levelXp('marches', l))).toEqual([180, 480, 558, 726, 639, 729, 1734]);
+    expect([1, 2, 3, 4, 5, 6, 7].map((l) => levelXp('marches', l))).toEqual([252, 612, 768, 816, 864, 822, 912]); // #243: waves 1-6, 7-12, 13-18, 19-24, 25-30, 31-35, 36-40
     let xp = 0;
     const levels = [1, 2, 3, 4, 5, 6, 7].map((l) => levelForXp((xp += levelXp('marches', l)), 30));
     expect(levels.slice(0, 4)).toEqual([2, 3, 4, 5]);
@@ -201,13 +201,13 @@ describe('champion levels: the save (#238)', () => {
 
   it('a clear adds the level\'s XP as champion XP; a death adds none; a replay a quarter', () => {
     const g = createGame('paladin', 3, { level: { realm: 'marches', level: 1 } });
-    gainXp(g, 200);
+    gainXp(g, 250);
     const lost = applyRun(defaultSave(), summarizeRun(g));
     expect(lost.champion).toEqual({ xp: 0, from: 1, to: 1 });
     expect(lost.save.champions.paladin).toBeUndefined();
-    clearWave(g, 5);
-    const xp = summarizeRun(g).realmLevel!.xp!; // the 200, and the wave's clear XP
-    expect(xp).toBeGreaterThanOrEqual(200);
+    clearWave(g, 6); // #243: the Marches' level 1 ends on wave 6
+    const xp = summarizeRun(g).realmLevel!.xp!; // the 250, and the wave's clear XP
+    expect(xp).toBeGreaterThanOrEqual(250);
     const won = applyRun(defaultSave(), summarizeRun(g));
     expect(won.champion).toEqual({ xp, from: 1, to: 2 });
     expect(won.save.champions.paladin).toMatchObject({ xp, level: 2 });

@@ -7,6 +7,7 @@ import { TIER_UNLOCK, TIERS } from '../config/economy';
 import { ENEMIES, type EnemyId } from '../config/enemies';
 import { FAMILIES, relicDef, type FamilyId, type RelicId } from '../config/relics';
 import { WAVES } from '../config/waves';
+import { isBossWave } from './waves';
 import { REALM_IDS, REALMS, WORLD, WORLD_BOSSES, type CrownReward, type EndBoss, type LevelReward, type RealmId } from '../config/world';
 import { ACT_BOSSES, actBoss, actOf, hashSeed, isActEnd, pickMidBoss } from './acts';
 import { waveRng } from './director';
@@ -114,6 +115,23 @@ export function levelStep(realm: RealmId, level: number): { hp: number; damage: 
   return { hp: s.hp[level - 1] ?? 1, damage: s.damage[level - 1] ?? 1 };
 }
 
+/** #243: a level's wave length (WORLD.levelWaves): multipliers on the foes a wave brings and on the time they trickle in over; the Last Bastion keeps 1. */
+export function levelWaves(realm: RealmId, level: number): { foes: number; pace: number } {
+  if (realm === 'lastBastion') return { foes: 1, pace: 1 };
+  const s = realm === 'marches' ? WORLD.levelWaves.marches : WORLD.levelWaves.realm;
+  return { foes: s.foes[level - 1] ?? 1, pace: s.pace[level - 1] ?? 1 };
+}
+
+/**
+ * #243: a realm level runs on its own waves, not the 40-wave scale's Acts: its one boss wave is its last, and an Act that ends inside
+ * it moves on with no Merchant and no fork (they are the Last Bastion's, which keeps the scale). Decided: the scale's boss waves inside
+ * a level (x5, x0) play as plain waves, so no boss comes twice in a realm (#236) and none stands right before a level's own.
+ */
+export const ownWaves = (lv: { realm: RealmId } | null | undefined): boolean => !!lv && lv.realm !== 'lastBastion';
+
+/** Is `wave` a boss wave of this run? A realm level: its last wave only (ownWaves). Else the 40-wave scale's (x5, x0). */
+export const bossWaveIn = (lv: { realm: RealmId; last: number } | null | undefined, wave: number): boolean => (ownWaves(lv) ? wave === lv!.last : isBossWave(wave));
+
 /** What clearing `level` on `tier` pays, judged by the progress before it: the level's reward on its first clear on any tier, the crown's on a first crown. */
 export function clearRewards(p: WorldProgress, realm: RealmId, level: number, tier: number): { level: LevelReward[]; crown: CrownReward[] } {
   const def = REALMS[realm];
@@ -190,7 +208,7 @@ export function featuredFoes(waves: [number, number], max = 3): EnemyId[] {
 export function bossName(end: EndBoss, wave: number): string {
   if (end.boss === 'usurper') return ENEMIES.usurper.name;
   const named = BOSSES[end.boss] ? (BOSSES[end.boss].name ?? ENEMIES[BOSSES[end.boss].from].name) : (WORLD_BOSSES as Record<string, { name: string }>)[end.boss]?.name;
-  return named ?? (wave % 10 === 5 ? 'A mid-Act boss' : 'An Act boss');
+  return named ?? (isActEnd(wave) ? 'An Act boss' : 'A mid-Act boss'); // as poolBoss draws it
 }
 
 const familyName = (f?: FamilyId) => (f ? FAMILIES[f].name : 'a');
