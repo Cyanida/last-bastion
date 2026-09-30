@@ -5,7 +5,7 @@ import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
 import { addZone, timer } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
-import { hammerZones, wardenMove, wardenSpecialCd } from '../logic/crownBoss';
+import { hammerZones, wardenJudges, wardenMove, wardenSpecialCd } from '../logic/crownBoss';
 import { forgeCd, forgeMove, pressTiles, slamZones } from '../logic/forgemaster';
 import { decreeZones, kingCd, kingMove } from '../logic/ironKing';
 import { angleTo, chargeStart, chargeThrough, distTo, hitDamage, keepRange, move, moveTo, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
@@ -115,8 +115,8 @@ const closeSeal = timer('warden.seal', (g, a: { e: Enemy; x: number; y: number }
 registerBoss('warden', (g, e, dt) => {
   const t = pickTarget(g, e);
   const def = e.def;
-  // #202: the crown's Judgement begins: his own third phase, and the next seal comes at once
-  if (e.crown && e.phase >= 3 && e.state !== 3) {
+  // #202: the crown's Judgement begins: his own third phase, and the next seal comes at once (#219: an elite's fourth)
+  if (wardenJudges(e.phase, e.crown) && e.state !== 3) {
     e.state = 3;
     e.special = Math.min(e.special, 0.8);
     g.banner = { text: 'The Warden’s judgement', t: 2.5 };

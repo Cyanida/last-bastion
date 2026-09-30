@@ -11,6 +11,7 @@ import { squadOnTier, squadPlan, squadUnits } from '../logic/director';
 import { rollAffixes } from '../logic/elites';
 import { enemyDmgMult, enemyHpMult } from '../logic/formulas';
 import { placeRng, rollEvent } from '../logic/quests';
+import { bossWaveIn } from '../logic/world';
 import { clampToRects, floorPoint, regionAt } from '../logic/regions';
 import { pacingOf, unlockedPool } from '../logic/waves';
 import { moveTo, POISON } from './aiHelpers';
@@ -54,7 +55,8 @@ const START: Partial<Record<EventKind, (g: Game, ev: WaveEvent, rng: Rng) => voi
 };
 
 function startEvent(g: Game): void {
-  const kind = rollEvent(g.seed, g.wave);
+  const boss = bossWaveIn(g.level, g.wave); // #243: a level's own boss wave brings no event
+  const kind = rollEvent(g.seed, g.wave, boss);
   if (!kind) return;
   const rng = placeRng(g.seed, g.wave);
   const at = clearPoint(g, floorPoint(g.openFloors, rng, 120));
@@ -63,7 +65,7 @@ function startEvent(g: Game): void {
   g.eventsSeen++;
   START[kind]?.(g, ev, rng);
   const name = `${EVENTS[kind].icon} ${EVENTS[kind].name}`;
-  g.banner = { text: pacingOf(g.wave) === 'breather' ? `A lull — ${name}` : `${g.banner.text} · ${name}`, t: 3 };
+  g.banner = { text: pacingOf(g.wave, boss) === 'breather' ? `A lull — ${name}` : `${g.banner.text} · ${name}`, t: 3 };
 }
 
 /** Two squads at once, from opposite sides of the player (the director's squad path, placed by hand). */

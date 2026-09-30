@@ -7,8 +7,9 @@ import { createGame, summarizeRun, type RunOptions } from '../game';
 import { championBonus, fitLoadout, newChampion, ownable, rarePickOptions, type Champion } from '../logic/champions';
 import { attackDamage, critChance } from '../logic/formulas';
 import { familySets } from '../logic/relics';
-import { branchPlan } from '../logic/talents';
-import { slotsFor } from '../logic/world';
+import { botBuild, expectedChampionLevel, levelCap, xpForLevel } from '../logic/championLevels';
+import { masteryBonus } from '../logic/economy';
+import { recordClear, slotsFor } from '../logic/world';
 import type { RunSummary } from '../logic/save';
 import { botStep } from './bot';
 
@@ -59,6 +60,7 @@ const firstOf = (c: Champion, classId: ClassId, family: FamilyId | undefined, pi
 function clear(c: Champion, classId: ClassId, realm: RealmId, level: number): Champion {
   const def = REALMS[realm];
   const r = def.levels[level - 1].reward;
+  c = { ...c, world: recordClear(c.world, realm, level, 1) }; // #238: its crowns set its level cap
   const add = (id: RelicId | undefined) => (id ? { ...c, inventory: [...c.inventory, id] } : c);
   if (r?.kind === 'rarePick') c = add(rarePickOptions(c, r.family, r.of)[0]);
   // a kept locked relic: the realm's own family, which the bot holds in its realm (rule 5); the rarest the family has left, not a legendary
@@ -80,7 +82,9 @@ export function expectedChampion(classId: ClassId, realm: RealmId, level: number
   let c = newChampion(classId);
   for (const r of CROWNED_BEFORE[realm]) for (let l = 1; l <= REALMS[r].levels.length; l++) c = clear(c, classId, r, l);
   for (let l = 1; l < level; l++) c = clear(c, classId, realm, l);
-  return c;
+  // #238: at the level enemy scaling expects there, as far as the crowns it holds let it (5 before the Marches crown)
+  const at = Math.min(levelCap(c.world), expectedChampionLevel(realm, level));
+  return { ...c, level: at, xp: xpForLevel(at) };
 }
 
 /**
@@ -110,12 +114,14 @@ export interface LevelRun {
   summary: RunSummary;
 }
 
-/** The RunOptions of a level for `c`, with the bot's loadout (in the slots the Keep and mastery in `extra` give) and talent plan. */
+/** The RunOptions of a level for `c`, with the bot's loadout (in the slots the Keep and mastery in `extra` give) and its build at the champion's level. */
 export function levelOptions(classId: ClassId, c: Champion, realm: RealmId, level: number, tier: number, variant = 0, extra: RunOptions = {}): RunOptions {
   const def = REALMS[realm].levels[level - 1];
   const slots = slotsFor(realm, level, championBonus(extra.meta ?? {}, extra.classXp ?? 0).slots);
   const relics = botLoadout(classId, c.inventory, slots, def.family, realm === 'lastBastion');
-  return { ...extra, tier, level: { realm, level, relics, talentPlan: branchPlan(classId, variant) }, inventory: c.inventory, fresh: c.inventory };
+  // #238: the bot's build at the champion's level (expectedChampion: the level enemy scaling expects, held at its crown cap)
+  const champion = botBuild(classId, c.level, variant, masteryBonus(extra.classXp ?? 0).utilityTier ? 2 : 1);
+  return { ...extra, tier, level: { realm, level, relics, champion }, inventory: c.inventory, fresh: c.inventory };
 }
 
 /** A first try at `level` of `realm` by the bot, with expected progress (or champion `c`). The run stops on the clear, a death or `maxSeconds`. */
@@ -166,12 +172,18 @@ export function continuousPower(classId: ClassId, seed: number, waves: number[],
 // ---------- the levels table (scripts/level-report.ts) ----------
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+/** The middle value (the mean of the middle two for an even count); 0 for none. */
+export function median(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
+  return s.length ? (s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2) : 0;
+}
 
 /** One level's first tries, summed up: clear rate, minutes of a clear and of a failed try, power and relics at its first wave, moments per findable relic. */
 export interface LevelCell {
   realm: RealmId; level: number; waves: [number, number]; runs: number;
   clear: number; // share of first tries cleared
   minutes: number; // a clear, on average
+  median: number; // #243: a clear's median minutes, which rule 9's level times are held against
   failMinutes: number; // a failed try, on average (0 when none failed)
   power: number; // powerOf at the first wave
   relicsAtStart: number;
@@ -190,6 +202,7 @@ export function levelCell(rows: Omit<LevelRun, 'summary'>[]): LevelCell {
     realm, level, waves: REALMS[realm].levels[level - 1].waves, runs: rows.length,
     clear: won.length / rows.length,
     minutes: avg(won.map((r) => r.time)) / 60,
+    median: median(won.map((r) => r.time)) / 60,
     failMinutes: avg(lost.map((r) => r.time)) / 60,
     power: avg(rows.filter((r) => r.power !== null).map((r) => r.power!)),
     relicsAtStart: avg(rows.map((r) => r.relicsAtStart)),

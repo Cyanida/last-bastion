@@ -8,7 +8,7 @@ import { ARENA_FAMILIES, FAMILIES, FAMILY_IDS, type FamilyId, type Rarity, RELIC
 import { actName, merchantPrice, type DailySetup, type MerchantItem } from '../logic/acts';
 import { curseMultiplier } from '../logic/curses';
 import { ACCOUNT_MILESTONES, BUILDING_IDS, BUILDINGS, MASTERY, META, RUNES, TIERS, VICTORY, type BuildingId, type MetaId } from '../config/economy';
-import { CURSED, CURSED_IDS, DUO_IDS, SIGNATURE, SIGNATURE_IDS, DUOS, keyColor, keyIcon, keyName, relicDef, type DuoId, type RelicId, type RelicKey } from '../config/relics';
+import { CURSED, CURSED_IDS, DUO_IDS, SIGNATURE, SIGNATURE_IDS, DUOS, isDuo, keyColor, keyIcon, keyName, relicDef, type DuoId, type RelicId, type RelicKey } from '../config/relics';
 import { BLESSINGS, type BlessingId } from '../config/regions';
 import { QUESTS, REWARDS, type QuestKind, type RewardKind } from '../config/quests';
 import { TALENT_BRANCHES, TALENT_BY_ID, TALENTS, talentsFor, type BranchDef } from '../config/talents';
@@ -23,7 +23,8 @@ import { branchPoints, takenKeystone, talentBlocker } from '../logic/talents';
 import * as kit from './kit';
 import { duoTier, familySets, looseRelics, halfAttunement, type RelicTiers } from '../logic/relics';
 import { salvageValue, sellPrice } from '../systems/acts';
-import { duoTip, esc, keyTip, recipeLines, relicClass, relicLine, relicRarity, relicTip, tierBadge } from './relicText';
+import { duoTip, esc, infoButton, keyTip, recipeLines, relicClass, relicLine, relicRarity, relicTip, tierBadge, tierChips } from './relicText';
+import { RELIC_SHORT } from '../config/relicShort';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
 import { SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
@@ -37,7 +38,10 @@ import { keepStage } from '../logic/keep';
 import type { CrownReward, LevelReward, RealmId } from '../config/world';
 import { bestCleared, parseTestLevel, testLevels, type LevelPanel, type RoadLevel } from '../logic/world';
 import { REALMS, WORLD } from '../config/world';
-import { fitLoadout, slotBlock, slotView, type SlotBlock } from '../logic/champions';
+import { fitLoadout, slotBlock, slotCost, slotView } from '../logic/champions';
+import { levelUpGains, type BuildView, type TierChoice } from '../logic/championLevels';
+import type { ChampionStat } from '../config/champion';
+import { fellLine, roadGo, runMark, type RoadRun } from '../logic/realmRoad';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
@@ -47,13 +51,13 @@ import type { Route } from '../logic/routes';
 import { EVOLUTION_IDS, EVOLUTIONS, type EvolutionId } from '../config/evolutions';
 import { requirementText } from '../logic/evolutions';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
-import { drawSheetFrame, outlineSprite, portraitSprite, SHEETS, SPRITE_PALETTES } from '../render/sprites';
+import { drawSheetFrame, outlineSprite, PALETTE_NAMES, portraitSprite, SHEETS, SPRITE_PALETTES } from '../render/sprites';
 import { frameAt, type AnimName } from '../logic/animation';
 import { oathReward } from '../logic/oaths';
 import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
-import { GLOSSARY } from '../config/glossary';
+import { CHAMPION_BUILD_TEXT, CHAMPION_HELP, CHAMPION_TABS, CHAMPION_TOUR, GLOSSARY, SLOT_BLOCK_TEXT, type ChampionTab } from '../config/glossary';
 import { cardInfo, iconCard, type CardId } from '../config/cards';
 import { AFFIXES, ELITES, type AffixId } from '../config/elites';
 import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
@@ -101,21 +105,67 @@ function numberKeys(el: HTMLElement, other?: (a: Action) => void): void {
 const fmtStat = (k: StatKey, v: number) => (k === 'atkSpd' ? v.toFixed(2) : String(Math.round(v * 10) / 10));
 const fmtTime = (s: number) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`);
 /**
- * A relic card: the tier it would be at after taking it (1 = new), its text at that tier, synergies with what is held. `more` goes to the end of
- * its tooltip (#98: an offer card shows only its effect and one compact line; the details are on hover or tap).
+ * A relic card: the tier it would be at after taking it (1 = new), its short line and tier chips, synergies with what is held. `more` goes
+ * to the end of its tooltip (#98: an offer card shows only its effect and one compact line; the details are on hover or tap). #235: the
+ * effect is the relic's short line; the full text is its compendium page, behind the ⓘ (wireRelicInfo).
  */
 const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, extra = '', more: string[] = []) => {
   const r = relicDef(id);
   const fam = r.family ? `${FAMILIES[r.family].icon} ${FAMILIES[r.family].name}` : r.signature ? '👑 Signature' : '☠ Cursed'; // v0.7.1 B6: a cursed card is purple and says so (#201: a signature one gold)
   const upgrade = tier > 1;
-  return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip="${esc([relicTip(id, tier, held), ...more].join('\n'))}"><div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.family ? r.rarity : 'no family'}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${relicDesc(id, tier)}</p>${extra}</button>`;
+  return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip="${esc([relicTip(id, tier, held), ...more].join('\n'))}">${infoButton(id, r.name)}<div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.family ? r.rarity : 'no family'}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${RELIC_SHORT[id]}</p>${tierChips(tier)}${extra}</button>`;
 };
 
 /** v0.7 A5: a duo as a gold card: it takes the moment's pick. v0.7.5 (#96): it combines its two relics into one; the families keep their counts. */
 const duoCard = (id: DuoId, attrs: string, extra = '') => {
   const d = DUOS[id];
-  return `<button class="card panel boon evolution duo-card" ${attrs} data-tip="${esc(duoTip(id))}"><div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${d.desc}</p><div class="preview">Combines ${d.from.map((r) => relicDef(r).name).join(' + ')} into one · families keep their counts</div>${extra}</button>`;
+  return `<button class="card panel boon evolution duo-card" ${attrs} data-tip="${esc(duoTip(id))}">${infoButton(id, d.name)}<div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${RELIC_SHORT[id]}</p>${tierChips(1)}${extra}</button>`;
 };
+
+/** #235: a relic's full text, as its compendium row shows it: tiers I and II with their numbers, then the awakening. */
+const relicFullText = (id: RelicId) => {
+  const r = relicDef(id);
+  return `${[1, 2].map((t) => `<div class="tierline"><b>${TIER_NUMERALS[t]}</b> ${relicDesc(id, t)}</div>`).join('')}<div class="tierline"><b>III</b> <em>${r.awaken.name}</em>: ${r.awaken.desc}</div>`;
+};
+
+/**
+ * #235: a relic's or duo's compendium page over the screen it was opened from (the ⓘ on its card): the short line, the full text, its
+ * family's set bonuses. Esc, the close disc or a tap beside it closes it; keys inside it stay with it, so a number key picks no card.
+ */
+function showRelicPage(root: HTMLElement, id: RelicId | DuoId): void {
+  root.querySelector('.relic-page')?.remove();
+  const duo = isDuo(id);
+  const head = duo ? `${DUOS[id].icon} ${DUOS[id].name}` : `${relicDef(id).icon} ${relicDef(id).name}`;
+  const fam = !duo && relicDef(id).family ? FAMILIES[relicDef(id).family!] : null;
+  const body = duo
+    ? `<div class="tierline">${DUOS[id].desc}</div>${DUOS[id].from.map((r) => `<div class="tierline"><b>${relicDef(r).icon}</b> ${relicDef(r).name}: ${relicDesc(r, 1)}</div>`).join('')}<p class="hint">Combines ${DUOS[id].from.map((r) => relicDef(r).name).join(' + ')} into one relic that attunes as one, up to tier ${TIER_NUMERALS[RELIC_MAX_TIER]}; each family keeps its count.</p>`
+    : `${relicFullText(id)}${fam ? `<p class="hint">${fam.name}: ${fam.mechanic}. ${([2, 4, 6] as const).map((l) => `<b>${l} ${fam.sets[l][0]}</b>: ${fam.sets[l][1]}`).join(' ')}</p>` : ''}`;
+  const page = document.createElement('div');
+  page.className = 'relic-page';
+  page.innerHTML = `<div class="kit-frame kit-book" role="dialog" aria-modal="true" aria-label="${esc(head)}">${kit.closeButton('close', { cls: 'kit-corner', attrs: 'data-page-close' })}
+    <h2>${head}</h2><p class="short">${RELIC_SHORT[id]}</p>${kit.parch(body)}</div>`;
+  // keys go to the page while it is open (caught before the game's own keys, focus or not); a screen that replaces it drops the catch
+  const onKey = (e: KeyboardEvent) => {
+    if (!page.isConnected) return window.removeEventListener('keydown', onKey, true);
+    e.stopPropagation();
+    if (e.key === 'Escape') close();
+  };
+  const close = () => { window.removeEventListener('keydown', onKey, true); page.remove(); root.querySelector<HTMLElement>(`.relic-info[data-info="${id}"]`)?.focus(); };
+  page.onclick = (e) => { e.stopPropagation(); if (e.target === page || (e.target as Element).closest('[data-page-close]')) close(); };
+  window.addEventListener('keydown', onKey, true);
+  root.appendChild(page);
+  page.querySelector<HTMLElement>('[data-page-close]')?.focus();
+}
+
+/** #235: every ⓘ on a screen's relic cards opens that relic's page, by click, tap, Enter or Space, and never picks the card under it. */
+function wireRelicInfo(el: HTMLElement): void {
+  // only a relic's own ⓘ: the kit's ⓘ (#239) carries data-info too, for its help text
+  el.querySelectorAll<HTMLElement>('.relic-info[data-info]').forEach((b) => {
+    const open = (e: Event) => { e.stopPropagation(); e.preventDefault(); showRelicPage(el, b.dataset.info as RelicId | DuoId); };
+    b.onclick = open;
+    b.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && open(e);
+  });
+}
 
 /**
  * #189: a framed screen in the kit, as Settings and the results (#186): the heading on a ribbon with the round back disc in its corner
@@ -202,18 +252,28 @@ const TIER_CROWNS = ['crown-squire', 'crown-knight', 'crown-champion', 'crown-le
 
 /**
  * #199: the realm road, the realm's part of the painted map with a flag per level (a lock on one not open yet, the crown of the highest
- * tier it is cleared on), and the level panel for the picked flag: tier crowns, head start, slots, enemy HP, the featured family and
+ * tier it is cleared on), and the level panel for the picked flag: tier crowns, the run's slots (#237: or the realm run's level and
+ * relics kept, when it goes on from a checkpoint; a level the run can't start at says so, its FIGHT off), enemy HP, the featured family and
  * foes, the end boss, what a first clear pays, and FIGHT, the screen's one gold button.
+ * #242: an unfinished realm run shows on the road (the levels cleared in it are ticked, its checkpoint's flag glows) and in the panel: the
+ * relics it holds, Continue from its checkpoint as the gold button, and Start over, which asks first in the panel's own row (decided: no
+ * browser dialog, so a gamepad and a phone answer it like any other button). A death adds "fell at wave N, restart level N".
  */
 export function showRealmRoad(
-  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null },
-  on: { level: (n: number) => void; tier: (t: number) => void; fight: () => void; loadout: () => void; back: () => void },
+  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null; run?: { level: number; relics: number } | null; trail?: RoadRun | null },
+  on: { level: (n: number) => void; tier: (t: number) => void; fight: () => void; over: () => void; loadout: () => void; back: () => void },
 ): void {
   const { realm, panel: pn } = info;
+  const trail = info.trail ?? null;
+  const go = roadGo(trail, info.level, info.tier, pn.open);
   const flag = (l: RoadLevel) => {
     const best = l.cleared.lastIndexOf(true);
-    return `<button class="rr-flag r-${realm} l-${l.n}${l.n === info.level ? ' on' : ''}" data-level="${l.n}" aria-label="Level ${l.n}${l.open ? '' : ', not open yet'}"${l.open ? '' : ' disabled'}>${l.open ? (best >= 0 ? kit.icon(TIER_CROWNS[best]) : '') : kit.icon('lock')}</button>`;
+    const mark = runMark(trail, l.n);
+    return `<button class="rr-flag r-${realm} l-${l.n}${l.n === info.level ? ' on' : ''}${mark ? ` run-${mark}` : ''}" data-level="${l.n}" aria-label="Level ${l.n}${l.open ? '' : ', not open yet'}${mark === 'done' ? ', cleared in this run' : mark === 'next' ? ', the run goes on here' : ''}"${l.open ? '' : ' disabled'}>${l.open ? (best >= 0 ? kit.icon(TIER_CROWNS[best]) : '') : kit.icon('lock')}${mark === 'done' ? '<i class="rr-tick">✓</i>' : ''}</button>`;
   };
+  const held = (r: RoadRun['relics'][number]) =>
+    `<span class="rr-relic" tabindex="0" data-relic="${r.id}" data-tip="${esc(relicTip(r.id, r.tier))}">${kit.rarityGlyph(relicRarity(r.id), relicDef(r.id).icon)}${tierBadge(r.tier)}</span>`;
+  const notes = [info.fell ? `<small class="rr-fell">${esc(fellLine(info.fell, info.level))}</small>` : '', go.note ? `<small class="rr-from">${esc(go.note)}</small>` : ''].filter(Boolean).map((n) => ` · ${n}`).join('');
   const tier = (t: LevelPanel['tiers'][number], i: number) =>
     `<button class="rr-tier${i === info.tier ? ' on' : ''}${t.cleared ? ' cleared' : ''}" data-tier="${i}" aria-pressed="${i === info.tier}" title="${t.name}${t.cleared ? ': cleared' : t.open ? '' : ': not open yet'}"${t.open ? '' : ' disabled'}>${kit.icon(t.open ? TIER_CROWNS[i] : 'lock')}<span>${t.name}</span></button>`;
   const fact = (label: string, value: string | number) => `<span class="rr-fact"><small>${label}</small><b>${value}</b></span>`;
@@ -225,38 +285,99 @@ export function showRealmRoad(
         <div class="rr-top">${kit.ribbon(esc(pn.name), { cls: 'rr-name' })}<div class="rr-tiers">${pn.tiers.map(tier).join('')}</div></div>
         <div class="rr-body">
           <div class="rr-facts">
-            ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${fact('Head start', `Level ${pn.headStart}`)}${fact('Slots', pn.slots)}${fact('Enemy HP', `${pn.enemyHp}%`)}
+            ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${info.run ? `${fact('Run level', `Level ${info.run.level}`)}${fact('Relics kept', info.run.relics)}` : fact('Slots', pn.slots)}${fact('Enemy HP', `${pn.enemyHp}%`)}
           </div>
           <div class="rr-foes">
             ${pn.family ? `<p>${kit.icon(pn.family)} <b>${FAMILIES[pn.family].name}</b> relics featured</p>` : ''}
             <p><small>Foes</small> ${esc(pn.foes.join(', '))}</p>
-            <p><small>${pn.crownBoss ? 'Crown boss' : 'End boss'}</small> <b>${esc(pn.boss)}</b></p>
+            <p><small>${pn.crownBoss ? 'Crown boss' : pn.eliteBoss ? 'Elite boss' : 'End boss'}</small> <b>${esc(pn.boss)}</b></p>
           </div>
           <div class="rr-rewards">
             <small>${pn.rewards.length ? 'First clear' : 'Replay'}</small>
             ${pn.rewards.length ? `<ul>${pn.rewards.map((r) => `<li>${kit.icon('crown')}${esc(r)}</li>`).join('')}</ul>` : '<p>First-clear rewards taken: a replay pays gold and XP for the waves played.</p>'}
           </div>
         </div>
-        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${info.fell ? ` · <small>fell at wave ${info.fell}</small>` : ''}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${kit.button('Fight!', { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !pn.open })}</div>`, { cls: 'rr-panel' })}
+        ${trail?.here ? `<div class="rr-run"><small>Run relics</small>${trail.relics.length ? `<span class="rr-relics">${trail.relics.map(held).join('')}</span>` : '<span class="rr-none">None yet</span>'}</div>` : ''}
+        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${notes}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${go.over ? kit.button('Start over', { attrs: 'data-over' }) : ''}${kit.button(go.label, { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !go.enabled })}</div>
+        <div class="rr-go rr-ask" role="alertdialog" aria-label="Start over?" hidden><span class="rr-asks"></span>${kit.button('Keep the run', { attrs: 'data-keep' })}${kit.button('Start over', { kind: 'go', size: 'big', attrs: 'data-yes' })}</div>`, { cls: 'rr-panel' })}
     </div>`);
+  // Start over, or a new run on another tier: the run in progress is lost, so the row asks first; Keep the run (or Esc) puts the buttons back
+  const row = el.querySelector<HTMLElement>('.rr-go:not(.rr-ask)')!, asks = el.querySelector<HTMLElement>('.rr-ask')!;
+  let yes: (() => void) | null = null;
+  const ask = (text: string, then: () => void) => {
+    asks.querySelector('.rr-asks')!.textContent = text;
+    yes = then;
+    row.hidden = true;
+    asks.hidden = false;
+    asks.querySelector<HTMLElement>('[data-keep]')!.focus();
+  };
+  const keep = () => {
+    yes = null;
+    asks.hidden = true;
+    row.hidden = false;
+  };
   click(el, '[data-back]', () => on.back());
   click(el, '.rr-flag', (b) => on.level(Number(b.dataset.level)));
   click(el, '.rr-tier', (b) => on.tier(Number(b.dataset.tier)));
-  click(el, '[data-fight]', () => on.fight());
+  click(el, '[data-fight]', () => (go.ask ? ask(go.ask, on.fight) : on.fight()));
+  click(el, '[data-over]', () => go.over && ask(go.over, on.over));
+  click(el, '[data-keep]', keep);
+  click(el, '[data-yes]', () => yes?.());
   click(el, '[data-loadout]', () => on.loadout()); // #197: the champion screen, on this realm's loadout
-  onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
+  onActions((a) => (a === 'cancel' || a === 'pause') && (yes ? keep() : on.back()));
 }
 
-/** #197: why an inventory relic can't go in a slot, in the player's words (logic/champions slotBlock). */
-const SLOT_BLOCKS: Record<SlotBlock, string> = {
-  cursed: 'A cursed relic never goes in a loadout.',
-  otherClass: "Another class's relic.",
-  slotted: 'In a slot already: tap the slot to take it out.',
-  slots: 'No free slot for it (a legendary takes two).',
-  family: 'At most 4 relics of one family.',
-  legendary: 'At most 1 legendary (2 in the Last Bastion).',
-  classRelics: 'At most 2 class relics.',
+// ---------------------------------------------------------------- the build (#241)
+
+/** #241: a spend on the build panel. Each says how the build stands after it (unchanged when it could not be done). */
+export interface BuildActions {
+  stat: (stat: ChampionStat, by: 1 | -1) => BuildView;
+  ability: (id: AbilityUpgradeId) => BuildView;
+  utility: (id: UtilityUpgradeId) => BuildView;
+}
+
+/** One two-way tier of the build panel: what is bought, then the next tier's two options (dim until the points are there). */
+const tierBlock = <Id extends string>(kind: 'ability' | 'utility', title: string, t: TierChoice<Id>, def: (id: Id) => { name: string; desc: string }, cost: number): string => {
+  const bought = t.bought.map((id) => `<li><b>${def(id).name}</b> ${def(id).desc}</li>`).join('');
+  const option = (id: Id) => `<button class="bp-option" data-buy-${kind}="${id}" ${t.next!.canBuy ? '' : `disabled data-tip="Needs ${cost} stat points."`}><b>${def(id).name}</b><span>${def(id).desc}</span></button>`;
+  const next = t.next ? `<p class="bp-cost">Upgrade ${t.next.tier + 1} · ${cost} stat points · choose one of two</p><div class="bp-options">${t.next.options.map(option).join('')}</div>` : '';
+  return `<div class="bp-tier" data-tier="${kind}"><h3>${title}</h3>${bought ? `<ul class="bp-bought">${bought}</ul>` : ''}${t.locked ? `<p class="cs-empty">${t.locked}</p>` : next || (bought ? '' : '<p class="cs-empty">Nothing to buy yet.</p>')}</div>`;
 };
+
+/**
+ * #241: the build panel, the one place stat points are spent: on the level-cleared screen and on the champion screen's Build tab. The
+ * champion's level and XP, then a row per stat (what a point gives, a minus, the points in it, a plus, what they add up to), then the
+ * ability's and the utility's next tier.
+ */
+const buildPanel = (classId: ClassId, v: BuildView): string => `
+  <p class="cs-level"><b>Level ${v.level}</b> · ${v.capped ? `at its cap of ${v.cap}: a crown raises it` : `${Math.floor(v.xp)} / ${v.next} XP`} · <span data-stat-points>${v.statPoints}</span> stat point${v.statPoints === 1 ? '' : 's'} to spend</p>
+  <div class="bp-stats">${v.stats.map((s) => `<div class="bp-stat" data-stat="${s.id}">
+    <span class="bp-name" tabindex="0" data-tip="${esc(s.desc)}"><b>${s.name}</b><small data-stat-gives>${s.gives} a point</small></span>
+    <button class="kit-close bp-step" data-stat-take="${s.id}" aria-label="Take a point out of ${s.name}" ${s.canTake ? '' : 'disabled'}>−</button>
+    <b class="bp-n" data-stat-n>${s.points}</b>
+    <button class="kit-close bp-step" data-stat-add="${s.id}" aria-label="Put a point into ${s.name}" ${s.canAdd ? '' : 'disabled'}>+</button>
+    <span class="bp-total" data-stat-total>${s.points ? s.total : ''}</span></div>`).join('')}</div>
+  ${tierBlock('ability', `${CLASSES[classId].ability.name} · ability`, v.ability, (id) => ABILITY_UPGRADES[id], v.tierCost)}
+  ${tierBlock('utility', `${UTILITIES[classId].name} · utility`, v.utility, (id) => UTILITY_UPGRADES[id], v.tierCost)}`;
+
+/**
+ * #241: the build panel in `root`, live: a press spends (or takes back) through `on` and the panel draws itself again from the build
+ * that comes back, keeping the focus on the button pressed. `changed`: the screen round it follows along (its own points line).
+ */
+function mountBuild(root: HTMLElement, classId: ClassId, view: BuildView, on: BuildActions, changed?: (v: BuildView) => void): void {
+  const draw = (v: BuildView, focus?: string) => {
+    root.innerHTML = buildPanel(classId, v);
+    dropStaleTooltip();
+    const then = (next: BuildView, sel: string) => { draw(next, sel); changed?.(next); };
+    click(root, '[data-stat-add]', (b) => then(on.stat(b.dataset.statAdd as ChampionStat, 1), `[data-stat-add="${b.dataset.statAdd}"]`));
+    click(root, '[data-stat-take]', (b) => then(on.stat(b.dataset.statTake as ChampionStat, -1), `[data-stat-take="${b.dataset.statTake}"]`));
+    click(root, '[data-buy-ability]', (b) => then(on.ability(b.dataset.buyAbility as AbilityUpgradeId), '.bp-step'));
+    click(root, '[data-buy-utility]', (b) => then(on.utility(b.dataset.buyUtility as UtilityUpgradeId), '.bp-step'));
+    // the button pressed, or (it went dim: the last point) the first one that can still be pressed
+    if (focus) (root.querySelector<HTMLElement>(`${focus}:not(:disabled)`) ?? root.querySelector<HTMLElement>('button:not(:disabled)'))?.focus();
+  };
+  draw(view);
+}
 
 export interface ChampionInfo {
   classId: ClassId;
@@ -268,59 +389,80 @@ export interface ChampionInfo {
   realmName: string;
   level: number; // the level PLAY starts (1-based)
   tier: number;
-  slots: number; // that level's slots, with the Keep's and mastery's
+  slots: number; // that level's slots, with the Keep's and mastery's; #237: 0 when its realm run goes on from a checkpoint (the loadout went in at level 1)
   loadout: RelicId[]; // the realm's saved loadout, at the most slots
   inventory: RelicId[];
-  plan: string[]; // the talent plan, in order
+  talents: string[]; // #238: the talents it has taken, in order
+  build: BuildView; // #238, #241: its level and crown cap, its XP, the points free to spend and where they went (logic/championLevels buildView)
+  inRun: boolean; // #238: a realm run holds the build: no reset until it ends
   fell: number | null; // #197: the wave this level was lost on, this session: the button restarts it
+  tab: ChampionTab; // #240: the tab the screen opens on
+  tour: boolean; // #240: a first visit: the tour opens by itself
 }
 
 /**
  * #197: the champion screen, the home of the road to the crown (Survivor.io style): the champion on a pedestal with its six slots around
  * it (the loadout for the realm it plays next; slots past the level's own idle), the set chips of what goes in, the inventory to fill the
- * slots from, the talent plan, the next level and one big green PLAY (RESTART after a fall), and the tab bar.
+ * slots from, its level and talents (#238), the next level and one big green PLAY (RESTART after a fall), and the tab bar.
+ * #240: in three tabs, one at a time: Loadout (the slots, the set chips and the inventory), Build and Talents (the plan); the pedestal,
+ * the next level and PLAY stay on all three. A first visit opens a short tour (kit.tour), and the ⓘ beside the tabs plays it again.
  */
 export function showChampion(
   info: ChampionInfo,
-  on: { slot: (id: RelicId) => void; unslot: (id: RelicId) => void; plan: () => void; clearPlan: () => void; play: () => void; champ: (step: number) => void; tab: (id: string) => void; back: () => void },
+  on: { slot: (id: RelicId) => void; unslot: (id: RelicId) => void; talents: () => void; resetPoints: (tab: ChampionTab) => void; build: BuildActions; play: () => void; champ: (step: number) => void; tab: (id: string) => void; back: () => void },
 ): void {
   const c = CLASSES[info.classId];
   const finale = info.realm === 'lastBastion';
+  const RUN_ON = 'The realm run is under way: its loadout went in at level 1.'; // #237: no slots (info.slots 0) past a run's level 1
   const view = slotView(info.classId, info.loadout, info.slots, finale);
   const goes = fitLoadout(info.classId, info.loadout, info.slots, finale);
   const tier = REALMS[info.realm].levels[info.level - 1].relicTier;
+  // #239: a legendary is one wide frame over its two slots, with its "2 slots" badge; its second slot draws nothing of its own
+  const two = `<span class="cs-badge">${WORLD.loadout.legendarySlots} slots</span>`;
   const slot = (s: (typeof view)[number], i: number) => {
     const idle = s.live ? '' : ' idle';
-    if (!s.id) return `<span class="cs-slot empty${idle}" data-slot="${i}" title="${s.live ? 'An empty slot: tap a relic in the inventory' : `Not open in this level (${info.slots} slot${info.slots > 1 ? 's' : ''})`}">${s.live ? '' : kit.icon('lock')}</span>`;
+    if (!s.id) return `<span class="cs-slot empty${idle}" data-slot="${i}" tabindex="0" data-tip="${s.live ? 'An empty slot: tap a relic in the inventory to put it here.' : info.slots ? `Locked (${info.slots} slot${info.slots > 1 ? 's' : ''} for the realm run): the Keep opens more.` : RUN_ON}">${s.live ? '' : kit.icon('lock')}</span>`;
+    if (s.second) return '';
     const r = relicDef(s.id);
-    return `<button class="cs-slot${idle}${s.second ? ' second' : ''}" data-slot="${i}" data-unslot="${s.id}" aria-label="${esc(`${r.name}: take it out`)}" data-tip="${esc(`${relicTip(s.id, tier)}${s.live ? '' : '\nNot in this level: no slot left for it.'}\nTap to take it out.`)}">${kit.rarityGlyph(relicRarity(s.id), s.second ? '' : r.icon)}</button>`;
+    const double = slotCost(s.id) > 1;
+    return `<button class="cs-slot${idle}${double ? ' double' : ''}" data-slot="${i}" data-unslot="${s.id}" aria-label="${esc(`${r.name}${double ? ', 2 slots' : ''}: take it out`)}" data-tip="${esc(`${relicTip(s.id, tier)}${double ? `\nA legendary: it takes ${WORLD.loadout.legendarySlots} slots.` : ''}${s.live ? '' : info.slots ? '\nNot in this run: no slot left for it.' : `\n${RUN_ON}`}\nTap to take it out.`)}">${kit.rarityGlyph(relicRarity(s.id), r.icon)}${double ? two : ''}${infoButton(s.id, r.name)}</button>`;
   };
   const sets = Object.entries(familySets(goes)) as [FamilyId, { count: number; level: number }][];
   const chip = ([f, st]: [FamilyId, { count: number; level: number }]) =>
-    `<span class="cs-set${st.level ? ' on' : ''}" data-tip="${esc(`${FAMILIES[f].name}: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[f].sets[n][0]}`).join(' · ')}`)}">${kit.icon(f)}${st.count}</span>`;
+    `<span class="cs-set${st.level ? ' on' : ''}" tabindex="0" data-tip="${esc(`${FAMILIES[f].name}: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[f].sets[n][0]}`).join(' · ')}`)}">${kit.icon(f)}${st.count}</span>`;
+  // #239: a relic that can't go in says why on hover (its tip) and on tap (below the inventory, and on the open slots it greys out)
   const relic = (id: RelicId) => {
     const why = info.loadout.includes(id) ? null : slotBlock(info.classId, info.loadout, id, WORLD.maxSlots, finale);
-    return `<button class="cs-relic${info.loadout.includes(id) ? ' on' : why ? ' blocked' : ''}" data-relic="${id}" data-why="${why ? esc(SLOT_BLOCKS[why]) : ''}" aria-label="${esc(relicDef(id).name)}" data-tip="${esc(relicTip(id, tier))}">${kit.rarityGlyph(relicRarity(id), relicDef(id).icon)}</button>`;
+    const reason = why ? SLOT_BLOCK_TEXT[why] : '';
+    return `<button class="cs-relic${info.loadout.includes(id) ? ' on' : why ? ' blocked' : ''}" data-relic="${id}" data-why="${esc(reason)}" aria-label="${esc(relicDef(id).name)}" data-tip="${esc(`${relicTip(id, tier)}${reason ? `\n${reason}` : ''}`)}">${kit.rarityGlyph(relicRarity(id), relicDef(id).icon)}${slotCost(id) > 1 ? two : ''}${infoButton(id, relicDef(id).name)}</button>`;
   };
-  const plan = info.plan.map((t) => `<li>${esc(TALENT_BY_ID[t]?.name ?? t)}</li>`).join('');
+  const plan = info.talents.map((t) => `<li>${esc(TALENT_BY_ID[t]?.name ?? t)}</li>`).join('');
+  // #241: the Build tab spends the stat points (the build panel, as on the level-cleared screen); talents are spent on the tree
+  const ch = info.build;
+  const resetRow = (v: BuildView) => (v.canReset ? kit.button('Reset points', { size: 'small', attrs: 'data-reset-build data-tip="Every stat and talent point back, for free."' }) : info.inRun ? '<p class="cs-empty">A realm run is under way: what it has played with stays until it ends, then every point can be taken back.</p>' : '');
+  // #240: a part of one tab: in the page all along, hidden while another tab is open
+  const of = (t: ChampionTab) => `data-cs-of="${t}"${t === info.tab ? '' : ' hidden'}`;
+  const tabs = CHAMPION_TABS.map((t) => kit.button(t.label, { size: 'small', cls: t.id === info.tab ? 'on pressed' : '', attrs: `role="tab" data-cs="${t.id}" aria-selected="${t.id === info.tab}"` })).join('');
   const el = show(`
     <div class="kit-frame champion-screen">
       <header class="kit-head">${kit.closeButton('back', { attrs: 'data-back' })}${kit.ribbon(`${kit.icon('champion')} ${esc(info.name)}`, { attrs: 'role="heading" aria-level="1"' })}<div class="kit-purse">${kit.pill('gold', info.gold, { title: 'Gold' })}${info.runes ? kit.pill('runes', info.runes, { title: 'Runes' }) : ''}</div></header>
+      <div class="cs-tabs kit-choice" role="tablist" aria-label="Champion">${tabs}<button class="kit-info" data-tour aria-label="Show the tour again" data-tip="A short tour of this screen.">i</button></div>
       <div class="cs-main">
-        <div class="cs-slots">${view.slice(0, 3).map(slot).join('')}</div>
-        <div class="cs-hero pedestal"><div class="hero-figure" data-figure></div><div class="cs-pick"><button class="kit-close cs-arrow" data-champ="-1" aria-label="Previous champion">‹</button>${kit.ribbon(c.name)}<button class="kit-close cs-arrow" data-champ="1" aria-label="Next champion">›</button></div><div class="cs-sets">${sets.map(chip).join('') || '<small>No set yet</small>'}</div></div>
-        <div class="cs-slots">${view.slice(3).map((s, i) => slot(s, i + 3)).join('')}</div>
+        <div class="cs-hero pedestal"><div class="hero-figure" data-figure></div><div class="cs-pick"><button class="kit-close cs-arrow" data-champ="-1" aria-label="Previous champion">‹</button>${kit.ribbon(c.name)}<button class="kit-close cs-arrow" data-champ="1" aria-label="Next champion">›</button></div>
+          <div class="cs-slots" ${of('loadout')}>${view.map(slot).join('')}${kit.infoButton('slots', 'How slots work')}</div>
+          <div class="cs-sets" ${of('loadout')}>${sets.map(chip).join('') || '<small>No set yet</small>'}${kit.infoButton('sets', 'How sets work')}</div></div>
         <div class="cs-side">
           ${kit.parch(`<h2>Inventory <small>${info.inventory.length}</small></h2>
             ${info.inventory.length ? `<div class="cs-inv">${info.inventory.map(relic).join('')}</div>` : '<p class="cs-empty">No relics yet. Levels cleared win them; tap one to put it in a slot.</p>'}
-            <p class="cs-why" aria-live="polite"></p>`, { cls: 'cs-inventory' })}
-          ${kit.parch(`<h2>Talent plan <small>${info.plan.length}</small></h2>
-            ${plan ? `<ol class="cs-plan">${plan}</ol>` : '<p class="cs-empty">No plan: the head start leaves its points to spend.</p>'}
-            <div class="row">${kit.button('Edit plan', { size: 'small', attrs: 'data-plan' })}${info.plan.length ? kit.button('Clear', { size: 'small', attrs: 'data-clear-plan' }) : ''}</div>`, { cls: 'cs-talents' })}
+            <p class="cs-why" aria-live="polite"></p>`, { cls: 'cs-inventory', attrs: of('loadout') })}
+          ${kit.parch(`<h2>Build${kit.infoButton('build', 'How stat points work')}</h2><div class="build-panel" data-build></div><div class="row" data-build-row>${resetRow(ch)}</div><p class="cs-empty">${CHAMPION_BUILD_TEXT}</p>`, { cls: 'cs-build', attrs: of('build') })}
+          ${kit.parch(`<h2>Talents <small>${info.talents.length}</small>${kit.infoButton('talents', 'How talent points work')}</h2>
+            ${plan ? `<ol class="cs-plan">${plan}</ol>` : '<p class="cs-empty">No talents yet: every champion level gives a talent point.</p>'}
+            <div class="row">${kit.button(ch.talentPoints > 0 ? `Spend points (${ch.talentPoints})` : 'Talent tree', { size: 'small', attrs: 'data-spend-talents' })}${!info.inRun && info.talents.length ? kit.button('Reset points', { size: 'small', attrs: 'data-reset-points' }) : ''}</div>`, { cls: 'cs-talents', attrs: of('talents') })}
         </div>
       </div>
       <div class="cs-go">
-        <span class="cs-next">${kit.icon('map')}<span><b>${esc(info.realmName)} · Level ${info.level}</b><small>${TIERS[info.tier].name} · ${info.slots} slot${info.slots > 1 ? 's' : ''}${info.fell ? ` · fell at wave ${info.fell}` : ''}</small></span></span>
+        <span class="cs-next">${kit.icon('map')}<span><b>${esc(info.realmName)} · Level ${info.level}</b><small>${TIERS[info.tier].name} · ${info.slots ? `${info.slots} slot${info.slots > 1 ? 's' : ''}` : 'run in progress'}${info.fell ? ` · fell at wave ${info.fell}` : ''}</small></span></span>
         ${kit.button(info.fell ? 'Restart' : 'Play', { kind: 'go', size: 'big', attrs: 'data-play' })}
       </div>
       ${kit.tabs(kit.MAIN_TABS, 'champion')}
@@ -333,20 +475,72 @@ export function showChampion(
   big.getContext('2d')!.drawImage(spr.img, 0, 0);
   big.style.setProperty('--sprite-h', `${SHEETS[c.sprite] ? spr.h : Math.round(spr.h / PORTRAIT_K)}px`);
   fig.appendChild(big);
+  wireRelicInfo(el);
   click(el, '[data-unslot]', (b) => on.unslot(b.dataset.unslot as RelicId));
+  // #239: pointing at a relic that can't go in greys out the empty slots, each saying why (a slot locked in this level too: a relic
+  // may wait in it for a later level). A tap on the relic keeps them grey, so the pointer or a finger can go and read a slot's reason,
+  // until the next tap elsewhere
+  let picked = '';
+  const deny = (why: string) => {
+    for (const s of el.querySelectorAll<HTMLElement>('.cs-slot.empty')) {
+      s.dataset.was ??= s.dataset.tip;
+      s.classList.toggle('deny', !!why);
+      s.dataset.tip = why || s.dataset.was;
+    }
+  };
+  for (const b of el.querySelectorAll<HTMLElement>('.cs-relic.blocked')) {
+    b.addEventListener('pointerenter', () => deny(b.dataset.why!));
+    b.addEventListener('focus', () => deny(b.dataset.why!));
+    b.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && deny(picked));
+    b.addEventListener('blur', () => deny(picked));
+  }
+  // on the screen's own frame, which goes with the screen: the overlay under it lives on and would keep the listener
+  const frame = el.querySelector<HTMLElement>('.champion-screen')!;
+  frame.addEventListener('click', (e) => !(e.target as HTMLElement).closest('.cs-relic.blocked, .cs-slot.empty') && deny((picked = '')));
   click(el, '[data-relic]', (b) => {
     const id = b.dataset.relic as RelicId;
     if (info.loadout.includes(id)) on.unslot(id);
-    else if (b.dataset.why) el.querySelector('.cs-why')!.textContent = `${relicDef(id).name}: ${b.dataset.why}`;
-    else on.slot(id);
+    else if (b.dataset.why) {
+      el.querySelector('.cs-why')!.textContent = `${relicDef(id).name}: ${b.dataset.why}`;
+      deny((picked = b.dataset.why));
+    } else on.slot(id);
   });
-  click(el, '[data-plan]', () => on.plan());
+  const help = kit.wireInfo(frame, CHAMPION_HELP);
+  // #240: a tab shows its own parts and hides the others'; no re-render, so what was tapped on a tab is still there on the way back
+  const openTab = (id: ChampionTab) => {
+    for (const part of el.querySelectorAll<HTMLElement>('[data-cs-of]')) part.hidden = part.dataset.csOf !== id;
+    for (const b of el.querySelectorAll<HTMLElement>('[data-cs]')) {
+      b.classList.toggle('on', b.dataset.cs === id);
+      b.classList.toggle('pressed', b.dataset.cs === id);
+      b.setAttribute('aria-selected', String(b.dataset.cs === id));
+    }
+  };
+  click(el, '[data-cs]', (b) => openTab(b.dataset.cs as ChampionTab));
+  // #240: the tour starts on Loadout, where its first steps point; Escape skips it and Enter goes on
+  let tour: ReturnType<typeof kit.tour> | null = null;
+  const startTour = () => {
+    help.close();
+    openTab('loadout');
+    tour = kit.tour(frame, CHAMPION_TOUR, () => (tour = null));
+  };
+  click(el, '[data-tour]', startTour);
+  click(el, '[data-spend-talents]', () => on.talents());
   click(el, '[data-champ]', (b) => on.champ(Number(b.dataset.champ)));
-  click(el, '[data-clear-plan]', () => on.clearPlan());
+  click(el, '[data-reset-points]', () => on.resetPoints('talents'));
+  // #241: the build panel; the reset under it comes and goes with what is spent
+  const row = el.querySelector<HTMLElement>('[data-build-row]')!;
+  const wireReset = () => click(row, '[data-reset-build]', () => on.resetPoints('build'));
+  mountBuild(el.querySelector<HTMLElement>('[data-build]')!, info.classId, info.build, on.build, (v) => { row.innerHTML = resetRow(v); wireReset(); });
+  wireReset();
   click(el, '[data-play]', () => on.play());
   click(el, '[data-back]', () => on.back());
   kit.wireTabs(el, (id) => on.tab(id));
-  onActions((a) => (a === 'cancel' || a === 'pause' ? on.back() : a === 'confirm' && !(document.activeElement instanceof HTMLButtonElement) && on.play()));
+  onActions((a) => {
+    const button = document.activeElement instanceof HTMLButtonElement; // a focused button takes Enter itself
+    if (tour) return a === 'cancel' || a === 'pause' ? tour.skip() : a === 'confirm' && !button && tour.next();
+    return a === 'cancel' || a === 'pause' ? help.close() || on.back() : a === 'confirm' && !button && on.play();
+  });
+  if (info.tour) startTour();
 }
 
 export interface SettingsInfo {
@@ -445,7 +639,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId) => void; b
   // #65: the roster: a small tile per champion, in a strip that scrolls sideways, so more champions fit without a taller screen
   const tile = (c: ClassDef) => {
     const { palettes, chosen, n } = paletteOf(c);
-    const swatches = palettes.length ? `<div class="swatches">${[0, ...palettes].map((p) => `<span class="swatch ${chosen === p ? 'on' : ''}" data-palette="${c.id}:${p}" data-tip="${['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours'][p]}"><i style="filter:${SPRITE_PALETTES[p] || 'none'}"></i></span>`).join('')}</div>` : '';
+    const swatches = palettes.length ? `<div class="swatches">${[0, ...palettes].map((p) => `<span class="swatch ${chosen === p ? 'on' : ''}" data-palette="${c.id}:${p}" data-tip="${PALETTE_NAMES[p]}"><i style="filter:${SPRITE_PALETTES[p] || 'none'}"></i></span>`).join('')}</div>` : '';
     return `
     <button class="card champ ${selectedClass === c.id ? 'on' : ''}" data-class="${c.id}">
       <div class="portrait" data-sprite="${c.sprite}" data-palette-n="${n}"></div>${swatches}
@@ -852,11 +1046,15 @@ export function showLevelUp(
           const special = (o.kind === 'stat' && o.key === 'secondary') || o.kind === 'talent' || o.kind === 'evolution' ? 'special' : '';
           const now = o.kind === 'stat' ? `<div class="best">now ${fmtStat(o.key, stats[o.key])}</div>` : '';
           const strike = on.banish && o.kind !== 'evolution' ? `<span class="banish" data-banish="${i}" data-tip="Quartermaster's Ledger: strike this card from the run for good (and get a fresh hand)">✕</span>` : '';
-          return `<button class="card panel boon ${kind} ${special}" data-pick="${i}">${strike}<div class="num">${i + 1}</div><h2>${t.title}</h2><div class="tag">${t.tag}</div><p>${t.desc}</p>${now}</button>`;
+          // #235: a relic among the boons is its short line and tier chips too, with the ⓘ to its compendium page
+          const info = o.kind === 'relic' ? infoButton(o.id, relicDef(o.id).name) : '';
+          const chips = o.kind === 'relic' ? tierChips((tiers[o.id] ?? 0) + 1) : '';
+          return `<button class="card panel boon ${kind} ${special}" data-pick="${i}">${strike}${info}<div class="num">${i + 1}</div><h2>${t.title}</h2><div class="tag">${t.tag}</div><p>${t.desc}</p>${chips}${now}</button>`;
         }).join('')}
       </div>
       ${kit.button(`Reroll (R) — ${reroll.free > 0 ? `${reroll.free} free` : `🪙 ${reroll.cost}`}`, { attrs: 'data-reroll', disabled: !canReroll })}
     </div>`);
+  wireRelicInfo(el);
   click(el, '[data-pick]', (b) => on.pick(options[Number(b.dataset.pick)]));
   el.querySelectorAll<HTMLElement>('[data-banish]').forEach((b) => (b.onclick = (ev) => {
     ev.stopPropagation(); // not a pick
@@ -899,6 +1097,7 @@ export function showRelicOffer(
         ${kit.button(`Skip · 🪙 ${info.skip.gold} · ◆ ${info.skip.shards} shard`, { attrs: 'data-skip data-tip="Take nothing from this moment: gold for this run and a Rune shard for the Keep"' })}
       </div>
     </div>`);
+  wireRelicInfo(el);
   click(el, '[data-pick]', (b) => on.take(Number(b.dataset.pick) < options.length ? options[Number(b.dataset.pick)] : offer.duo!));
   click(el, '[data-skip]', on.skip);
   click(el, '[data-reroll]', () => offer.rerolls > 0 && on.reroll());
@@ -920,6 +1119,7 @@ export function showRarePick(level: string, family: FamilyId, options: RelicId[]
       <p class="sub">${options.length ? text.sub ?? `Choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} rare to keep. It joins your champion's relics for every loadout.` : text.empty ?? `You hold every ${FAMILIES[family].name} rare already.`}</p>
       ${options.length ? `<div class="cards">${options.map((id, i) => relicCard(id, 1, [], `data-pick="${i}"`, `<div class="num">${i + 1}</div>`)).join('')}</div>` : `<div class="row">${kit.button(`Take ◆ ${runes} Runes`, { kind: 'gold', attrs: 'data-runes' })}</div>`}
     </div>`);
+  wireRelicInfo(el);
   click(el, '[data-pick]', (b) => onPick(options[Number(b.dataset.pick)]));
   click(el, '[data-runes]', () => onPick(null));
   numberKeys(el, (a) => a === 'confirm' && !options.length && onPick(null));
@@ -939,6 +1139,7 @@ export function showCrownPick(realm: string, champion: string, relic: RelicId, o
     </div>`);
   let taken = false;
   const take = () => { if (!taken) { taken = true; onTake(); } };
+  wireRelicInfo(el);
   click(el, '[data-pick]', take);
   numberKeys(el, (a) => a === 'confirm' && take());
 }
@@ -1030,7 +1231,7 @@ function showTwoWay(title: string, options: { id: string; name: string; desc: st
  * v0.4: the talent tree, from the pause menu. Three branch columns, four rows, big buttons: taken, available (glowing) or locked
  * (dim, the tooltip says what it needs). Spending is immediate; the screen re-renders itself.
  */
-export function showTalents(info: { classId: ClassId; taken: string[]; points: number; rowCap: number; treasure?: TreasureId | null; plan?: boolean }, on: { spend: (id: string) => boolean; back: () => void }): void {
+export function showTalents(info: { classId: ClassId; taken: string[]; points: number; rowCap: number; treasure?: TreasureId | null; champion?: boolean }, on: { spend: (id: string) => boolean; back: () => void }): void {
   const branches = TALENT_BRANCHES[info.classId];
   const nodes = talentsFor(info.classId, info.treasure);
   const keystone = takenKeystone(info.taken);
@@ -1049,10 +1250,10 @@ export function showTalents(info: { classId: ClassId; taken: string[]; points: n
       }).join('')}</div>`).join('')}
     </div>`;
   };
-  const el = show(kitScreen('talents', info.plan ? 'Talent plan' : 'Talents', {
+  const el = show(kitScreen('talents', 'Talents', {
     back: 'data-back',
-    // #197: the champion's talent plan is picked on the same tree: tap talents in the order the head start spends its points on them
-    sub: info.plan ? `Tap talents in the order the head start spends its points: ${info.taken.length} planned · a keystone needs ${TALENTS.keystonePoints} points in its branch` : `${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${TALENTS.levelsPerPoint} levels · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}${info.rowCap < TALENTS.rows - 1 ? ' · <b>keystones open when the Library is raised in the Keep</b>' : ''}`,
+    // #238: the champion spends its own talent points on the same tree, between levels (`champion`: a point per champion level)
+    sub: `${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${info.champion ? 'champion level' : `${TALENTS.levelsPerPoint} levels`} · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}${info.rowCap < TALENTS.rows - 1 ? ' · <b>keystones open when the Library is raised in the Keep</b>' : ''}`,
     body: `<div class="tree">${branches.map(column).join('')}</div>`,
   }));
   click(el, '[data-talent]', (b) => {
@@ -1082,7 +1283,7 @@ export function buildHtml(info: BuildInfo): string {
   const relics = looseRelics(info.relics, info.duos ?? []).map((id) => { // v0.7.5 (#96): a duo's two relics show as the duo
     const tier = info.tiers[id] ?? 1;
     const att = info.attune && tier < RELIC_MAX_TIER ? ` · ${Math.floor((info.attune[id] ?? 0) * 100)}% to ${TIER_NUMERALS[tier + 1]}` : '';
-    return `<div><span tabindex="0" data-tip="${esc(relicTip(id, tier, info.relics))}">${relicDef(id).icon} ${relicDef(id).name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}${att}</span><em>${relicDesc(id, tier)}</em></div>`;
+    return `<div><span tabindex="0" data-tip="${esc(relicTip(id, tier, info.relics))}">${relicDef(id).icon} ${relicDef(id).name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}${att}</span><em>${RELIC_SHORT[id]}</em></div>`;
   }).join('');
   const trait = info.trait !== 'none' ? `<div><span>${TRAITS[info.trait].icon} ${TRAITS[info.trait].name}</span><em>${TRAITS[info.trait].desc}</em></div>` : '';
   const ups = info.upgrades.map((id) => `<div><span>✦ ${ABILITY_UPGRADES[id].name}</span><em>${ABILITY_UPGRADES[id].desc}</em></div>`).join('');
@@ -1094,7 +1295,7 @@ export function buildHtml(info: BuildInfo): string {
   const duos = (info.duos ?? []).map((id) => {
     const tier = duoTier(info.tiers, id);
     const att = info.attune && tier < RELIC_MAX_TIER ? ` · ${Math.floor(Math.max(...DUOS[id].from.map((r) => info.attune![r] ?? 0)) * 100)}% to ${TIER_NUMERALS[tier + 1]}` : '';
-    return `<div class="evolved"><span tabindex="0" data-tip="${esc(duoTip(id, tier))}">${DUOS[id].icon} ${DUOS[id].name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}${att}</span><em>${DUOS[id].desc}</em></div>`;
+    return `<div class="evolved"><span tabindex="0" data-tip="${esc(duoTip(id, tier))}">${DUOS[id].icon} ${DUOS[id].name}${tier > 1 ? ` ${TIER_NUMERALS[tier]}` : ''}${att}</span><em>${RELIC_SHORT[id]}</em></div>`;
   }).join('');
   const syns = Object.entries(familySets(info.relics)).map(([f, st]) => {
     const fam = FAMILIES[f as keyof typeof FAMILIES];
@@ -1159,16 +1360,17 @@ export interface RunResult {
   restart: string; // what Quick Restart keeps: "Viking · Stalwart · Oath 3"
   relicShares: { id: RelicKey; tier: number; from: RelicSource; damage: number; healing: number; mitigation: number }[]; // v0.7: which relics carried the run
   wins: number; // the class's wins, this one included
+  championXp: { xp: number; from: number; to: number } | null; // #238: a cleared level's XP, banked as champion XP, and the champion's level before and after (#241: the level-cleared screen shows it)
   masteryNext: { name: string; need: number } | null; // the next mastery rank and the class XP still missing
   endless: { score: number; rank: number; board: EndlessEntry[] } | null; // the run went on into Endless
-  road: string | null; // #200: a cleared realm level's realm: the second button goes back to its road (a lost level's goes to the champion screen)
   crownRewards: CrownReward[]; // #202: what a first crown pays (the Marches: the signature relic, offered before this screen)
   levelRewards: LevelReward[]; // #200: what a cleared level's first clear pays (the Marches: a rare pick, offered before this screen)
 }
 
 /**
  * The end of a run, and (v0.6) the moment the Usurper falls. With `bank` and `endless` it is the victory screen: the run as it would
- * bank right now, and the choice. With `retry` and `menu` the run is over and banked.
+ * bank right now, and the choice. With `retry` and `menu` the run is over and banked. #241: a cleared level has its own screen
+ * (showLevelCleared); this one is a fall, a run ended from the pause menu, or the Daily Trial.
  */
 export function showResults(r: RunResult, on: { retry: () => void; menu: () => void } | { bank: () => void; endless: () => void; restart: () => void }): void {
   const deciding = 'bank' in on;
@@ -1216,7 +1418,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
       ${buildHtml(r.build)}`, { cls: 'kit-scroll' })}
       <footer class="row">${deciding
         ? `${kit.button('Bank the win', { kind: 'gold', size: 'big', attrs: 'data-bank' })}${kit.button('March on into Endless', { kind: 'go', attrs: 'data-endless' })}${kit.button('Bank and restart', { attrs: `data-restart data-tip="Bank the win and start again at once: ${esc(r.restart)}"` })}`
-        : `${kit.button(`Quick restart · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button(r.road ? `Back to ${esc(r.road.replace(/^The /, 'the '))}` : r.daily ? 'Back to the title' : 'Choose another champion', { attrs: 'data-menu' })}`}</footer>
+        : `${kit.button(`Quick restart · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button(r.daily ? 'Back to the title' : 'Choose another champion', { attrs: 'data-menu' })}`}</footer>
     </div>`);
   if ('bank' in on) {
     click(el, '[data-endless]', on.endless);
@@ -1227,6 +1429,68 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
     click(el, '[data-menu]', on.menu);
     onActions((a) => a === 'confirm' && on.retry());
   }
+}
+
+export interface LevelClearedInfo {
+  classId: ClassId;
+  name: string; // the champion's
+  realmName: string;
+  level: number; // the level cleared
+  next: number | null; // the level the realm run goes on into; null: this was the realm's last level, and the run is over
+  result: RunResult; // the clear as it was banked (its championXp is set: the level was cleared)
+  gift?: { title?: string; palette?: number }; // #219: the title and palette its crown gave (logic/world crownGifts)
+  build: BuildView;
+}
+
+/**
+ * #241: a level is cleared, the realm run's checkpoint (docs/road-to-the-crown.md rule 3). In place of the run's results: what the
+ * clear banked (champion XP first), the level-ups it brought, and then the points are spent right here, on the same build panel as the
+ * champion screen's Build tab, with the talent tree a button away. One main button: Continue into the next level (straight into the
+ * fight), or, after a realm's last level, back to the map. Its two buttons carry the results screen's data-retry and data-menu: they
+ * are its "go on" and "leave", and whatever goes on from a results screen goes on from here.
+ */
+export function showLevelCleared(info: LevelClearedInfo, on: { build: BuildActions; talents: () => void; next: () => void; map: () => void }): void {
+  const r = info.result, x = r.championXp ?? { xp: 0, from: info.build.level, to: info.build.level };
+  const G = kit.icon('gold'), R = kit.icon('runes');
+  const up = levelUpGains(x.from, x.to);
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const gift = info.gift ?? {};
+  const gifts = [gift.title ? `the title <b>${esc(gift.title)}</b>, to wear from the Chronicle` : '', gift.palette !== undefined ? `the <b>${PALETTE_NAMES[gift.palette]}</b>, for every champion` : ''].filter(Boolean);
+  const unlocks = [
+    ...(gifts.length ? [`<div class="unlock" data-crown-gift>👑 The ${r.tier} crown: ${gifts.join(' and ')}</div>`] : []), // #219
+    ...(r.tierUnlocked ? [`<div class="unlock">⚔ Difficulty unlocked: <b>${r.tierUnlocked}</b></div>`] : []),
+    ...r.contracts.map((c) => `<div class="unlock">📜 Weekly contract done: <b>${c.text}</b> <em>${R} +${c.runes}</em></div>`),
+    ...r.earned.map((e) => `<div class="unlock">🏆 <b>${e.def.name} · ${TIER_NAMES[e.tier - 1]}</b> — ${e.def.desc} <em>${tierRewardText(e.reward)}</em></div>`),
+  ].join('');
+  const talentRow = (v: BuildView) => kit.button(v.talentPoints > 0 ? `Talents (${v.talentPoints} to spend)` : 'Talent tree', { size: 'small', attrs: 'data-spend-talents' });
+  const el = show(`
+    <div class="kit-frame kit-screen level-cleared">
+      <header class="kit-head">${kit.ribbon('Level cleared', { attrs: 'role="heading" aria-level="1"' })}</header>
+      <p class="sub">${esc(info.realmName)} · Level ${info.level} · ${r.tier} — ${esc(info.name)}${info.next ? '' : '<br>The realm’s last level: this run is over, and what it won is yours.'}</p>
+      ${kit.parch(`
+      <div class="stats wide">
+        <div class="earned" data-champion-xp><span>Champion XP</span><b>+${x.xp} XP · level ${x.to}${up.levels ? ` — <em>${up.levels > 1 ? `${up.levels} levels` : 'a level'} up: points to spend</em>` : ''}</b></div>
+        ${up.levels ? `<div class="earned" data-level-up><span>Level ${x.from} → ${x.to}</span><b>+${plural(up.statPoints, 'stat point')} · +${plural(up.talentPoints, 'talent point')}</b></div>` : ''}
+        <div><span>Enemies slain</span><b>${r.kills}</b></div>
+        <div><span>Time</span><b>${fmtTime(r.time)}</b></div>
+        <div class="earned"><span>Gold banked</span><b>${G} +${r.gold}${r.goldRaw > r.gold ? ` <s>${r.goldRaw}</s>` : ''}</b></div>
+        ${r.runes > 0 ? `<div class="earned"><span>Runes</span><b>${R} +${r.runes}</b></div>` : ''}
+        <div class="earned"><span>${r.cls.name} mastery</span><b>+${r.classXp} XP · rank ${r.masteryRank}${r.masteryName ? ` — <em>${r.masteryName}</em>` : ''}</b></div>
+      </div>
+      ${unlocks ? `<div class="unlocks">${unlocks}</div>` : ''}
+      <h2>Your build</h2>
+      <div class="build-panel" data-build></div>
+      <div class="row" data-talent-row>${talentRow(info.build)}</div>
+      <p class="cs-empty">${info.next ? `What you spend is in level ${info.next}. ` : ''}${CHAMPION_BUILD_TEXT}</p>`, { cls: 'kit-scroll' })}
+      <footer class="row">${info.next
+        ? `${kit.button(`Continue to level ${info.next}`, { kind: 'go', size: 'big', attrs: 'data-retry data-tip="Enter: straight into the fight"' })}${kit.button('Back to the map', { attrs: 'data-menu' })}`
+        : kit.button('Back to the map', { kind: 'gold', size: 'big', attrs: 'data-menu data-tip="Enter"' })}</footer>
+    </div>`);
+  mountBuild(el.querySelector<HTMLElement>('[data-build]')!, info.classId, info.build, on.build);
+  click(el, '[data-spend-talents]', on.talents);
+  click(el, '[data-retry]', on.next);
+  click(el, '[data-menu]', on.map);
+  onActions((a) => a === 'confirm' && !(document.activeElement instanceof HTMLButtonElement) && (info.next ? on.next() : on.map())); // a focused button takes Enter itself
 }
 
 /**
@@ -1317,8 +1581,7 @@ export function showCompendium(save: Save, onBack: () => void): void {
     const n = found(id);
     const who = r.classId ? ` · ${CLASSES[r.classId].name}` : '';
     if (n === 0) return kit.row(`<b>Unknown</b><div class="tag">${r.rarity}${who}${save.newRelics.includes(id) ? ' · <b class="new">new in v0.7</b>' : ''}</div>`, { cls: 'comp-card locked undiscovered', attrs: `data-relic="${id}" data-tip="${esc(`Not found yet. A ${r.family ? `${r.rarity} ${FAMILIES[r.family].name}` : r.signature ? 'signature' : 'cursed'} relic${r.classId ? ` for the ${CLASSES[r.classId].name}` : ''}.`)}"`, lead: kit.rarityGlyph(relicRarity(id), '?') });
-    const tiers = [1, 2].map((t) => `<div class="tierline"><b>${TIER_NUMERALS[t]}</b> ${relicDesc(id, t)}</div>`).join('');
-    return kit.row(`<b>${r.name}</b><div class="tag">${r.cursed ? 'cursed' : r.signature ? 'signature' : r.rarity}${who} · found ${n}×</div>${tiers}<div class="tierline"><b>III</b> <em>${r.awaken.name}</em>: ${r.awaken.desc}</div>`, { cls: `comp-card${r.cursed ? ' cursed' : ''}`, attrs: `data-relic="${id}"`, lead: kit.rarityGlyph(relicRarity(id), r.icon) });
+    return kit.row(`<b>${r.name}</b><div class="tag">${r.cursed ? 'cursed' : r.signature ? 'signature' : r.rarity}${who} · found ${n}×</div>${relicFullText(id)}`, { cls: `comp-card${r.cursed ? ' cursed' : ''}`, attrs: `data-relic="${id}"`, lead: kit.rarityGlyph(relicRarity(id), r.icon) });
   };
   const family = (f: (typeof FAMILY_IDS)[number]) => {
     const fam = FAMILIES[f];

@@ -28,7 +28,7 @@ describe('the Forgemaster as the Iron Hold level 3 boss (#215)', () => {
   it('ends the Iron Hold level 3, three phases, and is never drawn outside it', () => {
     const lv = REALMS.ironHold.levels[2];
     expect(lv.boss).toEqual({ boss: 'forgemaster' });
-    expect(levelBoss(lv.boss, lv.waves[1], draw)).toBe('forgemaster');
+    expect(levelBoss('ironHold', 3)).toBe('forgemaster');
     expect(bossName(lv.boss, lv.waves[1])).toBe('The Forgemaster');
     expect('forgemaster' in WORLD_BOSSES).toBe(false); // built now: config/bosses.ts has him
     expect(ENEMIES.forgemaster.boss).toBe(true);
@@ -79,9 +79,9 @@ describe('the Forgemaster as the Iron Hold level 3 boss (#215)', () => {
     expect(pressTiles(0, 0, 0)).toEqual([]);
   });
 
-  it('in the Iron Hold level 3 the wave-20 boss is the Forgemaster; his plate breaks blow by blow and is reforged whole at each phase', () => {
+  it('in the Iron Hold level 3 the wave-24 boss is the Forgemaster (#243: its last wave); his plate breaks blow by blow and is reforged whole at each phase', () => {
     const g = createGame('paladin', 11, { level: { realm: 'ironHold', level: 3 } });
-    const f = bossOf(g, 20);
+    const f = bossOf(g, 24);
     expect(f.def.id).toBe('forgemaster');
     const plates = PLATES.forgemaster!.plates;
     expect([f.armorHp, f.armorMax]).toEqual([plates, plates]);
@@ -110,7 +110,7 @@ describe('the Forgemaster as the Iron Hold level 3 boss (#215)', () => {
 
   it('his blows reach the field: the hammer zones, then the presses', () => {
     const g = createGame('paladin', 11, { level: { realm: 'ironHold', level: 3 } });
-    const f = bossOf(g, 20);
+    const f = bossOf(g, 24);
     g.enemies = [f];
     f.x = g.player.x + 150;
     f.y = g.player.y;

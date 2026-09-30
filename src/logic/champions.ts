@@ -3,21 +3,22 @@
 import { CLASSES, CLASS_ORDER, type ClassId } from '../config/classes';
 import { META, TIERS } from '../config/economy';
 import { isCursedRelic, RELIC_IDS, relicDef, SIGNATURE, type FamilyId, type RelicId } from '../config/relics';
-import { TALENT_BY_ID } from '../config/talents';
 import { REALM_IDS, REALMS, WORLD, type CrownReward, type LevelReward, type RealmId } from '../config/world';
 import { masteryBonus, type MetaRanks } from './economy';
 import { championPool, lockedIn } from './relics';
 import type { RunLog } from './runlog';
-import { isCrowned, keepLockedOptions, nextLevel, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
+import { newRealmRun, readRealmRun, type RealmRun } from './realmRun';
+import { newGrowth, readGrowth, type ChampionGrowth } from './championLevels';
+import { isCrowned, keepLockedOptions, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
 
-export interface Champion {
+export interface Champion extends ChampionGrowth { // #238: its XP, level and spent points (logic/championLevels.ts)
   name: string;
   inventory: RelicId[]; // the relics it owns, to fill a level's starting slots from
   loadouts: Partial<Record<RealmId, RelicId[]>>; // the slots last filled per realm; a level with fewer slots takes the first ones
-  talentPlan: string[]; // talent ids in the order the head start spends points on them
   world: WorldProgress; // levels cleared and crowns, per realm and tier (logic/world.ts)
   signature: boolean; // its signature relic is won (the Marches crown); the relic itself is the class's own
   lastBastion: boolean; // the Last Bastion is open whatever its crowns: a class that won a v6 run
+  runs: Partial<Record<RealmId, RealmRun>>; // v0.11 (#237, save v8): its unfinished realm runs, one per realm, at their checkpoints
 }
 
 export const MAX_NAME = 24;
@@ -26,7 +27,7 @@ export const championName = (v: unknown, classId: ClassId): string =>
   (typeof v === 'string' ? v.replace(/[^\p{L}\p{N} '’.-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME) : '') || CLASSES[classId].name;
 
 export const newChampion = (classId: ClassId, name?: string): Champion => ({
-  name: championName(name, classId), inventory: [], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false,
+  name: championName(name, classId), inventory: [], loadouts: {}, world: {}, signature: false, lastBastion: false, runs: {}, ...newGrowth(),
 });
 
 /** A relic a champion can own: not cursed, and not another class's class relic. */
@@ -48,7 +49,6 @@ export function readChampion(raw: unknown, classId: ClassId): Champion {
       const slots = fitLoadout(classId, relics(raw.loadouts[r], (id) => c.inventory.includes(id)), WORLD.maxSlots, r === 'lastBastion');
       if (slots.length) c.loadouts[r] = slots;
     }
-  if (Array.isArray(raw.talentPlan)) c.talentPlan = [...new Set(raw.talentPlan)].filter((t): t is string => typeof t === 'string' && TALENT_BY_ID[t]?.classId === classId);
   if (isObj(raw.world))
     for (const r of REALM_IDS) {
       const tiers = raw.world[r];
@@ -60,7 +60,13 @@ export function readChampion(raw: unknown, classId: ClassId): Champion {
   c.signature = raw.signature === true;
   if (c.signature && !c.inventory.includes(SIGNATURE.relic[classId])) c.inventory.push(SIGNATURE.relic[classId]); // #201: won, so owned
   c.lastBastion = raw.lastBastion === true;
-  return c;
+  if (isObj(raw.runs))
+    for (const r of REALM_IDS) {
+      const run = readRealmRun(raw.runs[r], r);
+      if (run) c.runs[r] = run;
+    }
+  // #238: its XP, level and spent points; a v7 champion starts at the level its crowns and cleared levels would have given
+  return { ...c, ...readGrowth(raw, classId, c.world) };
 }
 
 /** Save v7's champions from a stored map (a v7 save). */
@@ -72,7 +78,8 @@ export function readChampions(raw: unknown): Partial<Record<ClassId, Champion>> 
 /**
  * v6 -> v7 (rule 8): every class the save has played becomes a champion. A v6 save counts relic picks for the whole account, not per
  * class, so each gets every relic it could have picked: all the account's picked family relics, less other classes' class relics.
- * No relic is lost. A class with a win gets the Last Bastion open; its last logged run's talents become its talent plan.
+ * No relic is lost. A class with a win gets the Last Bastion open; its last logged run's talents become its talents, as far as its
+ * points reach (#238: a run takes as many as the champion has points for).
  */
 export function championsFromV6(
   classes: Record<ClassId, { runs: number }>,
@@ -102,7 +109,7 @@ export const championRealmOpen = (c: Champion, realm: RealmId): boolean => (real
 
 /**
  * The Keep and mastery, repurposed for levels (rule 8): Armorer's Choice and the Keepsake mastery rank each add a starting slot;
- * Veteran Levies (and the Seasoned mastery rank) add levels on top of the head start.
+ * Veteran Levies (and the Seasoned mastery rank) add levels: in a realm level their growth, on top of the champion's (#238).
  */
 export function championBonus(meta: MetaRanks, classXp: number): { slots: number; levels: number } {
   const mastery = masteryBonus(classXp);
@@ -121,7 +128,7 @@ export const championSlots = (meta: MetaRanks, classXp: number, realm: RealmId, 
 export const slotCost = (id: RelicId): number => (relicDef(id).rarity === 'legendary' ? WORLD.loadout.legendarySlots : 1);
 
 /** Why a relic can't be slotted: the champion screen names it. */
-export type SlotBlock = 'cursed' | 'otherClass' | 'slotted' | 'slots' | 'family' | 'legendary' | 'classRelics';
+export type SlotBlock = 'cursed' | 'otherClass' | 'slotted' | 'slots' | 'double' | 'family' | 'legendary' | 'classRelics';
 
 /**
  * Why `id` can't join `loadout` in `slots` slots, or null when it fits (rule 4): no cursed relic, no other class's relic, at most 4 of one
@@ -135,7 +142,8 @@ export function slotBlock(classId: ClassId, loadout: RelicId[], id: RelicId, slo
   if (isCursedRelic(id)) return 'cursed';
   if (!ownable(classId, id)) return 'otherClass';
   if (loadout.includes(id)) return 'slotted';
-  if (loadout.reduce((n, r) => n + slotCost(r), slotCost(id)) > slots) return 'slots';
+  const used = loadout.reduce((n, r) => n + slotCost(r), 0);
+  if (used + slotCost(id) > slots) return used < slots ? 'double' : 'slots'; // #239: 'double', a legendary with one slot free: it takes two
   if (def.family && count((d) => d.family === def.family) >= rule.perFamily) return 'family';
   if (def.rarity === 'legendary' && count((d) => d.rarity === 'legendary') >= (finale ? rule.legendariesFinale : rule.legendaries)) return 'legendary';
   if (def.classId && !def.signature && count((d) => !!d.classId && !d.signature) >= rule.classRelics) return 'classRelics';
@@ -148,15 +156,33 @@ export const fitLoadout = (classId: ClassId, ids: RelicId[], slots: number, fina
 
 // ---------- #197: the champion screen ----------
 
+/** #237: the realm run standing at `level` of `realm` on `tier` (its checkpoint), if the champion has one. */
+export const runAt = (c: Champion, realm: RealmId, level: number, tier: number): RealmRun | undefined => {
+  const run = c.runs[realm];
+  return run && run.level === level && run.tier === tier ? run : undefined;
+};
+
+/** #237: the level a realm is played at on `tier`: its run's checkpoint, else level 1 (a realm run always starts at wave 1: no head start). */
+export const runLevel = (c: Champion, realm: RealmId, tier: number): number => (c.runs[realm]?.tier === tier ? c.runs[realm]!.level : 1);
+
+/** #237: can `level` be played now? Only where the realm's run stands, or level 1 (which starts the run, or starts it over). */
+export const runStarts = (c: Champion, realm: RealmId, level: number, tier: number): boolean => level === 1 || !!runAt(c, realm, level, tier);
+
+/**
+ * #237: the run a fight at `level` plays: the one standing there, as it is (its seed and carry: a Continue, or a restart after a death),
+ * else a new run from level 1 on `seed` (it replaces the realm's run in progress; #242 asks first).
+ */
+export const runFor = (c: Champion, realm: RealmId, level: number, tier: number, seed: number): RealmRun => runAt(c, realm, level, tier) ?? newRealmRun(tier, seed);
+
 /**
  * The level the champion screen's PLAY starts: the first realm (REALM_IDS order) open to the champion and not crowned on the tier it
- * would play, at its first level not cleared. Decided: with every open realm crowned, the last open one's last level (a replay).
+ * would play, at its realm run's checkpoint, or level 1 with no run in progress (#237). Decided: with every open realm crowned, the last open one (a replay).
  */
 export function nextStop(c: Champion, tier: number): { realm: RealmId; level: number; tier: number } {
   const open = REALM_IDS.filter((r) => championRealmOpen(c, r));
   const realm = open.find((r) => !isCrowned(c.world, r, roadTier(c.world, r, tier))) ?? open[open.length - 1];
   const t = roadTier(c.world, realm, tier);
-  return { realm, level: nextLevel(c.world, realm, t), tier: t };
+  return { realm, level: runLevel(c, realm, t), tier: t };
 }
 
 /**

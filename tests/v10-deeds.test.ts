@@ -28,11 +28,11 @@ describe('deeds: "in one run" and Six of a Kind count in the Last Bastion, wave 
     expect(earned(run(build))).toEqual(expect.arrayContaining(perRun));
   });
 
-  it('wave deeds count the waves played: a level from wave 21 to 30 is ten waves, not thirty', () => {
-    const lv = applyRun(defaultSave(), run({ wave: 30, wavesCleared: 30, realmLevel: { realm: 'ironHold', level: 4, cleared: true } })).save;
-    expect(lv.classes.paladin.bestWave).toBe(10);
+  it('wave deeds count the waves played: a level from wave 25 to 32 is eight waves, not thirty-two (#243)', () => {
+    const lv = applyRun(defaultSave(), run({ wave: 32, wavesCleared: 32, realmLevel: { realm: 'ironHold', level: 4, cleared: true } })).save;
+    expect(lv.classes.paladin.bestWave).toBe(8);
     const ids = newlyEarned(lv).map((e) => e.id);
-    expect(ids).toContain('wave10');
+    expect(ids).not.toContain('wave10');
     expect(ids).not.toContain('wave20');
     expect(applyRun(defaultSave(), run({ wave: 30, wavesCleared: 30 })).save.classes.paladin.bestWave).toBe(30);
   });

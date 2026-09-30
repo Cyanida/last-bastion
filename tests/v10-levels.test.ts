@@ -4,11 +4,10 @@ import { relicDef } from '../src/config/relics';
 import { talentsFor } from '../src/config/talents';
 import type { Game } from '../src/core/types';
 import { createGame, type RunOptions } from '../src/game';
+import { newBuild } from '../src/logic/championLevels';
 import { applyGrowth } from '../src/logic/formulas';
 import { headStartLevel, levelBoss, wingsOpenBy } from '../src/logic/world';
 import { updateSpawning } from '../src/systems/spawning';
-
-const draw = { seed: 7, arena: 'courtyard' as const, seen: [], quests: [] };
 
 /** Stand the run at the end of wave `wave` with the field empty, and let one spawning step close it. */
 function clearWave(g: Game, wave: number): void {
@@ -43,29 +42,24 @@ describe('levels: the head start (#191)', () => {
     expect(g.player.level).toBe(1);
   });
 
-  it('a level starts at its first wave, grown with queued picks, points and the boon bundle', () => {
-    const g = createGame('paladin', 3, { level: { realm: 'marches', level: 3 } }); // waves 11-15
+  it('a level starts at its first wave with no head start: the player is its champion, and nothing is queued (#238)', () => {
+    const g = createGame('paladin', 3, { level: { realm: 'marches', level: 3 } }); // waves 13-18 (#243)
     const p = g.player;
-    expect(g.startWave).toBe(11);
-    expect([g.wave, g.wavesCleared, g.act]).toEqual([10, 10, 2]);
-    expect(g.level).toEqual({ realm: 'marches', level: 3, last: 15, cleared: false });
+    expect(g.startWave).toBe(13);
+    expect([g.wave, g.wavesCleared, g.act]).toEqual([12, 12, 2]);
+    expect(g.level).toMatchObject({ realm: 'marches', level: 3, last: 18, cleared: false });
     expect(g.arena.id).toBe('courtyard');
-    expect(p.level).toBe(11);
-    expect(g.pendingAbilityTiers).toEqual([0, 1]); // levels 5 and 10
-    expect(g.pendingUtilityTiers).toEqual([0]); // level 8 (the second tier is a mastery unlock)
-    expect(g.pendingLevelUps).toBe(0); // the boons came as one bundle
-    expect(g.talentPoints).toBe(createGame('paladin', 3).talentPoints + 3);
-    let grown = createGame('paladin', 3).player.stats;
-    for (let l = 1; l < 11; l++) grown = applyGrowth(grown, p.cls.growth);
-    expect(p.stats.str).toBeGreaterThan(grown.str); // 'attack' boons on the Paladin's Strength
-    expect(p.stats.hp).toBeGreaterThan(grown.hp);
+    expect(p.level).toBe(1); // no champion given: a level-1 one
+    expect([g.pendingAbilityTiers, g.pendingUtilityTiers, g.pendingLevelUps, g.talentPoints]).toEqual([[], [], 0, 0]);
+    expect(p.stats).toEqual(createGame('paladin', 3).player.stats);
     expect(p.hp).toBe(p.stats.hp);
     expect(g.pendingBoard).toBe(true); // Act II's board is up
   });
 
-  it('Keep and mastery start levels stay on top of the head start', () => {
+  it("Keep and mastery start levels give their growth, and the level stays the champion's (#238)", () => {
     const g = createGame('viking', 3, { level: { realm: 'marches', level: 2 }, meta: { startLevel: 1 } });
-    expect(g.player.level).toBe(headStartLevel(6) + 1);
+    expect(g.player.level).toBe(1);
+    expect(g.player.stats).toEqual(applyGrowth(createGame('viking', 3).player.stats, g.player.cls.growth));
   });
 
   it('a mid-Act start opens the wing its mid-Act boss would have', () => {
@@ -74,10 +68,11 @@ describe('levels: the head start (#191)', () => {
     expect(open({ level: { realm: 'marches', level: 3 } })).toBe(open({}));
   });
 
-  it('talent points go along the plan, as far as they reach', () => {
-    const plan = talentsFor('viking').filter((n) => n.row === 0).map((n) => n.id);
-    const g = createGame('viking', 3, { level: { realm: 'marches', level: 2, talentPlan: plan } }); // level 6: two points
-    expect(g.player.talents).toEqual(plan.slice(0, 2));
+  it("the champion's talents are in the level; the account's points are not the run's to spend (#238)", () => {
+    const talents = talentsFor('viking').filter((n) => n.row === 0).map((n) => n.id).slice(0, 2);
+    const g = createGame('viking', 3, { level: { realm: 'marches', level: 2, champion: { ...newBuild(), level: 3, talents } }, bonusTalentPoints: 2 });
+    expect(g.player.talents).toEqual(talents);
+    expect(g.talentPoints).toBe(0);
   });
 
   it('slotted relics come after the growth, at the level tier, from the loadout; the opening pick (#194) never offers one', () => {
@@ -88,7 +83,7 @@ describe('levels: the head start (#191)', () => {
     expect(r.from.brimstoneOil).toBe('loadout');
     expect(g.arena.id).toBe('keep'); // the Iron Hold's arena
     expect(g.player.hp).toBe(g.player.stats.hp); // Blood Pact's cut is taken off the grown HP
-    expect(g.player.level).toBe(headStartLevel(21));
+    expect(g.player.level).toBe(1);
     const opening = r.offers.find((o) => o.from === 'start')!;
     expect(opening.options.every((id) => relicDef(id).family === 'steel' && !r.held.includes(id))).toBe(true); // the Iron Hold's family
   });
@@ -96,32 +91,31 @@ describe('levels: the head start (#191)', () => {
 
 describe('levels: the end boss and "level cleared" (#191)', () => {
   it('the end boss: named, the Usurper, or the draw; never the Usurper at wave 40 outside the Last Bastion', () => {
-    expect(levelBoss({ boss: 'warden', crown: true }, 40, draw)).toBe('warden');
-    expect(levelBoss({ boss: 'usurper' }, 40, draw)).toBe(FINAL.boss);
-    expect(levelBoss({ boss: 'ironKing', crown: true }, 40, draw)).toBe('ironKing'); // #216: built now
-    expect(levelBoss({ boss: 'barrowKing', crown: true }, 40, draw)).not.toBe(FINAL.boss); // not built yet: an Act boss
-    expect(levelBoss({ boss: 'pool' }, 40, draw)).not.toBe(FINAL.boss);
-    expect(levelBoss({ boss: 'pool' }, 5, draw)).toBe('blackKnight'); // Act I keeps the arena's opener
+    expect(levelBoss('marches', 7)).toBe('warden');
+    expect(levelBoss('lastBastion', 1)).toBe(FINAL.boss);
+    expect(levelBoss('ironHold', 5)).toBe('ironKing'); // #216: built now
+    expect(levelBoss('barrowvale', 5)).not.toBe(FINAL.boss); // not built yet: an Act boss
+    expect(levelBoss('marches', 1)).toBe('blackKnight'); // Act I keeps the arena's opener
   });
 
   it("the level's last wave brings its realm's boss", () => {
     const g = createGame('paladin', 3, { level: { realm: 'marches', level: 7 } });
     startWave(g, 40);
     expect(g.bossesSeen.at(-1)).toBe('warden');
-    const h = createGame('paladin', 3, { level: { realm: 'ironHold', level: 2 } }); // ends on the Warden at wave 10
-    startWave(h, 10);
+    const h = createGame('paladin', 3, { level: { realm: 'ironHold', level: 2 } }); // ends on the Warden at wave 16 (#243)
+    startWave(h, 16);
     expect(h.bossesSeen.at(-1)).toBe('warden');
   });
 
   it('a level ends on its last wave: cleared, before any Merchant or fork, and nothing more spawns', () => {
-    const g = createGame('paladin', 3, { level: { realm: 'marches', level: 2 } }); // waves 6-10
-    clearWave(g, 10);
+    const g = createGame('paladin', 3, { level: { realm: 'marches', level: 5 } }); // waves 25-30 (#243): it ends where Act III does
+    clearWave(g, 30);
     expect(g.level!.cleared).toBe(true);
     expect([g.pendingMerchant, g.pendingRoute]).toEqual([false, null]);
-    expect(g.wavesCleared).toBe(10);
+    expect(g.wavesCleared).toBe(30);
     g.breather = 0.001;
     updateSpawning(g, 1);
-    expect(g.wave).toBe(10);
+    expect(g.wave).toBe(30);
     const plain = createGame('paladin', 3);
     clearWave(plain, 10);
     expect(plain.pendingMerchant).toBe(true); // a plain run goes on to the Merchant, as today
@@ -129,7 +123,7 @@ describe('levels: the end boss and "level cleared" (#191)', () => {
 
   it('a wave before the last is just a wave', () => {
     const g = createGame('paladin', 3, { level: { realm: 'marches', level: 7 } });
-    clearWave(g, 35);
+    clearWave(g, 38);
     expect(g.level!.cleared).toBe(false);
   });
 });

@@ -115,6 +115,10 @@ export function rewardText(r: MasteryReward): string {
 }
 
 /** The account level: every class's mastery rank added up. */
+/** #238: the permanent talent points an account gives a class (the Keep, its mastery, account perks, deeds): a run's start, and a champion's on top of its levels'. */
+export const bonusTalentPoints = (meta: MetaRanks, classXp: number, account: number, deeds = 0): number =>
+  metaLoadout(meta).talentPoints + masteryBonus(classXp).talentPoint + accountPerks(account).talentPoint + deeds;
+
 export const accountLevel = (classXp: number[]): number => classXp.reduce((n, xp) => n + masteryRank(xp), 0);
 
 export function accountPerks(level: number): { mods: Partial<Mods>; reroll: number; talentPoint: number } {

@@ -23,3 +23,15 @@ export function killTree(child) {
     // already gone
   }
 }
+
+/** Waits until `url` answers, up to PLAY_SERVER_WAIT_MS (default 60 s, a busy PC starts vite slowly); exits with an error if it never does. */
+export async function waitForServer(url, port) {
+  const limit = Number(process.env.PLAY_SERVER_WAIT_MS ?? 60000);
+  const start = Date.now();
+  while (Date.now() - start < limit) {
+    if (await fetch(url).then(() => true, () => false)) return;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  console.error(`preview server didn't start on port ${port} within ${Math.round(limit / 1000)} s`);
+  process.exit(1);
+}

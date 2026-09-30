@@ -165,6 +165,17 @@ export function nextAct(g: Game, route: Route | null = null): void {
   initQuests(g); // what is left of the old Act's quests fails; a new board is up
 }
 
+/**
+ * #243: an Act that ends inside a realm level. The fight goes on where it stands, in the realm's own arena: the next Act's theme and
+ * quest board, and nothing swept off the field. No Merchant and no fork: they are the Last Bastion's (logic/world ownWaves).
+ */
+export function turnAct(g: Game): void {
+  g.act++;
+  g.route = null;
+  g.banner = { text: `${actName(g.act)} — ${actTheme(g).name}`, t: 3 };
+  initQuests(g); // what is left of the old Act's quests fails; a new board is up
+}
+
 const ROUTE_NAMES = { elite: 'Elite path', merchant: 'Merchant path', pilgrim: 'Pilgrim path', siege: 'Siege path' } as const;
 
 /** v0.6 Siege path: the Act's boss pays Runes on top of the capped ones. */

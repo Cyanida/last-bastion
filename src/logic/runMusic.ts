@@ -2,6 +2,7 @@ import { MUSIC, REALM_THEMES, THEMES, type Theme, type ThemeId } from '../config
 import type { Game } from '../core/types';
 import { clampIndex, inRange, pick, RANGES, rngFor, type NoteEvent, type Voice } from './music';
 import { pacingOf } from './waves';
+import { bossWaveIn } from './world';
 
 /**
  * v0.7.1 run music as a score, like logic/music.ts for the menus: pure and seeded; core/music.ts plays it.
@@ -218,7 +219,7 @@ export function conduct(c: Conductor, want: Mood, now: number, lookahead: number
 export function moodOf(g: Pick<Game, 'arena' | 'wave' | 'enemies' | 'player' | 'pendingMerchant' | 'pendingRoute' | 'victory'> & { level?: Game['level'] }): Mood {
   const cue: Cue | null = g.victory === 'pending' ? 'victory' : g.pendingRoute ? 'fork' : null;
   const dense = g.enemies.length >= MUSIC.danger.enemies || g.player.hp < g.player.stats.hp * MUSIC.danger.hp;
-  const layer: Layer = g.pendingMerchant || cue ? 0 : g.enemies.some((e) => e.def.boss) ? 3 : dense ? 2 : g.wave === 0 || pacingOf(g.wave) === 'breather' ? 0 : 1;
+  const layer: Layer = g.pendingMerchant || cue ? 0 : g.enemies.some((e) => e.def.boss) ? 3 : dense ? 2 : g.wave === 0 || pacingOf(g.wave, bossWaveIn(g.level, g.wave)) === 'breather' ? 0 : 1;
   return { arena: themeOf(g), layer, cue }; // #219: a realm with a theme of its own plays it in its levels
 }
 

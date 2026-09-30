@@ -2,6 +2,7 @@
  * #185: the UI kit's markup, so screens don't repeat it. Each helper returns an HTML string in the kit's classes (kit.css), for
  * the screens' templates. Labels and inner parts are HTML: escape player text (esc in relicText.ts) before it goes in.
  */
+import { tourBubble, tourNext, type TourStep } from '../logic/tour';
 
 /** The rig's icon atlas (tools/art/ui/icons.ts), in atlas order; tests/v9-ui-kit.test.ts keeps the two the same. */
 export const ICON_IDS = [
@@ -84,6 +85,107 @@ export function wireTabs(root: ParentNode, onPick: (id: string) => void): void {
       onPick(tab.dataset.tab!);
     });
   }
+}
+
+/** #239: a small ⓘ that explains the part beside it; wireInfo opens and closes its text. `key` picks the text, `label` names it. */
+export const infoButton = (key: string, label: string): string =>
+  `<button class="kit-info" data-info="${key}" aria-label="${label}" aria-expanded="false">i</button>`;
+
+/**
+ * #239: the ⓘ buttons under `root`: a tap opens `texts[key]` in a small parchment popup beside the button; the same ⓘ, its ×, a tap
+ * elsewhere or close() shuts it. Returns close(), true when a popup was open, so a screen's Escape closes the popup before the screen.
+ * `root` is the screen's own frame, not the overlay: the listener has to go when the screen does.
+ */
+export function wireInfo(root: HTMLElement, texts: Record<string, string>): { close: () => boolean } {
+  const pop = root.appendChild(Object.assign(document.createElement('div'), { className: 'kit-info-pop', role: 'dialog', hidden: true }));
+  let owner: HTMLElement | null = null;
+  const close = () => {
+    if (!owner) return false;
+    owner.setAttribute('aria-expanded', 'false');
+    owner = null;
+    pop.hidden = true;
+    return true;
+  };
+  root.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    const btn = t.closest<HTMLElement>('.kit-info[data-info]');
+    if (pop.contains(t) && !t.closest('.kit-close')) return;
+    const was = owner;
+    close();
+    if (!btn || btn === was) return;
+    owner = btn;
+    btn.setAttribute('aria-expanded', 'true');
+    pop.setAttribute('aria-label', btn.getAttribute('aria-label') ?? '');
+    pop.innerHTML = `<p>${texts[btn.dataset.info!] ?? ''}</p>${closeButton('close')}`;
+    pop.hidden = false;
+    // beside the button, kept on screen; the zoomed overlay's pixels are the window's over --ui-scale (tooltip.ts)
+    const s = Number(document.documentElement.style.getPropertyValue('--ui-scale')) || 1;
+    const r = btn.getBoundingClientRect(), p = pop.getBoundingClientRect();
+    const top = r.bottom + 6 + p.height <= innerHeight ? r.bottom + 6 : Math.max(6, r.top - 6 - p.height);
+    pop.style.top = `${top / s}px`;
+    pop.style.left = `${Math.min(Math.max(6, r.left + r.width / 2 - p.width / 2), innerWidth - p.width - 6) / s}px`;
+  });
+  return { close };
+}
+
+/**
+ * #240: a short tour over the screen in `root` (its own frame, like wireInfo): one step at a time, a ring around the part the step
+ * names and its sentence in a parchment bubble beside it, with Next (Done on the last step) and Skip. The rest of the screen waits
+ * (inert) until the tour ends. Returns next() and skip() for the screen's Enter and Escape; `onEnd` runs when the tour is over.
+ */
+export function tour(root: HTMLElement, steps: readonly TourStep[], onEnd: () => void = () => {}): { next: () => void; skip: () => void } {
+  const rest = [...root.children] as HTMLElement[];
+  const veil = root.appendChild(Object.assign(document.createElement('div'), { className: 'kit-tour' }));
+  veil.innerHTML = `<div class="kit-tour-ring"></div><div class="kit-tour-pop" role="dialog" aria-label="Tour" tabindex="-1"><p aria-live="polite"></p><div class="kit-tour-row"><span data-tour-count></span>${button('Skip', { size: 'small', attrs: 'data-tour-skip' })}${button('Next', { kind: 'gold', size: 'small', attrs: 'data-tour-next' })}</div></div>`;
+  const ring = veil.querySelector<HTMLElement>('.kit-tour-ring')!, pop = veil.querySelector<HTMLElement>('.kit-tour-pop')!;
+  for (const c of rest) c.inert = true;
+  let i: number | null = 0;
+  const place = () => {
+    if (i === null) return;
+    if (!veil.isConnected) return removeEventListener('resize', place); // the screen went without ending its tour
+    const at = root.querySelector<HTMLElement>(steps[i].at);
+    // the zoomed overlay's pixels are the window's over --ui-scale (wireInfo)
+    const s = Number(document.documentElement.style.getPropertyValue('--ui-scale')) || 1;
+    const r = at?.getBoundingClientRect() ?? new DOMRect(innerWidth / 2, innerHeight / 2, 0, 0);
+    const pad = at ? 5 : 0;
+    const box = { left: r.left - pad, top: r.top - pad, width: r.width + 2 * pad, height: r.height + 2 * pad };
+    ring.hidden = !at;
+    Object.assign(ring.style, { left: `${box.left / s}px`, top: `${box.top / s}px`, width: `${box.width / s}px`, height: `${box.height / s}px` });
+    const p = pop.getBoundingClientRect();
+    const to = tourBubble(box, { w: p.width, h: p.height }, { w: innerWidth, h: innerHeight });
+    Object.assign(pop.style, { left: `${to.left / s}px`, top: `${to.top / s}px` });
+  };
+  const step = () => {
+    veil.dataset.step = steps[i!].id;
+    pop.querySelector('p')!.textContent = steps[i!].text;
+    pop.querySelector('[data-tour-count]')!.textContent = `${i! + 1} / ${steps.length}`;
+    pop.querySelector('[data-tour-next]')!.textContent = tourNext(i!, steps.length) === null ? 'Done' : 'Next';
+    place();
+    pop.focus(); // off the screen's own buttons, so Enter is the tour's
+  };
+  const end = () => {
+    if (i === null) return;
+    i = null;
+    removeEventListener('resize', place);
+    veil.remove();
+    for (const c of rest) c.inert = false;
+    onEnd();
+  };
+  const next = () => {
+    if (i === null) return;
+    const n = tourNext(i, steps.length);
+    if (n === null) return end();
+    i = n;
+    step();
+  };
+  veil.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    if (t.closest('[data-tour-skip]')) end();
+    else if (t.closest('[data-tour-next]')) next();
+  });
+  addEventListener('resize', place);
+  step();
+  return { next, skip: end };
 }
 
 /** The main-screen tabs of the road to the crown. */

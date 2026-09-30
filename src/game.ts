@@ -49,7 +49,8 @@ import { updateSpawning } from './systems/spawning';
 import './systems/bosses'; // registers the Act bosses' scripts
 import { updateSquads } from './systems/squads';
 import { updateStatuses } from './systems/status';
-import { headStart, type LevelStart } from './systems/levels';
+import { applyCarry, applyChampion, enterWave, type LevelStart } from './systems/levels';
+import { championStep, newBuild } from './logic/championLevels';
 import { REALMS, WORLD } from './config/world';
 import { startRelicGifts } from './logic/daily';
 
@@ -71,7 +72,7 @@ export interface RunOptions {
   accountLevel?: number; // v0.4: the sum of every class's mastery rank (account milestones)
   libraryLevel?: number; // v0.4: caps the talent rows (TALENT_ROW_CAP)
   daily?: string; // date of the Daily Trial this run is
-  level?: LevelStart; // v0.10 (#191): a realm level: its arena, a head start at its first wave, its loadout, its end boss
+  level?: LevelStart; // v0.10 (#191): a realm level: its arena, its first wave, its loadout, its end boss; #238: and the champion's build, with no level-up inside it
   realm?: RealmId; // v0.10 (#203): the realm for the ring step, when there is no level (a level uses its own); its ring step (logic/world ringStep) folds into the tier. None: the run as before
   treasure?: number; // v0.5: tier of the class's sacred treasure to equip (0 or none: not equipped)
   chain?: TreasureRecord; // v0.5: the class's treasure chain from the save (it only plays once mastery has opened it)
@@ -91,7 +92,8 @@ const withRing = (t: TierDef, realm?: RealmId, level?: LevelStart): TierDef => {
   if (!realm) return t;
   const r = ringStep(realm);
   const l = level ? levelStep(level.realm, level.level) : { hp: 1, damage: 1 };
-  return { ...t, enemyHp: t.enemyHp * r.hp * l.hp, enemyDmg: t.enemyDmg * r.damage * l.damage };
+  const c = level ? championStep(level.realm, level.level) : { hp: 1, damage: 1 }; // #238: the champion level the level expects
+  return { ...t, enemyHp: t.enemyHp * r.hp * l.hp * c.hp, enemyDmg: t.enemyDmg * r.damage * l.damage * c.damage };
 };
 
 export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}): Game {
@@ -239,16 +241,25 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
   g.player.mods = { ...g.baseMods };
   // the Barracks' Veteran Levies and mastery's Seasoned: start a level or two up (growth, no boons)
   for (let l = 0; l < loadout.startLevel + mastery.startLevel; l++) {
-    g.player.level++;
+    if (!opts.level) g.player.level++; // #238: in a realm level they give their growth only: the level shown is the champion's
     g.player.stats = applyGrowth(g.player.stats, cls.growth);
     g.player.hp = g.player.stats.hp;
   }
+  const carry = opts.level?.carry;
   if (opts.level && levelDef) {
-    headStart(g, levelDef.waves[0], { plan: opts.level.talentPlan });
-    g.level = { realm: opts.level.realm, level: opts.level.level, last: levelDef.waves[1], cleared: false };
-    const slots = slotsFor(opts.level.realm, opts.level.level, (loadout.startRelic ? 1 : 0) + (mastery.relic ? 1 : 0)); // as championSlots counts them
-    const slotted = fitLoadout(classId, opts.level.relics ?? [], slots, opts.level.realm === 'lastBastion'); // #195: the slot rules
-    for (const id of slotted) addRelic(g, id, 'loadout', levelDef.relicTier); // after the growth: an acquire hook (Blood Pact's HP cut) sees the grown stats
+    const champion = opts.level.champion ?? newBuild();
+    g.level = { realm: opts.level.realm, level: opts.level.level, last: levelDef.waves[1], cleared: false, champion: { level: 1, points: {}, xp: 0, next: 0 } };
+    g.talentPoints = 0; // #238: the account's talent points are the champion's to spend between levels; a run's own come from its quests
+    if (carry) {
+      applyCarry(g, carry, levelDef.waves[0]); // #237: a realm run goes on from its checkpoint: no loadout (it went in at level 1)
+      applyChampion(g, champion, carry); // #238: what the champion gained or spent since the checkpoint
+    } else {
+      enterWave(g, levelDef.waves[0]); // no head start: level 1 starts at wave 1; a later level on its own is test mode's and the sim's
+      applyChampion(g, champion);
+      const slots = slotsFor(opts.level.realm, opts.level.level, (loadout.startRelic ? 1 : 0) + (mastery.relic ? 1 : 0)); // as championSlots counts them
+      const slotted = fitLoadout(classId, opts.level.relics ?? [], slots, opts.level.realm === 'lastBastion'); // #195: the slot rules
+      for (const id of slotted) addRelic(g, id, 'loadout', levelDef.relicTier); // after the build: an acquire hook (Blood Pact's HP cut) sees the grown stats
+    }
   }
   for (const id of opts.relics ?? []) addRelic(g, id, 'other', opts.relicTier ?? 1);
   for (let i = 0; i < (opts.relicPicks ?? 0); i++) {
@@ -311,7 +322,7 @@ export function summarizeRun(g: Game): RunSummary {
     won: g.victory !== 'none',
     evolutions: g.evolutions,
     endlessScore: endlessScore(g),
-    realmLevel: g.level ? { realm: g.level.realm, level: g.level.level, cleared: g.level.cleared } : undefined,
+    realmLevel: g.level ? { realm: g.level.realm, level: g.level.level, cleared: g.level.cleared, xp: Math.round(g.player.xp) } : undefined, // #238 `xp`: what the level collected, for the champion
     treasure: g.chain || g.treasure ? { found: g.chain?.found ?? 0, passed: g.chain?.passed ?? false, slain: g.chain?.slain ?? false, carried: g.treasure?.tier ?? 0 } : undefined,
   };
 }

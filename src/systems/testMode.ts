@@ -11,6 +11,7 @@ import { todayString } from '../logic/acts';
 import { addRelic } from './relics';
 import { talentPointsForLevel } from '../logic/talents';
 import { headStart } from './levels';
+import { botBuild, expectedChampionLevel } from '../logic/championLevels';
 import { spendTalent } from './talents';
 
 /**
@@ -45,15 +46,16 @@ export function createTestRun(s: TestSetup, seed: number): Game {
 }
 
 /**
- * #206: a realm level as the realm road starts it (createGame's RunOptions.level: its arena, ring step, head start at its first wave with
- * the pace's level, slots, opening pick and end boss), spending along the chosen talents. Test runs start bare: no loadout, Keep or
- * mastery. Every chosen talent is paid for, as at an Act and wave; one the tree cannot take stays a point.
+ * #206: a realm level as the realm road starts it (createGame's RunOptions.level: its arena, ring step, first wave, slots, opening pick and
+ * end boss). #238: no head start: the champion is the bot's build at the level enemy scaling expects there (logic/championLevels), with
+ * the chosen talents in place of the bot's. Test runs start bare: no loadout, Keep or mastery. Every chosen talent is paid for, as at
+ * an Act and wave; one the tree cannot take stays a point.
  */
 function levelRun(s: TestSetup, seed: number, plan: string[]): Game {
-  const g = createGame(s.classId, seed, { arena: s.arena, level: { realm: s.realmLevel!.realm, level: s.realmLevel!.level, talentPlan: plan } });
-  const extra = Math.max(0, plan.length - talentPointsForLevel(g.player.level));
-  g.talentPoints += extra;
-  for (const id of plan) if (g.talentPoints > 0 && !g.player.talents.includes(id)) spendTalent(g, id);
+  const { realm, level } = s.realmLevel!;
+  const g = createGame(s.classId, seed, { arena: s.arena, level: { realm, level, champion: { ...botBuild(s.classId, expectedChampionLevel(realm, level)), talents: [] } } });
+  g.talentPoints += plan.length;
+  for (const id of plan) spendTalent(g, id);
   return g;
 }
 

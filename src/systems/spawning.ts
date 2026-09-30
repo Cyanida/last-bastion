@@ -20,12 +20,12 @@ import { slotPosition } from '../logic/squads';
 import { floatText } from './effects';
 import { ROUTES } from '../config/routes';
 import { ACTS } from '../config/acts';
-import { actTheme } from './acts';
+import { actTheme, turnAct } from './acts';
 import { killEnemy } from './combat';
 import { createSquad } from './squads';
 import { REALMS } from '../config/world';
-import { levelBoss, realmFoe } from '../logic/world';
-import { crownHpFloor, isCrownFight } from '../logic/crownBoss';
+import { bossWaveIn, levelBoss, levelWaves, ownWaves, realmFoe } from '../logic/world';
+import { crownHpFloor, elitePhases, isCrownFight, isEliteFight } from '../logic/crownBoss';
 
 const MIN_SPAWN_DIST = 380;
 
@@ -35,6 +35,7 @@ function edgePoint(g: Game): { x: number; y: number } {
 }
 
 export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = []): Enemy {
+  const lw = g.level ? levelWaves(g.level.realm, g.level.level) : null;
   id = realmFoe(g.level?.realm, id); // #212: in a realm's levels its variants march in place of the plain foe (the Iron Hold's knights)
   const at = x === undefined || y === undefined ? edgePoint(g) : { x, y };
   if (affixes.length && affixes.length < g.oath.n.affixes) {
@@ -45,7 +46,7 @@ export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes
   }
   const siege = g.route?.focus === 'siege'; // v0.6 Siege path: a tougher Act
   const hp = g.waveHpMult * g.tier.enemyHp * curseValue(g.curses, 'ironHorde', 'hp') * (siege ? ROUTES.siege.hp : 1);
-  const e = createEnemy(ENEMIES[id], at.x, at.y, hp, g.waveDmgMult * g.tier.enemyDmg * (siege ? ROUTES.siege.damage : 1), affixes, enemyXpMult(Math.max(1, g.wave)));
+  const e = createEnemy(ENEMIES[id], at.x, at.y, hp, g.waveDmgMult * g.tier.enemyDmg * (siege ? ROUTES.siege.damage : 1), affixes, enemyXpMult(Math.max(1, g.wave)) / (lw?.foes ?? 1)); // #243: a level's extra foes share the XP its waves pay
   e.born = g.time;
   e.flankRoll = g.rng();
   e.flankDir = g.rng() < 0.5 ? 1 : -1;
@@ -83,6 +84,15 @@ function crownBoss(g: Game, e: Enemy): void {
   g.banner = { text: `${e.def.name} · Crown boss`, t: 3 };
 }
 
+/** #219: a level's last-wave boss comes as an elite when the level says so: more phases on the same HP (logic/crownBoss elitePhases), and its name says so. */
+function eliteBoss(g: Game, e: Enemy): void {
+  const lv = g.level;
+  if (!lv || g.wave !== lv.last || !isEliteFight(REALMS[lv.realm].levels[lv.level - 1]?.boss)) return;
+  if (bossDef(g.bossesSeen[g.bossesSeen.length - 1] ?? '').from !== e.def.id) return;
+  e.def = { ...e.def, name: `${e.def.name}, Elite`, phases: elitePhases(e.def.phases ?? 2) };
+  g.banner = { text: `${e.def.name} · one phase more`, t: 3 };
+}
+
 /** A squad arrives together, already in formation, facing the player. `at`: where (the v0.5 ambush), else an edge of the map. */
 export function spawnSquad(g: Game, index: number, units: SpawnUnit[], at = edgePoint(g)): void {
   const plan = g.squadPlans[index];
@@ -110,7 +120,9 @@ function startWave(g: Game): void {
   g.wave++;
   const draw = { seed: g.seed, arena: g.arena.id, seen: g.bossesSeen, quests: questsTakenThisAct(g) };
   const lv = g.level;
-  const key = lv && g.wave === lv.last ? levelBoss(REALMS[lv.realm].levels[lv.level - 1].boss, g.wave, draw) : bossForWave(g.wave, draw); // #191: a level ends on its realm's boss
+  const bossWave = bossWaveIn(lv, g.wave); // #243: a realm level's only boss wave is its last
+  const lw = lv ? levelWaves(lv.realm, lv.level) : { foes: 1, pace: 1 }; // #243: a level's wave length
+  const key = lv && g.wave === lv.last ? levelBoss(lv.realm, lv.level) : ownWaves(lv) ? null : bossForWave(g.wave, draw); // #191: a level ends on its realm's boss
   if (key) g.bossesSeen.push(key);
   const boss = key ? bossDef(key).from : null;
   const plan = directWave({
@@ -122,7 +134,9 @@ function startWave(g: Game): void {
     eliteMult: g.tier.eliteMult * (g.route?.focus === 'elite' ? ROUTES.elite.eliteMult : 1) * (g.vars['relic.eliteMult'] ?? 1), // v0.6 Elite path; v0.7.1 Tyrant's Banner
     tier: g.tierIndex, // v0.8 (#101): the difficulty's roster
     themeBias: actTheme(g).bias, // v0.6: the route's theme
-    budgetMult: curseValue(g.curses, 'swarm', 'budget') * pacingBudget(g.wave), // v0.5: breathers and heavy waves (WAVES.pacing)
+    budgetMult: curseValue(g.curses, 'swarm', 'budget') * pacingBudget(g.wave, bossWave) * lw.foes, // v0.5: breathers and heavy waves (WAVES.pacing)
+    boss: bossWave,
+    pace: lw.pace,
     squadMult: curseValue(g.curses, 'eliteCommanders', 'squadWeight'),
     eliteCommanders: g.curses.includes('eliteCommanders'),
     modifierChance: g.oath.n.modifierChance,
@@ -190,6 +204,7 @@ export function updateSpawning(g: Game, dt: number): void {
         if (e.def.boss) {
           dressBoss(g, e);
           crownBoss(g, e);
+          eliteBoss(g, e);
         }
         g.spawnTimer += g.spawnInterval;
       } else {
@@ -212,7 +227,9 @@ export function updateSpawning(g: Game, dt: number): void {
     g.vars.stragglers = 0;
     g.breather = !cleared ? 0.01 : curseValue(g.curses, 'noRespite', 'breather', WAVES.breather);
     const noMerchant = g.oath.n.noMerchant === g.act; // v0.6 Oath (Empty Road): no Merchant in this Act, straight on to the fork
+    const turned = isActEnd(g.wave) && ownWaves(g.level) && g.wave < g.level!.last;
     if (g.level && g.wave >= g.level.last && g.victory === 'none') g.level.cleared = true; // #191: the level ends here, before any Merchant or fork (the Last Bastion's win is the victory)
+    else if (turned) turnAct(g); // #243: an Act ends inside a level: on with it, no Merchant and no fork
     else if (isActEnd(g.wave)) {
       if (noMerchant) g.pendingRoute = routeChoices(g.seed, g.act, g.arena.id);
       else g.pendingMerchant = true; // the UI (or the bot) visits the Merchant, then picks a route
@@ -227,6 +244,6 @@ export function updateSpawning(g: Game, dt: number): void {
     g.levelAtWave.push(g.player.level); // for the simulation's pace report
     gainXp(g, waveClearXp(g.wave));
     floatText(g, g.player.x, g.player.y - 60, `+${bonus} gold`, '#c9a227', 15);
-    g.banner = g.level?.cleared ? { text: 'Level cleared', t: 3 } : { text: cleared ? 'Wave cleared' : 'They keep coming', t: 1.5 };
+    g.banner = g.level?.cleared ? { text: 'Level cleared', t: 3 } : turned ? g.banner : { text: cleared ? 'Wave cleared' : 'They keep coming', t: 1.5 }; // the new Act's name stays up
   }
 }

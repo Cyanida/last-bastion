@@ -24,7 +24,7 @@ export const MECHANIC_CARDS: Record<MechanicCard, { name: string; text: string; 
 /**
  * v0.10 (#60, docs/road-to-the-crown.md item 10): the tutorial is the Marches' levels 1 and 2, taught on the same flash cards. Each basic
  * shows the moment it first comes up there (logic/cards tutorialCard): moving once the opening pick is taken, relics once one is held, the
- * ability a few seconds in, a level-up before its screen, the utility when it unlocks, a set bonus when one lights, a status when one is
+ * ability a few seconds in, champion XP once some is collected (#238), the utility when it unlocks (champion level 2), a set bonus when one lights, a status when one is
  * seen. Seen once, never again (save.cards), like every card; other realms and full runs never show them.
  */
 export const TUTORIAL = {
@@ -38,7 +38,7 @@ export const TUTORIAL_CARDS: Record<TutorialCard, { name: string; text: string; 
   move: { name: 'Move and fight', icon: '🏃', text: 'Move with WASD, the arrows or your left thumb. Attacks are automatic.' },
   relics: { name: 'Relics', icon: '💎', text: 'Lasting powers, each of a family. Two of one family give a set bonus.' },
   ability: { name: 'Signature ability', icon: '✨', text: 'Space, right mouse or your right thumb casts it. Then it recharges.' },
-  levelUp: { name: 'Level up', icon: '⬆', text: 'Fallen foes give XP. Each level, pick one of the upgrades offered.' },
+  levelUp: { name: 'Champion XP', icon: '⬆', text: 'Foes give XP. Clear the level to bank it: your champion levels up after.' }, // #238: no level-up inside a level
   utility: { name: 'Utility ability', icon: '💨', text: 'A second ability: E, Shift or the small button. It has its own timer.' },
   sets: { name: 'Set bonus', icon: '🔗', text: 'Two relics of one family light its set bonus. Four and six add more.' },
   status: { name: 'Status effects', icon: '🔥', text: 'Burning hurts over time, Chilled slows. The Glossary lists every status.' },
