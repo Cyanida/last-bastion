@@ -14,11 +14,18 @@ export type ChampionStat = (typeof CHAMPION_STATS)[number];
 /** Stat points spent, per stat. */
 export type StatPoints = Partial<Record<ChampionStat, number>>;
 
-export const CHAMPION_STAT_NAMES: Record<ChampionStat, { name: string; desc: string }> = {
-  strength: { name: 'Strength', desc: 'Your attacks hit harder.' },
-  dexterity: { name: 'Dexterity', desc: 'You attack faster.' },
-  focus: { name: 'Focus', desc: 'Your signature ability grows stronger.' },
-  vitality: { name: 'Vitality', desc: 'More health.' },
+/**
+ * #252: a row is named for the stat it gives that class (Intelligence, Attack Speed, its secondary stat's own name: logic/upgrades
+ * statLabel), so its name and its "a point gives" line come from the same key. This is what hovering the name says, per stat; the
+ * secondary stat says its class's own (ClassDef.secondary.desc).
+ */
+export const CHAMPION_STAT_TIPS: Record<Exclude<StatKey, 'secondary'>, string> = {
+  hp: 'More health.',
+  str: 'Melee and physical attacks hit harder.',
+  dex: 'Ranged attacks hit harder and crit more.',
+  int: 'Magic hits harder and cooldowns shorten.',
+  atkSpd: 'You attack faster.',
+  moveSpd: 'You move faster.',
 };
 
 /** The one table: what each of the four is for a class. Strength is its attack stat, Dexterity attack speed, Focus its secondary stat, Vitality HP. */
