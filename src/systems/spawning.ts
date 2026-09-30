@@ -24,7 +24,7 @@ import { actTheme, turnAct } from './acts';
 import { killEnemy } from './combat';
 import { createSquad } from './squads';
 import { REALMS, WORLD } from '../config/world';
-import { bossWaveIn, levelBoss, levelWaves, ownWaves, realmFoe } from '../logic/world';
+import { bossWaveIn, levelBoss, levelFields, levelWaves, ownWaves, realmFoe } from '../logic/world';
 import { crownHpFloor, elitePhases, isCrownFight, isEliteFight } from '../logic/crownBoss';
 
 const MIN_SPAWN_DIST = 380;
@@ -135,6 +135,8 @@ function startWave(g: Game): void {
     bosses: boss ? [boss] : g.arena.bosses, // #99: the boss drawn above (only boss waves have one)
     eliteMult: g.tier.eliteMult * (g.route?.focus === 'elite' ? ROUTES.elite.eliteMult : 1) * (g.vars['relic.eliteMult'] ?? 1), // v0.6 Elite path; v0.7.1 Tyrant's Banner
     tier: g.tierIndex, // v0.8 (#101): the difficulty's roster
+    fields: levelFields(lv), // #249: a realm's own foes come on every difficulty
+    fieldsWeight: lv ? REALMS[lv.realm].fieldsWeight : undefined,
     themeBias: actTheme(g).bias, // v0.6: the route's theme
     budgetMult: curseValue(g.curses, 'swarm', 'budget') * pacingBudget(g.wave, bossWave) * lw.foes, // v0.5: breathers and heavy waves (WAVES.pacing)
     boss: bossWave,

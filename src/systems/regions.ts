@@ -11,6 +11,7 @@ import { combineMods } from '../logic/mods';
 import { boundsOf, featureLabel, fixedFeatures, openRects, regionAt, rollWings } from '../logic/regions';
 import { waveRng } from '../logic/director';
 import { unlockedPool } from '../logic/waves';
+import { levelFields } from '../logic/world';
 import { floatText, ring, shake } from './effects';
 import { offerRelics } from './relics';
 import { spawnEnemy } from './spawning';
@@ -60,7 +61,7 @@ export function openNextWing(g: Game): WingId | null {
 
 /** The strongest regular enemy unlocked by now, as the lair's sleeper (and the quests' named elite). */
 export function lairKind(g: Game): EnemyId {
-  const pool = unlockedPool(Math.max(1, g.wave), null, g.tierIndex).map((p) => p.value).filter((id) => !ENEMIES[id].boss && !ENEMIES[id].structure);
+  const pool = unlockedPool(Math.max(1, g.wave), null, g.tierIndex, levelFields(g.level)).map((p) => p.value).filter((id) => !ENEMIES[id].boss && !ENEMIES[id].structure);
   return pool.reduce((a, b) => (ENEMIES[b].hp > ENEMIES[a].hp ? b : a), pool[0] ?? 'knight');
 }
 

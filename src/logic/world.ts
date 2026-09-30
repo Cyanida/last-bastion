@@ -10,7 +10,7 @@ import { WAVES } from '../config/waves';
 import { isBossWave } from './waves';
 import { REALM_IDS, REALMS, WORLD, WORLD_BOSSES, type CrownReward, type EndBoss, type LevelReward, type RealmId } from '../config/world';
 import { ACT_BOSSES, actBoss, actOf, hashSeed, isActEnd, pickMidBoss } from './acts';
-import { waveRng } from './director';
+import { squadOnTier, waveRng } from './director';
 import { expectedLevel } from './formulas';
 import { championStep } from './championLevels'; // it reads this file too: both only call the other inside functions
 
@@ -68,6 +68,12 @@ export function levelSkip(realm: RealmId, level: number): { waves: number; level
 
 /** #212: the foe that marches in `realm`'s levels in place of `id` (its realm variant), else `id` itself. No realm: the plain foe. */
 export const realmFoe = (realm: RealmId | undefined, id: EnemyId): EnemyId => (realm && REALMS[realm].foes?.[id]) || id;
+
+/**
+ * #249: the foes a realm level fields on every difficulty, whatever the tier roster says (config/world.ts `fields`): in the Iron Hold
+ * the shieldwall squads march on Squire and Knight too. A plain run (no level) has none.
+ */
+export const levelFields = (lv: { realm: RealmId } | null | undefined): EnemyId[] | undefined => (lv ? REALMS[lv.realm].fields : undefined);
 
 /** One champion's world progress: per realm, the highest level cleared on each tier (index into config/economy TIERS). */
 export type WorldProgress = Partial<Record<RealmId, number[]>>;
@@ -205,13 +211,16 @@ export function roadTier(p: WorldProgress, realm: RealmId, want: number): number
 
 /**
  * The foes a level features: the squads that first march in its waves (members and commander), newest first; a level with no new
- * squad shows the last ones in by then. Decided: at most `max`, so the panel stays a glance.
+ * squad shows the last ones in by then. Decided: at most `max`, so the panel stays a glance. #249: only squads `tier` fields in
+ * `realm`'s levels (no tier: every squad), and the realm's own foes (its variants, config/world.ts `foes`) come first: they are its lesson.
  */
-export function featuredFoes(waves: [number, number], max = 3): EnemyId[] {
-  const inBy = SQUADS.filter((s) => s.from <= waves[1]);
+export function featuredFoes(waves: [number, number], max = 3, tier?: number, realm?: RealmId): EnemyId[] {
+  const fields = realm && REALMS[realm].fields;
+  const inBy = SQUADS.filter((s) => s.from <= waves[1] && squadOnTier(s, tier, fields));
   const fresh = inBy.filter((s) => s.from >= waves[0]);
-  const ids = (fresh.length ? fresh : inBy).slice().reverse().flatMap((s) => [...(s.commander ? [s.commander] : []), ...s.members.map(([id]) => id)]);
-  return [...new Set(ids)].slice(0, max);
+  const ids = [...new Set((fresh.length ? fresh : inBy).slice().reverse().flatMap((s) => [...(s.commander ? [s.commander] : []), ...s.members.map(([id]) => id)]))];
+  const own = (id: EnemyId) => realmFoe(realm, id) !== id;
+  return [...ids.filter(own), ...ids.filter((id) => !own(id))].slice(0, max);
 }
 
 /** The end boss in words: a named one, or the draw on its wave (a mid-Act boss on a wave x5, the Act's boss on a wave x0). */
@@ -247,7 +256,7 @@ export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier
     slots: slotsFor(realm, level, bonus.slots),
     enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * levelStep(realm, level).hp * championStep(realm, level).hp * 100), // #238: with the champion level it expects, as the level plays
     family: lv.family,
-    foes: featuredFoes(lv.waves).map((id) => ENEMIES[realmFoe(realm, id)].name), // #212: as they march there
+    foes: featuredFoes(lv.waves, undefined, tier, realm).map((id) => ENEMIES[realmFoe(realm, id)].name), // #212: as they march there; #249: only what this tier fields
     boss: bossName(lv.boss, lv.waves[1]),
     crownBoss: !!lv.boss.crown,
     eliteBoss: !!lv.boss.elite, // #219: it comes as an elite, a phase more

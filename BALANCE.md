@@ -1,5 +1,34 @@
 # Balance notes
 
+## v0.11: the Iron Hold's shieldwalls on every tier (#249)
+
+The Iron Shieldwall (#213) came only from Champion (`WAVES.tierRoster`), so on Squire and Knight, the tiers the Iron Hold opens with,
+nobody met one. Now the Iron Hold's levels field its shieldwall squads on every tier (`REALMS.ironHold.fields`); plain runs, the
+Daily Trial and the other realms keep the tier roster. The squad keeps its own first wave (9), so they march from level 2 on. On the
+tiers below Champion a fielded squad comes at `fieldsWeight` of its weight (Champion and Legend keep 1). The road's featured foes now
+list only squads the chosen tier fields in that level, the realm's own foes first.
+
+`npm run sim -- levels 8 1 ironHold`: 40 first tries a level on Knight (paladin, viking, angel, necromancer, archer; 8 seeds each), the
+realm as one run. First-try clear rate and a clear's median minutes; "within 20%" is of the target (level 4: 52-78%).
+
+| Level | Waves | Target | Before (no shieldwalls on Knight) | Shieldwalls, weight 1 | Pass 1: weight 0.5 | Pass 2: weight 0.25 (now) |
+|---|---|---|---|---|---|---|
+| Iron Hold 1 | 1-8 | 90% | 93%, 4.6 | 93%, 4.6 | 93%, 4.6 | 93%, 4.6 |
+| Iron Hold 2 | 9-16 | 82% | 78%, 5.6 | 75%, 5.5 | 75%, 5.7 | 75%, 5.7 |
+| Iron Hold 3 | 17-24 | 73% | 70%, 5.8 | 80%, 5.8 | 75%, 5.8 | 75%, 5.7 |
+| Iron Hold 4 | 25-32 | 65% | 78%, 7.1 | 80%, 6.9 | 80%, 6.8 | 78%, 7.0 |
+| Iron Hold 5 | 33-40 | 55-60% | 53%, 8.2 | 63%, 7.7 | 63%, 7.9 | 60%, 7.8 |
+
+A realm clean / with retries: 32.2 / 42.1 minutes before, 32.1 / 40.4 now. Per class, first tries cleared of 8 (now): level 2 paladin
+6, viking 8, angel 8, necromancer 7, archer 1; level 5 5, 3, 8, 7, 1. At full weight the shieldwalls made levels 3-5 easier for the
+bot, not harder: a slow squad the bot steps round takes a squad slot and budget that would have bought lances or a crusade. Halving
+their weight moved nothing on level 4 (80%, 23% over its target); at a quarter it is 78%, where it stood before (at the 20% line), and
+level 5 is 60%, in its band. The per-level rates carry about 8 points of noise at 40 tries. On Squire a level from 2 on still meets
+them in most runs (the play check's level 2 run meets a squad in its third wave).
+
+The golden realm run of the Iron Hold's levels 1-2 (tests/v10-level-golden.test.ts) was re-recorded: its level 2 (Knight) meets the
+shieldwall squads now. The Marches' runs and the Iron Hold's level 1 are unchanged.
+
 ## v0.11: the Iron Hold's balance pass (#220)
 
 The release's last issue: every class through every level of the Marches and the Iron Hold on Knight, against rule 9.
