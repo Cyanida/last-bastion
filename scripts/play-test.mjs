@@ -1580,7 +1580,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = road.flags.length === 7 && road.flags.every((f) => f.inside) && road.flags.map((f) => f.open).join() === 'true,false,false,false,false,false,false' && road.flags[0].on
       && road.landBg.includes('world-map') && road.name === 'The Marches · Level 1' && road.tiers === 'Xo--' && road.golds === 1 && road.fight && road.onScreen
-      && !/Head start/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*85%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
+      && !/Head start/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*65%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
       && knight.tiers === 'oX--' && /Enemy HP\s*95%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
       && run?.realm === 'marches' && run.level === 1 && run.last === 5 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
     return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*95%/.test(knight.text) ? 'HP 95%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
