@@ -4717,7 +4717,7 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   await opening();
   // the fall: at 1 HP and standing still, the first blow that lands ends it
   const fell = await playOut(true);
-  want(fell.over && fell.level === 2 && fell.state === 'results' && fell.held.slice(0, one.end.length).join() === one.end.join() && !fell.held.includes(won.inventory[0]), `the fall ${JSON.stringify(fell)}: level 1 held ${one.end.join()}`);
+  want(fell.over && fell.level === 2 && fell.state === 'results' && fell.held.slice(0, one.end.length).join() === one.end.join() && (!fell.held.includes(won.inventory[0]) || one.end.includes(won.inventory[0])), `the fall ${JSON.stringify(fell)}: level 1 held ${one.end.join()}`);
   await p.locator('.results [data-retry]').waitFor({ timeout: 3000 });
   const slain = await p.evaluate(() => ({ head: document.querySelector('.results .kit-head').textContent.trim(), retry: document.querySelector('[data-retry]').textContent.trim() }));
   want(slain.head === 'Thou art slain' && slain.retry === 'Quick restart · The Marches · Level 2', `results ${JSON.stringify(slain)}`);
