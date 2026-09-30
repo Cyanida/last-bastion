@@ -2280,6 +2280,42 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #252: the Build tab names each row for the stat that class's point really gives ----------
+// The Angel's first row reads Intelligence (its point gives +Intelligence), the Archer's Dexterity, then Attack Speed, its secondary stat and HP:
+// every row's name is the end of its own "a point gives" line.
+await check('champion screen: the Build tab names every row for the stat a point gives, the Angel and the Archer (#252)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const bad = [], seen = {};
+  const want = { angel: ['Intelligence', 'Attack Speed', 'Grace', 'HP'], archer: ['Dexterity', 'Attack Speed', null, 'HP'] };
+  await p.evaluate(() => {
+    const lb = window.__lb;
+    lb.save.cards.splice(0, lb.save.cards.length, ...lb.cardIds);
+    lb.save.champions = Object.fromEntries(['angel', 'archer'].map((c) => [c, { name: c, inventory: [], loadouts: {}, ...lb.build.grown({}), xp: 540, level: 3, world: {}, signature: false, lastBastion: false, runs: {} }]));
+  });
+  await p.click('[data-go="champion"]');
+  await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  await skipTour(p, false);
+  for (const cls of ['angel', 'archer']) {
+    for (let i = 0; i < 6 && !(await p.locator('.cs-pick').first().textContent()).toLowerCase().includes(cls); i++) await p.click('[data-champ="1"]'); // the arrows walk the roster (they are named for their class here)
+    await p.click('[data-cs="build"]');
+    const rows = await p.evaluate(() => [...document.querySelectorAll('.cs-build .bp-stat')].map((r) => ({ name: r.querySelector('.bp-name b').textContent, gives: r.querySelector('[data-stat-gives]').textContent })));
+    seen[cls] = rows;
+    if (rows.length !== 4) { bad.push(`${cls}: ${rows.length} rows`); continue; }
+    rows.forEach((r, i) => {
+      if (!r.gives.endsWith(` ${r.name} a point`)) bad.push(`${cls} row ${i}: named "${r.name}" but "${r.gives}"`);
+      if (want[cls][i] && r.name !== want[cls][i]) bad.push(`${cls} row ${i}: "${r.name}", wanted "${want[cls][i]}"`);
+    });
+    await p.screenshot({ path: `${process.env.TEMP ?? '.'}/lb252-${cls}.png` });
+  }
+  if (errs.length) bad.push(`errors: ${errs[0]}`);
+  await p.close();
+  return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `Angel ${seen.angel.map((r) => r.name).join(' / ')}; Archer ${seen.archer.map((r) => r.name).join(' / ')}` };
+});
+
 // ---------- #212: the Iron Hold's knights: map -> the Iron Hold -> level 3's panel names the Iron Knight -> level 2 -> FIGHT; he brings his own flash card,
 // "Got it" closes it, and in the fight every blow breaks one of his six plates with a clang until he stands bare in his mail ----------
 await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his flash card shows, blows break his plates one by one and he turns bare (#212)', async () => {

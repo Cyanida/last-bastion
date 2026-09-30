@@ -3,7 +3,7 @@
 // spends them itself (the level-cleared screen and the champion screen's Build and Talents tabs, #241, call this file). Pure: every
 // spend returns a new champion, or the same object when it can't be done. systems/levels.ts puts a build into a run.
 import { ABILITY_TRACKS, ABILITY_UPGRADES, type AbilityUpgradeId } from '../config/abilityUpgrades';
-import { CHAMPION, CHAMPION_STAT_KEYS, CHAMPION_STAT_NAMES, CHAMPION_STATS, type ChampionStat, type StatPoints } from '../config/champion';
+import { CHAMPION, CHAMPION_STAT_KEYS, CHAMPION_STAT_TIPS, CHAMPION_STATS, type ChampionStat, type StatPoints } from '../config/champion';
 import type { ClassId } from '../config/classes';
 import { CLASSES } from '../config/classes';
 import { TALENT_BY_ID, TALENTS } from '../config/talents';
@@ -153,7 +153,13 @@ export function pointGives(classId: ClassId, stat: ChampionStat, n = 1): { key: 
   const boon = upgradeAmount(key, rarity);
   const share = UPGRADES[key].mode === 'mult';
   const label = statLabel(key, CLASSES[classId]);
-  return { key, amount: (share ? CLASSES[classId].base[key] * (boon - 1) : boon) * boons, name: CHAMPION_STAT_NAMES[stat].name, text: share ? `+${Math.round((boon - 1) * boons * n * 100)}% ${label}` : `+${boon * boons * n} ${label}` };
+  return { key, amount: (share ? CLASSES[classId].base[key] * (boon - 1) : boon) * boons, name: label, text: share ? `+${Math.round((boon - 1) * boons * n * 100)}% ${label}` : `+${boon * boons * n} ${label}` };
+}
+
+/** What the row's name says on hover: the stat this class's point really goes into. */
+export function statTip(classId: ClassId, stat: ChampionStat): string {
+  const key = CHAMPION_STAT_KEYS[classId][stat];
+  return key === 'secondary' ? CLASSES[classId].secondary.desc : CHAMPION_STAT_TIPS[key];
 }
 
 /** One point into `stat`. */
@@ -266,8 +272,8 @@ export function buildView(c: Champion, classId: ClassId, o: { bonus?: number; ut
     level: at.level, cap: at.cap, capped: at.capped, xp: at.into, next: at.next,
     statPoints: free, talentPoints: talentPointsFree(c, o.bonus ?? 0), tierCost: CHAMPION.tierCost,
     stats: CHAMPION_STATS.map((id) => {
-      const points = c.points[id] ?? 0;
-      return { id, name: CHAMPION_STAT_NAMES[id].name, desc: CHAMPION_STAT_NAMES[id].desc, gives: pointGives(classId, id).text, points, total: pointGives(classId, id, points).text, canAdd: free >= 1, canTake: points > (held[id] ?? 0) };
+      const points = c.points[id] ?? 0, given = pointGives(classId, id);
+      return { id, name: given.name, desc: statTip(classId, id), gives: given.text, points, total: pointGives(classId, id, points).text, canAdd: free >= 1, canTake: points > (held[id] ?? 0) };
     }),
     ability: { bought: [...c.upgrades], next: abilityTier === null ? null : { tier: abilityTier, options: ABILITY_TRACKS[classId][abilityTier], canBuy: free >= CHAMPION.tierCost }, locked: null },
     utility: {
