@@ -1763,7 +1763,7 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
     // a foe on a marked slab beside the champion's (the others sent far off), tough enough to live through it
     const mine = zs.find((z) => onSlab(z, p)), other = zs.find((z) => z !== mine);
     if (!mine) return { found: false, realm: g.level?.realm, wave: g.wave, why: 'no slab under him' };
-    p.hp = p.maxHp; // a known start: full health, whatever the real frames before this call cost him
+    p.hp = p.stats.hp; // a known start: full health, whatever the real frames before this call cost him
     const [foe, ...rest] = g.enemies.filter((e) => !e.dead);
     for (const e of rest) Object.assign(e, { x: p.x + 3000, y: p.y });
     if (foe && other) Object.assign(foe, { x: other.x, y: other.y, hp: 1e6, maxHp: 1e6 });
@@ -1800,7 +1800,7 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
       let zs = wait();
       for (let n = 0; n < 8 && zs.length && !zs.some((z) => onSlab(z, p)); n++) zs = letGo(); // one that reaches him: else there is nothing to step off
       if (zs.length) {
-        p.hp = p.maxHp; // nothing else may hurt him: the slam is what is being missed
+        p.hp = p.stats.hp; // nothing else may hurt him: the slam is what is being missed
         const across = zs.every((z) => z.y === zs[0].y), mid = g.bounds;
         const key = across ? (p.y > mid.y + mid.h / 2 ? 'KeyW' : 'KeyS') : (p.x > mid.x + mid.w / 2 ? 'KeyA' : 'KeyD');
         window.dispatchEvent(new KeyboardEvent('keydown', { code: key, key }));
