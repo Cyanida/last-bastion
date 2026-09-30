@@ -19,6 +19,18 @@ Approved by Jesse on 28-09-2026. This is the plan from v0.8.3 to v1.0.0 and afte
 - **A release's "done when" never waits on Jesse.** Where it names a gate or something Jesse plays (a crown boss, a full finale), the builder posts it for him, and the release counts as done without waiting.
 - **After v1.0.0 the builder stops.** The realms after 1.0 (v1.1.0 to v1.3.0) wait for Jesse's go.
 
+## Changes on 29-09 (Jesse's playtest, [#234](https://github.com/Cyanida/last-bastion/issues/234))
+
+Jesse played the Archer through Marches levels 1-5 on v0.10.0. The game looks good; the champion and level flow didn't work. Decided by Jesse in chat, all of these (rules 2-4 and 9 below are updated to match):
+
+- **A · Short relic text** ([#235](https://github.com/Cyanida/last-bastion/issues/235)): one line per relic, readable at a glance, no text under 14 px; the full text lives in the compendium.
+- **B · No screens before a level:** the head start and its queued picks go; a level starts straight in the fight (comes with E).
+- **C · A champion screen that explains itself** ([#239](https://github.com/Cyanida/last-bastion/issues/239), [#240](https://github.com/Cyanida/last-bastion/issues/240)): a legendary visibly spans two slots, ⓘ explanations, tabs (Loadout, Build, Talents) and a first-visit tour.
+- **D · No boss twice in a realm** ([#236](https://github.com/Cyanida/last-bastion/issues/236)).
+- **E · Champions level up between levels, not during them** ([#238](https://github.com/Cyanida/last-bastion/issues/238), [#241](https://github.com/Cyanida/last-bastion/issues/241)): stat points and a talent point per champion level, spent on the level-cleared screen or the champion screen.
+- **F · A realm is one run with checkpoints** ([#237](https://github.com/Cyanida/last-bastion/issues/237), [#242](https://github.com/Cyanida/last-bastion/issues/242)), with **longer levels** ([#243](https://github.com/Cyanida/last-bastion/issues/243)): what you pick up stays for the realm's later levels; levels take about 4-10 minutes.
+- All of it goes into **v0.11.0**, before the Iron Hold's levels ([#219](https://github.com/Cyanida/last-bastion/issues/219)), so every realm is built on the new shape.
+
 ## The world
 
 ### The Marches
@@ -140,21 +152,23 @@ Everything here is decided: by Jesse, or as the most balanced option where he le
 - Class mastery, sacred treasures, wins, Oaths and Endless records stay per class, which is now per champion.
 - The Keep, deeds, titles and the compendium stay shared by the account.
 - Screens: Champions (pick or create) → the champion screen (home: inventory, slots, crowns, PLAY) → world map → realm road → level panel.
+- **Champion levels** (29-09): a champion has a permanent level. XP from levels is banked as champion XP; each champion level gives 3 stat points (Strength, Dexterity, Focus, Vitality, mapped onto the class's own stats) and 1 talent point, spent on the level-cleared screen or the champion screen's Build and Talents tabs, and reset for free outside a run. Ability and utility tiers are bought with stat points (2 per tier). The cap is 5 + 5 per crown held; a replayed level gives a quarter of its first-clear XP. The talent plan's auto-spend goes: talent points are spent by hand.
 
 ### 3 · Levels
 
-- Every level is its **own short run** on a 40-wave scale. Relic realm: waves 1–5, 6–10, 11–20, 21–30, 31–40. The Marches: 1–5, 6–10, 11–15, 16–20, 21–25, 26–30, 31–40.
-- **Head start** at the first wave: the game's expected level there (1, 6, 11, 15, 18, 21, 24 at waves 1, 6, 11, 16, 21, 26, 31), the ability and utility tier picks queued as picks, the missing level-up boons as one stat bundle, talent points spent along the champion's talent plan.
-- A level ends on the **realm's own boss** with a "level cleared" state, before any Merchant or route fork. Waves 31–40 are never the Usurper outside the Last Bastion. A mid-Act start opens the wings that would be open by then.
-- **Death restarts that level**, same seed and same opening offers until it is cleared. Cleared levels can be replayed. No mid-level save needed.
-- End bosses: level 1 a pool boss, level 2 the realm's first boss (reused), level 3 a new boss, level 4 the first boss as an elite with an extra phase, level 5 the new crown boss with 3 phases and minimum phase lengths.
+- **A realm is one run, split into its levels** (29-09; the Marches count as a realm). What the run gains in a level (relics picked up, their tiers, gold) stays for the rest of that realm's levels. The realm's last level ends the run; relics found in it don't enter the inventory, rewards do.
+- **Every cleared level is a checkpoint:** the run is saved there and can be continued later from the realm road, or started over. One unfinished run per champion per realm. **Death restarts that level** from its checkpoint, same seed and same opening offers.
+- **Wave splits** on the 40-wave scale: a relic realm 1–8, 9–16, 17–24, 25–32, 33–40; the Marches 1–6, 7–12, 13–18, 19–24, 25–30, 31–35, 36–40. A run always starts at wave 1: **there is no head start** and no build screen before a level.
+- **No level-ups inside a level** (the Daily Trial keeps them): XP is banked as champion XP and spent between levels (rule 2).
+- A level ends on the **realm's own boss** with a "level cleared" screen (XP, level-ups, points to spend, Continue), before any Merchant or route fork. Waves 31–40 are never the Usurper outside the Last Bastion.
+- End bosses: level 1 a pool boss, level 2 the realm's first boss (reused), level 3 a new boss, level 4 the first boss as an elite with an extra phase, level 5 the new crown boss with 3 phases and minimum phase lengths. **No plain boss ends two levels of one realm**: pool bosses are drawn from those not used in it yet (the elite at level 4 counts as its own).
 
 ### 4 · Starting relics
 
-- Before a level, fill its slots from the champion's inventory. Slots: realm levels 1–5 get 1, 2, 3, 4, 5; the Marches 1, 1, 2, 2, 3, 3, 4; the Last Bastion 5. Armorer's Choice and the Keepsake mastery rank each add +1 (up to 6).
+- Before a realm run, fill its slots from the champion's inventory; they go in at level 1 and stay for the run (29-09). Slots: a relic realm 3, the Marches 3, the Last Bastion 5. Armorer's Choice and the Keepsake mastery rank each add +1 (up to 6).
 - **At most 4 of one family.** A legendary takes 2 slots, at most 1 per loadout (2 in the Last Bastion). At most 2 class relics. No cursed relics. Both halves of a duo may be loaded.
-- Starting tier: I on realm levels 1–3 and Marches 1–4, II on realm levels 4–5 and Marches 5–7, I in the Last Bastion.
-- **Opening pick**: every level starts with a pick of 1 from 3 relics of its realm's family (the Marches: the featured family), with a locked relic among them while any remain. It replaces Armorer's old offer.
+- Starting tier: I; relics grow their tiers in the run as today.
+- **Opening pick**: every level (also a continued one) starts with a pick of 1 from 3 relics of its realm's family (the Marches: the featured family), with a locked relic among them while any remain. It replaces Armorer's old offer.
 - Only one 6-set bonus per run; a second family stops at its 4 bonus. Family lean in offers drops from 1.6 to 1.0.
 
 ### 5 · Relics and rewards
@@ -192,7 +206,8 @@ Everything here is decided: by Jesse, or as the most balanced option where he le
 - Power index at each level's first wave within ±15% of a continuous run at that wave.
 - A 6-set in most crown-level clears and Last Bastion wins, never before wave 10 in the Last Bastion. Every family's 6-set within ±15% of the class median.
 - 1–2 duos per Last Bastion win, 3 or more in under 15%. Every relic 3–35% of damage or healing where picked. Relic moments per findable relic 0.4–0.6.
-- Minutes: a 5-wave level about 4, a 10-wave level 8–10, a realm about 35 clean and 45 with retries, the Last Bastion 35–45.
+- Minutes (29-09, measured in the sim): a realm's level 1 4–6, its last level 7–10; the Marches' level 1 at least 4; a realm about 35 clean and 45 with retries, the Last Bastion 35–45. Tune wave length (foes per wave and their pace) in levels only.
+- Expected champion level: the Marches 1–8, ring 2 8–15, ring 3 15–22, ring 4 22–30, the Last Bastion 30.
 
 ## Relics
 
@@ -268,6 +283,7 @@ Eleven releases to the full map, 1.0 after the eighth. Each release lists its is
 4. **Relics: 7 new Steel relics**: 1 common, 2 rares, a second legendary, class relics for the Angel, the Necromancer and the Archer; one new Steel duo.
 5. **The realm: five levels, rewards, crown and a music theme.**
 6. **Balance and checks**: every class through every level on Knight; a golden run; play checks; test:perf in the fortress.
+7. **Jesse's playtest (29-09, [#234](https://github.com/Cyanida/last-bastion/issues/234)), before item 5:** short relic text ([#235](https://github.com/Cyanida/last-bastion/issues/235)); no boss twice in a realm ([#236](https://github.com/Cyanida/last-bastion/issues/236)); the realm run with checkpoints ([#237](https://github.com/Cyanida/last-bastion/issues/237), [#242](https://github.com/Cyanida/last-bastion/issues/242)); champion levels between levels ([#238](https://github.com/Cyanida/last-bastion/issues/238), [#241](https://github.com/Cyanida/last-bastion/issues/241)); the champion screen ([#239](https://github.com/Cyanida/last-bastion/issues/239), [#240](https://github.com/Cyanida/last-bastion/issues/240)); longer levels ([#243](https://github.com/Cyanida/last-bastion/issues/243)). The Marches move to the new shape too.
 
 **Done when** the Iron Hold can be crowned on Knight by every class within the targets.
 
@@ -376,8 +392,8 @@ You are the main AI for Last Bastion (github.com/Cyanida/last-bastion). This pla
 ✓ is Jesse's decision. ◆ is the balanced default chosen where he left it open; he can change any of them before its release is built.
 
 - ✓ **Realms are relic families**; the medieval Marches is the start; the Last Bastion is the finale.
-- ✓ **Every level is a short run** on the 40-wave scale; death restarts that level.
-- ✓ **Five levels per realm** (1–5, 6–10, 11–20, 21–30, 31–40), seven in the Marches.
+- ✓ ~~Every level is a short run~~ **A realm is one run with a checkpoint after every level** (29-09, replaces the short runs); death restarts that level.
+- ✓ **Five levels per realm**, seven in the Marches; since 29-09 8 waves per realm level (the Marches 6, 6, 6, 6, 6, 5, 5).
 - ✓ **The Last Bastion** is one 40-wave round with elite foes.
 - ✓ **Champions** with an inventory and starting relics; one champion per class.
 - ✓ **The commons** are a starter pool open to every run.
@@ -395,7 +411,7 @@ You are the main AI for Last Bastion (github.com/Cyanida/last-bastion). This pla
 - ◆ **Existing saves**: a champion per class played, every picked relic kept, the Last Bastion open for a class with a win.
 - ◆ **One arena per realm**, reusing today's and [#141](https://github.com/Cyanida/last-bastion/issues/141)'s where they fit; the Merchant and route forks only in the Last Bastion.
 - ◆ **Rewards** pay only for waves played; first-clear rewards once; replays can't be farmed.
-- ◆ **Talents**: the champion keeps a talent plan and the head start spends along it.
+- ◆ ~~**Talents**: the champion keeps a talent plan and the head start spends along it.~~ Replaced on 29-09: talent points come with champion levels and are spent by hand.
 - ◆ **The found bugs ship first**, as v0.8.3; the Keep castle moves into the new look.
 - ◆ **Rarity frame colours** (#184): common stone, rare blue, legendary orange (as today), class green, signature gold with a glow.
 - ◆ **World progress** (#190): a crown on any tier counts toward opening realms; levels open in order per tier, and a clear on a higher tier counts for the lower ones; a first-clear reward is paid once, on any tier.
@@ -423,6 +439,7 @@ You are the main AI for Last Bastion (github.com/Cyanida/last-bastion). This pla
 - ◆ **Level tuning** (#221): rule 9's clear rates come from a level step on enemy HP and damage by a level's place in its realm (`WORLD.levelStep`, easing the first levels most, never below Squire on Knight; the Last Bastion keeps 1), and the head start's boons turn epic from level 11 on, where a continuous run holds about twice a loadout's relics. The level panel's Enemy HP includes the step.
 - ◆ **The Iron King** (#216): the Iron Hold's crown boss teaches its three lessons, a phase each (every phase held its 12 s as the crown boss's). Phase 1 his plate, 8 plates that break one per blow, and his guard of two Iron Knights every third blow; phase 2 he casts off what is left of it and raises an iron tower shield (a blow at his front does 15%, a shot from the front is stopped; he turns 1.4 radians a second, slower than a shieldwall, so step round him) and every other blow rushes you down a marked line; phase 3 he throws the shield down and his thorns bite a blow struck within 100 px (15% of it, at most 4% of your max HP, once per 0.5 s: smaller and slower than a thorn bearer's, since a boss takes many blows). His other blows are the Decree: lines of marked iron from his edge outward, one straight at you (4 lines, 8 in phase 3).
 - ✓ **28-09:** no approval gates that stop the build; releases stacked on each other's branches up to v1.0.0 (see the top).
+- ✓ **29-09, Jesse's playtest ([#234](https://github.com/Cyanida/last-bastion/issues/234)):** short relic text; no build screens before a level; a champion screen that explains itself; no boss twice in a realm; champion levels with stat and talent points between levels, none inside a level; a realm is one run with checkpoints; levels of about 4–10 minutes. The head start, the per-level slot counts and the talent plan's auto-spend go. Numbers here (3 stat points a level, the level cap, the expected levels per ring) are ◆ starting values for the sim.
 
 ---
 
