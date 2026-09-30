@@ -72,6 +72,9 @@ export const RENDER = {
   textCacheSize: 400, // pre-rendered number sprites kept
 };
 
+/** #255: the wave and boss panel fades while the champion or a boss is under it (logic/hudFade.ts); world pixels beyond a body's radius count as it. */
+export const HUD_FADE = { opacity: 0.22, sideMargin: 14, headRoom: 44, footRoom: 10 };
+
 /** Camera zoom: the view is about VIEW.targetW x VIEW.targetH world pixels, within these bounds (phones zoom out). */
 /** v0.8 (#123): Settings › Text size scales the HUD and every screen. A small screen caps it, so the HUD still fits (logic/textSize.ts). */
 export type TextSize = 'normal' | 'large' | 'larger';

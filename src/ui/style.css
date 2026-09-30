@@ -137,6 +137,9 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 /* top centre: the wave plate, the banner under it */
 .hud-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 0; right: 0; display: flex; flex-direction: column; align-items: center; gap: calc(4 * var(--vh)); text-align: center; }
 .hud-wave { max-width: min(520px, calc(40 * var(--vw))); padding: 4px 18px 6px; }
+/* #255: fades while the champion or a boss is under it (hud.ts fadeWavePanel), so a fight at the top wall stays in view */
+.hud-wave { transition: opacity 0.15s; }
+.hud-wave.faded { opacity: var(--hud-fade, 0.22); }
 #h-wave { font: 700 26px/1.2 var(--hud-display); color: var(--hud-gold); white-space: nowrap; }
 #h-left { font-size: 15px; }
 #h-mod { font-size: 14px; color: #f4a595; }

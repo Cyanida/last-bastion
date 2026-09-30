@@ -910,7 +910,7 @@ function draw(now: number): void {
     playCues(game); // a pick on a choice screen sounds while no step runs (paused, or the next screen is up)
     render(ctx, game, view, arenaCanvas(game.arena.id), abilityAimRadius(game.player));
     const t = begin();
-    updateHud(game);
+    updateHud(game, { ...cameraFor(game, view), zoom: view.zoom, dpr: view.dpr });
     inspect(game);
     end('hud', t);
   } else renderBackdrop(ctx, view, arenaCanvas(save.settings.arena), now / 1000, ARENAS[save.settings.arena]);
