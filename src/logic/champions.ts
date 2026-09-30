@@ -7,7 +7,8 @@ import { TALENT_BY_ID } from '../config/talents';
 import { REALM_IDS, REALMS, WORLD, type RealmId } from '../config/world';
 import { masteryBonus, type MetaRanks } from './economy';
 import type { RunLog } from './runlog';
-import { isCrowned, nextLevel, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
+import { newRealmRun, readRealmRun, type RealmRun } from './realmRun';
+import { isCrowned, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
 
 export interface Champion {
   name: string;
@@ -17,6 +18,7 @@ export interface Champion {
   world: WorldProgress; // levels cleared and crowns, per realm and tier (logic/world.ts)
   signature: boolean; // its signature relic is won (the Marches crown); the relic itself is the class's own
   lastBastion: boolean; // the Last Bastion is open whatever its crowns: a class that won a v6 run
+  runs: Partial<Record<RealmId, RealmRun>>; // v0.11 (#237, save v8): its unfinished realm runs, one per realm, at their checkpoints
 }
 
 export const MAX_NAME = 24;
@@ -25,7 +27,7 @@ export const championName = (v: unknown, classId: ClassId): string =>
   (typeof v === 'string' ? v.replace(/[^\p{L}\p{N} '’.-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME) : '') || CLASSES[classId].name;
 
 export const newChampion = (classId: ClassId, name?: string): Champion => ({
-  name: championName(name, classId), inventory: [], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false,
+  name: championName(name, classId), inventory: [], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false, runs: {},
 });
 
 /** A relic a champion can own: not cursed, and not another class's class relic. */
@@ -59,6 +61,11 @@ export function readChampion(raw: unknown, classId: ClassId): Champion {
   c.signature = raw.signature === true;
   if (c.signature && !c.inventory.includes(SIGNATURE.relic[classId])) c.inventory.push(SIGNATURE.relic[classId]); // #201: won, so owned
   c.lastBastion = raw.lastBastion === true;
+  if (isObj(raw.runs))
+    for (const r of REALM_IDS) {
+      const run = readRealmRun(raw.runs[r], r);
+      if (run) c.runs[r] = run;
+    }
   return c;
 }
 
@@ -148,15 +155,33 @@ export const fitLoadout = (classId: ClassId, ids: RelicId[], slots: number, fina
 
 // ---------- #197: the champion screen ----------
 
+/** #237: the realm run standing at `level` of `realm` on `tier` (its checkpoint), if the champion has one. */
+export const runAt = (c: Champion, realm: RealmId, level: number, tier: number): RealmRun | undefined => {
+  const run = c.runs[realm];
+  return run && run.level === level && run.tier === tier ? run : undefined;
+};
+
+/** #237: the level a realm is played at on `tier`: its run's checkpoint, else level 1 (a realm run always starts at wave 1: no head start). */
+export const runLevel = (c: Champion, realm: RealmId, tier: number): number => (c.runs[realm]?.tier === tier ? c.runs[realm]!.level : 1);
+
+/** #237: can `level` be played now? Only where the realm's run stands, or level 1 (which starts the run, or starts it over). */
+export const runStarts = (c: Champion, realm: RealmId, level: number, tier: number): boolean => level === 1 || !!runAt(c, realm, level, tier);
+
+/**
+ * #237: the run a fight at `level` plays: the one standing there, as it is (its seed and carry: a Continue, or a restart after a death),
+ * else a new run from level 1 on `seed` (it replaces the realm's run in progress; #242 asks first).
+ */
+export const runFor = (c: Champion, realm: RealmId, level: number, tier: number, seed: number): RealmRun => runAt(c, realm, level, tier) ?? newRealmRun(tier, seed);
+
 /**
  * The level the champion screen's PLAY starts: the first realm (REALM_IDS order) open to the champion and not crowned on the tier it
- * would play, at its first level not cleared. Decided: with every open realm crowned, the last open one's last level (a replay).
+ * would play, at its realm run's checkpoint, or level 1 with no run in progress (#237). Decided: with every open realm crowned, the last open one (a replay).
  */
 export function nextStop(c: Champion, tier: number): { realm: RealmId; level: number; tier: number } {
   const open = REALM_IDS.filter((r) => championRealmOpen(c, r));
   const realm = open.find((r) => !isCrowned(c.world, r, roadTier(c.world, r, tier))) ?? open[open.length - 1];
   const t = roadTier(c.world, realm, tier);
-  return { realm, level: nextLevel(c.world, realm, t), tier: t };
+  return { realm, level: runLevel(c, realm, t), tier: t };
 }
 
 /**

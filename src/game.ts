@@ -49,7 +49,7 @@ import { updateSpawning } from './systems/spawning';
 import './systems/bosses'; // registers the Act bosses' scripts
 import { updateSquads } from './systems/squads';
 import { updateStatuses } from './systems/status';
-import { headStart, type LevelStart } from './systems/levels';
+import { applyCarry, headStart, type LevelStart } from './systems/levels';
 import { REALMS, WORLD } from './config/world';
 import { startRelicGifts } from './logic/daily';
 
@@ -244,8 +244,12 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     g.player.stats = applyGrowth(g.player.stats, cls.growth);
     g.player.hp = g.player.stats.hp;
   }
-  if (opts.level && levelDef) {
-    headStart(g, levelDef.waves[0], { plan: opts.level.talentPlan });
+  const carry = opts.level?.carry;
+  if (opts.level && levelDef && carry) {
+    applyCarry(g, carry, levelDef.waves[0]); // #237: a realm run goes on from its checkpoint: no head start, no loadout (it went in at level 1)
+    g.level = { realm: opts.level.realm, level: opts.level.level, last: levelDef.waves[1], cleared: false, from: carry.level };
+  } else if (opts.level && levelDef) {
+    headStart(g, levelDef.waves[0], { plan: opts.level.talentPlan }); // at level 1 it grows nothing; later levels: test mode and the sim
     g.level = { realm: opts.level.realm, level: opts.level.level, last: levelDef.waves[1], cleared: false };
     const slots = slotsFor(opts.level.realm, opts.level.level, (loadout.startRelic ? 1 : 0) + (mastery.relic ? 1 : 0)); // as championSlots counts them
     const slotted = fitLoadout(classId, opts.level.relics ?? [], slots, opts.level.realm === 'lastBastion'); // #195: the slot rules
@@ -312,7 +316,7 @@ export function summarizeRun(g: Game): RunSummary {
     won: g.victory !== 'none',
     evolutions: g.evolutions,
     endlessScore: endlessScore(g),
-    realmLevel: g.level ? { realm: g.level.realm, level: g.level.level, cleared: g.level.cleared } : undefined,
+    realmLevel: g.level ? { realm: g.level.realm, level: g.level.level, cleared: g.level.cleared, ...(g.level.from ? { from: g.level.from } : {}) } : undefined,
     treasure: g.chain || g.treasure ? { found: g.chain?.found ?? 0, passed: g.chain?.passed ?? false, slain: g.chain?.slain ?? false, carried: g.treasure?.tier ?? 0 } : undefined,
   };
 }

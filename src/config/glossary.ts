@@ -5,6 +5,7 @@ import { OATHS } from './oaths';
 import { ATTUNEMENT, RELIC_MAX_TIER, TIER_NUMERALS } from './relics';
 import { WORLD } from './world';
 import type { SlotBlock } from '../logic/champions';
+import type { TourStep } from '../logic/tour';
 
 /**
  * v0.7.1: the game's own words, defined once. Every tooltip underlines the ones it uses and adds their definitions (ui/tooltip.ts);
@@ -58,7 +59,27 @@ export const SLOT_BLOCK_TEXT: Record<SlotBlock, string> = {
 
 /** #239: the champion screen's ⓘ explanations, one or two plain sentences each (#240's tabs and tour reuse them). */
 export const CHAMPION_HELP = {
-  slots: `The relics in your slots go into the level with you; locked slots open on later levels, and the Keep adds more. A legendary takes ${L.legendarySlots} slots, and a loadout holds at most ${L.perFamily} relics of one family, ${L.legendaries} legendary (${L.legendariesFinale} in the Last Bastion) and ${L.classRelics} class relics.`,
+  slots: `The relics in your slots go into a realm run at its first level and stay for the whole run; the Keep adds more slots. A legendary takes ${L.legendarySlots} slots, and a loadout holds at most ${L.perFamily} relics of one family, ${L.legendaries} legendary (${L.legendariesFinale} in the Last Bastion) and ${L.classRelics} class relics.`,
   sets: 'Slotted relics of one family count toward its set: 2, 4 and 6 of them each add a bonus in the level. A lit chip has its bonus on; hover or tap a chip to read them.',
-  talents: 'A level starts with a head start: your champion is already some levels up, with talent points to spend. The plan spends them for you, in its order; a point it can’t place yet is yours to spend.',
+  talents: 'A realm run starts at level 1: talent points come as your champion levels up in the run, and you spend them there. The plan keeps the order you mean to take them in.', // #237: no head start spends it any more
 } as const;
+
+/** #240: the champion screen's own tabs: one shows at a time, and PLAY stays under all three. */
+export const CHAMPION_TABS = [
+  { id: 'loadout', label: 'Loadout' },
+  { id: 'build', label: 'Build' },
+  { id: 'talents', label: 'Talents' },
+] as const;
+export type ChampionTab = (typeof CHAMPION_TABS)[number]['id'];
+
+/** #240: the Build tab until champion levels fill it (#241): one plain line. */
+export const CHAMPION_BUILD_TEXT = 'Stat points come with champion levels: once your champion earns them, you spend them here.';
+
+/** #240: the champion screen's tour, shown the first time the screen opens and again from its ⓘ: one sentence a step, each at the part it names. */
+export const CHAMPION_TOUR: readonly TourStep[] = [
+  { id: 'slots', at: '.cs-slots', text: 'These are your slots: the relics in them go into the level with you.' },
+  { id: 'inventory', at: '.cs-inventory', text: 'Your inventory holds the relics this champion has won: tap one to put it in a slot, and tap a slot to take it out again.' },
+  { id: 'legendary', at: '.cs-slots', text: `A legendary relic takes ${L.legendarySlots} slots, and a loadout holds only ${L.legendaries} of them.` },
+  { id: 'build', at: '.cs-tabs', text: 'Build and Talents are the other tabs: your champion’s stat points, and the talents its head start takes.' },
+  { id: 'play', at: '.cs-go', text: 'PLAY starts the next level of the road with this loadout, from any tab.' },
+];

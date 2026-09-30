@@ -601,6 +601,6 @@ export interface Game {
   glows: Glow[]; // v0.6: lights the evolutions set every tick (wisps, souls, rings); cleared at the start of each tick
   // --- v0.10 levels (#191, systems/levels.ts) ---
   startWave: number; // the first wave this run plays: 1, or a level's first wave (its head start)
-  level: { realm: RealmId; level: number; last: number; cleared: boolean } | null; // the realm level this run is (null: a plain run); cleared once its last wave is
+  level: { realm: RealmId; level: number; last: number; cleared: boolean; from?: number } | null; // the realm level this run is (null: a plain run); cleared once its last wave is
   over: boolean;
 }

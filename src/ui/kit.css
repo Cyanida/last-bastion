@@ -674,8 +674,8 @@
 
 /* ---------- #197: the champion screen (Survivor.io style): the champion on a pedestal between its six slots, the inventory and the
    talent plan beside it, the next level and one big green PLAY under it, the main tabs at the bottom ---------- */
-.champion-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto; gap: 8px; width: min(1100px, calc(96 * var(--vw))); height: min(700px, calc(94 * var(--vh))); padding: 12px 14px 0; color: var(--kit-light); }
-.champion-screen .kit-head .kit-purse { position: absolute; top: 0; left: 0; gap: 8px; }
+.champion-screen { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 8px; width: min(1100px, calc(96 * var(--vw))); height: min(700px, calc(94 * var(--vh))); padding: 12px 14px 0; color: var(--kit-light); }
+.champion-screen .kit-head .kit-purse { position: absolute; top: 0; left: 0; right: auto; gap: 8px; } /* right: auto, or it spans the header and takes the back button's clicks */
 .cs-main { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; min-height: 0; }
 /* #239: the six slots in one row under the pedestal, so a legendary is one frame two slots wide */
 .cs-slots { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 12px; }
@@ -697,7 +697,12 @@
 .cs-sets small { color: #cdb68a; font-size: 14px; }
 .cs-set { display: inline-flex; align-items: center; gap: 2px; padding: 1px 8px 1px 2px; font: 800 14px var(--kit-num); background: linear-gradient(#2a1d14, #120c08); border: 2px solid var(--kit-brass-dark); border-radius: 13px; opacity: 0.7; }
 .cs-set.on { opacity: 1; border-color: var(--kit-brass-light); box-shadow: 0 0 8px rgba(246, 217, 122, 0.6); }
-.cs-side { display: grid; grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; align-self: stretch; min-height: 0; }
+.cs-side { display: grid; grid-template-rows: minmax(0, 1fr); align-self: stretch; min-height: 0; }
+/* #240: the screen's own tabs (Loadout, Build, Talents): a row of small wood buttons, the open one pressed; a part of another tab is hidden */
+.cs-tabs { position: relative; z-index: 1; justify-self: center; justify-content: center; align-items: center; }
+.cs-tabs .kit-btn { min-width: 108px; }
+.cs-tabs .kit-info { margin-left: 6px; }
+.champion-screen [data-cs-of][hidden] { display: none; }
 .cs-side .kit-parch { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 8px 12px; }
 .cs-side h2 { margin: 0 0 6px; font: 900 15px var(--kit-num); letter-spacing: 0.06em; text-transform: uppercase; color: var(--kit-brass-dark); }
 .cs-side h2 small { font-size: 14px; color: var(--kit-ink); }
@@ -722,6 +727,14 @@
 .compact .champion-screen { gap: 4px; padding: 6px 10px 0; height: calc(100 * var(--vh) - 32px); }
 .compact .cs-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
 .compact .champion-screen .kit-btn.small { font-size: 12px; }
+/* #240: a phone has no height for a row of tabs over both halves: they sit over the inventory's half, the pedestal keeps the full height */
+.compact .champion-screen { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 6px; }
+.compact .champion-screen > .kit-head, .compact .champion-screen > .cs-go, .compact .champion-screen > .kit-tabs { grid-column: 1 / -1; }
+.compact .cs-main { display: contents; }
+.compact .cs-hero { position: relative; z-index: 1; grid-column: 1; grid-row: 2 / 4; }
+.compact .cs-tabs { grid-column: 2; grid-row: 2; gap: 6px; }
+.compact .cs-side { position: relative; z-index: 1; grid-column: 2; grid-row: 3; }
+.compact .cs-tabs .kit-btn { min-width: 84px; padding: 3px 10px 2px; }
 .compact .kit-info { width: 20px; height: 20px; font-size: 13px; }
 .compact .cs-slots { gap: 6px; }
 .compact .cs-slots { margin-top: 4px; }
@@ -756,3 +769,15 @@
 .kit-info-pop[hidden] { display: none; }
 .kit-info-pop p { margin: 0; font-size: 15px; line-height: 1.35; }
 .kit-info-pop .kit-close { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; }
+/* #240: a tour over a screen (kit.tour): a ring around the part a step names, the rest dimmed by the ring's own shadow, and the step's
+   sentence on parchment beside it with Skip and Next */
+.kit-tour { position: fixed; inset: 0; z-index: 60; }
+.kit-tour-ring { position: fixed; border: 3px solid var(--kit-brass-light); border-radius: 12px; box-shadow: 0 0 0 9999px rgba(8, 6, 4, 0.66), 0 0 14px rgba(246, 217, 122, 0.8); pointer-events: none; }
+.kit-tour-ring[hidden] { display: none; }
+.kit-tour-pop { position: fixed; width: min(360px, calc(90 * var(--vw))); padding: 12px 14px 12px; color: var(--kit-ink); background: linear-gradient(#f3e3bf, #e2cb98); border: 2px solid var(--kit-brass-dark); border-radius: 10px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6); outline: none; }
+.kit-tour-pop p { margin: 0 0 10px; font-size: 16px; line-height: 1.35; }
+.kit-tour-row { display: flex; align-items: center; gap: 10px; padding-bottom: 4px; } /* room for the buttons' lip */
+.kit-tour-row span { margin-right: auto; font: 800 14px var(--kit-num); color: var(--kit-brass-dark); }
+.kit-tour-row .kit-btn.small { font-size: 14px; }
+.compact .kit-tour-pop { padding: 8px 10px; }
+.compact .kit-tour-pop p { margin-bottom: 6px; font-size: 14px; }
