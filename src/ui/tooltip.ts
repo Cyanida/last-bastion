@@ -1,6 +1,7 @@
 import { GLOSSARY, type Term } from '../config/glossary';
 import { clamp } from '../core/math';
 import { esc } from './relicText';
+import { placeClear } from '../logic/tipPlace';
 
 /**
  * One floating tooltip for every `[data-tip]` element, menus and HUD alike (v0.5). CSS pseudo-element tooltips were clipped by
@@ -19,13 +20,20 @@ function place(el: HTMLElement): void {
   if (!text) return hide();
   box ??= document.body.appendChild(Object.assign(document.createElement('div'), { id: 'tooltip' }));
   owner = el;
-  box.innerHTML = glossed(text);
+  const clear = el.hasAttribute('data-tip-clear'); // #251: a card's tip is short (no glossary) and stays off the card
+  box.innerHTML = clear ? esc(text) : glossed(text);
   box.classList.toggle('hud', el.closest('#hud') !== null);
   box.style.display = 'block';
   const r = el.getBoundingClientRect();
   const t = box.getBoundingClientRect();
   const above = r.top - t.height - GAP >= EDGE;
   const s = uiScale(); // the box is zoomed too: its top and left are in scaled pixels
+  const spot = clear ? placeClear(r, t, { width: window.innerWidth, height: window.innerHeight }, GAP, EDGE) : null;
+  if (spot) {
+    box.style.top = `${spot.top / s}px`;
+    box.style.left = `${spot.left / s}px`;
+    return;
+  }
   box.style.top = `${(above ? r.top - t.height - GAP : clamp(r.bottom + GAP, EDGE, window.innerHeight - t.height - EDGE)) / s}px`;
   box.style.left = `${clamp(r.left + r.width / 2 - t.width / 2, EDGE, window.innerWidth - t.width - EDGE) / s}px`;
 }

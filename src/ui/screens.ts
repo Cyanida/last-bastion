@@ -113,13 +113,13 @@ const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, ex
   const r = relicDef(id);
   const fam = r.family ? `${FAMILIES[r.family].icon} ${FAMILIES[r.family].name}` : r.signature ? '👑 Signature' : '☠ Cursed'; // v0.7.1 B6: a cursed card is purple and says so (#201: a signature one gold)
   const upgrade = tier > 1;
-  return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip="${esc([relicTip(id, tier, held), ...more].join('\n'))}">${infoButton(id, r.name)}<div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.family ? r.rarity : 'no family'}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${RELIC_SHORT[id]}</p>${tierChips(tier)}${extra}</button>`;
+  return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip-clear data-tip="${esc([relicTip(id, tier, held, false, true), ...more].join('\n'))}">${infoButton(id, r.name)}<div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.family ? r.rarity : 'no family'}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${RELIC_SHORT[id]}</p>${tierChips(tier)}${extra}</button>`;
 };
 
 /** v0.7 A5: a duo as a gold card: it takes the moment's pick. v0.7.5 (#96): it combines its two relics into one; the families keep their counts. */
 const duoCard = (id: DuoId, attrs: string, extra = '') => {
   const d = DUOS[id];
-  return `<button class="card panel boon evolution duo-card" ${attrs} data-tip="${esc(duoTip(id))}">${infoButton(id, d.name)}<div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${RELIC_SHORT[id]}</p>${tierChips(1)}${extra}</button>`;
+  return `<button class="card panel boon evolution duo-card" ${attrs} data-tip-clear data-tip="${esc(duoTip(id))}">${infoButton(id, d.name)}<div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${RELIC_SHORT[id]}</p>${tierChips(1)}${extra}</button>`;
 };
 
 /** #235: a relic's full text, as its compendium row shows it: tiers I and II with their numbers, then the awakening. */
