@@ -67,6 +67,14 @@ async function check(name, fn) {
 }
 const inPage = (fn, arg) => page.evaluate(fn, arg);
 /**
+ * #237: a champion's realm run standing at `level` (its checkpoint), for a check that fights past level 1: the head start is gone, so a
+ * later level only goes on from its run. A bare carry: the class's own stats at champion level 1, no relics, no gold.
+ */
+const runAt = (level, tier = 0) => ({
+  level, tier, seed: 20237,
+  carry: { level: 1, xp: 0, stats: {}, baseMods: {}, upgrades: [], talents: [], utilityUpgrades: [], evolutions: [], revives: 0, relics: { held: [], tiers: {}, attune: {}, from: {}, duos: [], cursedAct: 0 }, gold: 0, talentPoints: 0, pendingLevelUps: 0, pendingAbilityTiers: [], pendingUtilityTiers: [], rerolls: 0, banishes: 0, bannedStats: [], vars: {} },
+});
+/**
  * #204: the Daily Trial is the one full 40-wave run left on the menus (the Classic run is gone). Opened as a save that already took a
  * trial keeps it (a check's own save has no Marches crown), then begun from the title through its own screen, as a player does.
  */
@@ -1561,7 +1569,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = road.flags.length === 7 && road.flags.every((f) => f.inside) && road.flags.map((f) => f.open).join() === 'true,false,false,false,false,false,false' && road.flags[0].on
       && road.landBg.includes('world-map') && road.name === 'The Marches · Level 1' && road.tiers === 'Xo--' && road.golds === 1 && road.fight && road.onScreen
-      && /Head start\s*Level 1/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*85%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
+      && !/Head start/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*85%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
       && knight.tiers === 'oX--' && /Enemy HP\s*123%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
       && run?.realm === 'marches' && run.level === 1 && run.last === 5 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
     return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*123%/.test(knight.text) ? 'HP 123%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
@@ -1591,6 +1599,47 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     return { ok, detail: `panel Enemy HP ${shown ?? '?'}%; run: ${run ? `level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
+
+// ---------- #237: the head start is gone: a realm run starts at level 1, wave 1 ----------
+// A champion from before v0.11, four Marches levels cleared and no run in progress, four relics in its Marches loadout: the road opens on
+// level 1 with the run's three slots and no head start; level 5 (open) says the run starts at level 1 and its FIGHT is off; FIGHT on
+// level 1 starts wave 1 at champion level 1 with the loadout's first three relics, straight on the opening pick of 1 of 3 (no queued
+// build picks before it), and the save holds the run at level 1.
+await check('realm run: no head start: four levels cleared and no run -> the road opens on level 1 (3 slots), level 5 says "The run starts at level 1" with FIGHT off, level 1 starts at wave 1 with three slotted relics and the opening pick (#237)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const four = ['brimstoneOil', 'emberheart', 'cinderCharm', 'frostBrand'];
+    window.__lb.save.champions = { paladin: { name: 'Hild', inventory: four, loadouts: { marches: four }, talentPlan: [], world: { marches: [4] }, signature: false, lastBastion: false, runs: {} } };
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-marches');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  const look = () => p.evaluate(() => ({ name: document.querySelector('.rr-name').textContent, text: document.querySelector('.rr-panel').textContent.replace(/\s+/g, ' '), fight: !document.querySelector('[data-fight]').disabled, open: [...document.querySelectorAll('.rr-flag')].filter((f) => !f.disabled).length }));
+  const first = await look();
+  await p.click('.rr-flag.l-5');
+  await p.waitForTimeout(100);
+  const later = await look();
+  await p.click('[data-fight]', { force: true, timeout: 1000 }).catch(() => {}); // off: nothing starts
+  await p.waitForTimeout(100);
+  const stayed = await p.evaluate(() => window.__lb.state === 'menu' && !!document.querySelector('.rr-panel'));
+  await p.click('.rr-flag.l-1');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }).catch(() => {}); // the level's opening pick
+  const run = await p.evaluate(() => {
+    const g = window.__lb.game;
+    return g ? { level: g.level?.level, start: g.startWave, wave: g.wave, plevel: g.player.level, held: g.player.relics.held.join(), queued: g.pendingAbilityTiers.length + g.pendingUtilityTiers.length + g.pendingLevelUps, picks: document.querySelectorAll('[data-pick]').length, saved: window.__lb.save.champions.paladin.runs.marches?.level } : null;
+  });
+  await p.close();
+  const ok = first.name === 'The Marches · Level 1' && first.fight && first.open === 5 && !/Head start/.test(first.text) && /Slots\s*3/.test(first.text)
+    && later.name === 'The Marches · Level 5' && !later.fight && /The run starts at level 1/.test(later.text) && stayed
+    && run?.level === 1 && run.start === 1 && run.wave === 0 && run.plevel === 1 && run.held === 'brimstoneOil,emberheart,cinderCharm' && run.queued === 0 && run.picks === 3 && run.saved === 1 && errs.length === 0;
+  return { ok, detail: `road "${first.name}" (${first.open} open, FIGHT ${first.fight ? 'on' : 'off'}${/Head start/.test(first.text) ? ', HEAD START shown' : ''}); "${later.name}": FIGHT ${later.fight ? 'ON' : 'off'}${/The run starts at level 1/.test(later.text) ? ', "The run starts at level 1"' : ', NO NOTE'}, a click starts ${stayed ? 'nothing' : 'A RUN'}; run: ${run ? `level ${run.level}, wave ${run.start} (at ${run.wave}), champion level ${run.plevel}, holds ${run.held}, ${run.queued} queued picks, opening pick of ${run.picks}, saved at level ${run.saved}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
 
 // ---------- #200: a Marches level cleared: pick 1 of 2 rares of its family, it joins the champion, and the road opens on level 2 ----------
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
@@ -1640,12 +1689,12 @@ await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his f
   p.on('pageerror', (e) => errs.push(e.message));
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
-  await p.evaluate(() => {
-    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [2] }, signature: true, lastBastion: false });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [2] }, signature: true, lastBastion: false, runs: { ironHold: run } });
     const lb = window.__lb;
-    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold levels 1-2 cleared
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold levels 1-2 cleared, its realm run at level 2 (#237)
     lb.save.cards = lb.cardIds.filter((id) => id !== 'ironKnight'); // every other card already seen, so his is the one that shows
-  });
+  }, runAt(2));
   await p.click('[data-go="map"]');
   await p.click('.wm-realm.r-ironHold');
   await p.locator('.rr-panel').waitFor({ timeout: 3000 });
@@ -1728,7 +1777,7 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
   await p.evaluate(() => {
-    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [2] }, signature: true, lastBastion: false });
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [2] }, signature: true, lastBastion: false, runs: {} });
     const lb = window.__lb;
     lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)]));
     lb.save.cards = [...lb.cardIds]; // every flash card seen: nothing stops the fight
@@ -1818,12 +1867,12 @@ await check('Iron Hold: shieldwalls march as Iron Shieldwalls with their flash c
   p.on('pageerror', (e) => errs.push(e.message));
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
-  await p.evaluate(() => {
-    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false, runs: { ironHold: run } });
     const lb = window.__lb;
-    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold level 1 cleared
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold level 1 cleared, its realm run at level 2 (#237)
     lb.save.cards = lb.cardIds.filter((id) => id !== 'ironShieldwall'); // every other card already seen, so his is the one that shows
-  });
+  }, runAt(2));
   await p.click('[data-go="map"]');
   await p.click('.wm-realm.r-ironHold');
   await p.locator('.rr-panel').waitFor({ timeout: 3000 });
@@ -1910,12 +1959,12 @@ await check('Iron Hold: a shield bearer marches as the Thorn Bearer, his flash c
   p.on('pageerror', (e) => errs.push(e.message));
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
-  await p.evaluate(() => {
-    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false, runs: { ironHold: run } });
     const lb = window.__lb;
-    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold level 1 cleared
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold level 1 cleared, its realm run at level 2 (#237)
     lb.save.cards = lb.cardIds.filter((id) => id !== 'thornBearer'); // every other card already seen, so his is the one that shows
-  });
+  }, runAt(2));
   await p.click('[data-go="map"]');
   await p.click('.wm-realm.r-ironHold');
   await p.locator('.rr-panel').waitFor({ timeout: 3000 });
@@ -1992,7 +2041,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
     const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
     await p.evaluate(() => {
-      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue', 'everfrostCrown'], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false } };
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue', 'everfrostCrown'], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false, runs: {} } };
     });
     await press('[data-go="champion"]');
     await p.locator('.champion-screen').waitFor({ timeout: 3000 });
@@ -2076,7 +2125,7 @@ await check('champion screen: relic tooltips are the short line, the ⓘ opens t
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
   await p.evaluate(() => {
-    window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['rivetHammer', 'heartOfTheHold', 'emberheart'], loadouts: { marches: ['rivetHammer'] }, talentPlan: [], world: {}, signature: false, lastBastion: false } };
+    window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['rivetHammer', 'heartOfTheHold', 'emberheart'], loadouts: { marches: ['rivetHammer'] }, talentPlan: [], world: {}, signature: false, lastBastion: false, runs: {} } };
   });
   await p.locator('[data-go="champion"]').click();
   await p.locator('.champion-screen').waitFor({ timeout: 3000 });
@@ -2252,7 +2301,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
     await p.evaluate(() => {
       const five = ['brimstoneOil', 'emberheart', 'cinderCharm', 'frostBrand', 'wintersGrasp'];
-      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [...five, 'everfrostCrown'], loadouts: { marches: five }, talentPlan: [], world: {}, signature: false, lastBastion: false } };
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [...five, 'everfrostCrown'], loadouts: { marches: five }, talentPlan: [], world: {}, signature: false, lastBastion: false, runs: {} } };
     });
     await press('[data-go="champion"]');
     await p.locator('.champion-screen').waitFor({ timeout: 3000 });
@@ -4294,9 +4343,9 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.goto(`http://localhost:${PORT}/?debug`);
     await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
     const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
-    await p.evaluate(() => {
-      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, talentPlan: [], world: { marches: [6] }, signature: false, lastBastion: false } };
-    });
+    await p.evaluate((run) => {
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, talentPlan: [], world: { marches: [6] }, signature: false, lastBastion: false, runs: { marches: run } } }; // #237: its realm run at level 7
+    }, runAt(7));
     await press('[data-go="map"]');
     await press('.wm-realm.r-marches');
     await p.locator('.rr-panel').waitFor({ timeout: 3000 });
@@ -4374,7 +4423,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const stayed = await p.evaluate(() => window.__lb.state === 'menu' && !document.querySelector('.kit-screen.daily') && !!document.querySelector('.kit-title'));
     await p.evaluate(() => {
       const s = window.__lb.save;
-      s.champions = { ...s.champions, viking: { name: 'Sigrun', inventory: ['brimstoneOil'], loadouts: { marches: ['brimstoneOil'] }, talentPlan: [], world: { marches: [7] }, signature: false, lastBastion: false } };
+      s.champions = { ...s.champions, viking: { name: 'Sigrun', inventory: ['brimstoneOil'], loadouts: { marches: ['brimstoneOil'] }, talentPlan: [], world: { marches: [7] }, signature: false, lastBastion: false, runs: {} } };
       s.meta.startRelic = 1; // Armorer's Choice
       s.classes.viking.xp = 1e6; // mastery up to the Keepsake
     });
@@ -4554,10 +4603,11 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
 
 // ---------- #208: the slot rules left over from #197's check, by touch in phone landscape ----------
 // #197 plays a legendary's two slots and the one-legendary rule. Here a Viking with the Keep's two extra slots (Armorer's Choice, the
-// Keepsake) on level 7 (five slots: #237, a realm run's three and the Keep's two), reached by the champion screen's arrow: two class relics shut out a third ("at most 2"), the signature still goes beside them, four Steel
-// relics shut out a fifth ("at most 4 of one family"), six filled leave no free slot, PLAY holds the first five; level 1 from the road has
-// the same five live slots, the sixth idle, and its run holds the same five.
-await check('slot rules: at most 2 class relics (the signature beside them), 4 of one family, no seventh slot; the five slots of a realm run take the first five at level 7 and at level 1, tap at 844x390 (#208, #237)', async () => {
+// Keepsake) and six Marches levels cleared but no realm run in progress (#237: so its run starts at level 1, with five slots: a realm run's
+// three and the Keep's two), reached by the champion screen's arrow: two class relics shut out a third ("at most 2"), the signature still
+// goes beside them, four Steel relics shut out a fifth ("at most 4 of one family"), six filled leave no free slot, PLAY holds the first
+// five; level 1 from the road has the same five live slots, the sixth idle, and its run holds the same five.
+await check('slot rules: at most 2 class relics (the signature beside them), 4 of one family, no seventh slot; the five slots of a realm run take the first five, from the champion screen and from the road, tap at 844x390 (#208, #237)', async () => {
   const p = await browser.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
   const errs = [];
   p.on('pageerror', (e) => errs.push(e.message));
@@ -4566,7 +4616,7 @@ await check('slot rules: at most 2 class relics (the signature beside them), 4 o
   const tap = (sel) => p.locator(sel).first().tap();
   await p.evaluate(() => {
     const s = window.__lb.save;
-    s.champions = { viking: { name: 'Sigrun', inventory: ['stormbornPelt', 'wolfskin', 'ironhide', 'towerShield', 'thornMail', 'anvilHeart', 'shockSigil', 'jarlsTorc'], loadouts: {}, talentPlan: [], world: { marches: [6] }, signature: true, lastBastion: false } };
+    s.champions = { viking: { name: 'Sigrun', inventory: ['stormbornPelt', 'wolfskin', 'ironhide', 'towerShield', 'thornMail', 'anvilHeart', 'shockSigil', 'jarlsTorc'], loadouts: {}, talentPlan: [], world: { marches: [6] }, signature: true, lastBastion: false, runs: {} } };
     s.meta.startRelic = 1; // Armorer's Choice: a slot
     s.classes.viking.xp = 1e6; // mastery up to the Keepsake: a slot
   });
@@ -4621,14 +4671,14 @@ await check('slot rules: at most 2 class relics (the signature beside them), 4 o
   await p.close();
   const six7 = 'stormbornPelt,towerShield,thornMail,anvilHeart,shockSigil,jarlsTorc';
   const five = six7.split(',').slice(0, 5).join();
-  const ok = /Level 7/.test(first.next) && /5 slots/.test(first.next) && first.slots === 'ooooo-' && Object.keys(first.blocked).length === 0
+  const ok = /Level 1/.test(first.next) && /5 slots/.test(first.next) && first.slots === 'ooooo-' && Object.keys(first.blocked).length === 0
     && classes.loadout === 'stormbornPelt,wolfskin' && classes.blocked.ironhide === 'At most 2 class relics.' && !classes.blocked.jarlsTorc
     && /Ironhide: At most 2 class relics/.test(third.why) && third.loadout === classes.loadout
     && full.slots === 'RRRRRr' && full.blocked.ironhide === 'No free slot for it.' && /No free slot/.test(full.blocked.jarlsTorc ?? '')
     && fifth.blocked.ironhide === 'At most 4 relics of one family.' && /Ironhide: At most 4 relics of one family/.test(fifth.why) && !fifth.loadout.includes('ironhide')
-    && six.loadout === six7 && six.slots === 'RRRRRr' && run7.level === 7 && run7.held.split(',').slice(0, 6).join() === five
+    && six.loadout === six7 && six.slots === 'RRRRRr' && run7.level === 1 && run7.held.split(',').slice(0, 6).join() === five
     && /Level 1/.test(small.next) && /5 slots/.test(small.next) && small.slots === 'RRRRRr' && run1.level === 1 && run1.held.split(',').slice(0, 6).join() === five && errs.length === 0;
-  return { ok, detail: `"${first.next}" ${first.slots}; 2 class relics -> Ironhide "${classes.blocked.ironhide ?? '-'}", signature ${classes.blocked.jarlsTorc ? 'blocked' : 'free'}; six in: ${full.slots}, Torc "${full.blocked.jarlsTorc ?? '-'}"; a slot free -> Ironhide "${fifth.blocked.ironhide ?? '-'}"; level 7 holds ${run7.held}; level 1 "${small.next}" ${small.slots}, holds ${run1.held}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  return { ok, detail: `"${first.next}" ${first.slots}; 2 class relics -> Ironhide "${classes.blocked.ironhide ?? '-'}", signature ${classes.blocked.jarlsTorc ? 'blocked' : 'free'}; six in: ${full.slots}, Torc "${full.blocked.jarlsTorc ?? '-'}"; a slot free -> Ironhide "${fifth.blocked.ironhide ?? '-'}"; PLAY holds ${run7.held}; level 1 "${small.next}" ${small.slots}, holds ${run1.held}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 // ---------- #206: test mode starts any realm level: Settings -> Test mode -> "Start at" a realm level -> the level's run ----------

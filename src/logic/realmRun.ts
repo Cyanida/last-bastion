@@ -39,7 +39,7 @@ export interface RealmRun {
   level: number;
   tier: number;
   seed: number;
-  carry: RunCarry | null; // null: a fresh start from the loadout (level 1; past it, a head start until #242's Continue / Start over)
+  carry: RunCarry | null; // null at level 1 only: a fresh start from the loadout. There is no head start: a later level always has its carry
 }
 
 export const newRealmRun = (tier: number, seed: number): RealmRun => ({ level: 1, tier, seed, carry: null });
@@ -95,5 +95,6 @@ export function readRealmRun(raw: unknown, realm: RealmId): RealmRun | null {
   const level = count(raw.level);
   if (level < 1 || level > REALMS[realm].levels.length) return null;
   const carry = level > 1 ? readCarry(raw.carry) : null;
+  if (level > 1 && !carry) return null; // a run past level 1 is its checkpoint; without one the realm starts again at level 1
   return { level, tier: Math.min(TIERS.length - 1, count(raw.tier)), seed: count(raw.seed) >>> 0, carry };
 }

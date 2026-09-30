@@ -58,7 +58,7 @@ export const SLOT_BLOCK_TEXT: Record<SlotBlock, string> = {
 
 /** #239: the champion screen's ⓘ explanations, one or two plain sentences each (#240's tabs and tour reuse them). */
 export const CHAMPION_HELP = {
-  slots: `The relics in your slots go into the level with you; locked slots open on later levels, and the Keep adds more. A legendary takes ${L.legendarySlots} slots, and a loadout holds at most ${L.perFamily} relics of one family, ${L.legendaries} legendary (${L.legendariesFinale} in the Last Bastion) and ${L.classRelics} class relics.`,
+  slots: `The relics in your slots go into a realm run at its first level and stay for the whole run; the Keep adds more slots. A legendary takes ${L.legendarySlots} slots, and a loadout holds at most ${L.perFamily} relics of one family, ${L.legendaries} legendary (${L.legendariesFinale} in the Last Bastion) and ${L.classRelics} class relics.`,
   sets: 'Slotted relics of one family count toward its set: 2, 4 and 6 of them each add a bonus in the level. A lit chip has its bonus on; hover or tap a chip to read them.',
   talents: 'A level starts with a head start: your champion is already some levels up, with talent points to spend. The plan spends them for you, in its order; a point it can’t place yet is yours to spend.',
 } as const;

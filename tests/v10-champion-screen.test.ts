@@ -4,11 +4,13 @@ import { recordClear } from '../src/logic/world';
 import { REALMS } from '../src/config/world';
 
 describe('champions: the champion screen (#197)', () => {
-  it('PLAY starts the first level not cleared of the first open realm not crowned', () => {
+  it('PLAY starts the first open realm not crowned: at level 1, or where its realm run stands (#237)', () => {
     const c = newChampion('viking');
     expect(nextStop(c, 0)).toEqual({ realm: 'marches', level: 1, tier: 0 });
     c.world = recordClear(c.world, 'marches', 3, 0);
-    expect(nextStop(c, 0)).toEqual({ realm: 'marches', level: 4, tier: 0 });
+    expect(nextStop(c, 0)).toEqual({ realm: 'marches', level: 1, tier: 0 }); // no run in progress: a realm run starts at level 1
+    c.runs.marches = { level: 4, tier: 0, seed: 9, carry: null };
+    expect(nextStop(c, 0)).toEqual({ realm: 'marches', level: 4, tier: 0 }); // its checkpoint
     expect(nextStop(c, 3)).toEqual({ realm: 'marches', level: 1, tier: 1 }); // Legend not open: Knight, where a Squire clear doesn't count
   });
 

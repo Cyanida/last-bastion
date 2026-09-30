@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createGame, summarizeRun } from '../src/game';
-import { newChampion } from '../src/logic/champions';
+import { newChampion, runAt, runFor, runLevel, runStarts } from '../src/logic/champions';
 import { checkpoint, newRealmRun, readRealmRun } from '../src/logic/realmRun';
 import { applyRun, defaultSave, exportSave, importSave, migrate } from '../src/logic/save';
 import { REALMS } from '../src/config/world';
-import { slotsFor } from '../src/logic/world';
+import { recordClear, slotsFor } from '../src/logic/world';
 import { addRelic } from '../src/systems/relics';
 import { takeCarry } from '../src/systems/levels';
 import { oldSave } from './fixtures/saves';
@@ -44,6 +44,26 @@ describe('realm runs: checkpoints and the carry (#237)', () => {
     expect(slotsFor('lastBastion', 1)).toBe(5);
     const g = createGame('viking', 11, { level: { realm: 'marches', level: 1, relics: ['brimstoneOil', 'emberheart', 'cinderCharm', 'serratedEdge'] } });
     expect(g.player.relics.held).toEqual(['brimstoneOil', 'emberheart', 'cinderCharm']);
+  });
+
+  it('the head start is gone: a realm run starts at level 1, wave 1; only the level its run stands at goes on', () => {
+    const c = newChampion('viking');
+    c.world = recordClear(c.world, 'marches', 4, 0); // a save from before v0.11: four levels cleared, no run in progress
+    expect(runLevel(c, 'marches', 0)).toBe(1);
+    expect([1, 2, 5].map((n) => runStarts(c, 'marches', n, 0))).toEqual([true, false, false]);
+    const fresh = runFor(c, 'marches', 5, 0, 77); // a fight asked for at level 5 is a new run from level 1
+    expect(fresh).toEqual({ level: 1, tier: 0, seed: 77, carry: null });
+    const g = createGame('viking', fresh.seed, { level: { realm: 'marches', level: fresh.level, relics: ['brimstoneOil'], carry: fresh.carry } });
+    expect([g.startWave, g.wave, g.player.level]).toEqual([1, 0, 1]);
+    expect(g.pendingAbilityTiers).toEqual([]); // no queued picks before the fight
+    // its checkpoint after level 1: level 2 goes on, level 1 starts over, nothing else starts
+    c.runs.marches = checkpoint(fresh, 'marches', takeCarry(level1()), 22)!;
+    expect(runLevel(c, 'marches', 0)).toBe(2);
+    expect(runLevel(c, 'marches', 1)).toBe(1); // another tier has no run
+    expect([1, 2, 3].map((n) => runStarts(c, 'marches', n, 0))).toEqual([true, true, false]);
+    expect(runFor(c, 'marches', 2, 0, 5)).toBe(c.runs.marches); // Continue: the same seed and carry
+    expect(runAt(c, 'marches', 2, 1)).toBeUndefined();
+    expect(runFor(c, 'marches', 1, 0, 5)).toEqual({ level: 1, tier: 0, seed: 5, carry: null }); // Start over
   });
 
   it('a checkpoint survives a save round trip, and the level goes on the same from it', () => {
@@ -89,7 +109,7 @@ describe('realm runs: checkpoints and the carry (#237)', () => {
     const s = migrate(v7);
     expect(Object.keys(s.champions).length).toBeGreaterThan(0);
     for (const c of Object.values(s.champions)) expect(c!.runs).toEqual({});
-    expect(readRealmRun({ level: 3, tier: 1, seed: 4, carry: 'x' }, 'marches')).toEqual({ level: 3, tier: 1, seed: 4, carry: null }); // a fresh start there
+    expect(readRealmRun({ level: 3, tier: 1, seed: 4, carry: 'x' }, 'marches')).toBeNull(); // no checkpoint to go on from: the realm starts again at level 1
     expect(readRealmRun({ level: 9, tier: 1, seed: 4 }, 'marches')).toBeNull();
     expect(readRealmRun({ level: 1, tier: 1, seed: 4 }, 'marches')).toEqual({ level: 1, tier: 1, seed: 4, carry: null });
     const bad = checkpoint(newRealmRun(1, 1), 'marches', takeCarry(level1()), 3)!;

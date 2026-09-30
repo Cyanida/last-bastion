@@ -49,8 +49,8 @@ import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSe
 import { crashReport } from './logic/crash';
 import { levelPanel, mapRealms, roadLevels, roadTier } from './logic/world';
 import { REALMS, WORLD, type LevelReward, type RealmId } from './config/world';
-import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, newChampion, nextStop, rarePickOptions, runAt, runLevel, type Champion } from './logic/champions';
-import { checkpoint, newRealmRun } from './logic/realmRun';
+import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, newChampion, nextStop, rarePickOptions, runAt, runFor, runLevel, runStarts, type Champion } from './logic/champions';
+import { checkpoint } from './logic/realmRun';
 import { TALENT_ROW_CAP } from './config/economy';
 import { talentsFor } from './config/talents';
 import { takeCarry, type LevelStart } from './systems/levels';
@@ -217,15 +217,16 @@ function toRoad(realm: RealmId, level?: number, tier?: number): void {
   const id = pickedClass(save);
   const progress = champOf(id).world;
   const t = roadTier(progress, realm, tier ?? save.settings.tier);
-  const n = level ?? runLevel(champOf(id), realm, t); // #237: the realm run's checkpoint, else the first level not cleared
+  const n = level ?? runLevel(champOf(id), realm, t); // #237: the realm run's checkpoint, else level 1
   const bonus = championBonus(save.meta, save.classes[id].xp);
   const panel = levelPanel(progress, realm, n, t, bonus);
   const carry = runAt(champOf(id), realm, n, t)?.carry;
-  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champOf(id).name, road: roadLevels(progress, realm, t), panel, fell: fellAt(id, realm, n, t), run: carry && { level: carry.level, relics: carry.relics.held.length } }, {
+  const starts = runStarts(champOf(id), realm, n, t); // #237: a run starts at level 1 or goes on at its checkpoint; no other level can be fought
+  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champOf(id).name, road: roadLevels(progress, realm, t), panel, fell: fellAt(id, realm, n, t), run: carry && { level: carry.level, relics: carry.relics.held.length }, starts }, {
     level: (next) => toRoad(realm, next, t),
     tier: (next) => toRoad(realm, undefined, next),
-    fight: () => panel.open && playLevel(id, realm, n, t),
-    loadout: () => toChampion({ realm, level: n, tier: t }),
+    fight: () => panel.open && starts && playLevel(id, realm, n, t),
+    loadout: () => toChampion({ realm, level: starts ? n : 1, tier: t }),
     back: () => toMap(),
   });
 }
@@ -245,14 +246,14 @@ const fellAt = (id: ClassId, realm: RealmId, level: number, tier: number): numbe
 /**
  * #197: a realm level with the champion's saved loadout for the realm (the level fits it to its slots) and its talent plan: the one way a
  * level starts. #237: a realm is one run. The level its run stands at goes on from that checkpoint (a death plays it again from there, on
- * the same seed); any other level starts the realm's run afresh there, replacing the one in progress (#242 asks first). Decided: until
- * #242's Continue / Start over, a fresh start past level 1 (a save from before v0.11, a replay) keeps the head start.
+ * the same seed); anything else starts the realm's run afresh at level 1, wave 1, replacing the one in progress (#242 asks first): the
+ * head start is gone, so no level past the first starts without its run.
  */
 function playLevel(id: ClassId, realm: RealmId, level: number, tier: number): void {
   const champ = champOf(id);
-  const run = runAt(champ, realm, level, tier) ?? { ...newRealmRun(tier, Date.now() >>> 0), level };
+  const run = runFor(champ, realm, level, tier, Date.now() >>> 0);
   if (champ.runs[realm] !== run) setChampion(id, { ...champ, runs: { ...champ.runs, [realm]: run } });
-  startRun(id, { seed: run.seed, tier, level: { realm, level, relics: champ.loadouts[realm] ?? [], talentPlan: champ.talentPlan, carry: run.carry } });
+  startRun(id, { seed: run.seed, tier, level: { realm, level: run.level, relics: champ.loadouts[realm] ?? [], talentPlan: champ.talentPlan, carry: run.carry } });
 }
 
 /**

@@ -7,8 +7,8 @@ import { TALENT_BY_ID } from '../config/talents';
 import { REALM_IDS, REALMS, WORLD, type RealmId } from '../config/world';
 import { masteryBonus, type MetaRanks } from './economy';
 import type { RunLog } from './runlog';
-import { readRealmRun, type RealmRun } from './realmRun';
-import { isCrowned, nextLevel, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
+import { newRealmRun, readRealmRun, type RealmRun } from './realmRun';
+import { isCrowned, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
 
 export interface Champion {
   name: string;
@@ -161,12 +161,21 @@ export const runAt = (c: Champion, realm: RealmId, level: number, tier: number):
   return run && run.level === level && run.tier === tier ? run : undefined;
 };
 
-/** #237: the level a realm goes on at on `tier`: its run's checkpoint, else the first level not cleared. */
-export const runLevel = (c: Champion, realm: RealmId, tier: number): number => (c.runs[realm]?.tier === tier ? c.runs[realm]!.level : nextLevel(c.world, realm, tier));
+/** #237: the level a realm is played at on `tier`: its run's checkpoint, else level 1 (a realm run always starts at wave 1: no head start). */
+export const runLevel = (c: Champion, realm: RealmId, tier: number): number => (c.runs[realm]?.tier === tier ? c.runs[realm]!.level : 1);
+
+/** #237: can `level` be played now? Only where the realm's run stands, or level 1 (which starts the run, or starts it over). */
+export const runStarts = (c: Champion, realm: RealmId, level: number, tier: number): boolean => level === 1 || !!runAt(c, realm, level, tier);
+
+/**
+ * #237: the run a fight at `level` plays: the one standing there, as it is (its seed and carry: a Continue, or a restart after a death),
+ * else a new run from level 1 on `seed` (it replaces the realm's run in progress; #242 asks first).
+ */
+export const runFor = (c: Champion, realm: RealmId, level: number, tier: number, seed: number): RealmRun => runAt(c, realm, level, tier) ?? newRealmRun(tier, seed);
 
 /**
  * The level the champion screen's PLAY starts: the first realm (REALM_IDS order) open to the champion and not crowned on the tier it
- * would play, at its first level not cleared (#237: or its realm run's checkpoint). Decided: with every open realm crowned, the last open one's last level (a replay).
+ * would play, at its realm run's checkpoint, or level 1 with no run in progress (#237). Decided: with every open realm crowned, the last open one (a replay).
  */
 export function nextStop(c: Champion, tier: number): { realm: RealmId; level: number; tier: number } {
   const open = REALM_IDS.filter((r) => championRealmOpen(c, r));

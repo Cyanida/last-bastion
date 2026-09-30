@@ -29,22 +29,23 @@ describe('the realm road (#199)', () => {
 });
 
 describe('the level panel (#199)', () => {
-  it('Marches level 1: waves, head start, slots, Squire HP with its level step (#221), Steel featured, a pool boss, its rare pick', () => {
+  it('Marches level 1: waves, no head start (#237), slots, Squire HP with its level step (#221), Steel featured, a pool boss, its rare pick', () => {
     const pn = levelPanel({}, 'marches', 1, SQUIRE);
-    expect(pn).toMatchObject({ name: 'The Marches · Level 1', waves: [1, 5], headStart: 1, slots: 3, enemyHp: 85, family: 'steel', boss: 'A mid-Act boss', crownBoss: false, open: true });
+    expect(pn).toMatchObject({ name: 'The Marches · Level 1', waves: [1, 5], slots: 3, enemyHp: 85, family: 'steel', boss: 'A mid-Act boss', crownBoss: false, open: true });
     expect(pn.rewards).toEqual(['Pick 1 of 2 Steel rares']);
+    expect(pn).not.toHaveProperty('headStart');
     expect(pn.foes.length).toBeGreaterThan(0);
     expect(pn.tiers.map((t) => t.open)).toEqual([true, true, false, false]);
   });
 
-  it('the Keep and mastery add head-start levels and slots; Knight shows its HP', () => {
+  it('the Keep and mastery add slots; Knight shows its HP', () => {
     const pn = levelPanel({}, 'marches', 1, KNIGHT, { slots: 1, levels: 2 });
-    expect([pn.headStart, pn.slots, pn.enemyHp]).toEqual([3, 4, 123]); // 145% x the level step 0.85 (#221)
+    expect([pn.slots, pn.enemyHp]).toEqual([4, 123]); // 145% x the level step 0.85 (#221)
   });
 
   it('level 7 is the Warden as crown boss and pays the signature relic with the first crown', () => {
     const pn = levelPanel(cleared('marches', 6, SQUIRE), 'marches', 7, SQUIRE);
-    expect([pn.boss, pn.crownBoss, pn.open, pn.headStart]).toEqual(['The Warden', true, true, 24]);
+    expect([pn.boss, pn.crownBoss, pn.open]).toEqual(['The Warden', true, true]);
     expect(pn.rewards).toEqual(['Pick 1 of 2 Grave rares', 'Your signature relic']);
   });
 

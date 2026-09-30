@@ -206,8 +206,8 @@ const REWARD_TEXT: Record<LevelReward['kind'] | CrownReward['kind'], (r: LevelRe
 };
 
 /**
- * Everything the level panel shows for `level` of `realm` on `tier`: the head start (with the Keep's and mastery's levels, `bonus`),
- * slots, enemy HP against Squire in the Marches, the featured family and foes, the end boss, and what a clear pays now (empty once taken).
+ * Everything the level panel shows for `level` of `realm` on `tier`: the realm run's slots (with the Keep's and mastery's, `bonus`; #237:
+ * the head start is gone), enemy HP against Squire in the Marches, the featured family and foes, the end boss, and what a clear pays now (empty once taken).
  */
 export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier: number, bonus: { slots: number; levels: number } = { slots: 0, levels: 0 }) {
   const def = REALMS[realm], lv = def.levels[level - 1];
@@ -215,7 +215,6 @@ export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier
   return {
     name: `${def.name} · Level ${level}`,
     waves: lv.waves,
-    headStart: headStartLevel(lv.waves[0]) + bonus.levels,
     slots: slotsFor(realm, level, bonus.slots),
     enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * levelStep(realm, level).hp * 100),
     family: lv.family,
