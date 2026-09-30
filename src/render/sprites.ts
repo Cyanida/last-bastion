@@ -240,6 +240,37 @@ export const SPRITES = {
     '......kkbk....kbkk......',
     '......kkkk....kkkk......',
   ],
+  // #225: the Cinderlands' Torchbearer: a letter-grid stand-in until the rigged sheet loads
+  torchbearer: [
+    '...................yo...',
+    '..................oyoo..',
+    '..................oyyo..',
+    '........kkkkkkkk..oooo..',
+    '.......khhhhhhhhk.kbbk..',
+    '......khhhhhhhhhhk.bb...',
+    '......khhsssssssak.bb...',
+    '......khhsassassak.bb...',
+    '......khhaksskssak.bb...',
+    '......khhssssssssk.bb...',
+    '......khhssaasssak.bb...',
+    '......khassssssssk.bb...',
+    '....kkkkBBBbbbbbkkkkbb..',
+    '....kbkkBBBbbbbbkkssbb..',
+    '..kkBbkBBBbbbbbbksssbb..',
+    '..kBBbkBBBbbbbbbkassbb..',
+    '..kBBbkhhhhhhhhhhk..bb..',
+    '..kBBbkBBBbbbbbbbk..bb..',
+    '..kasakBBBbbbbbbbk..bb..',
+    '..kkaakbBBbbbbbbbk..bb..',
+    '....kakkbbbbbbbhhk......',
+    '....kkkkbbbbbbbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kkbk....kbkk......',
+    '......kkkk....kkkk......',
+  ],
   wolf: [
     '....................kk..kk..',
     '....................hk..hk..',
@@ -255,6 +286,25 @@ export const SPRITES = {
     '....kDDDDhDDhDDDDDhhDDhk....',
     '....kDDDhk..kDDDhhkkDDhk....',
     '....khDhkk..khDhkkkkDDhk....',
+    '....kkhk....kkhk..kkhhkk....',
+    '....kkkk....kkkk..kkkkkk....',
+  ],
+  // #226: the Cinderlands' Cinder Hound: a letter-grid stand-in until the rigged sheet loads
+  cinderHound: [
+    '....................kk..kk..',
+    '....................hk..hk..',
+    'kk................kkohhhhhkk',
+    'kk................kohhhhhhhk',
+    'kkkk....kkkkkkkkkkohhhoyhhhk',
+    'kkkk....kohhhhhhhhhhhhoohhhk',
+    '..kkkkkkohhhhhhhhhhhhhhhhhkk',
+    '..kkkkohhhhhhhhhhhhhhhhhkkkk',
+    '....kohhhhoooooohhhhhhhk....',
+    '....khhhhhoooooohhhhhhhk....',
+    '....khhhhhhhhhhhhhhhhhhk....',
+    '....khhhhhhhhhhhhhhhhhhk....',
+    '....khhhhk..khhhhhkkhhhk....',
+    '....khhhkk..khhhkkkkhhhk....',
     '....kkhk....kkhk..kkhhkk....',
     '....kkkk....kkkk..kkkkkk....',
   ],
@@ -1110,6 +1160,45 @@ export const SPRITES = {
     '....kkDhhhhhkk....kkDhhhhhkk....',
     '....kkkkkkkkkk....kkkkkkkkkk....',
   ],
+  // #228: the Cinder Colossus: a letter-grid stand-in (the Iron King's shape) until his rigged sheet loads
+  cinderColossus: [
+    '............kkkkkkkk............',
+    '............kDhhhhhk............',
+    '..........kkDhhhhhhhkk..........',
+    '..........kDhhhhhhhhhk..........',
+    '........kkDhhhhhhhhhhhkk........',
+    '........kDhhhhhhhhhhhhhk........',
+    '........khhhkooooRkhhhhk........',
+    '........khhhhkokokhhhhhk........',
+    '........khDhhhhhhhhhhDhk....hhhh',
+    '........kkhhhhhhhhhhhhkk....hhhh',
+    '..........kkkhhhhhkkkk....hDhhhh',
+    '..........kkDhhhhhDhkk....hhhhhh',
+    '......kkkkkDDDDDDDDDhkkkkk..hDhh',
+    '......kDDhkDDDDDDDDhkkDDhk..hhhh',
+    '....kkDDDhkDDDooooDhkDDDDhkk..bb',
+    '....kDDDDhkDDDoDDoDhkDDDDDhk..bb',
+    '..kkDooDhhkDDDDooDDhkhhhDDDhkkbb',
+    '..kDDRRDhhkDDDDoRDDhkhhhDDDhkbbb',
+    '..kDDDhhhhkDDDDDDDDhkhhhhhsakbbb',
+    '..kDDDhhhhkDDDDDDDDhkhhhhhaakkbb',
+    '..kssshhhkkDDDDDDDDhkkkhhk..bb..',
+    '..kksakkkkDDDDDDDDDDhhkkkk..bb..',
+    '....kk..kDhhhhhhhhhhhhhk....bb..',
+    '....kk..khhhhhhhhhhhhhhk....bb..',
+    '........kbbbbboooobbbbhk........',
+    '........kbbbbboooobbbbhk........',
+    '......kkDhhhhhRRRhhhhhhhkk......',
+    '......kDhhhhhhkkkkhhhhhhhk......',
+    '......kDDhhhhk....kDDhhhhk......',
+    '......khhhhhhk....khhhhhhk......',
+    '......khhhhhhk....khhhhhhk......',
+    '......khhhhhhk....khhhhhhk......',
+    '....kkDDDDDDhk....kDDDDDDhkk....',
+    '....kDDDDDDDhk....kDDDDDDDhk....',
+    '....kkDhhhhhkk....kkDhhhhhkk....',
+    '....kkkkkkkkkk....kkkkkkkkkk....',
+  ],
   bannerman: [
     '....kkkkkkkk..ggRRRRRRRR',
     '....kwSSSSDk..bbRRRRRRRR',
@@ -1314,6 +1403,45 @@ export const SPRITES = {
     '....kkpqqqqqqqqqqqqqqqqqqqkk....',
     '....kkkkkkkkkkkkkkkkkkkkkkkk....',
   ],
+  // #227: the Ember Queen: a letter-grid stand-in (the Inquisitor's shape in coal and ember) until her rigged sheet loads
+  emberQueen: [
+    '................................',
+    '................................',
+    '......kgkkgkkgkkkkgkkgkkgk......',
+    '......kDoooooooooooooooook......',
+    '....kkDDooooooooooooooooookk....',
+    '....kkooooooooooooooooooookk....',
+    '......khhhhhhgmhhhhhkooook..oo..',
+    '......kkkkkooooooooookkkkk..oo..',
+    '..........ksssssssssak....oooooo',
+    '..........ksskkaakksak....oooooo',
+    '..........ksswksswksak......oo..',
+    '..........ksssssasssak......oo..',
+    '..........kssskkksssak......bb..',
+    '..........ksssssssssak......bb..',
+    '......kkkkkhhhhhhhhhhkkkkk..bb..',
+    '......khhhkhhhhhhhhhkkhhhk..bb..',
+    '....kkhhhhkhhhhgghhhkhhhhhkkbb..',
+    '....khhhhhkhhhgggghhkhhhhhsbbb..',
+    '..kkhhhhhhkhhhhgghhhkhhhhhssbb..',
+    '..khhhhhhhkhhhhgghhhkhhhhhaabb..',
+    '..khhhhhkkkhhhhhhhhhkkkhhk..bb..',
+    '..khhhhhkkhhhhhhhhhhhhkkkk..bb..',
+    '..kssshhkhhhhhhhhhhhhhhk....bb..',
+    '..kksakkkhhhhhhhhhhhhhhk....bb..',
+    '....kk..khhhhhhhhhhhhhhk........',
+    '....kk..khhhhhhhhhhhhhhk........',
+    '........khhhhhoooohhhhhk........',
+    '........khhhhhogoohhhhhk........',
+    '......kkhhhhhhoooohhhhhhkk......',
+    '......khhhhhhhoooohhhhhhhk......',
+    '......khhhhhhhogoohhhhhhhk......',
+    '......khhhhhhhoooohhhhhhhk......',
+    '....kkhhhhhhhhoooohhhhhhhhkk....',
+    '....khhhhhhhhhogoohhhhhhhhhk....',
+    '....kkhhhhhhhhoooohhhhhhhhkk....',
+    '....kkkkkkkkkkkkkkkkkkkkkkkk....',
+  ],
   // v0.6: the end of the run. A crowned king in black-and-gold plate, a red cape, the greatsword he took the throne with.
   usurper: [
     '..........gm..gggm..gm..........',
@@ -1392,12 +1520,12 @@ export type SpriteId = keyof typeof SPRITES;
 export const SPRITE_RES: Partial<Record<SpriteId, number>> = {
   paladin: 2, viking: 2, angel: 2, necromancer: 2, archer: 2,
   // the 15 regular foes and the three commanders (#138, part 2)
-  peasant: 2, wolf: 2, crossbow: 2, knight: 2, ironKnight: 2, ironKnightBare: 2, cultist: 2, shieldBearer: 2, thornBearer: 2, priest: 2, cavalry: 2, engineer: 2,
+  peasant: 2, torchbearer: 2, wolf: 2, cinderHound: 2, crossbow: 2, knight: 2, ironKnight: 2, ironKnightBare: 2, cultist: 2, shieldBearer: 2, thornBearer: 2, priest: 2, cavalry: 2, engineer: 2,
   plagueDoctor: 2, houndmaster: 2, mirrorKnight: 2, assassin: 2, shieldwall: 2, ironShieldwall: 2, boneCollector: 2,
   bannerman: 2, drummer: 2, chaplain: 2, // the commanders
   // the siege pieces and the bosses (#138, part 3); the skeleton minion stays 1x on purpose
   ballista: 2, siegeTower: 2, siegeCamp: 2, plagueCart: 2,
-  blackKnight: 2, warlord: 2, lich: 2, inquisitor: 2, abbot: 2, dragon: 2, warden: 2, forgemaster: 2, ironKing: 2, usurper: 2, royalFlame: 2,
+  blackKnight: 2, warlord: 2, lich: 2, inquisitor: 2, abbot: 2, dragon: 2, warden: 2, forgemaster: 2, ironKing: 2, emberQueen: 2, cinderColossus: 2, usurper: 2, royalFlame: 2,
 };
 
 export interface Sprite {
@@ -1414,11 +1542,12 @@ export interface Sprite {
 /**
  * v0.4 mastery palettes: a canvas filter over the class sprite (0 = as drawn; Ashen, Gilded, Midnight). v0.5: Frost and Verdant tint treasure guardians only.
  * #219: Iron, the Iron Hold's Legend crown: cold dark steel (Ashen is pale and warm).
+ * #231: Cinder, the Cinderlands' Legend crown: a dark ember red (Gilded is bright gold).
  * #156: Midnight tints from sepia like Gilded, so every champion turns night-blue (a hue-rotate turned the Necromancer green and the Archer pink).
  */
-export const SPRITE_PALETTES = ['', 'saturate(0.35) brightness(1.1)', 'sepia(1) saturate(2.2) hue-rotate(-10deg) brightness(1.1)', 'sepia(1) hue-rotate(185deg) saturate(1.7) brightness(0.72)', 'sepia(1) hue-rotate(160deg) saturate(2.5) brightness(1.15)', 'sepia(1) hue-rotate(60deg) saturate(2.2) brightness(0.95)', 'grayscale(1) sepia(0.3) hue-rotate(175deg) contrast(1.3) brightness(0.9)'];
+export const SPRITE_PALETTES = ['', 'saturate(0.35) brightness(1.1)', 'sepia(1) saturate(2.2) hue-rotate(-10deg) brightness(1.1)', 'sepia(1) hue-rotate(185deg) saturate(1.7) brightness(0.72)', 'sepia(1) hue-rotate(160deg) saturate(2.5) brightness(1.15)', 'sepia(1) hue-rotate(60deg) saturate(2.2) brightness(0.95)', 'grayscale(1) sepia(0.3) hue-rotate(175deg) contrast(1.3) brightness(0.9)', 'sepia(1) saturate(3.2) hue-rotate(-32deg) contrast(1.2) brightness(0.8)'];
 /** A palette's name, as a swatch's tip and a crown's reward say it. */
-export const PALETTE_NAMES = ['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours', 'Frost colours', 'Verdant colours', 'Iron colours'];
+export const PALETTE_NAMES = ['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours', 'Frost colours', 'Verdant colours', 'Iron colours', 'Cinder colours'];
 
 /** `scale` is device pixels per grid pixel here: getSprite passes spriteSize's cell. */
 function rasterize(rows: string[], scale: number, white: boolean, flip: boolean, palette = 0): HTMLCanvasElement {

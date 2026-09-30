@@ -23,6 +23,8 @@
  * First tries by the bot at every level of those realms with expected progress (it fills the slots from the inventory earlier first clears
  * gave), one process per class (scripts/level-report.ts): clear rate, minutes, power at the first wave against a continuous run, and plan
  * rule 9's targets. Add lastBastion to the realms for the finale's targets (duos, 6-sets, minutes).
+ * Squire against Knight (#250):  npm run sim -- levels [runs=4] squire [realms=marches,ironHold]
+ * The same realm runs on Squire (a Squire player's progress) and on Knight, both tables, then Squire's bar per level and class.
  *
  * Depth past the win (v0.6):  npm run sim -- deep [runs=3] [tier=0]: the default table, wins going on into Endless.
  * v0.7.1: SIM_CLASS=viking,archer runs only those classes (so the tables can run one process per class in parallel).
@@ -164,10 +166,16 @@ if (mode === 'levels') {
   const outs = CLASSES.map((c) => join(dir, `${c}.json`));
   const node = (argv: string[]) => new Promise<void>((done, fail) => spawn('npx', ['vite-node', 'scripts/level-report.ts', ...argv], { stdio: 'inherit', shell: true }).on('exit', (code) => (code ? fail(new Error(`exit ${code}`)) : done())));
   const started = Date.now();
-  const levelTier = process.argv[argAt + 1] === undefined ? 1 : tier;
+  const squire = process.argv[argAt + 1] === 'squire'; // #250: Squire and Knight side by side
+  const levelTier = process.argv[argAt + 1] === undefined ? 1 : squire ? 0 : tier;
   const realms = process.argv[argAt + 2] ?? 'marches,ironHold';
-  await Promise.all(CLASSES.map((c, i) => node(['run', c, String(runs), String(levelTier), realms, outs[i]])));
+  const knights = CLASSES.map((c) => join(dir, `${c}-knight.json`));
+  await Promise.all([
+    ...CLASSES.map((c, i) => node(['run', c, String(runs), String(levelTier), realms, outs[i]])),
+    ...(squire ? CLASSES.map((c, i) => node(['run', c, String(runs), '1', realms, knights[i]])) : []),
+  ]);
   await node(['merge', ...outs]);
+  if (squire) (await node(['merge', ...knights])), await node(['bar', ...outs, 'vs', ...knights]);
   console.log(`
 (${((Date.now() - started) / 1000).toFixed(0)}s)`);
   process.exit(0);

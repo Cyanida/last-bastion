@@ -44,6 +44,8 @@ export const BOSSES: Record<string, BossDef> = {
   // the realms' own bosses (#215)
   forgemaster: { from: 'forgemaster', slot: 'realm', weight: 0 },
   ironKing: { from: 'ironKing', slot: 'realm', weight: 0 }, // #216: the Iron Hold's crown boss
+  emberQueen: { from: 'emberQueen', slot: 'realm', weight: 0 }, // #227: the Cinderlands' level-3 boss
+  cinderColossus: { from: 'cinderColossus', slot: 'realm', weight: 0 }, // #228: the Cinderlands' crown boss
 };
 export type BossKey = string;
 
@@ -88,6 +90,17 @@ export const WARDEN = {
 };
 
 /**
+ * #231: the Grand Inquisitor as the Cinderlands' elite (its level 4; his script is systems/enemyAI.ts, logic/crownBoss.ts). His extra
+ * phase, after his two, is the Auto-da-fé: every pyre of his lines stays alight where it lands, so the fan fences the floor off in walls
+ * of fire until about his next cast, and standing in one stacks the Torchbearers' burn (config/damage.ts ENEMY_STATUS: it falls off a
+ * stack at a time, and your utility puts it out). No more lines and no more Cultists than his second phase: the fire that stays is the phase.
+ */
+export const INQUISITOR = {
+  pyreFrom: 3, // the phase his pyres stay alight from: only the elite gets there (a plain Inquisitor has two)
+  pyre: { life: 2.5, dps: 8 }, // the burning ground a pyre leaves, as wide as the pyre (they stand closer than that, so a line is a wall): seconds, and fire a second before scaling
+};
+
+/**
  * #215: the Forgemaster, the Iron Hold's level-3 boss (logic/forgemaster.ts, systems/bosses.ts). Three phases like an Act boss, since his
  * level ends on an Act's last wave; no minimum phase time (that is the crown boss's). Phase 1: his hammer comes down in a marked arc in
  * front of him. From phase 2 every other blow is his forge presses instead: a checkerboard of marked tiles round you that slam one colour,
@@ -117,4 +130,42 @@ export const IRON_KING = {
   decree: { lines: [4, 4, 8], zones: 6, step: 76, first: 0.9, gap: 0.12, damage: 1 }, // lines by phase, `zones` each `step` apart past his edge (radius: his def's zoneRadius), landing `gap` s apart outward; x his special damage
   guardEvery: 3, // phase 1: his guard (his def's summon x summonCount) on every 3rd blow, the first included
   rushFrom: 2, // from this phase every other blow is a rush at you behind the shield (his def's chargeDist and chargeSpeed)
+};
+
+/**
+ * #227: the Ember Queen, the Cinderlands' level-3 boss (logic/emberQueen.ts, systems/bosses.ts). Three phases like an Act boss, since her
+ * level ends on an Act's last wave; no minimum phase time (that is the crown boss's). Her lesson is the realm's: fire on the ground and
+ * fire that bursts. She keeps to the middle distance. Her Kindling marks spots round you (one on you) that burst into flame one after the
+ * other and leave burning ground (her def's poolLife and poolDps: step out); her Ember volley is a fan of fire bolts. Every blow of hers
+ * that lands, and every tick of her burning ground, adds a burn stack that falls off one at a time (#225; config/damage.ts ENEMY_STATUS:
+ * your utility puts it out). From phase 2 every third blow is her Flare: rings of fire bursting outward from her, the near ring first (get out of reach, or
+ * go through the ring after it lands). Every new phase she flares up at once, and from phase 3 her steps leave the ground burning.
+ */
+export const EMBER_QUEEN = {
+  specialCd: [4.6, 4.2, 3.6], // by phase; her def's specialCd is the first blow
+  reach: 720, // she casts only this close
+  kindle: { count: [3, 4, 5], spread: 120, radius: 44, first: 1.0, gap: 0.3, damage: 0.9 }, // count by phase; the first on you, the rest on a ring `spread` round you, bursting `gap` s apart; x her special damage
+  volley: { count: 5, spread: 0.8, windup: 0.55, damage: 0.5, range: 600 }, // a fan of bolts at you, x her hit damage
+  flare: { from: 2, rings: [0, 2, 3], step: 85, spacing: 62, radius: 34, first: 0.9, gap: 0.35, damage: 0.8 }, // every 3rd blow from phase `from`: rings by phase (none in phase 1), `step` apart past her edge, a zone every `spacing` px round each, the near ring first; x her special damage
+  trail: { from: 3, every: 0.45, life: 3, radius: 26 }, // from phase 3 a patch of burning ground where she stands, every `every` s (her def's poolDps)
+};
+
+/**
+ * #228: the Cinder Colossus, the Cinderlands' crown boss (logic/cinderColossus.ts, systems/bosses.ts). A phase for each of the realm's
+ * lessons, each held at least WORLD.crownBoss.minPhaseSeconds: phase 1 burn stacks on you (every hit of his, blow or touch, puts
+ * config/damage.ts ENEMY_STATUS's burn on you: step out of the marks, or burn); phase 2 fire that spreads (every other blow he kindles the
+ * ground round you, and each fire creeps outward, away from him, patch by patch); phase 3 bursts of fire when foes die (any foe that falls
+ * within his heat bursts into a marked blast, and he calls a brood of Cultists to fall there). His other blows are his Slam: a fan of
+ * marked lines of fire from his edge outward, the middle one straight at you.
+ */
+export const CINDER_COLOSSUS = {
+  lessons: ['burn', 'spread', 'burst'] as const, // what each phase teaches
+  specialCd: [4.8, 4.4, 4], // by phase; his def's specialCd is the first blow
+  reach: 700, // he strikes only this close
+  slam: { lines: 3, spread: 0.42, zones: 5, step: 72, first: 1, gap: 0.12, damage: 1 }, // `lines` `spread` rad apart, `zones` each `step` apart past his edge (radius: his def's zoneRadius), landing `gap` s apart outward; x his special damage
+  kindleFrom: 2, // from this phase every other blow (the first of the phase included) kindles the ground instead
+  kindle: { seeds: 3, scatter: 170, radius: 52, delay: 1.1, damage: 0.6, every: 1.1, gens: 4, step: 78, fork: 0.7 }, // `seeds` marked embers, one on you, the rest `scatter` round you; each leaves a fire (his def's poolLife, poolDps) that spreads `step` further from him every `every` s, `gens` patches long, forking in two (`fork` rad apart) at the first step
+  burstFrom: 3, // from this phase a foe that falls in his heat bursts
+  burst: { reach: 380, radius: 66, delay: 0.7, damage: 0.6 }, // his heat's reach (from his centre); a marked blast where the foe fell, `delay` s later
+  broodEvery: 3, // phase 3: his brood (his def's summon x summonCount) on every 3rd blow, the first included
 };

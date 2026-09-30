@@ -1,13 +1,19 @@
-import { FLAGSTONE, PRESSES } from '../config/arenas';
+import { FLAGSTONE, LAVA, PRESSES, SPREADING_FIRE } from '../config/arenas';
+import { GAME } from '../config/game';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Game } from '../core/types';
 import { addZone } from '../entities/hazards';
-import { openSlab, pressesOn, pressShape, pressSlabs } from '../logic/presses';
+import { inLava, lavaTick } from '../logic/lava';
+import { onSlab, openSlab, pressesOn, pressShape, pressSlabs, type Slab } from '../logic/presses';
+import { advanceFire, bankSlabs, catchFire, catchSlabs, fireOn, fireTongues, flameState } from '../logic/spreadingFire';
+import { damageEnemy, damageMinion, damagePlayer } from './combat';
 
 /** Each arena's environmental hazard, on a timer. Damage scales with the wave like enemy damage. */
 export function updateArena(g: Game, dt: number): void {
   updatePresses(g, dt);
+  updateLava(g, dt);
+  updateFire(g, dt);
   const hz = g.arena.hazard;
   if (!hz || g.wave === 0) return;
   g.hazardT -= dt;
@@ -65,5 +71,65 @@ function updatePresses(g: Game, dt: number): void {
     const z = { x: s.x, y: s.y, r: FLAGSTONE / 2, slab: FLAGSTONE, delay: PRESSES.delay, color: '#e0683f', source: 'hazard' as const };
     addZone(g, { ...z, damage, hostile: true, art: 'press' });
     addZone(g, { ...z, damage: damage * PRESSES.foeMult, hostile: false });
+  }
+}
+
+/**
+ * #223: the Ember Forge's lava burns whoever stands in it, every GAME.fieldTick: you (a dodge's invulnerability carries you over it),
+ * your minions, and foes x LAVA.foeMult, so a horde chasing you across a channel pays for it. Terrain, so it burns from the first second.
+ */
+function updateLava(g: Game, dt: number): void {
+  const lava = g.arena.lava;
+  if (!lava?.length) return;
+  g.lavaT -= dt;
+  if (g.lavaT > 0) return;
+  g.lavaT += GAME.fieldTick;
+  const scale = g.waveDmgMult * g.tier.enemyDmg;
+  const p = g.player;
+  if (inLava(p.x, p.y, p.r, lava)) damagePlayer(g, lavaTick(LAVA.dps, GAME.fieldTick, scale, LAVA.foeMult, false), true, null, 'the lava');
+  for (const m of g.minions) if (inLava(m.x, m.y, m.r, lava)) damageMinion(g, m, lavaTick(LAVA.dps, GAME.fieldTick, scale, LAVA.foeMult, false));
+  for (const e of g.enemies) {
+    if (!e.dead && inLava(e.x, e.y, e.r, lava)) damageEnemy(g, e, lavaTick(LAVA.dps, GAME.fieldTick, scale, LAVA.foeMult, true), false, 0, 0, 'hazard', 'fire', true);
+  }
+}
+
+/**
+ * #224: the Cinderlands' spreading fire, on its own clock like the forge presses. It catches on the slab at the lava's bank nearest
+ * the champion (two slabs late on) and creeps slab by slab to where they stood, then round it (logic/spreadingFire.ts): it does not
+ * follow them, so a few steps off its path clear it, as one step clears a press. A slab kindles first, the warning,
+ * then burns whoever stands on it every GAME.fieldTick, as the lava does: the champion, their minions, and foes
+ * x SPREADING_FIRE.foeMult, so a horde led across the trail pays for it.
+ */
+function updateFire(g: Game, dt: number): void {
+  const lava = g.arena.lava;
+  if (g.wave === 0 || !lava?.length || !fireOn(g.level?.realm, g.arena.id)) return;
+  const F = SPREADING_FIRE;
+  const p = g.player;
+  // floor the fire can hold: open and clear of what stands there; it creeps over the floor, not along the lava (a bank's slab may lie half over it)
+  const floor = (s: Slab) => openSlab(s, g.openRects, g.arena.obstacles);
+  const open = (s: Slab) => floor(s) && !inLava(s.x, s.y, 0, lava);
+  if (g.flames.length || g.fireFronts.length) advanceFire(g.flames, g.fireFronts, dt, FLAGSTONE, open);
+  g.fireT -= dt;
+  if (g.fireT <= 0) {
+    g.fireT = F.every;
+    const at = catchSlabs(bankSlabs(lava, FLAGSTONE).filter(floor), p.x, p.y, fireTongues(g.wave, F.twoFrom), F.apart * FLAGSTONE);
+    if (at.length) {
+      catchFire(g.flames, g.fireFronts, at, p.x, p.y);
+      sfx(g, 'warn');
+      // the first of a level says what it is
+      if (!g.vars['fire.seen']) (g.vars['fire.seen'] = 1), (g.banner = { text: 'Fire spreads from the lava', t: 2 });
+    }
+  }
+  g.fireTickT -= dt;
+  if (g.fireTickT > 0) return;
+  g.fireTickT += GAME.fieldTick;
+  // a body is in the fire as it is in the lava: by its feet, the centre within half its radius of the slab
+  const burns = (b: { x: number; y: number; r: number }) => g.flames.some((f) => flameState(f.t, F.kindle, F.life) === 'burning' && onSlab(f.x, f.y, FLAGSTONE, b.x, b.y, b.r / 2));
+  if (!g.flames.some((f) => flameState(f.t, F.kindle, F.life) === 'burning')) return;
+  const scale = g.waveDmgMult * g.tier.enemyDmg;
+  if (burns(p)) damagePlayer(g, lavaTick(F.dps, GAME.fieldTick, scale, F.foeMult, false), true, null, 'the spreading fire');
+  for (const m of g.minions) if (burns(m)) damageMinion(g, m, lavaTick(F.dps, GAME.fieldTick, scale, F.foeMult, false));
+  for (const e of g.enemies) {
+    if (!e.dead && burns(e)) damageEnemy(g, e, lavaTick(F.dps, GAME.fieldTick, scale, F.foeMult, true), false, 0, 0, 'hazard', 'fire', true);
   }
 }

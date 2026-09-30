@@ -1,10 +1,10 @@
 import { mulberry32 } from '../core/math';
 import type { EnemyId } from './enemies';
 import { GAME } from './game';
-import { expandArena, type RegionDef, type WingDef, type WingId } from './regions';
+import { expandArena, type Rect, type RegionDef, type WingDef, type WingId } from './regions';
 
-export type ArenaId = 'courtyard' | 'graveyard' | 'keep' | 'bastion';
-export type ObstacleKind = 'tomb' | 'tree' | 'pillar' | 'brazier' | 'throne' | 'anvil' | 'rack' | 'bunk'; // #210: the anvil, weapon rack and bunk furnish the Great Keep's wings
+export type ArenaId = 'courtyard' | 'graveyard' | 'keep' | 'emberForge' | 'bastion';
+export type ObstacleKind = 'tomb' | 'tree' | 'pillar' | 'brazier' | 'throne' | 'anvil' | 'rack' | 'bunk' | 'crucible'; // #210: the anvil, weapon rack and bunk furnish the Great Keep's wings; #223: the crucible the Ember Forge
 export interface Obstacle {
   kind: ObstacleKind;
   x: number;
@@ -40,6 +40,7 @@ export interface ArenaDef {
   corpseLifeMult: number;
   regions?: RegionDef[]; // v0.5: filled in by expandArena (config/regions.ts)
   wings?: Record<WingId, WingDef>; // #210: named wings (a fortress's rooms) with a fixed feature each; without, the wings are sides of the map
+  lava?: Rect[]; // #223: lava channels on the floor that burn whoever stands in them (config LAVA, systems/arena.ts); moved into place by expandArena
   final?: { throne: { x: number; y: number }; flames: { x: number; y: number }[] }; // v0.6: the Usurper's throne and his Royal Flames (the Last Bastion only)
 }
 
@@ -68,6 +69,30 @@ function grid(w: number, h: number, cols: number, rows: number, kind: ObstacleKi
 }
 
 const { w, h, wall } = GAME.arena;
+
+/**
+ * #223: the Ember Forge's lava (logic/lava.ts, systems/arena.ts). Whoever stands in a channel burns: `dps` a second (scaled with the wave
+ * like enemy damage), x`foeMult` to foes, ticking every GAME.fieldTick. It hurts, it doesn't block: a channel is `width` px across, a
+ * step or a dodge over it costs a tick or two, and `bridge`-px stone bridges (at these shares of the hall's width) cross it for free.
+ */
+export const LAVA = { dps: 12, foeMult: 2, width: 56, bridge: 130, bridges: [0.3, 0.7] };
+
+/**
+ * #223: the Ember Forge's lava channels: two runs of lava across the hall, a third of the way in from the north and the south wall, wall
+ * to wall, each broken by LAVA.bridges stone bridges. The spawn (the centre) and the east and west gates' line stay clear of them.
+ */
+function lavaChannels(aw: number, ah: number): Rect[] {
+  const out: Rect[] = [];
+  for (const cy of [ah * 0.26, ah * 0.74]) {
+    const gaps = LAVA.bridges.map((t) => aw * t).sort((a, b) => a - b);
+    let x0 = wall;
+    for (const gx of [...gaps, aw - wall + LAVA.bridge / 2]) {
+      out.push({ x: x0, y: Math.round(cy - LAVA.width / 2), w: Math.round(gx - LAVA.bridge / 2 - x0), h: LAVA.width });
+      x0 = gx + LAVA.bridge / 2;
+    }
+  }
+  return out;
+}
 
 const AUTHORED: Record<ArenaId, ArenaDef> = {
   courtyard: {
@@ -119,6 +144,30 @@ const AUTHORED: Record<ArenaId, ArenaDef> = {
       west: { name: 'the barracks', feature: 'lair', label: 'Lair', prop: 'bunk', floor: 'plank' },
     },
   },
+  // #223: the Cinderlands' arena (#141's Ember Forge). Only a realm level (or test mode) plays it: not in ARENA_IDS, like the Last Bastion.
+  emberForge: {
+    id: 'emberForge',
+    name: 'The Ember Forge',
+    desc: 'The Cinderlands’ burning foundry: a basalt hall cut by channels of lava, with a smelter, a weaponsmith, a shrine and the quench pits behind its gates.',
+    feature: 'Lava runs in two channels across the hall and burns whoever stands in it, friend or foe — cross at the bridges, or lure the horde through.',
+    w: 1800, h: 1300, wall,
+    theme: { tile: 'flagstone', mortar: '#171213', stones: ['#3b3533', '#443c39', '#35302f', '#4a413d'], patch: 'rgba(236,106,23,0.13)', wall: '#221c1c', wallTop: '#3d3432' },
+    obstacles: [
+      { kind: 'anvil', x: 560, y: 650, r: 30 },
+      { kind: 'anvil', x: 1240, y: 650, r: 30 },
+      ...[[300, 185], [1500, 185], [300, 1115], [1500, 1115]].map(([x, y]) => ({ kind: 'crucible' as const, x, y, r: 28 })),
+    ],
+    hazard: null, // its lava burns all the time (LAVA); the spreading fire (#224, SPREADING_FIRE) is the realm's own hazard on top
+    lava: lavaChannels(1800, 1300),
+    bosses: ['inquisitor', 'warlord', 'blackKnight'],
+    corpseLifeMult: 1,
+    wings: {
+      north: { name: 'the smelter', feature: 'hazard', label: 'Slag vents', prop: 'crucible', floor: 'soot' },
+      east: { name: 'the weaponsmith', feature: 'chest', label: 'Strongbox', prop: 'rack', floor: 'plank' },
+      south: { name: 'the ember shrine', feature: 'shrine', label: 'Shrine', prop: 'pillar', floor: 'runner' },
+      west: { name: 'the quench pits', feature: 'lair', label: 'Lair', prop: 'anvil', floor: 'soot' },
+    },
+  },
   // v0.6: Act IV, always. Never a starting arena (not in ARENA_IDS).
   bastion: {
     id: 'bastion',
@@ -152,4 +201,14 @@ export const FLAGSTONE = 80;
  * braziers, so luring the horde under them pays. The first slam comes `grace` s into the level. Only in the realm's own arena.
  */
 export const PRESSES = { every: 8, delay: 1.5, grace: 8, line: 3, crossFrom: 11, damage: 18, foeMult: 3 };
+/**
+ * #224: the Cinderlands' spreading fire (logic/spreadingFire.ts, systems/arena.ts). Every `every` s the fire catches on the slab at the
+ * lava's bank nearest the player (from wave `twoFrom` on two slabs, `apart` slabs or more from each other) and creeps to where the
+ * player stood then, and on round that spot, a slab every `step` s, `reach` slabs in all. A slab kindles for `kindle` s (the warning:
+ * it does no harm yet), then burns for `life` s: `dps` a second (scaled with the wave like enemy damage) to the player standing on it,
+ * x`foeMult` to foes, like the lava, so luring the horde over it pays. The first fire catches `grace` s into the level. Only in the
+ * realm's own arena. Measured with the bot (`npm run sim -- levels`): a longer trail (7 slabs, 4 s) or a burn stack a tick each cost
+ * it a fifth of its level-1 clears, these numbers none.
+ */
+export const SPREADING_FIRE = { every: 10, grace: 10, reach: 5, step: 0.8, kindle: 0.8, life: 3, dps: 8, foeMult: 2, twoFrom: 11, apart: 4 };
 export const ARENA_IDS: ArenaId[] = ['courtyard', 'graveyard', 'keep'];

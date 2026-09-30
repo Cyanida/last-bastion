@@ -26,6 +26,7 @@ import type { AiState } from '../logic/fsm';
 import type { Formation, Vec } from '../logic/squads';
 import type { DamageType } from '../config/damage';
 import type { StatusApply, StatusMap } from '../logic/status';
+import type { FireFront, Flame } from '../logic/spreadingFire';
 import type { Sprite } from '../render/sprites';
 import type { SpatialHash } from './spatial';
 import type { RealmId } from '../config/world';
@@ -312,6 +313,7 @@ export interface Minion extends Body {
   relicBy?: RelicKey | FamilyId; // raised by this relic or set (relicCore.raiseSkeleton)
   frostLegion?: boolean; // Lich Lantern's Frost Legion has given it its burst
   ironLegion?: boolean; // #218: Legion Plate's Iron Legion has given it its plate
+  bonefire?: boolean; // #230: Bonefire has seen it rise (Balefire bursts once, as it rises)
 }
 
 export interface Projectile extends Body {
@@ -343,6 +345,7 @@ export interface Zone extends Body {
   hostile: boolean;
   maxHits: number; // 0 = unlimited
   owner: Enemy | null; // cancelled if the owner dies first
+  cause?: string; // #226: an ownerless hostile zone's name in the run log's cause of death (a fallen foe's burst)
   killsOwner: boolean; // suicide blasts
   arrow: boolean;
   color: string;
@@ -549,6 +552,11 @@ export interface Game {
   hazardT: number;
   pressT: number; // #211: seconds to the next forge press slam (the Iron Hold)
   presses: number; // #211: slams so far this run (every other one is a cross, late on)
+  lavaT: number; // #223: seconds to the next burn of whoever stands in the Ember Forge's lava
+  fireT: number; // #224: seconds until the fire next catches at the lava's bank (the Cinderlands)
+  fireTickT: number; // #224: seconds to the next burn of whoever stands on a burning slab
+  flames: Flame[]; // #224: the slabs the spreading fire holds, kindling or burning
+  fireFronts: FireFront[]; // #224: its tongues still creeping over the floor
   // --- v0.3 ---
   seed: number; // run seed: the director derives every wave from it
   squads: Squad[];

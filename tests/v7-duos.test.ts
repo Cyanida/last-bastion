@@ -42,11 +42,11 @@ describe('duo recipes (RELICS.md, A5 rules)', () => {
     }
   });
 
-  it('spread evenly: every family in 2 to 4 recipes', () => {
+  it('spread evenly: every family in 2 to 5 recipes (4 until #230: a duo a realm takes the families past it)', () => {
     for (const f of FAMILY_IDS) {
       const n = DUO_IDS.filter((d) => DUOS[d].families.includes(f)).length;
       expect(n, f).toBeGreaterThanOrEqual(2);
-      expect(n, f).toBeLessThanOrEqual(4);
+      expect(n, f).toBeLessThanOrEqual(5);
     }
   });
 });
@@ -75,7 +75,7 @@ describe('duo offers', () => {
   });
 
   it('taking a duo costs the pick; its two relics keep their family counts', () => {
-    const flame = RELIC_IDS.filter((id) => relicDef(id).family === 'flame' && !relicDef(id).classId && id !== 'emberMantle'); // 5, Brimstone Oil among them (#200's Ember Mantle left out)
+    const flame = RELIC_IDS.filter((id) => relicDef(id).family === 'flame' && !relicDef(id).classId && !['emberMantle', 'flashpowder', 'pitchPot', 'crownOfCinders'].includes(id)); // 5, Brimstone Oil among them (#200's Ember Mantle and #229's Cinderlands relics left out)
     const g = game([...flame, 'frostBrand']);
     offerRelics(g, 3, 'boss');
     const held = g.player.relics.held.length;

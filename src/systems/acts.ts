@@ -3,7 +3,7 @@ import { ROUTES } from '../config/routes';
 import { addListener, type GameEvents } from '../core/events';
 import { routeChoices, type Route } from '../logic/routes';
 import { markRoute } from './runlog';
-import { ARENAS, HAZARD_GRACE, PRESSES } from '../config/arenas';
+import { ARENAS, HAZARD_GRACE, PRESSES, SPREADING_FIRE } from '../config/arenas';
 import { RELIC_DROPS, relicDef, type Rarity, type RelicId, RELIC_MOMENTS } from '../config/relics';
 import { sfx } from '../sim/view';
 import type { Game } from '../core/types';
@@ -155,6 +155,8 @@ export function nextAct(g: Game, route: Route | null = null): void {
   g.timers.length = 0; // #182: a delayed blast or volley aimed at the old field stays behind with it
   g.hazardT = HAZARD_GRACE; // #182: the new arena's hazard starts on its own clock, not the old arena's
   g.pressT = PRESSES.grace; // #211: and the forge presses too
+  g.fireT = SPREADING_FIRE.grace; // #224: and the spreading fire, whose flames stay behind with the old field
+  g.flames.length = g.fireFronts.length = 0;
   g.minions.forEach((m, i) => Object.assign(m, { x: p.x + 40 * Math.cos(i * 2), y: p.y + 40 * Math.sin(i * 2) }));
   const theme = actTheme(g);
   g.banner = { text: `${actName(g.act)} — ${theme.name}`, t: 3.5 };

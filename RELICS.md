@@ -406,6 +406,104 @@ Iron Halo was measured again after its strike moved onto the cast itself: it use
 cast gives its stacks, so it only ever struck with stacks from elsewhere (the 18.1% first read was that, in maxed builds full of Steel);
 now each cast strikes everything in Radiance's radius once, with the stacks it just gave (6 Angel runs, 6 won).
 
+## C4 · The Cinderlands' Flame relics (v0.12, [#229](https://github.com/Cyanida/last-bastion/issues/229))
+
+Three of the Cinderlands' five new Flame relics (docs/road-to-the-crown.md, "The Cinderlands" and v0.12.0 item 4): two rares and the
+family's second legendary. The Cinderlands teach fire that spreads over the floor, burn stacks on you and bursts of fire when foes die; each
+relic takes one of those for the player, and each does something the Flame relics before it do not: a burst from a hit (Salamander Scale only
+multiplies the hit), fire that comes from the burning foes themselves (Ember Mantle's and Salamander Scale's fire comes from you or from a
+kill at full stacks) and a burn that passes on whole (Cinder Charm throws one ember, Pyre only explodes). Numbers in `config/relics.ts` (the
+three entries after Radiant Brand), behaviour in `systems/relicFamilies/flame.ts`, the pure rules (when a hit flares, which foes drip pitch,
+what the leap passes on) in `logic/relics.ts`. The class relics for the Viking and the Necromancer and the new duo are separate issues.
+
+| Relic | Rarity | Effect (I → II) | Awakened (III) |
+|---|---|---|---|
+| 🧨 Flashpowder | rare | Once every 1 → 0.7 s your next hit (attack or ability) sparks: an enemy at 2+ burn stacks flares, 32 → 40 fire damage (grows with level) and a burn stack to every enemy within 100 px; any other catches 2 burn stacks | **Chain Reaction**: enemies a flare brings up to 3 burn stacks flare too (one link) |
+| 🛢️ Pitch Pot | rare | Every 2 → 1.5 s you fling burning pitch at the nearest enemy within 360 px, and every burning enemy that near drips it, nearest first: a fire patch at their feet for 3 s (8 damage per second, grows with level) that sets a burn stack; up to 4 → 6 patches, never one on another | **Tar Pit**: an enemy that dies in burning pitch bursts into fire (a Pyre explosion) |
+| 🎇 Crown of Cinders | legendary | Your attack hits set an enemy that isn't burning alight (1 burn stack, 4 per second, grows with level). When a burning enemy dies its fire leaps on: every enemy within 110 → 140 px catches its burn stacks (at its burn's power) and takes 12 → 16 fire damage (grows with level) | **Conflagration**: the fire leaps up to 200 px and adds 1 more burn stack |
+
+- **Where they are found.** None is a common, so none joins the starter pool. All three are in the Cinderlands' pool (the realm's whole
+  family) and, once kept, in the champion's inventory; the runs without a champion (the Daily Trial, the sims) find all three. The Marches'
+  Flame level offers its rares in order, so a champion who owns Salamander Scale and Ember Mantle is offered Flashpowder and Pitch Pot there.
+  Crown of Cinders is the second Flame legendary, so the Cinderlands' Knight crown ("pick 1 of 2 Flame legendaries") offers it beside
+  Dragon's Tongue.
+- **Slot rules.** Crown of Cinders takes 2 slots and is the loadout's one legendary; all three count toward the 4 Flame relics a loadout may
+  hold.
+- **Each lights its own first fire.** First built to feed only on burns other relics lit, all three read 2.3-2.8% in the sims (the bot's
+  runs mostly go Steel: 8 of 12 6-sets), so each now starts a fire itself: the powder lights what it can't flare yet, the pot flings its
+  pitch at the nearest foe, the crown's attacks light foes that aren't burning.
+- **Decided: Flashpowder has one clock for all enemies**, not one per enemy: with Inferno (every hit burns) a clock per enemy would flare on
+  nearly every hit in a crowd. **Decided: a flare's own burn stacks can set off Chain Reaction once**, never a second link, so a crowd goes up
+  in a ring of bursts and not a runaway. **Decided: the Crown passes on the dead foe's stacks at the burn's own power**, not a fixed one, so
+  it spreads whatever built the burn; the burns it passes on are the Crown's work from then on.
+- **Burn stacks on you** are the realm's foes' lesson; no relic here reads them, because a relic that only works in the Cinderlands would sit
+  under 3% everywhere else (the shares below are measured in a plain run).
+
+**Measured.** `npm run sim -- relics 3 hold=<id>` (every run holds the named relic from the start; maxed saves, 15 runs each;
+measured again on release/0.12.0 with the Ember Forge and the Torchbearers in). Share from wave 21 on, target 3-35%:
+
+| Relic | Runs held at wave 20 | Share |
+|---|---|---|
+| 🎇 Crown of Cinders | 15 | 7.5% |
+| 🛢️ Pitch Pot | 14 | 7.3% |
+| 🧨 Flashpowder | 13 | 4.5% |
+
+All three sit inside the band. Their first versions, which only fed on burns other relics lit, read 2.3% (Flashpowder, at 3+ stacks),
+2.5% (Pitch Pot) and 2.8% (Crown of Cinders); lighting their own first fire lifted the pot and the crown into the band, and Flashpowder
+read 3.0% at 20 → 26 damage in 90 px, so it went to 32 → 40 in 100 px. The power index stayed in its band in every run (2.02-2.14).
+
+## C5 · The Cinderlands' Flame class relics and duo (v0.12, [#230](https://github.com/Cyanida/last-bastion/issues/230))
+
+The other two of the Cinderlands' five new Flame relics: class relics for the two champions who had none in Flame (the Paladin has Radiant
+Brand, the Angel Sunfire Censer, the Archer Fire Arrows), and the realm's duo. Numbers in `config/relics.ts` (after Crown of Cinders, and
+the last duo), behaviour in `systems/relicFamilies/flame.ts` (Baptism of Fire lives in Flashpowder's flare, where the flare happens, as
+Iron Tithe lives in the cuirass's reprisal), the pure rules (the stokes and their cap, the burn a skeleton sets, what a flare heals) in
+`logic/relics.ts`.
+
+| Relic | Rarity | Effect (I → II) | Awakened (III) |
+|---|---|---|---|
+| ☄️ Surtr's Brand *(Viking)* | rare | During Berserker Rage every attack hit stokes your axe (up to 8 + Rage stokes). When Rage ends the fire bursts out: 24 → 32 fire damage per stoke (grows with level) and 2 burn stacks to every enemy within 170 px | **Twilight**: at full stokes the fire bursts out at once, and the count starts again |
+| 🪵 Bonefire *(Necromancer)* | rare | Your skeletons burn: every 1.5 → 1 s each sets the enemies within 90 px of it alight, a burn stack (8 damage per second, grows with level, +4% per Soul Power) | **Balefire**: a skeleton you raise rises in a burst of fire, 24 fire damage (grows with level) and 2 burn stacks to every enemy within 110 px |
+| ⛲ Baptism of Fire *(duo)* | Flame + Holy | Flashpowder + Blessed Water: a flare heals you 1% of your max HP for every enemy it catches (up to 4) | (the duo's tier awakens both sources) |
+
+- **Each champion's lesson.** The Cinderlands teach burn stacks, fire that spreads over the floor and bursts of fire. The three Flame class
+  relics before these all read "the ability's hits add burn stacks"; Berserker Rage and Raise Dead hit nothing themselves, so these two
+  take the realm's lessons instead. The Viking's Rage is a stretch of fast blows, so his relic stores them and lets them go as one burst
+  when Rage ends (his other class relics work during Rage: chains, bleeds, armor stacks; this one pays at its end, and a Rage with no hit
+  gives nothing). The Necromancer's fire walks with his legion: it spreads wherever the skeletons stand, a stack from each one near an
+  enemy, which is not Lich Lantern's chill on their hits (no hit is needed, and standing among the horde is enough).
+- **Where they are found.** A class relic is in the Cinderlands' pool only for its class; level 3 unlocks it (the plan's rule "level 3
+  unlocks your class relic of that family"), and once kept it is in the champion's inventory. Runs without a champion find it as any other
+  class relic. It counts toward the 2 class relics and the 4 Flame relics a loadout may hold. Every champion now has a Flame class relic.
+- **Decided: Surtr's Brand counts hits, not swings, up to 8 + Rage**, so a Rage in a crowd fills it in a few swings and a duel takes the
+  whole Rage; the cap keeps a crowd from making the burst endless. Twilight lets a full axe burst during Rage, so the awakened relic is
+  the one that rewards the crowd.
+- **Decided: Balefire bursts only for the skeletons Raise Dead raises**, once each, as they rise; a relic's skeleton (Soul Lantern's, the
+  Legion's) burns like the others but rises without a burst, so kills that raise skeletons cannot chain bursts.
+- **Decided: Baptism of Fire pairs Flame with Holy, Flame's fifth recipe.** A5's "no family in more than 4 recipes" was written for 12
+  duos; with one duo a realm (the plan: 19 in all, 38 family places over 7 families) no family can stay at 4. Iron Tithe could still
+  avoid it (Steel had 3); the Cinderlands' duo is about fire, Flame had 4, so the most a family may sit in is now 5
+  (`tests/v7-duos.test.ts`), and Holy, one of the two families still at 3, is the partner. Flashpowder is the realm's own relic and
+  Blessed Water a starter common, so both halves are open to every class; the water makes the duo's heal stronger and, awakened
+  (Baptism), each flare's heal washes a status off.
+
+**Measured.** `npx vite-node scripts/relic-report.ts run <class> <runs> <out> hold=<id>` for the class that owns each relic (6 runs each)
+and `hold=flashpowder,blessedWater` for the duo (4 Paladin and 4 Viking runs), maxed saves, 20 runs, 18 won. Share from wave 21 on, target 3-35%:
+
+| Relic | Runs held at wave 20 | Share |
+|---|---|---|
+| ⛲ Baptism of Fire (its own heal) | 8 | 9.5% |
+| ☄️ Surtr's Brand | 5 | 5.6% |
+| 🪵 Bonefire | 5 | 4.3% |
+
+All three sit inside the band. Surtr's Brand and the duo did on their first numbers; in the duo's runs Flashpowder itself read 6.5%
+(4.5% alone, C4). Bonefire first read 2.4% (a stack every 2 → 1.5 s within 70 px, 4 damage per second) and 3.6% at 90 px and 6 damage, so
+it went to every 1.5 → 1 s and 8 damage. Its share is lowest in the runs that reach Flame's 6-set (1.4% and 1.9%): there every hit burns,
+the stacks are full without it, and a burn's ticks go to the relic that fed it last. The power index read 1.99 over the 20 runs (Act II
+1.80, Act III 2.23), inside its band; the Necromancer's own runs read 1.72 (the bot underrates him, AGENTS.md).
+The sim's bot takes its taste in families from a class's class relics (`sim/levels.ts` `tasteOf`), so the Viking and the Necromancer now
+lean toward Flame in its loadouts too; the Viking's golden Marches level 7 run slots Salamander Scale first for it and clears the level.
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
@@ -451,7 +549,7 @@ the end for comparison.
 
 Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shines; every relic works for every class unless it names one.
 
-#### 🔥 Flame (6 + 3 class)
+#### 🔥 Flame (9 + 5 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -461,9 +559,14 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Cinder Charm | common | A burning enemy you kill throws an ember at the nearest enemy: 1 → 2 burn stacks | **Ember Storm**: the ember splits in three | any |
 | Ember Mantle *(v0.10, #200)* | rare | Every 1.5 → 1 s, enemies within 120 px of you catch fire: 1 burn stack | **Firewalk**: you leave a trail of fire (6 damage per second, for 2 s) | Viking, Paladin |
 | Dragon's Tongue | legendary | Every 8 → 6 s your next attack also breathes a cone of fire: 3 → 4 burn stacks | **Wyrmfire**: the cone detonates every burn it touches for its remaining damage at once | Archer, Paladin |
+| Flashpowder *(v0.12)* | rare | Once every 1 → 0.7 s your next hit sparks: an enemy at 2+ burn stacks flares, 32 → 40 fire damage (grows with level) and a burn stack to every enemy within 100 px; any other catches 2 burn stacks | **Chain Reaction**: enemies a flare brings up to 3 burn stacks flare too (one link) | any |
+| Pitch Pot *(v0.12)* | rare | Every 2 → 1.5 s you fling burning pitch at the nearest enemy, and every burning enemy near you drips it: a fire patch at their feet for 3 s (8 damage per second, grows with level) that sets a burn stack (up to 4 → 6 patches) | **Tar Pit**: an enemy that dies in burning pitch bursts into fire (a Pyre explosion) | Paladin, Viking |
+| Crown of Cinders *(v0.12)* | legendary | Your attack hits set an enemy that isn't burning alight (1 burn stack). When a burning enemy dies its fire leaps on: every enemy within 110 → 140 px catches its burn stacks and takes 12 → 16 fire damage (grows with level) | **Conflagration**: the fire leaps up to 200 px and adds 1 more burn stack | any |
 | Fire Arrows *(Archer)* | rare | Arrow Volley arrows each add a burn stack; burn damage +2% → 3% per Focus | **Rain of Cinders**: the Volley's area keeps burning for 3 s | Archer |
 | Sunfire Censer *(Angel)* | rare | Heavenly Radiance adds 1 + Grace/6 → Grace/4 burn stacks to everything it hits | **Solar Flare**: enemies killed by Radiance burst into fire (a Pyre explosion) | Angel |
 | Radiant Brand *(Paladin)* | rare | Divine Shield's burst adds 2 + Faith/5 → Faith/4 burn stacks | **Pillar of Dawn**: while the shield holds, burning enemies touching you take their burn damage again every second | Paladin |
+| Surtr's Brand *(Viking, v0.12)* | rare | During Berserker Rage every attack hit stokes your axe (up to 8 + Rage stokes). When Rage ends the fire bursts out: 24 → 32 fire damage per stoke (grows with level) and 2 burn stacks to every enemy within 170 px | **Twilight**: at full stokes the fire bursts out at once, and the count starts again | Viking |
+| Bonefire *(Necromancer, v0.12)* | rare | Your skeletons burn: every 1.5 → 1 s each sets the enemies within 90 px of it alight, a burn stack (8 damage per second, grows with level, +4% per Soul Power) | **Balefire**: a skeleton you raise rises in a burst of fire, 24 fire damage (grows with level) and 2 burn stacks to every enemy within 110 px | Necromancer |
 
 #### ❄️ Frost (5 + 3 class)
 
@@ -544,7 +647,7 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Legion Plate *(Necromancer, v0.11)* | rare | Every 6th → 4th minion hit gives you an armor stack; minion hits deal 3% → 4% more per armor stack you hold | **Iron Legion**: skeletons you raise wear plate, 50% more HP | Necromancer |
 | Bodkin Points *(Archer, v0.11)* | rare | Every 3rd arrow hit is a bodkin: 40% → 60% of the hit again, +2% per Focus, that no shield turns, and an armor stack | **Armor-Piercer**: at full armor stacks every arrow hit is a bodkin | Archer |
 
-### Duo relics (13)
+### Duo relics (14)
 
 Hold both source relics and a duo can be offered (a gold fourth card, it takes the moment's pick). A duo combines its two source relics into
 one relic with both their effects and its own, attuning as one up to tier III; the families keep the two relics' counts (v0.7.5, #96). Each
@@ -565,6 +668,7 @@ source relic can feed only one formed duo.
 | **Requiem** | Holy + Grave | Halo of Mercy + Deathmask | Cursed enemies always drop a mercy orb |
 | **Consecration** | Holy + Steel | Rally Banner + Thorn Mail | Ward you gain also gives an armor stack, and a block heals 2% max HP |
 | **Iron Tithe** *(v0.11)* | Steel + Blood | Reprisal Cuirass + Vampire Fang | A reprisal opens 3 bleed stacks on its target (10% of it per second each) and heals you 3% of its damage |
+| **Baptism of Fire** *(v0.12)* | Flame + Holy | Flashpowder + Blessed Water | A flare heals you 1% of your max HP for every enemy it catches (up to 4) |
 
 ### Rules check
 
@@ -579,7 +683,7 @@ source relic can feed only one formed duo.
 | A 6-set without 6 straight pieces is adjusted | Outside its preferred families a class needs a duo piece for the 6; such a 6-set works at 125% strength (rarity is strength) | ✔ |
 | Set bonuses scale with the secondary stat where it fits | Stoked, Pyre, Arc, Shatter, Blessed, Undying Host, Bulwark scale with S; the rest are rules, not numbers | ✔ |
 | At least 12 duos, each from two specific relics of two different families | 12 duos, 24 distinct source relics, all findable by every class | ✔ |
-| No family in more than 4 duo recipes, every family in at least 2 | Flame 4, Frost 4, Storm 4, Blood 3, Holy 3, Grave 3, Steel 3 | ✔ |
+| No family in more than 4 duo recipes, every family in at least 2 | Flame 4, Frost 4, Storm 4, Blood 3, Holy 3, Grave 3, Steel 3 (with the realms' duos: Blood 4 and Steel 4 since Iron Tithe, Holy 4 and Flame 5 since Baptism of Fire; the most is 5 from v0.12 on, C5) | ✔ |
 | Each relic feeds at most one formed duo | Every source relic appears in exactly one recipe | ✔ |
 
 ### What leaves, what stays

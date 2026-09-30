@@ -9,7 +9,7 @@ import type { Enemy, Game } from '../core/types';
 import { addZone } from '../entities/hazards';
 import { nextState, type AiProfile, type AiState } from '../logic/fsm';
 import { slotPosition } from '../logic/squads';
-import { crownHpFloor } from '../logic/crownBoss';
+import { crownHpFloor, inquisitorPyres, pyreField } from '../logic/crownBoss';
 import { cleanse, isStunned, speedFactor } from '../logic/status';
 import { angleTo, chargeStart, chargeThrough, distTo, enraged, hitDamage, keepRange, move, moveTo, POISON, seek, shootAt, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { burst, floatText, ring, shake } from './effects';
@@ -300,9 +300,17 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
   },
 
   // Grand Inquisitor: walks you down and sends a line of pyres racing at you. Phase 2: a fan of lines, plus cultists.
+  // #231: as the Cinderlands' elite his third phase is the Auto-da-fé: the pyres stay alight (logic/crownBoss pyreField).
   inquisitor(g, e, dt) {
     const t = pickTarget(g, e);
     const def = e.def;
+    // the Auto-da-fé begins (e.combo: shown): the next fan comes at once
+    if (inquisitorPyres(e.phase) && !e.combo) {
+      e.combo = 1;
+      e.special = Math.min(e.special, 0.8);
+      g.banner = { text: 'The Inquisitor’s auto-da-fé', t: 2.5 };
+      markPhase(g, 'The Inquisitor’s auto-da-fé');
+    }
     if (e.state === 1) {
       e.timer -= dt; // stands still while casting
       if (e.timer <= 0) e.state = 0;
@@ -317,10 +325,12 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
     e.timer = 0.6;
     sfx(g, 'warn');
     const lines = e.phase >= 2 ? def.p2Lines! : 1;
+    const pyre = pyreField(e.phase, g.waveDmgMult * g.tier.enemyDmg);
+    const leaveField = pyre && { ...pyre, color: '#e07b28', dtype: 'fire' as const };
     for (let k = 0; k < lines; k++) {
       const a = angleTo(e, t) + (k - (lines - 1) / 2) * 0.5;
       for (let i = 1; i <= def.lineZones!; i++) {
-        addZone(g, { x: e.x + Math.cos(a) * def.lineSpacing! * i, y: e.y + Math.sin(a) * def.lineSpacing! * i, r: def.zoneRadius!, delay: def.windup! + i * 0.09, damage: specialDamage(e), hostile: true, color: '#e07b28', owner: e });
+        addZone(g, { x: e.x + Math.cos(a) * def.lineSpacing! * i, y: e.y + Math.sin(a) * def.lineSpacing! * i, r: def.zoneRadius!, delay: def.windup! + i * 0.09, damage: specialDamage(e), hostile: true, color: '#e07b28', owner: e, leaveField });
       }
     }
     if (e.phase >= 2) summon(g, e);

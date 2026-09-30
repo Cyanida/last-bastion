@@ -4,6 +4,7 @@ import { emit } from '../core/events';
 import type { Enemy, Game, Player } from '../core/types';
 import { addField } from '../entities/hazards';
 import { abilityCooldown, runLevel } from '../logic/formulas';
+import { smother } from '../logic/status';
 import { applyStatus, damageEnemy, healPlayer, rollPlayerHit } from './combat';
 import { burst, floatText, ring, shake } from './effects';
 import { feat, featAdd } from './feats';
@@ -178,6 +179,12 @@ export function updateUtility(g: Game, dt: number): void {
   p.utilityCd = p.utilityCdMax = abilityCooldown(def.cooldown, p.stats.int) * p.mods.utilityCd * upgradeCd;
   sfx(g, 'ability');
   emit(g, 'onUtilityUsed', { id: def.id });
+  const out = smother(p.statuses); // #225: any utility puts out a Cinderlands burn (stop, drop and roll)
+  if (out > 0) {
+    g.vars['burn.smothered'] = (g.vars['burn.smothered'] ?? 0) + out; // the play test reads it
+    floatText(g, p.x, p.y - 48, 'PUT OUT', '#f0a45a', 15);
+    burst(g, p.x, p.y, '#6a625a', 10, 140);
+  }
   evo?.utility?.(g, from); // after the cooldown is set: Valkyrie's Descent hands it straight back
 }
 

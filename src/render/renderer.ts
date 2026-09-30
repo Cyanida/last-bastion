@@ -1,4 +1,4 @@
-import type { ArenaDef } from '../config/arenas';
+import { FLAGSTONE, SPREADING_FIRE, type ArenaDef } from '../config/arenas';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GAME, RENDER } from '../config/game';
 import { MODIFIERS } from '../config/waves';
@@ -20,6 +20,7 @@ import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
 import { typeMultiplier } from '../logic/status';
 import { thornsOf, towerShieldOf } from '../logic/ironKing';
+import { CINDER_COLOSSUS } from '../config/bosses';
 import { uiScale } from '../ui/tooltip';
 
 export interface View {
@@ -316,6 +317,52 @@ function pressSlab(ctx: Ctx, x: number, y: number, size: number, k: number, time
   ctx.globalAlpha = 1;
 }
 
+/**
+ * #224: a slab the spreading fire holds, `t` s after it caught. Kindling, the warning: embers glow along its joints and the heat grows
+ * inward from a bright rim. Burning: the slab is a bed of coals with three flames licking over it; they sink as it burns out.
+ */
+function fireSlab(ctx: Ctx, x: number, y: number, size: number, t: number, time: number): void {
+  const F = SPREADING_FIRE;
+  const h = size / 2 - 2;
+  if (t < F.kindle) {
+    const k = t / F.kindle;
+    ctx.fillStyle = '#e07b28';
+    ctx.globalAlpha = 0.14 + 0.06 * Math.sin(time * 18);
+    ctx.fillRect(x - h, y - h, h * 2, h * 2);
+    ctx.globalAlpha = 0.3 + 0.25 * k;
+    ctx.fillRect(x - h * k, y - h * k, h * 2 * k, h * 2 * k);
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#f2a23a';
+    const w = 3; // the rim
+    ctx.fillRect(x - h, y - h, h * 2, w);
+    ctx.fillRect(x - h, y + h - w, h * 2, w);
+    ctx.fillRect(x - h, y - h, w, h * 2);
+    ctx.fillRect(x + h - w, y - h, w, h * 2);
+    ctx.globalAlpha = 1;
+    return;
+  }
+  const fade = clamp((F.kindle + F.life - t) / 0.6, 0, 1); // its last moments: the fire sinks
+  ctx.fillStyle = '#c8431c';
+  ctx.globalAlpha = (0.46 + 0.08 * Math.sin(time * 9 + x)) * fade;
+  ctx.fillRect(x - h, y - h, h * 2, h * 2);
+  ctx.fillStyle = '#f2a23a';
+  ctx.globalAlpha = (0.4 + 0.1 * Math.sin(time * 13 + y)) * fade;
+  ctx.fillRect(x - h * 0.62, y - h * 0.62, h * 1.24, h * 1.24);
+  ctx.globalAlpha = fade;
+  const frame = propFrame('flare', time);
+  for (const [i, ox, oy] of [[0, -0.45, -0.2], [1, 0.45, 0.05], [2, 0, 0.6]]) {
+    const fx = x + ox * h, fy = y + oy * h + 14;
+    if (!drawProp(ctx, 'flare', fx, fy, 1.2, frame + i)) {
+      // the props atlas has not loaded yet: a plain flame
+      ctx.fillStyle = '#f2a23a';
+      ctx.fillRect(fx - 7, fy - 30, 14, 30);
+      ctx.fillStyle = '#f6d873';
+      ctx.fillRect(fx - 3, fy - 18, 6, 18);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 function ironBar(ctx: Ctx, x: number, y: number, w: number, h: number): void {
   ctx.fillStyle = '#0f1118';
   ctx.fillRect(x, y, w, h);
@@ -561,6 +608,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
+  // #224: the Cinderlands' spreading fire, slab by slab
+  for (const f of g.flames) if (visible(f.x, f.y, FLAGSTONE)) fireSlab(ctx, f.x, f.y, FLAGSTONE, f.t, g.time);
   drawQuestGround(ctx, g);
 
   end('fields', _t);
@@ -766,6 +815,16 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
         ctx.lineTo(e.x + Math.cos(a) * (e.r + 13), e.y - 6 + Math.sin(a) * (e.r + 13));
       }
       ctx.stroke();
+    }
+    if (e.def.id === 'cinderColossus' && e.phase >= CINDER_COLOSSUS.burstFrom) {
+      // #228: his heat: a foe that falls inside this ring bursts into fire (one faint, slowly pulsing circle)
+      ctx.globalAlpha = 0.32 + 0.1 * Math.sin(g.time * 3);
+      ctx.strokeStyle = '#f08a1c';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, CINDER_COLOSSUS.burst.reach, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
     if (e.shield > 0) {
       ctx.globalAlpha = 0.25 + 0.5 * (e.shield / e.shieldMax);

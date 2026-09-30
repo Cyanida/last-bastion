@@ -1,4 +1,4 @@
-import type { ClassId } from '../config/classes';
+import { CLASS_ORDER, type ClassId } from '../config/classes';
 import { GAME } from '../config/game';
 import { FAMILY_IDS, isCursedRelic, RELIC_IDS, relicDef, SIGNATURE, type FamilyId, type RelicId } from '../config/relics';
 import { REALMS, type RealmId } from '../config/world';
@@ -58,11 +58,11 @@ const CROWNED_BEFORE: Record<RealmId, RealmId[]> = {
 const firstOf = (c: Champion, classId: ClassId, family: FamilyId | undefined, pick: (id: RelicId) => boolean): RelicId | undefined =>
   family && RELIC_IDS.find((id) => relicDef(id).family === family && ownable(classId, id) && !c.inventory.includes(id) && pick(id));
 
-/** One first clear's rewards into the champion (the bot's picks: the first option offered), crowns on Knight. */
-function clear(c: Champion, classId: ClassId, realm: RealmId, level: number): Champion {
+/** One first clear's rewards into the champion (the bot's picks: the first option offered), on `tier` (#250: Knight unless a Squire run says so). */
+function clear(c: Champion, classId: ClassId, realm: RealmId, level: number, tier = 1): Champion {
   const def = REALMS[realm];
   const r = def.levels[level - 1].reward;
-  c = { ...c, world: recordClear(c.world, realm, level, 1) }; // #238: its crowns set its level cap
+  c = { ...c, world: recordClear(c.world, realm, level, tier) }; // #238: its crowns set its level cap
   const add = (id: RelicId | undefined) => (id ? { ...c, inventory: [...c.inventory, id] } : c);
   if (r?.kind === 'rarePick') c = add(rarePickOptions(c, r.family, r.of)[0]);
   // a kept locked relic: the realm's own family, which the bot holds in its realm (rule 5); the rarest the family has left, not a legendary
@@ -70,7 +70,8 @@ function clear(c: Champion, classId: ClassId, realm: RealmId, level: number): Ch
   if (r?.kind === 'classRelic') c = add(firstOf(c, classId, def.family, (id) => relicDef(id).classId === classId));
   if (level === def.levels.length) {
     if (realm === 'marches') c = { ...add(SIGNATURE.relic[classId]), signature: true };
-    if (def.family) c = add(firstOf(c, classId, def.family, (id) => relicDef(id).rarity === 'legendary')); // the Knight crown's legendary pick
+    // the Knight crown's legendary pick; #250: a Squire crown gives none (config/world RELIC_CROWN)
+    if (def.family && def.crown.tiers.slice(0, tier + 1).some((t) => t.some((x) => x.kind === 'legendaryPick'))) c = add(firstOf(c, classId, def.family, (id) => relicDef(id).rarity === 'legendary'));
   }
   return c;
 }
@@ -78,12 +79,13 @@ function clear(c: Champion, classId: ClassId, realm: RealmId, level: number): Ch
 /**
  * Plan rule 9's "expected progress": the champion as it stands at `level` of `realm` on its first try, having first-cleared every level
  * before it (and crowned every realm that opens this one) on Knight, the bot picking the first option of each reward. Decided: no Keep
- * ranks and no mastery, so the Keep's slots and levels are headroom on top of the targets, not part of them.
+ * ranks and no mastery, so the Keep's slots and levels are headroom on top of the targets, not part of them. #250: `tier` 0 is a Squire
+ * player's progress: every clear and crown on Squire (a relic realm's Squire crown gives no legendary).
  */
-export function expectedChampion(classId: ClassId, realm: RealmId, level: number): Champion {
+export function expectedChampion(classId: ClassId, realm: RealmId, level: number, tier = 1): Champion {
   let c = newChampion(classId);
-  for (const r of CROWNED_BEFORE[realm]) for (let l = 1; l <= REALMS[r].levels.length; l++) c = clear(c, classId, r, l);
-  for (let l = 1; l < level; l++) c = clear(c, classId, realm, l);
+  for (const r of CROWNED_BEFORE[realm]) for (let l = 1; l <= REALMS[r].levels.length; l++) c = clear(c, classId, r, l, tier);
+  for (let l = 1; l < level; l++) c = clear(c, classId, realm, l, tier);
   // #238: at the level enemy scaling expects there, as far as the crowns it holds let it (5 before the Marches crown)
   const at = Math.min(levelCap(c.world), expectedChampionLevel(realm, level));
   return { ...c, level: at, xp: xpForLevel(at) };
@@ -106,6 +108,9 @@ export function powerOf(g: Game): number {
 export interface LevelRun {
   classId: ClassId; realm: RealmId; level: number; seed: number;
   cleared: boolean; // its last wave cleared
+  fellWave?: number | null; // #232: the wave a lost first try fell on (null: it cleared, or ran out of time)
+  fellBoss?: boolean; // #232: it fell with the level's end boss on the floor
+  bossSeconds?: number | null; // #232: seconds the end boss stood, from its arrival to the level's end (null: never met)
   time: number; // seconds played
   loadout: RelicId[]; // what the bot slotted
   champion?: number; // #220: the champion level it played at (a realm run's: by the XP its earlier levels banked)
@@ -138,6 +143,8 @@ function playLevel(g: Game, classId: ClassId, realm: RealmId, level: number, var
   let sixAt: number | null = null;
   let heldBefore = -1;
   let fell: number | null = null;
+  let fellWave: number | null = null, fellBoss = false, bossAt: number | null = null;
+  const bossUp = () => g.enemies.some((e) => e.def.boss && !e.side);
   const moments = () => Object.entries(g.vars).filter(([k]) => k.startsWith('moments.')).reduce((n, [, v]) => n + v, 0);
   const carried = moments(); // a realm run carries its counters on: a level's moments are those it met itself
   const done = () => !!g.level?.cleared || g.victory !== 'none';
@@ -148,12 +155,15 @@ function playLevel(g: Game, classId: ClassId, realm: RealmId, level: number, var
       heldBefore = g.player.relics.held.length;
       if (Object.values(familySets(g.player.relics.held)).some((s) => s?.level === 6)) sixAt = Math.max(first, g.wave);
     }
+    if (bossAt === null && g.wave === g.level?.last && bossUp()) bossAt = g.time;
+    if (g.over && fell === null) (fellWave = g.wave), (fellBoss = bossUp());
     if (g.over && revive && !done()) (fell ??= g.time), (g.over = false), (g.player.hp = g.player.stats.hp), (g.player.invulnT = 3); // as continuousPower
   }
   const r = g.player.relics;
   const sets = familySets(r.held);
   return {
     classId, realm, level, seed: g.seed, cleared: fell === null && done(), time: fell ?? g.time, loadout, champion: g.player.level,
+    fellWave, fellBoss, bossSeconds: bossAt === null ? null : g.time - bossAt,
     power, relicsAtStart, held: r.held.length, duos: r.duos.length, sixes: FAMILY_IDS.filter((f) => sets[f]?.level === 6).length, sixAt,
     moments: moments() - carried,
     pool: r.pool.filter((id) => !isCursedRelic(id)).length,
@@ -166,7 +176,7 @@ function playLevel(g: Game, classId: ClassId, realm: RealmId, level: number, var
  * realm run carries into a later level. A tool (the golden runs, a quick look at one level); rule 9 is measured by simulateRealm.
  * The run stops on the clear, a death or `maxSeconds`.
  */
-export function simulateLevel(classId: ClassId, seed: number, realm: RealmId, level: number, tier = 1, variant = 0, c = expectedChampion(classId, realm, level), maxSeconds = 45 * 60): LevelRun {
+export function simulateLevel(classId: ClassId, seed: number, realm: RealmId, level: number, tier = 1, variant = 0, c = expectedChampion(classId, realm, level, tier), maxSeconds = 45 * 60): LevelRun {
   const opts = levelOptions(classId, c, realm, level, tier, variant);
   return playLevel(createGame(classId, seed, opts), classId, realm, level, variant, opts.level!.relics ?? [], maxSeconds);
 }
@@ -184,7 +194,7 @@ export const realmSeed = (seed: number, level: number): number => (seed + (level
  * finds and XP, as a player's retry does. A level not over in `maxSeconds` ends the run there.
  */
 export function simulateRealm(classId: ClassId, seed: number, realm: RealmId, tier = 1, variant = 0, maxSeconds = 45 * 60, levels = REALMS[realm].levels.length): LevelRun[] {
-  let c = expectedChampion(classId, realm, 1);
+  let c = expectedChampion(classId, realm, 1, tier); // #250: on Squire, a Squire player's progress
   c = grantXp(c, Math.max(0, xpFromWorld(c.world) - c.xp));
   let run: RealmRun | null = { level: 1, tier, seed: realmSeed(seed, 1), carry: null };
   const rows: LevelRun[] = [];
@@ -195,7 +205,7 @@ export function simulateRealm(classId: ClassId, seed: number, realm: RealmId, ti
     rows.push(playLevel(g, classId, realm, level, variant, run.carry ? [] : opts.level!.relics ?? [], maxSeconds, true));
     if (!g.level?.cleared && g.victory === 'none') break;
     const xp = clearXp(g.player.xp, true);
-    c = grantXp(clear(c, classId, realm, level), xp); // its reward and crown first: the cap follows the crowns held
+    c = grantXp(clear(c, classId, realm, level, tier), xp); // its reward and crown first: the cap follows the crowns held
     run = level < REALMS[realm].levels.length ? { level: level + 1, tier, seed: realmSeed(seed, level + 1), carry: takeCarry(g) } : null;
   }
   return rows;
@@ -280,3 +290,37 @@ export const realmMinutes = (cells: Pick<LevelCell, 'clear' | 'minutes' | 'failM
 
 /** Power at a level's first wave against the continuous run's at that wave: +0.10 is 10% stronger. */
 export const powerGap = (level: number, continuous: number): number => (continuous > 0 ? level / continuous - 1 : 0);
+
+/**
+ * #250: Squire against Knight, level by level. Squire is the easier tier, so a level passes when Squire's first-try clear rate stands at
+ * least `margin` over Knight's (or at 100%) and every class clears over `floor` of its Squire tries. The Archer is left out of the class check (the bot
+ * underrates it, a gap across realms: BALANCE.md) but still reported. `rows`: every level's first tries, both tiers, one realm run each.
+ */
+export const SQUIRE_BAR = { margin: 0.1, floor: 0.5, exempt: ['archer'] as ClassId[] };
+
+export interface SquireBarRow {
+  realm: RealmId; level: number;
+  squire: number; knight: number; // first-try clear rate
+  classes: Partial<Record<ClassId, number>>; // each class's Squire clear rate
+  easier: boolean; // squire >= knight + margin
+  everyClass: boolean; // every class not exempt over the floor
+}
+
+export function squireBar(squire: Omit<LevelRun, 'summary'>[], knight: Omit<LevelRun, 'summary'>[]): SquireBarRow[] {
+  const rate = (rows: { cleared: boolean }[]) => (rows.length ? rows.filter((r) => r.cleared).length / rows.length : 0);
+  const out: SquireBarRow[] = [];
+  const keys = [...new Map(squire.map((r) => [`${r.realm}:${r.level}`, r])).values()];
+  for (const { realm, level } of keys) {
+    const at = (rows: typeof squire) => rows.filter((r) => r.realm === realm && r.level === level);
+    const s = at(squire), k = at(knight);
+    const classes: Partial<Record<ClassId, number>> = {};
+    for (const c of CLASS_ORDER) { const mine = s.filter((r) => r.classId === c); if (mine.length) classes[c] = rate(mine); }
+    const sq = rate(s), kn = rate(k);
+    out.push({
+      realm, level, squire: sq, knight: kn, classes,
+      easier: sq >= Math.min(1, kn + SQUIRE_BAR.margin) - 1e-9, // a level Knight clears 90%+ asks every Squire try
+      everyClass: Object.entries(classes).every(([c, v]) => SQUIRE_BAR.exempt.includes(c as ClassId) || v! > SQUIRE_BAR.floor),
+    });
+  }
+  return out;
+}

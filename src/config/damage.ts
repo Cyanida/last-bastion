@@ -12,6 +12,8 @@ export const DAMAGE_TYPES: Record<DamageType, { name: string; color: string }> =
 /** Damage multipliers per enemy: below 1 resists, above 1 is a weakness. Shown in the inspect tooltip. */
 export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>>>> = {
   wolf: { fire: 1.5, frost: 0.75 },
+  torchbearer: { fire: 0.75 }, // #225: soot and scorched leather
+  cinderHound: { fire: 0.75, frost: 1.25 }, // #226: a burning coat: the wolf's weakness to fire turned round
   knight: { frost: 1.25 }, // his armor (below) is his physical defence
   ironKnight: { frost: 1.25 }, // #212: his plates (PLATES below) are his defence
   cultist: { shadow: 0.5, holy: 1.5, fire: 0.75 },
@@ -34,6 +36,7 @@ export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>
   dragon: { fire: 0.1, frost: 1.5, physical: 0.9 },
   warden: { physical: 0.85, shadow: 1.3 },
   forgemaster: { fire: 0.5, frost: 1.3 }, // #215: forge-hot iron: fire barely warms it, frost cracks it
+  emberQueen: { fire: 0.5, frost: 1.3 }, // #227: fire barely warms her, frost bites (as the Forgemaster: a fire build still hurts her)
   usurper: { shadow: 0.7, holy: 1.25, physical: 0.9 },
   royalFlame: { fire: 0.1, frost: 2 }, // fire feeds it; frost puts it out
 };
@@ -76,6 +79,15 @@ export const TOWER_SHIELDS: Partial<Record<EnemyId, { reduction: number; turn: n
 export const THORNS: Partial<Record<EnemyId, { share: number; cap: number; reach: number; cd: number }>> = {
   thornBearer: { share: 0.2, cap: 0.05, reach: 100, cd: 0.35 },
   ironKing: { share: 0.15, cap: 0.04, reach: 100, cd: 0.5 }, // #216: his phase 3 only (logic/ironKing thornsOf); a boss takes many blows, so a smaller, slower bite
+};
+/**
+ * #226: foes that burst into fire when they die (the Cinderlands' Cinder Hounds). Where one falls a marked blast of `radius` goes off
+ * `delay` seconds later, for `damage` x the foe's own blow as fire, to the champion and his minions only: step out of the mark. Whatever
+ * felled it, it bursts; within the Cinder Colossus's heat his own, bigger blast takes its place (logic/deathBurst.ts).
+ */
+export const DEATH_BURSTS: Partial<Record<EnemyId, { radius: number; delay: number; damage: number }>> = {
+  // a wolf has 12 HP and hunts in packs of 4-5, so a swing can set off several: each one small (a bite and a half: he has no bleed), with 0.8 s to step out
+  cinderHound: { radius: 52, delay: 0.8, damage: 1.5 },
 };
 /** v0.7.3 (#59): how much of a blocked (shield bearer) or thrown-back (mirror knight) shot's damage wears the shield or mirror down. */
 export const ARMOR_WEAR = { block: 1, reflect: 0.5 };
@@ -124,12 +136,23 @@ export const STATUS_TUNING = {
   maxSlowStacksFromAbility: 4, // ability slows never freeze on their own
 };
 
-/** What enemy hits put on the player (and on minions). */
-export const ENEMY_STATUS: Partial<Record<EnemyId, { id: StatusId; stacks?: number; power?: number; time?: number }>> = {
+/**
+ * What enemy hits put on the player (and on minions). `decay` (#225): the burn falls off one stack at a time, a stack every `decay`
+ * seconds after the last hit that fed it, instead of all at once (logic/status tickStatuses); the champion's utility puts it out.
+ */
+export const ENEMY_STATUS: Partial<Record<EnemyId, { id: StatusId; stacks?: number; power?: number; time?: number; decay?: number }>> = {
   wolf: { id: 'bleed', power: 1.5 },
   cultist: { id: 'burn', stacks: 2, power: 3 },
   lich: { id: 'curse' },
   abbot: { id: 'poison', power: 5 },
   assassin: { id: 'bleed', stacks: 3, power: 2 },
   dragon: { id: 'burn', power: 2 },
+  // #225: the Cinderlands' torchbearers: a stack a blow, up to burn's 5; 1.2 fire a second per stack, one stack off every 1.5 s
+  torchbearer: { id: 'burn', stacks: 1, power: 1.2, time: 1.5, decay: 1.5 },
+  // #227: the Ember Queen: every blow of hers that lands (a bolt, a burst, a ring of her Flare, her touch) and every tick of her burning
+  // ground adds a stack of the same falling burn, a little hotter than a torch's
+  emberQueen: { id: 'burn', stacks: 1, power: 1.5, time: 1.5, decay: 1.5 },
+  // #228: the Cinder Colossus's phase-1 lesson, on all his hits: the torchbearers' burn, two stacks a hit (three hits and you are at
+  // the cap) and hotter; it falls a stack at a time like theirs, and your utility puts it out. #232: power 4 -> 2.2 (BALANCE.md)
+  cinderColossus: { id: 'burn', stacks: 2, power: 2.2, time: 1.5, decay: 1.5 },
 };

@@ -1,5 +1,214 @@
 # Balance notes
 
+## v0.12: a featured squad comes for sure (#259)
+
+Since #249 the Iron Hold's road names the Iron Shieldwall from level 2 on, but on Squire and Knight his squad comes at a quarter of its
+weight (`fieldsWeight`), and a playtest's full Squire levels 2 and 3 brought none. Now a level whose road features one of its realm's
+`fields` foes brings one squad of it for sure, on every tier: on a wave drawn per seed from the level's first `WORLD.featuredSquad.within`
+(3) waves where the squad is fielded (levels 2-5: waves 9-11, 17-19, 25-27, 33-35), out of that wave's squad budget (it takes a rolled
+squad's place); any more come at the quarter weight as before.
+
+`npm run sim -- levels 8 1 ironHold` (Knight, 40 first tries a level, the realm as one run), before on release/0.12.0 (6f12a4d) and
+after. First-try clear rate and a clear's median minutes; "within 20%" is of the target.
+
+| Level | Waves | Target | Before | After | Pass: from the loose foes' budget instead |
+|---|---|---|---|---|---|
+| Iron Hold 1 | 1-8 | 90% | 93%, 4.6 | 93%, 4.6 | 93%, 4.6 |
+| Iron Hold 2 | 9-16 | 82% | 73%, 5.7 | 85%, 5.6 | 85%, 5.6 |
+| Iron Hold 3 | 17-24 | 73% | 73%, 5.8 | 78%, 5.9 | 78%, 5.8 |
+| Iron Hold 4 | 25-32 | 65% | 75%, 7.0 | 70%, 6.8 | 70%, 6.7 |
+| Iron Hold 5 | 33-40 | 55-60% | 55%, 7.8 | 50%, 7.9 | 48%, 7.8 |
+
+A realm clean / with retries: 32.1 / 41.8 minutes before, 32.0 / 41.7 after. Per class, first tries cleared of 8 (after): level 2
+paladin 7, viking 8, angel 8, necromancer 8, archer 3 (before 6, 8, 8, 6, 1); level 5 5, 3, 7, 5, 0 (before 5, 2, 8, 6, 1). Level 2
+moved 12 points, more than a few: it is now 3 over its target, within its band (66-98%), where before it was 9 under. Levels 3-5 moved
+5 points each, level 5 to 50%, 5 under its 55-60% and within 20% of it. The rates carry about 8 points of noise at 40 tries, and taking
+the squad from the loose foes instead (the rolled squads kept) measured the same, so nothing else was retuned. Levels 2-5 on Squire
+bring the squad on every seed (tests/v12-featured-squad.test.ts, and the play check on five seeds).
+
+The golden realm run of the Iron Hold's levels 1-2 (tests/v10-level-golden.test.ts) was re-recorded: its level 2 (Knight) gets the
+featured squad. The Marches' runs, the Cinderlands' and the Iron Hold's level 1 are unchanged.
+
+## v0.12: Squire measured (#250)
+
+A playtest on Squire met a wall in the Iron Hold from level 3: the bot steering in the game fell on level 3 18 of 18 tries (Paladin)
+and 8 of 8 (Necromancer), and a human Paladin cleared levels 1-3 and fell twice each on 4 and 5. The sim's targets were all measured
+on Knight; Squire was not measured at all.
+
+**The sim runs the realm levels on Squire** (`npm run sim -- levels 8 0 marches,ironHold,cinderlands`), now with a Squire player's
+progress: every clear and crown on Squire (a relic realm's Squire crown gives no legendary; `src/sim/levels.ts expectedChampion`), and
+`npm run sim -- levels 8 squire [realms]` runs both tiers and prints Squire's bar against Knight per level and class
+(`squireBar`, `scripts/level-report.ts bar`).
+
+**Why levels 3-5 fall so hard.** Squire took only its tier numbers (enemy HP x1 and damage x1 against Knight's x1.45 and x1.25), and
+everything else a realm level scales by is the same on both tiers. From the Iron Hold's level 3 on the champion stands at its crown cap
+(10 with one crown; the level each later level expects, 11-14, is held at 10 too), so a Squire champion grows no more while the level
+step keeps rising (HP x0.83 -> 1.07, damage x0.93 -> 1.23 over levels 3-5). Measured, Squire was barely easier than Knight where it
+matters: the Iron Hold's level 4 80% against 75%, the Cinderlands' 4 and 5 75% and 60% against 63% and 55%, the Marches' crown 68%
+against 49%. Only 7 of 17 levels met the bar. The in-game playtest's 18 of 18 on level 3 is worse than the sim finds (90% before):
+it started level 3 with its 3 slots, not a run's carried relics (about 11 at level 3), which the sim's realm run holds.
+
+**Tuned** (Squire only; Knight's numbers are untouched): Squire's `realmEase` (`src/config/economy.ts TIERS`, read by
+`logic/world tierStep` in `game.ts withRing` and the level panel): enemy HP and damage in a realm's levels from a first-level value to
+a last-level value, even between. Pass 1: HP x0.9 -> 0.75, damage x0.9 -> 0.8. Pass 2 (now): HP x0.85 -> 0.7, damage x0.85 -> 0.75.
+Plain runs, the Daily Trial and the Last Bastion don't take it.
+
+What the level panel shows on Squire (Enemy HP): the Marches 34, 34, 39, 48, 54, 60, 45% (were 40, 41, 49, 61, 72, 82, 64%); the Iron
+Hold 197, 141, 127, 122, 109% (were 231, 173, 164, 166, 156%); the Cinderlands 197, 141, 127, 122, 97% (were 231, 173, 164, 166, 138%).
+Knight's are as they were.
+
+40 first tries a level per tier (paladin, viking, angel, necromancer, archer; 8 seeds each), the realm as one run. First-try clear rate
+and a clear's median minutes. The bar: Squire at least 10 points over Knight (100% where Knight clears 90% or more), every class but the
+Archer over 50% on Squire. Knight re-run after the change: every clear rate and every class's count identical.
+
+| Level | Knight (before = after) | Squire before | Squire pass 1 | Squire pass 2 (now) | Bar met (now) |
+|---|---|---|---|---|---|
+| Marches 1 | 93%, 4.2 | 93%, 4.0 | 98%, 4.0 | 95%, 4.0 | no: 2 points over, 2 falls in 40 (the Angel, the Archer) |
+| Marches 2 | 78%, 4.2 | 90%, 4.2 | 98%, 4.2 | 98%, 4.1 | yes |
+| Marches 3 | 80%, 4.4 | 98%, 4.2 | 98%, 4.1 | 98%, 4.1 | yes |
+| Marches 4 | 73%, 5.1 | 85%, 5.0 | 88%, 5.0 | 88%, 5.0 | yes |
+| Marches 5 | 70%, 5.3 | 90%, 5.4 | 88%, 5.2 | 93%, 5.2 | yes |
+| Marches 6 | 85%, 4.7 | 93%, 4.6 | 98%, 4.7 | 98%, 4.7 | yes |
+| Marches 7 | 49%, 5.3 | 68%, 5.2 | 83%, 5.1 | 90%, 5.1 | yes |
+| Iron Hold 1 | 93%, 4.6 | 98%, 4.5 | 95%, 4.5 | 100%, 4.5 | yes |
+| Iron Hold 2 | 73%, 5.7 | 98%, 5.4 | 93%, 5.3 | 93%, 5.3 | yes |
+| Iron Hold 3 | 73%, 5.8 | 90%, 5.8 | 93%, 5.9 | 95%, 5.8 | yes |
+| Iron Hold 4 | 75%, 7.0 | 80%, 6.8 | 95%, 6.9 | 95%, 6.7 | yes |
+| Iron Hold 5 | 55%, 7.8 | 73%, 8.1 | 83%, 8.0 | 88%, 7.9 | yes |
+| Cinderlands 1 | 85%, 4.7 | 90%, 4.7 | 98%, 4.6 | 95%, 4.7 | yes |
+| Cinderlands 2 | 88%, 5.4 | 93%, 5.5 | 100%, 5.4 | 100%, 5.4 | yes |
+| Cinderlands 3 | 78%, 5.9 | 93%, 6.0 | 95%, 6.0 | 95%, 6.0 | yes |
+| Cinderlands 4 | 63%, 6.9 | 75%, 7.1 | 85%, 7.0 | 83%, 7.1 | yes |
+| Cinderlands 5 | 55%, 7.5 | 60%, 7.7 | 73%, 7.6 | 78%, 7.5 | yes |
+| Levels meeting the bar | | 7 of 17 | 14 of 17 | 16 of 17 | |
+
+Per class on Squire, first tries cleared of 8 (before -> now), and Knight's (unchanged):
+
+| Level | Paladin | Viking | Angel | Necromancer | Archer | Knight: Pal / Vik / Ang / Nec / Arc |
+|---|---|---|---|---|---|---|
+| Marches 1 | 8 -> 8 | 7 -> 8 | 7 -> 7 | 8 -> 8 | 7 -> 7 | 8 / 8 / 7 / 8 / 6 |
+| Marches 2 | 6 -> 8 | 8 -> 8 | 8 -> 8 | 7 -> 7 | 7 -> 8 | 4 / 6 / 8 / 6 / 7 |
+| Marches 3 | 8 -> 7 | 8 -> 8 | 8 -> 8 | 7 -> 8 | 8 -> 8 | 3 / 8 / 8 / 8 / 5 |
+| Marches 4 | 7 -> 8 | 8 -> 7 | 8 -> 8 | 4 -> 5 | 7 -> 7 | 4 / 7 / 8 / 6 / 4 |
+| Marches 5 | 7 -> 8 | 8 -> 8 | 8 -> 8 | 6 -> 7 | 7 -> 6 | 4 / 6 / 8 / 6 / 4 |
+| Marches 6 | 7 -> 8 | 8 -> 8 | 8 -> 8 | 7 -> 8 | 7 -> 7 | 6 of 7 / 7 / 8 / 7 / 5 |
+| Marches 7 (the crown) | 7 -> 8 | 6 -> 8 | 7 -> 8 | 3 -> 7 | 4 -> 5 | 5 of 7 / 3 / 8 / 2 / 1 |
+| Iron Hold 1 | 8 -> 8 | 8 -> 8 | 8 -> 8 | 8 -> 8 | 7 -> 8 | 8 / 8 / 8 / 8 / 5 |
+| Iron Hold 2 | 8 -> 8 | 8 -> 8 | 8 -> 8 | 8 -> 8 | 7 -> 5 | 6 / 8 / 8 / 6 / 1 |
+| Iron Hold 3 | 7 -> 8 | 7 -> 8 | 8 -> 8 | 8 -> 8 | 6 -> 6 | 3 / 7 / 8 / 8 / 3 |
+| Iron Hold 4 | 6 -> 8 | 8 -> 8 | 8 -> 8 | 7 -> 8 | 3 -> 6 | 7 / 6 / 8 / 7 / 2 |
+| Iron Hold 5 (the crown) | 8 -> 8 | 5 -> 8 | 8 -> 8 | 5 -> 7 | 3 -> 4 | 5 / 2 / 8 / 6 / 1 |
+| Cinderlands 1 | 8 -> 8 | 8 -> 8 | 8 -> 8 | 7 -> 8 | 5 -> 6 | 8 / 7 / 8 / 7 / 4 |
+| Cinderlands 2 | 7 -> 8 | 8 -> 8 | 8 -> 8 | 8 -> 8 | 6 -> 8 | 7 / 8 / 8 / 8 / 4 |
+| Cinderlands 3 | 8 -> 8 | 7 -> 7 | 8 -> 8 | 8 -> 8 | 6 -> 7 | 8 / 5 / 8 / 6 / 4 |
+| Cinderlands 4 | 8 -> 8 | 4 -> 5 | 8 -> 8 | 8 -> 8 | 2 -> 4 | 7 / 4 / 8 / 6 / 0 |
+| Cinderlands 5 (the crown) | 7 -> 8 | 6 -> 5 | 6 -> 8 | 4 -> 7 | 1 -> 3 | 6 / 5 / 7 / 4 / 0 |
+
+The spread now: past the Marches' level 1 the Paladin, the Angel and the Necromancer clear 7-8 of 8 on every Squire level but the
+Marches' 4 (the Necromancer 5 of 8); the Viking 5 of 8 on the Cinderlands' 4 and 5, its lowest; the Archer 3-8 of 8 (3 at the Cinder
+Colossus, 4 at the Iron King and the Cinderlands' level 4), where on Knight it clears 0-7.
+
+What is left after two passes (reported, not tuned further):
+- **The Marches' level 1** asks 100% on Squire (Knight clears 93%); it is 95%: one Angel and one Archer try in 40 fell. Easing it
+  further would take a level a fresh champion is meant to learn on down to nothing (Squire's level 1 is at 34% Enemy HP already).
+- **The Archer** stays the lowest class on Squire as on Knight (a known gap across realms, #220, #232): 3-4 of 8 at the two crowns.
+  It was reported, not chased.
+- The rates carry about 8 points of noise at 40 tries; the bar's 10 points are held level by level, so a level near it (the Marches' 4
+  at 88% against 73%+10) can flip on a re-run.
+- The golden runs (tests/v10-level-golden.test.ts) are on Knight and were not re-recorded: no Knight run moved.
+
+## v0.12: the Cinderlands' balance pass (#232)
+
+The release's last issue: every class through every level of the Cinderlands on Knight, against rule 9, with the bot playing the
+realm as one run (`simulateRealm`, #220). The Marches and the Iron Hold were not retuned: no Cinderlands change touches their numbers.
+
+**The sim says where a first try fell.** A level's row now holds the wave of the fall, whether the end boss stood then, and how long
+the boss stood (`src/sim/levels.ts` `fellWave`, `fellBoss`, `bossSeconds`); `npm run sim -- levels` prints them as an "End bosses"
+table. That is how the elite Grand Inquisitor, the Ember Queen and the Cinder Colossus were measured.
+
+**The Cinderlands have level steps and wave lengths of their own** (`WORLD.levelStep.own`, `WORLD.levelWaves.own` in
+`src/config/world.ts`; `logic/world.ts` reads a realm's own where it has them, a relic realm's otherwise). Until now every relic
+realm shared one row, so easing the Cinder Colossus's level would have retuned the Iron King's.
+
+**Tuned** (two passes):
+- **The level step**: HP x0.77, 0.77, 0.83, 0.99, 0.95 and damage x0.85, 0.84, 0.98, 1.12, 0.95 (a relic realm's: 0.77, 0.77, 0.83,
+  0.99, 1.07 and 0.92, 0.86, 0.93, 1.12, 1.23). Level 1 eases (burn stacks and the spreading fire cost first tries the Iron Hold's
+  level 1 does not), level 3 hits a little harder, and the crown level eases most.
+- **Wave length**: levels 2-4 bring foes x1.3, 1.25, 1.05 over a trickle x1.65, 1.7, 2 (a relic realm's: 1.2, 1.1, 0.95 over 1.5,
+  1.5, 1.8): the realm ran 29 minutes clean against 35.
+- **The Cinder Colossus** (`config/enemies.ts`, `config/damage.ts`): damage 18 (was 24), his fires 8 a second (was 10), his burn 2.2
+  a stack (was 4; still two stacks a hit, and still the realm's hottest). His HP (1200) and his three 12-second phases stay: the bot
+  already fells him in 39-41 s, 36 s being the least a crown boss stands. (Pass 1: damage 21, burn 2.8, the crown level's step
+  HP x1 and damage x1.1, level 3 alone longer; it moved the crown level from 30% to 40%.)
+- **Left alone: the Ember Queen and the elite Grand Inquisitor.** Pass 1 tried her on HP 1500 and damage 26 (1050, 22) and his
+  Auto-da-fé's pyres on 3 s at 10 a second (2.5 s, 8): neither cost the bot one more first try, so pass 2 put both back. Against the
+  bot they are not what a level is lost on (below); numbers a bot can't feel are not tuned on the bot.
+
+What the level panel shows on Knight (Enemy HP): 335, 251, 237, 240, 200% (were 335, 251, 237, 240, 225%, the Iron Hold's).
+
+`npm run sim -- levels 8 1 cinderlands`: 40 first tries a level on Knight (paladin, viking, angel, necromancer, archer; 8 seeds
+each). First-try clear rate and a clear's median minutes. Target: about 90% at level 1 and 55-60% at level 5, falling evenly between.
+
+| Level | Waves | Target | Before | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|---|
+| Cinderlands 1 | 1-8 | 90% | 83%, 4.6 | 85%, 4.7 | 85%, 4.7 |
+| Cinderlands 2 | 9-16 | 82% | 80%, 5.2 | 80%, 5.2 | 88%, 5.4 |
+| Cinderlands 3 | 17-24 | 73% | 88%, 5.4 | 80%, 6.0 | 78%, 5.9 |
+| Cinderlands 4 | 25-32 | 65% | 68%, 6.1 | 68%, 6.2 | 63%, 6.9 |
+| Cinderlands 5 | 33-40 | 55-60% | 30%, 7.6 | 40%, 7.5 | 55%, 7.5 |
+
+Per class, first tries cleared of 8 (before -> pass 2):
+
+| Level | Paladin | Viking | Angel | Necromancer | Archer |
+|---|---|---|---|---|---|
+| Cinderlands 1 | 8 -> 8 | 7 -> 7 | 8 -> 8 | 7 -> 7 | 3 -> 4 |
+| Cinderlands 2 | 7 -> 7 | 6 -> 8 | 8 -> 8 | 8 -> 8 | 3 -> 4 |
+| Cinderlands 3 | 8 -> 8 | 6 -> 5 | 8 -> 8 | 8 -> 6 | 5 -> 4 |
+| Cinderlands 4 | 8 -> 7 | 4 -> 4 | 8 -> 8 | 6 -> 6 | 1 -> 0 |
+| Cinderlands 5 (the crown) | 6 -> 6 | 1 -> 5 | 4 -> 7 | 1 -> 4 | 0 -> 0 |
+| All five | 37 -> 36 of 40 | 24 -> 29 | 36 -> 39 | 30 -> 31 | 12 -> 12 |
+
+The end bosses, measured (first tries lost of 40: in the waves before the boss / with the boss on the floor; the median seconds the
+boss stood, from its arrival to the level's end):
+
+| Level | End boss | Before | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|
+| Cinderlands 1 | a pool boss | 6 / 1, 30 s | 5 / 1, 31 s | 5 / 1, 31 s |
+| Cinderlands 2 | the Grand Inquisitor | 7 / 1, 30 s | 7 / 1, 28 s | 4 / 1, 29 s |
+| Cinderlands 3 | the Ember Queen | 5 / 0, 30 s | 8 / 0, 33 s | 9 / 0, 34 s |
+| Cinderlands 4 | the Grand Inquisitor, Elite | 12 / 1, 34 s | 13 / 0, 32 s | 14 / 1, 36 s |
+| Cinderlands 5 | the Cinder Colossus (crown) | 12 / 16, 41 s | 13 / 11, 39 s | 11 / 7, 39 s |
+
+| Target (rule 9) | Before | Pass 2 | |
+|---|---|---|---|
+| About 90% at realm level 1 | 83% | 85% | 5 points under, within the band |
+| 55-60% at realm level 5 | 30% | 55% | met |
+| Falling evenly between | level 3 88% against 73%, level 5 30% against 57% | widest: level 2 88% against 82%, level 3 78% against 73% | within 20% |
+| A realm's level 1 takes 4-6 minutes | 4.6 | 4.7 | met |
+| A realm's last level takes 7-10 minutes | 7.6 | 7.5 | met |
+| A realm in about 35 minutes clean, 45 with retries | 29.3 / 45.4 | 30.8 / 39.5 | clean met (within 5), with retries half a minute short |
+| A 6-set in most crown-level clears | 100% | 100% | met |
+| Relic moments per findable relic 0.4-0.6 (the realm played through) | 0.39 | 0.39 | just outside, as the Iron Hold's 0.38 |
+| Power at a level's first wave within 15% of a continuous run | 0 of 4 levels | 0 of 4 levels | not comparable (#220) |
+
+What the numbers say, and what is left after two passes (the plan's gate rule: reported, not tuned further):
+- **The Archer crowns the Cinderlands on none of 8 first tries, and clears level 4 on none** (4 of 8 at levels 1-3), against 4-8 of 8
+  for the other four at every level: 12 of 40 first tries, where the Paladin clears 36, the Angel 39, the Necromancer 31 and the
+  Viking 29. It is the Iron Hold's finding again (0 of 8 at the Iron King), and the pass did not move it: easing the crown level
+  lifted the Viking (1 -> 5), the Angel (4 -> 7) and the Necromancer (1 -> 4) and left the Archer at 0. The bot underrates the
+  Archer (AGENTS.md), but two realms in a row say the same: it needs the Archer itself looked at (v0.15.0's classes, or a
+  hand-played check of the Cinder Colossus), not a level step. Without the Archer the other four clear 69% of their crown tries.
+- **The Cinder Colossus was the one boss that decided a level**: he felled 16 of the 28 first tries that reached him, now 7 of 29.
+- **The Ember Queen fells no first try and the elite Inquisitor one in 40.** The bot loses levels 1-4 in their waves (burn stacks
+  from Torchbearers, the spreading fire, Cinder Hounds' bursts), and meets each boss with the floor cleared: it dodges every marked
+  blow, so a boss whose lessons are all marked costs it nothing, whatever her HP. Their clear rates sit within the band through the
+  waves. Whether the Queen and the Auto-da-fé are too mild for a player is a hand-played question the sim can't answer.
+- The per-level rates carry about 8 points of noise at 40 tries: levels 2 (6 points over) and 3 (5 over) are inside it.
+
+The golden level runs (tests/v10-level-golden.test.ts) gained the Cinderlands' level 1 and a realm run of its levels 1-2; no other
+run moved. `npm run test:perf` has an Ember Forge scene: a Cinderlands level in its own arena, 250 foes (141 of them Torchbearers
+and Cinder Hounds), its fire spreading over the floor (up to 8 slabs alight at once), p95 16.7 ms.
+
 ## v0.11: the Iron Hold's shieldwalls on every tier (#249)
 
 The Iron Shieldwall (#213) came only from Champion (`WAVES.tierRoster`), so on Squire and Knight, the tiers the Iron Hold opens with,

@@ -1,4 +1,5 @@
 import { ABILITY_UPGRADES, type AbilityUpgradeId } from '../config/abilityUpgrades';
+import { BEST_WAVE_LABEL, wavesText } from '../logic/best-wave';
 import { ACHIEVEMENTS, CATEGORIES, tierReward, type AchievementCategory, type AchievementDef } from '../config/achievements';
 import { ARENAS, type ArenaId } from '../config/arenas';
 import { THEMES, type ThemeId } from '../config/music';
@@ -41,7 +42,7 @@ import { REALMS, WORLD } from '../config/world';
 import { fitLoadout, slotBlock, slotCost, slotView } from '../logic/champions';
 import { levelUpGains, type BuildView, type TierChoice } from '../logic/championLevels';
 import type { ChampionStat } from '../config/champion';
-import { fellLine, roadGo, runMark, type RoadRun } from '../logic/realmRoad';
+import { checkpointFact, fellLine, roadGo, runMark, type RoadRun } from '../logic/realmRoad';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
@@ -113,13 +114,13 @@ const relicCard = (id: RelicId, tier: number, held: RelicId[], attrs: string, ex
   const r = relicDef(id);
   const fam = r.family ? `${FAMILIES[r.family].icon} ${FAMILIES[r.family].name}` : r.signature ? '👑 Signature' : '☠ Cursed'; // v0.7.1 B6: a cursed card is purple and says so (#201: a signature one gold)
   const upgrade = tier > 1;
-  return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip="${esc([relicTip(id, tier, held), ...more].join('\n'))}">${infoButton(id, r.name)}<div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.family ? r.rarity : 'no family'}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${RELIC_SHORT[id]}</p>${tierChips(tier)}${extra}</button>`;
+  return `<button class="card panel boon relic-card ${relicClass(id)}" style="--fam:${keyColor(id)}" ${attrs} data-tip-clear data-tip="${esc([relicTip(id, tier, held, false, true), ...more].join('\n'))}">${infoButton(id, r.name)}<div class="relic-icon">${r.icon}${tierBadge(tier)}</div><h2>${r.name}</h2><div class="tag"><span class="fam">${fam}</span> · ${upgrade ? `tier ${TIER_NUMERALS[tier - 1]} → ${TIER_NUMERALS[tier]}` : r.family ? r.rarity : 'no family'}${r.classId ? ` · ${CLASSES[r.classId].name}` : ''}</div><p>${RELIC_SHORT[id]}</p>${tierChips(tier)}${extra}</button>`;
 };
 
 /** v0.7 A5: a duo as a gold card: it takes the moment's pick. v0.7.5 (#96): it combines its two relics into one; the families keep their counts. */
 const duoCard = (id: DuoId, attrs: string, extra = '') => {
   const d = DUOS[id];
-  return `<button class="card panel boon evolution duo-card" ${attrs} data-tip="${esc(duoTip(id))}">${infoButton(id, d.name)}<div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${RELIC_SHORT[id]}</p>${tierChips(1)}${extra}</button>`;
+  return `<button class="card panel boon evolution duo-card" ${attrs} data-tip-clear data-tip="${esc(duoTip(id))}">${infoButton(id, d.name)}<div class="relic-icon">${d.icon}</div><h2>${d.name}</h2><div class="tag">Duo · ${d.families.map((f) => `${FAMILIES[f].icon} ${FAMILIES[f].name}`).join(' + ')}</div><p>${RELIC_SHORT[id]}</p>${tierChips(1)}${extra}</button>`;
 };
 
 /** #235: a relic's full text, as its compendium row shows it: tiers I and II with their numbers, then the awakening. */
@@ -260,7 +261,7 @@ const TIER_CROWNS = ['crown-squire', 'crown-knight', 'crown-champion', 'crown-le
  * browser dialog, so a gamepad and a phone answer it like any other button). A death adds "fell at wave N, restart level N".
  */
 export function showRealmRoad(
-  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null; run?: { level: number; relics: number } | null; trail?: RoadRun | null },
+  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null; run?: { level: number; relics: number } | null; trail?: RoadRun | null; notice?: string | null },
   on: { level: (n: number) => void; tier: (t: number) => void; fight: () => void; over: () => void; loadout: () => void; back: () => void },
 ): void {
   const { realm, panel: pn } = info;
@@ -273,10 +274,11 @@ export function showRealmRoad(
   };
   const held = (r: RoadRun['relics'][number]) =>
     `<span class="rr-relic" tabindex="0" data-relic="${r.id}" data-tip="${esc(relicTip(r.id, r.tier))}">${kit.rarityGlyph(relicRarity(r.id), relicDef(r.id).icon)}${tierBadge(r.tier)}</span>`;
-  const notes = [info.fell ? `<small class="rr-fell">${esc(fellLine(info.fell, info.level))}</small>` : '', go.note ? `<small class="rr-from">${esc(go.note)}</small>` : ''].filter(Boolean).map((n) => ` · ${n}`).join('');
+  const notes = [info.fell ? `<small class="rr-fell">${esc(fellLine(info.fell, info.level))}</small>` : '', go.note ? `<small class="rr-from">${esc(go.note)}</small>` : ''].filter(Boolean).join(' · ');
   const tier = (t: LevelPanel['tiers'][number], i: number) =>
     `<button class="rr-tier${i === info.tier ? ' on' : ''}${t.cleared ? ' cleared' : ''}" data-tier="${i}" aria-pressed="${i === info.tier}" title="${t.name}${t.cleared ? ': cleared' : t.open ? '' : ': not open yet'}"${t.open ? '' : ' disabled'}>${kit.icon(t.open ? TIER_CROWNS[i] : 'lock')}<span>${t.name}</span></button>`;
   const fact = (label: string, value: string | number) => `<span class="rr-fact"><small>${label}</small><b>${value}</b></span>`;
+  const cp = checkpointFact(info.trail?.level ?? 1);
   const el = show(`
     <div class="kit-frame realm-road">
       <header class="kit-head">${kit.closeButton('back', { attrs: 'data-back' })}${kit.ribbon(`${kit.icon('map')} ${esc(info.realmName)}`, { attrs: 'role="heading" aria-level="1"' })}</header>
@@ -284,8 +286,9 @@ export function showRealmRoad(
       ${kit.parch(`
         <div class="rr-top">${kit.ribbon(esc(pn.name), { cls: 'rr-name' })}<div class="rr-tiers">${pn.tiers.map(tier).join('')}</div></div>
         <div class="rr-body">
+          ${info.notice ? `<p class="rr-unbuilt" role="note">${kit.icon('map')} ${esc(info.notice)}</p>` : ''}
           <div class="rr-facts">
-            ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${info.run ? `${fact('Run level', `Level ${info.run.level}`)}${fact('Relics kept', info.run.relics)}` : fact('Slots', pn.slots)}${fact('Enemy HP', `${pn.enemyHp}%`)}
+            ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${info.run ? `${fact(cp.label, cp.value)}${fact('Relics kept', info.run.relics)}` : fact('Slots', pn.slots)}${fact('Enemy HP', `${pn.enemyHp}%`)}
           </div>
           <div class="rr-foes">
             ${pn.family ? `<p>${kit.icon(pn.family)} <b>${FAMILIES[pn.family].name}</b> relics featured</p>` : ''}
@@ -298,7 +301,7 @@ export function showRealmRoad(
           </div>
         </div>
         ${trail?.here ? `<div class="rr-run"><small>Run relics</small>${trail.relics.length ? `<span class="rr-relics">${trail.relics.map(held).join('')}</span>` : '<span class="rr-none">None yet</span>'}</div>` : ''}
-        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${notes}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${go.over ? kit.button('Start over', { attrs: 'data-over' }) : ''}${kit.button(go.label, { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !go.enabled })}</div>
+        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${notes ? `<span class="rr-notes">${notes}</span>` : ''}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${go.over ? kit.button('Start over', { attrs: 'data-over' }) : ''}${kit.button(go.label, { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !go.enabled })}</div>
         <div class="rr-go rr-ask" role="alertdialog" aria-label="Start over?" hidden><span class="rr-asks"></span>${kit.button('Keep the run', { attrs: 'data-keep' })}${kit.button('Start over', { kind: 'go', size: 'big', attrs: 'data-yes' })}</div>`, { cls: 'rr-panel' })}
     </div>`);
   // Start over, or a new run on another tier: the run in progress is lost, so the row asks first; Keep the run (or Esc) puts the buttons back
@@ -670,7 +673,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId) => void; b
         ${treasure}
         ${save.wins[c.id] ? `<div class="oath-line">⚜ ${save.oaths[c.id] ? `Oath ${save.oaths[c.id]} kept` : 'No Oath kept yet'}</div>` : ''}
         <div class="road-line">${kit.icon('map')} ${roadLine(c.id)}</div>
-        <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
+        <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: ${wavesText(rec.bestWave)} in a level` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
       </div>
     </div>`;
   };
@@ -953,7 +956,7 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
   const favorite = (Object.entries(save.relicPicks) as [RelicId, number][]).sort((a, b) => b[1] - a[1])[0];
   const rows = CLASS_ORDER.map((id) => {
     const c = save.classes[id];
-    return `<tr><td>${CLASSES[id].name}</td><td>${c.bestWave}</td><td>${c.kills}</td><td>${c.runs}</td><td>${fmtTime(c.time)}</td><td>${masteryRank(c.xp)}</td></tr>`;
+    return `<tr><td>${CLASSES[id].name}</td><td>${wavesText(c.bestWave)}</td><td>${c.kills}</td><td>${c.runs}</td><td>${fmtTime(c.time)}</td><td>${masteryRank(c.xp)}</td></tr>`;
   }).join('');
   const el = show(kitScreen('chronicle', 'Chronicle', {
     back: 'data-back',
@@ -968,7 +971,7 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
       <p class="hint">${titles.length ? 'Earned from deeds and mastery ranks. The one you wear shows on the title screen and after every run.' : 'Deeds and mastery ranks grant titles; none yet.'}</p>
       ${titleChips}
       <h2>Statistics</h2>
-      <table class="stats-table"><tr><th>Class</th><th>Best wave</th><th>Kills</th><th>Runs</th><th>Playtime</th><th>Mastery</th></tr>${rows}</table>
+      <table class="stats-table"><tr><th>Class</th><th>${BEST_WAVE_LABEL}</th><th>Kills</th><th>Runs</th><th>Playtime</th><th>Mastery</th></tr>${rows}</table>
       <div class="stats wide">
         <div><span>Total playtime</span><b>${fmtTime(records.reduce((s, c) => s + c.time, 0))}</b></div>
         <div><span>Total kills · bosses · elites</span><b>${save.counters.kills} · ${save.counters.bosses} · ${save.counters.elites}</b></div>
@@ -1116,7 +1119,7 @@ export function showRarePick(level: string, family: FamilyId, options: RelicId[]
   const el = show(`
     <div class="levelup rare-pick ${text.cls ?? ''}">
       ${choiceHead(text.head ?? `${level} cleared`)}
-      <p class="sub">${options.length ? text.sub ?? `Choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} rare to keep. It joins your champion's relics for every loadout.` : text.empty ?? `You hold every ${FAMILIES[family].name} rare already.`}</p>
+      <p class="sub">${options.length ? text.sub ?? `Choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} rare to keep. It joins your champion's relics for every loadout.` : text.empty ?? `You already own every ${FAMILIES[family].name} rare, so you get ${runes} Runes instead.`}</p>
       ${options.length ? `<div class="cards">${options.map((id, i) => relicCard(id, 1, [], `data-pick="${i}"`, `<div class="num">${i + 1}</div>`)).join('')}</div>` : `<div class="row">${kit.button(`Take ◆ ${runes} Runes`, { kind: 'gold', attrs: 'data-runes' })}</div>`}
     </div>`);
   wireRelicInfo(el);
@@ -1405,7 +1408,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
         <div><span>Level</span><b>${r.level}</b></div>
         <div><span>${r.daily ? `Daily Trial ${r.daily}` : 'Run seed'}</span><b class="seed">${r.seed}</b></div>
         ${r.curseMult > 1 ? `<div><span>Curses</span><b>×${r.curseMult.toFixed(2)} gold &amp; XP</b></div>` : ''}
-        <div><span>Best wave (${r.cls.name})</span><b>${r.best}</b></div>
+        <div><span>${BEST_WAVE_LABEL} (${r.cls.name})</span><b>${wavesText(r.best)}</b></div>
         <div class="earned"><span>Gold banked</span><b>${G} +${r.gold}${r.goldRaw > r.gold ? ` <s>${r.goldRaw}</s>` : ''}</b></div>
         ${r.runes > 0 ? `<div class="earned"><span>Runes</span><b>${R} +${r.runes}</b></div>` : ''}
         <div class="earned"><span>${r.cls.name} mastery</span><b>+${r.classXp} XP · rank ${r.masteryRank}${r.masteryName ? ` — <em>${r.masteryName}</em>` : ''}</b></div>

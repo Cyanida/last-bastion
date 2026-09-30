@@ -1,8 +1,8 @@
 import { EVOLUTIONS } from '../config/evolutions';
 import { buildState, evolutionIn } from '../systems/evolutions';
-import { SKILL } from '../config/game';
+import { HUD_FADE, SKILL } from '../config/game';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
-import { ARMOR, DAMAGE_TYPES, RESISTS, STATUSES, type DamageType } from '../config/damage';
+import { ARMOR, DAMAGE_TYPES, ENEMY_STATUS, RESISTS, STATUSES, type DamageType } from '../config/damage';
 import { AFFIXES } from '../config/elites';
 import { DUOS, FAMILIES, FAMILY_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, type DuoId, type FamilyId, type RelicId } from '../config/relics';
 import { MODIFIERS } from '../config/waves';
@@ -12,6 +12,7 @@ import { actName } from '../logic/acts';
 import { shieldBurst } from '../logic/abilities';
 import { duoTier, familySets, looseRelics, softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
+import { deathBurstOf } from '../logic/deathBurst';
 import { platesOf, thornsOf, towerShieldOf } from '../logic/ironKing';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
@@ -21,6 +22,7 @@ import { questProgress } from '../logic/quests';
 import { duoTip, esc, relicClass, relicTip, setRecipeBuild, tierBadge } from './relicText';
 import { isTestRun } from '../systems/testMode';
 import { uiScale } from './tooltip';
+import { panelCovers, type Box, type Cam } from '../logic/hudFade';
 
 /** Tooltip for the enemy under the pointer (hover, or a tap on touch): what it is, what hurts it, what is on it. */
 export function updateInspect(e: Enemy | null, x: number, y: number): void {
@@ -35,6 +37,9 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
   const plates = platesOf(e.def.id, e.phase); // #212 (#216: the Iron King's by phase)
   const tower = towerShieldOf(e.def.id, e.phase); // #213
   const thorns = thornsOf(e.def.id, e.phase); // #214
+  const burns = ENEMY_STATUS[e.def.id]?.decay; // #225
+  const bursts = deathBurstOf(e.def.id); // #226
+  const burnStacks = ENEMY_STATUS[e.def.id]?.stacks ?? 1; // #228: the Cinder Colossus's hits put on two
   const statuses = activeStatuses(e.statuses).map((id) => `${STATUSES[id].name}${e.statuses[id]!.stacks > 1 ? ` ×${e.statuses[id]!.stacks}` : ''}`);
   html('h-inspect', `
     <b>${e.elite ? 'Elite ' : ''}${e.def.name}</b>${e.def.aura ? ' <em>commander</em>' : ''}
@@ -44,6 +49,8 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
     ${tower ? `<div>Iron shield: turns ${Math.round(tower.reduction * 100)}% of blows from the front. Strike his side or back</div>` : ''}
     ${plates ? `<div>${e.armorHp > 0 ? `Iron plates: ${e.armorHp} left, each hit breaks one` : 'Armor broken'}</div>` : ''}
     ${thorns ? `<div>Thorns: a blow struck up close bites back ${Math.round(thorns.share * 100)}%</div>` : ''}
+    ${bursts ? `<div>Bursts into fire where it dies, ${bursts.delay} s after it falls: step out of the mark</div>` : ''}
+    ${burns ? `<div>Each blow sets you burning: ${burnStacks > 1 ? `${burnStacks} stacks` : 'a stack'} more, one falls every ${burns} s</div>` : ''}
     ${armor ? `<div>${e.armorHp > 0 ? (armor.backBreak ? 'Shield up: strike it from behind' : `Armored: soaks ${Math.round(armor.reduction * 100)}% until broken`) : 'Armor broken'}</div>` : ''}
     ${e.def.aura ? `<div>Aura: ${e.def.aura.kind === 'heal' ? 'heals and rallies' : `+${Math.round((e.def.aura.value - 1) * 100)}% ${e.def.aura.kind}`} nearby allies</div>` : ''}
     ${statuses.length ? `<div>${statuses.join(' · ')}</div>` : ''}`);
@@ -85,7 +92,7 @@ export function buildHud(onPause: () => void, onMute: () => void): void {
     </div>
     <div class="hud-top">
       <div id="h-test" class="hud-plate hud-test hidden">TEST</div>
-      <div class="hud-wave hud-plate">
+      <div class="hud-wave hud-plate" id="h-wave-panel">
         <div id="h-wave"></div>
         <div id="h-left"></div>
         <div id="h-mod" class="hidden"></div>
@@ -102,6 +109,7 @@ export function buildHud(onPause: () => void, onMute: () => void): void {
       </div>
     </div>
     <div id="h-inspect" class="hud-plate hidden"></div>`;
+  root().style.setProperty('--hud-fade', String(HUD_FADE.opacity));
   $('btn-pause').onclick = onPause;
   $('btn-mute').onclick = onMute;
   addEventListener('resize', () => (lastRelicKey = '')); // the relic bar's fit depends on the width
@@ -162,7 +170,28 @@ export function resetHud(): void {
 }
 const MOD_NAMES: Partial<Record<keyof Mods, string>> = { damage: 'damage', atkSpd: 'attack speed', moveSpd: 'speed', cooldown: 'cooldown cut', pickup: 'pickup', xp: 'XP', gold: 'gold', armor: 'armor', crit: 'crit', pierce: 'pierce', minionAtkSpd: 'minion speed', minionDamage: 'minion damage' };
 
-export function updateHud(g: Game): void {
+// #255: the wave panel's screen rect, read only when the panel changes size (a boss bar or modifier shows, the wave text or the window changes), never per frame
+let panelBox: Box | null = null;
+let panelKey = '';
+let panelFaded = false;
+addEventListener('resize', () => (panelKey = ''));
+function fadeWavePanel(g: Game, cam: Cam, boss: Enemy | undefined): void {
+  const el = $('h-wave-panel');
+  const key = `${boss ? 1 : 0}|${g.modifier ?? ''}|${$('h-wave').textContent}|${uiScale()}`;
+  if (key !== panelKey) {
+    panelKey = key;
+    const r = el.getBoundingClientRect();
+    panelBox = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+  }
+  const bodies = boss ? [g.player, boss] : [g.player];
+  const fade = panelBox !== null && panelCovers(panelBox, bodies, cam);
+  if (fade !== panelFaded) {
+    panelFaded = fade;
+    el.classList.toggle('faded', fade);
+  }
+}
+
+export function updateHud(g: Game, cam?: Cam): void {
   const p = g.player;
   text('h-class', p.cls.name);
   text('h-level', String(p.level));
@@ -190,6 +219,7 @@ export function updateHud(g: Game): void {
     text('h-boss-name', boss.warded ? `${boss.def.name} — warded: put out the Royal Flames` : boss.phase >= 2 ? `${boss.def.name} — enraged` : boss.def.name);
     width('h-boss-fill', boss.hp / boss.maxHp);
   }
+  if (cam) fadeWavePanel(g, cam, boss);
 
   const stats = STAT_KEYS.map((k) => `<div><span>${statLabel(k, p.cls)}</span><b>${fmt(k, p.stats[k])}</b></div>`).join('');
   const crit = Math.round(Math.min(0.6, critChance(p.stats.dex) + p.mods.crit) * 100);

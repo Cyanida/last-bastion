@@ -114,17 +114,29 @@ export function ringStep(realm: RealmId): { hp: number; damage: number } {
   return { hp: WORLD.ringStep.hp[i], damage: WORLD.ringStep.damage[i] };
 }
 
-/** #221: enemy HP and damage multipliers for a level's place in its realm (WORLD.levelStep); the Last Bastion keeps 1. */
+/** #221: enemy HP and damage multipliers for a level's place in its realm (WORLD.levelStep; #232: a relic realm's own where it has them); the Last Bastion keeps 1. */
 export function levelStep(realm: RealmId, level: number): { hp: number; damage: number } {
   if (realm === 'lastBastion') return { hp: 1, damage: 1 };
-  const s = realm === 'marches' ? WORLD.levelStep.marches : WORLD.levelStep.realm;
+  const s = realm === 'marches' ? WORLD.levelStep.marches : WORLD.levelStep.own[realm] ?? WORLD.levelStep.realm;
   return { hp: s.hp[level - 1] ?? 1, damage: s.damage[level - 1] ?? 1 };
+}
+
+/**
+ * #250: a tier's own ease in a realm's levels (TierDef.realmEase: Squire's), from its first level's to its last's, even between; 1 on a
+ * tier without one and in the Last Bastion (a whole run, its own release tunes it).
+ */
+export function tierStep(tier: number, realm: RealmId, level: number): { hp: number; damage: number } {
+  const e = TIERS[tier]?.realmEase;
+  if (!e || realm === 'lastBastion') return { hp: 1, damage: 1 };
+  const t = REALMS[realm].levels.length > 1 ? (level - 1) / (REALMS[realm].levels.length - 1) : 0;
+  const at = ([a, b]: [number, number]) => Math.round((a + (b - a) * t) * 1000) / 1000;
+  return { hp: at(e.hp), damage: at(e.damage) };
 }
 
 /** #243: a level's wave length (WORLD.levelWaves): multipliers on the foes a wave brings and on the time they trickle in over; the Last Bastion keeps 1. */
 export function levelWaves(realm: RealmId, level: number): { foes: number; pace: number } {
   if (realm === 'lastBastion') return { foes: 1, pace: 1 };
-  const s = realm === 'marches' ? WORLD.levelWaves.marches : WORLD.levelWaves.realm;
+  const s = realm === 'marches' ? WORLD.levelWaves.marches : WORLD.levelWaves.own[realm] ?? WORLD.levelWaves.realm; // #232: a relic realm's own where it has them
   return { foes: s.foes[level - 1] ?? 1, pace: s.pace[level - 1] ?? 1 };
 }
 
@@ -190,6 +202,10 @@ export function opensText(realm: RealmId): string {
   return `Opens with ${crowns} crown${crowns === 1 ? '' : 's'}${fromRing ? `, ${fromRing[1] === 1 ? 'one' : fromRing[1]} from ${from.join(' or ')}` : ''}`;
 }
 
+/** #258: what a road says of a realm that isn't built yet (its foes, bosses and relics fall back to the usual draw, #191); nothing for a built one. */
+export const unbuiltNotice = (realm: RealmId): string | null =>
+  REALMS[realm].built ? null : "This realm's own foes, bosses and relics come in a later version. Until then its levels play with stand-ins.";
+
 /** The world map's realms, in REALM_IDS order: open, or still under clouds with what opens it. */
 export const mapRealms = (p: WorldProgress): { id: RealmId; name: string; open: boolean; opens: string }[] =>
   REALM_IDS.map((id) => ({ id, name: REALMS[id].name, open: realmOpen(p, id), opens: opensText(id) }));
@@ -223,6 +239,25 @@ export function featuredFoes(waves: [number, number], max = 3, tier?: number, re
   return [...ids.filter(own), ...ids.filter((id) => !own(id))].slice(0, max);
 }
 
+/**
+ * #259: the squads a level brings for sure, and the wave each comes on: one of each squad (fielded on `tier`) that holds a `fields` foe
+ * the level's road features, so a road that names the Iron Shieldwall never plays out without a squad of them. Decided: only a realm's
+ * `fields` foes (held to `fieldsWeight`); its other own foes come at their full weight. The wave is drawn per seed from the level's
+ * first WORLD.featuredSquad.within waves where the squad is fielded (from its own first wave, before the level's boss wave), on the
+ * director's per-wave stream (waveRng) salted, so the wave's own draws stay as they were.
+ */
+export function featuredSquads(realm: RealmId, level: number, tier: number, seed: number): { template: string; wave: number }[] {
+  const fields = REALMS[realm].fields;
+  const waves = REALMS[realm].levels[level - 1]?.waves;
+  if (!fields?.length || !waves) return [];
+  const featured = featuredFoes(waves, undefined, tier, realm);
+  return SQUADS.filter((s) => s.from <= waves[1] && squadOnTier(s, tier, fields) && s.members.some(([id]) => fields.includes(id) && featured.includes(id))).map((s) => {
+    const first = Math.max(waves[0], s.from);
+    const last = Math.max(first, Math.min(waves[1] - 1, first + WORLD.featuredSquad.within - 1)); // not the boss wave, where it can be helped
+    return { template: s.id, wave: first + Math.floor(waveRng(seed ^ 0x259, first)() * (last - first + 1)) };
+  });
+}
+
 /** The end boss in words: a named one, or the draw on its wave (a mid-Act boss on a wave x5, the Act's boss on a wave x0). */
 export function bossName(end: EndBoss, wave: number): string {
   if (end.boss === 'usurper') return ENEMIES.usurper.name;
@@ -254,7 +289,7 @@ export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier
     name: `${def.name} · Level ${level}`,
     waves: lv.waves,
     slots: slotsFor(realm, level, bonus.slots),
-    enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * levelStep(realm, level).hp * championStep(realm, level).hp * 100), // #238: with the champion level it expects, as the level plays
+    enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * levelStep(realm, level).hp * championStep(realm, level).hp * tierStep(tier, realm, level).hp * 100), // #238: with the champion level it expects, as the level plays; #250: and Squire's ease
     family: lv.family,
     foes: featuredFoes(lv.waves, undefined, tier, realm).map((id) => ENEMIES[realmFoe(realm, id)].name), // #212: as they march there; #249: only what this tier fields
     boss: bossName(lv.boss, lv.waves[1]),

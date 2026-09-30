@@ -175,12 +175,15 @@ export const runStarts = (c: Champion, realm: RealmId, level: number, tier: numb
 export const runFor = (c: Champion, realm: RealmId, level: number, tier: number, seed: number): RealmRun => runAt(c, realm, level, tier) ?? newRealmRun(tier, seed);
 
 /**
- * The level the champion screen's PLAY starts: the first realm (REALM_IDS order) open to the champion and not crowned on the tier it
+ * The level the champion screen's PLAY starts: the first built realm (REALM_IDS order) open to the champion and not crowned on the tier it
  * would play, at its realm run's checkpoint, or level 1 with no run in progress (#237). Decided: with every open realm crowned, the last open one (a replay).
  */
 export function nextStop(c: Champion, tier: number): { realm: RealmId; level: number; tier: number } {
   const open = REALM_IDS.filter((r) => championRealmOpen(c, r));
-  const realm = open.find((r) => !isCrowned(c.world, r, roadTier(c.world, r, tier))) ?? open[open.length - 1];
+  const todo = (r: RealmId) => !isCrowned(c.world, r, roadTier(c.world, r, tier));
+  // #258: a built realm first (an unbuilt one is a stand-in); one not crowned yet, else the last built one to replay, else the old pick
+  const built = open.filter((r) => REALMS[r].built);
+  const realm = built.find(todo) ?? built[built.length - 1] ?? open.find(todo) ?? open[open.length - 1];
   const t = roadTier(c.world, realm, tier);
   return { realm, level: runLevel(c, realm, t), tier: t };
 }
@@ -221,6 +224,17 @@ export function keepLockedPick(c: Champion, classId: ClassId, family: FamilyId |
   const locked = lockedIn(championPool(classId, c.inventory, family), c.inventory).filter((id) => { const d = relicDef(id); return d.rarity === 'rare' && !d.classId && !d.signature; });
   const opts = keepLockedOptions(held, locked);
   return [...opts.filter((id) => held.includes(id)), ...opts.filter((id) => !held.includes(id))].slice(0, of);
+}
+
+/**
+ * #257: the sentence on a keep-locked level's reward when keepLockedPick is empty, saying which of its two reasons applies: no rare of
+ * the family left to win (all owned), or none of the family held when the level ended (keepLockedOptions keeps only held families).
+ */
+export function keepLockedEmptyText(c: Champion, classId: ClassId, family: FamilyId, name: string, runes = WORLD.keepLockedRunes): string {
+  const none = lockedIn(championPool(classId, c.inventory, family), c.inventory).every((id) => { const d = relicDef(id); return d.rarity !== 'rare' || !!d.classId || !!d.signature; });
+  return none
+    ? `You already own every ${name} relic this level offers, so you get ${runes} Runes instead.`
+    : `You held no ${name} relic when the level ended, so there is none to keep, and you get ${runes} Runes instead.`;
 }
 
 /** The champion's class relic of a family (every class has one per family), or null. */

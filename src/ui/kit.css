@@ -124,7 +124,7 @@
   border-color: #10240c;
 }
 .kit-btn.big { padding: 14px 44px 13px; font-size: 30px; font-weight: 900; border-radius: 14px; }
-.kit-btn.small { padding: 5px 12px 4px; font-size: 13px; border-radius: 8px; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35), inset 0 -3px 0 rgba(0, 0, 0, 0.25), 0 3px 0 var(--lip), 0 5px 8px rgba(0, 0, 0, 0.5); }
+.kit-btn.small { padding: 5px 12px 4px; font-size: 14px; border-radius: 8px; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35), inset 0 -3px 0 rgba(0, 0, 0, 0.25), 0 3px 0 var(--lip), 0 5px 8px rgba(0, 0, 0, 0.5); }
 .kit-btn.small:active, .kit-btn.small.pressed { transform: translateY(3px); }
 
 /* the ribbon: a band with folded, notched tails behind its ends */
@@ -204,7 +204,7 @@
   justify-items: center;
   gap: 2px;
   padding: 6px 4px 5px;
-  font: 800 12px/1 var(--kit-num);
+  font: 800 14px/1 var(--kit-num); /* #256: no menu text under 14 px at 1280x720 */
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #cdb68a;
@@ -313,7 +313,7 @@
 .kit-title .row { gap: 12px; margin-top: 20px; }
 /* #204: the Daily Trial while shut: its lock, and what opens it under the name */
 .kit-title .daily-locked { flex-wrap: wrap; justify-content: center; }
-.kit-title .daily-locked .lock-note { flex-basis: 100%; font-size: 11px; font-weight: 700; letter-spacing: 0; text-transform: none; opacity: 0.85; }
+.kit-title .daily-locked .lock-note { flex-basis: 100%; font-size: 14px; font-weight: 700; letter-spacing: 0; text-transform: none; opacity: 0.85; }
 .kit-purse { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); display: flex; gap: 14px; z-index: 2; }
 .kit-title .kit-frame { margin-top: 24px; width: min(560px, 100%); }
 .kit-title .contracts { margin: 0; max-width: none; }
@@ -344,6 +344,7 @@
 .compact .kit-screen { gap: 6px; padding: 10px 12px 12px; max-height: calc(100 * var(--vh) - 32px); } /* the overlay pads 16 px each side */
 .compact .kit-head .kit-ribbon { font-size: 14px; padding: 4px 18px 3px; }
 .compact .kit-screen .sub { font-size: 14px; }
+.compact .kit-screen.talents > .sub { padding: 0 50px; } /* #256: the talent tree's long line stays clear of the back button */
 .compact .settings .setting { padding: 5px 0; }
 .compact .settings .setting b { font-size: 16px; }
 
@@ -351,6 +352,7 @@
 .compact .kit-btn.big { padding: 9px 34px 8px; font-size: 22px; }
 .compact .kit-btn:not(.big, .small) { padding: 6px 14px 5px; font-size: 14px; }
 .compact .kit-title .whatsnew-link { margin-top: 8px; }
+.compact .kit-title .daily-locked .lock-note { font-size: 12px; }
 .compact .kit-title .kit-ribbon { font-size: 13px; padding: 4px 18px 3px; }
 .compact .kit-title .sub { margin: 6px 0 10px; }
 .compact .kit-title .row { margin-top: 12px; }
@@ -391,7 +393,7 @@
 .kit-select .card.champ:focus-visible { outline: 3px solid var(--kit-brass-light); outline-offset: 2px; }
 .champ .swatches { margin: 0; }
 .champ-name { font: 800 14px var(--kit-num); letter-spacing: 0.03em; text-shadow: 0 2px 0 #000; }
-.champ-rec { white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; font: 800 11px var(--kit-num); color: #cdb68a; font-variant-numeric: lining-nums tabular-nums; }
+.champ-rec { white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; font: 700 14px var(--body); color: #cdb68a; font-variant-numeric: lining-nums tabular-nums; } /* #256: 14 px in the narrower body face, so a crown count and Mastery 25 fit the tile */
 .champ-rec .kit-icon { --s: 0.8; }
 
 .hero-frame .kit-parch { padding: 12px 14px; }
@@ -410,21 +412,21 @@
   border: 2px solid var(--kit-wood-edge);
   box-shadow: 0 4px 0 #3d3632, 0 6px 8px rgba(0, 0, 0, 0.45);
 }
-.pedestal .kit-ribbon { margin: 12px 22px 0; padding: 4px 14px 3px; font-size: 13px; letter-spacing: 0.06em; }
+.pedestal .kit-ribbon { margin: 12px 22px 0; padding: 4px 14px 3px; font-size: 14px; letter-spacing: 0.06em; }
 .pedestal .role { margin-top: 8px; font-size: 14px; text-align: center; }
 .hero-stats { display: grid; gap: 3px; }
 .stat-bar { display: grid; grid-template-columns: 96px 1fr 38px; align-items: center; gap: 8px; }
 .stat-bar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat-bar i { height: 10px; background: rgba(42, 29, 16, 0.2); border: 1px solid var(--kit-brass-dark); border-radius: 5px; overflow: hidden; }
 .stat-bar i b { display: block; height: 100%; background: linear-gradient(var(--kit-brass-light), var(--kit-brass) 55%, var(--kit-brass-dark)); }
-.stat-bar em { font: 800 13px var(--kit-num); font-style: normal; text-align: right; font-variant-numeric: lining-nums tabular-nums; }
-.facts { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(90, 61, 37, 0.5); font-size: 13px; }
-.facts small { font: 800 10px var(--kit-num); letter-spacing: 0.06em; text-transform: uppercase; color: var(--kit-brass-dark); }
+.stat-bar em { font: 800 14px var(--kit-num); font-style: normal; text-align: right; font-variant-numeric: lining-nums tabular-nums; }
+.facts { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(90, 61, 37, 0.5); font-size: 14px; }
+.facts small { font: 800 14px var(--kit-num); letter-spacing: 0.06em; text-transform: uppercase; color: var(--kit-brass-dark); }
 .hero-text .ability b { font: 800 14px var(--kit-num); color: var(--kit-brass-dark); }
 .hero-text .ability p { margin: 1px 0 6px; }
 .hero .treasure-chip { margin: 6px 0 0; }
-.hero .oath-line { font-size: 13px; color: var(--kit-brass-dark); margin-top: 4px; }
-.hero .best { text-align: left; font-size: 13px; margin-top: 6px; }
+.hero .oath-line { font-size: 14px; color: var(--kit-brass-dark); margin-top: 4px; }
+.hero .best { text-align: left; font-size: 14px; margin-top: 6px; }
 
 .run-frame { display: grid; gap: 8px; padding: 14px 16px; color: var(--kit-light); }
 .run-frame .pick { position: relative; z-index: 1; display: grid; gap: 4px; }
@@ -432,7 +434,7 @@
 .run-frame .label { display: flex; justify-content: space-between; align-items: baseline; font: 900 14px var(--kit-num); letter-spacing: 0.08em; text-transform: uppercase; color: var(--kit-brass-light); text-shadow: 0 2px 0 #000; }
 .run-frame .mult { margin: 0; font: 800 12px var(--kit-num); letter-spacing: 0; text-transform: none; color: #cdb68a; }
 .run-frame .oath b { font: 800 13px var(--kit-num); color: var(--kit-brass-light); }
-.run-frame .hint { font-size: 12px; }
+.run-frame .hint { font-size: 14px; }
 .run-frame #seed { width: 100%; box-sizing: border-box; }
 .kit-select .kit-btn.opt { padding: 4px 9px 3px; font-size: 12px; gap: 4px; }
 .kit-select .kit-btn.opt .kit-icon { --s: 0.8; }
@@ -443,6 +445,9 @@
 .compact .kit-select-main { grid-template: 'champ' 'run' 'start' / minmax(0, 1fr); gap: 8px; }
 .compact .kit-select .card.champ { width: 118px; }
 .compact .champ-name { font-size: 12px; }
+.compact .champ-rec { font-size: 11px; }
+.compact .facts { font-size: 13px; }
+.compact .facts small { font-size: 11px; }
 .compact .hero { grid-template-columns: 150px minmax(0, 0.85fr) minmax(0, 1.15fr); gap: 12px; font-size: 13px; }
 .compact .hero-figure { min-height: 96px; }
 .compact .hero-figure canvas { height: calc(var(--sprite-h) * 0.7); }
@@ -459,7 +464,7 @@
 .keep-yard { position: relative; width: min(100%, calc((88 * var(--vh) - 110px) * 1.6)); margin: 0 auto; border: 3px solid var(--kit-wood-edge); border-radius: 8px; box-shadow: 0 0 0 2px var(--kit-brass-dark); overflow: hidden; }
 .keep-bld { appearance: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; min-height: 0; min-width: 0; background-color: transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .keep-bld:hover, .keep-bld:focus-visible { outline: none; filter: brightness(1.18) drop-shadow(0 0 3px var(--kit-brass-light)); }
-.keep-plate { position: absolute; left: 50%; top: 93%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px; white-space: nowrap; font: 800 12px var(--kit-num); color: var(--kit-ink); background: var(--kit-parch); border: 2px solid var(--kit-brass-dark); border-radius: 5px; box-shadow: 0 2px 0 var(--kit-wood-edge); }
+.keep-plate { position: absolute; left: 50%; top: 93%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px; white-space: nowrap; font: 800 14px var(--kit-num); color: var(--kit-ink); background: var(--kit-parch); border: 2px solid var(--kit-brass-dark); border-radius: 5px; box-shadow: 0 2px 0 var(--kit-wood-edge); }
 .keep-plate .pips { gap: 2px; }
 .keep-plate .pips i { width: 6px; height: 6px; border-color: var(--kit-brass-dark); }
 .keep-plate .pips i.on { background: var(--kit-brass-dark); }
@@ -481,7 +486,9 @@
 .compact .keep-castle { padding: 10px; }
 .compact .keep-head { margin-bottom: 6px; }
 .compact .keep-head h1 { font-size: 17px; }
-.compact .keep-plate { font-size: 10px; padding: 0 5px; }
+.compact .keep-plate { font-size: 10px; padding: 0 4px; gap: 3px; }
+.compact .keep-plate .pips { gap: 1px; }
+.compact .keep-plate .pips i { width: 4px; height: 4px; } /* #256: the Library's and the Watchtower's plates stand close on a phone: they never touch */
 .compact .keep-panel { padding: 10px; }
 /* ---------- #187: the compendium, the glossary and the flash cards in the kit ----------
    .kit-book: a frame that reads like a book: a ribbon heading, the close button in its corner, and a parchment that scrolls */
@@ -624,15 +631,15 @@
 .wm-realm.open:hover, .wm-realm.open:focus-visible { outline: none; } /* the name plate lights up, not a box over the land */
 .wm-realm.open:hover .wm-name, .wm-realm.open:focus-visible .wm-name { border-color: var(--kit-brass-light); box-shadow: 0 2px 0 var(--kit-wood-edge), 0 0 8px var(--kit-brass-light); }
 .wm-realm:disabled { cursor: default; }
-.wm-name { position: absolute; left: 50%; top: 5%; transform: translateX(-50%); padding: 1px 8px; white-space: nowrap; font: 800 13px var(--kit-num); color: var(--kit-ink); background: var(--kit-parch); border: 2px solid var(--kit-brass-dark); border-radius: 5px; box-shadow: 0 2px 0 var(--kit-wood-edge); }
+.wm-name { position: absolute; left: 50%; top: 5%; transform: translateX(-50%); padding: 1px 8px; white-space: nowrap; font: 800 14px var(--kit-num); color: var(--kit-ink); background: var(--kit-parch); border: 2px solid var(--kit-brass-dark); border-radius: 5px; box-shadow: 0 2px 0 var(--kit-wood-edge); }
 .wm-realm:disabled .wm-name { color: var(--kit-light); background: var(--kit-wood-dark); border-color: var(--kit-wood-edge); opacity: 0.85; }
-.wm-opens { position: absolute; left: 50%; top: calc(5% + 24px); transform: translateX(-50%); width: 90%; text-align: center; font: 700 13px/1.15 var(--body); color: var(--kit-light); text-shadow: 0 1px 2px #000, 0 0 4px #000; }
+.wm-opens { position: absolute; left: 50%; top: calc(5% + 24px); transform: translateX(-50%); width: 90%; text-align: center; font: 700 14px/1.15 var(--body); color: var(--kit-light); text-shadow: 0 1px 2px #000, 0 0 4px #000; }
 .wm-note { text-align: center; font-size: 15px; padding: 6px 12px; }
 .compact .world-map { padding: 8px 10px 10px; gap: 5px; }
 .compact .wm-map { width: min(100%, calc((100 * var(--vh) - 32px - 100px) * 1.6)); }
 .compact .wm-note { font-size: 13px; padding: 3px 10px; }
-.compact .wm-name { font-size: 9px; padding: 0 4px; border-width: 1px; }
-.compact .wm-opens { top: calc(5% + 14px); font-size: 9px; }
+.compact .wm-name { font-size: 10px; padding: 0 4px; border-width: 1px; }
+.compact .wm-opens { top: calc(5% + 15px); font-size: 10px; }
 
 /* ---------- #199: the realm road (the realm's part of the painted map, a button on each painted flag) and the level panel ---------- */
 .realm-road { display: flex; flex-direction: column; gap: 8px; width: min(1000px, calc(96 * var(--vw))); max-height: calc(94 * var(--vh)); padding: 12px 14px 14px; color: var(--kit-light); }
@@ -646,20 +653,27 @@
 .rr-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .rr-name { font-size: 16px; }
 .rr-tiers { display: flex; gap: 6px; }
-.rr-tier { display: flex; align-items: center; gap: 4px; padding: 3px 8px; min-height: 0; font: 800 13px var(--kit-num); color: var(--kit-ink); background: var(--kit-parch-dark); border: 2px solid var(--kit-brass-dark); border-radius: 6px; box-shadow: 0 2px 0 var(--kit-wood-edge); cursor: pointer; opacity: 0.75; }
+.rr-tier { display: flex; align-items: center; gap: 4px; padding: 3px 8px; min-height: 0; font: 800 14px var(--kit-num); color: var(--kit-ink); background: var(--kit-parch-dark); border: 2px solid var(--kit-brass-dark); border-radius: 6px; box-shadow: 0 2px 0 var(--kit-wood-edge); cursor: pointer; opacity: 0.75; }
 .rr-tier.cleared { opacity: 1; }
 .rr-tier.on { opacity: 1; border-color: var(--kit-brass-light); background: var(--kit-parch); box-shadow: 0 0 0 2px var(--kit-brass), 0 2px 0 var(--kit-wood-edge); }
 .rr-tier:disabled { cursor: default; opacity: 0.45; }
 .rr-body { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 18px; align-items: start; color: var(--kit-ink); }
 .rr-facts { display: grid; grid-template-columns: auto auto; gap: 4px 14px; }
+.rr-unbuilt { grid-column: 1 / -1; margin: 0; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px dashed var(--kit-brass-dark); border-radius: 6px; background: rgba(0, 0, 0, 0.08); font: 800 14px var(--kit-num); }
+.compact .rr-unbuilt { font-size: 11px; padding: 2px 6px; }
 .rr-fact { display: flex; flex-direction: column; }
-.rr-body small { font: 800 11px var(--kit-num); text-transform: uppercase; letter-spacing: 0.04em; color: var(--kit-brass-dark); }
+.rr-body small { font: 800 14px var(--kit-num); text-transform: uppercase; letter-spacing: 0.04em; color: var(--kit-brass-dark); }
 .rr-fact b { font: 900 17px var(--kit-num); }
 .rr-foes p, .rr-rewards p { margin: 0 0 4px; font-size: 15px; }
 .rr-rewards ul { margin: 2px 0 0; padding: 0; list-style: none; font-size: 15px; }
 .rr-rewards li { display: flex; align-items: center; gap: 6px; }
 .rr-go { display: flex; align-items: center; justify-content: flex-end; gap: 14px; }
 .rr-champ { display: flex; align-items: center; gap: 6px; font: 800 14px var(--kit-num); color: var(--kit-ink); }
+/* #256: the champion's notes ("The run starts at level 1") at 14 px, on their own line under the name, so the buttons keep their room */
+.rr-champ { flex: 0 1 auto; min-width: 0; flex-wrap: wrap; column-gap: 6px; row-gap: 0; }
+.rr-notes { flex-basis: 100%; font: 700 14px/1.2 var(--body); color: var(--kit-ink); }
+.rr-notes small { font-size: inherit; }
+.rr-go > .kit-btn:not(.big) { flex: none; white-space: nowrap; }
 /* #242: a realm run in progress: its checkpoint's flag glows, the levels cleared in it are ticked, the panel lists its relics on one line
    (it scrolls sideways, so the buttons stay in view), and Start over asks in the buttons' own row */
 .rr-flag.run-next { border-color: var(--kit-brass-light); background: radial-gradient(circle, rgba(246, 217, 122, 0.55), rgba(246, 217, 122, 0) 70%); box-shadow: 0 0 12px 3px #f6d97a; animation: rr-glow 1.1s ease-in-out infinite alternate; }
@@ -667,7 +681,7 @@
 @media (prefers-reduced-motion: reduce) { .rr-flag.run-next { animation: none; } }
 .rr-tick { position: absolute; right: -7px; top: -7px; width: 18px; height: 18px; border-radius: 50%; font: 900 14px/18px var(--kit-num); font-style: normal; text-align: center; color: #fff; background: #2f7a2c; border: 1px solid #12330f; pointer-events: none; }
 .rr-run { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--kit-ink); }
-.rr-run small { flex: none; font: 800 11px var(--kit-num); text-transform: uppercase; letter-spacing: 0.04em; color: var(--kit-brass-dark); }
+.rr-run small { flex: none; font: 800 14px var(--kit-num); text-transform: uppercase; letter-spacing: 0.04em; color: var(--kit-brass-dark); }
 .rr-relics { display: flex; gap: 8px; min-width: 0; overflow-x: auto; padding: 3px 3px 7px; }
 .rr-relic { position: relative; flex: none; display: inline-grid; }
 .rr-relic .kit-rarity { width: 40px; height: 40px; border-width: 2px; border-radius: 8px; }
@@ -687,10 +701,11 @@
 .compact .rr-flag { width: 26px; height: 30px; }
 .compact .rr-panel { padding: 5px 10px; gap: 4px; }
 .compact .rr-name { font-size: 12px; padding: 3px 12px; }
-.compact .rr-tier { font-size: 10px; padding: 2px 5px; }
+.compact .rr-tier { font-size: 12px; padding: 2px 5px; }
 .compact .rr-body { gap: 2px 12px; }
 .compact .rr-fact b { font-size: 13px; }
-.compact .rr-body small { font-size: 9px; }
+.compact .rr-body small, .compact .rr-run small { font-size: 11px; }
+.compact .rr-notes { font-size: 12px; }
 .compact .rr-foes p, .compact .rr-rewards p, .compact .rr-rewards ul { font-size: 12px; margin: 0; }
 .compact .rr-go .kit-btn { padding-top: 4px; padding-bottom: 4px; font-size: 15px; }
 
@@ -730,7 +745,6 @@
 .cs-side h2 small { font-size: 14px; color: var(--kit-ink); }
 .cs-side h2 .kit-info { margin-left: 6px; vertical-align: 2px; }
 .champion-screen .kit-btn.small, .champion-screen .kit-pill { font-size: 14px; }
-.champion-screen .kit-tab { font-size: 14px; }
 .cs-inv { display: flex; flex-wrap: wrap; gap: 14px 24px; } /* #239: room for a legendary's "2 slots" badge */
 .cs-relic { position: relative; padding: 0; min-height: 0; background: none; border: 0; box-shadow: none; cursor: pointer; border-radius: 10px; }
 .cs-relic .kit-rarity { width: 48px; height: 48px; }
@@ -818,7 +832,7 @@
 .compact .cs-next b { font-size: 12px; }
 .compact .cs-next small { font-size: 11px; }
 .compact .cs-go .kit-btn.big { padding: 4px 30px 3px; font-size: 18px; }
-.compact .champion-screen .kit-tab { padding: 3px 4px 2px; font-size: 9px; }
+.compact .champion-screen .kit-tab { padding: 3px 4px 2px; font-size: 11px; }
 .compact .champion-screen .kit-tab .kit-icon { --s: 1; }
 
 /* #239: the ⓘ beside a part of a screen, and the parchment popup it opens (kit.infoButton / kit.wireInfo) */

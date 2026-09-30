@@ -38,6 +38,10 @@ export const runMark = (run: RoadRun | null, level: number): 'done' | 'next' | n
 /** The level panel's line after a death in `level` (the issue's words). */
 export const fellLine = (wave: number, level: number): string => `fell at wave ${wave}, restart level ${level}`;
 
+/** #253: the level panel's fact for a run: its checkpoint, worded as levels cleared so it can't read as the champion's level. */
+export const checkpointFact = (checkpoint: number): { label: string; value: string } =>
+  ({ label: 'Checkpoint', value: checkpoint > 1 ? `Level ${checkpoint - 1} cleared` : 'None cleared' });
+
 const relicCount = (n: number): string => `${n} relic${n === 1 ? '' : 's'}`;
 
 /** What the level panel's bottom row offers for the picked level. */

@@ -1,5 +1,5 @@
 import { oathStack, type OathStack } from './logic/oaths';
-import { ARENAS, HAZARD_GRACE, PRESSES, type ArenaId } from './config/arenas';
+import { ARENAS, HAZARD_GRACE, PRESSES, SPREADING_FIRE, type ArenaId } from './config/arenas';
 import { CLASSES, type ClassId } from './config/classes';
 import type { CurseId } from './config/curses';
 import { TIERS, type TierDef } from './config/economy';
@@ -9,7 +9,7 @@ import { GAME } from './config/game';
 import { RELIC_MOMENTS, relicDef, type RelicId } from './config/relics';
 import { TREASURES } from './config/treasures';
 import type { RealmId } from './config/world';
-import { levelStep, ringStep, slotsFor } from './logic/world';
+import { levelStep, ringStep, slotsFor, tierStep } from './logic/world';
 import { fitLoadout } from './logic/champions';
 import { FREE_REROLLS } from './config/upgrades';
 import { WAVES } from './config/waves';
@@ -88,12 +88,13 @@ export interface RunOptions {
 const withOath = (t: TierDef, o: OathStack): TierDef => (o.level ? { ...t, enemyHp: t.enemyHp * o.n.hp, enemyDmg: t.enemyDmg * o.n.damage, eliteMult: t.eliteMult * o.n.eliteMult } : t);
 
 /** v0.10 (#203): a realm's ring step on the tier's enemy HP and damage, the same way; a level adds its place in the realm (#221). */
-const withRing = (t: TierDef, realm?: RealmId, level?: LevelStart): TierDef => {
+const withRing = (t: TierDef, realm?: RealmId, level?: LevelStart, tier = 0): TierDef => {
   if (!realm) return t;
   const r = ringStep(realm);
   const l = level ? levelStep(level.realm, level.level) : { hp: 1, damage: 1 };
   const c = level ? championStep(level.realm, level.level) : { hp: 1, damage: 1 }; // #238: the champion level the level expects
-  return { ...t, enemyHp: t.enemyHp * r.hp * l.hp * c.hp, enemyDmg: t.enemyDmg * r.damage * l.damage * c.damage };
+  const e = level ? tierStep(tier, level.realm, level.level) : { hp: 1, damage: 1 }; // #250: Squire's ease in a realm's levels
+  return { ...t, enemyHp: t.enemyHp * r.hp * l.hp * c.hp * e.hp, enemyDmg: t.enemyDmg * r.damage * l.damage * c.damage * e.damage };
 };
 
 export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}): Game {
@@ -135,7 +136,7 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     shake: 0,
     pendingLevelUps: 0,
     arena,
-    tier: withRing(withOath(TIERS[opts.tier ?? 0], oath), opts.realm ?? opts.level?.realm, opts.level),
+    tier: withRing(withOath(TIERS[opts.tier ?? 0], oath), opts.realm ?? opts.level?.realm, opts.level, opts.tier ?? 0),
     tierIndex: opts.tier ?? 0,
     modifier: null,
     fields: [],
@@ -173,6 +174,11 @@ export function createGame(classId: ClassId, seed: number, opts: RunOptions = {}
     hazardT: HAZARD_GRACE,
     pressT: PRESSES.grace,
     presses: 0,
+    lavaT: 0,
+    fireT: SPREADING_FIRE.grace,
+    fireTickT: 0,
+    flames: [],
+    fireFronts: [],
     seed,
     squads: [],
     squadPlans: [],

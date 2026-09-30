@@ -18,8 +18,6 @@ export type WorldArenaId = ArenaId | 'emberForge' | 'frozenPass' | 'stormPeak' |
 export const WORLD_BOSSES = {
   gravedigger: { name: 'The Gravedigger', realm: 'barrowvale' }, // Decided: the plan leaves the Barrowvale's level-3 boss unnamed
   barrowKing: { name: 'The Barrow King', realm: 'barrowvale' },
-  emberQueen: { name: 'The Ember Queen', realm: 'cinderlands' },
-  cinderColossus: { name: 'The Cinder Colossus', realm: 'cinderlands' },
   rimeWitch: { name: 'The Rime Witch', realm: 'frozenPass' },
   frostJotun: { name: 'The Frost Jötun', realm: 'frozenPass' },
   stormCaller: { name: 'The Storm Caller', realm: 'stormspire' },
@@ -68,9 +66,10 @@ export interface RealmDef {
   foes?: Partial<Record<EnemyId, EnemyId>>; // #212: the realm's variants: a foe that marches in its levels as its own kind (logic/world.ts realmFoe)
   fields?: EnemyId[]; // #249: foes its levels field on every difficulty, whatever the tier roster says (config/waves.ts tierRoster): the realm's own foes are its lesson
   fieldsWeight?: number; // #249: how often a squad of `fields` comes on a tier below its own: a multiplier on its squad weight (config/director.ts SQUADS); its own tiers keep 1
-  hazard?: 'presses'; // #211: the realm's own hazard in its arena, on top of the arena's (the Iron Hold's forge presses, config/arenas.ts PRESSES)
+  hazard?: 'presses' | 'fire'; // #211: the realm's own hazard in its arena, on top of the arena's (the Iron Hold's forge presses, config/arenas.ts PRESSES; #224: the Cinderlands' spreading fire, SPREADING_FIRE)
   teaches: string;
   release: string;
+  built: boolean; // #258: its own foes, bosses and relics are in the game; false: a playable stand-in (#191: what isn't built falls back to the usual draw), and its road says so
   levels: LevelDef[];
   crown: { first: CrownReward[]; tiers: CrownReward[][] };
   legend?: { title: string; palette: number }; // #219: what its crown's 'title' and 'palette' rewards are (the Legend crown's): a title to wear and a sprite palette (render/sprites SPRITE_PALETTES), for the whole account
@@ -95,7 +94,7 @@ const MARCHES_WAVES: [number, number][] = [[1, 6], [7, 12], [13, 18], [19, 24], 
 
 export const REALMS: Record<RealmId, RealmDef> = {
   marches: {
-    name: 'The Marches', ring: 1, opens: { crowns: 0 }, arena: 'courtyard', release: '0.10.0',
+    name: 'The Marches', ring: 1, opens: { crowns: 0 }, arena: 'courtyard', release: '0.10.0', built: true,
     teaches: 'Marked attacks and the perfect dodge, commanders, and one relic family per level',
     levels: MARCHES_WAVES.map((waves, i) => ({
       waves, slots: RUN_SLOTS.marches, relicTier: i < 4 ? 1 : 2, family: MARCHES_FAMILIES[i],
@@ -105,7 +104,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
     crown: { first: [{ kind: 'signature' }], tiers: [[], [], [], [{ kind: 'title' }, { kind: 'palette' }]] }, // Decided: the signature comes with the first crown on any tier
   },
   ironHold: {
-    name: 'The Iron Hold', ring: 2, opens: { crowns: 1 }, arena: 'keep', family: 'steel', release: '0.11.0',
+    name: 'The Iron Hold', ring: 2, opens: { crowns: 1 }, arena: 'keep', family: 'steel', release: '0.11.0', built: true,
     teaches: 'Armor you break, shields that block from the front, thorns that hit back',
     foes: { knight: 'ironKnight', shieldwall: 'ironShieldwall', shieldBearer: 'thornBearer' }, // #214: thorn bearers
     fields: ['shieldwall'], // #249: a Champion foe elsewhere; here Squire and Knight (the tiers the realm opens with) meet its shieldwall squads too
@@ -115,37 +114,40 @@ export const REALMS: Record<RealmId, RealmDef> = {
     legend: { title: 'Ironsworn', palette: 6 }, // #219 Decided: the plan names neither
   },
   barrowvale: {
-    name: 'The Barrowvale', ring: 2, opens: { crowns: 1 }, arena: 'graveyard', family: 'grave', release: '0.13.0', // the Drowned Fen comes later as a second arena
+    name: 'The Barrowvale', ring: 2, opens: { crowns: 1 }, arena: 'graveyard', family: 'grave', release: '0.13.0', built: false, // the Drowned Fen comes later as a second arena
     teaches: 'Corpses that rise unless you trample them, plague ground that lasts',
     levels: relicRealmLevels('grave', 'lich', 'gravedigger', 'barrowKing', 'abbot'), crown: RELIC_CROWN, // Decided: the Plague Abbot is its level-1 pool boss
   },
   cinderlands: {
-    name: 'The Cinderlands', ring: 2, opens: { crowns: 1 }, arena: 'emberForge', family: 'flame', release: '0.12.0',
+    name: 'The Cinderlands', ring: 2, opens: { crowns: 1 }, arena: 'emberForge', family: 'flame', release: '0.12.0', built: true,
     teaches: 'Fire that spreads, burn stacks on you, bursts of fire when foes die',
+    foes: { peasant: 'torchbearer', wolf: 'cinderHound' }, // #225: torchbearers; #226: cinder hounds
+    hazard: 'fire', // #224: fire that spreads from the lava
     levels: relicRealmLevels('flame', 'inquisitor', 'emberQueen', 'cinderColossus'), crown: RELIC_CROWN,
+    legend: { title: 'Cinderborn', palette: 7 }, // #231 Decided: the plan names neither
   },
   frozenPass: {
-    name: 'The Frozen Pass', ring: 3, opens: { crowns: 2 }, arena: 'frozenPass', family: 'frost', release: '0.14.0',
+    name: 'The Frozen Pass', ring: 3, opens: { crowns: 2 }, arena: 'frozenPass', family: 'frost', release: '0.14.0', built: false,
     teaches: 'Chill that stacks on you until you freeze, thin ice, foes that shatter',
     levels: relicRealmLevels('frost', 'frostLich', 'rimeWitch', 'frostJotun'), crown: RELIC_CROWN, // Decided: the Frost Lich is its first boss
   },
   stormspire: {
-    name: 'The Stormspire', ring: 3, opens: { crowns: 2 }, arena: 'stormPeak', family: 'storm', release: '1.1.0',
+    name: 'The Stormspire', ring: 3, opens: { crowns: 2 }, arena: 'stormPeak', family: 'storm', release: '1.1.0', built: false,
     teaches: 'Lightning that chains between foes and into you, fast rushers, wind that pushes',
     levels: relicRealmLevels('storm', 'warlord', 'stormCaller', 'thunderRoc'), crown: RELIC_CROWN, // Decided: the Warlord is its first boss
   },
   hallowedReach: {
-    name: 'The Hallowed Reach', ring: 4, opens: { crowns: 4 }, arena: 'sunkenCathedral', family: 'holy', release: '1.2.0',
+    name: 'The Hallowed Reach', ring: 4, opens: { crowns: 4 }, arena: 'sunkenCathedral', family: 'holy', release: '1.2.0', built: false,
     teaches: 'Ward-bearers that make squads untouchable, healers you must reach first',
     levels: relicRealmLevels('holy', 'heretic', 'wardKeeper', 'fallenSaint'), crown: RELIC_CROWN, // Decided: the Heretic is its first boss
   },
   crimsonFields: {
-    name: 'The Crimson Fields', ring: 4, opens: { crowns: 4 }, arena: 'battlefield', family: 'blood', release: '1.3.0',
+    name: 'The Crimson Fields', ring: 4, opens: { crowns: 4 }, arena: 'battlefield', family: 'blood', release: '1.3.0', built: false,
     teaches: 'Bleed on you, foes that grow stronger as they bleed',
     levels: relicRealmLevels('blood', 'headsman', 'butcher', 'crimsonBaron'), crown: RELIC_CROWN, // Decided: the Headsman is its first boss
   },
   lastBastion: {
-    name: 'The Last Bastion', ring: 5, opens: { crowns: 5, fromRing: [3, 1] }, arena: 'bastion', release: '0.14.0',
+    name: 'The Last Bastion', ring: 5, opens: { crowns: 5, fromRing: [3, 1] }, arena: 'bastion', release: '0.14.0', built: true,
     teaches: 'Everything, with elite foes',
     levels: [{ waves: [1, 40], slots: 5, relicTier: 1, boss: { boss: 'usurper' }, reward: { kind: 'win' } }],
     crown: { first: [], tiers: [[], [], [], []] },
@@ -177,6 +179,13 @@ export const WORLD = {
   levelStep: {
     marches: { hp: [0.89, 0.72, 0.74, 0.82, 0.88, 1.1, 0.93], damage: [1.02, 0.82, 0.84, 0.93, 1, 1.25, 1.06] },
     realm: { hp: [0.77, 0.77, 0.83, 0.99, 1.07], damage: [0.92, 0.86, 0.93, 1.12, 1.23] },
+    /**
+     * #232: a relic realm's own steps, in place of `realm`'s, where its foes and hazard ask for them. The Cinderlands (BALANCE.md): its
+     * level 1 eases (burn stacks and the spreading fire cost the bot first tries the Iron Hold's level 1 did not), its level 3 hits a
+     * little harder (88% of first tries cleared it, against 73%) and its crown level eases most (the waves before the Cinder Colossus
+     * felled 12 of 40 first tries and he 16 more). Level 2 eases a touch for its longer waves (levelWaves).
+     */
+    own: { cinderlands: { hp: [0.77, 0.77, 0.83, 0.99, 0.95], damage: [0.85, 0.84, 0.98, 1.12, 0.95] } } as Partial<Record<RealmId, { hp: number[]; damage: number[] }>>,
   },
   /**
    * #243 (rule 9): how long a level's waves are, by its place in its realm, so a realm's level 1 takes 4-6 minutes and its last 7-10
@@ -187,7 +196,14 @@ export const WORLD = {
   levelWaves: {
     marches: { foes: [1.6, 0.9, 0.9, 0.9, 0.9, 0.8, 0.8], pace: [2.8, 2, 2, 2, 2, 2.2, 2.2] }, // #220: level 1 foes 1.6 and pace 2.8 (were 1.5, 2.5): eased, it ran under its 4 minutes
     realm: { foes: [1.6, 1.2, 1.1, 0.95, 0.9], pace: [2, 1.5, 1.5, 1.8, 2.2] },
+    /** #232: a relic realm's own wave lengths, in place of `realm`'s. The Cinderlands' levels 2-4 are longer (more foes over a longer time): the realm ran 29 minutes clean against rule 9's 35. */
+    own: { cinderlands: { foes: [1.6, 1.3, 1.25, 1.05, 0.9], pace: [2, 1.65, 1.7, 2, 2.2] } } as Partial<Record<RealmId, { foes: number[]; pace: number[] }>>,
   },
+  /**
+   * #259: a level whose road features one of its realm's `fields` foes (the Iron Hold's Iron Shieldwall) brings a squad of it for sure,
+   * on a wave drawn per seed from the level's first `within` waves where that squad is fielded; any more come at `fieldsWeight`.
+   */
+  featuredSquad: { within: 3 },
   /** Rule 6: the Last Bastion's elite foes and limits. */
   finale: { minAffixes: 2, eliteCap: 0.35, eliteChanceMult: 1.5, armorersChoice: false, merchantRelics: false },
   /**

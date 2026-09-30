@@ -2,7 +2,9 @@ import type { SpriteId } from '../render/sprites';
 
 export type EnemyId =
   | 'peasant'
+  | 'torchbearer'
   | 'wolf'
+  | 'cinderHound'
   | 'crossbow'
   | 'knight'
   | 'ironKnight'
@@ -28,6 +30,8 @@ export type EnemyId =
   | 'warden'
   | 'forgemaster'
   | 'ironKing'
+  | 'emberQueen'
+  | 'cinderColossus'
   | 'blackKnight'
   | 'warlord'
   | 'lich'
@@ -120,8 +124,15 @@ const boss = { boss: true, scale: 4, knockbackResist: 1, attackCd: 1.3 };
 
 export const ENEMIES: Record<EnemyId, EnemyDef> = {
   peasant: { ...base, id: 'peasant', name: 'Peasant', sprite: 'peasant', behavior: 'chaser', hp: 22, damage: 8, speed: 72, radius: 12, xp: 1 },
+  // #225: the Cinderlands' peasant. A torch for a pitchfork: each blow that lands leaves a burn stack on you (config/damage.ts ENEMY_STATUS)
+  torchbearer: { ...base, id: 'torchbearer', name: 'Torchbearer', sprite: 'torchbearer', behavior: 'chaser', hp: 22, damage: 7, speed: 72, radius: 12, xp: 1 },
   wolf: {
     ...base, id: 'wolf', name: 'Wolf', sprite: 'wolf', behavior: 'lunger',
+    hp: 12, damage: 6, speed: 135, radius: 10, xp: 1, lungeRange: 130, lungeSpeed: 380, windup: 0.35, lungeTime: 0.4, recover: 0.6,
+  },
+  // #226: the Cinderlands' wolf. His coat burns: where he dies he bursts into fire, a marked blast a moment later (config/damage.ts DEATH_BURSTS)
+  cinderHound: {
+    ...base, id: 'cinderHound', name: 'Cinder Hound', sprite: 'cinderHound', behavior: 'lunger',
     hp: 12, damage: 6, speed: 135, radius: 10, xp: 1, lungeRange: 130, lungeSpeed: 380, windup: 0.35, lungeTime: 0.4, recover: 0.6,
   },
   crossbow: {
@@ -287,6 +298,20 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     ...boss, id: 'ironKing', name: 'The Iron King', sprite: 'ironKing', behavior: 'chaser', phases: 3,
     hp: 1150, damage: 24, speed: 74, radius: 32, xp: 150, frontBlock: 1.2,
     specialCd: 5, windup: 0.9, specialMult: 1.4, zoneRadius: 40, chargeSpeed: 620, chargeDist: 440, summon: 'ironKnight', summonCount: 2, p2SpeedMult: 1.1,
+  },
+  // #227: the Cinderlands' level-3 boss (config/bosses.ts EMBER_QUEEN, systems/bosses.ts). She keeps to the middle distance and sets the
+  // ground alight: her Kindling, her Ember volley, her Flare, and from phase 3 burning footsteps
+  emberQueen: {
+    ...boss, id: 'emberQueen', name: 'The Ember Queen', sprite: 'emberQueen', behavior: 'chaser', phases: 3,
+    hp: 1050, damage: 22, speed: 76, radius: 28, xp: 120, range: 250,
+    specialCd: 4.6, windup: 0.9, specialMult: 1.4, zoneRadius: 44, projSpeed: 340, poolLife: 4.5, poolDps: 11, p2SpeedMult: 1.1,
+  },
+  // #228: the Cinderlands' crown boss (config/bosses.ts CINDER_COLOSSUS, systems/bosses.ts). A phase for each of the realm's lessons: burn
+  // stacks from his hits (config/damage.ts ENEMY_STATUS), fire that spreads, and bursts of fire when foes die in his heat
+  cinderColossus: {
+    ...boss, id: 'cinderColossus', name: 'The Cinder Colossus', sprite: 'cinderColossus', behavior: 'chaser', phases: 3,
+    hp: 1200, damage: 18, speed: 66, radius: 34, xp: 160, // #232: damage 24 -> 18 and his fires' 10 -> 8 a second: he felled 16 of the 28 first tries that reached him (BALANCE.md)
+    specialCd: 4.8, windup: 1, specialMult: 1.4, zoneRadius: 42, poolLife: 4.5, poolDps: 8, summon: 'cultist', summonCount: 3, p2SpeedMult: 1.1,
   },
   // ---- v0.6: the end of the run (config/acts.ts FINAL, systems/bosses.ts) ----
   usurper: {
