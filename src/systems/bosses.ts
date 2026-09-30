@@ -1,13 +1,14 @@
 import { FINAL } from '../config/acts';
-import { DRAGON, FORGEMASTER, IRON_KING, WARDEN } from '../config/bosses';
+import { DRAGON, EMBER_QUEEN, FORGEMASTER, IRON_KING, WARDEN } from '../config/bosses';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
-import { addZone, timer } from '../entities/hazards';
+import { addField, addZone, timer } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
 import { hammerZones, wardenMove, wardenSpecialCd } from '../logic/crownBoss';
 import { forgeCd, forgeMove, pressTiles, slamZones } from '../logic/forgemaster';
 import { decreeZones, kingCd, kingMove } from '../logic/ironKing';
+import { flareZones, kindleZones, queenBurn, queenCd, queenMove } from '../logic/emberQueen';
 import { angleTo, chargeStart, chargeThrough, distTo, hitDamage, keepRange, move, moveTo, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { pickTarget, registerBoss } from './enemyAI';
 import { burst, floatText, ring, shake } from './effects';
@@ -252,6 +253,58 @@ registerBoss('ironKing', (g, e, dt) => {
   g.banner = { text: 'The King’s decree', t: 1.2 };
   if (blow.guard) summon(g, e); // his guard of Iron Knights
   shake(g, 5);
+});
+
+// ---------------------------------------------------------------- #227: the Ember Queen, the Cinderlands' level-3 boss (config/bosses.ts EMBER_QUEEN)
+
+const KINDLE = '#f06a1c';
+const FLARE = '#ffb347';
+
+/** Her burning ground (her def's poolLife and poolDps): every tick you stand in it adds a burn stack, the one her blows leave (#225). */
+function emberField(g: Game, e: Enemy) {
+  const scale = g.waveDmgMult * g.tier.enemyDmg;
+  return { life: e.def.poolLife!, dps: e.def.poolDps! * scale, color: FIRE, dtype: 'fire' as const, apply: queenBurn(scale) };
+}
+
+/** Her Flare: rings of fire bursting outward from where she stands, the near ring first. */
+function flare(g: Game, e: Enemy): void {
+  for (const z of flareZones(e.x, e.y, e.r, e.phase)) addZone(g, { x: z.x, y: z.y, r: EMBER_QUEEN.flare.radius, delay: z.delay, damage: specialDamage(e) * EMBER_QUEEN.flare.damage, hostile: true, color: FLARE, owner: e, dtype: 'fire' });
+  ring(g, e.x, e.y, e.r + EMBER_QUEEN.flare.step, FLARE, 0.5);
+}
+
+registerBoss('emberQueen', (g, e, dt) => {
+  const t = pickTarget(g, e);
+  const def = e.def;
+  // a new phase (enemyAI's enterPhase moved e.phase on): she flares up at once
+  if (e.phase > 1 && e.state < e.phase) {
+    e.state = e.phase;
+    g.banner = { text: 'The Ember Queen flares up', t: 2.2 };
+    markPhase(g, 'The Ember Queen flares up');
+    flare(g, e);
+    sfx(g, 'warn');
+  }
+  keepRange(e, t, dt);
+  touch(g, e, t);
+  // from phase 3 her steps leave the ground burning (e.timer: the next patch)
+  if (e.phase >= EMBER_QUEEN.trail.from && (e.timer -= dt) <= 0) {
+    e.timer = EMBER_QUEEN.trail.every;
+    addField(g, { ...emberField(g, e), x: e.x, y: e.y, r: EMBER_QUEEN.trail.radius, life: EMBER_QUEEN.trail.life, hostile: true });
+  }
+  e.special -= dt;
+  if (e.special > 0 || distTo(e, g.player) > EMBER_QUEEN.reach) return;
+  e.special = queenCd(e.phase);
+  sfx(g, 'warn');
+  const move = queenMove(e.phase, e.combo++);
+  if (move === 'flare') return flare(g, e);
+  if (move === 'volley') {
+    const v = EMBER_QUEEN.volley;
+    if (!e.telegraph) aimFan(g, e, { angle: angleTo(e, t), count: v.count, spread: v.spread, windup: v.windup, damage: hitDamage(e) * v.damage, speed: def.projSpeed!, range: v.range, dtype: 'fire', color: KINDLE });
+    return;
+  }
+  // the Kindling: marked spots round you (one on you) burst one after the other and leave burning ground
+  const { x, y } = g.player;
+  for (const z of kindleZones(x, y, e.phase, g.rng() * TAU)) addZone(g, { x: z.x, y: z.y, r: EMBER_QUEEN.kindle.radius, delay: z.delay, damage: specialDamage(e) * EMBER_QUEEN.kindle.damage, hostile: true, color: KINDLE, owner: e, dtype: 'fire', leaveField: emberField(g, e) });
+  g.banner = { text: 'The ground is kindled', t: 1.2 };
 });
 
 // ---------------------------------------------------------------- v0.6: the Usurper, the end of the run (config/acts.ts FINAL)
