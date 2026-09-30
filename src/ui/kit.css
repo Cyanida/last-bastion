@@ -344,6 +344,7 @@
 .compact .kit-screen { gap: 6px; padding: 10px 12px 12px; max-height: calc(100 * var(--vh) - 32px); } /* the overlay pads 16 px each side */
 .compact .kit-head .kit-ribbon { font-size: 14px; padding: 4px 18px 3px; }
 .compact .kit-screen .sub { font-size: 14px; }
+.compact .kit-screen.talents > .sub { padding: 0 50px; } /* #256: the talent tree's long line stays clear of the back button */
 .compact .settings .setting { padding: 5px 0; }
 .compact .settings .setting b { font-size: 16px; }
 
