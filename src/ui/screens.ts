@@ -38,6 +38,7 @@ import type { CrownReward, LevelReward, RealmId } from '../config/world';
 import { bestCleared, parseTestLevel, testLevels, type LevelPanel, type RoadLevel } from '../logic/world';
 import { REALMS, WORLD } from '../config/world';
 import { fitLoadout, slotBlock, slotCost, slotView } from '../logic/champions';
+import { fellLine, roadGo, runMark, type RoadRun } from '../logic/realmRoad';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
@@ -251,16 +252,25 @@ const TIER_CROWNS = ['crown-squire', 'crown-knight', 'crown-champion', 'crown-le
  * tier it is cleared on), and the level panel for the picked flag: tier crowns, the run's slots (#237: or the realm run's level and
  * relics kept, when it goes on from a checkpoint; a level the run can't start at says so, its FIGHT off), enemy HP, the featured family and
  * foes, the end boss, what a first clear pays, and FIGHT, the screen's one gold button.
+ * #242: an unfinished realm run shows on the road (the levels cleared in it are ticked, its checkpoint's flag glows) and in the panel: the
+ * relics it holds, Continue from its checkpoint as the gold button, and Start over, which asks first in the panel's own row (decided: no
+ * browser dialog, so a gamepad and a phone answer it like any other button). A death adds "fell at wave N, restart level N".
  */
 export function showRealmRoad(
-  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null; run?: { level: number; relics: number } | null; starts?: boolean },
-  on: { level: (n: number) => void; tier: (t: number) => void; fight: () => void; loadout: () => void; back: () => void },
+  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null; run?: { level: number; relics: number } | null; trail?: RoadRun | null },
+  on: { level: (n: number) => void; tier: (t: number) => void; fight: () => void; over: () => void; loadout: () => void; back: () => void },
 ): void {
   const { realm, panel: pn } = info;
+  const trail = info.trail ?? null;
+  const go = roadGo(trail, info.level, info.tier, pn.open);
   const flag = (l: RoadLevel) => {
     const best = l.cleared.lastIndexOf(true);
-    return `<button class="rr-flag r-${realm} l-${l.n}${l.n === info.level ? ' on' : ''}" data-level="${l.n}" aria-label="Level ${l.n}${l.open ? '' : ', not open yet'}"${l.open ? '' : ' disabled'}>${l.open ? (best >= 0 ? kit.icon(TIER_CROWNS[best]) : '') : kit.icon('lock')}</button>`;
+    const mark = runMark(trail, l.n);
+    return `<button class="rr-flag r-${realm} l-${l.n}${l.n === info.level ? ' on' : ''}${mark ? ` run-${mark}` : ''}" data-level="${l.n}" aria-label="Level ${l.n}${l.open ? '' : ', not open yet'}${mark === 'done' ? ', cleared in this run' : mark === 'next' ? ', the run goes on here' : ''}"${l.open ? '' : ' disabled'}>${l.open ? (best >= 0 ? kit.icon(TIER_CROWNS[best]) : '') : kit.icon('lock')}${mark === 'done' ? '<i class="rr-tick">✓</i>' : ''}</button>`;
   };
+  const held = (r: RoadRun['relics'][number]) =>
+    `<span class="rr-relic" tabindex="0" data-relic="${r.id}" data-tip="${esc(relicTip(r.id, r.tier))}">${kit.rarityGlyph(relicRarity(r.id), relicDef(r.id).icon)}${tierBadge(r.tier)}</span>`;
+  const notes = [info.fell ? `<small class="rr-fell">${esc(fellLine(info.fell, info.level))}</small>` : '', go.note ? `<small class="rr-from">${esc(go.note)}</small>` : ''].filter(Boolean).map((n) => ` · ${n}`).join('');
   const tier = (t: LevelPanel['tiers'][number], i: number) =>
     `<button class="rr-tier${i === info.tier ? ' on' : ''}${t.cleared ? ' cleared' : ''}" data-tier="${i}" aria-pressed="${i === info.tier}" title="${t.name}${t.cleared ? ': cleared' : t.open ? '' : ': not open yet'}"${t.open ? '' : ' disabled'}>${kit.icon(t.open ? TIER_CROWNS[i] : 'lock')}<span>${t.name}</span></button>`;
   const fact = (label: string, value: string | number) => `<span class="rr-fact"><small>${label}</small><b>${value}</b></span>`;
@@ -284,14 +294,34 @@ export function showRealmRoad(
             ${pn.rewards.length ? `<ul>${pn.rewards.map((r) => `<li>${kit.icon('crown')}${esc(r)}</li>`).join('')}</ul>` : '<p>First-clear rewards taken: a replay pays gold and XP for the waves played.</p>'}
           </div>
         </div>
-        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${info.fell ? ` · <small>fell at wave ${info.fell}</small>` : ''}${pn.open && info.starts === false ? ' · <small class="rr-from">The run starts at level 1</small>' : ''}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${kit.button('Fight!', { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !pn.open || info.starts === false })}</div>`, { cls: 'rr-panel' })}
+        ${trail?.here ? `<div class="rr-run"><small>Run relics</small>${trail.relics.length ? `<span class="rr-relics">${trail.relics.map(held).join('')}</span>` : '<span class="rr-none">None yet</span>'}</div>` : ''}
+        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${notes}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${go.over ? kit.button('Start over', { attrs: 'data-over' }) : ''}${kit.button(go.label, { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !go.enabled })}</div>
+        <div class="rr-go rr-ask" role="alertdialog" aria-label="Start over?" hidden><span class="rr-asks"></span>${kit.button('Keep the run', { attrs: 'data-keep' })}${kit.button('Start over', { kind: 'go', size: 'big', attrs: 'data-yes' })}</div>`, { cls: 'rr-panel' })}
     </div>`);
+  // Start over, or a new run on another tier: the run in progress is lost, so the row asks first; Keep the run (or Esc) puts the buttons back
+  const row = el.querySelector<HTMLElement>('.rr-go:not(.rr-ask)')!, asks = el.querySelector<HTMLElement>('.rr-ask')!;
+  let yes: (() => void) | null = null;
+  const ask = (text: string, then: () => void) => {
+    asks.querySelector('.rr-asks')!.textContent = text;
+    yes = then;
+    row.hidden = true;
+    asks.hidden = false;
+    asks.querySelector<HTMLElement>('[data-keep]')!.focus();
+  };
+  const keep = () => {
+    yes = null;
+    asks.hidden = true;
+    row.hidden = false;
+  };
   click(el, '[data-back]', () => on.back());
   click(el, '.rr-flag', (b) => on.level(Number(b.dataset.level)));
   click(el, '.rr-tier', (b) => on.tier(Number(b.dataset.tier)));
-  click(el, '[data-fight]', () => on.fight());
+  click(el, '[data-fight]', () => (go.ask ? ask(go.ask, on.fight) : on.fight()));
+  click(el, '[data-over]', () => go.over && ask(go.over, on.over));
+  click(el, '[data-keep]', keep);
+  click(el, '[data-yes]', () => yes?.());
   click(el, '[data-loadout]', () => on.loadout()); // #197: the champion screen, on this realm's loadout
-  onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
+  onActions((a) => (a === 'cancel' || a === 'pause') && (yes ? keep() : on.back()));
 }
 
 export interface ChampionInfo {
@@ -307,7 +337,8 @@ export interface ChampionInfo {
   slots: number; // that level's slots, with the Keep's and mastery's; #237: 0 when its realm run goes on from a checkpoint (the loadout went in at level 1)
   loadout: RelicId[]; // the realm's saved loadout, at the most slots
   inventory: RelicId[];
-  plan: string[]; // the talent plan, in order
+  talents: string[]; // #238: the talents it has taken, in order
+  champion: { level: number; cap: number; xp: number; next: number; statPoints: number; talentPoints: number; canReset: boolean }; // #238: its level and crown cap, the XP into its level and what the next costs, the points free to spend, and whether they can be taken back (not inside a realm run)
   fell: number | null; // #197: the wave this level was lost on, this session: the button restarts it
   tab: ChampionTab; // #240: the tab the screen opens on
   tour: boolean; // #240: a first visit: the tour opens by itself
@@ -316,13 +347,13 @@ export interface ChampionInfo {
 /**
  * #197: the champion screen, the home of the road to the crown (Survivor.io style): the champion on a pedestal with its six slots around
  * it (the loadout for the realm it plays next; slots past the level's own idle), the set chips of what goes in, the inventory to fill the
- * slots from, the talent plan, the next level and one big green PLAY (RESTART after a fall), and the tab bar.
+ * slots from, its level and talents (#238), the next level and one big green PLAY (RESTART after a fall), and the tab bar.
  * #240: in three tabs, one at a time: Loadout (the slots, the set chips and the inventory), Build and Talents (the plan); the pedestal,
  * the next level and PLAY stay on all three. A first visit opens a short tour (kit.tour), and the ⓘ beside the tabs plays it again.
  */
 export function showChampion(
   info: ChampionInfo,
-  on: { slot: (id: RelicId) => void; unslot: (id: RelicId) => void; plan: () => void; clearPlan: () => void; play: () => void; champ: (step: number) => void; tab: (id: string) => void; back: () => void },
+  on: { slot: (id: RelicId) => void; unslot: (id: RelicId) => void; talents: () => void; resetPoints: () => void; play: () => void; champ: (step: number) => void; tab: (id: string) => void; back: () => void },
 ): void {
   const c = CLASSES[info.classId];
   const finale = info.realm === 'lastBastion';
@@ -349,7 +380,10 @@ export function showChampion(
     const reason = why ? SLOT_BLOCK_TEXT[why] : '';
     return `<button class="cs-relic${info.loadout.includes(id) ? ' on' : why ? ' blocked' : ''}" data-relic="${id}" data-why="${esc(reason)}" aria-label="${esc(relicDef(id).name)}" data-tip="${esc(`${relicTip(id, tier)}${reason ? `\n${reason}` : ''}`)}">${kit.rarityGlyph(relicRarity(id), relicDef(id).icon)}${slotCost(id) > 1 ? two : ''}${infoButton(id, relicDef(id).name)}</button>`;
   };
-  const plan = info.plan.map((t) => `<li>${esc(TALENT_BY_ID[t]?.name ?? t)}</li>`).join('');
+  const plan = info.talents.map((t) => `<li>${esc(TALENT_BY_ID[t]?.name ?? t)}</li>`).join('');
+  // #238: the champion's level and what it has to spend (the spending screens are #241's; talents are spent on the tree already)
+  const ch = info.champion;
+  const levelLine = `<p class="cs-level"><b>Level ${ch.level}</b> · ${ch.level >= ch.cap ? `at its cap of ${ch.cap}: a crown raises it` : `${Math.floor(ch.xp)} / ${ch.next} XP`} · <span data-stat-points>${ch.statPoints}</span> stat point${ch.statPoints === 1 ? '' : 's'} to spend</p>`;
   // #240: a part of one tab: in the page all along, hidden while another tab is open
   const of = (t: ChampionTab) => `data-cs-of="${t}"${t === info.tab ? '' : ' hidden'}`;
   const tabs = CHAMPION_TABS.map((t) => kit.button(t.label, { size: 'small', cls: t.id === info.tab ? 'on pressed' : '', attrs: `role="tab" data-cs="${t.id}" aria-selected="${t.id === info.tab}"` })).join('');
@@ -365,10 +399,10 @@ export function showChampion(
           ${kit.parch(`<h2>Inventory <small>${info.inventory.length}</small></h2>
             ${info.inventory.length ? `<div class="cs-inv">${info.inventory.map(relic).join('')}</div>` : '<p class="cs-empty">No relics yet. Levels cleared win them; tap one to put it in a slot.</p>'}
             <p class="cs-why" aria-live="polite"></p>`, { cls: 'cs-inventory', attrs: of('loadout') })}
-          ${kit.parch(`<h2>Build</h2><p class="cs-empty">${CHAMPION_BUILD_TEXT}</p>`, { cls: 'cs-build', attrs: of('build') })}
-          ${kit.parch(`<h2>Talent plan <small>${info.plan.length}</small>${kit.infoButton('talents', 'How the talent plan works')}</h2>
-            ${plan ? `<ol class="cs-plan">${plan}</ol>` : '<p class="cs-empty">No plan: talent points are yours to spend in the run.</p>'}
-            <div class="row">${kit.button('Edit plan', { size: 'small', attrs: 'data-plan' })}${info.plan.length ? kit.button('Clear', { size: 'small', attrs: 'data-clear-plan' }) : ''}</div>`, { cls: 'cs-talents', attrs: of('talents') })}
+          ${kit.parch(`<h2>Build</h2>${levelLine}<p class="cs-empty">${CHAMPION_BUILD_TEXT}</p>`, { cls: 'cs-build', attrs: of('build') })}
+          ${kit.parch(`<h2>Talents <small>${info.talents.length}</small>${kit.infoButton('talents', 'How talent points work')}</h2>
+            ${plan ? `<ol class="cs-plan">${plan}</ol>` : '<p class="cs-empty">No talents yet: every champion level gives a talent point.</p>'}
+            <div class="row">${kit.button(ch.talentPoints > 0 ? `Spend points (${ch.talentPoints})` : 'Talent tree', { size: 'small', attrs: 'data-spend-talents' })}${ch.canReset && info.talents.length ? kit.button('Reset points', { size: 'small', attrs: 'data-reset-points' }) : ''}</div>`, { cls: 'cs-talents', attrs: of('talents') })}
         </div>
       </div>
       <div class="cs-go">
@@ -434,9 +468,9 @@ export function showChampion(
     tour = kit.tour(frame, CHAMPION_TOUR, () => (tour = null));
   };
   click(el, '[data-tour]', startTour);
-  click(el, '[data-plan]', () => on.plan());
+  click(el, '[data-spend-talents]', () => on.talents());
   click(el, '[data-champ]', (b) => on.champ(Number(b.dataset.champ)));
-  click(el, '[data-clear-plan]', () => on.clearPlan());
+  click(el, '[data-reset-points]', () => on.resetPoints());
   click(el, '[data-play]', () => on.play());
   click(el, '[data-back]', () => on.back());
   kit.wireTabs(el, (id) => on.tab(id));
@@ -1131,7 +1165,7 @@ function showTwoWay(title: string, options: { id: string; name: string; desc: st
  * v0.4: the talent tree, from the pause menu. Three branch columns, four rows, big buttons: taken, available (glowing) or locked
  * (dim, the tooltip says what it needs). Spending is immediate; the screen re-renders itself.
  */
-export function showTalents(info: { classId: ClassId; taken: string[]; points: number; rowCap: number; treasure?: TreasureId | null; plan?: boolean }, on: { spend: (id: string) => boolean; back: () => void }): void {
+export function showTalents(info: { classId: ClassId; taken: string[]; points: number; rowCap: number; treasure?: TreasureId | null; champion?: boolean }, on: { spend: (id: string) => boolean; back: () => void }): void {
   const branches = TALENT_BRANCHES[info.classId];
   const nodes = talentsFor(info.classId, info.treasure);
   const keystone = takenKeystone(info.taken);
@@ -1150,10 +1184,10 @@ export function showTalents(info: { classId: ClassId; taken: string[]; points: n
       }).join('')}</div>`).join('')}
     </div>`;
   };
-  const el = show(kitScreen('talents', info.plan ? 'Talent plan' : 'Talents', {
+  const el = show(kitScreen('talents', 'Talents', {
     back: 'data-back',
-    // #197: the champion's talent plan is picked on the same tree: tap talents in the order to take them in (#237: no head start spends them)
-    sub: info.plan ? `Tap talents in the order you mean to take them: ${info.taken.length} planned · a keystone needs ${TALENTS.keystonePoints} points in its branch` : `${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${TALENTS.levelsPerPoint} levels · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}${info.rowCap < TALENTS.rows - 1 ? ' · <b>keystones open when the Library is raised in the Keep</b>' : ''}`,
+    // #238: the champion spends its own talent points on the same tree, between levels (`champion`: a point per champion level)
+    sub: `${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${info.champion ? 'champion level' : `${TALENTS.levelsPerPoint} levels`} · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}${info.rowCap < TALENTS.rows - 1 ? ' · <b>keystones open when the Library is raised in the Keep</b>' : ''}`,
     body: `<div class="tree">${branches.map(column).join('')}</div>`,
   }));
   click(el, '[data-talent]', (b) => {
@@ -1261,6 +1295,7 @@ export interface RunResult {
   onward?: boolean; // #237: a cleared level goes on into the realm run's next level (`restart` names it) instead
   relicShares: { id: RelicKey; tier: number; from: RelicSource; damage: number; healing: number; mitigation: number }[]; // v0.7: which relics carried the run
   wins: number; // the class's wins, this one included
+  championXp: { xp: number; from: number; to: number } | null; // #238: a cleared level's XP, banked as champion XP, and the champion's level before and after
   masteryNext: { name: string; need: number } | null; // the next mastery rank and the class XP still missing
   endless: { score: number; rank: number; board: EndlessEntry[] } | null; // the run went on into Endless
   road: string | null; // #200: a cleared realm level's realm: the second button goes back to its road (a lost level's goes to the champion screen)
@@ -1308,6 +1343,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
         <div><span>Best wave (${r.cls.name})</span><b>${r.best}</b></div>
         <div class="earned"><span>Gold banked</span><b>${G} +${r.gold}${r.goldRaw > r.gold ? ` <s>${r.goldRaw}</s>` : ''}</b></div>
         ${r.runes > 0 ? `<div class="earned"><span>Runes</span><b>${R} +${r.runes}</b></div>` : ''}
+        ${r.championXp ? `<div class="earned" data-champion-xp><span>Champion XP</span><b>+${r.championXp.xp} XP · level ${r.championXp.to}${r.championXp.to > r.championXp.from ? ` — <em>${r.championXp.to - r.championXp.from > 1 ? `${r.championXp.to - r.championXp.from} levels` : 'a level'} up: points to spend</em>` : ''}</b></div>` : ''}
         <div class="earned"><span>${r.cls.name} mastery</span><b>+${r.classXp} XP · rank ${r.masteryRank}${r.masteryName ? ` — <em>${r.masteryName}</em>` : ''}</b></div>
         ${r.masteryNext ? `<div><span>Next mastery rank</span><b>${r.masteryNext.name} · ${r.masteryNext.need} XP to go</b></div>` : ''}
       </div>

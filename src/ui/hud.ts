@@ -15,8 +15,7 @@ import { activeStatuses } from '../logic/status';
 import { platesOf, thornsOf, towerShieldOf } from '../logic/ironKing';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
-import { describeUtility, utilityDef, utilityUnlocked } from '../systems/utility';
-import { UTILITY } from '../config/utility';
+import { describeUtility, utilityDef, utilityUnlocked, utilityUnlockLevel } from '../systems/utility';
 import { QUESTS, REWARDS } from '../config/quests';
 import { questProgress } from '../logic/quests';
 import { duoTip, esc, relicClass, relicTip, setRecipeBuild, tierBadge } from './relicText';
@@ -172,8 +171,10 @@ export function updateHud(g: Game): void {
   text('h-level', String(p.level));
   width('h-hp-fill', p.hp / p.stats.hp);
   text('h-hp-text', `${Math.ceil(p.hp)} / ${Math.round(p.stats.hp)}`);
-  width('h-xp-fill', p.xp / xpToNext(p.level));
-  text('h-xp-text', `${Math.floor(p.xp)} / ${xpToNext(p.level)} XP`);
+  // #238: a realm level has no level-ups: the bar is the champion's, with the XP this level has collected on top (banked on its clear)
+  const champ = g.level?.champion;
+  width('h-xp-fill', champ ? Math.min(1, (champ.xp + p.xp) / champ.next) : p.xp / xpToNext(p.level));
+  text('h-xp-text', champ ? `+${Math.floor(p.xp)} XP` : `${Math.floor(p.xp)} / ${xpToNext(p.level)} XP`);
   text('h-gold', `🪙 ${g.gold}`);
   text('h-tier', `${g.tier.name} · ${g.arena.name}`);
 
@@ -277,10 +278,10 @@ export function updateHud(g: Game): void {
   $('h-ut-icon').classList.toggle('ready', utilReady);
   $('h-ut-slot').classList.toggle('locked', !unlocked);
   const utilEvo = evolutionIn(g, 'utility');
-  tip('h-ut-slot', `${utilEvo ? `${EVOLUTIONS[utilEvo].name}: ${EVOLUTIONS[utilEvo].desc}\n` : ''}${util.name} (E / Shift · X / RB)${unlocked ? '' : ` · unlocks at level ${UTILITY.unlockLevel}`}\n${describeUtility(p)}`);
+  tip('h-ut-slot', `${utilEvo ? `${EVOLUTIONS[utilEvo].name}: ${EVOLUTIONS[utilEvo].desc}\n` : ''}${util.name} (E / Shift · X / RB)${unlocked ? '' : ` · unlocks at level ${utilityUnlockLevel(p)}`}\n${describeUtility(p)}`);
   text('h-ut-name', utilEvo ? `${EVOLUTIONS[utilEvo].icon} ${EVOLUTIONS[utilEvo].name}` : util.name);
   $('h-ut-cd').style.height = unlocked ? `${(p.utilityCd / p.utilityCdMax) * 100}%` : '100%';
-  text('h-ut-time', !unlocked ? `Lv ${UTILITY.unlockLevel}` : utilReady ? util.icon : p.utilityCd.toFixed(1));
+  text('h-ut-time', !unlocked ? `Lv ${utilityUnlockLevel(p)}` : utilReady ? util.icon : p.utilityCd.toFixed(1));
   const utilBtn = document.getElementById('btn-utility');
   if (utilBtn) {
     utilBtn.classList.toggle('ready', utilReady);

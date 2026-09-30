@@ -3,18 +3,17 @@
 import { CLASSES, CLASS_ORDER, type ClassId } from '../config/classes';
 import { META, TIERS } from '../config/economy';
 import { isCursedRelic, RELIC_IDS, relicDef, SIGNATURE, type FamilyId, type RelicId } from '../config/relics';
-import { TALENT_BY_ID } from '../config/talents';
 import { REALM_IDS, REALMS, WORLD, type RealmId } from '../config/world';
 import { masteryBonus, type MetaRanks } from './economy';
 import type { RunLog } from './runlog';
 import { newRealmRun, readRealmRun, type RealmRun } from './realmRun';
+import { newGrowth, readGrowth, type ChampionGrowth } from './championLevels';
 import { isCrowned, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
 
-export interface Champion {
+export interface Champion extends ChampionGrowth { // #238: its XP, level and spent points (logic/championLevels.ts)
   name: string;
   inventory: RelicId[]; // the relics it owns, to fill a level's starting slots from
   loadouts: Partial<Record<RealmId, RelicId[]>>; // the slots last filled per realm; a level with fewer slots takes the first ones
-  talentPlan: string[]; // talent ids in the order the head start spends points on them
   world: WorldProgress; // levels cleared and crowns, per realm and tier (logic/world.ts)
   signature: boolean; // its signature relic is won (the Marches crown); the relic itself is the class's own
   lastBastion: boolean; // the Last Bastion is open whatever its crowns: a class that won a v6 run
@@ -27,7 +26,7 @@ export const championName = (v: unknown, classId: ClassId): string =>
   (typeof v === 'string' ? v.replace(/[^\p{L}\p{N} '’.-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME) : '') || CLASSES[classId].name;
 
 export const newChampion = (classId: ClassId, name?: string): Champion => ({
-  name: championName(name, classId), inventory: [], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false, runs: {},
+  name: championName(name, classId), inventory: [], loadouts: {}, world: {}, signature: false, lastBastion: false, runs: {}, ...newGrowth(),
 });
 
 /** A relic a champion can own: not cursed, and not another class's class relic. */
@@ -49,7 +48,6 @@ export function readChampion(raw: unknown, classId: ClassId): Champion {
       const slots = fitLoadout(classId, relics(raw.loadouts[r], (id) => c.inventory.includes(id)), WORLD.maxSlots, r === 'lastBastion');
       if (slots.length) c.loadouts[r] = slots;
     }
-  if (Array.isArray(raw.talentPlan)) c.talentPlan = [...new Set(raw.talentPlan)].filter((t): t is string => typeof t === 'string' && TALENT_BY_ID[t]?.classId === classId);
   if (isObj(raw.world))
     for (const r of REALM_IDS) {
       const tiers = raw.world[r];
@@ -66,7 +64,8 @@ export function readChampion(raw: unknown, classId: ClassId): Champion {
       const run = readRealmRun(raw.runs[r], r);
       if (run) c.runs[r] = run;
     }
-  return c;
+  // #238: its XP, level and spent points; a v7 champion starts at the level its crowns and cleared levels would have given
+  return { ...c, ...readGrowth(raw, classId, c.world) };
 }
 
 /** Save v7's champions from a stored map (a v7 save). */
@@ -78,7 +77,8 @@ export function readChampions(raw: unknown): Partial<Record<ClassId, Champion>> 
 /**
  * v6 -> v7 (rule 8): every class the save has played becomes a champion. A v6 save counts relic picks for the whole account, not per
  * class, so each gets every relic it could have picked: all the account's picked family relics, less other classes' class relics.
- * No relic is lost. A class with a win gets the Last Bastion open; its last logged run's talents become its talent plan.
+ * No relic is lost. A class with a win gets the Last Bastion open; its last logged run's talents become its talents, as far as its
+ * points reach (#238: a run takes as many as the champion has points for).
  */
 export function championsFromV6(
   classes: Record<ClassId, { runs: number }>,
@@ -108,7 +108,7 @@ export const championRealmOpen = (c: Champion, realm: RealmId): boolean => (real
 
 /**
  * The Keep and mastery, repurposed for levels (rule 8): Armorer's Choice and the Keepsake mastery rank each add a starting slot;
- * Veteran Levies (and the Seasoned mastery rank) add levels on top of the head start.
+ * Veteran Levies (and the Seasoned mastery rank) add levels: in a realm level their growth, on top of the champion's (#238).
  */
 export function championBonus(meta: MetaRanks, classXp: number): { slots: number; levels: number } {
   const mastery = masteryBonus(classXp);

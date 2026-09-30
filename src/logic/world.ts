@@ -11,6 +11,7 @@ import { REALM_IDS, REALMS, WORLD, WORLD_BOSSES, type CrownReward, type EndBoss,
 import { ACT_BOSSES, actBoss, actOf, hashSeed, isActEnd, pickMidBoss } from './acts';
 import { waveRng } from './director';
 import { expectedLevel } from './formulas';
+import { championStep } from './championLevels'; // it reads this file too: both only call the other inside functions
 
 // ---------- #191: the level runner's rules (systems/levels.ts plays them) ----------
 
@@ -216,7 +217,7 @@ export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier
     name: `${def.name} · Level ${level}`,
     waves: lv.waves,
     slots: slotsFor(realm, level, bonus.slots),
-    enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * levelStep(realm, level).hp * 100),
+    enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * levelStep(realm, level).hp * championStep(realm, level).hp * 100), // #238: with the champion level it expects, as the level plays
     family: lv.family,
     foes: featuredFoes(lv.waves).map((id) => ENEMIES[realmFoe(realm, id)].name), // #212: as they march there
     boss: bossName(lv.boss, lv.waves[1]),

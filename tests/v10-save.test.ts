@@ -20,7 +20,7 @@ describe('save v7: champions (#193)', () => {
     expect(Object.keys(s.champions).sort()).toEqual(played.sort());
     const picked = Object.keys(raw.relicPicks as object);
     for (const c of Object.values(s.champions)) expect(c!.inventory).toEqual(expect.arrayContaining(picked));
-    expect(s.champions.viking!.talentPlan).toEqual(['viking.berserk.0', 'viking.berserk.1']); // its last logged run's talents
+    expect(s.champions.viking!.talents).toEqual(['viking.berserk.0', 'viking.berserk.1']); // its last logged run's talents (#238: a run takes as many as it has points for)
     expect(s.champions.viking!.name).toBe('Viking');
   });
 
@@ -57,7 +57,7 @@ describe('save v7: champions (#193)', () => {
     expect(c.name.length).toBeLessThanOrEqual(24);
     expect(c.inventory).toEqual(['brimstoneOil']); // fireArrows is the Archer's
     expect(c.loadouts).toEqual({ marches: ['brimstoneOil'] });
-    expect(c.talentPlan).toEqual(['viking.berserk.0']);
+    expect(c.talents).toEqual(['viking.berserk.0']); // #238: a v7 talent plan becomes its talents
     expect(c.world).toEqual({ marches: [7] });
     expect(c.signature).toBe(false);
     expect(readChampion(null, 'angel')).toEqual(newChampion('angel'));

@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { TIERS } from '../src/config/economy';
 import { REALMS, WORLD } from '../src/config/world';
 import { createGame } from '../src/game';
+import { championStep } from '../src/logic/championLevels';
 import { levelStep, ringStep } from '../src/logic/world';
+import { headStart } from '../src/systems/levels';
 
 /** #221: rule 9's tuning passes, the level step on enemies and the head start's late boons. */
 describe('levels: the level step on enemies (#221)', () => {
@@ -27,15 +29,17 @@ describe('levels: the level step on enemies (#221)', () => {
 
   it('folds into a level run\'s tier with the ring step, and not into a run with no level', () => {
     const g = createGame('paladin', 3, { tier: 1, level: { realm: 'ironHold', level: 1 } });
-    expect(g.tier.enemyHp).toBeCloseTo(TIERS[1].enemyHp * ringStep('ironHold').hp * levelStep('ironHold', 1).hp);
-    expect(g.tier.enemyDmg).toBeCloseTo(TIERS[1].enemyDmg * ringStep('ironHold').damage * levelStep('ironHold', 1).damage);
+    const c = championStep('ironHold', 1); // #238: and the champion level the level expects
+    expect(g.tier.enemyHp).toBeCloseTo(TIERS[1].enemyHp * ringStep('ironHold').hp * levelStep('ironHold', 1).hp * c.hp);
+    expect(g.tier.enemyDmg).toBeCloseTo(TIERS[1].enemyDmg * ringStep('ironHold').damage * levelStep('ironHold', 1).damage * c.damage);
     expect(createGame('paladin', 3, { tier: 1, realm: 'ironHold' }).tier.enemyHp).toBeCloseTo(TIERS[1].enemyHp * ringStep('ironHold').hp);
   });
 });
 
 describe('levels: the head start\'s late boons (#221)', () => {
   it('levels from lateFrom on give lateRarity boons, stronger than the rare ones before', () => {
-    const at = () => createGame('paladin', 3, { tier: 1, level: { realm: 'marches', level: 4 } }).player; // a head start to level 15
+    // #238: realm levels have no head start; test mode's plain run still takes one
+    const at = () => { const g = createGame('paladin', 3, { tier: 1 }); headStart(g, 16); return g.player; }; // a head start to level 15
     const hs = WORLD.headStart as { lateFrom: number };
     const late = at();
     const was = hs.lateFrom;

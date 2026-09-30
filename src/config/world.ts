@@ -168,7 +168,7 @@ export const WORLD = {
   /** Rule 6: the Last Bastion's elite foes and limits. */
   finale: { minAffixes: 2, eliteCap: 0.35, eliteChanceMult: 1.5, armorersChoice: false, merchantRelics: false },
   /**
-   * Rule 3 (#191): the head start's missing level-up boons, one per level skipped, taken round this cycle ('attack': the class's attack
+   * Rule 3 (#191; #238: realm levels have no head start any more, so this is test mode's, for a plain run at a chosen wave): the head start's missing level-up boons, one per level skipped, taken round this cycle ('attack': the class's attack
    * stat). Decided: at rare strength, about what the best of three rolled cards is worth. #221: the levels from `lateFrom` on give
    * `lateRarity` boons, since a run that played those waves also holds twice the relics a loadout does (rule 9's power band).
    */

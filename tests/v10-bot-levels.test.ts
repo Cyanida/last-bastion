@@ -83,9 +83,10 @@ describe('expected progress (#207, plan rule 9)', () => {
 });
 
 describe('the levels table (#207)', () => {
-  it('reads more power at a later head start', () => {
+  it('reads more power at a higher champion level (#238: no head start)', () => {
     const early = createGame('paladin', 1, { tier: 1, level: { realm: 'marches', level: 1 } });
-    const late = createGame('paladin', 1, { tier: 1, level: { realm: 'marches', level: 7 } });
+    const late = createGame('paladin', 1, levelOptions('paladin', expectedChampion('paladin', 'marches', 7), 'marches', 7, 1));
+    expect(late.player.level).toBe(5); // the cap before the Marches crown
     expect(powerOf(late)).toBeGreaterThan(powerOf(early) * 2);
   });
 

@@ -3,7 +3,7 @@ import { sfx } from '../sim/view';
 import { emit } from '../core/events';
 import type { Enemy, Game, Player } from '../core/types';
 import { addField } from '../entities/hazards';
-import { abilityCooldown } from '../logic/formulas';
+import { abilityCooldown, runLevel } from '../logic/formulas';
 import { smother } from '../logic/status';
 import { applyStatus, damageEnemy, healPlayer, rollPlayerHit } from './combat';
 import { burst, floatText, ring, shake } from './effects';
@@ -18,7 +18,9 @@ import { clampToArena } from './movement';
 const U = UTILITY_UPGRADES;
 const has = (p: Player, id: UtilityUpgradeId) => p.utilityUpgrades.includes(id);
 export const utilityDef = (p: Player) => UTILITIES[p.cls.id];
-export const utilityUnlocked = (p: Player) => p.level >= UTILITY.unlockLevel;
+export const utilityUnlocked = (p: Player) => runLevel(p) >= UTILITY.unlockLevel;
+/** #238: the level the utility unlocks at, as this player counts levels (a champion's level is worth several run levels). */
+export const utilityUnlockLevel = (p: Player) => 1 + Math.ceil((UTILITY.unlockLevel - 1) / p.levelWorth);
 
 /** Where a dash goes: toward the aim point (up to `range`) when it is away from the player, else along the movement or facing direction. */
 function dashTarget(g: Game, range: number): { x: number; y: number } {
@@ -209,5 +211,5 @@ export const utilityUpgradeOptions = (g: Game): readonly UtilityUpgradeId[] => U
 
 export const describeUtility = (p: Player): string => {
   const def = utilityDef(p);
-  return utilityUnlocked(p) ? `${def.desc}${p.utilityUpgrades.length ? ` · ${p.utilityUpgrades.map((id) => U[id].name).join(' · ')}` : ''}` : `Unlocks at level ${UTILITY.unlockLevel}.`;
+  return utilityUnlocked(p) ? `${def.desc}${p.utilityUpgrades.length ? ` · ${p.utilityUpgrades.map((id) => U[id].name).join(' · ')}` : ''}` : `Unlocks at level ${utilityUnlockLevel(p)}.`;
 };

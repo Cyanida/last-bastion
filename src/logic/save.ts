@@ -23,9 +23,11 @@ import { keepRuns, readRunLog, type RunLog } from './runlog';
 import { recordTierRun, tierUnlockedFor } from './difficulty';
 import { championsFromV6, grantSignature, newChampion, readChampions, type Champion } from './champions';
 import { clearRewards, levelSkip, recordClear } from './world';
+import { clearXp, firstClear, grantXp } from './championLevels';
+import { expectedLevel } from './formulas';
 import type { CrownReward, LevelReward, RealmId } from '../config/world';
 
-export const SAVE_VERSION = 8; // v0.11 (#237): a champion's unfinished realm runs (logic/realmRun.ts); v7 was v0.10's champions (logic/champions.ts)
+export const SAVE_VERSION = 8; // v0.11 (#237): a champion's unfinished realm runs (logic/realmRun.ts), and (#238) its XP, level and spent points (logic/championLevels.ts); v7 was v0.10's champions (logic/champions.ts)
 export const READABLE_VERSIONS = [2, 3, 4, 5, 6, 7, 8]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
 
 /**
@@ -174,7 +176,7 @@ export interface RunSummary {
   evolutions?: EvolutionId[]; // v0.6: taken this run
   duos?: DuoId[]; // v0.7: formed this run
   endlessScore?: number; // v0.6: 0 unless the run went on into Endless
-  realmLevel?: { realm: RealmId; level: number; cleared: boolean; from?: number }; // v0.10 (#192): the realm level this run was; its head start doesn't count. #237 `from`: the player's level carried into it (a realm run's later level), counted by the level before
+  realmLevel?: { realm: RealmId; level: number; cleared: boolean; xp?: number }; // v0.10 (#192): the realm level this run was; only the waves it played count. #238 `xp`: the XP it collected, banked as champion XP when it is cleared
 }
 
 const emptyClass = (): ClassRecord => ({ bestWave: 0, runs: 0, kills: 0, time: 0, xp: 0 });
@@ -384,11 +386,13 @@ export const today = (now: Date): string => now.toISOString().slice(0, 10);
 
 /** Fold a run into the save: gold, class XP, records, counters, difficulty unlock. Achievements are evaluated separately.
  * The game passes the day and time (testMode's banked); without them (tests) the run is banked on no day. */
-export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number; contracts: Contract[]; levelRewards: { level: LevelReward[]; crown: CrownReward[] } } {
+export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number; contracts: Contract[]; levelRewards: { level: LevelReward[]; crown: CrownReward[] }; champion: { xp: number; from: number; to: number } } {
   // v0.10 (#192): a realm level counts only the waves it played and the levels grown in them, and its gold cap is its share of a full run
   const lv = run.realmLevel;
-  const skip = lv ? { ...levelSkip(lv.realm, lv.level), ...(lv.from ? { levels: lv.from - 1 } : {}) } : { waves: 0, levels: 0, share: 1 };
+  const skip = lv ? levelSkip(lv.realm, lv.level) : { waves: 0, share: 1 };
   const wavesPlayed = Math.max(0, run.wavesCleared - skip.waves);
+  // #238: a level has no level-ups, so mastery counts the levels the pace expects over the waves it played, as the in-run levels came
+  const levelsPlayed = lv ? 1 + Math.round(expectedLevel(skip.waves + wavesPlayed + 1) - expectedLevel(skip.waves + 1)) : run.level;
   // v0.10 (#205): wave deeds count the waves played; "in one run" deeds and Six of a Kind count only in the Last Bastion, where no loadout
   // hands the relics out (decided: a run with no level, the full run the Last Bastion replaces, counts as one)
   const bastion = !lv || lv.realm === 'lastBastion';
@@ -404,7 +408,7 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   const oathKept = run.won && (run.oath ?? 0) > save.oaths[run.classId] ? run.oath! : 0;
   const oath = oathKept ? oathReward(oathKept) : { runes: 0, gold: 0 };
   const win = { runes: run.won ? VICTORY.win.runes + (firstWin ? VICTORY.firstWin.runes : 0) + oath.runes : 0, gold: (firstWin ? VICTORY.firstWin.gold : 0) + oath.gold, classXp: run.won ? VICTORY.win.classXp + (firstWin ? VICTORY.firstWin.classXp : 0) : 0 };
-  const classXp = Math.round(classXpForRun({ wavesCleared: wavesPlayed, bosses: run.bosses.length, level: run.level - skip.levels }, TIERS[run.tier]) * curseMult * (1 + (save.meta.classXp ?? 0) * META.classXp.perRank)) + win.classXp;
+  const classXp = Math.round(classXpForRun({ wavesCleared: wavesPlayed, bosses: run.bosses.length, level: levelsPlayed }, TIERS[run.tier]) * curseMult * (1 + (save.meta.classXp ?? 0) * META.classXp.perRank)) + win.classXp;
   const c = save.counters;
   const acts = run.actsCleared ?? 0;
   // v0.4: the Treasury's income multiplier, then the daily caps on what curses and the Daily Trial add (BALANCE.md)
@@ -445,7 +449,10 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   // v0.10 (#192): a cleared level goes on its champion's world progress, and pays its first-clear and crown rewards once (the screens offer the picks)
   const champion = lv ? save.champions[run.classId] ?? newChampion(run.classId) : null;
   const levelRewards = lv?.cleared && champion ? clearRewards(champion.world, lv.realm, lv.level, run.tier) : { level: [], crown: [] };
-  const cleared = lv?.cleared && champion ? { ...champion, world: recordClear(champion.world, lv.realm, lv.level, run.tier) } : null;
+  // #238: a clear banks the XP the level collected as champion XP (a quarter on a replay); the level follows, up to the crown cap, which
+  // this clear's crown may just have raised
+  const xp = lv?.cleared && champion ? clearXp(lv.xp ?? 0, firstClear(champion.world, lv.realm, lv.level)) : 0;
+  const cleared = lv?.cleared && champion ? grantXp({ ...champion, world: recordClear(champion.world, lv.realm, lv.level, run.tier) }, xp) : null;
   const champions = cleared ? { ...save.champions, [run.classId]: levelRewards.crown.some((r) => r.kind === 'signature') ? grantSignature(cleared, run.classId) : cleared } : save.champions; // #201: the Marches crown
   const feats = Object.fromEntries(FEAT_KEYS.map((k) => [k, Math.max(c[k], run.feats?.[k] ?? 0)])) as Record<FeatKey, number>;
   return {
@@ -458,6 +465,7 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
     oathKept,
     contracts: contracts.completed,
     levelRewards,
+    champion: { xp, from: champion?.level ?? 0, to: cleared?.level ?? champion?.level ?? 0 },
     save: {
       ...save,
       gold: save.gold + gold,

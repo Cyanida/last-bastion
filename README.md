@@ -193,6 +193,7 @@ Everything numeric lives in `src/config/`; game logic never hard-codes balance.
 | File | Contents |
 |---|---|
 | `classes.ts`, `abilityUpgrades.ts`, `relics.ts`, `upgrades.ts` | classes, the 30 ability upgrades, relics (families and set bonuses, the 50 relics, duos, relic moments and offer weights, attunement rates), level-up boons |
+| `champion.ts` | champion levels: stat and talent points per level, what a point gives, the tier cost, the XP curve, the level cap by crowns, the champion level each ring expects and the enemy scaling that follows |
 | `talents.ts`, `utility.ts`, `traits.ts` | talent trees, the utility abilities and their upgrades, starting traits |
 | `enemies.ts` | stats and behaviour parameters per enemy and boss |
 | `ai.ts` | per-type state machine profiles, squad reactions, aura timing |
