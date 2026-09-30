@@ -6173,7 +6173,7 @@ await check('Ember Queen: test mode starts the Cinderlands level 3 in the Ember 
     const lb = window.__lb, g = lb.game, pl = g.player;
     g.enemies.length = 0;
     g.spawnQueue.length = 0;
-    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 20, the level's last
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 24, the level's last (#243)
     g.breather = 0.01;
     pl.invulnerable = true;
     let q = null;
@@ -6204,7 +6204,7 @@ await check('Ember Queen: test mode starts the Cinderlands level 3 in the Ember 
       pl.invulnerable = true;
       const ph = q.phase - 1;
       const shown = out.kindle[ph] > 0 && out.volley[ph] > 0 && (q.phase === 1 || out.flare[ph] > 0);
-      if (!q.dead) (pl.x = q.x - q.r - (shown ? 16 : 450)), (pl.y = q.y);
+      if (!q.dead) (pl.x = q.x - q.r - (shown ? 16 : 450)), (pl.y = q.y), (q.hpFloor = shown ? 0 : q.hp); // while he waits nothing of his (a relic's fire, a burn left on her) moves the fight on
       lb.run(1, false, false);
       if (!out.id) (out.id = q.def.id), (out.wave = g.wave);
       if (q.phase > out.phases.length + 1) out.phases.push(+g.time.toFixed(1)), out.flaresUp.push(g.banner?.text ?? '');
@@ -6223,7 +6223,7 @@ await check('Ember Queen: test mode starts the Cinderlands level 3 in the Ember 
     return { ...out, cleared: !!g.level?.cleared, test: g.vars.test };
   });
   await p.close();
-  const ok = fight.test === 1 && fight.wave === 20 && fight.id === 'emberQueen' && fight.phases.length === 2
+  const ok = fight.test === 1 && fight.wave === 24 && fight.id === 'emberQueen' && fight.phases.length === 2
     && burn.arena === 'emberForge' && burn.phase === 1 && burn.stacks >= 2 && burn.decay > 0 && /Burning ×\d/.test(hud)
     && fight.kindle.join() === '3,4,5' && fight.volley.every((n) => n > 0) && fight.flare[0] === 0 && fight.flare[1] === 33 && fight.flare[2] === 62
     && fight.ground > 0 && fight.trail[0] === 0 && fight.trail[1] === 0 && fight.trail[2] > 0 && fight.flaresUp.every((t) => t === 'The Ember Queen flares up')
