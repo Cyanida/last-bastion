@@ -61,7 +61,7 @@ export const SLOT_BLOCK_TEXT: Record<SlotBlock, string> = {
 export const CHAMPION_HELP = {
   slots: `The relics in your slots go into a realm run at its first level and stay for the whole run; the Keep adds more slots. A legendary takes ${L.legendarySlots} slots, and a loadout holds at most ${L.perFamily} relics of one family, ${L.legendaries} legendary (${L.legendariesFinale} in the Last Bastion) and ${L.classRelics} class relics.`,
   sets: 'Slotted relics of one family count toward its set: 2, 4 and 6 of them each add a bonus in the level. A lit chip has its bonus on; hover or tap a chip to read them.',
-  talents: 'A realm run starts at level 1: talent points come as your champion levels up in the run, and you spend them there. The plan keeps the order you mean to take them in.', // #237: no head start spends it any more
+  talents: 'Every champion level gives a talent point, and you spend talent points here, between levels: a talent you take is in your next level. Outside a realm run you can take every point back for free.', // #238: real points, spent by hand
 } as const;
 
 /** #240: the champion screen's own tabs: one shows at a time, and PLAY stays under all three. */
@@ -72,14 +72,14 @@ export const CHAMPION_TABS = [
 ] as const;
 export type ChampionTab = (typeof CHAMPION_TABS)[number]['id'];
 
-/** #240: the Build tab until champion levels fill it (#241): one plain line. */
-export const CHAMPION_BUILD_TEXT = 'Stat points come with champion levels: once your champion earns them, you spend them here.';
+/** #240: the Build tab until #241 fills it: one plain line. #238: the champion's level and the points it has to spend stand above it. */
+export const CHAMPION_BUILD_TEXT = 'Clearing a level banks its XP toward champion levels: each level gives 3 stat points and a talent point, and nothing levels up inside a level.';
 
 /** #240: the champion screen's tour, shown the first time the screen opens and again from its ⓘ: one sentence a step, each at the part it names. */
 export const CHAMPION_TOUR: readonly TourStep[] = [
   { id: 'slots', at: '.cs-slots', text: 'These are your slots: the relics in them go into the level with you.' },
   { id: 'inventory', at: '.cs-inventory', text: 'Your inventory holds the relics this champion has won: tap one to put it in a slot, and tap a slot to take it out again.' },
   { id: 'legendary', at: '.cs-slots', text: `A legendary relic takes ${L.legendarySlots} slots, and a loadout holds only ${L.legendaries} of them.` },
-  { id: 'build', at: '.cs-tabs', text: 'Build and Talents are the other tabs: your champion’s stat points, and the talents its head start takes.' },
+  { id: 'build', at: '.cs-tabs', text: 'Build and Talents are the other tabs: your champion’s stat points, and the talents it has taken.' },
   { id: 'play', at: '.cs-go', text: 'PLAY starts the next level of the road with this loadout, from any tab.' },
 ];

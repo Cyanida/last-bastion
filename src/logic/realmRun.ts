@@ -9,12 +9,17 @@ import { TALENT_BY_ID } from '../config/talents';
 import { UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
 import { REALMS, type RealmId } from '../config/world';
 import { TIERS } from '../config/economy';
+import { CHAMPION_STATS, type StatPoints } from '../config/champion';
 import { STAT_KEYS, type RelicSource, type StatKey } from '../core/types';
 
-/** The run's state entering a level: everything the level before it grew. Decided: HP refills and the level's own finds start empty. */
+/**
+ * The run's state entering a level: everything the levels before it gained. Decided: HP refills and the level's own finds start empty.
+ * #238: the build is the champion's; the carry notes the champion level and stat points its stats hold, so what the champion gained or
+ * spent since goes on top at the next level (systems/levels.ts applyChampion).
+ */
 export interface RunCarry {
-  level: number; // the player's level
-  xp: number;
+  level: number; // the champion's level the run holds (#238): a level gained since is grown on entering the next level
+  points: StatPoints; // #238: the champion's stat points the run's stats hold, the same way
   stats: Record<string, number>; // Stats, with the level-ups, talents and relic HP cuts already in
   baseMods: Record<string, number>; // Mods: the tradeoffs taken
   upgrades: AbilityUpgradeId[];
@@ -24,10 +29,7 @@ export interface RunCarry {
   revives: number;
   relics: { held: RelicId[]; tiers: Partial<Record<RelicId, number>>; attune: Partial<Record<RelicId, number>>; from: Partial<Record<RelicId, RelicSource>>; duos: DuoId[]; cursedAct: number };
   gold: number;
-  talentPoints: number;
-  pendingLevelUps: number; // choices still open when the level ended: the next level opens on them
-  pendingAbilityTiers: number[];
-  pendingUtilityTiers: number[];
+  talentPoints: number; // the run's own (a quest's reward), not the champion's
   rerolls: number;
   banishes: number;
   bannedStats: StatKey[];
@@ -52,7 +54,6 @@ export const checkpoint = (run: RealmRun, realm: RealmId, carry: RunCarry, seed:
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const count = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0);
-const finite = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 const ids = <T extends string>(v: unknown, known: readonly T[] | ((id: string) => boolean)): T[] =>
   Array.isArray(v) ? [...new Set(v)].filter((x): x is T => typeof x === 'string' && (typeof known === 'function' ? known(x) : known.includes(x as T))) : [];
 const numbers = (v: unknown, keep: (k: string) => boolean = () => true): Record<string, number> =>
@@ -65,10 +66,9 @@ export function readCarry(raw: unknown): RunCarry | null {
   const held = ids<RelicId>(r.held, RELIC_IDS);
   const perHeld = (v: unknown) => numbers(v, (k) => held.includes(k as RelicId)) as Partial<Record<RelicId, number>>;
   const from = isObj(r.from) ? Object.fromEntries(held.filter((id) => SOURCES.includes((r.from as Record<string, RelicSource>)[id])).map((id) => [id, (r.from as Record<string, RelicSource>)[id]])) : {};
-  const tiers = (v: unknown) => (Array.isArray(v) ? v.map(count).filter((t) => t < 10) : []);
   return {
     level: Math.max(1, count(raw.level)),
-    xp: Math.max(0, finite(raw.xp)),
+    points: Object.fromEntries(CHAMPION_STATS.map((s) => [s, count(isObj(raw.points) ? raw.points[s] : 0)]).filter(([, n]) => n)) as StatPoints,
     stats: numbers(raw.stats, (k) => STAT_KEYS.includes(k as StatKey)),
     baseMods: numbers(raw.baseMods),
     upgrades: ids<AbilityUpgradeId>(raw.upgrades, (id) => Object.hasOwn(ABILITY_UPGRADES, id)),
@@ -79,9 +79,6 @@ export function readCarry(raw: unknown): RunCarry | null {
     relics: { held, tiers: perHeld(r.tiers), attune: perHeld(r.attune), from, duos: ids<DuoId>(r.duos, DUO_IDS), cursedAct: count(r.cursedAct) },
     gold: count(raw.gold),
     talentPoints: count(raw.talentPoints),
-    pendingLevelUps: count(raw.pendingLevelUps),
-    pendingAbilityTiers: tiers(raw.pendingAbilityTiers),
-    pendingUtilityTiers: tiers(raw.pendingUtilityTiers),
     rerolls: count(raw.rerolls),
     banishes: count(raw.banishes),
     bannedStats: ids<StatKey>(raw.bannedStats, STAT_KEYS),

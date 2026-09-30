@@ -1,3 +1,4 @@
+import { expectedLevel } from '../src/logic/formulas';
 import { describe, expect, it } from 'vitest';
 import { RUNES } from '../src/config/economy';
 import { createGame, summarizeRun } from '../src/game';
@@ -16,10 +17,10 @@ describe('levels: rewards count only the waves played (#192)', () => {
     expect(levelSkip('lastBastion', 1)).toEqual({ waves: 0, levels: 0, share: 1 });
   });
 
-  it('class XP from a level equals a fresh run that played the same waves and levels', () => {
+  it('class XP from a level equals a fresh run that played the same waves, at the levels the pace gives them (#238: a level has no level-ups)', () => {
     const skip = levelSkip('marches', 5);
-    const lv = applyRun(defaultSave(), run({ wave: 26, wavesCleared: 25, level: 23, realmLevel: marches(5) }));
-    const fresh = applyRun(defaultSave(), run({ wave: 6, wavesCleared: 25 - skip.waves, level: 23 - skip.levels }));
+    const lv = applyRun(defaultSave(), run({ wave: 26, wavesCleared: 25, level: 5, realmLevel: marches(5) })); // level 5: the champion's, which mastery doesn't count
+    const fresh = applyRun(defaultSave(), run({ wave: 6, wavesCleared: 25 - skip.waves, level: 1 + Math.round(expectedLevel(26) - expectedLevel(21)) }));
     expect(lv.classXp).toBe(fresh.classXp);
     expect(lv.save.tierWaves[0]).toBe(5); // the tier record counts the 5 waves played, not 25
   });

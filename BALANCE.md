@@ -1,5 +1,36 @@
 # Balance notes
 
+## v0.11: champion levels (#238)
+
+No level-up inside a level any more: a champion keeps one level all level long, and enemies scale to the champion level a level expects.
+In `src/config/champion.ts`:
+- **A champion level** is worth 5 of the old run levels (`runLevels`: five times the class's growth), gives 3 stat points (each two rare
+  boons of its stat: +10 attack stat, +80 HP, +32% of base attack speed, +6 secondary) and a talent point; an ability or utility tier
+  costs 2 stat points. The cap is 5 + 5 per crown, at most 30.
+- **Champion XP**: a level costs 140 × the level, at most 840. The Marches' levels pay 180, 480, 558, 726, 639, 729 and 1734 XP at the
+  pace, so a first pass gives a level per level up to the cap of 5 and level 9 at the crown; a replay banks a quarter.
+- **Enemy scaling** (`scaling`, `logic/championLevels championStep`, folded into a level's tier with the ring step and the level step):
+  enemy HP and damage × the expected champion's strength over that of the player the waves were tuned for (the pace's level midway
+  through them), strength being 1 + 0.12 per run level and a champion's run levels counting 0.8 each. The Marches: ×0.77, 0.78, 0.81,
+  0.85, 0.89, 0.81, 0.71 (expected level 1, 2, 3, 4, 5, 5, 5); the Iron Hold: ×3.35, 2.55, 2.01, 1.55, 1.30 (expected level 8, 9, 10, 10, 10).
+
+Measured with the bot on Knight, 12 first tries a level (paladin, viking, angel, archer, 3 seeds each), a level on its own with expected
+progress as `npm run sim -- levels` plays it; before is release/0.11.0 with the head start and in-level level-ups:
+
+| Level | Before | After |
+|---|---|---|
+| Marches 1 | 12/12 | 11/12 |
+| Marches 2 | 4/12 | 4/12 |
+| Marches 4 | 5/12 | 3/12 |
+| Marches 7 | 1/12 | 0/12 |
+| Iron Hold 1 | 12/12 | 12/12 |
+| Iron Hold 3 | 6/12 | 8/12 |
+| Iron Hold 5 | 5/12 | 5/12 |
+
+A first fit, not a tuning pass: `worth` 1 (no discount) cleared no Marches level 4 and 2/12 of Iron Hold 5. The Marches' late levels
+(a level-5 champion at waves 16-40, the cap before the crown) stay the hard end; the release's balance issue tunes every level on these
+numbers. The golden level runs (tests/v10-level-golden.test.ts) were re-recorded.
+
 ## v0.10: two tuning passes toward rule 9 (#221)
 
 `npm run sim -- levels 6 1 marches,ironHold,lastBastion` (30 first tries a level on Knight with expected progress, as #207). Changed, in

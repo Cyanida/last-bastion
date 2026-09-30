@@ -13,6 +13,8 @@ import { buildState, evolve } from './evolutions';
 
 export function gainXp(g: Game, amount: number): void {
   const p = g.player;
+  // #238: a realm level has no level-ups: its XP counts up, to be banked as champion XP when it is cleared (logic/save applyRun)
+  if (g.level) return void (p.xp += amount * p.mods.xp);
   p.xp += amount * p.mods.xp * catchUpMult(p.level, Math.max(1, g.wave));
   while (p.xp >= xpToNext(p.level)) {
     p.xp -= xpToNext(p.level);
