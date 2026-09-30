@@ -4,6 +4,7 @@ import { SKILL } from './game';
 import { OATHS } from './oaths';
 import { ATTUNEMENT, RELIC_MAX_TIER, TIER_NUMERALS } from './relics';
 import { WORLD } from './world';
+import { CHAMPION } from './champion';
 import type { SlotBlock } from '../logic/champions';
 import type { TourStep } from '../logic/tour';
 
@@ -61,6 +62,7 @@ export const SLOT_BLOCK_TEXT: Record<SlotBlock, string> = {
 export const CHAMPION_HELP = {
   slots: `The relics in your slots go into a realm run at its first level and stay for the whole run; the Keep adds more slots. A legendary takes ${L.legendarySlots} slots, and a loadout holds at most ${L.perFamily} relics of one family, ${L.legendaries} legendary (${L.legendariesFinale} in the Last Bastion) and ${L.classRelics} class relics.`,
   sets: 'Slotted relics of one family count toward its set: 2, 4 and 6 of them each add a bonus in the level. A lit chip has its bonus on; hover or tap a chip to read them.',
+  build: `Every champion level gives ${CHAMPION.statPoints} stat points: put them in a stat with its plus, or buy the next upgrade of your ability or utility for ${CHAMPION.tierCost} points, and what you spend is in your next level. Outside a realm run you can take every point back for free.`, // #241
   talents: 'Every champion level gives a talent point, and you spend talent points here, between levels: a talent you take is in your next level. Outside a realm run you can take every point back for free.', // #238: real points, spent by hand
 } as const;
 
@@ -72,7 +74,7 @@ export const CHAMPION_TABS = [
 ] as const;
 export type ChampionTab = (typeof CHAMPION_TABS)[number]['id'];
 
-/** #240: the Build tab until #241 fills it: one plain line. #238: the champion's level and the points it has to spend stand above it. */
+/** #240: the Build tab's one plain line, under the build panel (#241) and the level-cleared screen's. */
 export const CHAMPION_BUILD_TEXT = 'Clearing a level banks its XP toward champion levels: each level gives 3 stat points and a talent point, and nothing levels up inside a level.';
 
 /** #240: the champion screen's tour, shown the first time the screen opens and again from its ⓘ: one sentence a step, each at the part it names. */
