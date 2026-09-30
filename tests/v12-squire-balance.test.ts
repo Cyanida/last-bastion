@@ -13,8 +13,8 @@ type Row = Omit<LevelRun, 'summary'>;
 const row = (classId: Row['classId'], level: number, cleared: boolean): Row =>
   ({ classId, realm: 'ironHold', level, seed: 1, cleared, time: 60, loadout: [], power: null, relicsAtStart: 0, held: 0, duos: 0, sixes: 0, sixAt: null, moments: 0, pool: 1 });
 
-describe('Squire eases a realm's levels, the later the more (#250)', () => {
-  it('takes HP x0.85 to x0.7 and damage x0.85 to x0.75 from a realm's first level to its last', () => {
+describe("Squire eases a realm's levels, the later the more (#250)", () => {
+  it("takes HP x0.85 to x0.7 and damage x0.85 to x0.75 from a realm's first level to its last", () => {
     expect(TIERS[0].realmEase).toEqual({ hp: [0.85, 0.7], damage: [0.85, 0.75] });
     expect([1, 2, 3, 4, 5].map((l) => tierStep(0, 'ironHold', l))).toEqual([
       { hp: 0.85, damage: 0.85 }, { hp: 0.813, damage: 0.825 }, { hp: 0.775, damage: 0.8 }, { hp: 0.737, damage: 0.775 }, { hp: 0.7, damage: 0.75 },
@@ -41,7 +41,7 @@ describe('Squire eases a realm's levels, the later the more (#250)', () => {
     expect(createGame('paladin', 5, { tier: 0, realm: 'ironHold' }).tier.enemyHp).toBeCloseTo(ringStep('ironHold').hp);
   });
 
-  it('shows Squire's Enemy HP on the road; Knight's stays', () => {
+  it("shows Squire's Enemy HP on the road; Knight's stays", () => {
     const shown = (realm: 'marches' | 'ironHold' | 'cinderlands', n: number, tier: number) => Array.from({ length: n }, (_, i) => levelPanel({ marches: [7] }, realm, i + 1, tier).enemyHp);
     expect(shown('marches', 7, 0)).toEqual([34, 34, 39, 48, 54, 60, 45]); // were 40, 41, 49, 61, 72, 82, 64
     expect(shown('ironHold', 5, 0)).toEqual([197, 141, 127, 122, 109]); // were 231, 173, 164, 166, 156
