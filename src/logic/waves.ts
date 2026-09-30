@@ -58,17 +58,20 @@ export function rollModifier(wave: number, rng: Rng, chanceMult = 1, from = WAVE
   return MODIFIER_IDS[Math.floor(rng() * MODIFIER_IDS.length)];
 }
 
-/** v0.8 (#101): whether this difficulty tier fields the type (WAVES.tierRoster). No tier: every type. */
-export function tierAllows(id: EnemyId, tier?: number): boolean {
-  if (tier === undefined) return true;
+/**
+ * v0.8 (#101): whether this difficulty tier fields the type (WAVES.tierRoster). No tier: every type. #249: `fields`: types fielded on
+ * every tier where the run is (a realm's own foes in its levels, config/world.ts `fields`).
+ */
+export function tierAllows(id: EnemyId, tier?: number, fields?: readonly EnemyId[]): boolean {
+  if (tier === undefined || fields?.includes(id)) return true;
   const at = WAVES.tierRoster.findIndex((types) => types.includes(id));
   return at <= tier; // -1: in no list, so on every tier
 }
 
 /** Enemy types unlocked at this wave (and difficulty tier) with their base weights (Siege multiplies the ranged ones). */
-export function unlockedPool(wave: number, modifier: ModifierId | null, tier?: number): { weight: number; value: EnemyId }[] {
+export function unlockedPool(wave: number, modifier: ModifierId | null, tier?: number, fields?: readonly EnemyId[]): { weight: number; value: EnemyId }[] {
   return WAVES.pool
-    .filter((p) => wave >= p.from && tierAllows(p.id, tier))
+    .filter((p) => wave >= p.from && tierAllows(p.id, tier, fields))
     .map((p) => ({ weight: p.weight * (modifier === 'siege' && WAVES.rangedTypes.includes(p.id) ? MODIFIERS.siege.n.rangedWeight : 1), value: p.id }));
 }
 
