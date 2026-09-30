@@ -161,7 +161,8 @@ canvas#game { position: fixed; inset: 0; display: block; image-rendering: pixela
 #h-ab-text { flex: 1; min-width: 0; pointer-events: auto; cursor: help; }
 #h-ab-name { font: 700 17px/1.25 var(--hud-display); }
 #h-ab-desc { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#h-ab-ups { display: flex; gap: 4px; margin-top: 3px; }
+#h-ab-ups { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; } /* three upgrades wrap to a second row: the bar grows upward, never under the utility's key and name */
+#h-ab-ups .hud-badge { white-space: nowrap; }
 #h-ab-ups:empty { display: none; }
 #h-ut-slot { font: 700 13px var(--hud-display); white-space: nowrap; pointer-events: auto; cursor: help; }
 #h-ut-slot.locked { opacity: 0.55; }
