@@ -1,5 +1,97 @@
 # Balance notes
 
+## v0.12: the Cinderlands' balance pass (#232)
+
+The release's last issue: every class through every level of the Cinderlands on Knight, against rule 9, with the bot playing the
+realm as one run (`simulateRealm`, #220). The Marches and the Iron Hold were not retuned: no Cinderlands change touches their numbers.
+
+**The sim says where a first try fell.** A level's row now holds the wave of the fall, whether the end boss stood then, and how long
+the boss stood (`src/sim/levels.ts` `fellWave`, `fellBoss`, `bossSeconds`); `npm run sim -- levels` prints them as an "End bosses"
+table. That is how the elite Grand Inquisitor, the Ember Queen and the Cinder Colossus were measured.
+
+**The Cinderlands have level steps and wave lengths of their own** (`WORLD.levelStep.own`, `WORLD.levelWaves.own` in
+`src/config/world.ts`; `logic/world.ts` reads a realm's own where it has them, a relic realm's otherwise). Until now every relic
+realm shared one row, so easing the Cinder Colossus's level would have retuned the Iron King's.
+
+**Tuned** (two passes):
+- **The level step**: HP x0.77, 0.77, 0.83, 0.99, 0.95 and damage x0.85, 0.84, 0.98, 1.12, 0.95 (a relic realm's: 0.77, 0.77, 0.83,
+  0.99, 1.07 and 0.92, 0.86, 0.93, 1.12, 1.23). Level 1 eases (burn stacks and the spreading fire cost first tries the Iron Hold's
+  level 1 does not), level 3 hits a little harder, and the crown level eases most.
+- **Wave length**: levels 2-4 bring foes x1.3, 1.25, 1.05 over a trickle x1.65, 1.7, 2 (a relic realm's: 1.2, 1.1, 0.95 over 1.5,
+  1.5, 1.8): the realm ran 29 minutes clean against 35.
+- **The Cinder Colossus** (`config/enemies.ts`, `config/damage.ts`): damage 18 (was 24), his fires 8 a second (was 10), his burn 2.2
+  a stack (was 4; still two stacks a hit, and still the realm's hottest). His HP (1200) and his three 12-second phases stay: the bot
+  already fells him in 39-41 s, 36 s being the least a crown boss stands. (Pass 1: damage 21, burn 2.8, the crown level's step
+  HP x1 and damage x1.1, level 3 alone longer; it moved the crown level from 30% to 40%.)
+- **Left alone: the Ember Queen and the elite Grand Inquisitor.** Pass 1 tried her on HP 1500 and damage 26 (1050, 22) and his
+  Auto-da-fé's pyres on 3 s at 10 a second (2.5 s, 8): neither cost the bot one more first try, so pass 2 put both back. Against the
+  bot they are not what a level is lost on (below); numbers a bot can't feel are not tuned on the bot.
+
+What the level panel shows on Knight (Enemy HP): 335, 251, 237, 240, 200% (were 335, 251, 237, 240, 225%, the Iron Hold's).
+
+`npm run sim -- levels 8 1 cinderlands`: 40 first tries a level on Knight (paladin, viking, angel, necromancer, archer; 8 seeds
+each). First-try clear rate and a clear's median minutes. Target: about 90% at level 1 and 55-60% at level 5, falling evenly between.
+
+| Level | Waves | Target | Before | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|---|
+| Cinderlands 1 | 1-8 | 90% | 83%, 4.6 | 85%, 4.7 | 85%, 4.7 |
+| Cinderlands 2 | 9-16 | 82% | 80%, 5.2 | 80%, 5.2 | 88%, 5.4 |
+| Cinderlands 3 | 17-24 | 73% | 88%, 5.4 | 80%, 6.0 | 78%, 5.9 |
+| Cinderlands 4 | 25-32 | 65% | 68%, 6.1 | 68%, 6.2 | 63%, 6.9 |
+| Cinderlands 5 | 33-40 | 55-60% | 30%, 7.6 | 40%, 7.5 | 55%, 7.5 |
+
+Per class, first tries cleared of 8 (before -> pass 2):
+
+| Level | Paladin | Viking | Angel | Necromancer | Archer |
+|---|---|---|---|---|---|
+| Cinderlands 1 | 8 -> 8 | 7 -> 7 | 8 -> 8 | 7 -> 7 | 3 -> 4 |
+| Cinderlands 2 | 7 -> 7 | 6 -> 8 | 8 -> 8 | 8 -> 8 | 3 -> 4 |
+| Cinderlands 3 | 8 -> 8 | 6 -> 5 | 8 -> 8 | 8 -> 6 | 5 -> 4 |
+| Cinderlands 4 | 8 -> 7 | 4 -> 4 | 8 -> 8 | 6 -> 6 | 1 -> 0 |
+| Cinderlands 5 (the crown) | 6 -> 6 | 1 -> 5 | 4 -> 7 | 1 -> 4 | 0 -> 0 |
+| All five | 37 -> 36 of 40 | 24 -> 29 | 36 -> 39 | 30 -> 31 | 12 -> 12 |
+
+The end bosses, measured (first tries lost of 40: in the waves before the boss / with the boss on the floor; the median seconds the
+boss stood, from its arrival to the level's end):
+
+| Level | End boss | Before | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|
+| Cinderlands 1 | a pool boss | 6 / 1, 30 s | 5 / 1, 31 s | 5 / 1, 31 s |
+| Cinderlands 2 | the Grand Inquisitor | 7 / 1, 30 s | 7 / 1, 28 s | 4 / 1, 29 s |
+| Cinderlands 3 | the Ember Queen | 5 / 0, 30 s | 8 / 0, 33 s | 9 / 0, 34 s |
+| Cinderlands 4 | the Grand Inquisitor, Elite | 12 / 1, 34 s | 13 / 0, 32 s | 14 / 1, 36 s |
+| Cinderlands 5 | the Cinder Colossus (crown) | 12 / 16, 41 s | 13 / 11, 39 s | 11 / 7, 39 s |
+
+| Target (rule 9) | Before | Pass 2 | |
+|---|---|---|---|
+| About 90% at realm level 1 | 83% | 85% | 5 points under, within the band |
+| 55-60% at realm level 5 | 30% | 55% | met |
+| Falling evenly between | level 3 88% against 73%, level 5 30% against 57% | widest: level 2 88% against 82%, level 3 78% against 73% | within 20% |
+| A realm's level 1 takes 4-6 minutes | 4.6 | 4.7 | met |
+| A realm's last level takes 7-10 minutes | 7.6 | 7.5 | met |
+| A realm in about 35 minutes clean, 45 with retries | 29.3 / 45.4 | 30.8 / 39.5 | clean met (within 5), with retries half a minute short |
+| A 6-set in most crown-level clears | 100% | 100% | met |
+| Relic moments per findable relic 0.4-0.6 (the realm played through) | 0.39 | 0.39 | just outside, as the Iron Hold's 0.38 |
+| Power at a level's first wave within 15% of a continuous run | 0 of 4 levels | 0 of 4 levels | not comparable (#220) |
+
+What the numbers say, and what is left after two passes (the plan's gate rule: reported, not tuned further):
+- **The Archer crowns the Cinderlands on none of 8 first tries, and clears level 4 on none** (4 of 8 at levels 1-3), against 4-8 of 8
+  for the other four at every level: 12 of 40 first tries, where the Paladin clears 36, the Angel 39, the Necromancer 31 and the
+  Viking 29. It is the Iron Hold's finding again (0 of 8 at the Iron King), and the pass did not move it: easing the crown level
+  lifted the Viking (1 -> 5), the Angel (4 -> 7) and the Necromancer (1 -> 4) and left the Archer at 0. The bot underrates the
+  Archer (AGENTS.md), but two realms in a row say the same: it needs the Archer itself looked at (v0.15.0's classes, or a
+  hand-played check of the Cinder Colossus), not a level step. Without the Archer the other four clear 69% of their crown tries.
+- **The Cinder Colossus was the one boss that decided a level**: he felled 16 of the 28 first tries that reached him, now 7 of 29.
+- **The Ember Queen fells no first try and the elite Inquisitor one in 40.** The bot loses levels 1-4 in their waves (burn stacks
+  from Torchbearers, the spreading fire, Cinder Hounds' bursts), and meets each boss with the floor cleared: it dodges every marked
+  blow, so a boss whose lessons are all marked costs it nothing, whatever her HP. Their clear rates sit within the band through the
+  waves. Whether the Queen and the Auto-da-fé are too mild for a player is a hand-played question the sim can't answer.
+- The per-level rates carry about 8 points of noise at 40 tries: levels 2 (6 points over) and 3 (5 over) are inside it.
+
+The golden level runs (tests/v10-level-golden.test.ts) gained the Cinderlands' level 1 and a realm run of its levels 1-2; no other
+run moved. `npm run test:perf` has an Ember Forge scene: a Cinderlands level in its own arena, 250 foes (141 of them Torchbearers
+and Cinder Hounds), its fire spreading over the floor (up to 8 slabs alight at once), p95 16.7 ms.
+
 ## v0.11: the Iron Hold's balance pass (#220)
 
 The release's last issue: every class through every level of the Marches and the Iron Hold on Knight, against rule 9.

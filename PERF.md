@@ -90,6 +90,11 @@ Its scenes: a wave-20 horde of 250 under Fog and under a Blood Moon, the Usurper
 #220) the fortress: an Iron Hold level in the Great Keep, 250 foes, over half of them the realm's own (Iron Knights, Iron Shieldwalls,
 Thorn Bearers), under its forge presses and the Keep's braziers. The fortress scene also fails when it is not the fortress (another
 arena, none of the realm's foes, or no press seen marking slabs). On the desktop it read p95 16.8 ms (update 1.0, render 1.2).
+v0.12 (#232) adds the Ember Forge: a Cinderlands level in its own arena, 250 foes, over half of them the realm's own (Torchbearers,
+and Cinder Hounds that burst into fire where they fall), over its lava channels, with its fire spreading over the floor: the fire
+catches at the lava's bank every 2 s at most while it is measured, so tongues of it are always creeping in the frames. It fails when
+it is not the Ember Forge (another arena, none of the realm's foes, or fewer than 3 slabs seen alight). On the desktop it read p95
+16.7 ms (update 1.9, render 2.5), with up to 8 slabs alight at once.
 
 ## At the v0.4.0 release
 
