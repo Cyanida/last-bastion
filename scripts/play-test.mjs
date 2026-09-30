@@ -1652,6 +1652,136 @@ await check('realm run: no head start: four levels cleared and no run -> the roa
   return { ok, detail: `road "${first.name}" (${first.open} open, FIGHT ${first.fight ? 'on' : 'off'}${/Head start/.test(first.text) ? ', HEAD START shown' : ''}); "${later.name}": FIGHT ${later.fight ? 'ON' : 'off'}${/The run starts at level 1/.test(later.text) ? ', "The run starts at level 1"' : ', NO NOTE'}, a click starts ${stayed ? 'nothing' : 'A RUN'}; run: ${run ? `level ${run.level}, wave ${run.start} (at ${run.wave}), champion level ${run.plevel}, holds ${run.held}, ${run.queued} queued picks, opening pick of ${run.picks}, saved at level ${run.saved}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #242: the realm road continues a realm run from its checkpoint, or starts it over ----------
+// A champion with two relics in its Marches loadout. Level 1 from the road (Fight!, no run marked), cleared with its opening pick and its
+// rare: back on the road level 1's flag is ticked, level 2's glows, the panel lists the run's relics and its gold button says "Continue
+// from level 2" beside Start over. Back to the map and in again: the same. Start over asks in the panel's row; Keep the run (Esc on the
+// keyboard) puts the buttons back and the run stays. Continue starts level 2 on the checkpoint's seed holding the same relics. A fall
+// there, and the road says "fell at wave N, restart level 2". Start over and its yes: level 1, wave 1, only the loadout's relics, a new seed.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`realm road: level 1 cleared -> its flag ticked, level 2's glows, the run's relics listed, back to the map and Continue from level 2 with the same relics; a fall says "fell at wave N, restart level 2"; Start over asks, Keep the run keeps it, yes starts level 1 with the loadout only, ${touch ? 'tap' : 'click and Esc'} at ${w}x${h} (#242)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap({ timeout: 8000 }) : p.locator(sel).first().click({ timeout: 8000 })).catch((e) => { throw new Error(`${sel}: ${String(e.message).split('\n')[0]}`); }); // a press that fails names its button
+    const bad = [];
+    const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+    const LOADOUT = ['brimstoneOil', 'emberheart'];
+    await p.evaluate((two) => {
+      const lb = window.__lb;
+      lb.save.champions = { paladin: { name: 'Hild', inventory: two, loadouts: { marches: two }, talentPlan: [], world: {}, signature: false, lastBastion: false, runs: {} } };
+      lb.save.cards = [...lb.cardIds]; // every flash card seen: nothing stops the fight
+    }, LOADOUT);
+    // the road as a player sees it: the flags' run marks, the panel's row (only what is shown and can be pressed), the run in the save
+    const look = () => p.evaluate(() => {
+      const shown = (sel) => {
+        const b = document.querySelector(sel);
+        if (!b || b.closest('[hidden]')) return null;
+        const r = b.getBoundingClientRect();
+        return { text: b.textContent.trim(), on: !b.disabled, seen: r.width > 0 && r.top >= -1 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1 && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest(sel) === b };
+      };
+      const next = document.querySelector('.rr-flag.run-next');
+      const run = window.__lb.save.champions.paladin?.runs?.marches;
+      return {
+        name: document.querySelector('.rr-name')?.textContent ?? '',
+        flags: [...document.querySelectorAll('.rr-flag')].map((f) => (f.classList.contains('run-done') && f.querySelector('.rr-tick') ? 'D' : f.classList.contains('run-next') ? 'N' : f.disabled ? '-' : 'o')).join(''),
+        glow: next ? getComputedStyle(next).animationName : '',
+        fight: shown('[data-fight]'), over: shown('[data-over]'), keep: shown('[data-keep]'), yes: shown('[data-yes]'),
+        ask: document.querySelector('.rr-ask:not([hidden]) .rr-asks')?.textContent ?? '',
+        relics: [...document.querySelectorAll('.rr-relic')].map((r) => r.dataset.relic).join(),
+        fell: document.querySelector('.rr-fell')?.textContent ?? '',
+        note: document.querySelector('.rr-from')?.textContent ?? '',
+        golds: document.querySelectorAll('.realm-road .kit-btn.gold').length,
+        state: window.__lb.state,
+        run: run ? { level: run.level, seed: run.seed, held: run.carry ? run.carry.relics.held.join() : null } : null,
+      };
+    });
+    const fight = () => p.evaluate(() => { const g = window.__lb.game; return g ? { level: g.level?.level, start: g.startWave, wave: g.wave, seed: g.seed, held: g.player.relics.held.join() } : null; });
+    const opening = () => p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
+    const toRoad = async () => {
+      await press('.wm-realm.r-marches');
+      await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    };
+    await press('[data-go="map"]');
+    await toRoad();
+    const road0 = await look();
+    want(road0.name === 'The Marches · Level 1' && road0.flags === 'o------' && road0.fight?.text === 'Fight!' && !road0.over && road0.relics === '' && !road0.run, `no run: ${JSON.stringify(road0)}`);
+    // level 1: its opening pick, cleared, its rare, and back to the road
+    await press('[data-fight]');
+    await opening();
+    await p.evaluate(() => { window.__lb.game.level.cleared = true; }); // as if wave 5's boss fell: the level ends once its spoils are taken
+    await press('[data-pick="0"]');
+    await p.locator('.rare-pick').waitFor({ timeout: 5000 });
+    await press('.rare-pick [data-pick="0"]');
+    await p.locator('[data-menu]').waitFor({ timeout: 3000 });
+    await press('[data-menu]');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    const road1 = await look();
+    const held = road1.run?.held ?? '';
+    want(road1.name === 'The Marches · Level 2' && road1.flags === 'DN-----' && road1.glow === 'rr-glow', `after level 1: "${road1.name}", flags ${road1.flags}, glow "${road1.glow}"`);
+    want(road1.run?.level === 2 && held.startsWith(LOADOUT.join()) && held.split(',').length === 3 && road1.relics === held, `the run's relics: panel [${road1.relics}], run ${JSON.stringify(road1.run)}`);
+    want(road1.fight?.text === 'Continue from level 2' && road1.fight.on && road1.fight.seen && road1.over?.text === 'Start over' && road1.over.seen && road1.golds === 1 && !road1.ask, `the panel's row ${JSON.stringify({ fight: road1.fight, over: road1.over, golds: road1.golds })}`);
+    // back to the map and in again: the run is still there; level 1's flag says it is cleared in this run and still continues from level 2
+    await press('[data-back]');
+    await p.locator('.wm-map').waitFor({ timeout: 3000 });
+    await toRoad();
+    const road2 = await look();
+    await press('.rr-flag.l-1');
+    await p.waitForFunction(() => document.querySelector('.rr-name')?.textContent.endsWith('Level 1'), null, { timeout: 3000 }).catch(() => {});
+    const onOne = await look();
+    await press('.rr-flag.l-2');
+    await p.waitForFunction(() => document.querySelector('.rr-name')?.textContent.endsWith('Level 2'), null, { timeout: 3000 }).catch(() => {});
+    want(road2.name === 'The Marches · Level 2' && road2.fight?.text === 'Continue from level 2' && road2.flags === 'DN-----' && road2.relics === held, `from the map again: ${JSON.stringify({ name: road2.name, fight: road2.fight?.text, flags: road2.flags })}`);
+    want(onOne.name === 'The Marches · Level 1' && onOne.fight?.text === 'Continue from level 2' && onOne.note === 'cleared in this run', `level 1's panel: "${onOne.name}", "${onOne.fight?.text}", note "${onOne.note}"`);
+    // Start over asks first; Keep the run (Esc) keeps it
+    await press('[data-over]');
+    const asked = await look();
+    if (touch) await press('[data-keep]');
+    else await p.keyboard.press('Escape');
+    await p.waitForTimeout(100);
+    const keptRun = await look();
+    want(asked.ask === 'Start over from level 1? This run and its 3 relics are lost.' && !asked.fight && !asked.over && asked.keep?.seen && asked.yes?.seen && asked.yes.text === 'Start over' && asked.state === 'menu', `Start over asks: ${JSON.stringify({ ask: asked.ask, fight: asked.fight, keep: asked.keep, yes: asked.yes, state: asked.state })}`);
+    want(keptRun.state === 'menu' && keptRun.name === 'The Marches · Level 2' && !keptRun.ask && keptRun.fight?.seen && keptRun.run?.seed === road1.run?.seed && keptRun.run.held === held, `Keep the run: ${JSON.stringify({ state: keptRun.state, name: keptRun.name, ask: keptRun.ask, run: keptRun.run })}`);
+    // Continue: level 2 on the checkpoint's seed, holding what level 1 ended with
+    await press('[data-fight]');
+    await opening();
+    const two = await fight();
+    want(two?.level === 2 && two.start > 1 && two.held === held && two.seed === road1.run?.seed, `Continue: ${JSON.stringify(two)} against the run ${JSON.stringify(road1.run)}`);
+    // a fall in level 2 (at 1 HP and standing still), and the road says so
+    await press('[data-pick="0"]');
+    const fell = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      for (let i = 0; i < 80000 && lb.game === g && lb.state !== 'results'; i++) {
+        if (lb.state === 'playing') g.player.hp = Math.min(g.player.hp, 1);
+        lb.run(1, false, false);
+      }
+      return { over: g.over, wave: Math.max(1, g.wave), state: lb.state };
+    });
+    await p.locator('.results [data-menu]').waitFor({ timeout: 3000 });
+    await press('.results [data-menu]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await skipTour(p, touch); // #240: this browser's first champion screen
+    await press('.kit-tab[data-tab="map"]');
+    await p.locator('.wm-map').waitFor({ timeout: 3000 });
+    await toRoad();
+    const road3 = await look();
+    want(fell.over && fell.state === 'results' && road3.name === 'The Marches · Level 2' && road3.fell === `fell at wave ${fell.wave}, restart level 2` && road3.fight?.text === 'Continue from level 2' && road3.fight.seen && road3.run?.seed === road1.run?.seed && road3.relics === held,
+      `after the fall (${JSON.stringify(fell)}): "${road3.name}", "${road3.fell}", "${road3.fight?.text}"`);
+    // Start over, and yes: a new run from level 1, wave 1, with the loadout only
+    await press('[data-over]');
+    await press('[data-yes]');
+    await opening();
+    const fresh = await fight();
+    const saved = await p.evaluate(() => { const r = window.__lb.save.champions.paladin.runs.marches; return r ? { level: r.level, seed: r.seed, carry: r.carry } : null; });
+    await p.close();
+    want(fresh?.level === 1 && fresh.start === 1 && fresh.wave === 0 && fresh.held === LOADOUT.join() && fresh.seed !== road1.run?.seed && saved?.level === 1 && saved.carry === null && saved.seed === fresh.seed, `Start over: ${JSON.stringify(fresh)}, saved ${JSON.stringify(saved)}`);
+    want(errs.length === 0, `errors: ${errs[0]}`);
+    return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `"${road0.fight?.text}" -> level 1 cleared -> "${road1.name}" flags ${road1.flags} (glow ${road1.glow}), relics [${held}], "${road1.fight?.text}" + "${road1.over?.text}"; map and back: the same; "${asked.ask}" -> kept; Continue: level ${two?.level} holding [${two?.held}] on the run's seed; "${road3.fell}"; Start over -> level ${fresh?.level}, wave ${fresh?.start}, holding [${fresh?.held}] on a new seed` };
+  });
+}
+
 // ---------- #200: a Marches level cleared: pick 1 of 2 rares of its family, it joins the champion, and the road opens on level 2 ----------
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   await check(`Marches: level 1 cleared -> pick 1 of 2 Steel rares (${touch ? 'tap' : 'key 2'}), kept by the champion, back to the road on level 2 (Flame), at ${w}x${h} (#200)`, async () => {

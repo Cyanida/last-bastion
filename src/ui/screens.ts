@@ -38,6 +38,7 @@ import type { CrownReward, LevelReward, RealmId } from '../config/world';
 import { bestCleared, parseTestLevel, testLevels, type LevelPanel, type RoadLevel } from '../logic/world';
 import { REALMS, WORLD } from '../config/world';
 import { fitLoadout, slotBlock, slotCost, slotView } from '../logic/champions';
+import { fellLine, roadGo, runMark, type RoadRun } from '../logic/realmRoad';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
@@ -251,16 +252,25 @@ const TIER_CROWNS = ['crown-squire', 'crown-knight', 'crown-champion', 'crown-le
  * tier it is cleared on), and the level panel for the picked flag: tier crowns, the run's slots (#237: or the realm run's level and
  * relics kept, when it goes on from a checkpoint; a level the run can't start at says so, its FIGHT off), enemy HP, the featured family and
  * foes, the end boss, what a first clear pays, and FIGHT, the screen's one gold button.
+ * #242: an unfinished realm run shows on the road (the levels cleared in it are ticked, its checkpoint's flag glows) and in the panel: the
+ * relics it holds, Continue from its checkpoint as the gold button, and Start over, which asks first in the panel's own row (decided: no
+ * browser dialog, so a gamepad and a phone answer it like any other button). A death adds "fell at wave N, restart level N".
  */
 export function showRealmRoad(
-  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null; run?: { level: number; relics: number } | null; starts?: boolean },
-  on: { level: (n: number) => void; tier: (t: number) => void; fight: () => void; loadout: () => void; back: () => void },
+  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null; run?: { level: number; relics: number } | null; trail?: RoadRun | null },
+  on: { level: (n: number) => void; tier: (t: number) => void; fight: () => void; over: () => void; loadout: () => void; back: () => void },
 ): void {
   const { realm, panel: pn } = info;
+  const trail = info.trail ?? null;
+  const go = roadGo(trail, info.level, info.tier, pn.open);
   const flag = (l: RoadLevel) => {
     const best = l.cleared.lastIndexOf(true);
-    return `<button class="rr-flag r-${realm} l-${l.n}${l.n === info.level ? ' on' : ''}" data-level="${l.n}" aria-label="Level ${l.n}${l.open ? '' : ', not open yet'}"${l.open ? '' : ' disabled'}>${l.open ? (best >= 0 ? kit.icon(TIER_CROWNS[best]) : '') : kit.icon('lock')}</button>`;
+    const mark = runMark(trail, l.n);
+    return `<button class="rr-flag r-${realm} l-${l.n}${l.n === info.level ? ' on' : ''}${mark ? ` run-${mark}` : ''}" data-level="${l.n}" aria-label="Level ${l.n}${l.open ? '' : ', not open yet'}${mark === 'done' ? ', cleared in this run' : mark === 'next' ? ', the run goes on here' : ''}"${l.open ? '' : ' disabled'}>${l.open ? (best >= 0 ? kit.icon(TIER_CROWNS[best]) : '') : kit.icon('lock')}${mark === 'done' ? '<i class="rr-tick">✓</i>' : ''}</button>`;
   };
+  const held = (r: RoadRun['relics'][number]) =>
+    `<span class="rr-relic" tabindex="0" data-relic="${r.id}" data-tip="${esc(relicTip(r.id, r.tier))}">${kit.rarityGlyph(relicRarity(r.id), relicDef(r.id).icon)}${tierBadge(r.tier)}</span>`;
+  const notes = [info.fell ? `<small class="rr-fell">${esc(fellLine(info.fell, info.level))}</small>` : '', go.note ? `<small class="rr-from">${esc(go.note)}</small>` : ''].filter(Boolean).map((n) => ` · ${n}`).join('');
   const tier = (t: LevelPanel['tiers'][number], i: number) =>
     `<button class="rr-tier${i === info.tier ? ' on' : ''}${t.cleared ? ' cleared' : ''}" data-tier="${i}" aria-pressed="${i === info.tier}" title="${t.name}${t.cleared ? ': cleared' : t.open ? '' : ': not open yet'}"${t.open ? '' : ' disabled'}>${kit.icon(t.open ? TIER_CROWNS[i] : 'lock')}<span>${t.name}</span></button>`;
   const fact = (label: string, value: string | number) => `<span class="rr-fact"><small>${label}</small><b>${value}</b></span>`;
@@ -284,14 +294,34 @@ export function showRealmRoad(
             ${pn.rewards.length ? `<ul>${pn.rewards.map((r) => `<li>${kit.icon('crown')}${esc(r)}</li>`).join('')}</ul>` : '<p>First-clear rewards taken: a replay pays gold and XP for the waves played.</p>'}
           </div>
         </div>
-        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${info.fell ? ` · <small>fell at wave ${info.fell}</small>` : ''}${pn.open && info.starts === false ? ' · <small class="rr-from">The run starts at level 1</small>' : ''}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${kit.button('Fight!', { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !pn.open || info.starts === false })}</div>`, { cls: 'rr-panel' })}
+        ${trail?.here ? `<div class="rr-run"><small>Run relics</small>${trail.relics.length ? `<span class="rr-relics">${trail.relics.map(held).join('')}</span>` : '<span class="rr-none">None yet</span>'}</div>` : ''}
+        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${notes}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${go.over ? kit.button('Start over', { attrs: 'data-over' }) : ''}${kit.button(go.label, { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !go.enabled })}</div>
+        <div class="rr-go rr-ask" role="alertdialog" aria-label="Start over?" hidden><span class="rr-asks"></span>${kit.button('Keep the run', { attrs: 'data-keep' })}${kit.button('Start over', { kind: 'go', size: 'big', attrs: 'data-yes' })}</div>`, { cls: 'rr-panel' })}
     </div>`);
+  // Start over, or a new run on another tier: the run in progress is lost, so the row asks first; Keep the run (or Esc) puts the buttons back
+  const row = el.querySelector<HTMLElement>('.rr-go:not(.rr-ask)')!, asks = el.querySelector<HTMLElement>('.rr-ask')!;
+  let yes: (() => void) | null = null;
+  const ask = (text: string, then: () => void) => {
+    asks.querySelector('.rr-asks')!.textContent = text;
+    yes = then;
+    row.hidden = true;
+    asks.hidden = false;
+    asks.querySelector<HTMLElement>('[data-keep]')!.focus();
+  };
+  const keep = () => {
+    yes = null;
+    asks.hidden = true;
+    row.hidden = false;
+  };
   click(el, '[data-back]', () => on.back());
   click(el, '.rr-flag', (b) => on.level(Number(b.dataset.level)));
   click(el, '.rr-tier', (b) => on.tier(Number(b.dataset.tier)));
-  click(el, '[data-fight]', () => on.fight());
+  click(el, '[data-fight]', () => (go.ask ? ask(go.ask, on.fight) : on.fight()));
+  click(el, '[data-over]', () => go.over && ask(go.over, on.over));
+  click(el, '[data-keep]', keep);
+  click(el, '[data-yes]', () => yes?.());
   click(el, '[data-loadout]', () => on.loadout()); // #197: the champion screen, on this realm's loadout
-  onActions((a) => (a === 'cancel' || a === 'pause') && on.back());
+  onActions((a) => (a === 'cancel' || a === 'pause') && (yes ? keep() : on.back()));
 }
 
 export interface ChampionInfo {

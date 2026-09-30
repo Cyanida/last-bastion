@@ -58,6 +58,7 @@ import { levelPanel, mapRealms, roadLevels, roadTier } from './logic/world';
 import { REALMS, WORLD, type LevelReward, type RealmId } from './config/world';
 import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, newChampion, nextStop, rarePickOptions, runAt, runFor, runLevel, runStarts, type Champion } from './logic/champions';
 import { checkpoint } from './logic/realmRun';
+import { roadGo, roadOpensOn, roadRun } from './logic/realmRoad';
 import { TALENT_ROW_CAP } from './config/economy';
 import { takeCarry, type LevelStart } from './systems/levels';
 import { isCompactLayout, textScale } from './logic/textSize';
@@ -223,17 +224,24 @@ function toRoad(realm: RealmId, level?: number, tier?: number): void {
   menu();
   const id = pickedClass(save);
   const progress = champOf(id).world;
-  const t = roadTier(progress, realm, tier ?? save.settings.tier);
+  const t = roadTier(progress, realm, tier ?? roadOpensOn(champOf(id), realm, save.settings.tier)); // #242: a run in progress opens its own tier
   const n = level ?? runLevel(champOf(id), realm, t); // #237: the realm run's checkpoint, else level 1
   const bonus = championBonus(save.meta, save.classes[id].xp);
   const panel = levelPanel(progress, realm, n, t, bonus);
   const carry = runAt(champOf(id), realm, n, t)?.carry;
   const starts = runStarts(champOf(id), realm, n, t); // #237: a run starts at level 1 or goes on at its checkpoint; no other level can be fought
-  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champOf(id).name, road: roadLevels(progress, realm, t), panel, fell: fellAt(id, realm, n, t), run: carry && { level: carry.level, relics: carry.relics.held.length }, starts }, {
+  const trail = roadRun(champOf(id), realm, t); // #242: the unfinished run the road marks; on this tier the panel continues it from any flag
+  const go = roadGo(trail, n, t, panel.open);
+  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champOf(id).name, road: roadLevels(progress, realm, t), panel, fell: fellAt(id, realm, n, t), run: carry && { level: carry.level, relics: carry.relics.held.length }, trail }, {
     level: (next) => toRoad(realm, next, t),
     tier: (next) => toRoad(realm, undefined, next),
-    fight: () => panel.open && starts && playLevel(id, realm, n, t),
-    loadout: () => toChampion({ realm, level: starts ? n : 1, tier: t }),
+    fight: () => go.enabled && playLevel(id, realm, go.plays, t), // Continue from the checkpoint, or level 1 (a new run; the screen asked first if one is lost)
+    over: () => {
+      if (!trail?.here) return;
+      if (fall?.classId === id && fall.realm === realm) fall = null; // the run that fell is gone
+      playLevel(id, realm, 1, t); // no run stands at level 1, so this is a new one: it replaces the run in progress
+    },
+    loadout: () => toChampion({ realm, level: trail?.here ? trail.level : starts ? n : 1, tier: t }), // a run in progress: its own level, so the champion screen's PLAY continues it
     back: () => toMap(),
   });
 }
