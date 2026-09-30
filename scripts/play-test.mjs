@@ -5078,7 +5078,8 @@ await check('Iron King: test mode starts the Iron Hold level 5; its crown boss: 
 
 // ---------- #228: the Cinder Colossus: Settings -> Test mode -> "Start at" the Cinderlands' level 5 -> the opening pick -> its last wave ----------
 // The champion trades plain blows beside him (no ability, no bot moves), so the fight goes the same way every run: phase 1 his hits
-// (the Slam's fan of fire lines and his touch) burn, so the champion takes them there, healed each tick, and the burn stacks; from phase
+// (the Slam's fan of fire lines and his touch) burn, so the champion takes them there, healed each tick, and the burn stacks (#225's,
+// which fall one at a time); from phase
 // 2 he is unhurt: his embers land round him and the fire spreads patch by patch; phase 3 his brood of Cultists comes and the foes that
 // fall in his heat burst into fire. Each phase holds its 12 s as a crown boss's does, and his fall clears the level.
 await check('Cinder Colossus: test mode starts the Cinderlands level 5; its crown boss: burning hits, then spreading fire, then bursts, each phase 12 s, level cleared (#228)', async () => {
@@ -5111,7 +5112,7 @@ await check('Cinder Colossus: test mode starts the Cinderlands level 5; its crow
     g.spawnQueue.length = 0;
     g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 40, the level's last
     g.breather = 0.01;
-    const out = { wave: 0, id: '', crown: false, banner: '', burn: [0, 0, 0], slam: [0, 0, 0], patches: [0, 0, 0], bursts: [0, 0, 0], brood: 0, phases: [], dead: false, fell: false };
+    const out = { wave: 0, id: '', crown: false, banner: '', decay: 0, burn: [0, 0, 0], slam: [0, 0, 0], patches: [0, 0, 0], bursts: [0, 0, 0], brood: 0, phases: [], dead: false, fell: false };
     const seen = new WeakSet();
     let k = null;
     let patches = 0, bursts = 0;
@@ -5131,6 +5132,7 @@ await check('Cinder Colossus: test mode starts the Cinderlands level 5; its crow
       if (k.phase > out.phases.length + 1) out.phases.push(+g.time.toFixed(1));
       const ph = k.phase - 1;
       out.burn[ph] = Math.max(out.burn[ph], g.player.statuses.burn?.stacks ?? 0);
+      if (burning) out.decay = Math.max(out.decay, g.player.statuses.burn?.decay ?? 0); // #225's burn stacks: they fall one at a time
       const mine = g.zones.filter((z) => z.owner === k && !seen.has(z) && z.r === k.def.zoneRadius); // the zones one Slam set this tick
       for (const z of g.zones) if (z.owner === k) seen.add(z);
       out.slam[ph] = Math.max(out.slam[ph], mine.length);
@@ -5146,9 +5148,9 @@ await check('Cinder Colossus: test mode starts the Cinderlands level 5; its crow
   await p.close();
   const long = fight.phases.length === 2 && fight.phases[1] - fight.phases[0] >= 12;
   const ok = fight.test === 1 && fight.wave === 40 && fight.id === 'cinderColossus' && fight.crown && fight.banner === 'The Cinder Colossus · Crown boss' && !fight.fell
-    && fight.burn[0] >= 2 && fight.slam[0] === 15 && fight.patches[0] === 0 && fight.patches[1] >= 9 && fight.bursts[1] === 0 && fight.bursts[2] > 0
+    && fight.burn[0] >= 2 && fight.decay > 0 && fight.slam[0] === 15 && fight.patches[0] === 0 && fight.patches[1] >= 9 && fight.bursts[1] === 0 && fight.bursts[2] > 0
     && fight.brood >= 1 && long && fight.dead && fight.cleared && errs.length === 0;
-  return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; phases at ${fight.phases.join(', ')} s; burn stacks ${fight.burn.join('/')}, slam zones ${fight.slam.join('/')}, fire patches ${fight.patches.join('/')}, bursts ${fight.bursts.join('/')} by phase; brood ${fight.brood}; ${fight.fell ? 'CHAMPION FELL; ' : ''}${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; phases at ${fight.phases.join(', ')} s; burn stacks ${fight.burn.join('/')} (one falls every ${fight.decay} s), slam zones ${fight.slam.join('/')}, fire patches ${fight.patches.join('/')}, bursts ${fight.bursts.join('/')} by phase; brood ${fight.brood}; ${fight.fell ? 'CHAMPION FELL; ' : ''}${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 // ---------- #236: no boss ends two levels of a realm: Settings -> Test mode -> "Start at" a Marches level -> the opening pick -> its last wave ----------
