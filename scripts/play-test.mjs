@@ -1672,8 +1672,9 @@ await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his f
     const g = lb.game;
     // the run waits under the card: a known state. Take the knight the card is about (or any whose plates are whole), read his plates now, and from
     // here on log every blow that reaches them, the ones the real frames land after "Got it" too: each blow writes his plates, then his HP
-    const knight = [lb.spotlight, ...(g?.enemies ?? [])].find((e) => e && e.def.id === 'ironKnight' && !e.dead && e.armorHp === e.armorMax);
+    const knight = [lb.spotlight, ...(g?.enemies ?? [])].find((e) => e && e.def.id === 'ironKnight' && !e.dead);
     if (knight) {
+      knight.armorHp = knight.armorMax; // a known start: the bot may have struck him before his card opened, so his plates are made whole
       // four times his HP, so a champion whose opening pick hits hard still lands light blows (one plate each); heavy blows are
       // still judged by the rule below, against his (new) max HP
       knight.maxHp *= 4;
@@ -1747,7 +1748,7 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
     const lb = window.__lb, g = lb.game, p = g.player, S = 80;
     const marked = () => g.zones.filter((z) => z.slab && z.hostile);
     const onSlab = (z, b) => Math.hypot(Math.max(Math.abs(b.x - z.x) - S / 2, 0), Math.max(Math.abs(b.y - z.y) - S / 2, 0)) < b.r;
-    const wait = () => { p.invulnerable = true; for (let i = 0; i < 40000 && !marked().length && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, true); p.invulnerable = false; return marked(); };`;
+    const wait = () => { p.invulnerable = true; for (let i = 0; i < 40000 && !marked().length && lb.game === g && lb.state !== 'results'; i++) { p.hp = p.stats.hp; lb.run(1, false, true); } p.invulnerable = false; return marked(); };`;
   const { still, dodge } = await p.evaluate(`(() => { ${setup}
     const reaches = (zs) => zs.length >= 2 && zs.some((z) => onSlab(z, p));
     const letGo = () => { p.invulnerable = true; for (let i = 0; i < 1000 && marked().length; i++) lb.run(1, false, true); p.invulnerable = false; return wait(); };
@@ -1818,7 +1819,7 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
   // the bracket's glow pulses, so one sample can catch it dim: a warm hue (red well over green, over twice the blue) is the proof
   const red = still.bracket && still.bracket[0] > still.bracket[1] + 30 && still.bracket[0] > 2 * still.bracket[2];
   const ok = still.found && still.realm === 'ironHold' && still.level === 1 && still.arena === 'keep' && still.n >= 2 && still.warned && red && still.ram
-    && still.onIt && still.hurt > 0 && still.slam > 0 && still.foeHurt > 0 && dodge.found && !dodge.onIt && dodge.hurt <= 0 && // (regeneration may top him up a hair: it is a slam's damage that must be missing)
+    && still.onIt && still.hurt > 0 && still.slam > 0 && still.foeHurt > 0 && dodge.found && !dodge.onIt && dodge.hurt < still.hurt / 2 && // (a hair of other damage or regeneration is not a slam: it hurt him ten or more)
      errs.length === 0;
   return { ok, detail: still.found ? `${still.realm} level ${still.level} in the ${still.arena}: ${still.n} slabs marked${still.warned ? ' with a warning' : ''}, bracket rgb(${(still.bracket ?? []).slice(0, 3).join(',')}), ram ${still.ram ? 'drawn' : 'NOT drawn'}${still.props ? '' : ' (props atlas not loaded yet)'}; standing still: ${still.onIt ? 'on the slab' : 'OFF the slab'}, hurt ${Math.round(still.hurt)}, ${still.slam} slam sound(s), the foe beside him hurt ${Math.round(still.foeHurt)}; stepped aside (${dodge.key ?? 'no key'}): ${dodge.found ? `${dodge.onIt ? 'STILL on a slab' : 'off the slabs'}, hurt ${+dodge.hurt.toFixed(2)}` : `no second marking (${dodge.why})`}${errs.length ? `; errors: ${errs[0]}` : ''}` : `no press marked slabs (${still.realm}, wave ${still.wave})` };
 });
