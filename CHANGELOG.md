@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.11.0 — The Iron Hold
+
+The first relic realm opens: the Iron Hold, five levels through a fortress to the Iron King. And a realm is now one run, where you keep what you find and your champion grows between the levels.
+
+- **The Iron Hold**: five levels of 8 waves in the Great Keep, now a fortress with a forge, an armory, a chapel and barracks, and its own music.
+- **Forge presses**: in the Iron Hold the slabs around you are marked before an iron ram slams down; step aside, and let it crush the foes instead.
+- **New foes**: Iron Knights whose plates you break blow by blow, Iron Shieldwalls that block everything from the front, and Thorn Bearers that bite back when you strike them up close. Each has a flash card.
+- **New bosses**: the Forgemaster ends level 3, calling the presses down around you; the Warden returns as an elite with one phase more; and the Iron King guards the crown in three phases: plate, shield, then thorns.
+- **Seven new Steel relics**: Rivet Hammer, Pavise, Reprisal Cuirass and the legendary Heart of the Hold; Iron Halo for the Angel, Legion Plate for the Necromancer and Bodkin Points for the Archer; and a new duo, Iron Tithe.
+- **Rewards**: the Iron Hold's levels give Steel rares and your class relic, its crown lets you pick a Steel legendary, and the Legend crown gives the title Ironsworn and the Iron colours.
+- **A realm is one run**: relics, their tiers and gold carry from level to level. Every cleared level is a checkpoint; a fall restarts only that level, and the realm's road offers Continue or Start over.
+- **No screens before a level**: the head start and its queued picks are gone. A level starts straight in the fight.
+- **Champions level up between levels**: a clear banks champion XP, and each champion level gives 3 stat points and a talent point. Spend them on the new Level cleared screen or on the champion screen's Build tab.
+- **The champion screen explains itself**: tabs for Loadout, Build and Talents, a short tour the first time, a legendary that visibly takes two slots, and slots that say why a relic can't go in.
+- **Short relic text**: one line per relic on every card, readable at a glance; the ⓘ opens the full text in the compendium.
+- **Longer levels**: a level takes about 4 to 10 minutes; the Marches' levels are 5 or 6 waves each.
+- **No boss twice in a realm**: every level of a realm ends on a different boss.
+- **Balance**: the Marches' first levels are easier, and the late levels of the Marches and the Iron Hold are harder.
+- **Your save carries over**: champions keep their relics, crowns and rewards; a realm is now played from level 1.
+
 ## v0.10.0 — Champions & the Marches
 
 The game becomes a journey: you raise a champion, carry their relics from level to level, and win the first realm, the Marches, on a map of the world.
