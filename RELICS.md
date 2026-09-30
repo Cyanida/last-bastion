@@ -439,18 +439,18 @@ what the leap passes on) in `logic/relics.ts`. The class relics for the Viking a
 - **Burn stacks on you** are the realm's foes' lesson; no relic here reads them, because a relic that only works in the Cinderlands would sit
   under 3% everywhere else (the shares below are measured in a plain run).
 
-**Measured.** `npm run sim -- relics 3 hold=<id>` (every run holds the named relic from the start; maxed saves, 15 runs each).
-Share from wave 21 on, target 3-35%:
+**Measured.** `npm run sim -- relics 3 hold=<id>` (every run holds the named relic from the start; maxed saves, 15 runs each;
+measured again on release/0.12.0 with the Ember Forge and the Torchbearers in). Share from wave 21 on, target 3-35%:
 
 | Relic | Runs held at wave 20 | Share |
 |---|---|---|
-| 🛢️ Pitch Pot | 14 | 7.6% |
-| 🎇 Crown of Cinders | 15 | 7.1% |
+| 🎇 Crown of Cinders | 15 | 7.5% |
+| 🛢️ Pitch Pot | 14 | 7.3% |
 | 🧨 Flashpowder | 13 | 4.5% |
 
 All three sit inside the band. Their first versions, which only fed on burns other relics lit, read 2.3% (Flashpowder, at 3+ stacks),
 2.5% (Pitch Pot) and 2.8% (Crown of Cinders); lighting their own first fire lifted the pot and the crown into the band, and Flashpowder
-read 3.0% at 20 → 26 damage in 90 px, so it went to 32 → 40 in 100 px. The power index stayed in its band in every run (1.99-2.14).
+read 3.0% at 20 → 26 damage in 90 px, so it went to 32 → 40 in 100 px. The power index stayed in its band in every run (2.02-2.14).
 
 ## A0b · The new relic list (approved, revision 2)
 
