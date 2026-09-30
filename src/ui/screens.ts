@@ -898,11 +898,15 @@ export function showLevelUp(
           const special = (o.kind === 'stat' && o.key === 'secondary') || o.kind === 'talent' || o.kind === 'evolution' ? 'special' : '';
           const now = o.kind === 'stat' ? `<div class="best">now ${fmtStat(o.key, stats[o.key])}</div>` : '';
           const strike = on.banish && o.kind !== 'evolution' ? `<span class="banish" data-banish="${i}" data-tip="Quartermaster's Ledger: strike this card from the run for good (and get a fresh hand)">✕</span>` : '';
-          return `<button class="card panel boon ${kind} ${special}" data-pick="${i}">${strike}<div class="num">${i + 1}</div><h2>${t.title}</h2><div class="tag">${t.tag}</div><p>${t.desc}</p>${now}</button>`;
+          // #235: a relic among the boons is its short line and tier chips too, with the ⓘ to its compendium page
+          const info = o.kind === 'relic' ? infoButton(o.id, relicDef(o.id).name) : '';
+          const chips = o.kind === 'relic' ? tierChips((tiers[o.id] ?? 0) + 1) : '';
+          return `<button class="card panel boon ${kind} ${special}" data-pick="${i}">${strike}${info}<div class="num">${i + 1}</div><h2>${t.title}</h2><div class="tag">${t.tag}</div><p>${t.desc}</p>${chips}${now}</button>`;
         }).join('')}
       </div>
       ${kit.button(`Reroll (R) — ${reroll.free > 0 ? `${reroll.free} free` : `🪙 ${reroll.cost}`}`, { attrs: 'data-reroll', disabled: !canReroll })}
     </div>`);
+  wireRelicInfo(el);
   click(el, '[data-pick]', (b) => on.pick(options[Number(b.dataset.pick)]));
   el.querySelectorAll<HTMLElement>('[data-banish]').forEach((b) => (b.onclick = (ev) => {
     ev.stopPropagation(); // not a pick

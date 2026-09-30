@@ -600,7 +600,7 @@
 .levelup .row { gap: 12px; }
 .levelup .heldlist { display: inline-block; margin: 0 0 12px; padding: 10px; }
 .levelup .heldlist .kit-parch { display: flex; flex-direction: column; gap: 6px; }
-.held .kit-btn.small { padding: 4px 9px 3px; font-size: 12px; }
+.held .kit-btn.small { padding: 4px 9px 3px; font-size: 14px; }
 .compact .levelup > .kit-head .kit-ribbon { font-size: 15px; padding: 4px 18px 3px; }
 
 .kit-screen.pause, .kit-screen.daily, .kit-screen.crash { width: min(580px, calc(96 * var(--vw))); }
@@ -689,13 +689,13 @@
 .cs-pick .kit-ribbon { margin: 0 26px; font-size: 14px; padding: 4px 12px 3px; }
 .cs-arrow { width: 30px; height: 30px; font: 900 20px/1 var(--kit-num); color: var(--kit-brass-light); }
 .cs-sets { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 12px; min-height: 26px; }
-.cs-sets small { color: #cdb68a; font-size: 13px; }
+.cs-sets small { color: #cdb68a; font-size: 14px; }
 .cs-set { display: inline-flex; align-items: center; gap: 2px; padding: 1px 8px 1px 2px; font: 800 14px var(--kit-num); background: linear-gradient(#2a1d14, #120c08); border: 2px solid var(--kit-brass-dark); border-radius: 13px; opacity: 0.7; }
 .cs-set.on { opacity: 1; border-color: var(--kit-brass-light); box-shadow: 0 0 8px rgba(246, 217, 122, 0.6); }
 .cs-side { display: grid; grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; align-self: stretch; min-height: 0; }
 .cs-side .kit-parch { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 8px 12px; }
 .cs-side h2 { margin: 0 0 6px; font: 900 15px var(--kit-num); letter-spacing: 0.06em; text-transform: uppercase; color: var(--kit-brass-dark); }
-.cs-side h2 small { font-size: 12px; color: var(--kit-ink); }
+.cs-side h2 small { font-size: 14px; color: var(--kit-ink); }
 .cs-inv { display: flex; flex-wrap: wrap; gap: 8px; }
 .cs-relic { padding: 0; min-height: 0; background: none; border: 0; box-shadow: none; cursor: pointer; border-radius: 10px; }
 .cs-relic .kit-rarity { width: 48px; height: 48px; }

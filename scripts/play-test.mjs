@@ -817,7 +817,9 @@ await check('relic offer: a short line and tier chips, the ⓘ opens its compend
     const P = window.__play, rel = window.__lb.game.player.relics;
     rel.offers.push({ from: 'lair', options: ['heartOfTheHold', 'reprisalCuirass', 'thunderDrum', 'guardiansAegis'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 0, duo: null });
     if (!P.toChoice()) return null;
-    return [...document.querySelectorAll('.relic-card')].map((c) => ({ p: c.querySelector('p').innerText, chips: c.querySelectorAll('.tier-chips i').length, info: !!c.querySelector('.relic-info'), long: c.innerText.includes('Awaken') || c.innerText.includes('Tier II') }));
+    return [...document.querySelectorAll('.relic-card')].map((c) => ({ p: c.querySelector('p').innerText, chips: c.querySelectorAll('.tier-chips i').length, info: !!c.querySelector('.relic-info'), long: c.innerText.includes('Awaken') || c.innerText.includes('Tier II'),
+      // the whole card on the 1280x720 screen, its short line inside it and not cut off
+      fits: (() => { const r = c.getBoundingClientRect(), l = c.querySelector('p'), lr = l.getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight && lr.left >= r.left && lr.right <= r.right && lr.bottom <= r.bottom && l.scrollWidth <= l.clientWidth && c.scrollHeight <= c.clientHeight + 1; })() }));
   });
   if (!setup) return { ok: false, detail: 'no relic offer' };
   const cardFont = await minFont('.relic-card');
@@ -830,10 +832,10 @@ await check('relic offer: a short line and tier chips, the ⓘ opens its compend
   await page.keyboard.press('Escape');
   const closed = await inPage(() => ({ page: !!document.querySelector('.relic-page'), state: window.__lb.state, offers: window.__lb.game.player.relics.offers.length }));
   await inPage(() => window.__play.click('[data-skip]'));
-  const short = setup.every((c) => c.p.length > 0 && c.p.length <= 90 && c.chips === 3 && c.info && !c.long);
+  const short = setup.every((c) => c.p.length > 0 && c.p.length <= 90 && c.chips === 3 && c.info && !c.long && c.fits);
   const ok = short && opened.page && opened.tiers >= 3 && opened.state === 'choice' && opened.offers === 1 && !closed.page && closed.state === 'choice' && closed.offers === 1
     && cardFont.min >= 14 && pageFont.min >= 14;
-  return { ok, detail: `cards ${setup.map((c) => `"${c.p}" (${c.p.length}, ${c.chips} chips${c.info ? ', ⓘ' : ''}${c.long ? ', LONG' : ''})`).join('; ')}; ⓘ page ${opened.page} (${opened.tiers} tier lines: "${opened.text}"), still picking ${opened.state}/${opened.offers}; Esc closed ${!closed.page}; smallest font card ${cardFont.min}px (${cardFont.at}), page ${pageFont.min}px` };
+  return { ok, detail: `cards ${setup.map((c) => `"${c.p}" (${c.p.length}, ${c.chips} chips${c.info ? ', ⓘ' : ''}${c.long ? ', LONG' : ''}${c.fits ? '' : ', DOES NOT FIT'})`).join('; ')}; ⓘ page ${opened.page} (${opened.tiers} tier lines: "${opened.text}"), still picking ${opened.state}/${opened.offers}; Esc closed ${!closed.page}; smallest font card ${cardFont.min}px (${cardFont.at}), page ${pageFont.min}px` };
 });
 
 await check('relic offer: take a relic', () =>
@@ -2072,8 +2074,9 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 }
 
 // #235: on the champion screen at 1280x720 every relic, in a slot or the inventory, has its ⓘ; hovered, its tooltip is the short line; the
-// ⓘ clicked opens its compendium page without slotting it, and Esc closes the page and stays on the screen; no relic text under 14 px
-await check('champion screen: relic tooltips are the short line, the ⓘ opens the compendium page, no relic text under 14 px (#235)', async () => {
+// ⓘ clicked opens its compendium page without slotting it, and Esc closes the page and stays on the screen; no text under 14 px on the
+// screen's own panels (slots, sets, inventory, talent plan, the level to play: all but the header and the tab bar every main screen shares)
+await check('champion screen: relic tooltips are the short line, the ⓘ opens the compendium page, no text under 14 px (#235)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const errs = [];
   p.on('pageerror', (e) => errs.push(e.message));
@@ -2092,7 +2095,7 @@ await check('champion screen: relic tooltips are the short line, the ⓘ opens t
     return min;
   }, sel);
   const infos = await p.evaluate(() => ({ slots: document.querySelectorAll('.cs-slot[data-unslot] .relic-info').length, inv: document.querySelectorAll('.cs-relic .relic-info').length, relics: document.querySelectorAll('.cs-relic').length }));
-  const relicFont = await font('.cs-slot, .cs-relic');
+  const relicFont = await font('.cs-main, .cs-go');
   await p.locator('.cs-relic[data-relic="emberheart"]').hover();
   const tip = await p.evaluate(() => { const t = document.getElementById('tooltip'); return { shown: t?.style.display === 'block', text: t?.innerText ?? '' }; });
   const tipFont = await font('#tooltip');
@@ -2105,7 +2108,7 @@ await check('champion screen: relic tooltips are the short line, the ⓘ opens t
   const shortTip = tip.shown && tip.text.includes('More damage for every burning enemy near you.') && !/Tier II:|Awakens at/.test(tip.text);
   const ok = infos.slots >= 1 && infos.inv === infos.relics && shortTip && /Tier|II/.test(opened.page) && /250 px/.test(opened.page) && opened.loadout === 'rivetHammer'
     && !after.page && after.screen && relicFont >= 14 && tipFont >= 14 && pageFont >= 14 && errs.length === 0;
-  return { ok, detail: `ⓘ on ${infos.slots} slot(s), ${infos.inv}/${infos.relics} inventory relics; tip ${tip.shown ? `"${tip.text.split('\n').slice(0, 2).join(' / ')}"` : 'NOT shown'}; page "${opened.page.slice(0, 70)}", loadout ${opened.loadout}; Esc: page ${after.page ? 'still open' : 'closed'}, screen ${after.screen}; smallest font relics ${relicFont}px, tip ${tipFont}px, page ${pageFont}px${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  return { ok, detail: `ⓘ on ${infos.slots} slot(s), ${infos.inv}/${infos.relics} inventory relics; tip ${tip.shown ? `"${tip.text.split('\n').slice(0, 2).join(' / ')}"` : 'NOT shown'}; page "${opened.page.slice(0, 70)}", loadout ${opened.loadout}; Esc: page ${after.page ? 'still open' : 'closed'}, screen ${after.screen}; smallest font on the screen ${relicFont}px, tip ${tipFont}px, page ${pageFont}px${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 // ---------- #205: a realm level's relics don't count for "in one run" deeds; a full run's do, and the Chronicle says so ----------
