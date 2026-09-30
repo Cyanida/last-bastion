@@ -1,10 +1,11 @@
-import { FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
+import { DUOS, FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import type { Enemy, Game, Player } from '../../core/types';
 import { addField } from '../../entities/hazards';
 import { damageEnemy, nearestEnemy } from '../combat';
 import { burst, line } from '../effects';
-import { leapStacks, pitchDrips, spark } from '../../logic/relics';
-import { addBurn, aOf, attackHit, awakened, bonus, burnStacks, cone, flash, maxBurn, nOf, nova, relicDamage, type RelicHooks, sOf } from '../relicCore';
+import { baptismHeal, bonefireBurn, leapStacks, pitchDrips, spark, stoke } from '../../logic/relics';
+import { relicContext } from '../relicContext';
+import { addBurn, aOf, attackHit, awakened, bonus, burnStacks, cone, flash, hasDuo, maxBurn, nOf, nova, relicDamage, relicHeal, type RelicHooks, sOf } from '../relicCore';
 
 /**
  * 🔥 Flame (RELICS.md): burn stacks and fire bursts. Every relic adds burn stacks or rewards them; the sets make burns stack higher (Stoked),
@@ -28,13 +29,34 @@ function flare(g: Game, p: Player, e: Enemy, link: boolean): void {
   const n = nOf(p, 'flashpowder');
   const need = aOf('flashpowder').stacks;
   const caught: Enemy[] = [];
-  nova(g, e.x, e.y, n.radius, relicDamage(p, n.damage), 80, F.color, 'fire', (o) => {
+  const hit = nova(g, e.x, e.y, n.radius, relicDamage(p, n.damage), 80, F.color, 'fire', (o) => {
     const before = burnStacks(o);
     addBurn(g, p, o, 1, relicDamage(p, n.power));
     if (o !== e && before < need && burnStacks(o) >= need) caught.push(o);
   });
   burst(g, e.x, e.y, F.color, 16, 260);
+  if (hasDuo(p, 'baptismOfFire')) {
+    // Baptism of Fire (#230): the flare's fire cleanses; the heal is the duo's work, as Iron Tithe's is in the cuirass's reprisal
+    const d = DUOS.baptismOfFire.n;
+    const outer = relicContext.acting;
+    relicContext.acting = 'baptismOfFire';
+    relicHeal(g, p, baptismHeal(p.stats.hp, d.heal, hit, d.max), true);
+    relicContext.acting = outer;
+  }
   if (link && awakened(p, 'flashpowder')) for (const o of caught) if (!o.dead) flare(g, p, o, false);
+}
+
+/**
+ * Surtr's Brand (#230): the stoked axe bursts out round the Viking: fire damage per stoke and burn stacks to everything near, and the
+ * count starts again.
+ */
+function erupt(g: Game, p: Player): void {
+  const n = nOf(p, 'surtrsBrand');
+  const stokes = g.vars['surtr.n'] ?? 0;
+  g.vars['surtr.n'] = 0;
+  if (stokes <= 0) return;
+  nova(g, p.x, p.y, n.radius, relicDamage(p, n.damage) * stokes, 80, F.color, 'fire', (e) => addBurn(g, p, e, n.stacks, relicDamage(p, n.power)));
+  burst(g, p.x, p.y, F.color, 24, 320);
 }
 
 /** Pitch Pot (#229): does `e` stand in a patch of its burning pitch? */
@@ -228,6 +250,50 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       const power = b.power;
       nova(g, ev.enemy.x, ev.enemy.y, woke ? aOf('crownOfCinders').reach : n.radius, relicDamage(p, n.damage), 60, F.color, 'fire', (e) => addBurn(g, p, e, stacks, power));
       burst(g, ev.enemy.x, ev.enemy.y, F.color, 12, 220);
+    },
+  },
+
+  // ---------------------------------------------------------------- v0.12 (#230): the Cinderlands' class relics
+  surtrsBrand: {
+    onAbilityUsed(g) {
+      g.vars['surtr.n'] = 0;
+    },
+    onHit(g, ev, p) {
+      if (ev.source !== 'attack' || p.abilityTime <= 0) return;
+      const step = stoke(g.vars['surtr.n'] ?? 0, nOf(p, 'surtrsBrand').base, sOf(p));
+      g.vars['surtr.n'] = step.count;
+      if (step.full && awakened(p, 'surtrsBrand')) erupt(g, p); // Twilight
+    },
+    onAbilityEnd(g, _ev, p) {
+      erupt(g, p);
+    },
+  },
+
+  bonefire: {
+    tick(g, dt, p) {
+      const a = aOf('bonefire');
+      for (const m of g.minions) {
+        // every skeleton you raise (not the quest and event units, nor a relic's) is seen once, as it rises; Balefire bursts there
+        if (m.kind || m.relicBy || m.bonefire) continue;
+        m.bonefire = true;
+        if (!awakened(p, 'bonefire')) continue;
+        nova(g, m.x, m.y, a.radius, relicDamage(p, a.damage), 60, F.color, 'fire', (e) => addBurn(g, p, e, a.stacks, relicDamage(p, nOf(p, 'bonefire').power)));
+        burst(g, m.x, m.y, F.color, 12, 220);
+      }
+      const n = nOf(p, 'bonefire');
+      if ((g.vars['bonefire.t'] = (g.vars['bonefire.t'] ?? 0) + dt) < n.every) return;
+      g.vars['bonefire.t'] = 0;
+      const power = bonefireBurn(relicDamage(p, n.power), n.perSoul, sOf(p));
+      let lit = false;
+      for (const m of g.minions) {
+        if (m.kind) continue;
+        for (const e of g.hash.query(m.x, m.y, n.radius, [])) {
+          if (e.dead) continue;
+          addBurn(g, p, e, 1, power);
+          lit = true;
+        }
+      }
+      if (lit) flash(g, p, 'bonefire'); // its burn's ticks are credited to it as they land (systems/status.ts)
     },
   },
 };

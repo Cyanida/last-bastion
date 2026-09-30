@@ -29,14 +29,14 @@ const tick = (g: Game) => {
 };
 
 describe('family rules (RELICS.md, revision 2)', () => {
-  it('61 family relics: 5 any class can find in every family (9 in Flame with #200 and the Cinderlands, #229; 9 in Steel with the Iron Hold, #217), and 3 class relics per class in three families (4 in four for the Angel, Necromancer and Archer since #218)', () => {
+  it('63 family relics: 5 any class can find in every family (9 in Flame with #200 and the Cinderlands, #229; 9 in Steel with the Iron Hold, #217), and 3 class relics per class in three families (4 in four for the Angel and Archer since #218 and the Viking since #230, 5 in five for the Necromancer)', () => {
     const family = RELIC_IDS.filter((id) => !relicDef(id).cursed && !relicDef(id).signature); // v0.7.1 B6: the cursed relics stand outside the families (v7-cursed.test.ts); #201: so do the signature relics
-    expect(family).toHaveLength(61);
+    expect(family).toHaveLength(63);
     for (const id of family) expect(FAMILY_IDS, id).toContain(relicDef(id).family);
     for (const f of FAMILY_IDS) expect(anyClass(f), f).toHaveLength(f === 'flame' ? 9 : f === 'steel' ? 9 : 5); // #200: the Marches' new Flame rare; v0.11 (#217): the Iron Hold's common, two rares and legendary; v0.12 (#229): the Cinderlands' two rares and legendary
     for (const c of CLASS_ORDER) {
       const own = family.filter((id) => relicDef(id).classId === c).map((id) => relicDef(id).family);
-      const n = ['angel', 'necromancer', 'archer'].includes(c) ? 4 : 3; // v0.11 (#218): the Iron Hold's class relics
+      const n = c === 'necromancer' ? 5 : c === 'paladin' ? 3 : 4; // v0.11 (#218): the Iron Hold's class relics; v0.12 (#230): the Cinderlands' for the Viking and the Necromancer
       expect(own, c).toHaveLength(n);
       expect(new Set(own).size, c).toBe(n);
     }

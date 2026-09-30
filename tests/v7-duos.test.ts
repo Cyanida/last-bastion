@@ -42,11 +42,11 @@ describe('duo recipes (RELICS.md, A5 rules)', () => {
     }
   });
 
-  it('spread evenly: every family in 2 to 4 recipes', () => {
+  it('spread evenly: every family in 2 to 5 recipes (4 until #230: a duo a realm takes the families past it)', () => {
     for (const f of FAMILY_IDS) {
       const n = DUO_IDS.filter((d) => DUOS[d].families.includes(f)).length;
       expect(n, f).toBeGreaterThanOrEqual(2);
-      expect(n, f).toBeLessThanOrEqual(4);
+      expect(n, f).toBeLessThanOrEqual(5);
     }
   });
 });
