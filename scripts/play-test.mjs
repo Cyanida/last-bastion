@@ -611,6 +611,38 @@ await check('test mode starts a run', () =>
   }),
 );
 
+await check('HUD: the wave and boss panel fades while the champion or a boss is at the top wall under it, and comes back (#255)', async () => {
+  await inPage(() => document.querySelector('#overlay [data-quest-go], #overlay .kit-btn, #overlay button:last-of-type')?.click()); // the quest board of the wave just cleared, if up
+  await page.waitForTimeout(300);
+  // `who` stands under the panel (top wall) or far from it (bottom); the other is out of the way
+  const put = async (who, where) => {
+    await inPage((a) => {
+      const lb = window.__lb, g = lb.game, pl = g.player;
+      pl.invulnerable = true;
+      g.spawnQueue.length = 0;
+      g.enemies.length = 0;
+      const b = g.bounds.w > 0 ? g.bounds : { x: g.arena.wall, y: g.arena.wall, w: g.arena.w - 2 * g.arena.wall, h: g.arena.h - 2 * g.arena.wall };
+      const cx = b.x + b.w / 2, y = a.where === 'top' ? b.y + 30 : b.y + b.h - 60;
+      pl.x = a.who === 'champion' ? cx : cx + 700;
+      pl.y = y; // the camera follows the champion, so the boss is in view beside him
+      if (a.who === 'boss') lb.spawn('ironKing', cx, y).hpFloor = 1;
+      lb.run(2, false, false);
+    }, { who, where });
+    await page.waitForTimeout(450); // frames draw; the fade eases
+    return inPage(() => Number(getComputedStyle(document.getElementById('h-wave-panel')).opacity));
+  };
+  const bossTop = await put('boss', 'top');
+  if (process.env.PLAY_SHOT) { // a picture for the pull request, with any card on top of the field set aside
+    await inPage(() => (document.getElementById('overlay').style.visibility = 'hidden'));
+    await page.screenshot({ path: process.env.PLAY_SHOT }).catch(() => {});
+    await inPage(() => (document.getElementById('overlay').style.visibility = ''));
+  }
+  const champTop = await put('champion', 'top');
+  const bossLow = await put('boss', 'bottom');
+  const champLow = await put('champion', 'bottom');
+  return { ok: bossTop < 0.5 && champTop < 0.5 && bossLow > 0.9 && champLow > 0.9, detail: `top wall: boss ${bossTop}, champion ${champTop}; away from it: ${bossLow}, ${champLow}` };
+});
+
 await check('Phoenix Feather taken at tier II holds its revive', () =>
   inPage(() => {
     const p = window.__lb.game.player;
