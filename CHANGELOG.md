@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.12.0 — The Cinderlands
+
+The second relic realm opens: the Cinderlands, five levels through the Ember Forge to the Cinder Colossus, where fire spreads and foes burn you as they fall. And a round of fixes from the Iron Hold's playtest.
+
+- **The Cinderlands**: five levels of 8 waves in the Ember Forge, a basalt foundry with lava channels (a dodge carries you over, the bridges cross for free), and the realm's own music.
+- **Spreading fire**: fire catches at the lava's bank and creeps toward where you stood; a few steps off its path clear it.
+- **New foes**: Torchbearers whose blows stack a burn on you (your utility puts it out), and Cinder Hounds that burst into a marked blast of fire when they die. Each has a flash card.
+- **New bosses**: the Ember Queen ends level 3 with Kindling, ember fans and her Flare; the Grand Inquisitor returns as an elite with his Auto-da-fé; and the Cinder Colossus guards the crown in three phases: burning hits, spreading fire, then bursts.
+- **Five new Flame relics**: Flashpowder, Pitch Pot and the legendary Crown of Cinders; Surtr's Brand for the Viking and Bonefire for the Necromancer; and a new duo, Baptism of Fire.
+- **Rewards**: Flame rares and your class relic on the way, a Flame legendary at the crown, and the Legend crown gives the title Cinderborn and the Cinder colours.
+- **Squire is easier where it counts**: a realm's later levels ease the most on Squire, so every class can clear the Iron Hold and the Cinderlands on it. Knight is unchanged.
+- **Iron Shieldwalls come for sure**: a level whose road features them always brings a squad, on every difficulty.
+- **Readable everywhere**: no text under 14 px on the road, the world map, the title, class select, the Keep and the talent tree, and the phone's smallest labels grew.
+- **Relic cards**: hovering a card opens a short tooltip beside it, never over the card or its buttons.
+- **Clearer words**: the Build rows are named for the stat each class really gets, the road shows the run's checkpoint, the results say "Most waves in one level", and a level with no relic left to keep says why.
+- **The HUD**: the wave and boss panel fades while you or a boss stand under it at the top wall.
+- **Realms not built yet say so**: their roads tell you their own foes and relics come in a later version, and PLAY takes you to a built realm.
+
 ## v0.11.0 — The Iron Hold
 
 The first relic realm opens: the Iron Hold, five levels through a fortress to the Iron King. And a realm is now one run, where you keep what you find and your champion grows between the levels.

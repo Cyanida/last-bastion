@@ -20,7 +20,7 @@ From v0.8.3 on, the roadmap is **Road to the Crown** ([docs/road-to-the-crown.md
 | v0.9.0 | The new look | released 2026-09-29 |
 | v0.10.0 | Champions & the Marches | released 2026-09-29 |
 | v0.11.0 | The Iron Hold | released 2026-09-30 |
-| v0.12.0 | The Cinderlands | planned |
+| v0.12.0 | The Cinderlands | released 2026-09-30 |
 | v0.13.0 | The Barrowvale | planned |
 | v0.14.0 | The Frozen Pass & the Last Bastion | planned |
 | v0.15.0 | Classes & roster | planned |
