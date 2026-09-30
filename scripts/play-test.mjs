@@ -13,7 +13,7 @@
  * Not covered: a gamepad beyond the press that answers a screen, and how it feels.
  */
 import { chromium } from 'playwright';
-import { spawnTree, killTree } from './lib/process-tree.mjs';
+import { spawnTree, killTree, waitForServer } from './lib/process-tree.mjs';
 
 const PORT = Number(process.env.PLAY_PORT ?? 4180);
 
@@ -28,14 +28,7 @@ const stop = () => killTree(preview);
 process.on('exit', stop);
 process.on('SIGINT', () => { stop(); process.exit(130); });
 process.on('SIGTERM', () => { stop(); process.exit(143); });
-for (let i = 0; i < 60; i++) {
-  try {
-    await fetch(`http://localhost:${PORT}/`);
-    break;
-  } catch {
-    await new Promise((r) => setTimeout(r, 250));
-  }
-}
+await waitForServer(`http://localhost:${PORT}/`, PORT);
 
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
