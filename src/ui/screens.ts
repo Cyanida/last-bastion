@@ -146,7 +146,7 @@ function showRelicPage(root: HTMLElement, id: RelicId | DuoId): void {
     e.stopPropagation();
     if (e.key === 'Escape') close();
   };
-  const close = () => { window.removeEventListener('keydown', onKey, true); page.remove(); root.querySelector<HTMLElement>(`[data-info="${id}"]`)?.focus(); };
+  const close = () => { window.removeEventListener('keydown', onKey, true); page.remove(); root.querySelector<HTMLElement>(`.relic-info[data-info="${id}"]`)?.focus(); };
   page.onclick = (e) => { e.stopPropagation(); if (e.target === page || (e.target as Element).closest('[data-page-close]')) close(); };
   window.addEventListener('keydown', onKey, true);
   root.appendChild(page);
@@ -155,7 +155,8 @@ function showRelicPage(root: HTMLElement, id: RelicId | DuoId): void {
 
 /** #235: every ⓘ on a screen's relic cards opens that relic's page, by click, tap, Enter or Space, and never picks the card under it. */
 function wireRelicInfo(el: HTMLElement): void {
-  el.querySelectorAll<HTMLElement>('[data-info]').forEach((b) => {
+  // only a relic's own ⓘ: the kit's ⓘ (#239) carries data-info too, for its help text
+  el.querySelectorAll<HTMLElement>('.relic-info[data-info]').forEach((b) => {
     const open = (e: Event) => { e.stopPropagation(); e.preventDefault(); showRelicPage(el, b.dataset.info as RelicId | DuoId); };
     b.onclick = open;
     b.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && open(e);

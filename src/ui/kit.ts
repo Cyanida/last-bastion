@@ -107,7 +107,7 @@ export function wireInfo(root: HTMLElement, texts: Record<string, string>): { cl
   };
   root.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
-    const btn = t.closest<HTMLElement>('[data-info]');
+    const btn = t.closest<HTMLElement>('.kit-info[data-info]');
     if (pop.contains(t) && !t.closest('.kit-close')) return;
     const was = owner;
     close();
