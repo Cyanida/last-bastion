@@ -139,4 +139,7 @@ export const ENEMY_STATUS: Partial<Record<EnemyId, { id: StatusId; stacks?: numb
   dragon: { id: 'burn', power: 2 },
   // #225: the Cinderlands' torchbearers: a stack a blow, up to burn's 5; 1.2 fire a second per stack, one stack off every 1.5 s
   torchbearer: { id: 'burn', stacks: 1, power: 1.2, time: 1.5, decay: 1.5 },
+  // #227: the Ember Queen: every blow of hers that lands (a bolt, a burst, a ring of her Flare, her touch) and every tick of her burning
+  // ground adds a stack of the same falling burn, a little hotter than a torch's
+  emberQueen: { id: 'burn', stacks: 1, power: 1.5, time: 1.5, decay: 1.5 },
 };

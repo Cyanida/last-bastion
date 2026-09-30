@@ -80,7 +80,7 @@ export const ENEMY_CARDS: Record<EnemyId, string> = {
   warden: 'Act boss. Calls knights and reshapes the arena.',
   forgemaster: 'Boss. Break his plate, then dodge the hammer and the presses.',
   ironKing: 'Crown boss. Break his plate, step round his shield, beware his thorns.',
-  emberQueen: 'Boss. Her fire bursts where she marks and keeps burning: step out of it.',
+  emberQueen: 'Boss. Her blows stack a burn; her marked ground keeps burning: step out.',
   usurper: 'The last foe. Put out the Royal Flames to hurt him.',
   royalFlame: 'While one burns, the Usurper cannot be hurt.',
 };

@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { BOSSES, EMBER_QUEEN } from '../src/config/bosses';
+import { ENEMY_STATUS, STATUSES } from '../src/config/damage';
 import { ENEMIES } from '../src/config/enemies';
 import { GAME } from '../src/config/game';
 import { REALMS, WORLD_BOSSES } from '../src/config/world';
 import type { Enemy, Game } from '../src/core/types';
 import { createGame } from '../src/game';
 import { actBoss, bossForWave } from '../src/logic/acts';
-import { flareZones, kindleZones, queenCd, queenMove } from '../src/logic/emberQueen';
+import { flareZones, kindleZones, queenBurn, queenCd, queenMove } from '../src/logic/emberQueen';
+import { applyStatusTo, smother, tickStatuses, type StatusMap } from '../src/logic/status';
 import { bossName, levelBoss } from '../src/logic/world';
+import { hurtTarget, updateFields, updateZones } from '../src/systems/combat';
 import { updateEnemies } from '../src/systems/enemyAI';
 import { updateSpawning } from '../src/systems/spawning';
 
@@ -100,7 +103,7 @@ describe('the Ember Queen as the Cinderlands level 3 boss (#227)', () => {
     for (let i = 0; i < 60; i++) updateEnemies(g, 0.016);
     const trail = g.fields.filter((f) => f.hostile && f.r === EMBER_QUEEN.trail.radius);
     expect(trail.length).toBeGreaterThanOrEqual(2);
-    expect(trail.every((f) => f.dtype === 'fire' && f.apply?.id === 'burn')).toBe(true);
+    expect(trail.every((f) => f.dtype === 'fire' && f.apply?.id === 'burn' && f.apply.decay === ENEMY_STATUS.emberQueen!.decay)).toBe(true);
   });
 
   it('her blows reach the field: the Kindling leaves burning ground, the volley aims, the Flare rings her', () => {
@@ -125,6 +128,49 @@ describe('the Ember Queen as the Cinderlands level 3 boss (#227)', () => {
     q.special = 0;
     updateEnemies(g, 0.016);
     expect(g.zones.filter((z) => z.owner === q)).toHaveLength(flareZones(0, 0, q.r, 2).length);
+  });
+
+  it('her burn is the falling burn of the Cinderlands (#225): a stack a blow up to the cap, one stack off at a time, put out by smother', () => {
+    const cfg = ENEMY_STATUS.emberQueen!;
+    expect(cfg).toMatchObject({ id: 'burn', stacks: 1 });
+    expect(cfg.decay).toBeGreaterThan(0);
+    expect(cfg.power!).toBeGreaterThan(ENEMY_STATUS.torchbearer!.power!); // a little hotter than a torch
+    expect(queenBurn(1)).toEqual(cfg);
+    expect(queenBurn(2.5)).toEqual({ ...cfg, power: cfg.power! * 2.5 });
+    const m: StatusMap = {};
+    for (let i = 0; i < 8; i++) applyStatusTo(m, queenBurn(2));
+    expect(m.burn).toMatchObject({ stacks: STATUSES.burn.maxStacks, power: cfg.power! * 2, decay: cfg.decay });
+    tickStatuses(m, cfg.time! + 0.01);
+    expect(m.burn?.stacks).toBe(STATUSES.burn.maxStacks - 1);
+    expect(smother(m)).toBe(STATUSES.burn.maxStacks - 1);
+    expect(m.burn).toBeUndefined();
+  });
+
+  it('every blow of hers that lands leaves a burn stack on the champion, and so does every tick in her burning ground', () => {
+    const g = createGame('paladin', 11, { level: { realm: 'cinderlands', level: 3 } });
+    const q = bossOf(g, 20);
+    const p = g.player;
+    const decay = ENEMY_STATUS.emberQueen!.decay;
+    g.enemies = [q];
+    hurtTarget(g, p, 5, true, q);
+    hurtTarget(g, p, 5, true, q);
+    expect(p.statuses.burn).toMatchObject({ stacks: 2, decay });
+    expect(p.statuses.burn!.power).toBeCloseTo(queenBurn(g.waveDmgMult * g.tier.enemyDmg).power!, 6);
+    // a Kindling burst on the champion: the burst adds a stack, the ground it leaves one more each tick he stays
+    delete p.statuses.burn;
+    p.hp = p.stats.hp;
+    q.x = p.x + 200;
+    q.y = p.y;
+    q.combo = 0;
+    q.special = 0;
+    g.zones.length = 0;
+    g.fields.length = 0;
+    updateEnemies(g, 0.016);
+    for (let t = 0; t < EMBER_QUEEN.kindle.first + 0.05; t += 0.05) updateZones(g, 0.05);
+    expect(p.statuses.burn).toMatchObject({ stacks: 1, decay });
+    expect(g.fields.some((f) => f.hostile && f.x === p.x && f.y === p.y && f.apply?.decay === decay)).toBe(true);
+    updateFields(g, 0.016);
+    expect(p.statuses.burn!.stacks).toBe(2);
   });
 
   it('a plain run still ends Act II on the Warden', () => {

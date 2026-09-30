@@ -5080,7 +5080,8 @@ await check('Iron King: test mode starts the Iron Hold level 5; its crown boss: 
 // The champion stands beside her and trades plain blows (no ability, no bot moves, unhurt), so the fight goes the same way every run.
 // Until a phase has shown its blows (Kindling and the Ember volley; from phase 2 her Flare too) he waits well off, out of his own reach but inside her
 // reach, so she keeps casting. Her Kindling leaves burning ground, each new phase flares her up, and in phase 3 her steps burn.
-await check('Ember Queen: test mode starts the Cinderlands level 3; its last wave is hers; Kindling, volley, Flare, burning ground, a flare-up each phase, level cleared (#227)', async () => {
+// First he stands still and open to harm in the Ember Forge (#223): her fire leaves burn stacks (#225) that the HUD shows; then he is unhurt again.
+await check('Ember Queen: test mode starts the Cinderlands level 3 in the Ember Forge; its last wave is hers; her fire stacks burn on the HUD; Kindling, volley, Flare, burning ground, a flare-up each phase, level cleared (#227)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const errs = [];
   p.on('pageerror', (e) => errs.push(e.message));
@@ -5090,7 +5091,7 @@ await check('Ember Queen: test mode starts the Cinderlands level 3; its last wav
   await p.locator('[data-act="test"]').click();
   if (!(await p.locator('#tm-start option[value="cinderlands:3"]').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
   await p.locator('#tm-class').selectOption('paladin');
-  await p.locator('#tm-arena').selectOption('courtyard'); // the Ember Forge, once built, takes its place
+  await p.locator('#tm-arena').selectOption('emberForge'); // the Cinderlands' own arena (#223)
   await p.locator('#tm-start').selectOption('cinderlands:3');
   await p.evaluate(() => {
     // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
@@ -5104,23 +5105,43 @@ await check('Ember Queen: test mode starts the Cinderlands level 3; its last wav
   });
   await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
   await p.locator('[data-pick="0"]').click();
-  const fight = await p.evaluate(() => {
-    const lb = window.__lb, g = lb.game;
+  // her fire on the champion: he stands still, open to harm, until her Kindling (a burst, then the ground it leaves) has two stacks burning
+  const burn = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
     g.enemies.length = 0;
     g.spawnQueue.length = 0;
     g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 20, the level's last
     g.breather = 0.01;
-    const out = { wave: 0, id: '', kindle: [0, 0, 0], volley: [0, 0, 0], flare: [0, 0, 0], ground: 0, trail: [0, 0, 0], flaresUp: [], phases: [], dead: false };
-    let q = null, aimed = false;
-    const seen = new WeakSet();
-    for (let i = 0; i < 60000 && lb.state !== 'results' && !(q?.dead && g.level.cleared); i++) {
-      g.player.invulnerable = true;
-      const ph = q ? q.phase - 1 : 0;
-      const shown = q && out.kindle[ph] > 0 && out.volley[ph] > 0 && (q.phase === 1 || out.flare[ph] > 0);
-      if (q && !q.dead) (g.player.x = q.x - q.r - (shown ? 16 : 450)), (g.player.y = q.y);
+    pl.invulnerable = true;
+    let q = null;
+    for (let i = 0; i < 4000 && !q; i++) (lb.run(1, false, false), (q = g.enemies.find((e) => e.def.boss) ?? null));
+    window.__queen = q;
+    if (!q) return { arena: g.arena.id, stacks: 0, decay: 0, phase: 0 };
+    q.hpFloor = q.maxHp; // his blows don't move the fight on while her fire is measured
+    pl.invulnerable = false;
+    for (let i = 0; i < 3000 && (pl.statuses.burn?.stacks ?? 0) < 2 && lb.state !== 'results'; i++) {
+      for (const e of g.enemies) if (e !== q) Object.assign(e, { x: pl.x + 700, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 }; // her fire alone
       lb.run(1, false, false);
-      q ??= g.enemies.find((e) => e.def.boss) ?? null;
-      if (!q) continue;
+      pl.hp = Math.max(pl.hp, pl.stats.hp * 0.6); // he must not fall while the stacks build
+    }
+    pl.invulnerable = true;
+    return { arena: g.arena.id, stacks: pl.statuses.burn?.stacks ?? 0, decay: pl.statuses.burn?.decay ?? 0, phase: q.phase };
+  });
+  await p.waitForFunction(() => /Burning ×\d/.test(document.getElementById('h-status')?.textContent ?? ''), null, { timeout: 3000 }).catch(() => {});
+  const hud = await p.evaluate(() => document.getElementById('h-status')?.textContent ?? '');
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    const out = { wave: 0, id: '', kindle: [0, 0, 0], volley: [0, 0, 0], flare: [0, 0, 0], ground: 0, trail: [0, 0, 0], flaresUp: [], phases: [], dead: false };
+    const q = window.__queen ?? null;
+    let aimed = false;
+    const seen = new WeakSet();
+    if (q) (q.hpFloor = 0), (pl.hp = pl.stats.hp), delete pl.statuses.burn; // the fight proper: unhurt from here
+    for (let i = 0; i < 60000 && q && lb.state !== 'results' && !(q.dead && g.level.cleared); i++) {
+      pl.invulnerable = true;
+      const ph = q.phase - 1;
+      const shown = out.kindle[ph] > 0 && out.volley[ph] > 0 && (q.phase === 1 || out.flare[ph] > 0);
+      if (!q.dead) (pl.x = q.x - q.r - (shown ? 16 : 450)), (pl.y = q.y);
+      lb.run(1, false, false);
       if (!out.id) (out.id = q.def.id), (out.wave = g.wave);
       if (q.phase > out.phases.length + 1) out.phases.push(+g.time.toFixed(1)), out.flaresUp.push(g.banner?.text ?? '');
       const k = q.phase - 1;
@@ -5139,10 +5160,11 @@ await check('Ember Queen: test mode starts the Cinderlands level 3; its last wav
   });
   await p.close();
   const ok = fight.test === 1 && fight.wave === 20 && fight.id === 'emberQueen' && fight.phases.length === 2
+    && burn.arena === 'emberForge' && burn.phase === 1 && burn.stacks >= 2 && burn.decay > 0 && /Burning ×\d/.test(hud)
     && fight.kindle.join() === '3,4,5' && fight.volley.every((n) => n > 0) && fight.flare[0] === 0 && fight.flare[1] === 33 && fight.flare[2] === 62
     && fight.ground > 0 && fight.trail[0] === 0 && fight.trail[1] === 0 && fight.trail[2] > 0 && fight.flaresUp.every((t) => t === 'The Ember Queen flares up')
     && fight.dead && fight.cleared && errs.length === 0;
-  return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}; phases at ${fight.phases.join(', ')} s ("${fight.flaresUp.join('", "')}"); kindle spots ${fight.kindle.join('/')}, volleys ${fight.volley.join('/')}, flare zones ${fight.flare.join('/')} by phase; burning ground up to ${fight.ground}, trail patches ${fight.trail.join('/')}; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  return { ok, detail: `wave ${fight.wave} in ${burn.arena}: ${fight.id || 'no boss'}; her fire left ${burn.stacks} burn stacks (one off every ${burn.decay} s), HUD "${hud}"; phases at ${fight.phases.join(', ')} s ("${fight.flaresUp.join('", "')}"); kindle spots ${fight.kindle.join('/')}, volleys ${fight.volley.join('/')}, flare zones ${fight.flare.join('/')} by phase; burning ground up to ${fight.ground}, trail patches ${fight.trail.join('/')}; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 // ---------- #236: no boss ends two levels of a realm: Settings -> Test mode -> "Start at" a Marches level -> the opening pick -> its last wave ----------

@@ -1,6 +1,8 @@
 // v0.12 (#227): the Ember Queen, the Cinderlands' level-3 boss: which blow comes next, and where her Kindling and her Flare land
 import { EMBER_QUEEN } from '../config/bosses';
+import { ENEMY_STATUS } from '../config/damage';
 import { TAU } from '../core/math';
+import type { StatusApply } from './status';
 
 export type QueenMove = 'kindle' | 'volley' | 'flare';
 
@@ -14,6 +16,15 @@ export function queenMove(phase: number, n: number): QueenMove {
 
 /** Her next blow's cooldown by phase: quicker as the fight goes on. */
 export const queenCd = (phase: number): number => byPhase(EMBER_QUEEN.specialCd, phase);
+
+/**
+ * What her burning ground puts on whoever stands in it: the burn stack her blows leave (config/damage.ts ENEMY_STATUS: it falls off one
+ * stack at a time, #225), its power x `scale` (the wave's and the difficulty's enemy damage, as combat.hurtTarget scales her blows').
+ */
+export function queenBurn(scale: number): StatusApply {
+  const b = ENEMY_STATUS.emberQueen!;
+  return { ...b, power: (b.power ?? 0) * scale };
+}
 
 /**
  * The Kindling: the first spot on (x, y) (where you stand), the rest evenly on a ring EMBER_QUEEN.kindle.spread round it from `angle`,

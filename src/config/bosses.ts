@@ -124,8 +124,9 @@ export const IRON_KING = {
  * #227: the Ember Queen, the Cinderlands' level-3 boss (logic/emberQueen.ts, systems/bosses.ts). Three phases like an Act boss, since her
  * level ends on an Act's last wave; no minimum phase time (that is the crown boss's). Her lesson is the realm's: fire on the ground and
  * fire that bursts. She keeps to the middle distance. Her Kindling marks spots round you (one on you) that burst into flame one after the
- * other and leave burning ground (her def's poolLife and poolDps, which stack the burn: step out); her Ember volley is a fan of fire
- * bolts. From phase 2 every third blow is her Flare: rings of fire bursting outward from her, the near ring first (get out of reach, or
+ * other and leave burning ground (her def's poolLife and poolDps: step out); her Ember volley is a fan of fire bolts. Every blow of hers
+ * that lands, and every tick of her burning ground, adds a burn stack that falls off one at a time (#225; config/damage.ts ENEMY_STATUS:
+ * your utility puts it out). From phase 2 every third blow is her Flare: rings of fire bursting outward from her, the near ring first (get out of reach, or
  * go through the ring after it lands). Every new phase she flares up at once, and from phase 3 her steps leave the ground burning.
  */
 export const EMBER_QUEEN = {
