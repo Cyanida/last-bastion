@@ -438,7 +438,7 @@ export function showChampion(
   const plan = info.talents.map((t) => `<li>${esc(TALENT_BY_ID[t]?.name ?? t)}</li>`).join('');
   // #241: the Build tab spends the stat points (the build panel, as on the level-cleared screen); talents are spent on the tree
   const ch = info.build;
-  const resetRow = (v: BuildView) => (v.canReset ? kit.button('Reset points', { size: 'small', attrs: 'data-reset-build data-tip="Every stat and talent point back, for free."' }) : info.inRun ? '<p class="cs-empty">A realm run is under way: points can be taken back once it ends.</p>' : '');
+  const resetRow = (v: BuildView) => (v.canReset ? kit.button('Reset points', { size: 'small', attrs: 'data-reset-build data-tip="Every stat and talent point back, for free."' }) : info.inRun ? '<p class="cs-empty">A realm run is under way: what it has played with stays until it ends, then every point can be taken back.</p>' : '');
   // #240: a part of one tab: in the page all along, hidden while another tab is open
   const of = (t: ChampionTab) => `data-cs-of="${t}"${t === info.tab ? '' : ' hidden'}`;
   const tabs = CHAMPION_TABS.map((t) => kit.button(t.label, { size: 'small', cls: t.id === info.tab ? 'on pressed' : '', attrs: `role="tab" data-cs="${t.id}" aria-selected="${t.id === info.tab}"` })).join('');
