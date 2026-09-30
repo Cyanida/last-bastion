@@ -117,13 +117,15 @@ export function expectedChampionLevel(realm: RealmId, level: number): number {
 
 /**
  * Enemy HP and damage for the champion level a level expects (CHAMPION.scaling): the expected champion's strength over that of the
- * player the waves were tuned for, who stood at the pace's level midway through them. Below 1 where a champion is behind the old pace
+ * player the waves were tuned for, who stood at the pace's level `at` of the way through them (#220: at their end). Below 1 where a champion is behind the old pace
  * (no level-up inside the level), well above it in a relic realm, whose first waves a level-8 champion walks into.
  */
 export function championStep(realm: RealmId, level: number): { hp: number; damage: number } {
   const [first, last] = REALMS[realm].levels[level - 1].waves;
-  const strength = (runLevels: number) => 1 + CHAMPION.scaling.perRunLevel * (runLevels - 1);
-  const step = strength(1 + (expectedChampionLevel(realm, level) - 1) * CHAMPION.runLevels * CHAMPION.scaling.worth) / strength((expectedLevel(first) + expectedLevel(last + 1)) / 2);
+  const s = realm === 'lastBastion' ? CHAMPION.scaling.finale : CHAMPION.scaling; // #220: the finale keeps its first fit
+  const strength = (runLevels: number) => 1 + s.perRunLevel * (runLevels - 1);
+  const pace = expectedLevel(first) + (expectedLevel(last + 1) - expectedLevel(first)) * s.at;
+  const step = strength(1 + (expectedChampionLevel(realm, level) - 1) * CHAMPION.runLevels * s.worth) / strength(pace);
   return { hp: step, damage: step };
 }
 
