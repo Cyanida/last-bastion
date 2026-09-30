@@ -213,7 +213,7 @@ export function updateHud(g: Game): void {
     const tile = (id: RelicId) => {
       const r = relicDef(id);
       const tier = g.player.relics.tiers[id] ?? 1;
-      return `<div class="relic ${relicClass(id)}" data-id="${id}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.player.relics.held))}">${r.icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
+      return `<div class="relic ${relicClass(id)}" data-id="${id}" tabindex="0" data-tip="${esc(relicTip(id, tier, g.player.relics.held, true))}">${r.icon}${tierBadge(tier)}${tier < RELIC_MAX_TIER ? '<i class="att"></i>' : ''}</div>`;
     };
     // 50px a tile; desktop keeps clear of the ability panel (a small window too), touch (bar at the top) of the wave plate
     const fit = Math.max(3, Math.min(8, Math.floor((innerWidth / uiScale() / 2 - (document.documentElement.classList.contains('touch') ? 140 : 300)) / 50)));
