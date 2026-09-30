@@ -23,27 +23,25 @@ describe('spreading fire (#224)', () => {
   });
 
   it('catches on the slabs along both banks of a channel, each once', () => {
-    const channel = { x: 0, y: 100, w: 240, h: 56 };
-    const banks = bankSlabs([channel], C);
+    const banks = bankSlabs([{ x: 0, y: 130, w: 240, h: 56 }], C); // the lava from y 130 to 186, over the joint between two rows of slabs
     expect(banks).toHaveLength(6); // three slabs long, two banks
-    expect(banks.filter((s) => s.y < 100)).toHaveLength(3);
-    expect(banks.filter((s) => s.y > 156)).toHaveLength(3);
-    for (const s of banks) {
-      expect(slabAt(s.x, s.y, C)).toEqual(s); // a whole slab, named by its centre
-      expect(Math.min(Math.abs(s.y - 100), Math.abs(s.y - 156))).toBeLessThanOrEqual(C); // at the bank
-    }
+    expect(banks.filter((s) => s.y === 120).map((s) => s.x).sort((a, b) => a - b)).toEqual([40, 120, 200]); // the row under the north bank
+    expect(banks.filter((s) => s.y === 200).map((s) => s.x).sort((a, b) => a - b)).toEqual([40, 120, 200]); // and under the south bank
+    for (const s of banks) expect(slabAt(s.x, s.y, C)).toEqual(s); // a whole slab, named by its centre
     // a channel that runs down the map has its banks left and right
-    const down = bankSlabs([{ x: 100, y: 0, w: 56, h: 240 }], C);
-    expect(down.filter((s) => s.x < 100)).toHaveLength(3);
-    expect(down.filter((s) => s.x > 156)).toHaveLength(3);
+    const down = bankSlabs([{ x: 130, y: 0, w: 56, h: 240 }], C);
+    expect(down.filter((s) => s.x === 120)).toHaveLength(3);
+    expect(down.filter((s) => s.x === 200)).toHaveLength(3);
+    // a channel narrow enough to lie within one row has the one row of slabs for both its banks: no slab twice
+    expect(bankSlabs([{ x: 0, y: 100, w: 240, h: 56 }], C)).toHaveLength(3);
   });
 
   it('catches nearest the champion; two tongues late on, well apart', () => {
-    const banks = bankSlabs([{ x: 0, y: 100, w: 800, h: 56 }], C);
+    const banks = bankSlabs([{ x: 0, y: 130, w: 800, h: 56 }], C);
     const [one, ...none] = catchSlabs(banks, 200, 400, 1, F.apart * C);
     expect(none).toHaveLength(0);
     expect(one.x).toBe(200);
-    expect(one.y).toBeGreaterThan(156); // the champion's side of the channel
+    expect(one.y).toBe(200); // the champion's side of the channel
     const two = catchSlabs(banks, 200, 400, 2, F.apart * C);
     expect(two[0]).toEqual(one);
     expect(Math.hypot(two[1].x - one.x, two[1].y - one.y)).toBeGreaterThanOrEqual(F.apart * C);
@@ -121,7 +119,7 @@ describe('spreading fire (#224)', () => {
     const lava = g.arena.lava!;
     const run = lava.slice().sort((a, b) => a.x - b.x || a.y - b.y)[0];
     // two slabs south of the first channel's bank
-    const bank = bankSlabs([run], C).filter((s) => s.y > run.y + run.h).sort((a, b) => a.x - b.x)[2];
+    const bank = bankSlabs([run], C).filter((s) => s.y > run.y + run.h / 2).sort((a, b) => a.x - b.x)[2];
     const p = g.player;
     Object.assign(p, { x: bank.x, y: bank.y + 2 * C, iFrames: 0, invulnT: 0 });
     g.fireT = 0;
@@ -129,7 +127,7 @@ describe('spreading fire (#224)', () => {
     expect(g.fireT).toBe(F.every);
     expect(g.flames).toHaveLength(1); // level 1: one tongue
     expect({ x: g.flames[0].x, y: g.flames[0].y }).toEqual(bank);
-    expect(inLava(bank.x, bank.y, 0, lava)).toBe(false);
+    expect(Math.abs(bank.y - (run.y + run.h))).toBeLessThanOrEqual(C / 2); // the slab at the bank: the fire comes out of the lava
     expect(g.banner?.text).toMatch(/Fire/);
     // it creeps to the champion's slab: the slab under them kindles, and does no harm yet
     const hp = p.hp;
@@ -138,7 +136,7 @@ describe('spreading fire (#224)', () => {
     expect(under()).toBeDefined();
     expect(flameState(under()!.t, F.kindle, F.life)).toBe('kindling');
     expect(p.hp).toBe(hp);
-    expect(g.flames.every((f) => !inLava(f.x, f.y, 0, lava))).toBe(true);
+    expect(g.flames.slice(1).every((f) => !inLava(f.x, f.y, 0, lava))).toBe(true); // past the bank it keeps to the floor
     // stand still: it burns; a foe on the trail burns harder
     const foe = spawnEnemy(g, 'knight', bank.x, bank.y + C);
     const foeHp = foe.hp;

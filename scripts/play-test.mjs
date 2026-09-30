@@ -12,6 +12,7 @@
  * The routine and CI run it on every pull request. A change a player sees gets its own check added here (see AGENTS.md).
  * Not covered: a gamepad beyond the press that answers a screen, and how it feels.
  */
+import { writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { spawnTree, killTree, waitForServer } from './lib/process-tree.mjs';
 
@@ -2161,6 +2162,151 @@ await check('Cinderlands: a peasant marches as the Torchbearer, his flash card s
     && fall.start >= 3 && s.length === fall.start && s.every((x, i) => x.n === fall.start - 1 - i) && gaps.every((d) => Math.abs(d - stack.decay) < 0.1) && fall.lost > 0
     && fall.again >= 2 && put.cast && put.burn === 0 && put.smothered - fall.smothered >= 2 && put.text && put.alive && errs.length === 0;
   return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${stack.closed}; ${stack.stacks} stacks, HUD "${hud}"; from ${fall.start} fell ${s.map((x) => `${x.n}@${x.t.toFixed(2)}s`).join(' ') || 'NONE'}, ${fall.lost.toFixed(1)} HP burnt; fed again to ${fall.again} at level ${fall.level}; E cast ${put.cast}, ${put.smothered - fall.smothered} put out, ${put.burn} left${put.alive ? '' : ', champion fell'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #224: the Cinderlands' spreading fire: map -> the Cinderlands -> level 1 -> FIGHT. The champion stands two slabs from a lava
+// channel, hands off the keys: the fire catches on the slab at the bank beside him with a warning sound (its rim drawn glowing) and creeps
+// to him slab by slab, one unbroken trail that never lies in the lava; the slab under him kindles first and does no harm, then burns him
+// (the flames drawn on it) and burns the foe held on the trail harder. At the next fire he walks off with the keyboard, and it misses him.
+// PLAY_SHOT_224=<file.png> saves the canvas with the trail burning (the review image) ----------
+await check('Cinderlands: fire catches at the lava\'s bank with a warning and creeps slab by slab to where you stand; the slab under you kindles, then burns you and the foe on the trail harder; walk off its path and it misses (#224)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], cinderlands: [2] }, signature: true, lastBastion: false, runs: {} });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)]));
+    lb.save.cards = [...lb.cardIds]; // every flash card seen: nothing stops the fight
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-cinderlands');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-1');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // both halves in one call, so no real frame runs in between: every tick is stepped here, the keys read through the real input layer
+  const { still, dodge, shot } = await p.evaluate((wantShot) => {
+    const lb = window.__lb, g = lb.game, p = g.player, S = 80, lava = g.arena.lava ?? [];
+    // on a slab as the fire counts it: by his feet, the centre within half his radius of it
+    const on = (f, b) => Math.hypot(Math.max(Math.abs(b.x - f.x) - S / 2, 0), Math.max(Math.abs(b.y - f.y) - S / 2, 0)) < b.r / 2 || (Math.abs(b.x - f.x) <= S / 2 && Math.abs(b.y - f.y) <= S / 2);
+    const inLava = (s) => lava.some((c) => s.x >= c.x && s.x <= c.x + c.w && s.y >= c.y && s.y <= c.y + c.h);
+    const under = () => g.flames.find((f) => on(f, p));
+    // one tick with nothing on the field but the foe held on the trail (`foe` at `at`): what hurts him is the fire
+    const tick = (foe, at) => {
+      g.enemies.length = 0;
+      if (foe) g.enemies.push(Object.assign(foe, { x: at.x, y: at.y }));
+      g.spawnQueue.length = 0;
+      lb.run(1, false, 'input');
+    };
+    const sounds = { warn: 0 };
+    const real = lb.view.sfx;
+    lb.view.sfx = (n) => ((n in sounds && sounds[n]++), real(n));
+    const c = document.getElementById('game').getContext('2d');
+    const px = (wx, wy) => {
+      const cam = lb.camera();
+      return [...c.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data];
+    };
+    const warm = (a) => a[0] > a[1] + 30 && a[0] > 2 * a[2];
+    // what the fire draws on a slab: the points that differ with the flames there and without, and the warmest of them
+    const drawn = (f, points) => {
+      g.shake = 0;
+      lb.draw();
+      const lit = points.map(([dx, dy]) => px(f.x + dx, f.y + dy));
+      const keep = g.flames;
+      g.flames = [];
+      lb.draw();
+      const bare = points.map(([dx, dy]) => px(f.x + dx, f.y + dy));
+      g.flames = keep;
+      lb.draw();
+      return { changed: lit.filter((v, i) => v.join() !== bare[i].join()).length, warm: lit.filter(warm).length };
+    };
+    const first = () => {
+      for (let i = 0; i < 3000 && g.wave < 1 && lb.game === g && lb.state !== 'results'; i++) tick(); // the opening pick, the first wave's call
+      // two slabs south of the north channel's middle run, clear of the bridges and the anvils
+      const top = lava.filter((q) => q.y === Math.min(...lava.map((r) => r.y))).sort((a, b) => a.x - b.x);
+      const run = top[1] ?? top[0];
+      if (!run) return { found: false, why: 'no lava' };
+      Object.assign(p, { x: run.x + run.w * 0.3, y: run.y + run.h + 2.5 * S, invulnerable: false, iFrames: 0, hp: p.stats.hp });
+      const spot = { x: p.x, y: p.y };
+      // a foe held across the channel until the fire catches, tough enough to live through all of it: while he stands, the wave does not end
+      const far = { x: p.x, y: run.y - 1.5 * S };
+      const foe = (window.__fireFoe = lb.spawn('knight', far.x, far.y));
+      Object.assign(foe, { hp: 1e6, maxHp: 1e6 });
+      for (let i = 0; i < 1500 && !g.flames.length && lb.game === g && lb.state !== 'results'; i++) tick(foe, far);
+      if (!g.flames.length) return { found: false, why: `no fire caught (wave ${g.wave}, fireT ${g.fireT}, state ${lb.state})` };
+      const bank = { x: g.flames[0].x, y: g.flames[0].y };
+      const caught = { n: g.flames.length, warned: sounds.warn > 0, banner: g.banner?.text ?? '', fromBank: bank.y - (run.y + run.h), aside: Math.abs(bank.x - spot.x) };
+      // the kindling slab: its rim glows (the middle of each edge, 1 px in)
+      const h = S / 2 - 3;
+      const rim = drawn(g.flames[0], [[-h, 0], [h, 0], [0, -h], [0, h], [-h, 12], [h, -12]]);
+      // the foe is held on the trail now: the slab after the bank's, the next towards the champion, clear of the lava
+      const trail = (window.__fireAt = { x: bank.x, y: bank.y + S });
+      const hp0 = p.hp, foeHp = foe.hp;
+      const lit = [bank];
+      const note = () => { for (const f of g.flames) if (!lit.some((s) => s.x === f.x && s.y === f.y)) lit.push({ x: f.x, y: f.y }); };
+      // hands off the keys: it creeps to him. The slab under him kindles: no harm yet
+      for (let i = 0; i < 1500 && !under() && g.flames.length; i++) (tick(foe, trail), note());
+      const mine = under();
+      if (!mine) return { found: false, why: `the fire never reached him (${lit.length} slabs lit)` };
+      const kindling = { t: mine.t, hurt: hp0 - p.hp, steps: lit.length };
+      // standing still: it burns
+      let burnAt = -1, burnTick = -1, flames = { changed: 0, warm: 0 }, png = null;
+      for (let i = 0; i < 1500 && g.flames.length; i++) {
+        const before = p.hp;
+        tick(foe, trail);
+        note();
+        if (burnAt < 0 && p.hp < before - 0.01 && under()) {
+          burnAt = under().t;
+          const grid = [-1, 0, 1].flatMap((a) => [-1, 0, 1].map((b) => [(a * S) / 3, (b * S) / 3]));
+          flames = drawn(under(), grid);
+          burnTick = i;
+        }
+        // the review image: a moment later, the trail burning from the bank to him and the next slab kindling
+        if (wantShot && !png && burnTick >= 0 && i === burnTick + 20) ((g.shake = 0), lb.draw(), (png = document.getElementById('game').toDataURL('image/png')));
+      }
+      const chain = lit.every((s, i) => i === 0 || lit.slice(0, i).some((o) => Math.abs(o.x - s.x) + Math.abs(o.y - s.y) === S));
+      return { found: true, realm: g.level?.realm, level: g.level?.level, arena: g.arena.id, caught, rim, kindling, burnAt, flames, hurt: hp0 - p.hp, foeHurt: foeHp - foe.hp, foeWet: inLava(trail),
+        slabs: lit.length, chain, wet: lit.slice(1).filter(inLava).length, out: g.flames.length === 0, props: lb.props(), png };
+    };
+    const still = first();
+    let dodge = { found: false };
+    if (still.found) {
+      // the next fire: as it catches he walks east along the channel with the keyboard, off its path, and stops a few slabs on
+      const foe = window.__fireFoe, trail = window.__fireAt;
+      for (let i = 0; i < 1500 && !g.fireFronts.length && lb.game === g && lb.state !== 'results'; i++) tick(foe, trail);
+      if (g.fireFronts.length) {
+        p.hp = p.stats.hp;
+        const hp0 = p.hp, x0 = p.x;
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyD', key: 'd' }));
+        let onIt = 0, held = true;
+        for (let i = 0; i < 1500 && (g.flames.length || g.fireFronts.length); i++) {
+          if (held && i >= 150) (window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyD', key: 'd' })), (held = false)); // 2.5 s of walking
+          tick(foe, trail);
+          if (under()) onIt++;
+        }
+        if (held) window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyD', key: 'd' }));
+        dodge = { found: true, walked: p.x - x0, onIt, hurt: hp0 - p.hp };
+      } else dodge = { found: false, why: `no second fire (wave ${g.wave}, fireT ${g.fireT}, state ${lb.state})` };
+    }
+    lb.view.sfx = real;
+    const shot = still.png;
+    delete still.png;
+    return { still, dodge, shot };
+  }, !!process.env.PLAY_SHOT_224);
+  await p.close();
+  if (shot && process.env.PLAY_SHOT_224) writeFileSync(process.env.PLAY_SHOT_224, Buffer.from(shot.split(',')[1], 'base64'));
+  const ok = still.found && still.realm === 'cinderlands' && still.level === 1 && still.arena === 'emberForge'
+    && still.caught.n === 1 && still.caught.warned && Math.abs(still.caught.fromBank) <= 40 && still.caught.aside <= 40 // one slab, the one at the bank, beside him
+    && still.rim.changed >= 3 && still.rim.warm >= 3
+    && still.kindling.t < 0.1 && Math.abs(still.kindling.hurt) < 0.01 && still.kindling.steps >= 2 // the slab under him has only just caught, and he is unhurt
+    && still.burnAt > 0.5 && still.hurt > 0 && still.foeHurt > still.hurt && !still.foeWet && still.flames.changed >= 3 && still.flames.warm >= 2
+    && still.slabs >= 4 && still.slabs <= 5 && still.chain && still.wet === 0 && still.out
+    && dodge.found && dodge.walked > 160 && dodge.onIt === 0 && dodge.hurt < 0.01 && errs.length === 0;
+  return { ok, detail: still.found ? `${still.realm} level ${still.level} in the ${still.arena}: caught on ${still.caught.n} slab, its middle ${Math.round(still.caught.fromBank)} px from the bank${still.caught.warned ? ' with a warning' : ', NO warning'} ("${still.caught.banner}"), rim ${still.rim.changed}/6 drawn (${still.rim.warm} warm); reached him over ${still.kindling.steps} slabs, kindling: hurt ${+still.kindling.hurt.toFixed(2)}; burning from ${still.burnAt.toFixed(2)} s: hurt ${Math.round(still.hurt)}, the foe on the trail ${Math.round(still.foeHurt)}, flames ${still.flames.changed}/9 drawn (${still.flames.warm} warm)${still.props ? '' : ' (props atlas not loaded yet)'}; ${still.slabs} slabs lit, ${still.chain ? 'one trail' : 'BROKEN trail'}, ${still.wet} past the bank in the lava, ${still.out ? 'burnt out' : 'STILL burning'}; walked off (${dodge.found ? `${Math.round(dodge.walked)} px east: ${dodge.onIt ? `ON the fire ${dodge.onIt} ticks` : 'never on it'}, hurt ${+dodge.hurt.toFixed(2)}` : dodge.why})${errs.length ? `; errors: ${errs[0]}` : ''}` : `no spreading fire: ${still.why}` };
 });
 
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------

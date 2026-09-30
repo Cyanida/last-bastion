@@ -37,14 +37,17 @@ export const fireOn = (realm: RealmId | undefined, arena: WorldArenaId): boolean
 /** How many tongues catch at once: one, and from wave `twoFrom` two. */
 export const fireTongues = (wave: number, twoFrom: number): number => (wave >= twoFrom ? 2 : 1);
 
-/** The slabs along the channels' banks, both sides: each holds a bank point (logic/lava.ts lavaBanks) on its channel-side edge. No slab twice. */
+/**
+ * The slabs along the channels' banks, both sides: the slab under each bank point (logic/lava.ts lavaBanks), a step out of the lava.
+ * Such a slab may lie half over the channel: the fire licks out of the lava there. No slab twice.
+ */
 export function bankSlabs(channels: readonly Rect[], cell: number): Slab[] {
   const out = new Map<string, Slab>();
   for (const c of channels) {
     const along = c.w >= c.h;
     for (const b of lavaBanks([c], cell)) {
-      // half a slab out from the bank, away from the channel's middle
-      const s = along ? slabAt(b.x, b.y + (b.y > c.y ? cell / 2 : -cell / 2), cell) : slabAt(b.x + (b.x > c.x ? cell / 2 : -cell / 2), b.y, cell);
+      // a pixel out from the bank, away from the channel's middle
+      const s = along ? slabAt(b.x, b.y + (b.y > c.y ? 1 : -1), cell) : slabAt(b.x + (b.x > c.x ? 1 : -1), b.y, cell);
       out.set(`${s.x},${s.y}`, s);
     }
   }

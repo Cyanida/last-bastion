@@ -105,13 +105,14 @@ function updateFire(g: Game, dt: number): void {
   if (g.wave === 0 || !lava?.length || !fireOn(g.level?.realm, g.arena.id)) return;
   const F = SPREADING_FIRE;
   const p = g.player;
-  // floor the fire can hold: open, clear of what stands there, and not the lava itself
-  const open = (s: Slab) => openSlab(s, g.openRects, g.arena.obstacles) && !inLava(s.x, s.y, 0, lava);
+  // floor the fire can hold: open and clear of what stands there; it creeps over the floor, not along the lava (a bank's slab may lie half over it)
+  const floor = (s: Slab) => openSlab(s, g.openRects, g.arena.obstacles);
+  const open = (s: Slab) => floor(s) && !inLava(s.x, s.y, 0, lava);
   if (g.flames.length || g.fireFronts.length) advanceFire(g.flames, g.fireFronts, dt, FLAGSTONE, open);
   g.fireT -= dt;
   if (g.fireT <= 0) {
     g.fireT = F.every;
-    const at = catchSlabs(bankSlabs(lava, FLAGSTONE).filter(open), p.x, p.y, fireTongues(g.wave, F.twoFrom), F.apart * FLAGSTONE);
+    const at = catchSlabs(bankSlabs(lava, FLAGSTONE).filter(floor), p.x, p.y, fireTongues(g.wave, F.twoFrom), F.apart * FLAGSTONE);
     if (at.length) {
       catchFire(g.flames, g.fireFronts, at, p.x, p.y);
       sfx(g, 'warn');
