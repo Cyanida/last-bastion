@@ -14,7 +14,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { CLASS_ORDER, type ClassId } from '../src/config/classes';
 import { TIERS } from '../src/config/economy';
 import { REALMS, type RealmId } from '../src/config/world';
-import { continuousPower, levelCell, minutesWithRetries, powerGap, realmMinutes, simulateRealm, type LevelCell, type LevelRun } from '../src/sim/levels';
+import { continuousPower, levelCell, median, minutesWithRetries, powerGap, realmMinutes, simulateRealm, type LevelCell, type LevelRun } from '../src/sim/levels';
 
 type Row = Omit<LevelRun, 'summary'>;
 interface Out { classId: ClassId; tier: number; realms: RealmId[]; levels: Row[]; continuous: Record<number, { power: number; relics: number }>[] }
@@ -62,6 +62,15 @@ if (cmd === 'run') {
   console.log(`\n## Per class (first tries cleared / played)\n\n| Level | ${classes.join(' | ')} |\n|---|${classes.map(() => '---').join('|')}|`);
   for (const c of cells)
     console.log(`| ${REALMS[c.realm].name} ${c.level} | ${classes.map((k) => { const mine = rows.filter((r) => r.classId === k && r.realm === c.realm && r.level === c.level); return `${mine.filter((r) => r.cleared).length}/${mine.length}`; }).join(' | ')} |`);
+  // #232: the end bosses, measured: how a lost first try fell (in the waves before the boss, or with the boss on the floor), and how long the boss stood
+  console.log(`\n## End bosses (first tries lost: where; the fight: median seconds from the boss's arrival to the level's end)\n\n| Level | End boss | Lost | Before the boss | At the boss | The boss stood (s) |\n|---|---|---|---|---|---|`);
+  for (const c of cells) {
+    const mine = rows.filter((r) => r.realm === c.realm && r.level === c.level);
+    const lost = mine.filter((r) => !r.cleared && r.fellWave != null);
+    const stood = mine.filter((r) => r.bossSeconds != null).map((r) => r.bossSeconds!);
+    const b = REALMS[c.realm].levels[c.level - 1].boss;
+    console.log(`| ${REALMS[c.realm].name} ${c.level} | ${b.boss}${b.elite ? ' (elite)' : b.crown ? ' (crown)' : ''} | ${lost.length}/${mine.length} | ${lost.filter((r) => !r.fellBoss).length} | ${lost.filter((r) => r.fellBoss).length} | ${stood.length ? median(stood).toFixed(0) : '-'} |`);
+  }
   const cell = (realm: RealmId, level: number) => cells.find((c) => c.realm === realm && c.level === level);
   const relicRealms = realms.filter((r) => REALMS[r].family);
   const gaps = cells.filter((c) => c.waves[0] > 1 && cont(c.waves[0]).n).map((c) => ({ c, gap: powerGap(c.power, cont(c.waves[0]).power) }));
