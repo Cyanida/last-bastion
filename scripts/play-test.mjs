@@ -1979,7 +1979,7 @@ await check('Iron Hold: a shield bearer marches as the Thorn Bearer, his flash c
 
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
 // From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
-// slots and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a
+// slots (#239: as one wide frame) and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a
 // common fills the slot and shows its set chip, the plan gets a talent on the tree, the Map
 // tab opens the world map and comes back; PLAY starts level 1 with the slotted relic and the plan; a level ended early comes home as
 // "fell at wave N" with RESTART, which plays the level again on the same seed
@@ -2056,7 +2056,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = first.fits && first.figure && first.slots === 'o-----' && first.inv === 4 && first.blocked === '' && first.play === 'Play' && first.playReach && first.greens === 1 && first.tabs === 'oXooo'
       && /The Marches · Level 1/.test(first.next) && /1 slot/.test(first.next) && first.sets === ''
-      && slotted.slots === 'RRo---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === ''
+      && slotted.slots === 'Ro---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === ''
       && /everfrost crown: at most 1 legendary/i.test(refused.why) && refused.loadout === 'dragonsTongue'
       && common.slots === 'R-----' && common.loadout === 'brimstoneOil' && common.sets === '1'
       && planned.plan === 1 && planned.savedPlan === 1 && map === 1
@@ -2234,6 +2234,110 @@ await check('import: asks first and keeps the replaced save as a backup, once', 
     rows1 >= 1 && rows2 === texts.length && new Set(texts).size === texts.length;
   return { ok, detail: `asked ${asked.length}×, gold ${before.gold} -> ${kept} (no) -> ${gold} (yes), backup is the old save ${top === before.text}, restore rows ${rows1} -> ${rows2}, ${texts.length} backups, ${new Set(texts).size} distinct` };
 });
+
+// ---------- #239: the champion screen explains itself: a legendary is one double slot with a "2 slots" badge, a relic that can't go in
+// greys the empty slots with the reason, and an ⓘ by the slots, the set chips and the talent plan opens and closes ----------
+// At 1280x720 with the mouse and in phone landscape by touch, on a champion with five slots filled: the Everfrost Crown wears its
+// "2 slots" badge in the inventory and can't go in; pointing at it (mouse) and tapping it greys the one empty slot, which says "a
+// legendary takes 2 slots" in its own tip and under the inventory; a tap elsewhere lifts the grey. A common taken out, the Crown goes in
+// as one frame two slots wide with its badge. Each ⓘ opens its text on screen and closes again: by the same ⓘ, by its ×, and by Escape
+// (which leaves the screen open). At 1280x720 no text on the screen or its popups is under 14 px.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`champion screen: a legendary is one double slot with a "2 slots" badge, a blocked relic greys the empty slot with the reason, the three info buttons open and close, ${touch ? 'tap' : 'click'} at ${w}x${h} (#239)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await p.evaluate(() => {
+      const five = ['brimstoneOil', 'emberheart', 'cinderCharm', 'frostBrand', 'wintersGrasp'];
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [...five, 'everfrostCrown'], loadouts: { marches: five }, talentPlan: [], world: {}, signature: false, lastBastion: false } };
+    });
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    // every piece of text showing on the screen (its popups too) that is smaller than 14 px; the relic tooltip's own text is #235's
+    const small = () => p.evaluate(() => {
+      const out = [];
+      for (const root of [document.querySelector('.champion-screen')]) {
+        const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+          const e = n.parentElement, r = e.getBoundingClientRect();
+          if (!n.textContent.trim() || !r.width || !r.height || e.closest('[hidden]') || getComputedStyle(e).visibility === 'hidden') continue;
+          const px = parseFloat(getComputedStyle(e).fontSize);
+          if (px < 14) out.push(`${px}px "${n.textContent.trim().slice(0, 24)}"`);
+        }
+      }
+      return out;
+    });
+    const look = () => p.evaluate(() => {
+      const width = (e) => e.getBoundingClientRect().width;
+      const slots = [...document.querySelectorAll('.cs-slot')];
+      const double = document.querySelector('.cs-slot.double'), single = slots.find((s) => !s.classList.contains('double'));
+      const tip = document.getElementById('tooltip');
+      return {
+        slots: slots.map((s) => (s.classList.contains('empty') ? (s.classList.contains('deny') ? 'x' : 'o') : s.classList.contains('double') ? 'D' : 'R')).join(''),
+        deny: [...document.querySelectorAll('.cs-slot.deny')].map((s) => s.dataset.tip).join('|'),
+        badge: document.querySelector('.cs-relic[data-relic="everfrostCrown"] .cs-badge')?.textContent ?? '',
+        blocked: [...document.querySelectorAll('.cs-relic.blocked')].map((b) => b.dataset.relic).join(','),
+        why: document.querySelector('.cs-why').textContent,
+        tip: tip && getComputedStyle(tip).display !== 'none' ? tip.textContent : '',
+        double: double ? { badge: double.querySelector('.cs-badge')?.textContent ?? '', wide: width(double) >= 2 * width(single), name: double.getAttribute('aria-label') } : null,
+        loadout: (window.__lb.save.champions.paladin.loadouts.marches ?? []).join(','),
+      };
+    });
+    const tiny = await small();
+    const first = await look();
+    let hover = null;
+    if (!touch) { // the mouse only points at it: the slot greys, and the relic's own tip says why
+      await p.hover('.cs-relic[data-relic="everfrostCrown"]');
+      hover = await look();
+      tiny.push(...await small());
+      await p.mouse.move(4, 4);
+    }
+    const away = await look();
+    await press('.cs-relic[data-relic="everfrostCrown"]'); // picked: the slot stays grey, so its reason can be read on it
+    if (touch) await press('.cs-slot.deny'); else await p.hover('.cs-slot.deny');
+    const refused = await look();
+    tiny.push(...await small());
+    await press('.cs-hero [data-figure]'); // a tap elsewhere
+    const lifted = await look();
+    await press('.cs-slot[data-unslot="wintersGrasp"]');
+    const freed = await look();
+    await press('.cs-relic[data-relic="everfrostCrown"]');
+    if (!touch) await p.mouse.move(4, 4);
+    const crowned = await look();
+    // the three ⓘ: each opens its own text, on screen, and closes its own way
+    const pop = () => p.evaluate(() => {
+      const q = document.querySelector('.kit-info-pop'), r = q.getBoundingClientRect();
+      return { open: !q.hidden, text: q.hidden ? '' : q.textContent.trim(), fits: q.hidden || (r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight), lit: [...document.querySelectorAll('.kit-info[aria-expanded="true"]')].map((b) => b.dataset.info).join(',') };
+    });
+    const info = {};
+    for (const [key, shut] of [['slots', 'again'], ['sets', 'x'], ['talents', 'Escape']]) {
+      await press(`.kit-info[data-info="${key}"]`);
+      const opened = await pop();
+      tiny.push(...await small());
+      if (shut === 'again') await press(`.kit-info[data-info="${key}"]`);
+      else if (shut === 'x') await press('.kit-info-pop .kit-close');
+      else await p.keyboard.press('Escape');
+      info[key] = { opened, closed: await pop() };
+    }
+    const still = await p.locator('.champion-screen').count(); // Escape closed the popup, not the screen
+    await p.close();
+    const reason = /a legendary takes 2 slots/i;
+    const infoOk = Object.entries(info).every(([key, i]) => i.opened.open && i.opened.fits && i.opened.lit === key && !i.closed.open && i.closed.lit === '')
+      && /legendary takes 2 slots/i.test(info.slots.opened.text) && /at most 4 relics of one family/i.test(info.slots.opened.text) && /2 class relics/i.test(info.slots.opened.text)
+      && /set/i.test(info.sets.opened.text) && /bonus/i.test(info.sets.opened.text) && /talent points/i.test(info.talents.opened.text) && /plan/i.test(info.talents.opened.text);
+    const ok = first.slots === 'RRRRRo' && first.badge === '2 slots' && first.blocked === 'everfrostCrown' && first.double === null
+      && (touch || (hover.slots === 'RRRRRx' && reason.test(hover.deny) && reason.test(hover.tip))) && away.slots === 'RRRRRo'
+      && refused.slots === 'RRRRRx' && reason.test(refused.deny) && reason.test(refused.why) && reason.test(refused.tip) && refused.loadout === first.loadout
+      && lifted.slots === 'RRRRRo'
+      && freed.slots === 'RRRRoo' && freed.blocked === ''
+      && crowned.slots === 'RRRRD' && crowned.double.badge === '2 slots' && crowned.double.wide && /2 slots/.test(crowned.double.name) && crowned.loadout.split(',').includes('everfrostCrown')
+      && infoOk && still === 1 && (touch || tiny.length === 0) && errs.length === 0;
+    return { ok, detail: `slots ${first.slots}, the Crown's badge "${first.badge}", blocked ${first.blocked || '-'}${hover ? `; pointed at -> ${hover.slots} "${hover.deny}", away -> ${away.slots}` : ''}; tapped -> ${refused.slots}, the slot says "${refused.tip.slice(0, 60)}", under the inventory "${refused.why}"; a tap elsewhere -> ${lifted.slots}; a common out -> ${freed.slots}; the Crown in -> ${crowned.slots}, ${crowned.double ? `badge "${crowned.double.badge}"${crowned.double.wide ? ', two slots wide' : ', NOT two slots wide'}` : 'NO double slot'}; info ${Object.entries(info).map(([key, i]) => `${key} ${i.opened.open ? 'opens' : 'STAYS SHUT'}${i.opened.fits ? '' : ' (off screen)'}/${i.closed.open ? 'STAYS OPEN' : 'closes'}`).join(', ')}${still ? '' : ', Escape left the screen'}${touch ? '' : `; text under 14 px: ${tiny.length ? [...new Set(tiny)].join(', ') : 'none'}`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
 
 // ---------- v0.10 (#193): a v0.7-v0.9 save (format 6) loads as format 7 with its champions, its relics kept, the old text under Restore ----------
 await check('save v7: a format-6 save migrates with champions, and the Keep, Chronicle and Settings still open (#193)', async () => {
@@ -4507,7 +4611,7 @@ await check('slot rules: at most 2 class relics (the signature beside them), 4 o
   const ok = /Level 7/.test(first.next) && /6 slots/.test(first.next) && first.slots === 'oooooo' && Object.keys(first.blocked).length === 0
     && classes.loadout === 'stormbornPelt,wolfskin' && classes.blocked.ironhide === 'At most 2 class relics.' && !classes.blocked.jarlsTorc
     && /Ironhide: At most 2 class relics/.test(third.why) && third.loadout === classes.loadout
-    && full.slots === 'RRRRRR' && full.blocked.ironhide === 'No free slot for it (a legendary takes two).' && /No free slot/.test(full.blocked.jarlsTorc ?? '')
+    && full.slots === 'RRRRRR' && full.blocked.ironhide === 'No free slot for it.' && /No free slot/.test(full.blocked.jarlsTorc ?? '')
     && fifth.blocked.ironhide === 'At most 4 relics of one family.' && /Ironhide: At most 4 relics of one family/.test(fifth.why) && !fifth.loadout.includes('ironhide')
     && six.loadout === six7 && six.slots === 'RRRRRR' && run7.level === 7 && run7.held.startsWith(six7)
     && /Level 1/.test(small.next) && /3 slots/.test(small.next) && small.slots === 'RRRrrr' && run1.level === 1 && run1.held.split(',').slice(0, 4).join() === six7.split(',').slice(0, 3).join() && errs.length === 0;

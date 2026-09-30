@@ -86,6 +86,47 @@ export function wireTabs(root: ParentNode, onPick: (id: string) => void): void {
   }
 }
 
+/** #239: a small ⓘ that explains the part beside it; wireInfo opens and closes its text. `key` picks the text, `label` names it. */
+export const infoButton = (key: string, label: string): string =>
+  `<button class="kit-info" data-info="${key}" aria-label="${label}" aria-expanded="false">i</button>`;
+
+/**
+ * #239: the ⓘ buttons under `root`: a tap opens `texts[key]` in a small parchment popup beside the button; the same ⓘ, its ×, a tap
+ * elsewhere or close() shuts it. Returns close(), true when a popup was open, so a screen's Escape closes the popup before the screen.
+ * `root` is the screen's own frame, not the overlay: the listener has to go when the screen does.
+ */
+export function wireInfo(root: HTMLElement, texts: Record<string, string>): { close: () => boolean } {
+  const pop = root.appendChild(Object.assign(document.createElement('div'), { className: 'kit-info-pop', role: 'dialog', hidden: true }));
+  let owner: HTMLElement | null = null;
+  const close = () => {
+    if (!owner) return false;
+    owner.setAttribute('aria-expanded', 'false');
+    owner = null;
+    pop.hidden = true;
+    return true;
+  };
+  root.addEventListener('click', (e) => {
+    const t = e.target as HTMLElement;
+    const btn = t.closest<HTMLElement>('[data-info]');
+    if (pop.contains(t) && !t.closest('.kit-close')) return;
+    const was = owner;
+    close();
+    if (!btn || btn === was) return;
+    owner = btn;
+    btn.setAttribute('aria-expanded', 'true');
+    pop.setAttribute('aria-label', btn.getAttribute('aria-label') ?? '');
+    pop.innerHTML = `<p>${texts[btn.dataset.info!] ?? ''}</p>${closeButton('close')}`;
+    pop.hidden = false;
+    // beside the button, kept on screen; the zoomed overlay's pixels are the window's over --ui-scale (tooltip.ts)
+    const s = Number(document.documentElement.style.getPropertyValue('--ui-scale')) || 1;
+    const r = btn.getBoundingClientRect(), p = pop.getBoundingClientRect();
+    const top = r.bottom + 6 + p.height <= innerHeight ? r.bottom + 6 : Math.max(6, r.top - 6 - p.height);
+    pop.style.top = `${top / s}px`;
+    pop.style.left = `${Math.min(Math.max(6, r.left + r.width / 2 - p.width / 2), innerWidth - p.width - 6) / s}px`;
+  });
+  return { close };
+}
+
 /** The main-screen tabs of the road to the crown. */
 export const MAIN_TABS = [
   { id: 'map', label: 'Map', icon: 'map' },
