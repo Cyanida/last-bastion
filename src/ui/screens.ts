@@ -274,7 +274,7 @@ export function showRealmRoad(
   };
   const held = (r: RoadRun['relics'][number]) =>
     `<span class="rr-relic" tabindex="0" data-relic="${r.id}" data-tip="${esc(relicTip(r.id, r.tier))}">${kit.rarityGlyph(relicRarity(r.id), relicDef(r.id).icon)}${tierBadge(r.tier)}</span>`;
-  const notes = [info.fell ? `<small class="rr-fell">${esc(fellLine(info.fell, info.level))}</small>` : '', go.note ? `<small class="rr-from">${esc(go.note)}</small>` : ''].filter(Boolean).map((n) => ` · ${n}`).join('');
+  const notes = [info.fell ? `<small class="rr-fell">${esc(fellLine(info.fell, info.level))}</small>` : '', go.note ? `<small class="rr-from">${esc(go.note)}</small>` : ''].filter(Boolean).join(' · ');
   const tier = (t: LevelPanel['tiers'][number], i: number) =>
     `<button class="rr-tier${i === info.tier ? ' on' : ''}${t.cleared ? ' cleared' : ''}" data-tier="${i}" aria-pressed="${i === info.tier}" title="${t.name}${t.cleared ? ': cleared' : t.open ? '' : ': not open yet'}"${t.open ? '' : ' disabled'}>${kit.icon(t.open ? TIER_CROWNS[i] : 'lock')}<span>${t.name}</span></button>`;
   const fact = (label: string, value: string | number) => `<span class="rr-fact"><small>${label}</small><b>${value}</b></span>`;
@@ -300,7 +300,7 @@ export function showRealmRoad(
           </div>
         </div>
         ${trail?.here ? `<div class="rr-run"><small>Run relics</small>${trail.relics.length ? `<span class="rr-relics">${trail.relics.map(held).join('')}</span>` : '<span class="rr-none">None yet</span>'}</div>` : ''}
-        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${notes}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${go.over ? kit.button('Start over', { attrs: 'data-over' }) : ''}${kit.button(go.label, { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !go.enabled })}</div>
+        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${notes ? `<span class="rr-notes">${notes}</span>` : ''}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${go.over ? kit.button('Start over', { attrs: 'data-over' }) : ''}${kit.button(go.label, { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !go.enabled })}</div>
         <div class="rr-go rr-ask" role="alertdialog" aria-label="Start over?" hidden><span class="rr-asks"></span>${kit.button('Keep the run', { attrs: 'data-keep' })}${kit.button('Start over', { kind: 'go', size: 'big', attrs: 'data-yes' })}</div>`, { cls: 'rr-panel' })}
     </div>`);
   // Start over, or a new run on another tier: the run in progress is lost, so the row asks first; Keep the run (or Esc) puts the buttons back
