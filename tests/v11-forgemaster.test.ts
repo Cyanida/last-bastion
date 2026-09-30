@@ -28,7 +28,7 @@ describe('the Forgemaster as the Iron Hold level 3 boss (#215)', () => {
   it('ends the Iron Hold level 3, three phases, and is never drawn outside it', () => {
     const lv = REALMS.ironHold.levels[2];
     expect(lv.boss).toEqual({ boss: 'forgemaster' });
-    expect(levelBoss(lv.boss, lv.waves[1], draw)).toBe('forgemaster');
+    expect(levelBoss('ironHold', 3)).toBe('forgemaster');
     expect(bossName(lv.boss, lv.waves[1])).toBe('The Forgemaster');
     expect('forgemaster' in WORLD_BOSSES).toBe(false); // built now: config/bosses.ts has him
     expect(ENEMIES.forgemaster.boss).toBe(true);
