@@ -93,6 +93,7 @@ export const infoButton = (key: string, label: string): string =>
 /**
  * #239: the ⓘ buttons under `root`: a tap opens `texts[key]` in a small parchment popup beside the button; the same ⓘ, its ×, a tap
  * elsewhere or close() shuts it. Returns close(), true when a popup was open, so a screen's Escape closes the popup before the screen.
+ * `root` is the screen's own frame, not the overlay: the listener has to go when the screen does.
  */
 export function wireInfo(root: HTMLElement, texts: Record<string, string>): { close: () => boolean } {
   const pop = root.appendChild(Object.assign(document.createElement('div'), { className: 'kit-info-pop', role: 'dialog', hidden: true }));

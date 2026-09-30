@@ -281,7 +281,7 @@ export function showChampion(
   const two = `<span class="cs-badge">${WORLD.loadout.legendarySlots} slots</span>`;
   const slot = (s: (typeof view)[number], i: number) => {
     const idle = s.live ? '' : ' idle';
-    if (!s.id) return `<span class="cs-slot empty${idle}" data-slot="${i}" data-tip="${s.live ? 'An empty slot: tap a relic in the inventory to put it here.' : `Locked in this level (${info.slots} slot${info.slots > 1 ? 's' : ''}): later levels and the Keep open more.`}">${s.live ? '' : kit.icon('lock')}</span>`;
+    if (!s.id) return `<span class="cs-slot empty${idle}" data-slot="${i}" tabindex="0" data-tip="${s.live ? 'An empty slot: tap a relic in the inventory to put it here.' : `Locked in this level (${info.slots} slot${info.slots > 1 ? 's' : ''}): later levels and the Keep open more.`}">${s.live ? '' : kit.icon('lock')}</span>`;
     if (s.second) return '';
     const r = relicDef(s.id);
     const double = slotCost(s.id) > 1;
@@ -289,7 +289,7 @@ export function showChampion(
   };
   const sets = Object.entries(familySets(goes)) as [FamilyId, { count: number; level: number }][];
   const chip = ([f, st]: [FamilyId, { count: number; level: number }]) =>
-    `<span class="cs-set${st.level ? ' on' : ''}" data-tip="${esc(`${FAMILIES[f].name}: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[f].sets[n][0]}`).join(' · ')}`)}">${kit.icon(f)}${st.count}</span>`;
+    `<span class="cs-set${st.level ? ' on' : ''}" tabindex="0" data-tip="${esc(`${FAMILIES[f].name}: ${([2, 4, 6] as const).map((n) => `${n} ${FAMILIES[f].sets[n][0]}`).join(' · ')}`)}">${kit.icon(f)}${st.count}</span>`;
   // #239: a relic that can't go in says why on hover (its tip) and on tap (below the inventory, and on the open slots it greys out)
   const relic = (id: RelicId) => {
     const why = info.loadout.includes(id) ? null : slotBlock(info.classId, info.loadout, id, WORLD.maxSlots, finale);
@@ -328,28 +328,35 @@ export function showChampion(
   big.style.setProperty('--sprite-h', `${SHEETS[c.sprite] ? spr.h : Math.round(spr.h / PORTRAIT_K)}px`);
   fig.appendChild(big);
   click(el, '[data-unslot]', (b) => on.unslot(b.dataset.unslot as RelicId));
-  // #239: pointing at (or tapping) a relic that can't go in greys out the open slots, each saying why
+  // #239: pointing at a relic that can't go in greys out the empty slots, each saying why (a slot locked in this level too: a relic
+  // may wait in it for a later level). A tap on the relic keeps them grey, so the pointer or a finger can go and read a slot's reason,
+  // until the next tap elsewhere
+  let picked = '';
   const deny = (why: string) => {
-    for (const s of el.querySelectorAll<HTMLElement>('.cs-slot.empty:not(.idle)')) {
+    for (const s of el.querySelectorAll<HTMLElement>('.cs-slot.empty')) {
+      s.dataset.was ??= s.dataset.tip;
       s.classList.toggle('deny', !!why);
-      s.dataset.tip = why || 'An empty slot: tap a relic in the inventory to put it here.';
+      s.dataset.tip = why || s.dataset.was;
     }
   };
   for (const b of el.querySelectorAll<HTMLElement>('.cs-relic.blocked')) {
     b.addEventListener('pointerenter', () => deny(b.dataset.why!));
     b.addEventListener('focus', () => deny(b.dataset.why!));
-    b.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && deny(''));
-    b.addEventListener('blur', () => deny(''));
+    b.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && deny(picked));
+    b.addEventListener('blur', () => deny(picked));
   }
+  // on the screen's own frame, which goes with the screen: the overlay under it lives on and would keep the listener
+  const frame = el.querySelector<HTMLElement>('.champion-screen')!;
+  frame.addEventListener('click', (e) => !(e.target as HTMLElement).closest('.cs-relic.blocked, .cs-slot.empty') && deny((picked = '')));
   click(el, '[data-relic]', (b) => {
     const id = b.dataset.relic as RelicId;
     if (info.loadout.includes(id)) on.unslot(id);
     else if (b.dataset.why) {
       el.querySelector('.cs-why')!.textContent = `${relicDef(id).name}: ${b.dataset.why}`;
-      deny(b.dataset.why);
+      deny((picked = b.dataset.why));
     } else on.slot(id);
   });
-  const help = kit.wireInfo(el, CHAMPION_HELP);
+  const help = kit.wireInfo(frame, CHAMPION_HELP);
   click(el, '[data-plan]', () => on.plan());
   click(el, '[data-champ]', (b) => on.champ(Number(b.dataset.champ)));
   click(el, '[data-clear-plan]', () => on.clearPlan());
