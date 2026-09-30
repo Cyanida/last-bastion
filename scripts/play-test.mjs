@@ -5909,6 +5909,62 @@ await check('Iron Hold: the map opens it with the Marches crown, its road and th
   }
 });
 
+// ---------- #248: the ability bar's upgrade chips, key badge and the utility's name never cover one another ----------
+await check('Ability bar: 0 to 3 upgrade chips, the E key and the utility name all stay readable at 1280x720, 1920x1080 and 844x390 (#248)', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  await inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'archer');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '20');
+    window.__startTest().player.invulnerable = true;
+  });
+  const bad = [], seen = [];
+  for (const [w, h] of [[1280, 720], [1920, 1080], [844, 390]]) {
+    await page.setViewportSize({ width: w, height: h });
+    for (const n of [0, 1, 2, 3]) {
+      await inPage((k) => { window.__lb.game.player.upgrades = ['burningRain', 'pinning', 'doubleVolley'].slice(0, k); }, n);
+      await page.waitForTimeout(250);
+      const r = await inPage(() => {
+        const box = (el) => { const b = el.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+        const shown = (el) => el.getClientRects().length > 0;
+        const P = box(document.querySelector('.hud-ability'));
+        const chips = [...document.querySelectorAll('#h-ab-ups .hud-badge')].filter(shown);
+        const key = document.querySelector('#h-ut-slot .hud-key'), name = document.getElementById('h-ut-name');
+        const parts = [...chips.map((c) => ['chip', c]), ...(shown(key) ? [['key', key], ['name', name]] : [])];
+        const inside = (b) => b.l >= P.l - 1 && b.r <= P.r + 1 && b.t >= P.t - 1 && b.b <= P.b + 1;
+        const cut = parts.filter(([, el]) => !inside(box(el)) || el.scrollWidth > el.clientWidth + 1).map(([k]) => k);
+        const over = [];
+        for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+          const a = box(parts[i][1]), b = box(parts[j][1]);
+          if (a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1) over.push(`${parts[i][0]}/${parts[j][0]}`);
+        }
+        return { chips: chips.length, key: shown(key), name: name.textContent, cut, over, offscreen: P.l < 0 || P.r > innerWidth || P.b > innerHeight };
+      });
+      seen.push(`${w}x${h}/${n}: ${r.chips} chips${r.key ? '' : ', key hidden (phone)'}`);
+      if (r.cut.length || r.over.length || r.offscreen) bad.push(`${w}x${h} with ${n}: cut [${r.cut}] overlapping [${r.over}]${r.offscreen ? ' off screen' : ''}`);
+      if (w > 844 && (r.chips !== n || !r.key || !r.name)) bad.push(`${w}x${h} with ${n}: ${r.chips} chips, key ${r.key}, name "${r.name}"`);
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : seen.join('; ') };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
