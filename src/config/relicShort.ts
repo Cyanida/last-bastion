@@ -17,6 +17,9 @@ export const RELIC_SHORT: Record<RelicId | DuoId, string> = {
   fireArrows: "Arrow Volley's arrows burn; Focus makes burns hurt more.",
   sunfireCenser: 'Heavenly Radiance sets everything it hits burning; Grace adds stacks.',
   radiantBrand: "Divine Shield's burst sets enemies burning; Faith adds stacks.",
+  flashpowder: 'Every so often a hit sparks: burning enemies flare, others catch fire.',
+  pitchPot: 'Flings burning pitch at the nearest enemy; burning enemies drip it too.',
+  crownOfCinders: "Attacks light enemies, and a dying enemy's burn leaps to those near it.",
   // ❄️ Frost
   frostBrand: 'Attacks nearly always chill.',
   wintersGrasp: 'Your signature ability chills everything it hits.',

@@ -45,6 +45,9 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #218 (v0.11): the Steel class relics of the Angel, the Necromancer and the Archer join their pools and Iron Tithe
  * (Reprisal Cuirass + Vampire Fang) joins the duos, so the runs of those three classes draw different relics on purpose; every seed still
  * reaches the first Act boss.
+ * Re-recorded for #229 (v0.12, on the merged code after #223, #225, #235, #236 and #239 came into release/0.12.0): Flashpowder, Pitch Pot
+ * and Crown of Cinders, three new Flame relics, join every class's pool, so seven runs draw different relics on purpose (both paladin:9
+ * and paladin:7 meta, angel:1234, the oath run, necromancer:1234 and both plain Archer runs); every seed still reaches the first Act boss.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -81,19 +84,19 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 
 // v0.8 #99 + #100 + #101: re-recorded on release/0.8.0 because boss draws, boss relic families and the Squire enemy roster changed on purpose
 const GOLDEN: Record<string, string> = {
-  'paladin:9': 'wave 15 kills 638 level 16 gold 2530 relics 6 hash 75119a9',
+  'paladin:9': 'wave 14 kills 554 level 15 gold 1658 relics 4 hash 20c5e54b',
   'paladin:98765': 'wave 16 kills 644 level 17 gold 2703 relics 6 hash d731100d',
   'viking:98765': 'wave 18 kills 811 level 18 gold 3433 relics 7 hash ea110cf7',
   'viking:5': 'wave 9 kills 269 level 10 gold 767 relics 4 hash 70af9ff',
-  'angel:1234': 'wave 18 kills 784 level 18 gold 3259 relics 6 hash e195f8bb',
+  'angel:1234': 'wave 21 kills 969 level 20 gold 4625 relics 8 hash 4e2b1230',
   'angel:98765': 'wave 17 kills 725 level 18 gold 3609 relics 7 hash a9273f62',
-  'necromancer:1234': 'wave 9 kills 290 level 10 gold 835 relics 4 hash ddce38b6',
+  'necromancer:1234': 'wave 17 kills 634 level 17 gold 3078 relics 6 hash 4a441383',
   'necromancer:5': 'wave 9 kills 269 level 10 gold 714 relics 3 hash a355106',
-  'archer:2027': 'wave 9 kills 299 level 10 gold 849 relics 3 hash a754676f',
-  'archer:5': 'wave 20 kills 858 level 19 gold 3984 relics 9 hash f56fce7a',
-  'paladin:7 meta': 'wave 15 kills 596 level 18 gold 2217 relics 8 hash fe4c37bb',
+  'archer:2027': 'wave 9 kills 289 level 10 gold 889 relics 3 hash e3214744',
+  'archer:5': 'wave 20 kills 868 level 19 gold 3973 relics 9 hash 876daba2',
+  'paladin:7 meta': 'wave 14 kills 533 level 17 gold 1978 relics 7 hash e8557a92',
   'viking:98765 curse': 'wave 17 kills 744 level 17 gold 4727 relics 7 hash aa1a88df',
-  'angel:98765 oath 3': 'wave 18 kills 777 level 18 gold 4605 relics 7 hash 9ccfd807',
+  'angel:98765 oath 3': 'wave 17 kills 756 level 18 gold 4354 relics 7 hash 12a47c96',
   'archer:13 variant 1': 'wave 20 kills 997 level 20 gold 4201 relics 7 hash e428caa0',
 };
 
