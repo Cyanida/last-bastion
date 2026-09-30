@@ -60,12 +60,16 @@ export const CHAMPION = {
   /**
    * Enemy scaling by the champion level a level expects (logic/championLevels championStep), on top of the tier, the ring step and the
    * level step. The waves were tuned for a player who levels up along the pace inside them; a champion keeps one level all level long.
-   * A player's strength is taken as 1 + `perRunLevel` per run level (damage and HP both grow about that much a level with growth and
-   * boons); enemy HP and damage take the ratio of the expected champion's strength to the pace's midway through the level's waves.
-   * `worth`: a champion's run levels count for this much each, since its points also pay for the ability tiers a run got for free
-   * (fitted with the bot: at 1 it cleared no Marches level 4 and few crown levels of the Iron Hold).
+   * A player's strength is taken as 1 + `perRunLevel` per run level (damage and HP both grow with growth and boons); enemy HP and
+   * damage take the ratio of the expected champion's strength to the pace's `at` of the way through the level's waves. `worth`: a
+   * champion's run levels count for this much each, since its points also pay for the ability tiers a run got for free.
+   * #220, fitted with the bot playing a realm as one run (BALANCE.md): `at` 1, the pace as the level ends (was midway, 0.5): a level's
+   * boss, its one hard fight, was tuned for a player grown through all its waves; `perRunLevel` 0.2 (was 0.12): a level-up inside a
+   * level was worth more than its growth (its card, its ability tiers), so the early levels, whose waves span the most pace levels,
+   * ease the most; `worth` 0.9 (was 0.8), since a run that carries its relics on is stronger than its level says.
+   * Decided: `finale`, the Last Bastion's, stays the first fit (#238) until its own release tunes it (v0.14.0).
    */
-  scaling: { perRunLevel: 0.12, worth: 0.8 },
+  scaling: { perRunLevel: 0.2, worth: 0.9, at: 1, finale: { perRunLevel: 0.12, worth: 0.8, at: 0.5 } },
   /**
    * The bot's build (the sim's yardstick, logic/championLevels botBuild): it buys an ability tier at each of these champion levels and a
    * utility tier at each of those (about where the old levels 5, 10, 15 and 8, 14 fall, leaving it points for stats), and cycles the rest of its points over `stats`.

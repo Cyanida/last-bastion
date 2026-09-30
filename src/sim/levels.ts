@@ -7,10 +7,12 @@ import { createGame, summarizeRun, type RunOptions } from '../game';
 import { championBonus, fitLoadout, newChampion, ownable, rarePickOptions, type Champion } from '../logic/champions';
 import { attackDamage, critChance } from '../logic/formulas';
 import { familySets } from '../logic/relics';
-import { botBuild, expectedChampionLevel, levelCap, xpForLevel } from '../logic/championLevels';
+import { botBuild, clearXp, expectedChampionLevel, grantXp, levelCap, xpForLevel, xpFromWorld } from '../logic/championLevels';
 import { masteryBonus } from '../logic/economy';
 import { recordClear, slotsFor } from '../logic/world';
+import type { RealmRun } from '../logic/realmRun';
 import type { RunSummary } from '../logic/save';
+import { takeCarry } from '../systems/levels';
 import { botStep } from './bot';
 
 /**
@@ -106,6 +108,7 @@ export interface LevelRun {
   cleared: boolean; // its last wave cleared
   time: number; // seconds played
   loadout: RelicId[]; // what the bot slotted
+  champion?: number; // #220: the champion level it played at (a realm run's: by the XP its earlier levels banked)
   power: number | null; // powerOf at the level's first wave, once its opening pick is taken
   relicsAtStart: number; // relics held then
   held: number; duos: number; sixes: number; // at the end: relics held, duos, families at a 6-set
@@ -124,32 +127,78 @@ export function levelOptions(classId: ClassId, c: Champion, realm: RealmId, leve
   return { ...extra, tier, level: { realm, level, relics, champion }, inventory: c.inventory, fresh: c.inventory };
 }
 
-/** A first try at `level` of `realm` by the bot, with expected progress (or champion `c`). The run stops on the clear, a death or `maxSeconds`. */
-export function simulateLevel(classId: ClassId, seed: number, realm: RealmId, level: number, tier = 1, variant = 0, c = expectedChampion(classId, realm, level), maxSeconds = 45 * 60): LevelRun {
-  const opts = levelOptions(classId, c, realm, level, tier, variant);
-  const g = createGame(classId, seed, opts);
+/**
+ * A level played by the bot until it is cleared, dead or out of time. `revive` (#220, a realm run): a death is still the first try's
+ * fall (`cleared` false, `time` the fall's), but the bot is raised on the spot and plays the level out, so the run goes on.
+ */
+function playLevel(g: Game, classId: ClassId, realm: RealmId, level: number, variant: number, loadout: RelicId[], maxSeconds: number, revive = false): LevelRun {
   const first = REALMS[realm].levels[level - 1].waves[0];
   let power: number | null = null;
   let relicsAtStart = 0;
   let sixAt: number | null = null;
   let heldBefore = -1;
-  while (!g.over && !g.level?.cleared && g.victory === 'none' && g.time < maxSeconds) {
+  let fell: number | null = null;
+  const moments = () => Object.entries(g.vars).filter(([k]) => k.startsWith('moments.')).reduce((n, [, v]) => n + v, 0);
+  const carried = moments(); // a realm run carries its counters on: a level's moments are those it met itself
+  const done = () => !!g.level?.cleared || g.victory !== 'none';
+  while (!g.over && !done() && g.time < maxSeconds) {
     botStep(g, variant);
     if (power === null && g.wave >= first) (power = powerOf(g)), (relicsAtStart = g.player.relics.held.length);
     if (sixAt === null && g.player.relics.held.length !== heldBefore) { // only when the relics changed: familySets every tick is not free
       heldBefore = g.player.relics.held.length;
       if (Object.values(familySets(g.player.relics.held)).some((s) => s?.level === 6)) sixAt = Math.max(first, g.wave);
     }
+    if (g.over && revive && !done()) (fell ??= g.time), (g.over = false), (g.player.hp = g.player.stats.hp), (g.player.invulnT = 3); // as continuousPower
   }
   const r = g.player.relics;
   const sets = familySets(r.held);
   return {
-    classId, realm, level, seed, cleared: !!g.level?.cleared || g.victory !== 'none', time: g.time, loadout: opts.level!.relics ?? [],
+    classId, realm, level, seed: g.seed, cleared: fell === null && done(), time: fell ?? g.time, loadout, champion: g.player.level,
     power, relicsAtStart, held: r.held.length, duos: r.duos.length, sixes: FAMILY_IDS.filter((f) => sets[f]?.level === 6).length, sixAt,
-    moments: Object.entries(g.vars).filter(([k]) => k.startsWith('moments.')).reduce((n, [, v]) => n + v, 0),
+    moments: moments() - carried,
     pool: r.pool.filter((id) => !isCursedRelic(id)).length,
     summary: summarizeRun(g),
   };
+}
+
+/**
+ * A first try at `level` of `realm` on its own by the bot, with expected progress (or champion `c`): the loadout only, none of what a
+ * realm run carries into a later level. A tool (the golden runs, a quick look at one level); rule 9 is measured by simulateRealm.
+ * The run stops on the clear, a death or `maxSeconds`.
+ */
+export function simulateLevel(classId: ClassId, seed: number, realm: RealmId, level: number, tier = 1, variant = 0, c = expectedChampion(classId, realm, level), maxSeconds = 45 * 60): LevelRun {
+  const opts = levelOptions(classId, c, realm, level, tier, variant);
+  return playLevel(createGame(classId, seed, opts), classId, realm, level, variant, opts.level!.relics ?? [], maxSeconds);
+}
+
+/** A level's seed in a realm run started on `seed`: its own, as a checkpoint's is (logic/realmRun checkpoint). */
+export const realmSeed = (seed: number, level: number): number => (seed + (level - 1) * 104729) >>> 0;
+
+/**
+ * #220: a realm played by the bot as a player plays it (rule 3): one run from level 1, each later level going on from the checkpoint of
+ * the one before with what the run carries (relics at their tiers, gold, the build), and the champion banking each clear's XP and
+ * spending its stat points, ability tiers and talent points before the next level (botBuild at its new level), as on the level-cleared
+ * screen. The champion starts as expected progress has it at the realm's level 1, with the XP its cleared levels paid. One row a level:
+ * its first try. Decided: a fall counts as that level's first try lost, and the bot is raised where it fell to play the level out (a
+ * replay from the checkpoint on the same seed would fall the same way), so the run reaches the later levels with a cleared level's
+ * finds and XP, as a player's retry does. A level not over in `maxSeconds` ends the run there.
+ */
+export function simulateRealm(classId: ClassId, seed: number, realm: RealmId, tier = 1, variant = 0, maxSeconds = 45 * 60, levels = REALMS[realm].levels.length): LevelRun[] {
+  let c = expectedChampion(classId, realm, 1);
+  c = grantXp(c, Math.max(0, xpFromWorld(c.world) - c.xp));
+  let run: RealmRun | null = { level: 1, tier, seed: realmSeed(seed, 1), carry: null };
+  const rows: LevelRun[] = [];
+  while (run && run.level <= levels) {
+    const level: number = run.level;
+    const opts = levelOptions(classId, c, realm, level, tier, variant);
+    const g = createGame(classId, run.seed, { ...opts, level: { ...opts.level!, carry: run.carry } });
+    rows.push(playLevel(g, classId, realm, level, variant, run.carry ? [] : opts.level!.relics ?? [], maxSeconds, true));
+    if (!g.level?.cleared && g.victory === 'none') break;
+    const xp = clearXp(g.player.xp, true);
+    c = grantXp(clear(c, classId, realm, level), xp); // its reward and crown first: the cap follows the crowns held
+    run = level < REALMS[realm].levels.length ? { level: level + 1, tier, seed: realmSeed(seed, level + 1), carry: takeCarry(g) } : null;
+  }
+  return rows;
 }
 
 /**
@@ -187,6 +236,7 @@ export interface LevelCell {
   failMinutes: number; // a failed try, on average (0 when none failed)
   power: number; // powerOf at the first wave
   relicsAtStart: number;
+  champion: number; // #220: the champion level played at, on average
   moments: number; // relic moments met per findable relic, on average
   sixes: number; // share of clears ending with a 6-set
   duos: number; // duos per clear
@@ -206,6 +256,7 @@ export function levelCell(rows: Omit<LevelRun, 'summary'>[]): LevelCell {
     failMinutes: avg(lost.map((r) => r.time)) / 60,
     power: avg(rows.filter((r) => r.power !== null).map((r) => r.power!)),
     relicsAtStart: avg(rows.map((r) => r.relicsAtStart)),
+    champion: avg(rows.map((r) => r.champion ?? 0)),
     moments: avg(rows.map((r) => r.moments / Math.max(1, r.pool))),
     sixes: won.length ? won.filter((r) => r.sixes > 0).length / won.length : 0,
     duos: avg(won.map((r) => r.duos)),

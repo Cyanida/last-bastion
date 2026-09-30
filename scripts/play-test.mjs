@@ -1599,16 +1599,16 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = road.flags.length === 7 && road.flags.every((f) => f.inside) && road.flags.map((f) => f.open).join() === 'true,false,false,false,false,false,false' && road.flags[0].on
       && road.landBg.includes('world-map') && road.name === 'The Marches · Level 1' && road.tiers === 'Xo--' && road.golds === 1 && road.fight && road.onScreen
-      && !/Head start/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*53%/.test(road.text) && /Steel relics featured/.test(road.text) && /War Drummer/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
-      && knight.tiers === 'oX--' && /Enemy HP\s*77%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
+      && !/Head start/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*40%/.test(road.text) && /Steel relics featured/.test(road.text) && /War Drummer/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
+      && knight.tiers === 'oX--' && /Enemy HP\s*59%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
       && run?.realm === 'marches' && run.level === 1 && run.last === 6 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
-    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*77%/.test(knight.text) ? 'HP 77%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*59%/.test(knight.text) ? 'HP 59%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
 // ---------- #221: the level step: the panel's Enemy HP on Knight is what the level fights at, eased on level 1 of the Marches ----------
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
-  await check(`level step: the Marches level 1 on Knight shows Enemy HP 77% (Knight 145% eased, #243, and for a level-1 champion, #238) and FIGHT plays it at that HP, ${touch ? 'tap' : 'click'} at ${w}x${h} (#221)`, async () => {
+  await check(`level step: the Marches level 1 on Knight shows Enemy HP 59% (Knight 145% eased, #243, and for a level-1 champion, #238, as tuned in #220) and FIGHT plays it at that HP, ${touch ? 'tap' : 'click'} at ${w}x${h} (#221)`, async () => {
     const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
     const errs = [];
     p.on('pageerror', (e) => errs.push(e.message));
@@ -1625,8 +1625,47 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
     const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100) } : null; });
     await p.close();
-    const ok = shown === '77' && run?.level === 1 && run.tier === 1 && run.hp === 77 && errs.length === 0;
+    const ok = shown === '59' && run?.level === 1 && run.tier === 1 && run.hp === 59 && errs.length === 0;
     return { ok, detail: `panel Enemy HP ${shown ?? '?'}%; run: ${run ? `level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #220: the release's balance pass, as a player meets it: map -> the Iron Hold -> Knight; every flag's panel shows the Enemy HP
+// its level plays at (335, 251, 237, 240, 225%: a level-8 to level-10 champion's foes), level 4 names its Elite boss, and FIGHT on level 1
+// plays at the HP its panel showed ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`balance: the Iron Hold's road on Knight shows Enemy HP 335, 251, 237, 240 and 225% for levels 1-5, level 4 an Elite boss, and FIGHT plays level 1 at 335%, ${touch ? 'tap' : 'click'} at ${w}x${h} (#220)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate(() => {
+      const world = { marches: [7], ironHold: [0, 4] }; // the Marches crowned, the Iron Hold's first four levels cleared on Knight
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...window.__lb.build.grown(world), world, signature: true, lastBastion: false, runs: {} } };
+    });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-ironHold');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('.rr-tier[data-tier="1"]');
+    await p.waitForTimeout(100);
+    const shown = [];
+    for (let l = 1; l <= 5; l++) {
+      await press(`.rr-flag.l-${l}`);
+      await p.waitForTimeout(100);
+      const text = (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ');
+      shown.push({ hp: text.match(/Enemy HP\s*(\d+)%/)?.[1] ?? '?', boss: text.match(/(End boss|Elite boss|Crown boss)/)?.[1] ?? '?' });
+    }
+    await press('.rr-flag.l-1');
+    await p.waitForTimeout(100);
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100), champion: g.player.level } : null; });
+    await p.close();
+    const ok = shown.map((s) => s.hp).join() === '335,251,237,240,225' && shown.map((s) => s.boss).join() === 'End boss,End boss,End boss,Elite boss,Crown boss'
+      && run?.realm === 'ironHold' && run.level === 1 && run.tier === 1 && run.hp === 335 && run.champion === 10 && errs.length === 0; // four Iron Hold levels cleared: level 10, the cap with one crown
+    return { ok, detail: `panels Enemy HP ${shown.map((s) => `${s.hp}%`).join(', ')}; bosses ${shown.map((s) => s.boss).join(', ')}; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%, champion level ${run.champion}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
@@ -6469,7 +6508,7 @@ const realmRun = (R) => async () => {
         lb.run(1, false, true);
         const b = g.enemies.find((e) => e.def.boss && !e.side);
         if (b && g.banner) banners.add(g.banner.text);
-        if (b) boss = { name: b.def.name, phases: b.def.phases ?? 2, crown: !!b.crown, phase: Math.max(boss?.phase ?? 0, b.phase), banners: [...banners] };
+        if (b) boss = { name: b.def.name, phases: b.def.phases ?? 2, crown: !!b.crown, phase: Math.max(boss?.phase ?? 0, b.phase), banners: [...banners], hp: boss?.hp ?? b.maxHp / (lb.enemyDef(b.def.id).hp * g.waveHpMult * g.tier.enemyHp) }; // `hp`: his HP over a plain one's at this wave (#220)
       }
       return { held, boss, str: s.str, level: g.level?.level, first: g.startWave, tier: g.tierIndex, cleared: !!g.level?.cleared, wave: g.wave, state: lb.state };
     }, strong);
@@ -6545,7 +6584,7 @@ const realmRun = (R) => async () => {
     // level 4: the first boss as an elite, a phase more, which it announces; a third rare
     await press('.level-cleared [data-retry]');
     const four = await fight();
-    want(four.boss?.name === `${R.first}, Elite` && four.boss.phases === R.phases + 1 && four.boss.phase === R.phases + 1 && !four.boss.crown && four.boss.banners.includes(R.elite), `level 4 boss ${JSON.stringify(four.boss)}`);
+    want(four.boss?.name === `${R.first}, Elite` && four.boss.phases === R.phases + 1 && four.boss.phase === R.phases + 1 && !four.boss.crown && four.boss.banners.includes(R.elite) && Math.abs(four.boss.hp - 1.4) < 0.02, `level 4 boss ${JSON.stringify(four.boss)}`); // #220: an elite has 1.4 times the HP
     const keep4 = await keepLocked(4, four, taken);
     const c4 = await clearedScreen();
     const after4 = await champ();

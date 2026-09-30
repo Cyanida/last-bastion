@@ -96,7 +96,7 @@ describe('the Iron Hold: level 4 ends on the Warden as an elite (#219)', () => {
     expect(levelPanel({ marches: [7] }, 'ironHold', 2, 0)).toMatchObject({ boss: 'The Warden', eliteBoss: false });
   });
 
-  it('level 2’s Warden has three phases, level 4’s four on the same HP, and his fourth is the Judgement', () => {
+  it('level 2’s Warden has three phases, level 4’s four (#220: on more HP), and his fourth is the Judgement', () => {
     const plain = bossOf(createGame('paladin', 11, { level: { realm: 'ironHold', level: 2 } }), 16);
     expect(plain.def).toMatchObject({ id: 'warden', name: 'The Warden', phases: 3 });
     const g = createGame('paladin', 11, { level: { realm: 'ironHold', level: 4 } });

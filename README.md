@@ -177,13 +177,13 @@ npm run sim -- relics 8      # relics (v0.7): 6-sets, duos, 4-sets per class, th
 npm run sim -- economy 80    # one save played run after run, buying the Keep greedily: when is it fully raised?
 npm run sim -- deep 3        # the fresh / maxed table, but wins march on into Endless: depth is not capped at wave 40
 npm run sim -- pacing 4      # from the run logs: run length, minutes per Act, quiet time, the longest stretches with nothing new
-npm run sim -- levels 6      # realm levels (v0.10): first tries on Knight with expected progress, against the plan's rule 9 targets
+npm run sim -- levels 6      # realm levels (v0.10): each realm as one run on Knight with expected progress, against the plan's rule 9 targets
 npm run sim -- relics 3 loadout  # the relic tables for the Last Bastion, with the loadout the bot fills (v0.10)
 ```
 
 A basic bot (`src/sim/bot.ts`: melee wades in, ranged circles the crowd, it dodges telegraphs and shots, casts on cooldown, does quests, visits the Merchant and takes the first route) plays full runs headlessly, with a fresh save and with everything maxed. It is a yardstick, not a good player: human players find the Archer and the Necromancer the strongest classes, the bot finds them the weakest.
 It reports the average wave reached, the maxed / fresh ratio, the spread between classes, commanders and elites slain, Acts cleared, and the level at the end of each wave against the target pace. Runs are seeded, so a result can be reproduced.
-In `levels` (`src/sim/levels.ts`, `scripts/level-report.ts`) the bot plays each realm level as a champion would on its first try: its inventory holds what the earlier levels' first clears gave, and it fills the level's slots from it under the slot rules.
+In `levels` (`src/sim/levels.ts`, `scripts/level-report.ts`) the bot plays each realm as a champion would, as one run: it fills the slots from its inventory under the slot rules at level 1, every later level goes on from the checkpoint before it with what the run carries, and the champion banks each clear's XP and spends its points before the next level. A level's row is its first try (a fall is raised on the spot to play the run on).
 Targets and current results are in [BALANCE.md](BALANCE.md).
 
 ## Where to tune balance

@@ -156,7 +156,7 @@ export const WORLD = {
   keepLockedRunes: 2, // Decided: a keep-a-locked-relic level cleared holding no family relic pays this many Runes
   keepLockedOf: 2, // #219 Decided: a keep-locked level shows a pick of 1 of this many rares (like a Marches level's), the ones held at the end first
   crownBoss: { phases: 3, minPhaseSeconds: 12 }, // Decided: 12 s per phase, so a crown boss can't be burst through a phase
-  eliteBoss: { phases: 1 }, // #219 (rule 3): an elite end boss fights this many phases more than its plain self, on the same HP
+  eliteBoss: { phases: 1, hp: 1.4, damage: 1.15 }, // #219 (rule 3): an elite end boss fights this many phases more than its plain self. #220: on this much more HP, hitting this much harder (it had its plain self's numbers, and level 4 fell easier than level 3)
   /** Rule 4: loadout limits (the slot rules issue enforces them). */
   loadout: { perFamily: 4, legendarySlots: 2, legendaries: 1, legendariesFinale: 2, classRelics: 2 },
   /** Rule 7: enemy HP and damage by ring (rings 1-4, then the finale). One tier step (config/economy TIERS) outweighs the whole ladder. */
@@ -166,11 +166,14 @@ export const WORLD = {
    * level is a short run whose head start holds fewer relics than a run that played the waves before, so its foes ease to meet the
    * first-try clear rates. Pass 2 eases realm level 1's HP and the Marches levels 3 and 7 (the dips) most. Decided: the Last Bastion is a whole run and keeps 1. Each stays over Squire's on Knight (a tier step still
    * outweighs it). #243: tuned again for the longer levels and champion levels (#238): the Marches and a realm's late levels sit just
-   * over Squire's (HP 0.72 of Knight's 1.45, damage 0.82 of its 1.25), as far as this step goes (BALANCE.md).
+   * over Squire's (HP 0.72 of Knight's 1.45, damage 0.82 of its 1.25), as far as this step goes (BALANCE.md). #220: measured with the
+   * bot playing a realm as one run, the late levels were far too easy (a run carries its relics on, 18 of them by the last level), so
+   * they step up from that floor, the later the more; only the Marches' level 2 stays on it. Level 1 steps up to stay where it was:
+   * champion scaling eases it most (config/champion.ts).
    */
   levelStep: {
-    marches: { hp: [0.72, 0.72, 0.72, 0.72, 0.72, 0.72, 0.72], damage: [0.82, 0.82, 0.82, 0.82, 0.82, 0.82, 0.82] },
-    realm: { hp: [0.75, 0.8, 0.75, 0.72, 0.72], damage: [0.9, 0.88, 0.84, 0.82, 0.82] },
+    marches: { hp: [0.89, 0.72, 0.74, 0.82, 0.88, 1.1, 0.93], damage: [1.02, 0.82, 0.84, 0.93, 1, 1.25, 1.06] },
+    realm: { hp: [0.77, 0.77, 0.83, 0.99, 1.07], damage: [0.92, 0.86, 0.93, 1.12, 1.23] },
   },
   /**
    * #243 (rule 9): how long a level's waves are, by its place in its realm, so a realm's level 1 takes 4-6 minutes and its last 7-10
@@ -179,7 +182,7 @@ export const WORLD = {
    * and a plain run keep 1, and so does the Last Bastion (a whole run; logic/world levelWaves).
    */
   levelWaves: {
-    marches: { foes: [1.5, 0.9, 0.9, 0.9, 0.9, 0.8, 0.8], pace: [2.5, 2, 2, 2, 2, 2.2, 2.2] },
+    marches: { foes: [1.6, 0.9, 0.9, 0.9, 0.9, 0.8, 0.8], pace: [2.8, 2, 2, 2, 2, 2.2, 2.2] }, // #220: level 1 foes 1.6 and pace 2.8 (were 1.5, 2.5): eased, it ran under its 4 minutes
     realm: { foes: [1.6, 1.2, 1.1, 0.95, 0.9], pace: [2, 1.5, 1.5, 1.8, 2.2] },
   },
   /** Rule 6: the Last Bastion's elite foes and limits. */
