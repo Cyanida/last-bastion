@@ -60,5 +60,5 @@ export const SLOT_BLOCK_TEXT: Record<SlotBlock, string> = {
 export const CHAMPION_HELP = {
   slots: `The relics in your slots go into a realm run at its first level and stay for the whole run; the Keep adds more slots. A legendary takes ${L.legendarySlots} slots, and a loadout holds at most ${L.perFamily} relics of one family, ${L.legendaries} legendary (${L.legendariesFinale} in the Last Bastion) and ${L.classRelics} class relics.`,
   sets: 'Slotted relics of one family count toward its set: 2, 4 and 6 of them each add a bonus in the level. A lit chip has its bonus on; hover or tap a chip to read them.',
-  talents: 'A level starts with a head start: your champion is already some levels up, with talent points to spend. The plan spends them for you, in its order; a point it can’t place yet is yours to spend.',
+  talents: 'A realm run starts at level 1: talent points come as your champion levels up in the run, and you spend them there. The plan keeps the order you mean to take them in.', // #237: no head start spends it any more
 } as const;

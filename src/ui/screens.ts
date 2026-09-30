@@ -358,7 +358,7 @@ export function showChampion(
             ${info.inventory.length ? `<div class="cs-inv">${info.inventory.map(relic).join('')}</div>` : '<p class="cs-empty">No relics yet. Levels cleared win them; tap one to put it in a slot.</p>'}
             <p class="cs-why" aria-live="polite"></p>`, { cls: 'cs-inventory' })}
           ${kit.parch(`<h2>Talent plan <small>${info.plan.length}</small>${kit.infoButton('talents', 'How the talent plan works')}</h2>
-            ${plan ? `<ol class="cs-plan">${plan}</ol>` : '<p class="cs-empty">No plan: the head start leaves its points to spend.</p>'}
+            ${plan ? `<ol class="cs-plan">${plan}</ol>` : '<p class="cs-empty">No plan: talent points are yours to spend in the run.</p>'}
             <div class="row">${kit.button('Edit plan', { size: 'small', attrs: 'data-plan' })}${info.plan.length ? kit.button('Clear', { size: 'small', attrs: 'data-clear-plan' }) : ''}</div>`, { cls: 'cs-talents' })}
         </div>
       </div>
@@ -1120,8 +1120,8 @@ export function showTalents(info: { classId: ClassId; taken: string[]; points: n
   };
   const el = show(kitScreen('talents', info.plan ? 'Talent plan' : 'Talents', {
     back: 'data-back',
-    // #197: the champion's talent plan is picked on the same tree: tap talents in the order the head start spends its points on them
-    sub: info.plan ? `Tap talents in the order the head start spends its points: ${info.taken.length} planned · a keystone needs ${TALENTS.keystonePoints} points in its branch` : `${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${TALENTS.levelsPerPoint} levels · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}${info.rowCap < TALENTS.rows - 1 ? ' · <b>keystones open when the Library is raised in the Keep</b>' : ''}`,
+    // #197: the champion's talent plan is picked on the same tree: tap talents in the order to take them in (#237: no head start spends them)
+    sub: info.plan ? `Tap talents in the order you mean to take them: ${info.taken.length} planned · a keystone needs ${TALENTS.keystonePoints} points in its branch` : `${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${TALENTS.levelsPerPoint} levels · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}${info.rowCap < TALENTS.rows - 1 ? ' · <b>keystones open when the Library is raised in the Keep</b>' : ''}`,
     body: `<div class="tree">${branches.map(column).join('')}</div>`,
   }));
   click(el, '[data-talent]', (b) => {

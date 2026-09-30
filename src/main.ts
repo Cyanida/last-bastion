@@ -664,10 +664,10 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
     goals: closestGoals(after, id, weekKey(today(new Date()))),
     relicShares: relicShares(g),
-    restart: g.daily ? `the Daily Trial ${g.daily}` : g.level ? `${REALMS[g.level.realm].name} · Level ${g.level.cleared && g.level.level < REALMS[g.level.realm].levels.length ? g.level.level + 1 : g.level.level}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
+    restart: g.daily ? `the Daily Trial ${g.daily}` : g.level ? `${REALMS[g.level.realm].name} · Level ${g.level.cleared ? (g.level.level < REALMS[g.level.realm].levels.length ? g.level.level + 1 : 1) : g.level.level}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
     road: g.level?.cleared ? REALMS[g.level.realm].name : null, // a cleared level goes back to its road; a lost one to the champion screen (endRun)
-    onward: !!g.level?.cleared && g.level.level < REALMS[g.level.realm].levels.length, // #237: its realm run goes on at the next level
+    onward: !!g.level?.cleared && g.level.level < REALMS[g.level.realm].levels.length, // #237: its realm run goes on at the next level; its last level ends the run, and a restart is a new run from level 1
     levelRewards: result.levelRewards.level,
     crownRewards: result.levelRewards.crown,
   };
