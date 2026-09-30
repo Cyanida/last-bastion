@@ -51,7 +51,7 @@ import { initTooltips } from './ui/tooltip';
 import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
 import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, showChampion, pickClass, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showCrownPick, showResults, showLevelCleared, type BuildActions, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
-import { crownGifts, levelPanel, mapRealms, roadLevels, roadTier } from './logic/world';
+import { crownGifts, levelPanel, mapRealms, roadLevels, roadTier, unbuiltNotice } from './logic/world';
 import { REALMS, WORLD, type RealmId } from './config/world';
 import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, keepLockedEmptyText, keepLockedPick, legendaryPickOptions, newChampion, nextStop, rarePickOptions, rewardRelics, runAt, runFor, runLevel, runStarts, type Champion } from './logic/champions';
 import { checkpoint } from './logic/realmRun';
@@ -229,7 +229,7 @@ function toRoad(realm: RealmId, level?: number, tier?: number): void {
   const starts = runStarts(champOf(id), realm, n, t); // #237: a run starts at level 1 or goes on at its checkpoint; no other level can be fought
   const trail = roadRun(champOf(id), realm, t); // #242: the unfinished run the road marks; on this tier the panel continues it from any flag
   const go = roadGo(trail, n, t, panel.open);
-  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champOf(id).name, road: roadLevels(progress, realm, t), panel, fell: fellAt(id, realm, n, t), run: carry && { level: carry.level, relics: carry.relics.held.length }, trail }, {
+  showRealmRoad({ realm, realmName: REALMS[realm].name, level: n, tier: t, champion: champOf(id).name, road: roadLevels(progress, realm, t), panel, fell: fellAt(id, realm, n, t), run: carry && { level: carry.level, relics: carry.relics.held.length }, trail, notice: unbuiltNotice(realm) }, {
     level: (next) => toRoad(realm, next, t),
     tier: (next) => toRoad(realm, undefined, next),
     fight: () => go.enabled && playLevel(id, realm, go.plays, t), // Continue from the checkpoint, or level 1 (a new run; the screen asked first if one is lost)

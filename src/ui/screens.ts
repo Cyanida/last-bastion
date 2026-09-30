@@ -261,7 +261,7 @@ const TIER_CROWNS = ['crown-squire', 'crown-knight', 'crown-champion', 'crown-le
  * browser dialog, so a gamepad and a phone answer it like any other button). A death adds "fell at wave N, restart level N".
  */
 export function showRealmRoad(
-  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null; run?: { level: number; relics: number } | null; trail?: RoadRun | null },
+  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null; run?: { level: number; relics: number } | null; trail?: RoadRun | null; notice?: string | null },
   on: { level: (n: number) => void; tier: (t: number) => void; fight: () => void; over: () => void; loadout: () => void; back: () => void },
 ): void {
   const { realm, panel: pn } = info;
@@ -286,6 +286,7 @@ export function showRealmRoad(
       ${kit.parch(`
         <div class="rr-top">${kit.ribbon(esc(pn.name), { cls: 'rr-name' })}<div class="rr-tiers">${pn.tiers.map(tier).join('')}</div></div>
         <div class="rr-body">
+          ${info.notice ? `<p class="rr-unbuilt" role="note">${kit.icon('map')} ${esc(info.notice)}</p>` : ''}
           <div class="rr-facts">
             ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${info.run ? `${fact(cp.label, cp.value)}${fact('Relics kept', info.run.relics)}` : fact('Slots', pn.slots)}${fact('Enemy HP', `${pn.enemyHp}%`)}
           </div>

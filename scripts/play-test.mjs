@@ -1782,6 +1782,52 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #258: a realm that isn't built yet says so on its road, and the champion screen's PLAY prefers a built realm ----------
+// A champion with the Marches, the Iron Hold and the Cinderlands crowned: PLAY points at a built realm (the Cinderlands, replayed), not the
+// Barrowvale; the map opens the Barrowvale (still playable: its FIGHT is on) and its road says its foes, bosses and relics come later; the
+// Cinderlands' road says nothing of the kind.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`unbuilt realm: the Barrowvale's road says its own foes, bosses and relics come later and stays playable, the Cinderlands' road says nothing, and PLAY on the champion screen points at a built realm, ${touch ? 'tap' : 'click'} at ${w}x${h} (#258)`, async () => {
+    const errs = [];
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate(() => {
+      const lb = window.__lb, world = { marches: [7], ironHold: [5], cinderlands: [5] };
+      lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: {} } };
+      lb.save.cards = [...lb.cardIds];
+    });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await press('[data-go="champion"]');
+    await skipTour(p, touch);
+    await p.locator('.cs-next').waitFor({ timeout: 3000 });
+    const next = (await p.locator('.cs-next').textContent()).replace(/\s+/g, ' ').trim();
+    await press('[data-back]'); // back to the title
+    await p.locator('[data-go="map"]').first().waitFor({ timeout: 3000 });
+    await press('[data-go="map"]');
+    await p.locator('.wm-realm.r-barrowvale').waitFor({ timeout: 3000 });
+    await press('.wm-realm.r-barrowvale');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    const road = async () => ({
+      text: (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' '),
+      notice: (await p.locator('.rr-unbuilt').count()) ? (await p.locator('.rr-unbuilt').textContent()).replace(/\s+/g, ' ').trim() : '',
+      fight: await p.locator('[data-fight]').first().isEnabled(),
+      seen: await p.evaluate(() => { const r = document.querySelector('.rr-unbuilt')?.getBoundingClientRect(); return !!r && r.top >= 0 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1; }),
+    });
+    const vale = await road();
+    if (!touch && process.env.LB_SHOT) await p.screenshot({ path: process.env.LB_SHOT });
+    await p.keyboard.press('Escape'); // back to the map
+    await p.locator('.wm-realm.r-cinderlands').waitFor({ timeout: 3000 });
+    await press('.wm-realm.r-cinderlands');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    const cinder = await road();
+    await p.close();
+    const ok = /The Cinderlands · Level 1/.test(next) && /later version/.test(vale.notice) && vale.seen && vale.fight && !cinder.notice && errs.length === 0;
+    return { ok, detail: `PLAY "${next}"; Barrowvale road: "${vale.notice}"${vale.seen ? '' : ' (off screen)'}, FIGHT ${vale.fight ? 'on' : 'off'}; Cinderlands road: ${cinder.notice ? `"${cinder.notice}"` : 'no notice'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 // ---------- #237: the head start is gone: a realm run starts at level 1, wave 1 ----------
 // A champion from before v0.11, four Marches levels cleared and no run in progress, four relics in its Marches loadout: the road opens on
 // level 1 with the run's three slots and no head start; level 5 (open) says the run starts at level 1 and its FIGHT is off; FIGHT on

@@ -69,6 +69,7 @@ export interface RealmDef {
   hazard?: 'presses' | 'fire'; // #211: the realm's own hazard in its arena, on top of the arena's (the Iron Hold's forge presses, config/arenas.ts PRESSES; #224: the Cinderlands' spreading fire, SPREADING_FIRE)
   teaches: string;
   release: string;
+  built: boolean; // #258: its own foes, bosses and relics are in the game; false: a playable stand-in (#191: what isn't built falls back to the usual draw), and its road says so
   levels: LevelDef[];
   crown: { first: CrownReward[]; tiers: CrownReward[][] };
   legend?: { title: string; palette: number }; // #219: what its crown's 'title' and 'palette' rewards are (the Legend crown's): a title to wear and a sprite palette (render/sprites SPRITE_PALETTES), for the whole account
@@ -93,7 +94,7 @@ const MARCHES_WAVES: [number, number][] = [[1, 6], [7, 12], [13, 18], [19, 24], 
 
 export const REALMS: Record<RealmId, RealmDef> = {
   marches: {
-    name: 'The Marches', ring: 1, opens: { crowns: 0 }, arena: 'courtyard', release: '0.10.0',
+    name: 'The Marches', ring: 1, opens: { crowns: 0 }, arena: 'courtyard', release: '0.10.0', built: true,
     teaches: 'Marked attacks and the perfect dodge, commanders, and one relic family per level',
     levels: MARCHES_WAVES.map((waves, i) => ({
       waves, slots: RUN_SLOTS.marches, relicTier: i < 4 ? 1 : 2, family: MARCHES_FAMILIES[i],
@@ -103,7 +104,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
     crown: { first: [{ kind: 'signature' }], tiers: [[], [], [], [{ kind: 'title' }, { kind: 'palette' }]] }, // Decided: the signature comes with the first crown on any tier
   },
   ironHold: {
-    name: 'The Iron Hold', ring: 2, opens: { crowns: 1 }, arena: 'keep', family: 'steel', release: '0.11.0',
+    name: 'The Iron Hold', ring: 2, opens: { crowns: 1 }, arena: 'keep', family: 'steel', release: '0.11.0', built: true,
     teaches: 'Armor you break, shields that block from the front, thorns that hit back',
     foes: { knight: 'ironKnight', shieldwall: 'ironShieldwall', shieldBearer: 'thornBearer' }, // #214: thorn bearers
     fields: ['shieldwall'], // #249: a Champion foe elsewhere; here Squire and Knight (the tiers the realm opens with) meet its shieldwall squads too
@@ -113,12 +114,12 @@ export const REALMS: Record<RealmId, RealmDef> = {
     legend: { title: 'Ironsworn', palette: 6 }, // #219 Decided: the plan names neither
   },
   barrowvale: {
-    name: 'The Barrowvale', ring: 2, opens: { crowns: 1 }, arena: 'graveyard', family: 'grave', release: '0.13.0', // the Drowned Fen comes later as a second arena
+    name: 'The Barrowvale', ring: 2, opens: { crowns: 1 }, arena: 'graveyard', family: 'grave', release: '0.13.0', built: false, // the Drowned Fen comes later as a second arena
     teaches: 'Corpses that rise unless you trample them, plague ground that lasts',
     levels: relicRealmLevels('grave', 'lich', 'gravedigger', 'barrowKing', 'abbot'), crown: RELIC_CROWN, // Decided: the Plague Abbot is its level-1 pool boss
   },
   cinderlands: {
-    name: 'The Cinderlands', ring: 2, opens: { crowns: 1 }, arena: 'emberForge', family: 'flame', release: '0.12.0',
+    name: 'The Cinderlands', ring: 2, opens: { crowns: 1 }, arena: 'emberForge', family: 'flame', release: '0.12.0', built: true,
     teaches: 'Fire that spreads, burn stacks on you, bursts of fire when foes die',
     foes: { peasant: 'torchbearer', wolf: 'cinderHound' }, // #225: torchbearers; #226: cinder hounds
     hazard: 'fire', // #224: fire that spreads from the lava
@@ -126,27 +127,27 @@ export const REALMS: Record<RealmId, RealmDef> = {
     legend: { title: 'Cinderborn', palette: 7 }, // #231 Decided: the plan names neither
   },
   frozenPass: {
-    name: 'The Frozen Pass', ring: 3, opens: { crowns: 2 }, arena: 'frozenPass', family: 'frost', release: '0.14.0',
+    name: 'The Frozen Pass', ring: 3, opens: { crowns: 2 }, arena: 'frozenPass', family: 'frost', release: '0.14.0', built: false,
     teaches: 'Chill that stacks on you until you freeze, thin ice, foes that shatter',
     levels: relicRealmLevels('frost', 'frostLich', 'rimeWitch', 'frostJotun'), crown: RELIC_CROWN, // Decided: the Frost Lich is its first boss
   },
   stormspire: {
-    name: 'The Stormspire', ring: 3, opens: { crowns: 2 }, arena: 'stormPeak', family: 'storm', release: '1.1.0',
+    name: 'The Stormspire', ring: 3, opens: { crowns: 2 }, arena: 'stormPeak', family: 'storm', release: '1.1.0', built: false,
     teaches: 'Lightning that chains between foes and into you, fast rushers, wind that pushes',
     levels: relicRealmLevels('storm', 'warlord', 'stormCaller', 'thunderRoc'), crown: RELIC_CROWN, // Decided: the Warlord is its first boss
   },
   hallowedReach: {
-    name: 'The Hallowed Reach', ring: 4, opens: { crowns: 4 }, arena: 'sunkenCathedral', family: 'holy', release: '1.2.0',
+    name: 'The Hallowed Reach', ring: 4, opens: { crowns: 4 }, arena: 'sunkenCathedral', family: 'holy', release: '1.2.0', built: false,
     teaches: 'Ward-bearers that make squads untouchable, healers you must reach first',
     levels: relicRealmLevels('holy', 'heretic', 'wardKeeper', 'fallenSaint'), crown: RELIC_CROWN, // Decided: the Heretic is its first boss
   },
   crimsonFields: {
-    name: 'The Crimson Fields', ring: 4, opens: { crowns: 4 }, arena: 'battlefield', family: 'blood', release: '1.3.0',
+    name: 'The Crimson Fields', ring: 4, opens: { crowns: 4 }, arena: 'battlefield', family: 'blood', release: '1.3.0', built: false,
     teaches: 'Bleed on you, foes that grow stronger as they bleed',
     levels: relicRealmLevels('blood', 'headsman', 'butcher', 'crimsonBaron'), crown: RELIC_CROWN, // Decided: the Headsman is its first boss
   },
   lastBastion: {
-    name: 'The Last Bastion', ring: 5, opens: { crowns: 5, fromRing: [3, 1] }, arena: 'bastion', release: '0.14.0',
+    name: 'The Last Bastion', ring: 5, opens: { crowns: 5, fromRing: [3, 1] }, arena: 'bastion', release: '0.14.0', built: true,
     teaches: 'Everything, with elite foes',
     levels: [{ waves: [1, 40], slots: 5, relicTier: 1, boss: { boss: 'usurper' }, reward: { kind: 'win' } }],
     crown: { first: [], tiers: [[], [], [], []] },

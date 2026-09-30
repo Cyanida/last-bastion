@@ -658,6 +658,8 @@
 .rr-tier:disabled { cursor: default; opacity: 0.45; }
 .rr-body { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 18px; align-items: start; color: var(--kit-ink); }
 .rr-facts { display: grid; grid-template-columns: auto auto; gap: 4px 14px; }
+.rr-unbuilt { grid-column: 1 / -1; margin: 0; display: flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px dashed var(--kit-brass-dark); border-radius: 6px; background: rgba(0, 0, 0, 0.08); font: 800 14px var(--kit-num); }
+.compact .rr-unbuilt { font-size: 11px; padding: 2px 6px; }
 .rr-fact { display: flex; flex-direction: column; }
 .rr-body small { font: 800 14px var(--kit-num); text-transform: uppercase; letter-spacing: 0.04em; color: var(--kit-brass-dark); }
 .rr-fact b { font: 900 17px var(--kit-num); }
