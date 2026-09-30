@@ -13,7 +13,7 @@
  * Not covered: a gamepad beyond the press that answers a screen, and how it feels.
  */
 import { chromium } from 'playwright';
-import { spawnTree, killTree } from './lib/process-tree.mjs';
+import { spawnTree, killTree, waitForServer } from './lib/process-tree.mjs';
 
 const PORT = Number(process.env.PLAY_PORT ?? 4180);
 
@@ -28,14 +28,7 @@ const stop = () => killTree(preview);
 process.on('exit', stop);
 process.on('SIGINT', () => { stop(); process.exit(130); });
 process.on('SIGTERM', () => { stop(); process.exit(143); });
-for (let i = 0; i < 60; i++) {
-  try {
-    await fetch(`http://localhost:${PORT}/`);
-    break;
-  } catch {
-    await new Promise((r) => setTimeout(r, 250));
-  }
-}
+await waitForServer(`http://localhost:${PORT}/`, PORT);
 
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
@@ -791,11 +784,52 @@ await check('relic offer: the card shows the effect first, details on hover or t
     await P.wait(50); // let the screen settle: the real cursor's own pointerover would hide a tip shown before it
     card.dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); // a hover: focus() is not reliable in a CI page without window focus
     const tip = document.getElementById('tooltip'); // read at once: the tip is placed synchronously
-    const shown = tip?.style.display === 'block' && tip.innerText.includes('For this build') && tip.innerText.includes('Tier II');
+    const shown = tip?.style.display === 'block' && tip.innerText.includes('For this build') && tip.innerText.includes('compendium'); // #235: every tier is on its compendium page
     await P.click('[data-skip]'); // skipped, so the later checks still take Butcher's Hook fresh
     return { ok: big && first && lines.length === 1 && !lines[0].innerText.includes('\n') && shown && rel.offers.length === 0, detail: `effect "${effect.innerText}", line "${lines[0]?.innerText}" (${lines.length}), bigger ${big}, tip shown ${shown}${shown ? '' : ` (${tip?.style.display}: ${(tip?.innerText ?? '').slice(0, 60)})`}` };
   }),
 );
+
+// #235: a relic card shows its short line (at most 90 characters) and tier chips, never the long text; its ⓘ, clicked with the mouse,
+// opens the relic's compendium page with every tier over the pick without taking the card, and Esc closes it; no text on the card or the
+// page is under 14 px at 1280x720
+const minFont = (sel) => page.evaluate((sel) => {
+  let min = Infinity, at = '';
+  for (const root of document.querySelectorAll(sel)) {
+    for (const el of [root, ...root.querySelectorAll('*')]) {
+      const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+      if (!own || el.getBoundingClientRect().width === 0) continue;
+      const px = parseFloat(getComputedStyle(el).fontSize);
+      if (px < min) { min = px; at = `${el.tagName.toLowerCase()}.${el.className} "${el.textContent.trim().slice(0, 20)}"`; }
+    }
+  }
+  return { min, at };
+}, sel);
+await check('relic offer: a short line and tier chips, the ⓘ opens its compendium page, no text under 14 px (#235)', async () => {
+  const setup = await inPage(() => {
+    const P = window.__play, rel = window.__lb.game.player.relics;
+    rel.offers.push({ from: 'lair', options: ['heartOfTheHold', 'reprisalCuirass', 'thunderDrum', 'guardiansAegis'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 0, duo: null });
+    if (!P.toChoice()) return null;
+    return [...document.querySelectorAll('.relic-card')].map((c) => ({ p: c.querySelector('p').innerText, chips: c.querySelectorAll('.tier-chips i').length, info: !!c.querySelector('.relic-info'), long: c.innerText.includes('Awaken') || c.innerText.includes('Tier II'),
+      // the whole card on the 1280x720 screen, its short line inside it and not cut off
+      fits: (() => { const r = c.getBoundingClientRect(), l = c.querySelector('p'), lr = l.getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight && lr.left >= r.left && lr.right <= r.right && lr.bottom <= r.bottom && l.scrollWidth <= l.clientWidth && c.scrollHeight <= c.clientHeight + 1; })() }));
+  });
+  if (!setup) return { ok: false, detail: 'no relic offer' };
+  const cardFont = await minFont('.relic-card');
+  await page.locator('[data-pick="0"] .relic-info').click();
+  const opened = await inPage(() => {
+    const pg = document.querySelector('.relic-page');
+    return { page: !!pg, tiers: pg?.querySelectorAll('.tierline').length ?? 0, text: pg?.innerText.replace(/\s+/g, ' ').slice(0, 80) ?? '', state: window.__lb.state, offers: window.__lb.game.player.relics.offers.length };
+  });
+  const pageFont = await minFont('.relic-page');
+  await page.keyboard.press('Escape');
+  const closed = await inPage(() => ({ page: !!document.querySelector('.relic-page'), state: window.__lb.state, offers: window.__lb.game.player.relics.offers.length }));
+  await inPage(() => window.__play.click('[data-skip]'));
+  const short = setup.every((c) => c.p.length > 0 && c.p.length <= 90 && c.chips === 3 && c.info && !c.long && c.fits);
+  const ok = short && opened.page && opened.tiers >= 3 && opened.state === 'choice' && opened.offers === 1 && !closed.page && closed.state === 'choice' && closed.offers === 1
+    && cardFont.min >= 14 && pageFont.min >= 14;
+  return { ok, detail: `cards ${setup.map((c) => `"${c.p}" (${c.p.length}, ${c.chips} chips${c.info ? ', ⓘ' : ''}${c.long ? ', LONG' : ''}${c.fits ? '' : ', DOES NOT FIT'})`).join('; ')}; ⓘ page ${opened.page} (${opened.tiers} tier lines: "${opened.text}"), still picking ${opened.state}/${opened.offers}; Esc closed ${!closed.page}; smallest font card ${cardFont.min}px (${cardFont.at}), page ${pageFont.min}px` };
+});
 
 await check('relic offer: take a relic', () =>
   inPage(async () => {
@@ -1943,9 +1977,112 @@ await check('Iron Hold: a shield bearer marches as the Thorn Bearer, his flash c
   return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${fight.closed}; bites ${b.map((x) => `${x.taken.toFixed(1)}hp@${x.t.toFixed(2)}s`).join(', ') || 'NONE'} of ${fight.max} max HP, ${fight.sounds} sounds, ${fight.texts} THORNS texts${fight.alive ? '' : ', champion fell'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #225: the Cinderlands' torchbearers: map -> the Cinderlands -> level 2 -> FIGHT; a peasant brought in as a wave brings him
+// marches as the Torchbearer with his own flash card, "Got it" closes it, and his blows stack burn on the champion, shown on the HUD. Once
+// he stops landing them the stacks fall off one at a time while the fire ticks HP away; fed again, E (the utility) puts the burn out ----------
+await check('Cinderlands: a peasant marches as the Torchbearer, his flash card shows, his blows stack burn on the HUD that falls off a stack at a time, and E puts it out (#225)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], cinderlands: [1] }, signature: true, lastBastion: false });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Cinderlands level 1 cleared
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'torchbearer'); // every other card already seen, so his is the one that shows
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-cinderlands');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // a peasant comes in the way a wave brings one, in sight: the realm turns him into its own kind and his card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    g.player.invulnerable = true; // until the measurement starts
+    const b = lb.spawn('peasant', g.player.x + 160, g.player.y);
+    window.__torch = b;
+    for (let i = 0; i < 600 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    return { kind: b?.def.id, sprite: b?.def.sprite, id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g.level?.realm };
+  });
+  if (card.id) await p.click('[data-leave]');
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 3000 }).catch(() => {});
+  // the known state: full HP, open to harm, him beside the champion and living through it; every other foe stunned and held far off
+  const stack = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player, b = window.__torch;
+    const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+    window.__hold = (keep) => {
+      for (const e of g.enemies) if (e !== keep) Object.assign(e, { x: pl.x + 700, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 };
+    };
+    pl.invulnerable = false;
+    pl.hp = pl.stats.hp;
+    pl.x = b.x - 30;
+    pl.y = b.y;
+    b.hpFloor = b.maxHp; // the champion's blows don't fell him before he has landed his
+    for (let i = 0; i < 1800 && (pl.statuses.burn?.stacks ?? 0) < 3 && !g.over && lb.game === g && lb.state === 'playing'; i++) {
+      window.__hold(b);
+      lb.run(1, false, false);
+      pl.hp = Math.max(pl.hp, pl.stats.hp * 0.6); // he must not fall while the stacks build
+    }
+    return { closed, stacks: pl.statuses.burn?.stacks ?? 0, decay: pl.statuses.burn?.decay ?? 0 };
+  });
+  // the HUD shows the stacks
+  await p.waitForFunction(() => /Burning ×\d/.test(document.getElementById('h-status')?.textContent ?? ''), null, { timeout: 3000 }).catch(() => {});
+  const hud = await p.evaluate(() => document.getElementById('h-status')?.textContent ?? '');
+  // he stops landing blows: the stacks fall off one at a time, the fire ticking HP away as they go
+  const fall = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player, b = window.__torch;
+    const steps = [];
+    const start = pl.statuses.burn?.stacks ?? 0;
+    let last = start, lost = 0, hp;
+    window.__hold(null);
+    hp = pl.hp;
+    for (let i = 0; i < 900 && last > 0 && !g.over && lb.game === g && lb.state === 'playing'; i++) {
+      window.__hold(null);
+      lb.run(1, false, false);
+      if (pl.hp < hp) lost += hp - pl.hp;
+      hp = pl.hp;
+      const n = pl.statuses.burn?.stacks ?? 0;
+      if (n !== last) steps.push({ n, t: g.time });
+      last = n;
+    }
+    // fed again: back beside him until two stacks burn
+    delete b.statuses.stun;
+    b.x = pl.x + 30;
+    b.y = pl.y;
+    for (let i = 0; i < 1800 && (pl.statuses.burn?.stacks ?? 0) < 2 && !g.over && lb.game === g && lb.state === 'playing'; i++) {
+      window.__hold(b);
+      lb.run(1, false, false);
+      pl.hp = Math.max(pl.hp, pl.stats.hp * 0.6);
+    }
+    pl.utilityCd = 0;
+    return { start, steps, lost, again: pl.statuses.burn?.stacks ?? 0, level: pl.level, smothered: g.vars['burn.smothered'] ?? 0 };
+  });
+  // E, the utility key: the burn is put out
+  await p.keyboard.down('KeyE');
+  const put = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    lb.run(2, false, 'input');
+    return { burn: pl.statuses.burn?.stacks ?? 0, smothered: g.vars['burn.smothered'] ?? 0, cast: pl.utilityCd > 0, text: g.texts.some((t) => t.text === 'PUT OUT'), alive: !g.over };
+  });
+  await p.keyboard.up('KeyE');
+  await p.close();
+  const s = fall.steps;
+  const gaps = s.slice(1).map((x, i) => x.t - s[i].t);
+  const ok = card.realm === 'cinderlands' && card.kind === 'torchbearer' && card.sprite === 'torchbearer' && card.id === 'torchbearer' && card.title === 'Torchbearer' && /burn/.test(card.text ?? '')
+    && stack.closed && stack.stacks >= 3 && stack.decay > 0 && /Burning ×\d/.test(hud)
+    && fall.start >= 3 && s.length === fall.start && s.every((x, i) => x.n === fall.start - 1 - i) && gaps.every((d) => Math.abs(d - stack.decay) < 0.1) && fall.lost > 0
+    && fall.again >= 2 && put.cast && put.burn === 0 && put.smothered - fall.smothered >= 2 && put.text && put.alive && errs.length === 0;
+  return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${stack.closed}; ${stack.stacks} stacks, HUD "${hud}"; from ${fall.start} fell ${s.map((x) => `${x.n}@${x.t.toFixed(2)}s`).join(' ') || 'NONE'}, ${fall.lost.toFixed(1)} HP burnt; fed again to ${fall.again} at level ${fall.level}; E cast ${put.cast}, ${put.smothered - fall.smothered} put out, ${put.burn} left${put.alive ? '' : ', champion fell'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
 // From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
-// slots and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a
+// slots (#239: as one wide frame) and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a
 // common fills the slot and shows its set chip, the plan gets a talent on the tree, the Map
 // tab opens the world map and comes back; PLAY starts level 1 with the slotted relic and the plan; a level ended early comes home as
 // "fell at wave N" with RESTART, which plays the level again on the same seed
@@ -2022,7 +2159,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = first.fits && first.figure && first.slots === 'o-----' && first.inv === 4 && first.blocked === '' && first.play === 'Play' && first.playReach && first.greens === 1 && first.tabs === 'oXooo'
       && /The Marches · Level 1/.test(first.next) && /1 slot/.test(first.next) && first.sets === ''
-      && slotted.slots === 'RRo---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === ''
+      && slotted.slots === 'Ro---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === ''
       && /everfrost crown: at most 1 legendary/i.test(refused.why) && refused.loadout === 'dragonsTongue'
       && common.slots === 'R-----' && common.loadout === 'brimstoneOil' && common.sets === '1'
       && planned.plan === 1 && planned.savedPlan === 1 && map === 1
@@ -2031,6 +2168,44 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     return { ok, detail: `slots ${first.slots}, ${first.inv} relics, "${first.next}", ${first.play}${first.playReach ? '' : ' (out of reach)'}, tabs ${first.tabs}; Dragon's Tongue -> ${slotted.slots} (sets ${slotted.sets || '-'}, blocked ${slotted.blocked || '-'}); Everfrost -> "${refused.why}"; out, Brimstone -> ${common.slots}; plan ${planned.plan}; map ${map ? 'opens' : '?'}; run ${run ? `${run.realm} ${run.level}, held ${run.held}` : 'none'}; after a fall "${fell.next}" ${fell.play} -> level ${again?.level} seed ${again?.seed === run?.seed ? 'same' : 'new'}${first.fits ? '' : ' (off screen)'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
+
+// #235: on the champion screen at 1280x720 every relic, in a slot or the inventory, has its ⓘ; hovered, its tooltip is the short line; the
+// ⓘ clicked opens its compendium page without slotting it, and Esc closes the page and stays on the screen; no text under 14 px on the
+// screen's own panels (slots, sets, inventory, talent plan, the level to play: all but the header and the tab bar every main screen shares)
+await check('champion screen: relic tooltips are the short line, the ⓘ opens the compendium page, no text under 14 px (#235)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['rivetHammer', 'heartOfTheHold', 'emberheart'], loadouts: { marches: ['rivetHammer'] }, talentPlan: [], world: {}, signature: false, lastBastion: false } };
+  });
+  await p.locator('[data-go="champion"]').click();
+  await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  const font = (sel) => p.evaluate((sel) => {
+    let min = Infinity;
+    for (const root of document.querySelectorAll(sel)) for (const el of [root, ...root.querySelectorAll('*')]) {
+      if ([...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && el.getBoundingClientRect().width > 0) min = Math.min(min, parseFloat(getComputedStyle(el).fontSize));
+    }
+    return min;
+  }, sel);
+  const infos = await p.evaluate(() => ({ slots: document.querySelectorAll('.cs-slot[data-unslot] .relic-info').length, inv: document.querySelectorAll('.cs-relic .relic-info').length, relics: document.querySelectorAll('.cs-relic').length }));
+  const relicFont = await font('.cs-main, .cs-go');
+  await p.locator('.cs-relic[data-relic="emberheart"]').hover();
+  const tip = await p.evaluate(() => { const t = document.getElementById('tooltip'); return { shown: t?.style.display === 'block', text: t?.innerText ?? '' }; });
+  const tipFont = await font('#tooltip');
+  await p.locator('.cs-relic[data-relic="emberheart"] .relic-info').click();
+  const opened = await p.evaluate(() => ({ page: document.querySelector('.relic-page')?.innerText.replace(/\s+/g, ' ') ?? '', loadout: (window.__lb.save.champions.paladin.loadouts.marches ?? []).join(',') }));
+  const pageFont = await font('.relic-page');
+  await p.keyboard.press('Escape');
+  const after = await p.evaluate(() => ({ page: !!document.querySelector('.relic-page'), screen: !!document.querySelector('.champion-screen') }));
+  await p.close();
+  const shortTip = tip.shown && tip.text.includes('More damage for every burning enemy near you.') && !/Tier II:|Awakens at/.test(tip.text);
+  const ok = infos.slots >= 1 && infos.inv === infos.relics && shortTip && /Tier|II/.test(opened.page) && /250 px/.test(opened.page) && opened.loadout === 'rivetHammer'
+    && !after.page && after.screen && relicFont >= 14 && tipFont >= 14 && pageFont >= 14 && errs.length === 0;
+  return { ok, detail: `ⓘ on ${infos.slots} slot(s), ${infos.inv}/${infos.relics} inventory relics; tip ${tip.shown ? `"${tip.text.split('\n').slice(0, 2).join(' / ')}"` : 'NOT shown'}; page "${opened.page.slice(0, 70)}", loadout ${opened.loadout}; Esc: page ${after.page ? 'still open' : 'closed'}, screen ${after.screen}; smallest font on the screen ${relicFont}px, tip ${tipFont}px, page ${pageFont}px${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
 
 // ---------- #205: a realm level's relics don't count for "in one run" deeds; a full run's do, and the Chronicle says so ----------
 await check('deeds: six relics held in a Marches level leave Reliquarian at 0; in a full run it is earned; the Chronicle says "full run" (#205)', async () => {
@@ -2162,6 +2337,110 @@ await check('import: asks first and keeps the replaced save as a backup, once', 
     rows1 >= 1 && rows2 === texts.length && new Set(texts).size === texts.length;
   return { ok, detail: `asked ${asked.length}×, gold ${before.gold} -> ${kept} (no) -> ${gold} (yes), backup is the old save ${top === before.text}, restore rows ${rows1} -> ${rows2}, ${texts.length} backups, ${new Set(texts).size} distinct` };
 });
+
+// ---------- #239: the champion screen explains itself: a legendary is one double slot with a "2 slots" badge, a relic that can't go in
+// greys the empty slots with the reason, and an ⓘ by the slots, the set chips and the talent plan opens and closes ----------
+// At 1280x720 with the mouse and in phone landscape by touch, on a champion with five slots filled: the Everfrost Crown wears its
+// "2 slots" badge in the inventory and can't go in; pointing at it (mouse) and tapping it greys the one empty slot, which says "a
+// legendary takes 2 slots" in its own tip and under the inventory; a tap elsewhere lifts the grey. A common taken out, the Crown goes in
+// as one frame two slots wide with its badge. Each ⓘ opens its text on screen and closes again: by the same ⓘ, by its ×, and by Escape
+// (which leaves the screen open). At 1280x720 no text on the screen or its popups is under 14 px.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`champion screen: a legendary is one double slot with a "2 slots" badge, a blocked relic greys the empty slot with the reason, the three info buttons open and close, ${touch ? 'tap' : 'click'} at ${w}x${h} (#239)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await p.evaluate(() => {
+      const five = ['brimstoneOil', 'emberheart', 'cinderCharm', 'frostBrand', 'wintersGrasp'];
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [...five, 'everfrostCrown'], loadouts: { marches: five }, talentPlan: [], world: {}, signature: false, lastBastion: false } };
+    });
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    // every piece of text showing on the screen (its popups too) that is smaller than 14 px; the relic tooltip's own text is #235's
+    const small = () => p.evaluate(() => {
+      const out = [];
+      for (const root of [document.querySelector('.champion-screen')]) {
+        const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+          const e = n.parentElement, r = e.getBoundingClientRect();
+          if (!n.textContent.trim() || !r.width || !r.height || e.closest('[hidden]') || getComputedStyle(e).visibility === 'hidden') continue;
+          const px = parseFloat(getComputedStyle(e).fontSize);
+          if (px < 14) out.push(`${px}px "${n.textContent.trim().slice(0, 24)}"`);
+        }
+      }
+      return out;
+    });
+    const look = () => p.evaluate(() => {
+      const width = (e) => e.getBoundingClientRect().width;
+      const slots = [...document.querySelectorAll('.cs-slot')];
+      const double = document.querySelector('.cs-slot.double'), single = slots.find((s) => !s.classList.contains('double'));
+      const tip = document.getElementById('tooltip');
+      return {
+        slots: slots.map((s) => (s.classList.contains('empty') ? (s.classList.contains('deny') ? 'x' : 'o') : s.classList.contains('double') ? 'D' : 'R')).join(''),
+        deny: [...document.querySelectorAll('.cs-slot.deny')].map((s) => s.dataset.tip).join('|'),
+        badge: document.querySelector('.cs-relic[data-relic="everfrostCrown"] .cs-badge')?.textContent ?? '',
+        blocked: [...document.querySelectorAll('.cs-relic.blocked')].map((b) => b.dataset.relic).join(','),
+        why: document.querySelector('.cs-why').textContent,
+        tip: tip && getComputedStyle(tip).display !== 'none' ? tip.textContent : '',
+        double: double ? { badge: double.querySelector('.cs-badge')?.textContent ?? '', wide: width(double) >= 2 * width(single), name: double.getAttribute('aria-label') } : null,
+        loadout: (window.__lb.save.champions.paladin.loadouts.marches ?? []).join(','),
+      };
+    });
+    const tiny = await small();
+    const first = await look();
+    let hover = null;
+    if (!touch) { // the mouse only points at it: the slot greys, and the relic's own tip says why
+      await p.hover('.cs-relic[data-relic="everfrostCrown"]');
+      hover = await look();
+      tiny.push(...await small());
+      await p.mouse.move(4, 4);
+    }
+    const away = await look();
+    await press('.cs-relic[data-relic="everfrostCrown"]'); // picked: the slot stays grey, so its reason can be read on it
+    if (touch) await press('.cs-slot.deny'); else await p.hover('.cs-slot.deny');
+    const refused = await look();
+    tiny.push(...await small());
+    await press('.cs-hero [data-figure]'); // a tap elsewhere
+    const lifted = await look();
+    await press('.cs-slot[data-unslot="wintersGrasp"]');
+    const freed = await look();
+    await press('.cs-relic[data-relic="everfrostCrown"]');
+    if (!touch) await p.mouse.move(4, 4);
+    const crowned = await look();
+    // the three ⓘ: each opens its own text, on screen, and closes its own way
+    const pop = () => p.evaluate(() => {
+      const q = document.querySelector('.kit-info-pop'), r = q.getBoundingClientRect();
+      return { open: !q.hidden, text: q.hidden ? '' : q.textContent.trim(), fits: q.hidden || (r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight), lit: [...document.querySelectorAll('.kit-info[aria-expanded="true"]')].map((b) => b.dataset.info).join(',') };
+    });
+    const info = {};
+    for (const [key, shut] of [['slots', 'again'], ['sets', 'x'], ['talents', 'Escape']]) {
+      await press(`.kit-info[data-info="${key}"]`);
+      const opened = await pop();
+      tiny.push(...await small());
+      if (shut === 'again') await press(`.kit-info[data-info="${key}"]`);
+      else if (shut === 'x') await press('.kit-info-pop .kit-close');
+      else await p.keyboard.press('Escape');
+      info[key] = { opened, closed: await pop() };
+    }
+    const still = await p.locator('.champion-screen').count(); // Escape closed the popup, not the screen
+    await p.close();
+    const reason = /a legendary takes 2 slots/i;
+    const infoOk = Object.entries(info).every(([key, i]) => i.opened.open && i.opened.fits && i.opened.lit === key && !i.closed.open && i.closed.lit === '')
+      && /legendary takes 2 slots/i.test(info.slots.opened.text) && /at most 4 relics of one family/i.test(info.slots.opened.text) && /2 class relics/i.test(info.slots.opened.text)
+      && /set/i.test(info.sets.opened.text) && /bonus/i.test(info.sets.opened.text) && /talent points/i.test(info.talents.opened.text) && /plan/i.test(info.talents.opened.text);
+    const ok = first.slots === 'RRRRRo' && first.badge === '2 slots' && first.blocked === 'everfrostCrown' && first.double === null
+      && (touch || (hover.slots === 'RRRRRx' && reason.test(hover.deny) && reason.test(hover.tip))) && away.slots === 'RRRRRo'
+      && refused.slots === 'RRRRRx' && reason.test(refused.deny) && reason.test(refused.why) && reason.test(refused.tip) && refused.loadout === first.loadout
+      && lifted.slots === 'RRRRRo'
+      && freed.slots === 'RRRRoo' && freed.blocked === ''
+      && crowned.slots === 'RRRRD' && crowned.double.badge === '2 slots' && crowned.double.wide && /2 slots/.test(crowned.double.name) && crowned.loadout.split(',').includes('everfrostCrown')
+      && infoOk && still === 1 && (touch || tiny.length === 0) && errs.length === 0;
+    return { ok, detail: `slots ${first.slots}, the Crown's badge "${first.badge}", blocked ${first.blocked || '-'}${hover ? `; pointed at -> ${hover.slots} "${hover.deny}", away -> ${away.slots}` : ''}; tapped -> ${refused.slots}, the slot says "${refused.tip.slice(0, 60)}", under the inventory "${refused.why}"; a tap elsewhere -> ${lifted.slots}; a common out -> ${freed.slots}; the Crown in -> ${crowned.slots}, ${crowned.double ? `badge "${crowned.double.badge}"${crowned.double.wide ? ', two slots wide' : ', NOT two slots wide'}` : 'NO double slot'}; info ${Object.entries(info).map(([key, i]) => `${key} ${i.opened.open ? 'opens' : 'STAYS SHUT'}${i.opened.fits ? '' : ' (off screen)'}/${i.closed.open ? 'STAYS OPEN' : 'closes'}`).join(', ')}${still ? '' : ', Escape left the screen'}${touch ? '' : `; text under 14 px: ${tiny.length ? [...new Set(tiny)].join(', ') : 'none'}`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
 
 // ---------- v0.10 (#193): a v0.7-v0.9 save (format 6) loads as format 7 with its champions, its relics kept, the old text under Restore ----------
 await check('save v7: a format-6 save migrates with champions, and the Keep, Chronicle and Settings still open (#193)', async () => {
@@ -4435,7 +4714,7 @@ await check('slot rules: at most 2 class relics (the signature beside them), 4 o
   const ok = /Level 7/.test(first.next) && /6 slots/.test(first.next) && first.slots === 'oooooo' && Object.keys(first.blocked).length === 0
     && classes.loadout === 'stormbornPelt,wolfskin' && classes.blocked.ironhide === 'At most 2 class relics.' && !classes.blocked.jarlsTorc
     && /Ironhide: At most 2 class relics/.test(third.why) && third.loadout === classes.loadout
-    && full.slots === 'RRRRRR' && full.blocked.ironhide === 'No free slot for it (a legendary takes two).' && /No free slot/.test(full.blocked.jarlsTorc ?? '')
+    && full.slots === 'RRRRRR' && full.blocked.ironhide === 'No free slot for it.' && /No free slot/.test(full.blocked.jarlsTorc ?? '')
     && fifth.blocked.ironhide === 'At most 4 relics of one family.' && /Ironhide: At most 4 relics of one family/.test(fifth.why) && !fifth.loadout.includes('ironhide')
     && six.loadout === six7 && six.slots === 'RRRRRR' && run7.level === 7 && run7.held.startsWith(six7)
     && /Level 1/.test(small.next) && /3 slots/.test(small.next) && small.slots === 'RRRrrr' && run1.level === 1 && run1.held.split(',').slice(0, 4).join() === six7.split(',').slice(0, 3).join() && errs.length === 0;
@@ -4475,6 +4754,77 @@ await check('test mode: "Start at" a realm level starts that level through its h
     && run?.test === 1 && run.realm === 'ironHold' && run.level === 4 && run.last === 30 && run.start === 21 && [20, 21].includes(run.wave) && run.act === 3 && run.lv === 19 && run.arena === 'keep' // wave 21 may already have begun
     && run.picks > 0 && run.offer === 'start' && /Steel/.test(run.families) && run.hud && held === 1 && errs.length === 0;
   return { ok, detail: `"${label}"; act/wave/level disabled ${before} -> ${after}; run: ${run ? `test ${run.test}, ${run.realm} level ${run.level}, waves ${run.start}-${run.last} (on wave ${run.wave}, Act ${run.act}), lv ${run.lv}, ${run.arena}, ${run.picks} queued ability picks, offer from ${run.offer} "${run.families}", TEST tag ${run.hud}` : 'none'}; picked -> ${held} held${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #223: the Ember Forge: Settings -> Test mode -> "Start at" the Cinderlands' level 1 -> the opening pick -> the Ember Forge ----------
+// The level plays in the Ember Forge (the HUD names it); its lava is baked into the ground (molten orange along a channel, but for a crust
+// plate or two; grey stone on the bridge between two runs). Walked into with the keyboard and stood in, the lava burns the champion; walked over the bridge, it doesn't.
+await check('Ember Forge: a Cinderlands level plays in the Ember Forge; walk into a lava channel and it burns you, cross at the bridge and it doesn\'t (#223)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => (window.__lb.save.cards = [...window.__lb.cardIds])); // every flash card seen: nothing stops the walk
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="cinderlands:1"]').count())) return (await p.close(), { skip: true, detail: 'no Cinderlands level start in this build' });
+  await p.locator('#tm-class').selectOption('viking');
+  await p.locator('#tm-start').selectOption('cinderlands:1');
+  await p.getByRole('button', { name: /start test run/i }).click();
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  await p.waitForFunction(() => window.__lb.state === 'playing', null, { timeout: 5000 }).catch(() => {});
+  const seen = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, lava = g.arena.lava ?? [];
+    const top = lava.filter((c) => c.y === Math.min(...lava.map((q) => q.y))).sort((a, b) => a.x - b.x);
+    const ground = lb.arenaCanvas(g.arena.id).getContext('2d');
+    const px = (x, y) => [...ground.getImageData(Math.round(x), Math.round(y), 1, 1).data];
+    const run = top[1] ?? top[0];
+    const molten = run ? [0.15, 0.3, 0.45, 0.6, 0.75, 0.9].map((t) => px(run.x + run.w * t, run.y + run.h / 2)) : [];
+    const bridge = top.length > 1 ? px((top[0].x + top[0].w + top[1].x) / 2, top[0].y + top[0].h / 2) : [0, 0, 0];
+    return { arena: g.arena.id, realm: g.level?.realm, runs: lava.length, hud: document.body.innerText.includes('The Ember Forge'),
+      molten: molten.filter(([r, gg, b]) => r > 150 && r > gg && b < 90).length, bridge, run: run && { x: run.x, y: run.y, w: run.w, h: run.h }, gapX: top.length > 1 ? (top[0].x + top[0].w + top[1].x) / 2 : 0 };
+  });
+  // walk down with the keyboard from the bank; `into` stops as the champion stands in the middle of the channel, then he stands there
+  const walk = async (x, y, stopY) => {
+    await p.evaluate(([x, y]) => {
+      const g = window.__lb.game;
+      Object.assign(g.player, { x, y, invulnerable: false, iFrames: 0 });
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      window.__lb.run(1, false, 'input');
+    }, [x, y]);
+    const hp0 = await p.evaluate(() => window.__lb.game.player.hp);
+    await p.keyboard.down('KeyS');
+    for (let i = 0; i < 40; i++) {
+      const at = await p.evaluate((stopY) => {
+        const lb = window.__lb, g = lb.game;
+        for (let k = 0; k < 3 && g.player.y < stopY; k++) (g.enemies.length = 0), (g.spawnQueue.length = 0), lb.run(1, false, 'input');
+        return g.player.y;
+      }, stopY);
+      if (at >= stopY) break;
+    }
+    await p.keyboard.up('KeyS');
+    return p.evaluate((hp0) => {
+      const lb = window.__lb, g = lb.game, texts = [];
+      for (let i = 0; i < 75; i++) { // stand there 1.25 s: two or three lava ticks
+        g.enemies.length = 0;
+        g.spawnQueue.length = 0;
+        lb.run(1, false, 'input');
+        for (const t of g.texts) if (!texts.includes(t.text)) texts.push(t.text);
+      }
+      return { lost: Math.round(hp0 - g.player.hp), x: Math.round(g.player.x), y: Math.round(g.player.y), burns: texts.filter((t) => /^-\d/.test(t)).length };
+    }, hp0);
+  };
+  const r = seen.run;
+  const into = r ? await walk(r.x + r.w / 2, r.y - 50, r.y + r.h / 2) : null;
+  const over = r && seen.gapX ? await walk(seen.gapX, r.y - 50, r.y + r.h / 2) : null;
+  await p.close();
+  const grey = Math.max(...seen.bridge.slice(0, 3)) - Math.min(...seen.bridge.slice(0, 3)) < 40;
+  const ok = seen.arena === 'emberForge' && seen.realm === 'cinderlands' && seen.hud && seen.runs === 6 && seen.molten >= 4 && grey
+    && into?.lost > 0 && into.burns > 0 && over?.lost <= 0 && errs.length === 0;
+  return { ok, detail: `${seen.realm} level 1 in ${seen.arena} (HUD ${seen.hud ? 'names it' : 'NO'}); ${seen.runs} lava runs, ${seen.molten}/6 molten pixels, bridge rgb ${seen.bridge.slice(0, 3).join(',')}; stood in the lava at ${into?.x},${into?.y}: -${into?.lost} HP (${into?.burns} burns); on the bridge at ${over?.x},${over?.y}: ${over?.lost > 0 ? `-${over.lost}` : 'unhurt'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 // ---------- #215: the Forgemaster: Settings -> Test mode -> "Start at" the Iron Hold's level 3 -> the opening pick -> its last wave ----------
@@ -4771,6 +5121,55 @@ await check('Iron King: test mode starts the Iron Hold level 5; its crown boss: 
     && fight.guard >= 2 && fight.decree[0] === 24 && fight.decree[2] === 48 && fight.rush[0] === 0 && fight.rush[1] > 0 && long && fight.armorAt2 === 0
     && fight.block[0] === 0 && fight.block[1] > 0 && fight.bites[1] === 0 && fight.bites[2] > 0 && fight.dead && fight.cleared && errs.length === 0;
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; plates ${fight.plates.join('>')}, guard ${fight.guard}; phases at ${fight.phases.join(', ')} s, plate ${fight.armorAt2} at phase 2; decree zones ${fight.decree.join('/')}, rush ticks ${fight.rush.join('/')}, shield blocks ${fight.block.join('/')}, thorn bites ${fight.bites.join('/')} by phase; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #236: no boss ends two levels of a realm: Settings -> Test mode -> "Start at" a Marches level -> the opening pick -> its last wave ----------
+// Level 1 ends on the Black Knight (Act I's opener); level 5 used to draw him again. Now it ends on another boss, the same one on any seed.
+await check('Bosses: the Marches level 1 ends on the Black Knight; level 5 ends on another boss, the same on every seed (#236)', async () => {
+  const lastBoss = async (start, seed) => {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    if (!(await p.locator(`#tm-start option[value="${start}"]`).count())) return (await p.close(), null);
+    await p.locator('#tm-class').selectOption('paladin');
+    await p.locator('#tm-start').selectOption(start);
+    await p.evaluate((seed) => {
+      const now = Date.now; // test mode seeds from the clock
+      Date.now = () => seed;
+      try {
+        [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+      } finally {
+        Date.now = now;
+      }
+    }, seed);
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click();
+    const out = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.player.invulnerable = true;
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1; // straight on to the level's last wave
+      g.breather = 0.01;
+      let b = null;
+      for (let i = 0; i < 4000 && !b; i++) (lb.run(1, false, false), (b = g.enemies.find((e) => e.def.boss) ?? null));
+      return { wave: g.wave, last: g.level.last, name: b?.def.name ?? '', key: g.bossesSeen.at(-1) ?? '' };
+    });
+    const hud = await p.waitForFunction(() => document.getElementById('h-boss-name')?.textContent, null, { timeout: 5000 }).then((h) => h.jsonValue()).catch(() => '');
+    await p.close();
+    return { ...out, hud, errs: errs.length };
+  };
+  const l1 = await lastBoss('marches:1', 2654435761);
+  if (!l1) return { skip: true, detail: 'no realm-level start in this build' };
+  const l5 = await lastBoss('marches:5', 2654435761);
+  const l5b = await lastBoss('marches:5', 12345);
+  const ok = l1.wave === 5 && l1.key === 'blackKnight' && l5.wave === 25 && l5.key && l5.key !== 'blackKnight' && l5b.key === l5.key
+    && l5.hud.startsWith(l5.name) && l1.hud.startsWith(l1.name) && !l1.errs && !l5.errs && !l5b.errs;
+  return { ok, detail: `level 1 wave ${l1.wave}: ${l1.key} "${l1.hud}"; level 5 wave ${l5.wave}: ${l5.key} "${l5.hud}", on another seed ${l5b.key}` };
 });
 
 await check('no console errors', async () => {

@@ -159,6 +159,77 @@ function wingFloor(ctx: Ctx, f: Rect, kind: 'soot' | 'plank' | 'runner', rng: Rn
   }
 }
 
+/**
+ * #223: the Ember Forge's lava channels, in the rig's ember and fire ramps: a warm glow on the floor round each, a dark basalt bank, the
+ * molten run with brighter currents along it and cooling crust plates floating on it, and a stone bridge over each gap between runs.
+ * Baked into the arena like the floor: the lava itself costs nothing a frame.
+ */
+function lavaChannels(ctx: Ctx, lava: readonly Rect[], rng: Rng): void {
+  const glow = 22;
+  for (const c of lava) {
+    for (const [y0, y1] of [[c.y - glow, c.y], [c.y + c.h + glow, c.y + c.h]]) {
+      const g = ctx.createLinearGradient(0, y0, 0, y1);
+      g.addColorStop(0, 'rgba(236,106,23,0)');
+      g.addColorStop(1, 'rgba(236,106,23,0.32)');
+      ctx.fillStyle = g;
+      ctx.fillRect(c.x, Math.min(y0, y1), c.w, glow);
+    }
+  }
+  for (const c of lava) {
+    ctx.fillStyle = '#17151b'; // the bank's outline (coal)
+    ctx.fillRect(c.x, c.y - 2, c.w, c.h + 4);
+    ctx.fillStyle = '#2f2b35';
+    ctx.fillRect(c.x, c.y, c.w, 4); // the far bank, in shadow
+    ctx.fillStyle = '#57505f';
+    ctx.fillRect(c.x, c.y + c.h - 3, c.w, 3); // the near bank, lit
+    const x = c.x, y = c.y + 4, w = c.w, h = c.h - 7;
+    ctx.fillStyle = '#c2410f';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#86260a'; // the deeper, cooler edges
+    ctx.fillRect(x, y, w, 3);
+    ctx.fillRect(x, y + h - 3, w, 3);
+    const currents = ['#ec6a17', '#fb9a2c', '#ffc95a'];
+    for (let i = 0; i < w / 5; i++) {
+      ctx.fillStyle = currents[Math.floor(rng() * currents.length)];
+      ctx.fillRect(Math.round(x + rng() * (w - 30)), Math.round(y + 5 + rng() * (h - 12)), Math.round(10 + rng() * 26), 2);
+    }
+    for (let i = 0; i < w / 40; i++) {
+      // a crust plate: dark, lit on its top edge, a hot crack across it
+      const pw = Math.round(10 + rng() * 22), ph = Math.round(5 + rng() * 8);
+      const px = Math.round(x + rng() * (w - pw)), py = Math.round(y + 3 + rng() * (h - ph - 6));
+      ctx.fillStyle = '#4a1406';
+      ctx.fillRect(px, py, pw, ph);
+      ctx.fillStyle = '#2f2b35';
+      ctx.fillRect(px + 1, py + 1, pw - 2, ph - 2);
+      ctx.fillStyle = '#403a48';
+      ctx.fillRect(px + 1, py + 1, pw - 2, 1);
+      ctx.fillStyle = '#ec6a17';
+      ctx.fillRect(px + Math.round(pw / 3), py + Math.round(ph / 2), Math.round(pw / 3), 1);
+    }
+    ctx.fillStyle = '#fff1b8'; // glints
+    for (let i = 0; i < w / 60; i++) ctx.fillRect(Math.round(x + rng() * w), Math.round(y + 4 + rng() * (h - 8)), 2, 1);
+  }
+  // the bridges: where two runs on one line leave a gap, a slab of stone spans it and reaches a little over the lava
+  for (const a of lava) {
+    const b = lava.filter((o) => o.y === a.y && o.x > a.x + a.w).sort((p, q) => p.x - q.x)[0];
+    if (!b) continue;
+    const bx = a.x + a.w - 8, bw = b.x - bx + 8, by = a.y - 6, bh = a.h + 12;
+    ctx.fillStyle = 'rgba(8,8,16,0.45)';
+    ctx.fillRect(bx + 4, by + 4, bw, bh); // its shadow on the lava, down and right
+    stone(ctx, bx, by, bw, bh, '#605e64', rng, 3);
+    for (let sy = by + 18; sy < by + bh - 6; sy += 18) {
+      ctx.fillStyle = '#302f38';
+      ctx.fillRect(bx + 4, sy, bw - 8, 1);
+    }
+    ctx.fillStyle = '#302f38'; // its kerbs
+    ctx.fillRect(bx, by, 5, bh);
+    ctx.fillRect(bx + bw - 5, by, 5, bh);
+    ctx.fillStyle = '#a19c90';
+    ctx.fillRect(bx + 1, by + 1, 2, bh - 2);
+    ctx.fillRect(bx + bw - 4, by + 1, 2, bh - 2);
+  }
+}
+
 /** #159: the walls stand to the top and left of the light: they cast a soft shadow down and right onto each floor. */
 function wallShadows(ctx: Ctx, floors: { x: number; y: number; w: number; h: number }[]): void {
   for (const f of floors) {
@@ -334,6 +405,7 @@ export function buildArena(def: ArenaDef): HTMLCanvasElement {
     for (let y = top + 40; y < core.y + core.h; y += 80) ctx.fillRect(def.final.throne.x - cw / 2 + 10, y, cw - 20, 3);
   }
   wallShadows(ctx, def.regions ? def.regions.flatMap((r) => (r.gate ? [r.floor, r.gate] : [r.floor])) : [{ x: wall, y: wall, w: w - 2 * wall, h: h - 2 * wall }]);
+  if (def.lava) lavaChannels(ctx, def.lava, mulberry32(223)); // its own stream too
   for (const o of def.obstacles) drawObstacle(ctx, o);
 
   if (def.regions) {

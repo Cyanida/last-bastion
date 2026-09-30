@@ -73,6 +73,7 @@ export const ARENA_FAMILIES: Record<ArenaId, FamilyId[]> = {
   courtyard: ['steel', 'storm', 'blood'], // an open brawl
   graveyard: ['grave', 'frost', 'holy'], // the dead, the cold and the last rites
   keep: ['flame', 'holy', 'steel'], // braziers and the knights' hall
+  emberForge: ['flame', 'steel', 'blood'], // #223: #141's Ember Forge: fire, the smith's iron and the burns
   bastion: ['flame', 'blood', 'frost'], // the Usurper's burning gate
 };
 

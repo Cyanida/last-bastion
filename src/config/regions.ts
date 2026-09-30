@@ -131,7 +131,8 @@ export function expandArena(def: ArenaDef): ArenaDef {
     }
   }
   const final = def.final && { throne: shift(def.final.throne), flames: def.final.flames.map(shift) };
-  return { ...def, w: W, h: H, obstacles: [...shifted, ...wingObstacles], regions, final };
+  const lava = def.lava?.map(shift); // #223: the Ember Forge's channels lie in the core
+  return { ...def, w: W, h: H, obstacles: [...shifted, ...wingObstacles], regions, final, lava };
 }
 
 /** The point a wing's feature stands on: the middle of its floor. */

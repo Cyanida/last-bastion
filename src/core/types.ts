@@ -547,6 +547,7 @@ export interface Game {
   hazardT: number;
   pressT: number; // #211: seconds to the next forge press slam (the Iron Hold)
   presses: number; // #211: slams so far this run (every other one is a cross, late on)
+  lavaT: number; // #223: seconds to the next burn of whoever stands in the Ember Forge's lava
   // --- v0.3 ---
   seed: number; // run seed: the director derives every wave from it
   squads: Squad[];
