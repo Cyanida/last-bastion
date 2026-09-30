@@ -79,9 +79,9 @@ describe('the Ember Queen as the Cinderlands level 3 boss (#227)', () => {
     expect(28 + f.step - f.radius).toBeGreaterThan(28 + GAME.playerRadius * 2);
   });
 
-  it('in the Cinderlands level 3 the wave-20 boss is the Ember Queen; she flares up at each new phase, and burns her path in phase 3', () => {
+  it('in the Cinderlands level 3 the wave-24 boss is the Ember Queen (#243: its last wave); she flares up at each new phase, and burns her path in phase 3', () => {
     const g = createGame('paladin', 11, { level: { realm: 'cinderlands', level: 3 } });
-    const q = bossOf(g, 20);
+    const q = bossOf(g, 24);
     expect(q.def.id).toBe('emberQueen');
     g.enemies = [q];
     q.special = 99;
@@ -108,7 +108,7 @@ describe('the Ember Queen as the Cinderlands level 3 boss (#227)', () => {
 
   it('her blows reach the field: the Kindling leaves burning ground, the volley aims, the Flare rings her', () => {
     const g = createGame('paladin', 11, { level: { realm: 'cinderlands', level: 3 } });
-    const q = bossOf(g, 20);
+    const q = bossOf(g, 24);
     g.enemies = [q];
     q.x = g.player.x + 200;
     q.y = g.player.y;
@@ -148,7 +148,7 @@ describe('the Ember Queen as the Cinderlands level 3 boss (#227)', () => {
 
   it('every blow of hers that lands leaves a burn stack on the champion, and so does every tick in her burning ground', () => {
     const g = createGame('paladin', 11, { level: { realm: 'cinderlands', level: 3 } });
-    const q = bossOf(g, 20);
+    const q = bossOf(g, 24);
     const p = g.player;
     const decay = ENEMY_STATUS.emberQueen!.decay;
     g.enemies = [q];

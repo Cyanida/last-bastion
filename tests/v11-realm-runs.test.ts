@@ -33,7 +33,7 @@ describe('realm runs: checkpoints and the carry (#237)', () => {
     expect(g2.goldStart).toBe(g1.gold); // level 2 banks only what it earns
     expect(g2.player.level).toBe(g1.player.level); // no head start: the level the run grew
     expect(g2.player.stats).toEqual(g1.player.stats);
-    expect([g2.startWave, g2.wave]).toEqual([6, 5]);
+    expect([g2.startWave, g2.wave]).toEqual([7, 6]); // #243: the Marches' level 2 is waves 7-12
     expect(g2.level).toMatchObject({ realm: 'marches', level: 2 });
     expect(r.offers[0]?.from).toBe('start'); // the opening pick stays at every level
   });

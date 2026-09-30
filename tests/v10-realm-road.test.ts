@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { REALMS } from '../src/config/world';
-import { featuredFoes, levelPanel, nextLevel, recordClear, roadLevels, roadTier, type WorldProgress } from '../src/logic/world';
+import { championStep } from '../src/logic/championLevels';
+import { featuredFoes, levelPanel, levelStep, nextLevel, recordClear, roadLevels, roadTier, type WorldProgress } from '../src/logic/world';
 
 const SQUIRE = 0, KNIGHT = 1, CHAMPION = 2;
 const cleared = (realm: 'marches' | 'ironHold', upTo: number, tier: number, p: WorldProgress = {}): WorldProgress =>
@@ -28,10 +29,12 @@ describe('the realm road (#199)', () => {
   });
 });
 
+const M1_SQUIRE = Math.round(100 * levelStep('marches', 1).hp * championStep('marches', 1).hp); // #243: the numbers are tuned in config/world.ts; the panel shows their product
+
 describe('the level panel (#199)', () => {
   it('Marches level 1: waves, no head start (#237), slots, Squire HP with its level step (#221), Steel featured, a pool boss, its rare pick', () => {
     const pn = levelPanel({}, 'marches', 1, SQUIRE);
-    expect(pn).toMatchObject({ name: 'The Marches · Level 1', waves: [1, 5], slots: 3, enemyHp: 65, family: 'steel', boss: 'A mid-Act boss', crownBoss: false, open: true });
+    expect(pn).toMatchObject({ name: 'The Marches · Level 1', waves: [1, 6], slots: 3, enemyHp: M1_SQUIRE, family: 'steel', boss: 'A mid-Act boss', crownBoss: false, open: true });
     expect(pn.rewards).toEqual(['Pick 1 of 2 Steel rares']);
     expect(pn).not.toHaveProperty('headStart');
     expect(pn.foes.length).toBeGreaterThan(0);
@@ -40,7 +43,7 @@ describe('the level panel (#199)', () => {
 
   it('the Keep and mastery add slots; Knight shows its HP', () => {
     const pn = levelPanel({}, 'marches', 1, KNIGHT, { slots: 1, levels: 2 });
-    expect([pn.slots, pn.enemyHp]).toEqual([4, 95]); // 145% x the level step 0.85 (#221) x the champion step 0.77 (#238: a level-1 champion all level)
+    expect([pn.slots, pn.enemyHp]).toEqual([4, Math.round(145 * levelStep('marches', 1).hp * championStep('marches', 1).hp)]); // 145% x the level step (#221, #243) x the champion step (#238: a level-1 champion all level)
   });
 
   it('level 7 is the Warden as crown boss and pays the signature relic with the first crown', () => {
@@ -53,7 +56,7 @@ describe('the level panel (#199)', () => {
     expect(levelPanel(cleared('marches', 1, SQUIRE), 'marches', 1, SQUIRE).rewards).toEqual([]);
     const iron = levelPanel(cleared('marches', 7, SQUIRE), 'ironHold', 3, SQUIRE);
     expect(iron.rewards).toEqual(['Your class relic of Steel']);
-    expect(iron.enemyHp).toBe(193); // 107% x level 3's step 0.9 (#221) x the champion step 2.01 (#238: a level-10 champion)
+    expect(iron.enemyHp).toBe(Math.round(107 * levelStep('ironHold', 3).hp * championStep('ironHold', 3).hp)); // 107% x level 3's step (#221, #243) x the champion step (#238: a level-10 champion)
     expect(iron.open).toBe(false);
     expect(levelPanel({}, 'ironHold', 5, KNIGHT).rewards).toEqual(['Pick 1 of 2 Steel legendaries']);
   });

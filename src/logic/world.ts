@@ -7,6 +7,7 @@ import { TIER_UNLOCK, TIERS } from '../config/economy';
 import { ENEMIES, type EnemyId } from '../config/enemies';
 import { FAMILIES, relicDef, type FamilyId, type RelicId } from '../config/relics';
 import { WAVES } from '../config/waves';
+import { isBossWave } from './waves';
 import { REALM_IDS, REALMS, WORLD, WORLD_BOSSES, type CrownReward, type EndBoss, type LevelReward, type RealmId } from '../config/world';
 import { ACT_BOSSES, actBoss, actOf, hashSeed, isActEnd, pickMidBoss } from './acts';
 import { waveRng } from './director';
@@ -114,6 +115,23 @@ export function levelStep(realm: RealmId, level: number): { hp: number; damage: 
   return { hp: s.hp[level - 1] ?? 1, damage: s.damage[level - 1] ?? 1 };
 }
 
+/** #243: a level's wave length (WORLD.levelWaves): multipliers on the foes a wave brings and on the time they trickle in over; the Last Bastion keeps 1. */
+export function levelWaves(realm: RealmId, level: number): { foes: number; pace: number } {
+  if (realm === 'lastBastion') return { foes: 1, pace: 1 };
+  const s = realm === 'marches' ? WORLD.levelWaves.marches : WORLD.levelWaves.realm;
+  return { foes: s.foes[level - 1] ?? 1, pace: s.pace[level - 1] ?? 1 };
+}
+
+/**
+ * #243: a realm level runs on its own waves, not the 40-wave scale's Acts: its one boss wave is its last, and an Act that ends inside
+ * it moves on with no Merchant and no fork (they are the Last Bastion's, which keeps the scale). Decided: the scale's boss waves inside
+ * a level (x5, x0) play as plain waves, so no boss comes twice in a realm (#236) and none stands right before a level's own.
+ */
+export const ownWaves = (lv: { realm: RealmId } | null | undefined): boolean => !!lv && lv.realm !== 'lastBastion';
+
+/** Is `wave` a boss wave of this run? A realm level: its last wave only (ownWaves). Else the 40-wave scale's (x5, x0). */
+export const bossWaveIn = (lv: { realm: RealmId; last: number } | null | undefined, wave: number): boolean => (ownWaves(lv) ? wave === lv!.last : isBossWave(wave));
+
 /** What clearing `level` on `tier` pays, judged by the progress before it: the level's reward on its first clear on any tier, the crown's on a first crown. */
 export function clearRewards(p: WorldProgress, realm: RealmId, level: number, tier: number): { level: LevelReward[]; crown: CrownReward[] } {
   const def = REALMS[realm];
@@ -124,6 +142,16 @@ export function clearRewards(p: WorldProgress, realm: RealmId, level: number, ti
     if (!isCrowned(p, realm, tier)) out.crown.push(...def.crown.tiers[tier]);
   }
   return out;
+}
+
+/**
+ * #219: what a clear's crown rewards give the account: the realm's title and palette (config/world `legend`), each only when the crown
+ * pays it and the realm has one. applyRun banks them with the run; the level-cleared screen names them.
+ */
+export function crownGifts(realm: RealmId, crown: CrownReward[]): { title?: string; palette?: number } {
+  const legend = REALMS[realm].legend;
+  if (!legend) return {};
+  return { ...(crown.some((r) => r.kind === 'title') ? { title: legend.title } : {}), ...(crown.some((r) => r.kind === 'palette') ? { palette: legend.palette } : {}) };
 }
 
 /** Fold one clear into the progress (a new object; the old one is untouched). */
@@ -190,11 +218,11 @@ export function featuredFoes(waves: [number, number], max = 3): EnemyId[] {
 export function bossName(end: EndBoss, wave: number): string {
   if (end.boss === 'usurper') return ENEMIES.usurper.name;
   const named = BOSSES[end.boss] ? (BOSSES[end.boss].name ?? ENEMIES[BOSSES[end.boss].from].name) : (WORLD_BOSSES as Record<string, { name: string }>)[end.boss]?.name;
-  return named ?? (wave % 10 === 5 ? 'A mid-Act boss' : 'An Act boss');
+  return named ?? (isActEnd(wave) ? 'An Act boss' : 'A mid-Act boss'); // as poolBoss draws it
 }
 
 const familyName = (f?: FamilyId) => (f ? FAMILIES[f].name : 'a');
-const REWARD_TEXT: Record<LevelReward['kind'] | CrownReward['kind'], (r: LevelReward | CrownReward, family?: FamilyId) => string> = {
+const REWARD_TEXT: Record<LevelReward['kind'] | CrownReward['kind'], (r: LevelReward | CrownReward, family?: FamilyId, legend?: { title: string }) => string> = {
   rarePick: (r) => `Pick 1 of ${(r as { of: number }).of} ${familyName((r as { family: FamilyId }).family)} rares`,
   keepLocked: () => `Keep a locked relic of a family you held (or ${WORLD.keepLockedRunes} Runes)`,
   classRelic: (_, f) => `Your class relic of ${familyName(f)}`,
@@ -202,7 +230,7 @@ const REWARD_TEXT: Record<LevelReward['kind'] | CrownReward['kind'], (r: LevelRe
   signature: () => 'Your signature relic',
   legendaryPick: (_, f) => `Pick 1 of 2 ${familyName(f)} legendaries`,
   legendaryOther: (_, f) => `The other ${familyName(f)} legendary`,
-  title: () => 'A title',
+  title: (_, __, legend) => (legend ? `The title ${legend.title}` : 'A title'), // #219: a realm that names its own
   palette: () => 'A palette',
 };
 
@@ -222,7 +250,8 @@ export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier
     foes: featuredFoes(lv.waves).map((id) => ENEMIES[realmFoe(realm, id)].name), // #212: as they march there
     boss: bossName(lv.boss, lv.waves[1]),
     crownBoss: !!lv.boss.crown,
-    rewards: [...r.level, ...r.crown].map((x) => REWARD_TEXT[x.kind](x, def.family)),
+    eliteBoss: !!lv.boss.elite, // #219: it comes as an elite, a phase more
+    rewards: [...r.level, ...r.crown].map((x) => REWARD_TEXT[x.kind](x, def.family, def.legend)),
     tiers: TIERS.map((t, i) => ({ name: t.name, open: tierOpen(p, realm, i), cleared: bestCleared(p, realm, i) >= level })),
     open: levelOpen(p, realm, level, tier),
   };

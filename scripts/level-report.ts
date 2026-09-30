@@ -48,7 +48,7 @@ if (cmd === 'run') {
   const cont = (w: number) => { const xs = outs.flatMap((o) => o.continuous.map((c) => c[w]).filter((x) => x)); return { power: avg(xs.map((x) => x.power)), relics: avg(xs.map((x) => x.relics)), n: xs.length }; };
   const cells: LevelCell[] = [];
   console.log(`\n## Realm levels (#207)\n\n${rows.length} first tries on ${TIERS[tier].name} (${CLASS_ORDER.filter((c) => outs.some((o) => o.classId === c)).join(', ')}), expected progress: every earlier level first-cleared, no Keep ranks, no mastery.\n`);
-  console.log('| Realm | Level | Waves | Tries | Cleared | Minutes (clear / with retries) | Power: level / continuous (runs) | Gap | Relics at its first wave: level / continuous | Moments per findable relic |');
+  console.log('| Realm | Level | Waves | Tries | Cleared | Minutes (median clear / mean clear / with retries) | Power: level / continuous (runs) | Gap | Relics at its first wave: level / continuous | Moments per findable relic |');
   console.log('|---|---|---|---|---|---|---|---|---|---|');
   for (const realm of realms)
     for (let level = 1; level <= REALMS[realm].levels.length; level++) {
@@ -57,7 +57,7 @@ if (cmd === 'run') {
       const c = levelCell(mine);
       cells.push(c);
       const k = cont(c.waves[0]);
-      console.log(`| ${REALMS[realm].name} | ${level} | ${c.waves[0]}-${c.waves[1]} | ${c.runs} | ${pct(c.clear)} | ${c.minutes.toFixed(1)} / ${minutesWithRetries(c).toFixed(1)} | ${c.power.toFixed(0)} / ${k.n ? k.power.toFixed(0) : '-'} (${k.n}) | ${k.n ? signed(powerGap(c.power, k.power)) : '-'} | ${c.relicsAtStart.toFixed(1)} / ${k.n ? k.relics.toFixed(1) : '-'} | ${c.moments.toFixed(2)} |`);
+      console.log(`| ${REALMS[realm].name} | ${level} | ${c.waves[0]}-${c.waves[1]} | ${c.runs} | ${pct(c.clear)} | ${c.median.toFixed(1)} / ${c.minutes.toFixed(1)} / ${minutesWithRetries(c).toFixed(1)} | ${c.power.toFixed(0)} / ${k.n ? k.power.toFixed(0) : '-'} (${k.n}) | ${k.n ? signed(powerGap(c.power, k.power)) : '-'} | ${c.relicsAtStart.toFixed(1)} / ${k.n ? k.relics.toFixed(1) : '-'} | ${c.moments.toFixed(2)} |`);
     }
   const cell = (realm: RealmId, level: number) => cells.find((c) => c.realm === realm && c.level === level);
   const relicRealms = realms.filter((r) => REALMS[r].family);
@@ -87,12 +87,13 @@ if (cmd === 'run') {
     const moments = mine.reduce((n, c) => n + c.moments, 0);
     lines.push([`Relic moments per findable relic 0.4-0.6 (${REALMS[r].name}, the realm played through)`, moments.toFixed(2), moments >= 0.4 && moments <= 0.6]);
   }
-  for (const [n, lo, hi, text] of [[5, 3.5, 4.5, 'about 4'], [10, 8, 10, '8-10']] as const) {
-    const mine = cells.filter((c) => c.realm !== 'lastBastion' && c.waves[1] - c.waves[0] + 1 === n && c.clear > 0);
-    if (!mine.length) continue;
-    const m = avg(mine.map((c) => c.minutes));
-    const each = mine.map((c) => `${REALMS[c.realm].name.replace(/^The /, '')} ${c.level} ${c.minutes.toFixed(1)}`).join(', ');
-    lines.push([`A ${n}-wave level in ${text} minutes (a clear)`, `${m.toFixed(1)} on average (${each})`, m >= lo && m <= hi]);
+  // #243: rule 9's level times, a clear's median minutes
+  const mins = (c: LevelCell | undefined) => (c && c.clear > 0 ? c.median.toFixed(1) : 'no clears');
+  if (m1) lines.push(['The Marches\' level 1 takes at least 4 minutes (median clear)', mins(m1), m1.clear > 0 && m1.median >= 4]);
+  for (const r of relicRealms) {
+    const [l1, last] = [cell(r, 1), cell(r, REALMS[r].levels.length)];
+    if (l1) lines.push([`A realm's level 1 takes 4-6 minutes (${REALMS[r].name}, median clear)`, mins(l1), l1.clear > 0 && l1.median >= 4 && l1.median <= 6]);
+    if (last) lines.push([`A realm's last level takes 7-10 minutes (${REALMS[r].name}, median clear)`, mins(last), last.clear > 0 && last.median >= 7 && last.median <= 10]);
   }
   for (const r of relicRealms) {
     const t = realmMinutes(cells.filter((c) => c.realm === r));

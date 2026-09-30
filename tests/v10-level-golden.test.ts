@@ -19,7 +19,7 @@ const RUNS: Record<string, GoldenLevel> = {
   'marches 7 angel:1': { cls: 'angel', seed: 1, level: 7 },
   'marches 7 viking:2 variant 1': { cls: 'viking', seed: 2, level: 7, variant: 1 },
 };
-const SECONDS = 900; // a 10-wave level fits with room to spare; a stuck run still ends
+const SECONDS = 900; // a level (4-10 minutes, #243) fits with room to spare; a stuck run still ends
 
 /** FNV-1a over the summary's JSON, as tests/v8-golden.test.ts. */
 function fnv(s: string): string {
@@ -40,17 +40,20 @@ function golden({ cls, seed, level, variant = 0 }: GoldenLevel): string {
 // runs) moved, gameplay changed on purpose, and the Angel's once more when Iron Halo's strike moved onto the cast; these seeds still fall on Marches level 7 on Knight, so its runs pin the head start, the loadout and the fight up to the fall;
 // re-recorded for #237: a realm run's loadout is 3 slots at every level (level 7 had 4), so the three level 7 runs slot one relic fewer (gameplay changed on purpose)
 // re-recorded for #238: no head start and no level-up inside a level; the bot plays its champion's build (level 1 at Marches level 1, 5 at level 7,
-// the cap before the crown) against enemies scaled to that level (gameplay changed on purpose);
-// re-recorded for #230 (v0.12), on the merged code after #238: the Viking has a Flame class relic now, so the bot's taste for him (the families of his
+// the cap before the crown) against enemies scaled to that level (gameplay changed on purpose)
+// re-recorded for #243: longer levels. The Marches' level 1 is waves 1-6 and level 7 waves 36-40 (were 1-5 and 31-40), a level's one boss
+// wave is its last, its waves bring more or fewer foes over a longer time (WORLD.levelWaves) and the level step was tuned again
+// (gameplay changed on purpose); these seeds still fall on level 7 on Knight;
+// re-recorded for #230 (v0.12), on the merged code after #238 and #243: the Viking has a Flame class relic now, so the bot's taste for him (the families of his
 // class relics, sim/levels tasteOf) takes Flame in and his level 7 loadout leads with Salamander Scale, as the Paladin's and the Angel's do
-// (gameplay changed on purpose; he still falls at wave 30)
+// (gameplay changed on purpose)
 const GOLDEN: Record<string, string> = {
-  'marches 1 paladin:1': 'cleared wave 5 kills 105 level 1 loadout - relics 3 hash 20b14510',
-  'marches 1 archer:2': 'cleared wave 5 kills 103 level 1 loadout - relics 3 hash b74b06b7',
-  'marches 1 angel:4 variant 1': 'cleared wave 5 kills 103 level 1 loadout - relics 3 hash 89f63e68',
-  'marches 7 paladin:1': 'fell wave 31 kills 163 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 92e947dc',
-  'marches 7 angel:1': 'fell wave 31 kills 187 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 744f639',
-  'marches 7 viking:2 variant 1': 'fell wave 30 kills 95 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 982a8f8c',
+  'marches 1 paladin:1': 'cleared wave 6 kills 201 level 1 loadout - relics 3 hash eb894b94',
+  'marches 1 archer:2': 'cleared wave 6 kills 209 level 1 loadout - relics 3 hash cfeccc4f',
+  'marches 1 angel:4 variant 1': 'cleared wave 6 kills 209 level 1 loadout - relics 3 hash d696d17b',
+  'marches 7 paladin:1': 'fell wave 35 kills 85 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash a3a595ff',
+  'marches 7 angel:1': 'fell wave 35 kills 66 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 56a35d33',
+  'marches 7 viking:2 variant 1': 'fell wave 38 kills 303 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 23e41f0f',
 };
 
 describe('v0.10 golden level runs (#207)', () => {

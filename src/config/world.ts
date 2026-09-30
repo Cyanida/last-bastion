@@ -69,6 +69,7 @@ export interface RealmDef {
   release: string;
   levels: LevelDef[];
   crown: { first: CrownReward[]; tiers: CrownReward[][] };
+  legend?: { title: string; palette: number }; // #219: what its crown's 'title' and 'palette' rewards are (the Legend crown's): a title to wear and a sprite palette (render/sprites SPRITE_PALETTES), for the whole account
 }
 
 /** #237 (rule 4): a realm is one run, so its loadout size is one number for all its levels: a relic realm 3, the Marches 3. */
@@ -76,7 +77,7 @@ const RUN_SLOTS = { realm: 3, marches: 3 };
 
 /** Rule 3: a relic realm's five levels. Ends: a pool boss, the realm's first boss, a new boss, the first boss as an elite, the crown boss. */
 function relicRealmLevels(family: FamilyId, first: string, third: string, crown: string, opener = 'pool'): LevelDef[] {
-  const waves: [number, number][] = [[1, 5], [6, 10], [11, 20], [21, 30], [31, 40]];
+  const waves: [number, number][] = [[1, 8], [9, 16], [17, 24], [25, 32], [33, 40]]; // #243: 8 waves each (was 5, 5, 10, 10, 10)
   const bosses: EndBoss[] = [{ boss: opener }, { boss: first }, { boss: third }, { boss: first, elite: true }, { boss: crown, crown: true }];
   const rewards: (LevelReward | undefined)[] = [{ kind: 'keepLocked' }, { kind: 'keepLocked' }, { kind: 'classRelic' }, { kind: 'keepLocked' }, undefined];
   return waves.map((w, i) => ({ waves: w, slots: RUN_SLOTS.realm, relicTier: i < 3 ? 1 : 2, family, boss: bosses[i], reward: rewards[i] }));
@@ -86,7 +87,7 @@ const RELIC_CROWN: RealmDef['crown'] = { first: [], tiers: [[], [{ kind: 'legend
 
 /** The Marches: one featured family per level, in this order (levels 1 and 2 are the tutorial). */
 export const MARCHES_FAMILIES: FamilyId[] = ['steel', 'flame', 'blood', 'storm', 'frost', 'holy', 'grave'];
-const MARCHES_WAVES: [number, number][] = [[1, 5], [6, 10], [11, 15], [16, 20], [21, 25], [26, 30], [31, 40]];
+const MARCHES_WAVES: [number, number][] = [[1, 6], [7, 12], [13, 18], [19, 24], [25, 30], [31, 35], [36, 40]]; // #243: 6, 6, 6, 6, 6, 5, 5 waves (was 5 each and 10)
 
 export const REALMS: Record<RealmId, RealmDef> = {
   marches: {
@@ -105,6 +106,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
     foes: { knight: 'ironKnight', shieldwall: 'ironShieldwall', shieldBearer: 'thornBearer' }, // #214: thorn bearers
     hazard: 'presses',
     levels: relicRealmLevels('steel', 'warden', 'forgemaster', 'ironKing'), crown: RELIC_CROWN,
+    legend: { title: 'Ironsworn', palette: 6 }, // #219 Decided: the plan names neither
   },
   barrowvale: {
     name: 'The Barrowvale', ring: 2, opens: { crowns: 1 }, arena: 'graveyard', family: 'grave', release: '0.13.0', // the Drowned Fen comes later as a second arena
@@ -151,7 +153,9 @@ export const WORLD = {
   maxSlots: 6, // Armorer's Choice and the Keepsake mastery rank each add a slot, up to this
   openingPick: 3, // every level opens with a pick of 1 from this many relics of its family
   keepLockedRunes: 2, // Decided: a keep-a-locked-relic level cleared holding no family relic pays this many Runes
+  keepLockedOf: 2, // #219 Decided: a keep-locked level shows a pick of 1 of this many rares (like a Marches level's), the ones held at the end first
   crownBoss: { phases: 3, minPhaseSeconds: 12 }, // Decided: 12 s per phase, so a crown boss can't be burst through a phase
+  eliteBoss: { phases: 1 }, // #219 (rule 3): an elite end boss fights this many phases more than its plain self, on the same HP
   /** Rule 4: loadout limits (the slot rules issue enforces them). */
   loadout: { perFamily: 4, legendarySlots: 2, legendaries: 1, legendariesFinale: 2, classRelics: 2 },
   /** Rule 7: enemy HP and damage by ring (rings 1-4, then the finale). One tier step (config/economy TIERS) outweighs the whole ladder. */
@@ -160,11 +164,22 @@ export const WORLD = {
    * #221 (rule 9): enemy HP and damage by a level's place in its realm, on top of the tier and the ring step (logic/world levelStep). A
    * level is a short run whose head start holds fewer relics than a run that played the waves before, so its foes ease to meet the
    * first-try clear rates. Pass 2 eases realm level 1's HP and the Marches levels 3 and 7 (the dips) most. Decided: the Last Bastion is a whole run and keeps 1. Each stays over Squire's on Knight (a tier step still
-   * outweighs it).
+   * outweighs it). #243: tuned again for the longer levels and champion levels (#238): the Marches and a realm's late levels sit just
+   * over Squire's (HP 0.72 of Knight's 1.45, damage 0.82 of its 1.25), as far as this step goes (BALANCE.md).
    */
   levelStep: {
-    marches: { hp: [0.85, 0.9, 0.85, 0.9, 0.9, 0.9, 0.85], damage: [0.85, 0.9, 0.85, 0.9, 0.9, 0.9, 0.85] },
-    realm: { hp: [0.7, 0.85, 0.9, 0.9, 0.9], damage: [0.85, 0.9, 0.9, 0.9, 0.9] },
+    marches: { hp: [0.72, 0.72, 0.72, 0.72, 0.72, 0.72, 0.72], damage: [0.82, 0.82, 0.82, 0.82, 0.82, 0.82, 0.82] },
+    realm: { hp: [0.75, 0.8, 0.75, 0.72, 0.72], damage: [0.9, 0.88, 0.84, 0.82, 0.82] },
+  },
+  /**
+   * #243 (rule 9): how long a level's waves are, by its place in its realm, so a realm's level 1 takes 4-6 minutes and its last 7-10
+   * (the Marches' level 1 at least 4): `foes` on the number of foes a wave brings (the director's budget) and `pace` on the time they
+   * trickle in over. A foe's XP is divided by `foes`, so a level still pays what its waves pay at the pace. Levels only: the Daily Trial
+   * and a plain run keep 1, and so does the Last Bastion (a whole run; logic/world levelWaves).
+   */
+  levelWaves: {
+    marches: { foes: [1.5, 0.9, 0.9, 0.9, 0.9, 0.8, 0.8], pace: [2.5, 2, 2, 2, 2, 2.2, 2.2] },
+    realm: { foes: [1.6, 1.2, 1.1, 0.95, 0.9], pace: [2, 1.5, 1.5, 1.8, 2.2] },
   },
   /** Rule 6: the Last Bastion's elite foes and limits. */
   finale: { minAffixes: 2, eliteCap: 0.35, eliteChanceMult: 1.5, armorersChoice: false, merchantRelics: false },

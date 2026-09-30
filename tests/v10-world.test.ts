@@ -30,7 +30,8 @@ describe('world data (#190)', () => {
       expect(lv[lv.length - 1].waves[1]).toBe(40);
       lv.slice(1).forEach((l, i) => expect(l.waves[0]).toBe(lv[i].waves[1] + 1));
     }
-    expect(REALMS.ironHold.levels.map((l) => l.waves)).toEqual([[1, 5], [6, 10], [11, 20], [21, 30], [31, 40]]);
+    expect(REALMS.ironHold.levels.map((l) => l.waves)).toEqual([[1, 8], [9, 16], [17, 24], [25, 32], [33, 40]]); // #243: 8 waves each
+    expect(REALMS.marches.levels.map((l) => l.waves)).toEqual([[1, 6], [7, 12], [13, 18], [19, 24], [25, 30], [31, 35], [36, 40]]);
     expect(REALMS.ironHold.levels.map((l) => l.slots)).toEqual([3, 3, 3, 3, 3]); // #237: a realm is one run; its loadout size is the same at every level
     expect(REALMS.ironHold.levels.map((l) => l.relicTier)).toEqual([1, 1, 1, 2, 2]);
     expect(REALMS.marches.levels.map((l) => l.slots)).toEqual([3, 3, 3, 3, 3, 3, 3]);

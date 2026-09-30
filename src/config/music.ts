@@ -1,5 +1,6 @@
 import type { ArenaId } from './arenas';
 import type { Voice } from '../logic/music';
+import type { RealmId } from './world';
 
 /**
  * v0.7.1 run music (logic/runMusic.ts composes it, core/music.ts plays it). One theme per arena, in the menu music's style:
@@ -31,7 +32,10 @@ const PHRYGIAN = [0, 1, 3, 5, 7, 8, 10];
 const MIXOLYDIAN = [0, 2, 4, 5, 7, 9, 10];
 const MINOR = [0, 2, 3, 5, 7, 8, 10];
 
-export const THEMES: Record<ArenaId, Theme> = {
+/** #219: a theme is an arena's, or a realm's own (its levels play it in place of their arena's). */
+export type ThemeId = ArenaId | 'ironHold';
+
+export const THEMES: Record<ThemeId, Theme> = {
   courtyard: {
     name: 'Castle Courtyard', root: 2, mode: DORIAN, bpm: 84, meter: 3,
     chords: [0, 6, 3, 0, 2, 6, 3, 0], // i VII IV i | III VII IV i, like the menu
@@ -78,7 +82,20 @@ export const THEMES: Record<ArenaId, Theme> = {
     lead: 'horn',
     boss: { midi: 36, hits: [[0, 1], [0.5, 0.4], [1, 0.7], [2, 0.9], [2.5, 0.4], [3, 0.7], [3.5, 0.5]] },
   },
+  // #219: the Iron Hold's own theme over the Great Keep: a minor forge march, anvil bells on the off-beats, a choir of iron under it
+  ironHold: {
+    name: 'The Iron Hold', root: 4, mode: MINOR, bpm: 72, meter: 4,
+    chords: [0, 5, 6, 0, 3, 5, 4, 0], // i VI VII i | iv VI v i: heavy and square, it always comes home
+    drone: 'drone', pad: 'choir',
+    pulse: { voice: 'bell', steps: [null, null, 0, null, null, null, 2, null] }, // the anvil, struck on beats 2 and 4
+    perc: { midi: 40, hits: [[0, 0.85], [1, 0.3], [2, 0.65], [2.5, 0.3], [3, 0.35]] }, // a hammer's march
+    lead: 'horn',
+    boss: { midi: 36, hits: [[0, 1], [0.75, 0.45], [1, 0.8], [2, 1], [2.75, 0.45], [3, 0.8], [3.5, 0.5]] },
+  },
 };
+
+/** #219: the realms whose levels play a theme of their own; the rest play their arena's. */
+export const REALM_THEMES: Partial<Record<RealmId, ThemeId>> = { ironHold: 'ironHold' };
 
 /**
  * Mixing and the adaptive rules. Volumes are gains; the run mix sits under the menu's so the music never gets louder than the effects.

@@ -51,10 +51,10 @@ export const CHAMPION = {
   replayXp: 0.25, // a level cleared before banks this share of the XP it collected
   /**
    * XP from a champion level to the next: `perLevel` x the level, at most `most`. Fitted to the XP the Marches' levels pay at the pace
-   * (logic/championLevels levelXp: 180, 480, 558, 726, 639, 729, 1734; the bot collects 155-200 in level 1, so 140 for the first): a level per Marches level, 9 at its crown; after that a relic
-   * realm's 5044 XP is about five levels, so past the Marches the crown cap is what holds a champion back.
+   * (logic/championLevels levelXp; #243, on the longer levels: 252, 612, 768, 816, 864, 822, 912, was 180 to 1734 with 140 for the first): a level per Marches level up to the cap of 5, with a quarter to spare on each, and 8 at its crown, the level a relic realm's
+   * first level expects; after that a relic realm's 5046 XP is about six levels, so past the Marches the crown cap is what holds a champion back.
    */
-  xp: { perLevel: 140, most: 840 },
+  xp: { perLevel: 180, most: 840 },
   /** The champion level enemy scaling expects per ring (1 the Marches, 2-4 the relic realms, 5 the Last Bastion): at a realm's first level, and once it is crowned. The sim's champions have it. */
   expected: [[1, 8], [8, 15], [15, 22], [22, 30], [30, 30]] as [number, number][],
   /**

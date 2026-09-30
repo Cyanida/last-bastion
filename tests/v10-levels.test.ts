@@ -43,11 +43,11 @@ describe('levels: the head start (#191)', () => {
   });
 
   it('a level starts at its first wave with no head start: the player is its champion, and nothing is queued (#238)', () => {
-    const g = createGame('paladin', 3, { level: { realm: 'marches', level: 3 } }); // waves 11-15
+    const g = createGame('paladin', 3, { level: { realm: 'marches', level: 3 } }); // waves 13-18 (#243)
     const p = g.player;
-    expect(g.startWave).toBe(11);
-    expect([g.wave, g.wavesCleared, g.act]).toEqual([10, 10, 2]);
-    expect(g.level).toMatchObject({ realm: 'marches', level: 3, last: 15, cleared: false });
+    expect(g.startWave).toBe(13);
+    expect([g.wave, g.wavesCleared, g.act]).toEqual([12, 12, 2]);
+    expect(g.level).toMatchObject({ realm: 'marches', level: 3, last: 18, cleared: false });
     expect(g.arena.id).toBe('courtyard');
     expect(p.level).toBe(1); // no champion given: a level-1 one
     expect([g.pendingAbilityTiers, g.pendingUtilityTiers, g.pendingLevelUps, g.talentPoints]).toEqual([[], [], 0, 0]);
@@ -102,20 +102,20 @@ describe('levels: the end boss and "level cleared" (#191)', () => {
     const g = createGame('paladin', 3, { level: { realm: 'marches', level: 7 } });
     startWave(g, 40);
     expect(g.bossesSeen.at(-1)).toBe('warden');
-    const h = createGame('paladin', 3, { level: { realm: 'ironHold', level: 2 } }); // ends on the Warden at wave 10
-    startWave(h, 10);
+    const h = createGame('paladin', 3, { level: { realm: 'ironHold', level: 2 } }); // ends on the Warden at wave 16 (#243)
+    startWave(h, 16);
     expect(h.bossesSeen.at(-1)).toBe('warden');
   });
 
   it('a level ends on its last wave: cleared, before any Merchant or fork, and nothing more spawns', () => {
-    const g = createGame('paladin', 3, { level: { realm: 'marches', level: 2 } }); // waves 6-10
-    clearWave(g, 10);
+    const g = createGame('paladin', 3, { level: { realm: 'marches', level: 5 } }); // waves 25-30 (#243): it ends where Act III does
+    clearWave(g, 30);
     expect(g.level!.cleared).toBe(true);
     expect([g.pendingMerchant, g.pendingRoute]).toEqual([false, null]);
-    expect(g.wavesCleared).toBe(10);
+    expect(g.wavesCleared).toBe(30);
     g.breather = 0.001;
     updateSpawning(g, 1);
-    expect(g.wave).toBe(10);
+    expect(g.wave).toBe(30);
     const plain = createGame('paladin', 3);
     clearWave(plain, 10);
     expect(plain.pendingMerchant).toBe(true); // a plain run goes on to the Merchant, as today
@@ -123,7 +123,7 @@ describe('levels: the end boss and "level cleared" (#191)', () => {
 
   it('a wave before the last is just a wave', () => {
     const g = createGame('paladin', 3, { level: { realm: 'marches', level: 7 } });
-    clearWave(g, 35);
+    clearWave(g, 38);
     expect(g.level!.cleared).toBe(false);
   });
 });
