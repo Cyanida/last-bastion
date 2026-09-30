@@ -184,6 +184,10 @@ export function opensText(realm: RealmId): string {
   return `Opens with ${crowns} crown${crowns === 1 ? '' : 's'}${fromRing ? `, ${fromRing[1] === 1 ? 'one' : fromRing[1]} from ${from.join(' or ')}` : ''}`;
 }
 
+/** #258: what a road says of a realm that isn't built yet (its foes, bosses and relics fall back to the usual draw, #191); nothing for a built one. */
+export const unbuiltNotice = (realm: RealmId): string | null =>
+  REALMS[realm].built ? null : "This realm's own foes, bosses and relics come in a later version. Until then its levels play with stand-ins.";
+
 /** The world map's realms, in REALM_IDS order: open, or still under clouds with what opens it. */
 export const mapRealms = (p: WorldProgress): { id: RealmId; name: string; open: boolean; opens: string }[] =>
   REALM_IDS.map((id) => ({ id, name: REALMS[id].name, open: realmOpen(p, id), opens: opensText(id) }));
