@@ -3,12 +3,12 @@ import type { ClassId } from '../config/classes';
 import { CLASS_BIAS, DIRECTOR, MODIFIER_BIAS, SQUADS, type SquadTemplate } from '../config/director';
 import type { AffixId } from '../config/elites';
 import { ENEMIES, type EnemyId } from '../config/enemies';
-import type { ModifierId } from '../config/waves';
+import { WAVES, type ModifierId } from '../config/waves';
 import { clamp, mulberry32, pickWeighted } from '../core/math';
 import { eliteChance, rollAffixes } from './elites';
 import { enemyDmgMult, enemyHpMult } from './formulas';
 import type { Formation } from './squads';
-import { bossFor, enemyCount, rollModifier, spawnIntervalFor, tierAllows, unlockedPool } from './waves';
+import { bossFor, enemyCount, isBossWave, rollModifier, spawnIntervalFor, tierAllows, unlockedPool } from './waves';
 
 export interface DirectorInput {
   seed: number; // run seed: with the same inputs, the same wave comes out
@@ -18,12 +18,16 @@ export interface DirectorInput {
   bosses?: EnemyId[];
   eliteMult?: number; // difficulty tier
   tier?: number; // v0.8 (#101): the difficulty tier's roster (WAVES.tierRoster); none = every type
+  fields?: readonly EnemyId[]; // #249: types fielded on every tier here (a realm's own foes in its levels, logic/world levelFields)
+  fieldsWeight?: number; // #249: a multiplier on a squad's weight when it comes only thanks to `fields` (config/world.ts fieldsWeight)
   themeBias?: Partial<Record<EnemyId, number>>; // the current Act's theme
   budgetMult?: number; // curses
   squadMult?: number;
   eliteCommanders?: boolean;
   modifierChance?: number; // v0.6 Oath: a multiplier
   modifierFrom?: number; // v0.6 Oath: the first wave that can roll one
+  boss?: boolean; // #243: is this a boss wave? None: the 40-wave scale's (x5, x0). A realm level's only boss wave is its last (logic/world bossWaveIn)
+  pace?: number; // #243: a multiplier on the time the wave trickles in over (a realm level's, logic/world levelWaves)
 }
 
 export interface SpawnUnit {
@@ -59,11 +63,11 @@ export const waveRng = (seed: number, wave: number) => mulberry32((Math.imul(see
 
 const actIdx = (wave: number) => Math.min(DIRECTOR.actBias.squadChance.length - 1, Math.max(0, Math.ceil(wave / ACTS.length) - 1));
 
-export function waveBudget(wave: number, performance = 0, budgetMult = 1): number {
+export function waveBudget(wave: number, performance = 0, budgetMult = 1, boss = isBossWave(wave)): number {
   const c = DIRECTOR.costPerHead;
   const perHead = Math.min(c.max + DIRECTOR.actBias.costPerHead[actIdx(wave)], c.base + c.perWave * wave + DIRECTOR.actBias.costPerHead[actIdx(wave)]);
   const struggling = Math.max(0, -performance);
-  return Math.round(enemyCount(wave) * perHead * budgetMult * (1 - struggling * DIRECTOR.rubberBand.budgetCut));
+  return Math.round(enemyCount(wave, boss) * perHead * budgetMult * (1 - struggling * DIRECTOR.rubberBand.budgetCut));
 }
 
 function squadCost(t: SquadTemplate): number {
@@ -72,8 +76,8 @@ function squadCost(t: SquadTemplate): number {
 
 export const squadPlan = (t: SquadTemplate): SquadPlan => ({ template: t.id, formation: t.formation, spacing: t.spacing, holdUntil: t.holdUntil });
 
-/** v0.8 (#101): a squad comes only on a tier that fields its commander and every member. */
-export const squadOnTier = (t: SquadTemplate, tier?: number) => [t.commander, ...t.members.map((m) => m[0])].every((id) => !id || tierAllows(id, tier));
+/** v0.8 (#101): a squad comes only on a tier that fields its commander and every member (#249: or where the run fields them anyway, `fields`). */
+export const squadOnTier = (t: SquadTemplate, tier?: number, fields?: readonly EnemyId[]) => [t.commander, ...t.members.map((m) => m[0])].every((id) => !id || tierAllows(id, tier, fields));
 
 /** A squad template's units in spawn order, the commander first (the v0.5 ambush event spawns squads outside the director too). */
 export function squadUnits(t: SquadTemplate, squad: number, affixes: (commander: boolean) => AffixId[] = () => []): SpawnUnit[] {
@@ -94,14 +98,16 @@ export function directWave(input: DirectorInput): DirectedWave {
   const { wave } = input;
   const rng = waveRng(input.seed, wave);
   const performance = clamp(input.performance ?? 0, -1, 1);
-  const modifier = rollModifier(wave, rng, input.modifierChance, input.modifierFrom);
-  const boss = bossFor(wave, input.bosses);
-  const budget = waveBudget(wave, performance, input.budgetMult ?? 1); // boss waves: enemyCount already shrinks the escort
+  const bossWave = input.boss ?? isBossWave(wave);
+  const modifier = rollModifier(wave, rng, input.modifierChance, input.modifierFrom, bossWave);
+  // a boss wave off the scale (a level's last wave) has no place in the rotation: it takes the first boss given (the level's own)
+  const boss = !bossWave ? null : isBossWave(wave) ? bossFor(wave, input.bosses) : (input.bosses ?? WAVES.bosses)[0];
+  const budget = waveBudget(wave, performance, input.budgetMult ?? 1, bossWave); // boss waves: enemyCount already shrinks the escort
   let left = budget;
 
   // class, modifier and Act theme all tilt the weights (Siege's crossbows are already handled by unlockedPool)
   const bias = (id: EnemyId) => (input.classId ? (CLASS_BIAS[input.classId][id] ?? 1) : 1) * (modifier ? (MODIFIER_BIAS[modifier][id] ?? 1) : 1) * (input.themeBias?.[id] ?? 1);
-  const pool = unlockedPool(wave, modifier, input.tier).map((p) => ({ value: p.value, weight: p.weight * bias(p.value) }));
+  const pool = unlockedPool(wave, modifier, input.tier, input.fields).map((p) => ({ value: p.value, weight: p.weight * bias(p.value) }));
 
   const chance = eliteChance(wave, input.eliteMult ?? 1) * (1 + Math.max(0, performance) * DIRECTOR.rubberBand.eliteBonus);
   const affixesFor = (force: boolean): AffixId[] => (force || rng() < chance ? rollAffixes(wave, rng) : []);
@@ -110,7 +116,7 @@ export function directWave(input: DirectorInput): DirectedWave {
   const squads: SquadPlan[] = [];
   const sq = DIRECTOR.squads;
   if (wave >= sq.fromWave) {
-    const templates = SQUADS.filter((t) => wave >= t.from && squadOnTier(t, input.tier)).map((t) => ({ value: t, weight: t.weight * (t.commander ? bias(t.commander) : 1) * bias(t.members[0][0]) }));
+    const templates = SQUADS.filter((t) => wave >= t.from && squadOnTier(t, input.tier, input.fields)).map((t) => ({ value: t, weight: t.weight * (t.commander ? bias(t.commander) : 1) * bias(t.members[0][0]) * (squadOnTier(t, input.tier) ? 1 : (input.fieldsWeight ?? 1)) }));
     const squadChance = Math.min(0.95, (sq.chance + sq.perWave * (wave - sq.fromWave) + DIRECTOR.actBias.squadChance[actIdx(wave)]) * (input.squadMult ?? 1));
     let squadBudget = budget * (sq.maxShare + DIRECTOR.actBias.maxShare[actIdx(wave)]);
     while (templates.length > 0 && squads.length < sq.maxPerWave && rng() < squadChance) {
@@ -132,5 +138,5 @@ export function directWave(input: DirectorInput): DirectedWave {
   }
   if (boss) units.unshift({ id: boss, affixes: [], squad: -1, commander: false });
 
-  return { wave, boss, units, squads, modifier, budget, hpMult: enemyHpMult(wave), dmgMult: enemyDmgMult(wave), spawnInterval: spawnIntervalFor(units.length, units.length) };
+  return { wave, boss, units, squads, modifier, budget, hpMult: enemyHpMult(wave), dmgMult: enemyDmgMult(wave), spawnInterval: spawnIntervalFor(units.length, units.length) * (input.pace ?? 1) };
 }

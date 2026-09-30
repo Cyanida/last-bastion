@@ -1,4 +1,5 @@
 import { STATUSES, type DamageType } from '../config/damage';
+import { runLevel } from '../logic/formulas';
 import { ATTUNEMENT, FAMILIES, RELIC_DAMAGE_PER_LEVEL, RELIC_MAX_TIER, RELIC_STACKING, RELICS, relicN, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { TAU } from '../core/math';
 import type { Enemy, Game, Minion, Mods, Player } from '../core/types';
@@ -28,7 +29,7 @@ export const aOf = (id: RelicId): Record<string, number> => RELICS[id].awaken.n;
 export const hasDuo = (p: Player, id: DuoId): boolean => p.relics.duos.includes(id);
 /** The class's secondary stat: Faith, Rage, Grace, Soul Power, Focus. */
 export const sOf = (p: Player): number => p.stats.secondary;
-export const relicDamage = (p: Player, base: number): number => base * (1 + p.level * RELIC_DAMAGE_PER_LEVEL);
+export const relicDamage = (p: Player, base: number): number => base * (1 + runLevel(p) * RELIC_DAMAGE_PER_LEVEL);
 
 const NO_SET: SetState = { count: 0, level: 0 };
 export const setOf = (p: Player, f: FamilyId): SetState => p.relics.sets[f] ?? NO_SET;
@@ -123,10 +124,10 @@ export function gainWard(g: Game, p: Player, amount: number): void {
   ring(g, p.x, p.y, p.r + 14, FAMILIES.holy.color, 0.3);
 }
 
-/** Armor stacks (Steel): +3% armor each, they fade `fade` s after the last one was gained. */
+/** Armor stacks (Steel): +3% armor each, they fade `fade` s after the last one was gained (never, while Heart of the Hold is held). */
 export function armorStacksMax(p: Player): number {
   const n = FAMILIES.steel.n;
-  return n.stacksMax + Math.floor(sOf(p) / 10) * n.stacksPer10S;
+  return n.stacksMax + Math.floor(sOf(p) / 10) * n.stacksPer10S + (has(p, 'heartOfTheHold') ? nOf(p, 'heartOfTheHold').extra : 0); // #217: Heart of the Hold holds more
 }
 export function gainArmorStacks(g: Game, p: Player, count: number): void {
   if (count <= 0) return;

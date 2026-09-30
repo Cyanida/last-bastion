@@ -3,6 +3,10 @@ import { ELITES } from './elites';
 import { SKILL } from './game';
 import { OATHS } from './oaths';
 import { ATTUNEMENT, RELIC_MAX_TIER, TIER_NUMERALS } from './relics';
+import { WORLD } from './world';
+import { CHAMPION } from './champion';
+import type { SlotBlock } from '../logic/champions';
+import type { TourStep } from '../logic/tour';
 
 /**
  * v0.7.1: the game's own words, defined once. Every tooltip underlines the ones it uses and adds their definitions (ui/tooltip.ts);
@@ -38,4 +42,46 @@ export const GLOSSARY: Term[] = [
   { name: 'Set bonus', forms: ['set bonus', 'set bonuses', '2-set', '4-set', '6-set'], def: `What a family gives for holding 2, 4 and 6 of its relics, each changing how you play (Flame: Stoked, Pyre, Inferno). Only one family reaches its 6 in a run; any other stops at its 4.` },
   { name: 'Duo', forms: ['duo', 'duos'], def: 'A relic made of two: hold one named relic from each of two families and a wave boss or a lair can offer their duo as a gold fourth card (it takes the pick). It combines the two into one relic with both their effects and its own, attuning as one up to tier III; the families keep the counts of both relics, and each relic feeds only one duo.' },
   { name: 'Cursed relic', forms: ['cursed relic', 'cursed relics'], def: 'A relic of no family, far stronger than the others but with a drawback. At most one is offered an Act, as the purple third card of a wave boss or lair. Awakening it lifts the curse.' },
+];
+
+const L = WORLD.loadout;
+
+/** #239: why a relic can't go in a slot (logic/champions slotBlock), in the player's words: the champion screen says it on hover and tap. */
+export const SLOT_BLOCK_TEXT: Record<SlotBlock, string> = {
+  cursed: 'A cursed relic never goes in a loadout.',
+  otherClass: "Another class's relic.",
+  slotted: 'In a slot already: tap the slot to take it out.',
+  slots: 'No free slot for it.',
+  double: `A legendary takes ${L.legendarySlots} slots, and only 1 is free.`,
+  family: `At most ${L.perFamily} relics of one family.`,
+  legendary: `At most ${L.legendaries} legendary (${L.legendariesFinale} in the Last Bastion).`,
+  classRelics: `At most ${L.classRelics} class relics.`,
+};
+
+/** #239: the champion screen's ⓘ explanations, one or two plain sentences each (#240's tabs and tour reuse them). */
+export const CHAMPION_HELP = {
+  slots: `The relics in your slots go into a realm run at its first level and stay for the whole run; the Keep adds more slots. A legendary takes ${L.legendarySlots} slots, and a loadout holds at most ${L.perFamily} relics of one family, ${L.legendaries} legendary (${L.legendariesFinale} in the Last Bastion) and ${L.classRelics} class relics.`,
+  sets: 'Slotted relics of one family count toward its set: 2, 4 and 6 of them each add a bonus in the level. A lit chip has its bonus on; hover or tap a chip to read them.',
+  build: `Every champion level gives ${CHAMPION.statPoints} stat points: put them in a stat with its plus, or buy the next upgrade of your ability or utility for ${CHAMPION.tierCost} points, and what you spend is in your next level. Outside a realm run you can take every point back for free.`, // #241
+  talents: 'Every champion level gives a talent point, and you spend talent points here, between levels: a talent you take is in your next level. Outside a realm run you can take every point back for free.', // #238: real points, spent by hand
+} as const;
+
+/** #240: the champion screen's own tabs: one shows at a time, and PLAY stays under all three. */
+export const CHAMPION_TABS = [
+  { id: 'loadout', label: 'Loadout' },
+  { id: 'build', label: 'Build' },
+  { id: 'talents', label: 'Talents' },
+] as const;
+export type ChampionTab = (typeof CHAMPION_TABS)[number]['id'];
+
+/** #240: the Build tab's one plain line, under the build panel (#241) and the level-cleared screen's. */
+export const CHAMPION_BUILD_TEXT = 'Clearing a level banks its XP toward champion levels: each level gives 3 stat points and a talent point, and nothing levels up inside a level.';
+
+/** #240: the champion screen's tour, shown the first time the screen opens and again from its ⓘ: one sentence a step, each at the part it names. */
+export const CHAMPION_TOUR: readonly TourStep[] = [
+  { id: 'slots', at: '.cs-slots', text: 'These are your slots: the relics in them go into the level with you.' },
+  { id: 'inventory', at: '.cs-inventory', text: 'Your inventory holds the relics this champion has won: tap one to put it in a slot, and tap a slot to take it out again.' },
+  { id: 'legendary', at: '.cs-slots', text: `A legendary relic takes ${L.legendarySlots} slots, and a loadout holds only ${L.legendaries} of them.` },
+  { id: 'build', at: '.cs-tabs', text: 'Build and Talents are the other tabs: your champion’s stat points, and the talents it has taken.' },
+  { id: 'play', at: '.cs-go', text: 'PLAY starts the next level of the road with this loadout, from any tab.' },
 ];

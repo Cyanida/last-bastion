@@ -18,11 +18,16 @@ function leaves(v: unknown, path = '', out = new Map<string, unknown>()): Map<st
 /** What a format had that the game has since dropped on purpose, so its value does not come through as it was. */
 const V06_TRACKS = ['.meta.str', '.meta.dex', '.meta.int', '.meta.atkSpd']; // v0.6 removed the Armory's damage tracks, refunded as gold
 const V07_RELICS = ['.relicPicks.whetstone', '.relicPicks.swiftBoots', '.relicPicks.luckyCoin', '.relicPicks.scholarTome']; // gone in the v0.7 rework
+// #238 (v0.11): the talent plan became the champion's talents (read from it), and a realm run's carry lost its in-level XP and queued level-up picks
+const PLANS = ['paladin.talentPlan', 'viking.talentPlan.0', 'viking.talentPlan.1', 'angel.talentPlan', 'necromancer.talentPlan', 'archer.talentPlan'].map((p) => `.champions.${p}`);
+const CARRY = ['xp', 'pendingLevelUps', 'pendingAbilityTiers', 'pendingUtilityTiers'].map((k) => `.champions.paladin.runs.marches.carry.${k}`);
 const DROPPED: Record<number, string[]> = {
   2: [...V06_TRACKS, ...V07_RELICS],
   3: [...V06_TRACKS, ...V07_RELICS],
   4: [...V06_TRACKS, ...V07_RELICS],
   5: [...V07_RELICS, '.refund.gold', '.refund.runes'], // a v0.6 save's refund notice is worked out again from its Keep ranks
+  7: [PLANS[0], ...PLANS.slice(1)], // #238: a champion's talent plan became its talents
+  8: [PLANS[0], ...CARRY, ...PLANS.slice(1)], // ...and a checkpoint holds no level-ups: a level has none
 };
 
 describe('frozen saves from every format (#115)', () => {

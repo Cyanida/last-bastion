@@ -1,5 +1,5 @@
-import type { ArenaDef, Obstacle } from '../config/arenas';
-import type { FeatureKind } from '../config/regions';
+import { FLAGSTONE, type ArenaDef, type Obstacle } from '../config/arenas';
+import { WING_IDS, type FeatureKind, type Rect } from '../config/regions';
 import { mulberry32 } from '../core/math';
 import type { Rng } from '../core/types';
 
@@ -74,7 +74,7 @@ function tiles(ctx: Ctx, def: ArenaDef, rng: Rng): void {
       }
     }
   } else if (theme.tile === 'flagstone') {
-    const cell = 80;
+    const cell = FLAGSTONE; // #211: the forge presses mark these slabs
     for (let y = 0; y < h; y += cell) {
       for (let x = 0; x < w; x += cell) {
         stone(ctx, x + 2, y + 2, cell - 4, cell - 4, pick(), rng, 3);
@@ -111,6 +111,51 @@ function tiles(ctx: Ctx, def: ArenaDef, rng: Rng): void {
       ctx.fillStyle = '#6f8254';
       ctx.fillRect(px, py, 1, 2);
     }
+  }
+}
+
+/**
+ * #210: a named wing's floor over the arena's tiles, in the rig's ramps: oak boards (bark) in the armory and the barracks, soot and
+ * embers round the forge's fires, a red runner with gold edges from the chapel's gate to its altar.
+ */
+function wingFloor(ctx: Ctx, f: Rect, kind: 'soot' | 'plank' | 'runner', rng: Rng, toward: 'x' | 'y'): void {
+  if (kind === 'plank') {
+    const boards = ['#483325', '#5d4431', '#523b2b', '#755940'];
+    const across = toward === 'y'; // boards run from the gate inwards
+    const len = across ? f.h : f.w, span = across ? f.w : f.h;
+    for (let o = 0; o < span; o += 22) {
+      for (let a = -rng() * 120; a < len; ) {
+        const bl = 90 + rng() * 110;
+        const [x, y, w, h] = across ? [f.x + o, f.y + Math.max(0, a), 22, Math.min(bl, len - a)] : [f.x + Math.max(0, a), f.y + o, Math.min(bl, len - a), 22];
+        stone(ctx, Math.round(x), Math.round(y), Math.round(Math.min(w, f.x + f.w - x)), Math.round(Math.min(h, f.y + f.h - y)), boards[Math.floor(rng() * boards.length)], rng, 2, 0.7);
+        ctx.fillStyle = '#231812'; // nail heads
+        ctx.fillRect(Math.round(x) + (across ? 10 : 4), Math.round(y) + (across ? 4 : 10), 2, 2);
+        a += bl;
+      }
+    }
+  } else if (kind === 'soot') {
+    for (let i = 0; i < (f.w * f.h) / 9000; i++) {
+      const gx = f.x + rng() * f.w, gy = f.y + rng() * f.h, gr = 40 + rng() * 80;
+      const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, gr);
+      grad.addColorStop(0, 'rgba(15,17,24,0.42)');
+      grad.addColorStop(1, 'rgba(15,17,24,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(gx - gr, gy - gr, gr * 2, gr * 2);
+    }
+    const embers = ['#86260a', '#c2410f', '#ec6a17', '#fb9a2c'];
+    for (let i = 0; i < (f.w * f.h) / 1400; i++) {
+      ctx.fillStyle = embers[Math.floor(rng() * embers.length)];
+      ctx.fillRect(Math.round(f.x + rng() * f.w), Math.round(f.y + rng() * f.h), 2, 2);
+    }
+  } else {
+    const cw = 120;
+    const [x, y, w, h] = toward === 'y' ? [f.x + f.w / 2 - cw / 2, f.y, cw, f.h] : [f.x, f.y + f.h / 2 - cw / 2, f.w, cw];
+    ctx.fillStyle = '#c98d27';
+    ctx.fillRect(x - 5, y - 5, w + 10, h + 10);
+    ctx.fillStyle = '#7a1a24';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#4f0f1c';
+    for (let a = 40; a < (toward === 'y' ? h : w); a += 70) toward === 'y' ? ctx.fillRect(x + 12, y + a, w - 24, 3) : ctx.fillRect(x + a, y + 12, 3, h - 24);
   }
 }
 
@@ -250,6 +295,13 @@ export function buildArena(def: ArenaDef): HTMLCanvasElement {
   const ctx = c.getContext('2d')!;
   const rng = mulberry32(1337);
   tiles(ctx, def, rng);
+  if (def.wings && def.regions) {
+    const wrng = mulberry32(210); // its own stream, so the other arenas' ground stays as it was
+    for (const id of WING_IDS) {
+      const f = def.regions.find((r) => r.id === id)?.floor;
+      if (f) wingFloor(ctx, f, def.wings[id].floor, wrng, id === 'north' || id === 'south' ? 'y' : 'x');
+    }
+  }
 
   // soft patches: moss in the courtyard, mist in the graveyard, old carpet stains in the keep
   for (let i = 0; i < 70; i++) {

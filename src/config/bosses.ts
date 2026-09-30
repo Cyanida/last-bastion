@@ -9,10 +9,11 @@ import type { QuestKind } from './quests';
  *   has been met. The arena's own rotation (config/arenas.ts) weighs `arenaBias` times more. Act I keeps its arena's opener.
  * - 'act': the wave x0 boss, in table order (Act I, II, III, then round again in Endless).
  * - `rare`: low weight and only from `fromAct` on: a strong one. `quest`: only drawn in an Act where that quest was taken.
+ * - 'realm' (#215): never drawn; only a realm level that names it as its end boss (config/world.ts) brings it.
  */
 export interface BossDef {
   from: EnemyId;
-  slot: 'mid' | 'act';
+  slot: 'mid' | 'act' | 'realm';
   weight: number; // mid-Act draw weight
   name?: string;
   palette?: number; // render/sprites SPRITE_PALETTES
@@ -40,6 +41,9 @@ export const BOSSES: Record<string, BossDef> = {
   dragon: { from: 'dragon', slot: 'act', weight: 0 },
   warden: { from: 'warden', slot: 'act', weight: 0 },
   ashWyrm: { from: 'dragon', slot: 'act', weight: 0, name: 'The Ash Wyrm', palette: 1, hp: 1.15, damage: 1.1 },
+  // the realms' own bosses (#215)
+  forgemaster: { from: 'forgemaster', slot: 'realm', weight: 0 },
+  ironKing: { from: 'ironKing', slot: 'realm', weight: 0 }, // #216: the Iron Hold's crown boss
 };
 export type BossKey = string;
 
@@ -81,4 +85,36 @@ export const WARDEN = {
     hammer: { rings: 3, step: 115, radius: 34, first: 1.0, gap: 0.5, damage: 0.8 }, // ring k lands at `first + (k-1) * gap` s, x his special damage
     summonEvery: 2, // knights on every 2nd seal
   },
+};
+
+/**
+ * #215: the Forgemaster, the Iron Hold's level-3 boss (logic/forgemaster.ts, systems/bosses.ts). Three phases like an Act boss, since his
+ * level ends on an Act's last wave; no minimum phase time (that is the crown boss's). Phase 1: his hammer comes down in a marked arc in
+ * front of him. From phase 2 every other blow is his forge presses instead: a checkerboard of marked tiles round you that slam one colour,
+ * then the other (step onto a tile that just struck), and the hammer throws a fan of sparks too. Phase 3: a third press stroke, quicker
+ * blows, and the hammer leaves molten slag. His plate (config/damage.ts PLATES) is reforged whole at each new phase.
+ */
+export const FORGEMASTER = {
+  specialCd: [5.5, 5, 4.2], // by phase; his def's specialCd is the first blow
+  reach: 640, // he swings and presses only this close
+  slam: { zones: 5, arc: 1.5, reach: 62, radius: 46, damage: 1 }, // the hammer: zones on an arc `reach` past his edge, x his special damage
+  sparks: { count: 5, spread: 0.7, windup: 0.5, damage: 0.45, range: 560 }, // phase 2+: bolts after the hammer, x his hit damage
+  press: { size: 5, cell: 92, radius: 50, first: 1.1, gap: 0.9, damage: 0.8, strokes: [0, 2, 3] }, // tiles size x size round you; strokes by phase
+  slagFrom: 3, // the hammer's zones leave burning slag (his def's poolLife, poolDps) from this phase
+};
+
+/**
+ * #216: the Iron King, the Iron Hold's crown boss (logic/ironKing.ts, systems/bosses.ts). A phase for each of the realm's lessons, each
+ * held at least WORLD.crownBoss.minPhaseSeconds: phase 1 his plate (config/damage.ts PLATES: break it blow by blow) and his guard of Iron
+ * Knights; phase 2 he casts off what is left of the plate and raises an iron tower shield (TOWER_SHIELDS: step round him) and rushes you
+ * behind it; phase 3 he throws the shield down and his mail bristles with thorns (THORNS: strike from range, or take the bite).
+ * Every blow of his that is not a rush is his Decree: lines of iron marked out from him, one straight at you, landing outward.
+ */
+export const IRON_KING = {
+  guards: ['plate', 'shield', 'thorns'] as const, // what each phase wears
+  specialCd: [5, 4.6, 4], // by phase; his def's specialCd is the first blow
+  reach: 700, // he strikes only this close
+  decree: { lines: [4, 4, 8], zones: 6, step: 76, first: 0.9, gap: 0.12, damage: 1 }, // lines by phase, `zones` each `step` apart past his edge (radius: his def's zoneRadius), landing `gap` s apart outward; x his special damage
+  guardEvery: 3, // phase 1: his guard (his def's summon x summonCount) on every 3rd blow, the first included
+  rushFrom: 2, // from this phase every other blow is a rush at you behind the shield (his def's chargeDist and chargeSpeed)
 };

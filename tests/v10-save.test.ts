@@ -7,8 +7,8 @@ import { oldSave } from './fixtures/saves';
 
 /** #193: save v7 keeps a champion per class; a v6 save migrates without losing a relic. */
 describe('save v7: champions (#193)', () => {
-  it('is format 7, and a new save has no champions yet', () => {
-    expect(SAVE_VERSION).toBe(7);
+  it('is format 7 (8 since v0.11, #237), and a new save has no champions yet', () => {
+    expect(SAVE_VERSION).toBe(8);
     expect(saveFormatLabel(7)).toBe('v0.10');
     expect(defaultSave().champions).toEqual({});
   });
@@ -20,7 +20,7 @@ describe('save v7: champions (#193)', () => {
     expect(Object.keys(s.champions).sort()).toEqual(played.sort());
     const picked = Object.keys(raw.relicPicks as object);
     for (const c of Object.values(s.champions)) expect(c!.inventory).toEqual(expect.arrayContaining(picked));
-    expect(s.champions.viking!.talentPlan).toEqual(['viking.berserk.0', 'viking.berserk.1']); // its last logged run's talents
+    expect(s.champions.viking!.talents).toEqual(['viking.berserk.0', 'viking.berserk.1']); // its last logged run's talents (#238: a run takes as many as it has points for)
     expect(s.champions.viking!.name).toBe('Viking');
   });
 
@@ -57,7 +57,7 @@ describe('save v7: champions (#193)', () => {
     expect(c.name.length).toBeLessThanOrEqual(24);
     expect(c.inventory).toEqual(['brimstoneOil']); // fireArrows is the Archer's
     expect(c.loadouts).toEqual({ marches: ['brimstoneOil'] });
-    expect(c.talentPlan).toEqual(['viking.berserk.0']);
+    expect(c.talents).toEqual(['viking.berserk.0']); // #238: a v7 talent plan becomes its talents
     expect(c.world).toEqual({ marches: [7] });
     expect(c.signature).toBe(false);
     expect(readChampion(null, 'angel')).toEqual(newChampion('angel'));
@@ -70,7 +70,8 @@ describe('save v7: champions (#193)', () => {
     const seasoned = MASTERY[MASTERY.findIndex((r) => r.reward.kind === 'startLevel')].xp;
     expect(championBonus({ startRelic: 1 }, keepsake)).toEqual({ slots: 2, levels: 0 });
     expect(championBonus({ startLevel: 1 }, seasoned).levels).toBe(2);
-    expect(championSlots({ startRelic: 1 }, keepsake, 'marches', 1)).toBe(3);
-    expect(championSlots({ startRelic: 1 }, keepsake, 'ironHold', 5)).toBe(6); // 5 + 2, capped at 6
+    expect(championSlots({ startRelic: 1 }, keepsake, 'marches', 1)).toBe(5); // #237: a realm run's 3 slots + 2
+    expect(championSlots({ startRelic: 1 }, keepsake, 'ironHold', 5)).toBe(5); // the same at every level of the run
+    expect(championSlots({ startRelic: 1 }, keepsake, 'lastBastion', 1)).toBe(6); // 5 + 2, capped at 6
   });
 });

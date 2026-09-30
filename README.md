@@ -1,4 +1,4 @@
-# Last Bastion — V0.10
+# Last Bastion — V0.11
 
 A 2D top-down medieval wave-survival roguelite: four Acts, then the Usurper on his throne, relics in seven families that grow as they work and pair up into duos, and an Oath ladder to climb after the first win. TypeScript + Vite, HTML5 Canvas 2D, no engine, no hand-made asset files:
 sprites are drawn in code by a rig and rendered to sprite sheets (`npm run art`), sound effects and the music (menus, and a quiet theme per arena in runs) are WebAudio synthesis. One codebase, three ways to play.
@@ -8,7 +8,7 @@ sprites are drawn in code by a rig and rendered to sprite sheets (`npm run art`)
 | **Browser / phone** | https://cyanida.github.io/last-bastion/ |
 | **Windows** | [Latest release](https://github.com/Cyanida/last-bastion/releases/latest): `last-bastion-Setup-<version>.exe` |
 | Roadmap and progress | [ROADMAP.md](ROADMAP.md) · [Project board](https://github.com/users/Cyanida/projects/2) · the pinned **🔨 Now building** issue · release rules: [RELEASES.md](RELEASES.md) · how to contribute (issues, pull requests, AI agents, reviews): [CONTRIBUTING.md](CONTRIBUTING.md) |
-| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.10.0: champions with their own relics and loadouts, the world map, the Marches in seven levels to its crown · v0.9.0: every menu redrawn in one style, the champion select and the Keep as a castle · v0.8.3: fixes from a full check, foes that flickered, relics that counted wrong · v0.8.2: every champion, foe, boss and arena redrawn as animated, shaded pixel art · v0.8.1: every character redrawn at double resolution, flash cards show the enemy, Dread Howl stuns · v0.8: a readable HUD with text size, flash cards, more bosses, arena relic families, balance pass · v0.7.6: the monk escort is winnable · v0.7.5: aim setting, bosses last a real fight, duos combine, many fixes · v0.7.4: detonate Divine Shield early, the Dragon redrawn · v0.7.3: the Archer's aim, the Paladin's shield, fixes · v0.7.2: music in every arena, What's new, glossary, test mode, cursed relics, Reforge · v0.7: relics rebuilt, save backups) · the relic design: [RELICS.md](RELICS.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) · how the code is built, and the dropped co-op plan kept for the record: [ARCHITECTURE.md](ARCHITECTURE.md) |
+| What changed | [CHANGELOG.md](CHANGELOG.md) (v0.11.0: the Iron Hold, the first relic realm, in five levels to the Iron King; a realm is one run with checkpoints; champions level up between levels · v0.10.0: champions with their own relics and loadouts, the world map, the Marches in seven levels to its crown · v0.9.0: every menu redrawn in one style, the champion select and the Keep as a castle · v0.8.3: fixes from a full check, foes that flickered, relics that counted wrong · v0.8.2: every champion, foe, boss and arena redrawn as animated, shaded pixel art · v0.8.1: every character redrawn at double resolution, flash cards show the enemy, Dread Howl stuns · v0.8: a readable HUD with text size, flash cards, more bosses, arena relic families, balance pass · v0.7.6: the monk escort is winnable · v0.7.5: aim setting, bosses last a real fight, duos combine, many fixes · v0.7.4: detonate Divine Shield early, the Dragon redrawn · v0.7.3: the Archer's aim, the Paladin's shield, fixes · v0.7.2: music in every arena, What's new, glossary, test mode, cursed relics, Reforge · v0.7: relics rebuilt, save backups) · the relic design: [RELICS.md](RELICS.md) · balance targets and simulation results: [BALANCE.md](BALANCE.md) · how the code is built, and the dropped co-op plan kept for the record: [ARCHITECTURE.md](ARCHITECTURE.md) |
 
 ## Play on iPhone (or any phone)
 
@@ -58,7 +58,7 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
-| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (851 tests) |
+| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (1045 tests) |
 | `npm run test:play` | the headless play test (`scripts/play-test.mjs`): answers every choice screen, uses keyboard, mouse and touch, banks a run |
 | `npm run test:perf` | headless Chromium frame-time test of Fog, Blood Moon and the Usurper's last phase against the built game, with the run music playing, plus a check that the music plays in every arena (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
@@ -177,13 +177,13 @@ npm run sim -- relics 8      # relics (v0.7): 6-sets, duos, 4-sets per class, th
 npm run sim -- economy 80    # one save played run after run, buying the Keep greedily: when is it fully raised?
 npm run sim -- deep 3        # the fresh / maxed table, but wins march on into Endless: depth is not capped at wave 40
 npm run sim -- pacing 4      # from the run logs: run length, minutes per Act, quiet time, the longest stretches with nothing new
-npm run sim -- levels 6      # realm levels (v0.10): first tries on Knight with expected progress, against the plan's rule 9 targets
+npm run sim -- levels 6      # realm levels (v0.10): each realm as one run on Knight with expected progress, against the plan's rule 9 targets
 npm run sim -- relics 3 loadout  # the relic tables for the Last Bastion, with the loadout the bot fills (v0.10)
 ```
 
 A basic bot (`src/sim/bot.ts`: melee wades in, ranged circles the crowd, it dodges telegraphs and shots, casts on cooldown, does quests, visits the Merchant and takes the first route) plays full runs headlessly, with a fresh save and with everything maxed. It is a yardstick, not a good player: human players find the Archer and the Necromancer the strongest classes, the bot finds them the weakest.
 It reports the average wave reached, the maxed / fresh ratio, the spread between classes, commanders and elites slain, Acts cleared, and the level at the end of each wave against the target pace. Runs are seeded, so a result can be reproduced.
-In `levels` (`src/sim/levels.ts`, `scripts/level-report.ts`) the bot plays each realm level as a champion would on its first try: its inventory holds what the earlier levels' first clears gave, and it fills the level's slots from it under the slot rules.
+In `levels` (`src/sim/levels.ts`, `scripts/level-report.ts`) the bot plays each realm as a champion would, as one run: it fills the slots from its inventory under the slot rules at level 1, every later level goes on from the checkpoint before it with what the run carries, and the champion banks each clear's XP and spends its points before the next level. A level's row is its first try (a fall is raised on the spot to play the run on).
 Targets and current results are in [BALANCE.md](BALANCE.md).
 
 ## Where to tune balance
@@ -193,6 +193,7 @@ Everything numeric lives in `src/config/`; game logic never hard-codes balance.
 | File | Contents |
 |---|---|
 | `classes.ts`, `abilityUpgrades.ts`, `relics.ts`, `upgrades.ts` | classes, the 30 ability upgrades, relics (families and set bonuses, the 50 relics, duos, relic moments and offer weights, attunement rates), level-up boons |
+| `champion.ts` | champion levels: stat and talent points per level, what a point gives, the tier cost, the XP curve, the level cap by crowns, the champion level each ring expects and the enemy scaling that follows |
 | `talents.ts`, `utility.ts`, `traits.ts` | talent trees, the utility abilities and their upgrades, starting traits |
 | `enemies.ts` | stats and behaviour parameters per enemy and boss |
 | `ai.ts` | per-type state machine profiles, squad reactions, aura timing |

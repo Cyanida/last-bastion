@@ -217,6 +217,69 @@ function flare(k: number): Figure {
   return f;
 }
 
+/** #210: the forge's anvil: an iron anvil with its horn to the left on an oak stump, a hammer across it, a bar glowing on the face. */
+function anvil(): Figure {
+  const f = new Figure(76, 72);
+  f.part(O, rect(22, 38, 54, 62), 'bark', 0, { folds: [0.8, 4, 0] }); // stump
+  f.part(O, ell(38, 62, 17, 4), 'bark', 0.1, { dim: 1 });
+  f.part(O, ell(38, 38, 16, 4.5), 'bark', 0.2, { details: dots([[31, 37], [36, 39], [44, 38]], 'bark', 1) }); // its rings
+  f.part(O, [[26, 40], [50, 40], [48, 34], [28, 34]], 'darksteel', 1); // foot
+  f.part(O, rect(31, 25, 45, 35), 'darksteel', 1.1); // waist
+  f.part(O, [[6, 18], [18, 15], [58, 15], [60, 18], [58, 26], [20, 26], [14, 22]], 'darksteel', 1.2, { details: dots([[22, 16], [23, 16], [40, 16], [41, 16]], 'darksteel', 6) }); // face and horn
+  f.part(O, rect(56, 14, 61, 26), 'darksteel', 1.25, { dim: 1 }); // the heel
+  f.part(O, rect(28, 12, 46, 16), 'ember', 1.4, { details: dots([[31, 13], [38, 13]], 'ember', 6) }); // a bar, still glowing
+  f.part(limb([44, 30], [66, 44]), rect(-1.5, 0, 1.5, 24), 'leather', 2); // hammer handle
+  f.part(O, [[38, 24], [48, 20], [51, 26], [41, 30]], 'steel', 2.1); // hammer head
+  return f;
+}
+/** #210: the armory's weapon rack: an oak frame holding two spears and a sword upright, a round shield leant against its foot. */
+function rack(): Figure {
+  const f = new Figure(80, 100);
+  f.part(O, rect(8, 26, 14, 88), 'bark', 0, { dim: 1 }); // posts
+  f.part(O, rect(66, 26, 72, 88), 'bark', 0);
+  f.part(O, rect(6, 36, 74, 41), 'bark', 0.5, { details: dots([[20, 38], [36, 38], [52, 38]], 'darksteel', 3) }); // top bar, its pegs
+  f.part(O, rect(6, 76, 74, 81), 'bark', 0.5);
+  for (const [x, z] of [[22, 1], [52, 1.1]] as const) {
+    f.part(O, rect(x - 1.5, 12, x + 1.5, 86), 'leather', z); // spear shaft
+    f.part(O, [[x, 0], [x + 4, 9], [x + 1.5, 14], [x - 1.5, 14], [x - 4, 9]], 'steel', z + 0.01); // its head
+  }
+  f.part(O, ell(37.5, 17, 2.6, 2.3, 10), 'gold', 1.31); // sword, hung point down: pommel
+  f.part(O, rect(36, 19, 39, 28), 'leather', 1.3); // grip
+  f.part(O, rect(29, 28, 46, 31), 'gold', 1.3); // crossguard
+  f.part(O, [[35, 31], [40, 31], [40, 74], [37.5, 80], [35, 74]], 'steel', 1.2, { details: dots([[36, 34], [36, 35], [36, 36]], 'steel', 6) }); // blade
+  f.part(O, ell(58, 80, 13, 13, 24), 'red', 2, { trim: ['gold', 1.5] }); // shield
+  f.part(O, ell(58, 80, 3.5, 3.5, 12), 'gold', 2.1); // its boss
+  return f;
+}
+/** #210: a barracks bunk: a low oak cot, a grey wool blanket thrown back, a straw pillow, seen from above like the strongbox. */
+function bunk(): Figure {
+  const f = new Figure(76, 52);
+  f.part(O, rect(4, 34, 9, 48), 'bark', 0, { dim: 1 }); // legs
+  f.part(O, rect(67, 34, 72, 48), 'bark', 0, { dim: 1 });
+  f.part(O, rect(3, 10, 73, 40), 'bark', 0.5); // frame
+  f.part(O, rect(7, 12, 69, 36), 'straw', 1, { folds: [0.5, 5, 0] }); // straw mattress
+  f.part(O, [[9, 14], [22, 13], [23, 30], [10, 31]], 'white', 1.5, { folds: [0.6, 4, 1] }); // pillow
+  f.part(O, [[30, 12], [69, 12], [69, 36], [34, 36], [28, 26]], 'fur', 2, { folds: [0.9, 6, 0] }); // blanket
+  f.part(O, [[30, 12], [36, 12], [34, 36], [28, 26]], 'fur', 2.1, { dim: 1 }); // its turned-back edge
+  f.part(O, rect(3, 6, 8, 40), 'bark', 3); // head board
+  return f;
+}
+
+/**
+ * #211: a forge press's ram, as it hangs over a marked tile: a riveted black iron block on a steel piston, a steel striking face with
+ * an edge still hot from the forge. The face is 68 px wide, a flagstone slab (80 px) less its mortar and a margin.
+ */
+function press(): Figure {
+  const f = new Figure(76, 96);
+  f.part(O, rect(32, 0, 44, 48), 'steel', 0, { folds: [0.5, 4, 0], details: dots([[35, 10], [35, 26], [35, 40]], 'steel', 6) }); // piston
+  f.part(O, rect(25, 42, 51, 52), 'darksteel', 0.5, { details: dots([[28, 46], [47, 46]], 'steel', 5) }); // its collar
+  f.part(O, rect(6, 50, 70, 80), 'black', 1, { details: dots([[10, 54], [65, 54], [10, 75], [65, 75], [37, 54]], 'steel', 5) }); // the ram, riveted
+  f.part(O, rect(6, 62, 70, 67), 'darksteel', 1.1, { dim: 1 }); // a band round it
+  f.part(O, [[4, 80], [72, 80], [69, 88], [7, 88]], 'steel', 1.2); // the striking face
+  f.part(O, rect(9, 88, 67, 91), 'ember', 1.3, { profile: 'flat', details: dots([[20, 89], [44, 89]], 'ember', 6) }); // its edge, hot
+  return f;
+}
+
 export const PROPS: PropDef[] = [
   { id: 'pillar', w: 76, h: 100, anchor: [38, 80], r: 30, frames: [pillar()] },
   { id: 'brazier', w: 56, h: 72, anchor: [28, 54], r: 20, frames: [0, 1, 2, 3].map(brazier) },
@@ -234,6 +297,12 @@ export const PROPS: PropDef[] = [
   { id: 'cache', w: 48, h: 38, anchor: [24, 24], r: 1, frames: [cache()] },
   { id: 'hand', w: 32, h: 44, anchor: [16, 38], r: 1, frames: [0, 1, 2].map(hand) },
   { id: 'flare', w: 40, h: 52, anchor: [20, 46], r: 1, frames: [0, 1, 2, 3].map(flare) },
+  // #210: the Great Keep's wings, drawn for the pillar's radius (they take its place there); new rows go last, the play test reads rows above
+  { id: 'anvil', w: 76, h: 72, anchor: [38, 50], r: 30, frames: [anvil()] },
+  { id: 'rack', w: 80, h: 100, anchor: [40, 80], r: 30, frames: [rack()] },
+  { id: 'bunk', w: 76, h: 52, anchor: [38, 30], r: 30, frames: [bunk()] },
+  // #211: the Iron Hold's forge press; its anchor is the middle of its face, where it lands on the marked tile
+  { id: 'press', w: 76, h: 96, anchor: [38, 88], r: 1, frames: [press()] },
 ];
 
 export const propPaths = { png: 'public/sprites/props.png', json: 'src/render/props.json' };

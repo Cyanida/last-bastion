@@ -9,6 +9,8 @@
  *
  * The horde is topped up to 250 every half second so it does not thin out while measuring. v0.6 adds the Usurper in his last phase in the
  * Last Bastion (royal decrees and quake rings: the most telegraph zones at once), with 150 of his host around him.
+ * v0.11 (#220) adds the fortress: an Iron Hold level (level 3, wave 20) in the Great Keep, 250 of the realm's own foes (Iron Knights with
+ * their plates, Iron Shieldwalls, Thorn Bearers) among the others, under its forge presses (marked slabs and rams) and the Keep's braziers.
  * v0.7.1: the run music plays through every scenario (Chromium may start audio without a gesture here), and before them a quick check
  * that it plays in every arena: each arena's theme gets notes queued on a running AudioContext. Any console error fails the test.
  * Fails when the 95th-percentile frame time exceeds PERF_BUDGET_MS (default 20 ms, the desktop target: one frame at
@@ -16,11 +18,11 @@
  * and are slower than a desktop, so the workflow passes a looser budget.
  */
 import { chromium } from 'playwright';
-import { spawnTree, killTree } from './lib/process-tree.mjs';
+import { spawnTree, killTree, waitForServer } from './lib/process-tree.mjs';
 
 const BUDGET = Number(process.env.PERF_BUDGET_MS ?? 20);
 const PORT = Number(process.env.PERF_PORT ?? 4179);
-const SCENARIOS = ['fog', 'bloodMoon', 'usurper'];
+const SCENARIOS = ['fog', 'bloodMoon', 'usurper', 'fortress'];
 const ARENAS = ['courtyard', 'graveyard', 'keep', 'bastion'];
 const FRAMES = 300;
 
@@ -35,14 +37,7 @@ const stop = () => killTree(preview);
 process.on('exit', stop);
 process.on('SIGINT', () => { stop(); process.exit(130); });
 process.on('SIGTERM', () => { stop(); process.exit(143); });
-for (let i = 0; i < 60; i++) {
-  try {
-    await fetch(`http://localhost:${PORT}/`);
-    break;
-  } catch {
-    await new Promise((r) => setTimeout(r, 250));
-  }
-}
+await waitForServer(`http://localhost:${PORT}/`, PORT);
 
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage({ viewport: { width: 1400, height: 800 }, deviceScaleFactor: 1 });
@@ -100,8 +95,12 @@ for (const modifier of SCENARIOS) {
   await page.evaluate((modifier) => {
     const lb = window.__lb;
     localStorage.clear();
-    lb.start('viking');
+    const fortress = modifier === 'fortress';
+    lb.save.cards?.push(...(lb.cardIds ?? [])); // v0.8 (#124): every flash card seen, or one would pause the fight mid-measurement
+    if (fortress) lb.start('viking', { tier: 1, level: { realm: 'ironHold', level: 3 } }); // #220: the Great Keep as the Iron Hold plays it
+    else lb.start('viking');
     const g = lb.game;
+    if (fortress) g.player.relics.offers.length = 0; // no opening pick: its screen would wait for a choice
     g.player.invulnerable = true;
     g.player.stats.hp = 1e6;
     g.player.hp = 1e6;
@@ -113,7 +112,6 @@ for (const modifier of SCENARIOS) {
     g.player.upgrades.push('dreadHowl', 'whirlwind', 'frenzy');
     g.baseMods.xp = 0; // no level-ups: a choice screen would pause the sim mid-measurement
     g.player.relics.pool = []; // no relic offers either
-    lb.save.cards?.push(...(lb.cardIds ?? [])); // v0.8 (#124): every flash card seen, or one would pause it too
     const final = modifier === 'usurper';
     if (final) lb.skipTo(4, 40);
     else {
@@ -130,8 +128,9 @@ for (const modifier of SCENARIOS) {
       g.vars['usurper.phase'] = 3;
       u.maxHp = u.hp = 1e9; // and he must not fall while it is measured
     }
-    if (!final) g.modifier = modifier;
-    const kinds = ['peasant', 'wolf', 'crossbow', 'knight', 'shieldBearer', 'cultist'];
+    if (!final && !fortress) g.modifier = modifier;
+    // the fortress: half the horde is the realm's own (a knight, a shieldwall and a shield bearer march as its variants there)
+    const kinds = fortress ? ['knight', 'shieldwall', 'shieldBearer', 'peasant', 'crossbow', 'knight'] : ['peasant', 'wolf', 'crossbow', 'knight', 'shieldBearer', 'cultist'];
     const topUp = () => {
       while (g.enemies.length + g.spawnQueue.length < (final ? 150 : 250)) g.spawnQueue.push({ id: kinds[(g.enemies.length + g.spawnQueue.length) % 6], affixes: g.enemies.length % 9 === 0 ? ['shielded'] : [], squad: -1, commander: false });
       g.spawnTimer = 0;
@@ -139,7 +138,9 @@ for (const modifier of SCENARIOS) {
     };
     topUp();
     lb.run(180, true, true); // the fight is on: particles, numbers, procs, and the sprite caches are warm
-    window.__topUp = setInterval(() => lb.state === 'playing' && (final || (g.modifier = modifier), topUp()), 500);
+    window.__slabs = 0; // the fortress: the most slabs a forge press marked at once while it was measured
+    // the fortress: a press is never more than a second off (its own clock runs 8 s, longer than the measurement), so its slabs and rams are always in the frames
+    window.__topUp = setInterval(() => lb.state === 'playing' && (final || fortress || (g.modifier = modifier), fortress && g.pressT > 1 && (g.pressT = 1), (window.__slabs = Math.max(window.__slabs, g.zones.filter((z) => z.slab).length)), topUp()), 500);
     lb.setPerf(true); // section timers and draw counts, like the overlay
     lb.resetPerf();
   }, modifier);
@@ -151,7 +152,8 @@ for (const modifier of SCENARIOS) {
     const music = lb.music();
     const g = lb.game;
     const sections = Object.entries(lb.perf.sections).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', ');
-    const out = { ...s, state: lb.state, lastUpdate: lb.perf.updateMs, lastRender: lb.perf.renderMs, enemies: g.enemies.length, draws: lb.perf.counts.draws, particles: g.particles.length, texts: g.texts.length, detail: lb.quality.detail, sections, music };
+    const own = ['ironKnight', 'ironShieldwall', 'thornBearer'];
+    const out = { ...s, arena: g.arena.id, realm: g.level?.realm ?? null, hazard: !!g.pressT || window.__slabs > 0, slabs: window.__slabs, realmFoes: g.enemies.filter((e) => own.includes(e.def.id)).length, state: lb.state, lastUpdate: lb.perf.updateMs, lastRender: lb.perf.renderMs, enemies: g.enemies.length, draws: lb.perf.counts.draws, particles: g.particles.length, texts: g.texts.length, detail: lb.quality.detail, sections, music };
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
     document.querySelector('[data-quit]')?.click();
     document.querySelector('[data-menu]')?.click();
@@ -175,13 +177,16 @@ for (const m of music) {
   failed ||= !ok;
   console.log(`${ok ? 'PASS' : 'FAIL'}  frame dip  6 s at 2 fps · ${dip.playing ?? 'silent'} · ${dip.queued} notes queued · ${dip.late} bars late`);
 }
-console.log(`\nperf test · wave 20 · 250 enemies (the Usurper: wave 40, 150) · ${FRAMES} live frames · budget p95 <= ${BUDGET} ms\n`);
+console.log(`\nperf test · wave 20 · 250 enemies (the Usurper: wave 40, 150; the fortress: an Iron Hold level in the Great Keep) · ${FRAMES} live frames · budget p95 <= ${BUDGET} ms\n`);
 for (const r of results) {
-  const ok = r.p95 <= BUDGET;
+  // #220: the fortress scene must be the fortress: the Iron Hold in the Great Keep, its own foes in the horde and a press seen marking slabs
+  const scene = r.modifier !== 'fortress' || (r.arena === 'keep' && r.realm === 'ironHold' && r.realmFoes >= 50 && r.slabs >= 3 && r.state === 'playing');
+  const ok = r.p95 <= BUDGET && scene;
   failed ||= !ok;
   const f = (n) => n.toFixed(1).padStart(6);
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${r.modifier.padEnd(10)} frame avg ${f(r.avg)}  p95 ${f(r.p95)}  max ${f(r.max)}  | update ${r.update.toFixed(2)} (last ${r.lastUpdate.toFixed(2)})  render ${r.render.toFixed(2)} (last ${r.lastRender.toFixed(2)})  | enemies ${r.enemies}  draws ${r.draws}  particles ${r.particles}  texts ${r.texts}  detail ${r.detail.toFixed(2)}`);
   console.log(`      heaviest sections (last frame): ${r.sections}  · state ${r.state}  · music ${r.music.playing ?? 'silent'} layer ${r.music.layer}, ${r.music.voices} voices`);
+  if (r.modifier === 'fortress') console.log(`      ${scene ? 'the fortress' : 'NOT the fortress'}: ${r.realm ?? 'no realm'} in the ${r.arena} · ${r.realmFoes} Iron Hold foes of ${r.enemies} · forge presses marked up to ${r.slabs} slabs at once`);
 }
 for (const e of errors) console.log(`FAIL  console error: ${e}`);
 console.log('');

@@ -36,7 +36,7 @@ export interface TutorialView {
   held: number; // relics held
   setLevel: number; // the highest set level lit (0, 2, 4 or 6)
   utility: boolean; // the utility ability is unlocked
-  levelUp: boolean; // a level-up is waiting
+  levelUp: boolean; // #238: the level has collected XP (no level-up waits inside a level: the card says where the XP goes)
   status: boolean; // a status effect is on a foe near the champion, or on the champion
 }
 
@@ -44,13 +44,13 @@ export interface TutorialView {
 export const inTutorial = (v: Pick<TutorialView, 'realm' | 'level'>): boolean => v.realm === TUTORIAL.realm && (v.level ?? 0) >= 1 && (v.level ?? 0) <= TUTORIAL.levels;
 
 /**
- * #60: the first tutorial card not yet seen whose moment has come, or null. `choice`: a choice screen is about to open, when only the
- * level-up card may show (it comes before its screen); the others wait for play. Pure and read-only, like nextCard.
+ * #60: the first tutorial card not yet seen whose moment has come, or null. `choice`: a choice screen is about to open: every card
+ * waits for play (#238: no level-up screen for a card to come before). Pure and read-only, like nextCard.
  */
 export function tutorialCard(v: TutorialView, seen: readonly string[], choice = false): TutorialCard | null {
   if (!inTutorial(v)) return null;
   const due: [TutorialCard, boolean][] = choice
-    ? [['levelUp', v.levelUp]]
+    ? []
     : [
         ['move', true],
         ['relics', v.held > 0 && v.tick >= TUTORIAL.relicsAfter],

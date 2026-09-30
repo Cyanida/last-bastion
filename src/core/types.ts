@@ -29,6 +29,7 @@ import type { StatusApply, StatusMap } from '../logic/status';
 import type { Sprite } from '../render/sprites';
 import type { SpatialHash } from './spatial';
 import type { RealmId } from '../config/world';
+import type { StatPoints } from '../config/champion';
 
 export type StatKey = 'hp' | 'str' | 'dex' | 'int' | 'atkSpd' | 'moveSpd' | 'secondary';
 export type Stats = Record<StatKey, number>;
@@ -151,7 +152,8 @@ export interface Player extends Body {
   stats: Stats;
   hp: number;
   level: number;
-  xp: number;
+  levelWorth: number; // #238: run levels one of its levels stands for: 1 in a plain run, CHAMPION.runLevels for a champion (logic/formulas runLevel)
+  xp: number; // toward the next level; #238: in a realm level, the XP collected so far, banked as champion XP on its clear
   facing: number;
   flip: boolean;
   attackTimer: number;
@@ -236,6 +238,7 @@ export interface Enemy extends Body {
   pulled: boolean; // v0.6: one of a wave's last stragglers, coming straight at the player (WAVES.stragglers)
   frozenT: number; // v0.7: frozen until this time (chill tipped over; Frost reads it)
   rimeT?: number; // v0.8 (#27): Rimewalker can't freeze it again before this time
+  thornsAt?: number; // #214: when its thorns last bit back (g.time)
   resolve: number; // v0.7.5 (#95): a boss's recent damage taken, as of resolveT (logic/status throughResolve)
   resolveT: number;
   hpFloor: number; // v0.6: damage cannot take HP below this (a boss phase that has not run its minimum time yet); 0 = none
@@ -308,6 +311,7 @@ export interface Minion extends Body {
   pathI?: number;
   relicBy?: RelicKey | FamilyId; // raised by this relic or set (relicCore.raiseSkeleton)
   frostLegion?: boolean; // Lich Lantern's Frost Legion has given it its burst
+  ironLegion?: boolean; // #218: Legion Plate's Iron Legion has given it its plate
 }
 
 export interface Projectile extends Body {
@@ -346,7 +350,8 @@ export interface Zone extends Body {
   leaveField: { life: number; dps: number; color: string; dtype?: DamageType; apply?: StatusApply } | null; // what stays behind after detonation
   dtype: DamageType;
   source: DamageSource; // a friendly zone's damage: 'ability', or 'hazard' for the arena's own (braziers, the gatehouse)
-  art?: 'hands' | 'fire'; // #159: an arena hazard's telegraph shows its rigged prop rising in the circle
+  art?: 'hands' | 'fire' | 'press'; // #159: an arena hazard's telegraph shows its rigged prop rising in the circle (#211: a press's ram lowering)
+  slab?: number; // #211: a square zone, a marked flagstone slab this many px wide (logic/presses.ts onSlab); r is half of it
 }
 
 /** Lasting area: fire, poison, consecrated ground. Ticks every GAME.fieldTick seconds. */
@@ -542,6 +547,8 @@ export interface Game {
   flawlessBosses: number;
   wave10Time: number; // 0 = not reached
   hazardT: number;
+  pressT: number; // #211: seconds to the next forge press slam (the Iron Hold)
+  presses: number; // #211: slams so far this run (every other one is a cross, late on)
   // --- v0.3 ---
   seed: number; // run seed: the director derives every wave from it
   squads: Squad[];
@@ -595,6 +602,6 @@ export interface Game {
   glows: Glow[]; // v0.6: lights the evolutions set every tick (wisps, souls, rings); cleared at the start of each tick
   // --- v0.10 levels (#191, systems/levels.ts) ---
   startWave: number; // the first wave this run plays: 1, or a level's first wave (its head start)
-  level: { realm: RealmId; level: number; last: number; cleared: boolean } | null; // the realm level this run is (null: a plain run); cleared once its last wave is
+  level: { realm: RealmId; level: number; last: number; cleared: boolean; champion: { level: number; points: StatPoints; xp: number; next: number } } | null; // #238 `champion`: the champion's level and stat points as the run holds them, and its XP bar entering the level; // the realm level this run is (null: a plain run); cleared once its last wave is
   over: boolean;
 }

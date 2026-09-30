@@ -3,20 +3,22 @@
 import { CLASSES, CLASS_ORDER, type ClassId } from '../config/classes';
 import { META, TIERS } from '../config/economy';
 import { isCursedRelic, RELIC_IDS, relicDef, SIGNATURE, type FamilyId, type RelicId } from '../config/relics';
-import { TALENT_BY_ID } from '../config/talents';
-import { REALM_IDS, REALMS, WORLD, type RealmId } from '../config/world';
+import { REALM_IDS, REALMS, WORLD, type CrownReward, type LevelReward, type RealmId } from '../config/world';
 import { masteryBonus, type MetaRanks } from './economy';
+import { championPool, lockedIn } from './relics';
 import type { RunLog } from './runlog';
-import { isCrowned, nextLevel, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
+import { newRealmRun, readRealmRun, type RealmRun } from './realmRun';
+import { newGrowth, readGrowth, type ChampionGrowth } from './championLevels';
+import { isCrowned, keepLockedOptions, realmOpen, roadTier, slotsFor, type WorldProgress } from './world';
 
-export interface Champion {
+export interface Champion extends ChampionGrowth { // #238: its XP, level and spent points (logic/championLevels.ts)
   name: string;
   inventory: RelicId[]; // the relics it owns, to fill a level's starting slots from
   loadouts: Partial<Record<RealmId, RelicId[]>>; // the slots last filled per realm; a level with fewer slots takes the first ones
-  talentPlan: string[]; // talent ids in the order the head start spends points on them
   world: WorldProgress; // levels cleared and crowns, per realm and tier (logic/world.ts)
   signature: boolean; // its signature relic is won (the Marches crown); the relic itself is the class's own
   lastBastion: boolean; // the Last Bastion is open whatever its crowns: a class that won a v6 run
+  runs: Partial<Record<RealmId, RealmRun>>; // v0.11 (#237, save v8): its unfinished realm runs, one per realm, at their checkpoints
 }
 
 export const MAX_NAME = 24;
@@ -25,7 +27,7 @@ export const championName = (v: unknown, classId: ClassId): string =>
   (typeof v === 'string' ? v.replace(/[^\p{L}\p{N} '’.-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME) : '') || CLASSES[classId].name;
 
 export const newChampion = (classId: ClassId, name?: string): Champion => ({
-  name: championName(name, classId), inventory: [], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false,
+  name: championName(name, classId), inventory: [], loadouts: {}, world: {}, signature: false, lastBastion: false, runs: {}, ...newGrowth(),
 });
 
 /** A relic a champion can own: not cursed, and not another class's class relic. */
@@ -47,7 +49,6 @@ export function readChampion(raw: unknown, classId: ClassId): Champion {
       const slots = fitLoadout(classId, relics(raw.loadouts[r], (id) => c.inventory.includes(id)), WORLD.maxSlots, r === 'lastBastion');
       if (slots.length) c.loadouts[r] = slots;
     }
-  if (Array.isArray(raw.talentPlan)) c.talentPlan = [...new Set(raw.talentPlan)].filter((t): t is string => typeof t === 'string' && TALENT_BY_ID[t]?.classId === classId);
   if (isObj(raw.world))
     for (const r of REALM_IDS) {
       const tiers = raw.world[r];
@@ -59,7 +60,13 @@ export function readChampion(raw: unknown, classId: ClassId): Champion {
   c.signature = raw.signature === true;
   if (c.signature && !c.inventory.includes(SIGNATURE.relic[classId])) c.inventory.push(SIGNATURE.relic[classId]); // #201: won, so owned
   c.lastBastion = raw.lastBastion === true;
-  return c;
+  if (isObj(raw.runs))
+    for (const r of REALM_IDS) {
+      const run = readRealmRun(raw.runs[r], r);
+      if (run) c.runs[r] = run;
+    }
+  // #238: its XP, level and spent points; a v7 champion starts at the level its crowns and cleared levels would have given
+  return { ...c, ...readGrowth(raw, classId, c.world) };
 }
 
 /** Save v7's champions from a stored map (a v7 save). */
@@ -71,7 +78,8 @@ export function readChampions(raw: unknown): Partial<Record<ClassId, Champion>> 
 /**
  * v6 -> v7 (rule 8): every class the save has played becomes a champion. A v6 save counts relic picks for the whole account, not per
  * class, so each gets every relic it could have picked: all the account's picked family relics, less other classes' class relics.
- * No relic is lost. A class with a win gets the Last Bastion open; its last logged run's talents become its talent plan.
+ * No relic is lost. A class with a win gets the Last Bastion open; its last logged run's talents become its talents, as far as its
+ * points reach (#238: a run takes as many as the champion has points for).
  */
 export function championsFromV6(
   classes: Record<ClassId, { runs: number }>,
@@ -101,7 +109,7 @@ export const championRealmOpen = (c: Champion, realm: RealmId): boolean => (real
 
 /**
  * The Keep and mastery, repurposed for levels (rule 8): Armorer's Choice and the Keepsake mastery rank each add a starting slot;
- * Veteran Levies (and the Seasoned mastery rank) add levels on top of the head start.
+ * Veteran Levies (and the Seasoned mastery rank) add levels: in a realm level their growth, on top of the champion's (#238).
  */
 export function championBonus(meta: MetaRanks, classXp: number): { slots: number; levels: number } {
   const mastery = masteryBonus(classXp);
@@ -120,7 +128,7 @@ export const championSlots = (meta: MetaRanks, classXp: number, realm: RealmId, 
 export const slotCost = (id: RelicId): number => (relicDef(id).rarity === 'legendary' ? WORLD.loadout.legendarySlots : 1);
 
 /** Why a relic can't be slotted: the champion screen names it. */
-export type SlotBlock = 'cursed' | 'otherClass' | 'slotted' | 'slots' | 'family' | 'legendary' | 'classRelics';
+export type SlotBlock = 'cursed' | 'otherClass' | 'slotted' | 'slots' | 'double' | 'family' | 'legendary' | 'classRelics';
 
 /**
  * Why `id` can't join `loadout` in `slots` slots, or null when it fits (rule 4): no cursed relic, no other class's relic, at most 4 of one
@@ -134,7 +142,8 @@ export function slotBlock(classId: ClassId, loadout: RelicId[], id: RelicId, slo
   if (isCursedRelic(id)) return 'cursed';
   if (!ownable(classId, id)) return 'otherClass';
   if (loadout.includes(id)) return 'slotted';
-  if (loadout.reduce((n, r) => n + slotCost(r), slotCost(id)) > slots) return 'slots';
+  const used = loadout.reduce((n, r) => n + slotCost(r), 0);
+  if (used + slotCost(id) > slots) return used < slots ? 'double' : 'slots'; // #239: 'double', a legendary with one slot free: it takes two
   if (def.family && count((d) => d.family === def.family) >= rule.perFamily) return 'family';
   if (def.rarity === 'legendary' && count((d) => d.rarity === 'legendary') >= (finale ? rule.legendariesFinale : rule.legendaries)) return 'legendary';
   if (def.classId && !def.signature && count((d) => !!d.classId && !d.signature) >= rule.classRelics) return 'classRelics';
@@ -147,15 +156,33 @@ export const fitLoadout = (classId: ClassId, ids: RelicId[], slots: number, fina
 
 // ---------- #197: the champion screen ----------
 
+/** #237: the realm run standing at `level` of `realm` on `tier` (its checkpoint), if the champion has one. */
+export const runAt = (c: Champion, realm: RealmId, level: number, tier: number): RealmRun | undefined => {
+  const run = c.runs[realm];
+  return run && run.level === level && run.tier === tier ? run : undefined;
+};
+
+/** #237: the level a realm is played at on `tier`: its run's checkpoint, else level 1 (a realm run always starts at wave 1: no head start). */
+export const runLevel = (c: Champion, realm: RealmId, tier: number): number => (c.runs[realm]?.tier === tier ? c.runs[realm]!.level : 1);
+
+/** #237: can `level` be played now? Only where the realm's run stands, or level 1 (which starts the run, or starts it over). */
+export const runStarts = (c: Champion, realm: RealmId, level: number, tier: number): boolean => level === 1 || !!runAt(c, realm, level, tier);
+
+/**
+ * #237: the run a fight at `level` plays: the one standing there, as it is (its seed and carry: a Continue, or a restart after a death),
+ * else a new run from level 1 on `seed` (it replaces the realm's run in progress; #242 asks first).
+ */
+export const runFor = (c: Champion, realm: RealmId, level: number, tier: number, seed: number): RealmRun => runAt(c, realm, level, tier) ?? newRealmRun(tier, seed);
+
 /**
  * The level the champion screen's PLAY starts: the first realm (REALM_IDS order) open to the champion and not crowned on the tier it
- * would play, at its first level not cleared. Decided: with every open realm crowned, the last open one's last level (a replay).
+ * would play, at its realm run's checkpoint, or level 1 with no run in progress (#237). Decided: with every open realm crowned, the last open one (a replay).
  */
 export function nextStop(c: Champion, tier: number): { realm: RealmId; level: number; tier: number } {
   const open = REALM_IDS.filter((r) => championRealmOpen(c, r));
   const realm = open.find((r) => !isCrowned(c.world, r, roadTier(c.world, r, tier))) ?? open[open.length - 1];
   const t = roadTier(c.world, realm, tier);
-  return { realm, level: nextLevel(c.world, realm, t), tier: t };
+  return { realm, level: runLevel(c, realm, t), tier: t };
 }
 
 /**
@@ -182,3 +209,44 @@ export const rarePickOptions = (c: Champion, family: FamilyId, of: number): Reli
 
 /** A reward relic joins the champion's inventory (relics found in a run never do). */
 export const grantRelic = (c: Champion, id: RelicId): Champion => (c.inventory.includes(id) ? c : { ...c, inventory: [...c.inventory, id] });
+
+// ---------- #219: a relic realm's rewards ----------
+
+/**
+ * A relic realm level's 'keepLocked' pick: the champion's locked relics of the families held when the level ended (logic/world
+ * keepLockedOptions), WORLD.keepLockedOf at most, the ones it held first (the pick keeps one of them). Decided: rares only, since the
+ * crown gives the legendaries and level 3 the class relic. Empty: the level pays WORLD.keepLockedRunes Runes instead.
+ */
+export function keepLockedPick(c: Champion, classId: ClassId, family: FamilyId | undefined, held: RelicId[], of = WORLD.keepLockedOf): RelicId[] {
+  const locked = lockedIn(championPool(classId, c.inventory, family), c.inventory).filter((id) => { const d = relicDef(id); return d.rarity === 'rare' && !d.classId && !d.signature; });
+  const opts = keepLockedOptions(held, locked);
+  return [...opts.filter((id) => held.includes(id)), ...opts.filter((id) => !held.includes(id))].slice(0, of);
+}
+
+/** The champion's class relic of a family (every class has one per family), or null. */
+export const classRelicOf = (classId: ClassId, family: FamilyId | undefined): RelicId | null =>
+  RELIC_IDS.find((id) => relicDef(id).family === family && relicDef(id).classId === classId) ?? null;
+
+/** A family's legendaries (two per realm family): the Knight crown's pick is those the champion doesn't own yet. */
+export const legendaryPickOptions = (c: Champion, family: FamilyId | undefined): RelicId[] =>
+  RELIC_IDS.filter((id) => relicDef(id).family === family && relicDef(id).rarity === 'legendary' && !relicDef(id).classId && !c.inventory.includes(id));
+
+/**
+ * The relics a clear's rewards give with no choice, as `c` stood before it: the signature relic (the Marches crown), the class relic of
+ * the realm's family (level 3), and the Champion crown's "other" legendary (the first one it doesn't own: the Knight crown's pick took the
+ * other). One already owned (a v6 save brought it) gives nothing.
+ */
+export function rewardRelics(c: Champion, classId: ClassId, family: FamilyId | undefined, rewards: (LevelReward | CrownReward)[]): RelicId[] {
+  const out: RelicId[] = [];
+  for (const r of rewards) {
+    const id = r.kind === 'signature' ? (c.signature ? null : SIGNATURE.relic[classId]) : r.kind === 'classRelic' ? classRelicOf(classId, family) : r.kind === 'legendaryOther' ? legendaryPickOptions(c, family)[0] ?? null : null;
+    if (id && !c.inventory.includes(id) && !out.includes(id)) out.push(id);
+  }
+  return out;
+}
+
+/** Bank a clear's rewards with no choice (rewardRelics); the picks (a rare, a locked relic, a legendary) come on their screens. */
+export function grantRewards(c: Champion, classId: ClassId, family: FamilyId | undefined, rewards: (LevelReward | CrownReward)[]): Champion {
+  const got = rewardRelics(c, classId, family, rewards).reduce((ch, id) => grantRelic(ch, id), c);
+  return rewards.some((r) => r.kind === 'signature') ? { ...got, signature: true } : got; // #201: the signature relic is won
+}

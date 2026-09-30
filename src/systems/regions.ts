@@ -8,9 +8,10 @@ import { addZone } from '../entities/hazards';
 import { isActEnd } from '../logic/acts';
 import { rollAffixes } from '../logic/elites';
 import { combineMods } from '../logic/mods';
-import { boundsOf, openRects, regionAt, rollWings } from '../logic/regions';
+import { boundsOf, featureLabel, fixedFeatures, openRects, regionAt, rollWings } from '../logic/regions';
 import { waveRng } from '../logic/director';
 import { unlockedPool } from '../logic/waves';
+import { levelFields } from '../logic/world';
 import { floatText, ring, shake } from './effects';
 import { offerRelics } from './relics';
 import { spawnEnemy } from './spawning';
@@ -30,7 +31,7 @@ function refresh(g: Game): void {
 
 /** A new Act (and a new run): only the core is open; the wings get this Act's features and opening order. */
 export function initRegions(g: Game): void {
-  const { features, order } = rollWings(g.seed, g.act);
+  const { features, order } = rollWings(g.seed, g.act, fixedFeatures(g.arena.wings)); // #210: a fortress's rooms keep their features
   g.regionOpen = { core: true };
   g.regionSeen = ['core'];
   g.wingOrder = order;
@@ -46,7 +47,7 @@ export function openRegion(g: Game, id: RegionId): void {
   refresh(g);
   const region = regionsOf(g).find((r) => r.id === id);
   const feature = g.features.find((f) => f.wing === id);
-  if (!(g.banner.top && g.banner.t > 0)) g.banner = { text: `The gate to ${region?.name ?? id} opens${feature ? ` — ${FEATURES[feature.kind].name}` : ''}`, t: 3 };
+  if (!(g.banner.top && g.banner.t > 0)) g.banner = { text: `The gate to ${region?.name ?? id} opens${feature ? ` — ${featureLabel(feature.kind, feature.wing, g.arena.wings)}` : ''}`, t: 3 };
   sfx(g, 'wave');
   shake(g, 6);
 }
@@ -60,7 +61,7 @@ export function openNextWing(g: Game): WingId | null {
 
 /** The strongest regular enemy unlocked by now, as the lair's sleeper (and the quests' named elite). */
 export function lairKind(g: Game): EnemyId {
-  const pool = unlockedPool(Math.max(1, g.wave), null, g.tierIndex).map((p) => p.value).filter((id) => !ENEMIES[id].boss && !ENEMIES[id].structure);
+  const pool = unlockedPool(Math.max(1, g.wave), null, g.tierIndex, levelFields(g.level)).map((p) => p.value).filter((id) => !ENEMIES[id].boss && !ENEMIES[id].structure);
   return pool.reduce((a, b) => (ENEMIES[b].hp > ENEMIES[a].hp ? b : a), pool[0] ?? 'knight');
 }
 
@@ -89,7 +90,7 @@ export function updateRegions(g: Game, dt: number): void {
   if (here && !g.regionSeen.includes(here.id)) {
     g.regionSeen = [...g.regionSeen, here.id];
     const f = g.features.find((x) => x.wing === here.id);
-    if (f) floatText(g, p.x, p.y - 60, `${FEATURES[f.kind].icon} ${FEATURES[f.kind].name}`, '#e9c95a', 16);
+    if (f) floatText(g, p.x, p.y - 60, `${FEATURES[f.kind].icon} ${featureLabel(f.kind, f.wing, g.arena.wings)}`, '#e9c95a', 16);
   }
   for (const f of g.features) {
     if (!g.regionOpen[f.wing]) continue;

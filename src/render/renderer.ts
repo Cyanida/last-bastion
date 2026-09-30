@@ -3,7 +3,7 @@ import { AFFIXES, ELITES } from '../config/elites';
 import { GAME, RENDER } from '../config/game';
 import { MODIFIERS } from '../config/waves';
 import { clamp, TAU } from '../core/math';
-import { STATUSES } from '../config/damage';
+import { PLATES, STATUSES } from '../config/damage';
 import { begin, end } from '../core/perf';
 import { drawRings, drawShadows, quality } from '../core/quality';
 import { STATUS_IDS, statusCount } from '../logic/status';
@@ -19,6 +19,7 @@ import { digitGlyphs, fogSprite, getSprite, SHEETS, sheetSprite, glyphIndex, isN
 import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
 import { typeMultiplier } from '../logic/status';
+import { thornsOf, towerShieldOf } from '../logic/ironKing';
 import { uiScale } from '../ui/tooltip';
 
 export interface View {
@@ -284,6 +285,37 @@ function drawClosedRegions(ctx: Ctx, g: Game, cx: number, cy: number, vw: number
   }
 }
 /** #159: a lit iron bar of the portcullis, in the rig's dark steel ramp: outline, body, a highlight on the top and left edges. */
+/**
+ * #211: a forge press's marked slab and its ram. The slab glows hotter as the slam nears (its inner square grows to the edge), its
+ * corners bracketed; the ram's shadow darkens on it while the ram comes down from above, slow and then fast, and lands at k = 1.
+ */
+function pressSlab(ctx: Ctx, x: number, y: number, size: number, k: number, time: number): void {
+  const h = size / 2 - 3;
+  ctx.fillStyle = '#a3282a';
+  ctx.globalAlpha = 0.16 + 0.06 * Math.sin(time * 18);
+  ctx.fillRect(x - h, y - h, h * 2, h * 2);
+  ctx.globalAlpha = 0.32;
+  ctx.fillRect(x - h * k, y - h * k, h * 2 * k, h * 2 * k);
+  ctx.globalAlpha = 0.15 + 0.45 * k; // the ram's shadow
+  ctx.fillStyle = '#0f1118';
+  ctx.fillRect(x - h * (0.5 + 0.4 * k), y - h * (0.35 + 0.3 * k), h * (1 + 0.8 * k), h * (0.7 + 0.6 * k));
+  ctx.globalAlpha = 0.95;
+  ctx.fillStyle = '#e0683f';
+  const c = 14, t = 3; // corner brackets
+  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const cx = x + sx * h, cy = y + sy * h;
+    ctx.fillRect(sx < 0 ? cx : cx - c, sy < 0 ? cy : cy - t, c, t);
+    ctx.fillRect(sx < 0 ? cx : cx - t, sy < 0 ? cy : cy - c, t, c);
+  }
+  ctx.globalAlpha = Math.min(1, k * 4);
+  const lift = 150 * (1 - k * k); // slow, then fast
+  if (!drawProp(ctx, 'press', x, y + 18 - lift, 1)) {
+    ctx.fillStyle = '#252a33';
+    ctx.fillRect(x - 32, y - 20 - lift, 64, 38);
+  }
+  ctx.globalAlpha = 1;
+}
+
 function ironBar(ctx: Ctx, x: number, y: number, w: number, h: number): void {
   ctx.fillStyle = '#0f1118';
   ctx.fillRect(x, y, w, h);
@@ -555,7 +587,9 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   for (const zn of g.zones) {
     if (!visible(zn.x, zn.y, zn.r + 320)) continue;
     const k = clamp(zn.t / zn.delay, 0, 1);
-    if (zn.arrow) {
+    if (zn.slab) {
+      if (zn.hostile) pressSlab(ctx, zn.x, zn.y, zn.slab, k, g.time);
+    } else if (zn.arrow) {
       ctx.strokeStyle = 'rgba(232,226,208,0.25)';
       ctx.lineWidth = 1;
       disc(ctx, zn.x, zn.y, zn.r * 0.5);
@@ -713,6 +747,26 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.arc(e.x, e.y - 6, e.r + 6, e.angle - 1, e.angle + 1);
       ctx.stroke();
     }
+    if (towerShieldOf(e.def.id, e.phase)) {
+      // #213: the iron tower shield is always up: an iron rim over the front it covers, which swings round slowly as he turns
+      ctx.strokeStyle = '#96a1b2';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(e.x, e.y - 6, e.r + 6, e.angle - e.def.frontBlock!, e.angle + e.def.frontBlock!);
+      ctx.stroke();
+    }
+    if (e.def.boss && thornsOf(e.def.id, e.phase)) {
+      // #216: the Iron King's thorns: iron spikes all round him, slowly turning (a thorn bearer's are on his sprite)
+      ctx.strokeStyle = '#c7ced6';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2 + g.time * 0.4;
+        ctx.moveTo(e.x + Math.cos(a) * (e.r + 3), e.y - 6 + Math.sin(a) * (e.r + 3));
+        ctx.lineTo(e.x + Math.cos(a) * (e.r + 13), e.y - 6 + Math.sin(a) * (e.r + 13));
+      }
+      ctx.stroke();
+    }
     if (e.shield > 0) {
       ctx.globalAlpha = 0.25 + 0.5 * (e.shield / e.shieldMax);
       ctx.strokeStyle = AFFIXES.shielded.color;
@@ -766,6 +820,11 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.fillRect(e.x - w / 2, e.y - e.r - 30, w, 3);
       ctx.fillStyle = '#9a9aa0';
       ctx.fillRect(e.x - w / 2, e.y - e.r - 30, (w * e.armorHp) / e.armorMax, 3);
+      if (PLATES[e.def.id]) {
+        // #212: iron plates count hits, so the bar is cut into one notch per plate
+        ctx.fillStyle = '#1a1614';
+        for (let i = 1; i < e.armorMax; i++) ctx.fillRect(Math.round(e.x - w / 2 + (w * i) / e.armorMax), e.y - e.r - 30, 1, 3);
+      }
     }
     // v0.6: how the player's attack fares against it, without hovering: up = weak to it, down = resists it, a cross = next to immune
     const mult = typeMultiplier(e.def.id, attackType);

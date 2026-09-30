@@ -13,7 +13,7 @@
  * Not covered: a gamepad beyond the press that answers a screen, and how it feels.
  */
 import { chromium } from 'playwright';
-import { spawnTree, killTree } from './lib/process-tree.mjs';
+import { spawnTree, killTree, waitForServer } from './lib/process-tree.mjs';
 
 const PORT = Number(process.env.PLAY_PORT ?? 4180);
 
@@ -28,14 +28,7 @@ const stop = () => killTree(preview);
 process.on('exit', stop);
 process.on('SIGINT', () => { stop(); process.exit(130); });
 process.on('SIGTERM', () => { stop(); process.exit(143); });
-for (let i = 0; i < 60; i++) {
-  try {
-    await fetch(`http://localhost:${PORT}/`);
-    break;
-  } catch {
-    await new Promise((r) => setTimeout(r, 250));
-  }
-}
+await waitForServer(`http://localhost:${PORT}/`, PORT);
 
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
@@ -65,6 +58,7 @@ const results = [];
  * branch's code lacks what the check needs (a patch branch cut from an older release).
  */
 async function check(name, fn) {
+  if (process.env.PLAY_ONLY && !process.env.PLAY_ONLY.split('|').some((part) => name.includes(part))) return; // a filter for repeated runs: PLAY_ONLY='(#211)|(#212)' runs the checks whose names hold any of these parts
   try {
     const r = await fn();
     results.push({ name, ok: !!r.ok || !!r.skip, skip: !!r.skip, detail: r.detail ?? '' });
@@ -73,6 +67,42 @@ async function check(name, fn) {
   }
 }
 const inPage = (fn, arg) => page.evaluate(fn, arg);
+/**
+ * #237: a champion's realm run standing at `level` (its checkpoint), for a check that fights past level 1: the head start is gone, so a
+ * later level only goes on from its run. A bare carry: the class's own stats at champion level 1, no relics, no gold.
+ */
+const runAt = (level, tier = 0) => ({
+  level, tier, seed: 20237,
+  carry: { level: 1, points: {}, stats: {}, baseMods: {}, upgrades: [], talents: [], utilityUpgrades: [], evolutions: [], revives: 0, relics: { held: [], tiers: {}, attune: {}, from: {}, duos: [], cursedAct: 0 }, gold: 0, talentPoints: 0, rerolls: 0, banishes: 0, bannedStats: [], vars: {} },
+});
+/**
+ * #240: a champion screen's first opening in a browser brings up its tour. A check that is not about the tour leaves it the way a
+ * player would, with its Skip button, once: a tour that is not there fails the check here, and one that came up a second time would
+ * block the check's next press.
+ */
+const skipTour = async (p = page, touch = false) => {
+  const skip = p.locator('.kit-tour [data-tour-skip]');
+  await skip.waitFor({ timeout: 3000 });
+  await (touch ? skip.tap() : skip.click());
+};
+/**
+ * #241: after a level's opening relic pick the fight begins. An Act's quest board may still come first (Act I's, at a realm's level 1):
+ * its quests are the Act's, not the champion's build, and it is set out from as it stands. Returns the headings of the screens that came
+ * before the fight, for the check to see that none was a build screen.
+ */
+const intoFight = async (p, press) => {
+  const seen = [];
+  for (let i = 0; i < 4; i++) {
+    await p.waitForTimeout(200); // the run steps a tick before its next screen opens
+    await p.waitForFunction(() => window.__lb.state === 'playing' || !!document.querySelector('#overlay .kit-head'), null, { timeout: 5000 }).catch(() => {});
+    const head = await p.evaluate(() => (window.__lb.state === 'choice' ? document.querySelector('#overlay .kit-head')?.textContent.trim() ?? '?' : ''));
+    if (!head) break;
+    seen.push(head);
+    if (!(await p.locator('#overlay [data-leave]').count())) break; // not a board: the check fails on its heading
+    await press('#overlay [data-leave]');
+  }
+  return seen;
+};
 /**
  * #204: the Daily Trial is the one full 40-wave run left on the menus (the Classic run is gone). Opened as a save that already took a
  * trial keeps it (a check's own save has no Marches crown), then begun from the title through its own screen, as a player does.
@@ -791,11 +821,52 @@ await check('relic offer: the card shows the effect first, details on hover or t
     await P.wait(50); // let the screen settle: the real cursor's own pointerover would hide a tip shown before it
     card.dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); // a hover: focus() is not reliable in a CI page without window focus
     const tip = document.getElementById('tooltip'); // read at once: the tip is placed synchronously
-    const shown = tip?.style.display === 'block' && tip.innerText.includes('For this build') && tip.innerText.includes('Tier II');
+    const shown = tip?.style.display === 'block' && tip.innerText.includes('For this build') && tip.innerText.includes('compendium'); // #235: every tier is on its compendium page
     await P.click('[data-skip]'); // skipped, so the later checks still take Butcher's Hook fresh
     return { ok: big && first && lines.length === 1 && !lines[0].innerText.includes('\n') && shown && rel.offers.length === 0, detail: `effect "${effect.innerText}", line "${lines[0]?.innerText}" (${lines.length}), bigger ${big}, tip shown ${shown}${shown ? '' : ` (${tip?.style.display}: ${(tip?.innerText ?? '').slice(0, 60)})`}` };
   }),
 );
+
+// #235: a relic card shows its short line (at most 90 characters) and tier chips, never the long text; its ⓘ, clicked with the mouse,
+// opens the relic's compendium page with every tier over the pick without taking the card, and Esc closes it; no text on the card or the
+// page is under 14 px at 1280x720
+const minFont = (sel) => page.evaluate((sel) => {
+  let min = Infinity, at = '';
+  for (const root of document.querySelectorAll(sel)) {
+    for (const el of [root, ...root.querySelectorAll('*')]) {
+      const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+      if (!own || el.getBoundingClientRect().width === 0) continue;
+      const px = parseFloat(getComputedStyle(el).fontSize);
+      if (px < min) { min = px; at = `${el.tagName.toLowerCase()}.${el.className} "${el.textContent.trim().slice(0, 20)}"`; }
+    }
+  }
+  return { min, at };
+}, sel);
+await check('relic offer: a short line and tier chips, the ⓘ opens its compendium page, no text under 14 px (#235)', async () => {
+  const setup = await inPage(() => {
+    const P = window.__play, rel = window.__lb.game.player.relics;
+    rel.offers.push({ from: 'lair', options: ['heartOfTheHold', 'reprisalCuirass', 'thunderDrum', 'guardiansAegis'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 0, duo: null });
+    if (!P.toChoice()) return null;
+    return [...document.querySelectorAll('.relic-card')].map((c) => ({ p: c.querySelector('p').innerText, chips: c.querySelectorAll('.tier-chips i').length, info: !!c.querySelector('.relic-info'), long: c.innerText.includes('Awaken') || c.innerText.includes('Tier II'),
+      // the whole card on the 1280x720 screen, its short line inside it and not cut off
+      fits: (() => { const r = c.getBoundingClientRect(), l = c.querySelector('p'), lr = l.getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight && lr.left >= r.left && lr.right <= r.right && lr.bottom <= r.bottom && l.scrollWidth <= l.clientWidth && c.scrollHeight <= c.clientHeight + 1; })() }));
+  });
+  if (!setup) return { ok: false, detail: 'no relic offer' };
+  const cardFont = await minFont('.relic-card');
+  await page.locator('[data-pick="0"] .relic-info').click();
+  const opened = await inPage(() => {
+    const pg = document.querySelector('.relic-page');
+    return { page: !!pg, tiers: pg?.querySelectorAll('.tierline').length ?? 0, text: pg?.innerText.replace(/\s+/g, ' ').slice(0, 80) ?? '', state: window.__lb.state, offers: window.__lb.game.player.relics.offers.length };
+  });
+  const pageFont = await minFont('.relic-page');
+  await page.keyboard.press('Escape');
+  const closed = await inPage(() => ({ page: !!document.querySelector('.relic-page'), state: window.__lb.state, offers: window.__lb.game.player.relics.offers.length }));
+  await inPage(() => window.__play.click('[data-skip]'));
+  const short = setup.every((c) => c.p.length > 0 && c.p.length <= 90 && c.chips === 3 && c.info && !c.long && c.fits);
+  const ok = short && opened.page && opened.tiers >= 3 && opened.state === 'choice' && opened.offers === 1 && !closed.page && closed.state === 'choice' && closed.offers === 1
+    && cardFont.min >= 14 && pageFont.min >= 14;
+  return { ok, detail: `cards ${setup.map((c) => `"${c.p}" (${c.p.length}, ${c.chips} chips${c.info ? ', ⓘ' : ''}${c.long ? ', LONG' : ''}${c.fits ? '' : ', DOES NOT FIT'})`).join('; ')}; ⓘ page ${opened.page} (${opened.tiers} tier lines: "${opened.text}"), still picking ${opened.state}/${opened.offers}; Esc closed ${!closed.page}; smallest font card ${cardFont.min}px (${cardFont.at}), page ${pageFont.min}px` };
+});
 
 await check('relic offer: take a relic', () =>
   inPage(async () => {
@@ -1527,16 +1598,16 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = road.flags.length === 7 && road.flags.every((f) => f.inside) && road.flags.map((f) => f.open).join() === 'true,false,false,false,false,false,false' && road.flags[0].on
       && road.landBg.includes('world-map') && road.name === 'The Marches · Level 1' && road.tiers === 'Xo--' && road.golds === 1 && road.fight && road.onScreen
-      && /Head start\s*Level 1/.test(road.text) && /Slots\s*1/.test(road.text) && /Enemy HP\s*85%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
-      && knight.tiers === 'oX--' && /Enemy HP\s*123%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
-      && run?.realm === 'marches' && run.level === 1 && run.last === 5 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
-    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*123%/.test(knight.text) ? 'HP 123%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+      && !/Head start/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*40%/.test(road.text) && /Steel relics featured/.test(road.text) && /War Drummer/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
+      && knight.tiers === 'oX--' && /Enemy HP\s*59%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
+      && run?.realm === 'marches' && run.level === 1 && run.last === 6 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
+    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*59%/.test(knight.text) ? 'HP 59%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
 // ---------- #221: the level step: the panel's Enemy HP on Knight is what the level fights at, eased on level 1 of the Marches ----------
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
-  await check(`level step: the Marches level 1 on Knight shows Enemy HP 123% (Knight 145% eased) and FIGHT plays it at that HP, ${touch ? 'tap' : 'click'} at ${w}x${h} (#221)`, async () => {
+  await check(`level step: the Marches level 1 on Knight shows Enemy HP 59% (Knight 145% eased, #243, and for a level-1 champion, #238, as tuned in #220) and FIGHT plays it at that HP, ${touch ? 'tap' : 'click'} at ${w}x${h} (#221)`, async () => {
     const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
     const errs = [];
     p.on('pageerror', (e) => errs.push(e.message));
@@ -1553,8 +1624,218 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
     const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100) } : null; });
     await p.close();
-    const ok = shown === '123' && run?.level === 1 && run.tier === 1 && run.hp === 123 && errs.length === 0;
+    const ok = shown === '59' && run?.level === 1 && run.tier === 1 && run.hp === 59 && errs.length === 0;
     return { ok, detail: `panel Enemy HP ${shown ?? '?'}%; run: ${run ? `level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #220: the release's balance pass, as a player meets it: map -> the Iron Hold -> Knight; every flag's panel shows the Enemy HP
+// its level plays at (335, 251, 237, 240, 225%: a level-8 to level-10 champion's foes), level 4 names its Elite boss, and FIGHT on level 1
+// plays at the HP its panel showed ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`balance: the Iron Hold's road on Knight shows Enemy HP 335, 251, 237, 240 and 225% for levels 1-5, level 4 an Elite boss, and FIGHT plays level 1 at 335%, ${touch ? 'tap' : 'click'} at ${w}x${h} (#220)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate(() => {
+      const world = { marches: [7], ironHold: [0, 4] }; // the Marches crowned, the Iron Hold's first four levels cleared on Knight
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...window.__lb.build.grown(world), world, signature: true, lastBastion: false, runs: {} } };
+    });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-ironHold');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('.rr-tier[data-tier="1"]');
+    await p.waitForTimeout(100);
+    const shown = [];
+    for (let l = 1; l <= 5; l++) {
+      await press(`.rr-flag.l-${l}`);
+      await p.waitForTimeout(100);
+      const text = (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ');
+      shown.push({ hp: text.match(/Enemy HP\s*(\d+)%/)?.[1] ?? '?', boss: text.match(/(End boss|Elite boss|Crown boss)/)?.[1] ?? '?' });
+    }
+    await press('.rr-flag.l-1');
+    await p.waitForTimeout(100);
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100), champion: g.player.level } : null; });
+    await p.close();
+    const ok = shown.map((s) => s.hp).join() === '335,251,237,240,225' && shown.map((s) => s.boss).join() === 'End boss,End boss,End boss,Elite boss,Crown boss'
+      && run?.realm === 'ironHold' && run.level === 1 && run.tier === 1 && run.hp === 335 && run.champion === 10 && errs.length === 0; // four Iron Hold levels cleared: level 10, the cap with one crown
+    return { ok, detail: `panels Enemy HP ${shown.map((s) => `${s.hp}%`).join(', ')}; bosses ${shown.map((s) => s.boss).join(', ')}; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%, champion level ${run.champion}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #237: the head start is gone: a realm run starts at level 1, wave 1 ----------
+// A champion from before v0.11, four Marches levels cleared and no run in progress, four relics in its Marches loadout: the road opens on
+// level 1 with the run's three slots and no head start; level 5 (open) says the run starts at level 1 and its FIGHT is off; FIGHT on
+// level 1 starts wave 1 at champion level 1 with the loadout's first three relics, straight on the opening pick of 1 of 3 (no queued
+// build picks before it), and the save holds the run at level 1.
+await check('realm run: no head start: four levels cleared and no run -> the road opens on level 1 (3 slots), level 5 says "The run starts at level 1" with FIGHT off, level 1 starts at wave 1 with three slotted relics and the opening pick (#237)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const four = ['brimstoneOil', 'emberheart', 'cinderCharm', 'frostBrand'];
+    window.__lb.save.champions = { paladin: { name: 'Hild', inventory: four, loadouts: { marches: four }, ...window.__lb.build.grown({ marches: [4] }), world: { marches: [4] }, signature: false, lastBastion: false, runs: {} } };
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-marches');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  const look = () => p.evaluate(() => ({ name: document.querySelector('.rr-name').textContent, text: document.querySelector('.rr-panel').textContent.replace(/\s+/g, ' '), fight: !document.querySelector('[data-fight]').disabled, open: [...document.querySelectorAll('.rr-flag')].filter((f) => !f.disabled).length }));
+  const first = await look();
+  await p.click('.rr-flag.l-5');
+  await p.waitForTimeout(100);
+  const later = await look();
+  await p.click('[data-fight]', { force: true, timeout: 1000 }).catch(() => {}); // off: nothing starts
+  await p.waitForTimeout(100);
+  const stayed = await p.evaluate(() => window.__lb.state === 'menu' && !!document.querySelector('.rr-panel'));
+  await p.click('.rr-flag.l-1');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }).catch(() => {}); // the level's opening pick
+  const run = await p.evaluate(() => {
+    const g = window.__lb.game;
+    return g ? { level: g.level?.level, start: g.startWave, wave: g.wave, plevel: g.player.level, held: g.player.relics.held.join(), queued: g.pendingAbilityTiers.length + g.pendingUtilityTiers.length + g.pendingLevelUps, picks: document.querySelectorAll('[data-pick]').length, saved: window.__lb.save.champions.paladin.runs.marches?.level } : null;
+  });
+  await p.close();
+  const ok = first.name === 'The Marches · Level 1' && first.fight && first.open === 5 && !/Head start/.test(first.text) && /Slots\s*3/.test(first.text)
+    && later.name === 'The Marches · Level 5' && !later.fight && /The run starts at level 1/.test(later.text) && stayed
+    && run?.level === 1 && run.start === 1 && run.wave === 0 && run.plevel === 5 && run.held === 'brimstoneOil,emberheart,cinderCharm' && run.queued === 0 && run.picks === 3 && run.saved === 1 && errs.length === 0;
+  return { ok, detail: `road "${first.name}" (${first.open} open, FIGHT ${first.fight ? 'on' : 'off'}${/Head start/.test(first.text) ? ', HEAD START shown' : ''}); "${later.name}": FIGHT ${later.fight ? 'ON' : 'off'}${/The run starts at level 1/.test(later.text) ? ', "The run starts at level 1"' : ', NO NOTE'}, a click starts ${stayed ? 'nothing' : 'A RUN'}; run: ${run ? `level ${run.level}, wave ${run.start} (at ${run.wave}), champion level ${run.plevel}, holds ${run.held}, ${run.queued} queued picks, opening pick of ${run.picks}, saved at level ${run.saved}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #242: the realm road continues a realm run from its checkpoint, or starts it over ----------
+// A champion with two relics in its Marches loadout. Level 1 from the road (Fight!, no run marked), cleared with its opening pick and its
+// rare: back on the road level 1's flag is ticked, level 2's glows, the panel lists the run's relics and its gold button says "Continue
+// from level 2" beside Start over. Back to the map and in again: the same. Start over asks in the panel's row; Keep the run (Esc on the
+// keyboard) puts the buttons back and the run stays. Continue starts level 2 on the checkpoint's seed holding the same relics. A fall
+// there, and the road says "fell at wave N, restart level 2". Start over and its yes: level 1, wave 1, only the loadout's relics, a new seed.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`realm road: level 1 cleared -> its flag ticked, level 2's glows, the run's relics listed, back to the map and Continue from level 2 with the same relics; a fall says "fell at wave N, restart level 2"; Start over asks, Keep the run keeps it, yes starts level 1 with the loadout only, ${touch ? 'tap' : 'click and Esc'} at ${w}x${h} (#242)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap({ timeout: 8000 }) : p.locator(sel).first().click({ timeout: 8000 })).catch((e) => { throw new Error(`${sel}: ${String(e.message).split('\n')[0]}`); }); // a press that fails names its button
+    const bad = [];
+    const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+    const LOADOUT = ['brimstoneOil', 'emberheart'];
+    await p.evaluate((two) => {
+      const lb = window.__lb;
+      lb.save.champions = { paladin: { name: 'Hild', inventory: two, loadouts: { marches: two }, ...lb.build.grown({}), world: {}, signature: false, lastBastion: false, runs: {} } };
+      lb.save.cards = [...lb.cardIds]; // every flash card seen: nothing stops the fight
+    }, LOADOUT);
+    // the road as a player sees it: the flags' run marks, the panel's row (only what is shown and can be pressed), the run in the save
+    const look = () => p.evaluate(() => {
+      const shown = (sel) => {
+        const b = document.querySelector(sel);
+        if (!b || b.closest('[hidden]')) return null;
+        const r = b.getBoundingClientRect();
+        return { text: b.textContent.trim(), on: !b.disabled, seen: r.width > 0 && r.top >= -1 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1 && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest(sel) === b };
+      };
+      const next = document.querySelector('.rr-flag.run-next');
+      const run = window.__lb.save.champions.paladin?.runs?.marches;
+      return {
+        name: document.querySelector('.rr-name')?.textContent ?? '',
+        flags: [...document.querySelectorAll('.rr-flag')].map((f) => (f.classList.contains('run-done') && f.querySelector('.rr-tick') ? 'D' : f.classList.contains('run-next') ? 'N' : f.disabled ? '-' : 'o')).join(''),
+        glow: next ? getComputedStyle(next).animationName : '',
+        fight: shown('[data-fight]'), over: shown('[data-over]'), keep: shown('[data-keep]'), yes: shown('[data-yes]'),
+        ask: document.querySelector('.rr-ask:not([hidden]) .rr-asks')?.textContent ?? '',
+        relics: [...document.querySelectorAll('.rr-relic')].map((r) => r.dataset.relic).join(),
+        fell: document.querySelector('.rr-fell')?.textContent ?? '',
+        note: document.querySelector('.rr-from')?.textContent ?? '',
+        golds: document.querySelectorAll('.realm-road .kit-btn.gold').length,
+        state: window.__lb.state,
+        run: run ? { level: run.level, seed: run.seed, held: run.carry ? run.carry.relics.held.join() : null } : null,
+      };
+    });
+    const fight = () => p.evaluate(() => { const g = window.__lb.game; return g ? { level: g.level?.level, start: g.startWave, wave: g.wave, seed: g.seed, held: g.player.relics.held.join() } : null; });
+    const opening = () => p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
+    const toRoad = async () => {
+      await press('.wm-realm.r-marches');
+      await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    };
+    await press('[data-go="map"]');
+    await toRoad();
+    const road0 = await look();
+    want(road0.name === 'The Marches · Level 1' && road0.flags === 'o------' && road0.fight?.text === 'Fight!' && !road0.over && road0.relics === '' && !road0.run, `no run: ${JSON.stringify(road0)}`);
+    // level 1: its opening pick, cleared, its rare, and back to the road
+    await press('[data-fight]');
+    await opening();
+    await p.evaluate(() => { window.__lb.game.level.cleared = true; }); // as if wave 5's boss fell: the level ends once its spoils are taken
+    await press('[data-pick="0"]');
+    await p.locator('.rare-pick').waitFor({ timeout: 5000 });
+    await press('.rare-pick [data-pick="0"]');
+    await p.locator('[data-menu]').waitFor({ timeout: 3000 });
+    await press('[data-menu]');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    const road1 = await look();
+    const held = road1.run?.held ?? '';
+    want(road1.name === 'The Marches · Level 2' && road1.flags === 'DN-----' && road1.glow === 'rr-glow', `after level 1: "${road1.name}", flags ${road1.flags}, glow "${road1.glow}"`);
+    want(road1.run?.level === 2 && held.startsWith(LOADOUT.join()) && held.split(',').length === 3 && road1.relics === held, `the run's relics: panel [${road1.relics}], run ${JSON.stringify(road1.run)}`);
+    want(road1.fight?.text === 'Continue from level 2' && road1.fight.on && road1.fight.seen && road1.over?.text === 'Start over' && road1.over.seen && road1.golds === 1 && !road1.ask, `the panel's row ${JSON.stringify({ fight: road1.fight, over: road1.over, golds: road1.golds })}`);
+    // back to the map and in again: the run is still there; level 1's flag says it is cleared in this run and still continues from level 2
+    await press('[data-back]');
+    await p.locator('.wm-map').waitFor({ timeout: 3000 });
+    await toRoad();
+    const road2 = await look();
+    await press('.rr-flag.l-1');
+    await p.waitForFunction(() => document.querySelector('.rr-name')?.textContent.endsWith('Level 1'), null, { timeout: 3000 }).catch(() => {});
+    const onOne = await look();
+    await press('.rr-flag.l-2');
+    await p.waitForFunction(() => document.querySelector('.rr-name')?.textContent.endsWith('Level 2'), null, { timeout: 3000 }).catch(() => {});
+    want(road2.name === 'The Marches · Level 2' && road2.fight?.text === 'Continue from level 2' && road2.flags === 'DN-----' && road2.relics === held, `from the map again: ${JSON.stringify({ name: road2.name, fight: road2.fight?.text, flags: road2.flags })}`);
+    want(onOne.name === 'The Marches · Level 1' && onOne.fight?.text === 'Continue from level 2' && onOne.note === 'cleared in this run', `level 1's panel: "${onOne.name}", "${onOne.fight?.text}", note "${onOne.note}"`);
+    // Start over asks first; Keep the run (Esc) keeps it
+    await press('[data-over]');
+    const asked = await look();
+    if (touch) await press('[data-keep]');
+    else await p.keyboard.press('Escape');
+    await p.waitForTimeout(100);
+    const keptRun = await look();
+    want(asked.ask === 'Start over from level 1? This run and its 3 relics are lost.' && !asked.fight && !asked.over && asked.keep?.seen && asked.yes?.seen && asked.yes.text === 'Start over' && asked.state === 'menu', `Start over asks: ${JSON.stringify({ ask: asked.ask, fight: asked.fight, keep: asked.keep, yes: asked.yes, state: asked.state })}`);
+    want(keptRun.state === 'menu' && keptRun.name === 'The Marches · Level 2' && !keptRun.ask && keptRun.fight?.seen && keptRun.run?.seed === road1.run?.seed && keptRun.run.held === held, `Keep the run: ${JSON.stringify({ state: keptRun.state, name: keptRun.name, ask: keptRun.ask, run: keptRun.run })}`);
+    // Continue: level 2 on the checkpoint's seed, holding what level 1 ended with
+    await press('[data-fight]');
+    await opening();
+    const two = await fight();
+    want(two?.level === 2 && two.start > 1 && two.held === held && two.seed === road1.run?.seed, `Continue: ${JSON.stringify(two)} against the run ${JSON.stringify(road1.run)}`);
+    // a fall in level 2 (at 1 HP and standing still), and the road says so
+    await press('[data-pick="0"]');
+    const fell = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      for (let i = 0; i < 80000 && lb.game === g && lb.state !== 'results'; i++) {
+        if (lb.state === 'playing') g.player.hp = Math.min(g.player.hp, 1);
+        lb.run(1, false, false);
+      }
+      return { over: g.over, wave: Math.max(1, g.wave), state: lb.state };
+    });
+    await p.locator('.results [data-menu]').waitFor({ timeout: 3000 });
+    await press('.results [data-menu]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await skipTour(p, touch); // #240: this browser's first champion screen
+    await press('.kit-tab[data-tab="map"]');
+    await p.locator('.wm-map').waitFor({ timeout: 3000 });
+    await toRoad();
+    const road3 = await look();
+    want(fell.over && fell.state === 'results' && road3.name === 'The Marches · Level 2' && road3.fell === `fell at wave ${fell.wave}, restart level 2` && road3.fight?.text === 'Continue from level 2' && road3.fight.seen && road3.run?.seed === road1.run?.seed && road3.relics === held,
+      `after the fall (${JSON.stringify(fell)}): "${road3.name}", "${road3.fell}", "${road3.fight?.text}"`);
+    // Start over, and yes: a new run from level 1, wave 1, with the loadout only
+    await press('[data-over]');
+    await press('[data-yes]');
+    await opening();
+    const fresh = await fight();
+    const saved = await p.evaluate(() => { const r = window.__lb.save.champions.paladin.runs.marches; return r ? { level: r.level, seed: r.seed, carry: r.carry } : null; });
+    await p.close();
+    want(fresh?.level === 1 && fresh.start === 1 && fresh.wave === 0 && fresh.held === LOADOUT.join() && fresh.seed !== road1.run?.seed && saved?.level === 1 && saved.carry === null && saved.seed === fresh.seed, `Start over: ${JSON.stringify(fresh)}, saved ${JSON.stringify(saved)}`);
+    want(errs.length === 0, `errors: ${errs[0]}`);
+    return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `"${road0.fight?.text}" -> level 1 cleared -> "${road1.name}" flags ${road1.flags} (glow ${road1.glow}), relics [${held}], "${road1.fight?.text}" + "${road1.over?.text}"; map and back: the same; "${asked.ask}" -> kept; Continue: level ${two?.level} holding [${two?.held}] on the run's seed; "${road3.fell}"; Start over -> level ${fresh?.level}, wave ${fresh?.start}, holding [${fresh?.held}] on a new seed` };
   });
 }
 
@@ -1592,15 +1873,729 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const second = pick.cards[1]?.name;
     const ok = /Steel/.test(opening) && pick.head === 'The Marches · Level 1 cleared' && pick.cards.length === 2 && pick.cards.every((c) => /Steel/.test(c.fam) && /rare/.test(c.rarity) && c.inside)
-      && pick.cards[0].name !== second && kept.inv.length === 1 && kept.cleared[0] === 1 && /Back to the Marches/.test(menu) && /The Marches · Level 1/.test(retry)
+      && pick.cards[0].name !== second && kept.inv.length === 1 && kept.cleared[0] === 1 && /Back to the map/.test(menu) && retry === 'Continue to level 2'
       && road.name === 'The Marches · Level 2' && road.open.slice(0, 3).join() === 'true,true,false' && /Flame relics featured/.test(road.text) && /Pick 1 of 2 Flame rares/.test(road.text) && errs.length === 0;
     return { ok, detail: `opening "${opening.trim()}"; "${pick.head}": ${pick.cards.map((c) => `${c.name} (${c.fam.trim()}, ${c.inside ? 'in view' : 'off screen'})`).join(' / ')}; took ${second} -> inventory [${kept.inv.join()}], cleared ${kept.cleared.join('/')}; "${retry}" / "${menu}" -> "${road.name}"${/Pick 1 of 2 Flame rares/.test(road.text) ? ', Flame pick next' : ''}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
+// ---------- #238: champions level up between levels, not during them ----------
+// Map -> the Marches -> FIGHT: level 1 is played to its end by the bot (hard blows, so it is quick) and no level-up, ability or utility
+// screen ever opens: the champion stays level 1 while the HUD counts the XP up. The clear banks that XP as champion XP (the results say
+// so) and the champion is level 2. On the champion screen the Build tab shows 3 stat points and the Talents tab a point to spend: a
+// talent is taken on the tree, the stat points go into Strength and Vitality (the Build tab's plus buttons, #241), nothing can be reset
+// inside the realm run, and PLAY starts level 2 with all of it: level 2, the growth, +20 Strength, the talent, and the utility unlocked.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`champion levels: a level shows no level-up screen, its clear banks champion XP (level 2), and the points spent are in the next level, ${touch ? 'tap' : 'click'} at ${w}x${h} (#238)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate(() => { const lb = window.__lb; lb.save.cards.splice(0, lb.save.cards.length, ...lb.cardIds); }); // every flash card seen: none stops the run
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-marches');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('[data-fight]');
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await press('[data-pick="0"]');
+    // the first foes fall and the HUD counts their XP up, on real frames
+    await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.player.invulnerable = true;
+      g.baseMods.damage *= 8; // hard blows: the level is over soon
+      for (let i = 0; i < 6000 && lb.game === g && g.player.xp < 1; i++) lb.run(1, false, true); // #243: a level's extra foes share its XP, so one foe may pay under 1
+    });
+    await p.waitForFunction(() => window.__lb.state === 'playing' && /^\+[1-9]/.test(document.getElementById('h-xp-text')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {});
+    const hud = await p.evaluate(() => ({ xp: document.getElementById('h-xp-text')?.textContent ?? '', level: document.getElementById('h-level')?.textContent ?? '' }));
+    const played = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, id = g.player.cls.id;
+      // a level-up, ability or utility screen (a relic offer or the quest board is not one)
+      const levelScreen = () => /^(Level \d+|.*upgrade)/i.test(document.querySelector('.levelup h1')?.textContent.trim() ?? '') && !!document.querySelector('.levelup .sub') && /boon|upgrade/i.test(document.querySelector('.levelup .sub').textContent);
+      let screens = 0, queued = 0, top = g.player.level;
+      for (let i = 0; i < 40000 && lb.game === g && lb.state !== 'results'; i++) {
+        if (lb.state === 'choice' && levelScreen()) screens++;
+        queued = Math.max(queued, g.pendingLevelUps + g.pendingAbilityTiers.length + g.pendingUtilityTiers.length);
+        top = Math.max(top, g.player.level);
+        lb.run(1, false, true);
+      }
+      return { id, screens, queued, top, cleared: !!g.level?.cleared, collected: Math.round(g.player.xp), state: lb.state, wave: g.wave };
+    });
+    // the level's Steel rare first (#200), then the results with the champion's XP
+    await p.locator('.rare-pick [data-pick]').first().waitFor({ timeout: 5000 }).catch(() => {});
+    await press('.rare-pick [data-pick="0"]');
+    await p.locator('[data-menu]').waitFor({ timeout: 3000 });
+    const banked = await p.evaluate((id) => {
+      const c = window.__lb.save.champions[id];
+      return { line: document.querySelector('[data-champion-xp]')?.textContent.replace(/\s+/g, ' ').trim() ?? '', xp: c.xp, level: c.level, run: c.runs.marches?.level, str: c.runs.marches?.carry?.stats.str };
+    }, played.id);
+    await press('[data-menu]');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('[data-loadout]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    if (await p.locator('[data-tour-skip]').count()) await press('[data-tour-skip]'); // a first visit's tour
+    else await p.keyboard.press('Escape').catch(() => {});
+    await p.waitForTimeout(100);
+    if (!(await p.locator('.champion-screen').count())) { await press('[data-go="champion"]').catch(() => {}); }
+    await press('[data-cs="build"]');
+    const build = await p.evaluate(() => document.querySelector('.cs-build')?.textContent.replace(/\s+/g, ' ').trim() ?? '');
+    for (const s of ['strength', 'strength', 'vitality']) await press(`[data-stat-add="${s}"]`); // #241: the Build tab's own plus buttons
+    const spent = await p.evaluate(() => ({ left: document.querySelector('[data-stat-points]').textContent, plus: [...document.querySelectorAll('[data-stat-add]')].every((b) => b.disabled), reset: !!document.querySelector('[data-reset-build]') })); // three points, no fourth, no reset inside the run
+    await press('[data-cs="talents"]');
+    const before = await p.evaluate(() => ({ button: document.querySelector('[data-spend-talents]')?.textContent.trim() ?? '', reset: !!document.querySelector('[data-reset-points]') }));
+    await press('[data-spend-talents]');
+    await p.locator('.kit-screen.talents').waitFor({ timeout: 3000 });
+    const tree = await p.evaluate(() => ({ sub: document.querySelector('.kit-screen.talents')?.textContent.includes('1 point to spend'), open: document.querySelectorAll('.talent.open').length }));
+    await press('.talent.open');
+    const after = await p.evaluate(() => document.querySelectorAll('.talent.open').length); // the point is gone: nothing else can be taken
+    await press('.kit-screen.talents [data-back]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const tab = await p.evaluate((id) => ({ taken: document.querySelectorAll('.cs-plan li').length, reset: !!document.querySelector('[data-reset-points]'), saved: window.__lb.save.champions[id].talents.length, points: window.__lb.save.champions[id].points }), played.id);
+    await press('[data-play]');
+    await p.waitForFunction((seed) => !!window.__lb.game && window.__lb.game.level?.level === 2, null, { timeout: 5000 }).catch(() => {});
+    const next = await p.evaluate(() => {
+      const g = window.__lb.game, pl = g?.player;
+      return g && { level: g.level?.level, wave: g.startWave, plevel: pl.level, str: pl.stats.str, grow: pl.cls.growth.str, hp: pl.stats.hp, talents: pl.talents.length, queued: g.pendingLevelUps + g.pendingAbilityTiers.length + g.pendingUtilityTiers.length, utility: !document.querySelector('#h-ut-slot')?.classList.contains('locked'), points: g.level?.champion.points };
+    });
+    await p.close();
+    const ok = hud.level === '1' && /^\+[1-9]\d* XP$/.test(hud.xp) && played.cleared && played.screens === 0 && played.queued === 0 && played.top === 1 && played.collected > 0
+      && banked.xp === played.collected && banked.level === 2 && new RegExp(`\\+${banked.xp} XP · level 2`).test(banked.line) && /level up/.test(banked.line) && banked.run === 2
+      && /Level 2/.test(build) && /3 stat points to spend/.test(build) && spent.left === '0' && spent.plus && !spent.reset
+      && /Spend points \(1\)/.test(before.button) && !before.reset && tree.sub && tree.open > 0 && after === 0 && tab.taken === 1 && tab.saved === 1 && !tab.reset && tab.points.strength === 2 && tab.points.vitality === 1
+      && next?.level === 2 && next.wave === 7 && next.plevel === 2 && Math.abs(next.str - (banked.str + 5 * next.grow + 20)) < 0.01 && next.talents === 1 && next.queued === 0 && next.utility && next.points.strength === 2 && errs.length === 0;
+    return { ok, detail: `level 1: ${played.cleared ? 'cleared' : `NOT cleared (wave ${played.wave}, ${played.state})`}, ${played.screens} level-up screens, ${played.queued} queued, champion level ${played.top} all level, HUD "level ${hud.level}, ${hud.xp}"; banked ${banked.xp} XP of ${played.collected} -> level ${banked.level} ("${banked.line}"); Build tab "${build.slice(0, 70)}"; three points spent: ${JSON.stringify(spent)}; talents "${before.button}"${before.reset || tab.reset ? ', RESET OFFERED IN A RUN' : ''}, ${tab.taken} taken; level ${next?.level}: champion level ${next?.plevel}, Strength ${next?.str} (checkpoint ${banked.str} + growth + 20), ${next?.talents} talent, utility ${next?.utility ? 'unlocked' : 'LOCKED'}, ${next?.queued} queued${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #241: the level-cleared screen spends the points, and a level starts with no build screen ----------
+// Map -> the Marches -> FIGHT: the level opens on its opening relic pick (then the Act's quest board: the level's own, no build screen,
+// and nothing queued for the champion). The level is cleared with a level's worth of
+// XP collected (as if its foes and its boss fell). After its rare pick the "Level cleared" screen shows the XP, the level up (3 stat
+// points, a talent point) and the build: a point goes into Strength and one into Vitality, the Vitality point comes back out with its
+// minus, the ability's first upgrade is bought with the two points left (its two cards are dim while only one point is free), and a
+// talent is taken on the tree, which comes back to this screen. "Continue to level 2" starts level 2 (its opening pick and quest
+// board, no build screen) with all of it: champion level 2, the Strength point on top of the growth, the upgrade, the talent.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`level cleared: its screen shows the XP and the level up, spends stat points (plus, minus), buys an ability upgrade and takes a talent, and Continue starts level 2 with no build screen and all of it in, ${touch ? 'tap' : 'click'} at ${w}x${h} (#241)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate(() => { const lb = window.__lb; lb.save.cards.splice(0, lb.save.cards.length, ...lb.cardIds); }); // every flash card seen: none stops the run
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    const bad = [];
+    const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+    // what stands before the fight: the screen that is up, anything queued, and the champion as the level holds it
+    const entering = () => p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, pl = g.player;
+      return {
+        state: lb.state, head: document.querySelector('#overlay .kit-head')?.textContent.trim() ?? '', picks: document.querySelectorAll('#overlay [data-pick]').length,
+        queued: g.pendingLevelUps + g.pendingAbilityTiers.length + g.pendingUtilityTiers.length, level: g.level?.level, wave: g.wave, start: g.startWave,
+        id: pl.cls.id, plevel: pl.level, str: pl.stats.str, hp: pl.stats.hp, grow: pl.cls.growth.str, upgrades: pl.upgrades.join(), talents: pl.talents.length, points: g.level?.champion.points,
+      };
+    });
+    const opening = () => p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('#overlay [data-pick]'), null, { timeout: 5000 });
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-marches');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('[data-fight]');
+    await opening();
+    const one = await entering();
+    want(one.head === 'Your opening pick' && one.picks === 3 && one.queued === 0 && one.level === 1 && one.start === 1 && one.plevel === 1, `FIGHT opens level 1 on ${JSON.stringify(one)}`);
+    await p.evaluate(() => { const g = window.__lb.game; g.player.xp = 200; g.level.cleared = true; }); // as if its foes and its boss fell: a level's worth of XP (a champion level costs 180, #243), and the level ends once its spoils are taken
+    await press('[data-pick="0"]');
+    await p.locator('.rare-pick').waitFor({ timeout: 5000 });
+    await press('.rare-pick [data-pick="0"]');
+    await p.locator('.level-cleared').waitFor({ timeout: 3000 });
+    // the screen: its lines, its two buttons, the build panel; all of it on screen
+    const look = () => p.evaluate(() => {
+      const root = document.querySelector('.level-cleared'), text = (sel) => root.querySelector(sel)?.textContent.replace(/\s+/g, ' ').trim() ?? '';
+      const box = root.getBoundingClientRect(), go = root.querySelector('[data-retry]'), gb = go?.getBoundingClientRect();
+      const stat = (id) => { const r = root.querySelector(`.bp-stat[data-stat="${id}"]`); return { n: r.querySelector('[data-stat-n]').textContent, gives: r.querySelector('[data-stat-gives]').textContent, total: r.querySelector('[data-stat-total]').textContent, plus: !r.querySelector('[data-stat-add]').disabled, minus: !r.querySelector('[data-stat-take]').disabled }; };
+      return {
+        state: window.__lb.state, head: text('.kit-head'), sub: text('.sub'), xp: text('[data-champion-xp]'), up: text('[data-level-up]'), points: text('[data-stat-points]'),
+        go: go?.textContent.trim() ?? '', goMain: !!go && go.classList.contains('go') && go.classList.contains('big'), map: text('[data-menu]'), mains: root.querySelectorAll('.kit-btn.big').length,
+        fits: box.top >= -1 && box.left >= -1 && box.bottom <= innerHeight + 1 && box.right <= innerWidth + 1 && !!gb && gb.bottom <= innerHeight + 1 && document.elementFromPoint(gb.left + gb.width / 2, gb.top + gb.height / 2)?.closest('[data-retry]') === go,
+        strength: stat('strength'), vitality: stat('vitality'),
+        options: [...root.querySelectorAll('[data-buy-ability]')].map((b) => ({ id: b.dataset.buyAbility, name: b.querySelector('b').textContent, on: !b.disabled })),
+        bought: [...root.querySelectorAll('[data-tier="ability"] .bp-bought li b')].map((b) => b.textContent).join(),
+        utility: root.querySelectorAll('[data-buy-utility]').length, talents: text('[data-spend-talents]'),
+        small: [...root.querySelectorAll('*')].filter((e) => [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && e.getClientRects().length && parseFloat(getComputedStyle(e).fontSize) < (innerHeight >= 600 ? 14 : 11)).map((e) => `${e.className || e.tagName}:${getComputedStyle(e).fontSize}`).join(),
+      };
+    });
+    const saved = () => p.evaluate((id) => { const c = window.__lb.save.champions[id]; return { level: c.level, xp: c.xp, points: c.points, upgrades: c.upgrades.join(), talents: c.talents.length, run: c.runs.marches?.level, str: c.runs.marches?.carry?.stats.str }; }, one.id);
+    const first = await look();
+    const champ0 = await saved();
+    want(first.state === 'results' && first.head === 'Level cleared' && /The Marches · Level 1/.test(first.sub), `the screen: "${first.head}", "${first.sub}" (${first.state})`);
+    want(champ0.level === 2 && champ0.xp === 200 && champ0.run === 2 && /^Champion XP\+200 XP · level 2/.test(first.xp) && /level up/.test(first.xp) && /Level 1 → 2/.test(first.up) && /\+3 stat points · \+1 talent point/.test(first.up), `XP "${first.xp}", level up "${first.up}", saved ${JSON.stringify(champ0)}`);
+    want(first.go === 'Continue to level 2' && first.goMain && first.mains === 1 && first.map === 'Back to the map' && first.fits, `buttons "${first.go}" (${first.goMain ? 'green, big' : 'NOT the main button'}, ${first.mains} big) / "${first.map}", ${first.fits ? 'on screen' : 'OFF SCREEN'}`);
+    want(first.points === '3' && first.strength.n === '0' && first.strength.plus && !first.strength.minus && /^\+\d+ .+ a point$/.test(first.strength.gives) && first.options.length === 2 && first.options.every((o) => o.on) && first.utility === 2 && first.talents === 'Talents (1 to spend)' && first.small === '',
+      `the build to start: ${JSON.stringify({ points: first.points, strength: first.strength, options: first.options, utility: first.utility, talents: first.talents, small: first.small })}`);
+    // a point into Strength and one into Vitality: one left, so the upgrades (two points) go dim; the minus gives the Vitality point back
+    await press('[data-stat-add="strength"]');
+    await press('[data-stat-add="vitality"]');
+    const two = await look();
+    await press('[data-stat-take="vitality"]');
+    const back = await look();
+    want(two.points === '1' && two.strength.n === '1' && two.strength.minus && two.vitality.n === '1' && two.vitality.total !== '' && two.options.every((o) => !o.on), `two points in: ${JSON.stringify({ points: two.points, strength: two.strength, vitality: two.vitality, options: two.options.map((o) => o.on) })}`);
+    want(back.points === '2' && back.vitality.n === '0' && !back.vitality.minus && back.vitality.total === '' && back.strength.n === '1' && back.options.every((o) => o.on), `the minus: ${JSON.stringify({ points: back.points, vitality: back.vitality, options: back.options.map((o) => o.on) })}`);
+    // the ability's first upgrade for the two points left
+    const pick = back.options[1];
+    await press(`[data-buy-ability="${pick?.id}"]`);
+    const bought = await look();
+    want(bought.points === '0' && bought.bought === pick?.name && !bought.strength.plus && bought.strength.minus && bought.options.length === 2 && bought.options.every((o) => !o.on) && !bought.options.some((o) => o.id === pick?.id), `bought ${pick?.name}: ${JSON.stringify({ points: bought.points, bought: bought.bought, next: bought.options })}`);
+    // the talent point, on the tree; its back button comes back here with the build as it was left
+    await press('[data-spend-talents]');
+    await p.locator('.kit-screen.talents').waitFor({ timeout: 3000 });
+    await press('.talent.open');
+    await press('.kit-screen.talents [data-back]');
+    await p.locator('.level-cleared').waitFor({ timeout: 3000 });
+    const after = await look();
+    const champ1 = await saved();
+    const gives = Number(/\d+/.exec(after.strength.gives)?.[0]);
+    want(after.talents === 'Talent tree' && after.points === '0' && after.strength.n === '1' && after.bought === pick?.name && after.go === 'Continue to level 2', `back from the tree: ${JSON.stringify({ talents: after.talents, points: after.points, strength: after.strength.n, bought: after.bought })}`);
+    want(champ1.points.strength === 1 && !champ1.points.vitality && champ1.upgrades === pick?.id && champ1.talents === 1, `saved ${JSON.stringify(champ1)}`);
+    // Continue: straight into level 2, its opening pick the only screen, then the fight with everything spent
+    await press('[data-retry]');
+    await opening();
+    const next = await entering();
+    await press('[data-pick="0"]');
+    const boards = await intoFight(p, press);
+    const fight = await entering();
+    await p.close();
+    want(next.head === 'Your opening pick' && next.queued === 0 && next.level === 2 && next.wave === next.start - 1, `Continue opens level 2 on ${JSON.stringify({ head: next.head, queued: next.queued, level: next.level, wave: next.wave, start: next.start })}`);
+    want(fight.state === 'playing' && fight.queued === 0 && fight.level === 2 && boards.every((b) => /quest board/i.test(b)), `after its opening pick: ${fight.state}, ${fight.queued} queued, screens [${boards.join(' | ')}]`);
+    want(next.plevel === 2 && Math.abs(next.str - (champ0.str + 5 * next.grow + gives)) < 0.01 && next.upgrades === pick?.id && next.talents === 1 && next.points?.strength === 1 && !next.points?.vitality,
+      `level 2's champion: level ${next.plevel}, Strength ${next.str} (checkpoint ${champ0.str} + growth ${5 * next.grow} + ${gives}), upgrades [${next.upgrades}], ${next.talents} talent, points ${JSON.stringify(next.points)}`);
+    want(errs.length === 0, `errors: ${errs[0]}`);
+    return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `FIGHT -> "${one.head}", nothing queued; "${first.head}": "${first.xp}", "${first.up}"; ${first.points} points: +Strength +Vitality -> ${two.points} left, upgrades dim; -Vitality -> ${back.points}; bought ${pick?.name} -> ${bought.points}; a talent on the tree -> "${after.talents}"; "${first.go}" -> "${next.head}" of level ${next.level}${boards.length ? ` and ${boards.length} quest board` : ''}, no build screen, then the fight: champion level ${next.plevel}, Strength ${next.str} = ${champ0.str} + growth + ${gives}, [${next.upgrades}], ${next.talents} talent` };
+  });
+}
+
+// ---------- #241: the champion screen's Build tab spends the same points, with the free reset, and PLAY goes straight into the fight ----------
+// A level-3 champion outside a run (6 stat points). Build: two points into Focus and one into Vitality, the minus takes a Focus point
+// back, the utility's first upgrade is bought; Reset points gives all six back (and the talent taken on the Talents tab). Two points
+// into Vitality again, and PLAY: the opening relic pick (and Act I's quest board: the Act's quests, no build screen), then the fight, at
+// champion level 3 with the HP of those two points.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`champion screen: the Build tab spends stat points (plus, minus), buys a utility upgrade and resets for free, and PLAY starts the level with no build screen and the points in, ${touch ? 'tap' : 'click'} at ${w}x${h} (#241)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    const bad = [];
+    const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+    await p.evaluate(() => {
+      const lb = window.__lb;
+      lb.save.cards.splice(0, lb.save.cards.length, ...lb.cardIds);
+      lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown({}), xp: 540, level: 3, world: {}, signature: false, lastBastion: false, runs: {} } };
+    });
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await skipTour(p, touch);
+    await press('[data-cs="build"]');
+    const look = () => p.evaluate(() => {
+      const root = document.querySelector('.cs-build'), c = window.__lb.save.champions.paladin;
+      const stat = (id) => { const r = root.querySelector(`.bp-stat[data-stat="${id}"]`); return { n: r.querySelector('[data-stat-n]').textContent, gives: r.querySelector('[data-stat-gives]').textContent, total: r.querySelector('[data-stat-total]').textContent, plus: !r.querySelector('[data-stat-add]').disabled, minus: !r.querySelector('[data-stat-take]').disabled }; };
+      const play = document.querySelector('[data-play]'), pb = play.getBoundingClientRect();
+      return {
+        shown: root.getClientRects().length > 0, tab: document.querySelector('[data-cs].on')?.dataset.cs, level: root.querySelector('.cs-level')?.textContent.replace(/\s+/g, ' ').trim() ?? '', points: root.querySelector('[data-stat-points]').textContent,
+        focus: stat('focus'), vitality: stat('vitality'),
+        ability: [...root.querySelectorAll('[data-buy-ability]')].map((b) => !b.disabled), utility: [...root.querySelectorAll('[data-buy-utility]')].map((b) => ({ id: b.dataset.buyUtility, name: b.querySelector('b').textContent, on: !b.disabled })),
+        bought: [...root.querySelectorAll('[data-tier="utility"] .bp-bought li b')].map((b) => b.textContent).join(),
+        reset: !!root.querySelector('[data-reset-build]'), plan: document.querySelectorAll('.cs-plan li').length,
+        play: pb.bottom <= innerHeight + 1 && document.elementFromPoint(pb.left + pb.width / 2, pb.top + pb.height / 2)?.closest('[data-play]') === play,
+        saved: { points: c.points, upgrades: c.upgrades.length, utility: c.utilityUpgrades.join(), talents: c.talents.length },
+      };
+    });
+    const start = await look();
+    want(start.shown && start.tab === 'build' && /^Level 3/.test(start.level) && start.points === '6' && start.focus.plus && !start.focus.minus && start.ability.length === 2 && start.ability.every(Boolean) && start.utility.length === 2 && start.utility.every((o) => o.on) && !start.reset && start.play,
+      `the Build tab: ${JSON.stringify({ level: start.level, points: start.points, focus: start.focus, ability: start.ability, utility: start.utility, reset: start.reset, play: start.play })}`);
+    await press('[data-stat-add="focus"]');
+    await press('[data-stat-add="focus"]');
+    await press('[data-stat-add="vitality"]');
+    const three = await look();
+    await press('[data-stat-take="focus"]');
+    const taken = await look();
+    want(three.points === '3' && three.focus.n === '2' && three.focus.total !== '' && three.vitality.n === '1' && three.reset && three.saved.points.focus === 2, `three points in: ${JSON.stringify({ points: three.points, focus: three.focus, vitality: three.vitality, reset: three.reset, saved: three.saved })}`);
+    want(taken.points === '4' && taken.focus.n === '1' && taken.saved.points.focus === 1, `the minus: ${JSON.stringify({ points: taken.points, focus: taken.focus, saved: taken.saved })}`);
+    const pick = taken.utility[0];
+    await press(`[data-buy-utility="${pick?.id}"]`);
+    const bought = await look();
+    want(bought.points === '2' && bought.bought === pick?.name && bought.saved.utility === pick?.id && bought.utility.length === 0, `bought ${pick?.name}: ${JSON.stringify({ points: bought.points, bought: bought.bought, saved: bought.saved, next: bought.utility })}`);
+    // a talent on the Talents tab's tree, then the Build tab's reset: every point back, the talent too, and the screen stays on Build
+    await press('[data-cs="talents"]');
+    await press('[data-spend-talents]');
+    await p.locator('.kit-screen.talents').waitFor({ timeout: 3000 });
+    await press('.talent.open');
+    await press('.kit-screen.talents [data-back]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await press('[data-cs="build"]');
+    const planned = await look();
+    await press('[data-reset-build]');
+    await p.waitForFunction(() => document.querySelector('.cs-build [data-stat-points]')?.textContent === '6', null, { timeout: 3000 }).catch(() => {});
+    const reset = await look();
+    want(planned.plan === 1 && planned.saved.talents === 1 && planned.reset, `a talent taken: ${JSON.stringify({ plan: planned.plan, saved: planned.saved, reset: planned.reset })}`);
+    want(reset.tab === 'build' && reset.shown && reset.points === '6' && reset.focus.n === '0' && reset.vitality.n === '0' && reset.bought === '' && reset.utility.length === 2 && !reset.reset && reset.plan === 0 && Object.keys(reset.saved.points).length === 0 && reset.saved.utility === '' && reset.saved.talents === 0,
+      `Reset points: ${JSON.stringify({ tab: reset.tab, points: reset.points, focus: reset.focus.n, vitality: reset.vitality.n, bought: reset.bought, reset: reset.reset, plan: reset.plan, saved: reset.saved })}`);
+    // two points into Vitality, and PLAY: the opening pick is the only screen before the fight
+    await press('[data-stat-add="vitality"]');
+    await press('[data-stat-add="vitality"]');
+    const vit = await look();
+    await press('[data-play]');
+    await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('#overlay [data-pick]'), null, { timeout: 5000 });
+    const entering = () => p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, pl = g.player;
+      return { state: lb.state, head: document.querySelector('#overlay .kit-head')?.textContent.trim() ?? '', queued: g.pendingLevelUps + g.pendingAbilityTiers.length + g.pendingUtilityTiers.length, level: g.level?.level, start: g.startWave, plevel: pl.level, hp: pl.stats.hp, base: pl.cls.base.hp, grow: pl.cls.growth.hp, points: g.level?.champion.points, utility: pl.utilityUpgrades.length };
+    });
+    const open = await entering();
+    await press('[data-pick="0"]');
+    const boards = await intoFight(p, press);
+    const fight = await entering();
+    await p.close();
+    const gives = Number(/\d+/.exec(vit.vitality.gives)?.[0]);
+    want(vit.points === '4' && vit.vitality.n === '2' && vit.vitality.total === `+${2 * gives} ${vit.vitality.gives.replace(/^\+\d+ | a point$/g, '')}`, `two into Vitality: ${JSON.stringify({ points: vit.points, vitality: vit.vitality })}`);
+    want(open.head === 'Your opening pick' && open.queued === 0 && open.level === 1 && open.start === 1 && fight.state === 'playing' && fight.queued === 0 && boards.every((b) => /quest board/i.test(b)), `PLAY: "${open.head}" (${open.queued} queued, level ${open.level}, wave ${open.start}), then [${boards.join(' | ')}], then ${fight.state}`);
+    want(open.plevel === 3 && open.points?.vitality === 2 && open.utility === 0 && Math.abs(open.hp - (open.base + 10 * open.grow + 2 * gives)) < 0.01, `the fight's champion: level ${open.plevel}, HP ${open.hp} (base ${open.base} + growth ${10 * open.grow} + ${2 * gives}), points ${JSON.stringify(open.points)}, ${open.utility} utility upgrades`);
+    want(errs.length === 0, `errors: ${errs[0]}`);
+    return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `Build tab: "${start.level}"; +Focus +Focus +Vitality -> ${three.points} left; -Focus -> ${taken.points}; bought ${pick?.name} -> ${bought.points}; a talent; Reset points -> ${reset.points} points, ${reset.plan} talents, still on Build; +2 Vitality ("${vit.vitality.total}") -> PLAY -> "${open.head}"${boards.length ? ` and ${boards.length} quest board` : ''}, no build screen, then the fight at champion level ${open.plevel} with HP ${open.hp}` };
+  });
+}
+
+// ---------- #212: the Iron Hold's knights: map -> the Iron Hold -> level 3's panel names the Iron Knight -> level 2 -> FIGHT; he brings his own flash card,
+// "Got it" closes it, and in the fight every blow breaks one of his six plates with a clang until he stands bare in his mail ----------
+await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his flash card shows, blows break his plates one by one and he turns bare (#212)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], ironHold: [2] }), world: { marches: [7], ironHold: [2] }, signature: true, lastBastion: false, runs: { ironHold: run } });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold levels 1-2 cleared, its realm run at level 2 (#237)
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'ironKnight'); // every other card already seen, so his is the one that shows
+  }, runAt(2));
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-3'); // the first level whose featured foes (at most three) reach the knights' squads
+  await p.waitForTimeout(100);
+  const panel = await p.evaluate(() => ({ name: document.querySelector('.rr-name')?.textContent, text: document.querySelector('.rr-panel').textContent.replace(/\s+/g, ' ') }));
+  await p.click('.rr-flag.l-2'); // a shorter level with knights from its first wave: the fight
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // the bot plays the level (the real choice screens answered) until his flash card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb;
+    const clangs = { n: 0 };
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'clang' && clangs.n++), real(n));
+    }
+    window.__clangs = clangs;
+    lb.game.player.invulnerable = true;
+    for (let i = 0; i < 40000 && !document.querySelector('[data-card]') && lb.game && lb.state !== 'results'; i++) lb.run(1, false, true);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    const g = lb.game;
+    // the run waits under the card: a known state. Take the knight the card is about (or any whose plates are whole), read his plates now, and from
+    // here on log every blow that reaches them, the ones the real frames land after "Got it" too: each blow writes his plates, then his HP
+    const knight = [lb.spotlight, ...(g?.enemies ?? [])].find((e) => e && e.def.id === 'ironKnight' && !e.dead);
+    if (knight) {
+      knight.armorHp = knight.armorMax; // a known start: the bot may have struck him before his card opened, so his plates are made whole
+      // four times his HP, so a champion whose opening pick hits hard still lands light blows (one plate each); heavy blows are
+      // still judged by the rule below, against his (new) max HP
+      knight.maxHp *= 4;
+      knight.hp = knight.maxHp;
+      const log = { start: knight.armorHp, blows: [] };
+      let plates = knight.armorHp, hp = knight.hp, pending = null;
+      Object.defineProperty(knight, 'armorHp', { configurable: true, get: () => plates, set: (v) => { pending = { from: plates, to: v }; plates = v; } });
+      Object.defineProperty(knight, 'hp', { configurable: true, get: () => hp, set: (v) => {
+        if (pending) log.blows.push({ ...pending, dealt: hp - v, killed: v <= knight.hpFloor, maxHp: knight.maxHp });
+        pending = null;
+        hp = v;
+      } });
+      window.__knight = { knight, log };
+    }
+    return { id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g?.level?.realm, level: g?.level?.level, plain: g?.enemies.filter((e) => e.def.id === 'knight').length, knights: (g?.enemies ?? []).filter((e) => e.def.id === 'ironKnight').map((e) => `${e.armorHp}/${e.armorMax}${e.dead ? ' dead' : ''}`).join(' '), spot: !!lb.spotlight, state: lb.state };
+  });
+  if (card.id) await p.click('[data-leave]');
+  // "Got it" closes the card and the run plays on: wait for that state, not a fixed time
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 10000 }).catch(() => {});
+  const fight = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game;
+    const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+    // follow that Iron Knight through the fight: his plates blow by blow, his sprite at the end
+    if (!window.__knight) return { closed, found: false };
+    const { knight, log } = window.__knight, max = knight.armorMax;
+    // the champion stands his ground beside him and trades plain blows (no ability: one big cast may take every plate at once)
+    for (let i = 0; i < 20000 && !knight.dead && knight.armorHp > 0 && lb.game === g; i++) {
+      g.player.x = knight.x - 40;
+      g.player.y = knight.y;
+      lb.run(1, false, false);
+    }
+    // a blow's plates: one, plus one per full 20% of his max HP it carried (config/damage.ts PLATES: its HP damage is what the 75% the plates
+    // dull leaves, so 4x that is the blow); a tick (burn, bleed) breaks none. The killing blow's HP stops at 0, so it is not judged
+    const blows = log.blows.filter((b) => b.to < b.from).map((b) => ({ ...b, want: b.killed ? b.from - b.to : Math.min(b.from, 1 + Math.floor((4 * b.dealt) / (0.2 * b.maxHp) + 1e-9)) }));
+    const steps = [log.start, ...blows.map((b) => b.to)];
+    return { closed, found: true, start: log.start, max, steps, blows: blows.map((b) => `${b.from - b.to}${b.want !== b.from - b.to ? `(want ${b.want})` : ''}`), ruled: blows.every((b) => b.want === b.from - b.to), single: blows.filter((b) => b.from - b.to === 1).length, ticks: log.blows.length - blows.length, bare: knight.def.sprite, broken: knight.armorHp === 0, dead: knight.dead, clangs: window.__clangs.n };
+  });
+  await p.close();
+  // from six whole plates to none, blow by blow: each blow takes the plates the rule says (a heavy one may take two), most take exactly one
+  const oneByOne = fight.found && fight.ruled && fight.steps.slice(1).every((v, i) => v < fight.steps[i]) && fight.steps.length >= 4 && fight.single >= 2;
+  const ok = panel.name === 'The Iron Hold · Level 3' && /Iron Knight/.test(panel.text) && !/Armored Knight/.test(panel.text)
+    && card.realm === 'ironHold' && card.level === 2 && card.id === 'ironKnight' && card.title === 'Iron Knight' && /Each hit breaks one/.test(card.text ?? '') && card.plain === 0
+    && fight.closed && fight.found && fight.start === 6 && fight.max === 6 && oneByOne && fight.broken && fight.bare === 'ironKnightBare' && fight.clangs > 0 && errs.length === 0;
+  return { ok, detail: `panel "${panel.name}" ${/Iron Knight/.test(panel.text) ? 'names the Iron Knight' : 'NO Iron Knight'}; run ${card.realm} ${card.level}, card ${card.id ?? 'NONE'} "${card.title ?? ''}", plain knights ${card.plain}; closed ${fight.closed}; ${fight.found ? `plates ${fight.steps.join('>')} of ${fight.max} (per blow ${fight.blows.join(',')}; ${fight.ticks} ticks), sprite ${fight.bare}, ${fight.clangs} clangs${fight.dead ? ', killed' : ''}` : `no Iron Knight on the field (knights ${card.knights || 'none'}, spotlight ${card.spot}, state ${card.state})`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #211: the Iron Hold's forge presses: map -> the Iron Hold -> level 1 -> FIGHT. The bot plays until a press marks the slabs round the
+// champion (a warning sound, the slabs bracketed and the ram drawn over them); standing still, the ram slams him with its own sound and a foe
+// on a marked slab is hurt too; at the next marking the champion steps off the line with the keyboard and the slam misses him ----------
+await check('Iron Hold: forge presses mark the slabs round you and lower a ram; stand still and it slams you and the foe beside you, step aside and it misses (#211)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], ironHold: [2] }), world: { marches: [7], ironHold: [2] }, signature: true, lastBastion: false, runs: {} });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)]));
+    lb.save.cards = [...lb.cardIds]; // every flash card seen: nothing stops the fight
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-1');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // the bot plays (the real choice screens answered), unhurt, until a press marks slabs; `wait` then tracks the slabs
+  const setup = `
+    const lb = window.__lb, g = lb.game, p = g.player, S = 80;
+    const marked = () => g.zones.filter((z) => z.slab && z.hostile);
+    const onSlab = (z, b) => Math.hypot(Math.max(Math.abs(b.x - z.x) - S / 2, 0), Math.max(Math.abs(b.y - z.y) - S / 2, 0)) < b.r;
+    const wait = () => { p.invulnerable = true; for (let i = 0; i < 40000 && !marked().length && lb.game === g && lb.state !== 'results'; i++) { p.hp = p.stats.hp; lb.run(1, false, true); } p.invulnerable = false; return marked(); };`;
+  const { still, dodge } = await p.evaluate(`(() => { ${setup}
+    const reaches = (zs) => zs.length >= 2 && zs.some((z) => onSlab(z, p));
+    const letGo = () => { p.invulnerable = true; for (let i = 0; i < 1000 && marked().length; i++) lb.run(1, false, true); p.invulnerable = false; return wait(); };
+    const first = () => {
+    const sounds = (window.__press = { warn: 0, slam: 0 });
+    const real = lb.view.sfx;
+    lb.view.sfx = (n) => ((n in sounds && sounds[n]++), real(n));
+    // a press whose slabs do not reach his own (a wall or an obstacle where its slab would be) is let go by: the next one is the one used
+    let zs = wait();
+    for (let n = 0; n < 8 && zs.length && !reaches(zs); n++) zs = letGo();
+    if (!zs.length) return { found: false, realm: g.level?.realm, wave: g.wave };
+    const warned = sounds.warn > 0;
+    // a foe on a marked slab beside the champion's (the others sent far off), tough enough to live through it
+    const mine = zs.find((z) => onSlab(z, p)), other = zs.find((z) => z !== mine);
+    if (!mine) return { found: false, realm: g.level?.realm, wave: g.wave, why: 'no slab under him' };
+    p.hp = p.stats.hp; // a known start: full health, whatever the real frames before this call cost him
+    const [foe, ...rest] = g.enemies.filter((e) => !e.dead);
+    for (const e of rest) Object.assign(e, { x: p.x + 3000, y: p.y });
+    if (foe && other) Object.assign(foe, { x: other.x, y: other.y, hp: 1e6, maxHp: 1e6 });
+    // hands off the keys: he stands still. Halfway down: the slab's corner bracket and the ram are drawn
+    for (let i = 0; i < 1000 && zs[0].t < zs[0].delay * 0.8; i++) { lb.run(1, false, 'input'); if (foe && other) Object.assign(foe, { x: other.x, y: other.y }); }
+    g.shake = 0;
+    lb.draw();
+    const c = document.getElementById('game').getContext('2d'), cam = lb.camera();
+    const px = (wx, wy) => [...c.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data];
+    // the ram over a 3x3 grid across the slab: the champion standing on it hides some of those points, never all
+    const grid = [-1, 0, 1].flatMap((i) => [-1, 0, 1].map((j) => [mine.x + (i * S) / 4, mine.y + (j * S) / 4 - 10]));
+    // the bracket is 3 px thick and the canvas rounds its camera, so one pixel can miss it, and the ram (a bigger sprite once the props atlas has
+    // loaded) can hide a corner: the warmest pixel in a small patch at each of the slab's four corners is the sample
+    const warm = (a) => a[0] - a[1] - a[2];
+    const bracket = [-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => Array.from({ length: 12 }, (_, i) => Array.from({ length: 12 }, (_, j) => px(mine.x + sx * (S / 2 - 8) + i - 4, mine.y + sy * (S / 2 - 8) + j - 4))).flat())).sort((a, b) => warm(b) - warm(a))[0];
+    const ramOn = grid.map(([x, y]) => px(x, y).join());
+    const keep = g.zones;
+    g.zones = g.zones.filter((z) => !z.slab);
+    lb.draw();
+    const ramOff = grid.map(([x, y]) => px(x, y).join());
+    g.zones = keep;
+    // stand still: the ram lands
+    const slams = sounds.slam;
+    let onIt = false, hp = p.hp, foeHp = foe?.hp ?? 0; // as the ram lands: the tick the slabs go
+    for (let i = 0; i < 1000 && marked().length; i++) { onIt = onSlab(mine, p); hp = p.hp; foeHp = foe?.hp ?? 0; lb.run(1, false, 'input'); if (foe && other && marked().length) Object.assign(foe, { x: other.x, y: other.y }); }
+    return { found: true, realm: g.level?.realm, level: g.level?.level, arena: g.arena.id, n: zs.length, warned, onIt, hurt: hp - p.hp, foeHurt: foe && other ? foeHp - foe.hp : -1, slam: sounds.slam - slams,
+      bracket, ram: ramOn.filter((v, i) => v !== ramOff[i]).length >= 3, props: lb.props() };
+  };
+    const still = first();
+    // the next marking, in this same call so no real frame runs between the two halves: step off the line with the keyboard (a line across: up or down,
+    // towards the open floor; a line down: left or right). The key is a real keydown on the window, which the input layer reads as it reads the keyboard
+    let dodge = { found: false };
+    if (still.found) {
+      let zs = wait();
+      for (let n = 0; n < 8 && zs.length && !zs.some((z) => onSlab(z, p)); n++) zs = letGo(); // one that reaches him: else there is nothing to step off
+      if (zs.length) {
+        p.hp = p.stats.hp; // nothing else may hurt him: the slam is what is being missed
+        const across = zs.every((z) => z.y === zs[0].y), mid = g.bounds;
+        const key = across ? (p.y > mid.y + mid.h / 2 ? 'KeyW' : 'KeyS') : (p.x > mid.x + mid.w / 2 ? 'KeyA' : 'KeyD');
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: key, key }));
+        const hp0 = p.hp;
+        for (const e of g.enemies) Object.assign(e, { x: p.x + 3000, y: p.y }); // nothing else to hurt him
+        let onIt = true, hp = p.hp;
+        for (let i = 0; i < 1000 && marked().length; i++) { onIt = zs.some((z) => onSlab(z, p)); hp = p.hp; lb.run(1, false, 'input'); }
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: key, key }));
+        dodge = { found: true, key, onIt, hurt: hp - p.hp, start: hp0 };
+      } else dodge = { found: false, why: ['state ' + lb.state, lb.game === g ? 'same game' : 'other game', 'wave ' + g.wave, 'cleared ' + !!(g.level && g.level.cleared), 'over ' + !!g.over, 'hp ' + Math.round(p.hp), 'foes ' + g.enemies.length, 'pressT ' + g.pressT, 'time ' + g.time.toFixed(1)].join(', ') };
+    }
+    return { still, dodge };
+  })()`);
+  await p.close();
+  // the bracket's glow pulses, so one sample can catch it dim: a warm hue (red well over green, over twice the blue) is the proof
+  const red = still.bracket && still.bracket[0] > still.bracket[1] + 30 && still.bracket[0] > 2 * still.bracket[2];
+  const ok = still.found && still.realm === 'ironHold' && still.level === 1 && still.arena === 'keep' && still.n >= 2 && still.warned && red && still.ram
+    && still.onIt && still.hurt > 0 && still.slam > 0 && still.foeHurt > 0 && dodge.found && !dodge.onIt && dodge.hurt < still.hurt / 2 && // (a hair of other damage or regeneration is not a slam: it hurt him ten or more)
+     errs.length === 0;
+  return { ok, detail: still.found ? `${still.realm} level ${still.level} in the ${still.arena}: ${still.n} slabs marked${still.warned ? ' with a warning' : ''}, bracket rgb(${(still.bracket ?? []).slice(0, 3).join(',')}), ram ${still.ram ? 'drawn' : 'NOT drawn'}${still.props ? '' : ' (props atlas not loaded yet)'}; standing still: ${still.onIt ? 'on the slab' : 'OFF the slab'}, hurt ${Math.round(still.hurt)}, ${still.slam} slam sound(s), the foe beside him hurt ${Math.round(still.foeHurt)}; stepped aside (${dodge.key ?? 'no key'}): ${dodge.found ? `${dodge.onIt ? 'STILL on a slab' : 'off the slabs'}, hurt ${+dodge.hurt.toFixed(2)}` : `no second marking (${dodge.why})`}${errs.length ? `; errors: ${errs[0]}` : ''}` : `no press marked slabs (${still.realm}, wave ${still.wave})` };
+});
+
+// ---------- #249: the Iron Hold on Squire: map -> the Iron Hold -> the road on Squire; every level's featured foes are ones Squire fields
+// there (no Mirror Knight, no Hound Master), the Iron Shieldwall named from level 2, at 1280x720 and 1920x1080; then level 2 -> FIGHT: the
+// bot plays on Squire, nothing put in the queue by hand, until the director's own shieldwall squad marches in as Iron Shieldwalls and his
+// flash card opens ----------
+await check('Iron Hold on Squire: the road lists only foes Squire fields, and a level brings Iron Shieldwalls on its own (#249)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], ironHold: [4] }), world: { marches: [7], ironHold: [4] }, signature: true, lastBastion: false, runs: { ironHold: run } });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold levels 1-4 cleared on Squire (so every flag opens), its realm run at level 2 on Squire
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'ironShieldwall'); // every other card already seen, so his is the one that shows
+  }, runAt(2, 0));
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-tier[data-tier="0"]');
+  await p.waitForTimeout(100);
+  const road = [];
+  for (const size of [{ width: 1280, height: 720 }, { width: 1920, height: 1080 }]) {
+    await p.setViewportSize(size);
+    for (const n of [1, 2, 3, 4, 5]) {
+      await p.click(`.rr-flag.l-${n}`);
+      await p.waitForTimeout(60);
+      road.push(await p.evaluate(({ n, w }) => {
+        const foes = document.querySelector('.rr-foes');
+        const r = foes?.getBoundingClientRect();
+        return { n, w, tier: document.querySelector('.rr-tier.on')?.dataset.tier, foes: foes?.textContent.replace(/\s+/g, ' ').trim() ?? '', seen: !!r && r.width > 0 && r.bottom <= innerHeight && r.right <= innerWidth };
+      }, { n, w: size.width }));
+    }
+  }
+  await p.setViewportSize({ width: 1280, height: 720 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // the bot plays the level (the real choice screens answered), unhurt, until his flash card opens: only the director's own waves bring him
+  const met = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    if (!g) return { started: false };
+    // unhurt every tick: the Paladin's own shield, when the bot casts it, drops invulnerability as it ends
+    for (let i = 0; i < 120000 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results' && !g.level?.cleared; i++) (g.player.invulnerable = true), lb.run(1, false, true);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    const walls = g.enemies.filter((e) => e.def.id === 'ironShieldwall');
+    return { started: true, state: lb.state, screen: document.querySelector('#overlay h2, #overlay h1')?.textContent ?? '', time: Math.round(g.time), realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, wave: g.wave, card: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, walls: walls.length, inSquad: walls.filter((e) => e.squad).length, plain: g.enemies.filter((e) => e.def.id === 'shieldwall').length };
+  });
+  await p.close();
+  const bad = road.filter((r) => r.tier !== '0' || /Mirror Knight|Hound Master|Siege Tower/.test(r.foes) || !r.seen || !r.foes);
+  const walled = road.filter((r) => r.n >= 2 && /Iron Shieldwall/.test(r.foes));
+  const ok = bad.length === 0 && walled.length === 8
+    && met.started && met.realm === 'ironHold' && met.level === 2 && met.tier === 0 && met.card === 'ironShieldwall' && met.title === 'Iron Shieldwall'
+    && met.walls > 0 && met.inSquad > 0 && met.plain === 0 && errs.length === 0;
+  const l2 = road.find((r) => r.n === 2);
+  return { ok, detail: `road on Squire: level 2 "${l2?.foes}"; ${bad.length ? `WRONG: ${bad.map((r) => `L${r.n}@${r.w} tier ${r.tier} "${r.foes}"${r.seen ? '' : ' (not in view)'}`).join('; ')}` : 'no foe Squire does not field, at 1280 and 1920'}; Iron Shieldwall named on ${walled.length}/8 of levels 2-5; fight: ${met.started ? `${met.realm} ${met.level} on tier ${met.tier}, wave ${met.wave} at ${met.time} s (${met.state}${met.screen ? `, "${met.screen}"` : ''}): card ${met.card ?? 'NONE'} "${met.title ?? ''}", ${met.walls} Iron Shieldwalls (${met.inSquad} in a squad), ${met.plain} plain` : 'did not start'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #213: the Iron Hold's shieldwalls: map -> the Iron Hold -> level 2 -> FIGHT; the director's shieldwall squad marches in as Iron
+// Shieldwalls with their own flash card, "Got it" closes it, and then, from a known state (him alone, the champion put in front of him, then
+// behind him, then at his side), a real swing at his shield is turned with BLOCKED and a clank, the same swing lands in full on his back,
+// and he turns toward the side slowly instead of at once. No real-time sampling: every number is one swing or ten ticks ----------
+await check('Iron Hold: shieldwalls march as Iron Shieldwalls with their flash card; the iron shield turns a swing at his front, the same swing lands in full on his back, and he turns slowly (#213)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], ironHold: [1] }), world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false, runs: { ironHold: run } });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold level 1 cleared, its realm run at level 2 (#237)
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'ironShieldwall'); // every other card already seen, so his is the one that shows
+  }, runAt(2));
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  const card = await p.evaluate(() => {
+    const lb = window.__lb;
+    const blocks = { n: 0 };
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'block' && blocks.n++), real(n));
+    }
+    window.__blocks = blocks;
+    lb.game.player.invulnerable = true;
+    // the level's first wave is drawn; the director's shieldwall squad (config/director.ts, five spearmen) goes to the head of its queue as
+    // plain shieldwalls, so the game's own spawning has to turn them into the Iron Hold's
+    for (let i = 0; i < 5000 && lb.game && !lb.game.spawnQueue.length; i++) lb.run(1, false, false);
+    const g = lb.game;
+    const squad = g.squadPlans.push({ template: 'shieldwall', formation: 'line', spacing: 30, holdUntil: 70 }) - 1;
+    g.spawnQueue.unshift(...[0, 1, 2, 3, 4].map(() => ({ id: 'shieldwall', affixes: [], squad, commander: false })));
+    g.spawnTimer = 0;
+    lb.run(1, false, false);
+    const spawned = g.enemies.filter((e) => e.squad && e.slot >= 0 && e.def.id === 'ironShieldwall').length;
+    const plain = g.enemies.filter((e) => e.def.id === 'shieldwall').length;
+    // the champion stands; the line marches at him until his card opens
+    for (let i = 0; i < 20000 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    return { id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g.level?.realm, level: g.level?.level, spawned, plain };
+  });
+  if (card.id) await p.click('[data-leave]');
+  // "Got it" closes the card and the run plays on: wait for that state, not a fixed time
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 10000 }).catch(() => {});
+  const fight = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+    const walls = () => g.enemies.filter((e) => e.def.id === 'ironShieldwall' && !e.dead);
+    // until the line breaks formation to fight (a state, not a clock): in formation they face the march, not the champion
+    for (let i = 0; i < 20000 && walls().some((e) => e.ai === 'regroup') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const w = walls().find((e) => e.ai !== 'regroup') ?? walls()[0]; // one that has broken formation: a man in the line does not turn toward anyone
+    if (!w) return { closed, found: false };
+    const arc = lb.enemyDef('ironShieldwall').frontBlock;
+    // a known state: he stands alone (everything else is cleared away), and the champion is put beside him, facing him
+    for (const o of g.enemies) if (o !== w) o.dead = true;
+    lb.run(1, false, false);
+    // his HP is made huge so no swing, crit or not, can kill him; a swing's damage varies (crits), so each side is struck five times and its
+    // weakest blow is the number: the rule shows in the plain blows, one crit in the five cannot tip it
+    w.maxHp = 1e6;
+    const one = (side) => {
+      w.hp = w.maxHp;
+      const a = w.angle + side;
+      pl.x = w.x + Math.cos(a) * (w.r + pl.r + 4);
+      pl.y = w.y + Math.sin(a) * (w.r + pl.r + 4);
+      pl.attackTimer = 0;
+      const b0 = window.__blocks.n, texts0 = g.texts.filter((t) => t.text === 'BLOCKED').length;
+      for (let i = 0; i < 30 && w.hp === w.maxHp && !w.dead; i++) lb.run(1, false, false); // one swing: until it lands
+      return { dealt: w.maxHp - Math.max(0, w.hp), blocks: window.__blocks.n - b0, text: g.texts.filter((t) => t.text === 'BLOCKED').length > texts0 };
+    };
+    const swing = (side) => {
+      const all = Array.from({ length: 5 }, () => one(side));
+      return { dealt: Math.min(...all.map((r) => r.dealt)), blocks: all.reduce((n, r) => n + r.blocks, 0), text: all.some((r) => r.text) };
+    };
+    const front = swing(0);
+    const back = swing(Math.PI);
+    // at his side, out of his shield's arc: ten ticks later he has turned toward the champion, but only part of the way
+    w.hp = w.maxHp;
+    const side = Math.PI / 2;
+    const a0 = w.angle;
+    pl.x = w.x + Math.cos(a0 + side) * 60;
+    pl.y = w.y + Math.sin(a0 + side) * 60;
+    pl.attackTimer = 99;
+    lb.run(10, false, false);
+    const d = Math.abs(Math.atan2(Math.sin(w.angle - a0), Math.cos(w.angle - a0)));
+    return { closed, found: true, arc, front, back, turned: +d.toFixed(3), diag: `ai ${w.ai}, hp ${w.hp}, timer ${w.attackTimer}, stun ${w.stun ?? ''}, dead ${w.dead}, x ${w.x.toFixed(0)}` };
+  });
+  await p.close();
+  const ok = card.realm === 'ironHold' && card.level === 2 && card.spawned === 5 && card.plain === 0
+    && card.id === 'ironShieldwall' && card.title === 'Iron Shieldwall' && /turns slowly/.test(card.text ?? '')
+    && fight.closed && fight.found && fight.front.blocks > 0 && fight.front.text && fight.back.blocks === 0 && !fight.back.text
+    && fight.front.dealt > 0 && fight.back.dealt > 0 && fight.front.dealt < fight.back.dealt * 0.5
+    && fight.turned > 0 && fight.turned < fight.arc / 2 && errs.length === 0;
+  return { ok, detail: `run ${card.realm} ${card.level}: ${card.spawned} Iron Shieldwalls, ${card.plain} plain; card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${fight.closed}; ${fight.found ? `front swing ${fight.front.dealt.toFixed(1)} (${fight.front.blocks} clanks${fight.front.text ? ', BLOCKED' : ''}), back swing ${fight.back.dealt.toFixed(1)} (${fight.back.blocks} clanks); turned ${fight.turned} rad in ten ticks (${fight.diag})` : 'no Iron Shieldwall on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #214: the Iron Hold's thorn bearers: map -> the Iron Hold -> level 2 -> FIGHT; a shield bearer brought in as a wave brings him
+// marches as the Thorn Bearer with his own flash card, "Got it" closes it, and blows struck beside him bite the champion back, a sliver at a
+// time and never faster than the thorns' cooldown. Measured from a known state (full HP, beside him, thorns ready), counted per bite ----------
+await check('Iron Hold: a shield bearer marches as the Thorn Bearer, his flash card shows, and blows struck up close bite back (#214)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], ironHold: [1] }), world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false, runs: { ironHold: run } });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold level 1 cleared, its realm run at level 2 (#237)
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'thornBearer'); // every other card already seen, so his is the one that shows
+  }, runAt(2));
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // a shield bearer comes in the way a wave brings one, in sight: the realm turns him into its own kind and his card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    const bites = { n: 0 };
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'thorns' && bites.n++), real(n));
+    }
+    window.__bites = bites;
+    g.player.invulnerable = true; // until the measurement starts
+    const b = lb.spawn('shieldBearer', g.player.x + 160, g.player.y);
+    window.__bearer = b;
+    for (let i = 0; i < 600 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    return { kind: b?.def.id, sprite: b?.def.sprite, id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g.level?.realm };
+  });
+  if (card.id) await p.click('[data-leave]');
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 3000 }).catch(() => {});
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player, b = window.__bearer;
+    const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
+    // the known state: full HP, open to harm, standing beside him, his thorns ready, and he lives through the measurement
+    pl.invulnerable = false;
+    pl.hp = pl.stats.hp;
+    pl.x = b.x - 40;
+    pl.y = b.y;
+    b.thornsAt = undefined;
+    b.hpFloor = 1;
+    const max = pl.stats.hp, v = g.vars;
+    const bites = [];
+    let n0 = v['thorns.bites'] ?? 0, taken0 = v['thorns.taken'] ?? 0, texts = 0;
+    const sounds0 = window.__bites.n;
+    // the champion trades plain blows with him (no ability) until his thorns have bitten three times
+    for (let i = 0; i < 1200 && bites.length < 3 && !g.over && lb.game === g && lb.state === 'playing'; i++) {
+      lb.run(1, false, false);
+      const n = v['thorns.bites'] ?? 0;
+      if (n > n0) {
+        bites.push({ t: g.time, taken: (v['thorns.taken'] ?? 0) - taken0, n: n - n0 });
+        n0 = n;
+        taken0 = v['thorns.taken'] ?? 0;
+        if (g.texts.some((t) => t.text === 'THORNS')) texts++;
+      }
+    }
+    return { closed, max, bites, sounds: window.__bites.n - sounds0, texts, alive: !g.over };
+  });
+  await p.close();
+  const b = fight.bites;
+  const gaps = b.slice(1).map((x, i) => x.t - b[i].t);
+  const ok = card.realm === 'ironHold' && card.kind === 'thornBearer' && card.sprite === 'thornBearer' && card.id === 'thornBearer' && card.title === 'Thorn Bearer' && /bite back/.test(card.text ?? '')
+    && fight.closed && b.length === 3 && b.every((x) => x.n === 1 && x.taken > 0 && x.taken <= fight.max * 0.1) && gaps.every((d) => d >= 0.3)
+    && fight.sounds === 3 && fight.texts === 3 && fight.alive && errs.length === 0;
+  return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${fight.closed}; bites ${b.map((x) => `${x.taken.toFixed(1)}hp@${x.t.toFixed(2)}s`).join(', ') || 'NONE'} of ${fight.max} max HP, ${fight.sounds} sounds, ${fight.texts} THORNS texts${fight.alive ? '' : ', champion fell'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
 // From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
-// slots and idles in the Marches level 1's one slot, a second legendary says why it can't go in, a slot tapped takes its relic out, a
+// slots (#239: as one wide frame) of the Marches run's three (#237), a second legendary says why it can't go in, a slot tapped takes its relic out, a
 // common fills the slot and shows its set chip, the plan gets a talent on the tree, the Map
 // tab opens the world map and comes back; PLAY starts level 1 with the slotted relic and the plan; a level ended early comes home as
 // "fell at wave N" with RESTART, which plays the level again on the same seed
@@ -1613,10 +2608,11 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
     const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
     await p.evaluate(() => {
-      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue', 'everfrostCrown'], loadouts: {}, talentPlan: [], world: {}, signature: false, lastBastion: false } };
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue', 'everfrostCrown'], loadouts: {}, ...window.__lb.build.grown({}), xp: 180, level: 2, world: {}, signature: false, lastBastion: false, runs: {} } };
     });
     await press('[data-go="champion"]');
     await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await skipTour(p, touch); // #240: this browser's first champion screen
     const look = () => p.evaluate(() => {
       const scr = document.querySelector('.champion-screen'), box = scr.getBoundingClientRect();
       const play = document.querySelector('[data-play]'), pb = play.getBoundingClientRect();
@@ -1635,7 +2631,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
         next: document.querySelector('.cs-next').textContent.replace(/\s+/g, ' ').trim(),
         tabs: [...document.querySelectorAll('.kit-tab')].map((t) => (t.classList.contains('on') ? 'X' : 'o')).join(''),
         greens: document.querySelectorAll('.champion-screen .kit-btn.go').length,
-        loadout: (champ.loadouts.marches ?? []).join(','), savedPlan: champ.talentPlan.length,
+        loadout: (champ.loadouts.marches ?? []).join(','), savedPlan: champ.talents.length,
       };
     });
     const first = await look();
@@ -1646,7 +2642,8 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await press('.cs-slot[data-unslot="dragonsTongue"]');
     await press('.cs-relic[data-relic="brimstoneOil"]');
     const common = await look();
-    await press('[data-plan]');
+    await press('[data-cs="talents"]'); // #240: talents are on the Talents tab; #238: a level-2 champion has one point to spend
+    await press('[data-spend-talents]');
     await press('.talent.open');
     await press('.kit-screen.talents [data-back]');
     const planned = await look();
@@ -1675,17 +2672,56 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
     const again = await p.evaluate(() => { const g = window.__lb.game; return g ? { level: g.level?.level, seed: g.seed } : null; });
     await p.close();
-    const ok = first.fits && first.figure && first.slots === 'o-----' && first.inv === 4 && first.blocked === '' && first.play === 'Play' && first.playReach && first.greens === 1 && first.tabs === 'oXooo'
-      && /The Marches · Level 1/.test(first.next) && /1 slot/.test(first.next) && first.sets === ''
-      && slotted.slots === 'RRo---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === ''
+    const ok = first.fits && first.figure && first.slots === 'ooo---' && first.inv === 4 && first.blocked === '' && first.play === 'Play' && first.playReach && first.greens === 1 && first.tabs === 'oXooo'
+      && /The Marches · Level 1/.test(first.next) && /3 slots/.test(first.next) && first.sets === ''
+      && slotted.slots === 'Ro---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === '1' // #237: three slots, so the legendary goes in and counts for its set
       && /everfrost crown: at most 1 legendary/i.test(refused.why) && refused.loadout === 'dragonsTongue'
-      && common.slots === 'R-----' && common.loadout === 'brimstoneOil' && common.sets === '1'
+      && common.slots === 'Roo---' && common.loadout === 'brimstoneOil' && common.sets === '1'
       && planned.plan === 1 && planned.savedPlan === 1 && map === 1
-      && run?.realm === 'marches' && run.level === 1 && run.held.split(',')[0] === 'brimstoneOil' && run.talents === 0 // level 1's head start has no point to spend yet
+      && run?.realm === 'marches' && run.level === 1 && run.held.split(',')[0] === 'brimstoneOil' && run.talents === 1 // #238: the talent the champion took is in its next level
       && /Restart/i.test(fell.play) && /fell at wave \d+/.test(fell.next) && again?.level === 1 && again.seed === run.seed && errs.length === 0;
     return { ok, detail: `slots ${first.slots}, ${first.inv} relics, "${first.next}", ${first.play}${first.playReach ? '' : ' (out of reach)'}, tabs ${first.tabs}; Dragon's Tongue -> ${slotted.slots} (sets ${slotted.sets || '-'}, blocked ${slotted.blocked || '-'}); Everfrost -> "${refused.why}"; out, Brimstone -> ${common.slots}; plan ${planned.plan}; map ${map ? 'opens' : '?'}; run ${run ? `${run.realm} ${run.level}, held ${run.held}` : 'none'}; after a fall "${fell.next}" ${fell.play} -> level ${again?.level} seed ${again?.seed === run?.seed ? 'same' : 'new'}${first.fits ? '' : ' (off screen)'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
+
+// #235: on the champion screen at 1280x720 every relic, in a slot or the inventory, has its ⓘ; hovered, its tooltip is the short line; the
+// ⓘ clicked opens its compendium page without slotting it, and Esc closes the page and stays on the screen; no text under 14 px on the
+// screen's own panels (slots, sets, inventory, talent plan, the level to play: all but the header and the tab bar every main screen shares)
+await check('champion screen: relic tooltips are the short line, the ⓘ opens the compendium page, no text under 14 px (#235)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['rivetHammer', 'heartOfTheHold', 'emberheart'], loadouts: { marches: ['rivetHammer'] }, ...window.__lb.build.grown({}), world: {}, signature: false, lastBastion: false, runs: {} } };
+  });
+  await p.locator('[data-go="champion"]').click();
+  await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  await skipTour(p); // #240: this browser's first champion screen
+  const font = (sel) => p.evaluate((sel) => {
+    let min = Infinity;
+    for (const root of document.querySelectorAll(sel)) for (const el of [root, ...root.querySelectorAll('*')]) {
+      if ([...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && el.getBoundingClientRect().width > 0) min = Math.min(min, parseFloat(getComputedStyle(el).fontSize));
+    }
+    return min;
+  }, sel);
+  const infos = await p.evaluate(() => ({ slots: document.querySelectorAll('.cs-slot[data-unslot] .relic-info').length, inv: document.querySelectorAll('.cs-relic .relic-info').length, relics: document.querySelectorAll('.cs-relic').length }));
+  const relicFont = await font('.cs-main, .cs-go');
+  await p.locator('.cs-relic[data-relic="emberheart"]').hover();
+  const tip = await p.evaluate(() => { const t = document.getElementById('tooltip'); return { shown: t?.style.display === 'block', text: t?.innerText ?? '' }; });
+  const tipFont = await font('#tooltip');
+  await p.locator('.cs-relic[data-relic="emberheart"] .relic-info').click();
+  const opened = await p.evaluate(() => ({ page: document.querySelector('.relic-page')?.innerText.replace(/\s+/g, ' ') ?? '', loadout: (window.__lb.save.champions.paladin.loadouts.marches ?? []).join(',') }));
+  const pageFont = await font('.relic-page');
+  await p.keyboard.press('Escape');
+  const after = await p.evaluate(() => ({ page: !!document.querySelector('.relic-page'), screen: !!document.querySelector('.champion-screen') }));
+  await p.close();
+  const shortTip = tip.shown && tip.text.includes('More damage for every burning enemy near you.') && !/Tier II:|Awakens at/.test(tip.text);
+  const ok = infos.slots >= 1 && infos.inv === infos.relics && shortTip && /Tier|II/.test(opened.page) && /250 px/.test(opened.page) && opened.loadout === 'rivetHammer'
+    && !after.page && after.screen && relicFont >= 14 && tipFont >= 14 && pageFont >= 14 && errs.length === 0;
+  return { ok, detail: `ⓘ on ${infos.slots} slot(s), ${infos.inv}/${infos.relics} inventory relics; tip ${tip.shown ? `"${tip.text.split('\n').slice(0, 2).join(' / ')}"` : 'NOT shown'}; page "${opened.page.slice(0, 70)}", loadout ${opened.loadout}; Esc: page ${after.page ? 'still open' : 'closed'}, screen ${after.screen}; smallest font on the screen ${relicFont}px, tip ${tipFont}px, page ${pageFont}px${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
 
 // ---------- #205: a realm level's relics don't count for "in one run" deeds; a full run's do, and the Chronicle says so ----------
 await check('deeds: six relics held in a Marches level leave Reliquarian at 0; in a full run it is earned; the Chronicle says "full run" (#205)', async () => {
@@ -1818,8 +2854,248 @@ await check('import: asks first and keeps the replaced save as a backup, once', 
   return { ok, detail: `asked ${asked.length}×, gold ${before.gold} -> ${kept} (no) -> ${gold} (yes), backup is the old save ${top === before.text}, restore rows ${rows1} -> ${rows2}, ${texts.length} backups, ${new Set(texts).size} distinct` };
 });
 
+// ---------- #239: the champion screen explains itself: a legendary is one double slot with a "2 slots" badge, a relic that can't go in
+// greys the empty slots with the reason, and an ⓘ by the slots, the set chips and the talent plan opens and closes ----------
+// At 1280x720 with the mouse and in phone landscape by touch, on a champion with five slots filled: the Everfrost Crown wears its
+// "2 slots" badge in the inventory and can't go in; pointing at it (mouse) and tapping it greys the one empty slot, which says "a
+// legendary takes 2 slots" in its own tip and under the inventory; a tap elsewhere lifts the grey. A common taken out, the Crown goes in
+// as one frame two slots wide with its badge. Each ⓘ opens its text on screen and closes again: by the same ⓘ, by its ×, and by Escape
+// (which leaves the screen open). At 1280x720 no text on the screen or its popups is under 14 px.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`champion screen: a legendary is one double slot with a "2 slots" badge, a blocked relic greys the empty slot with the reason, the three info buttons open and close, ${touch ? 'tap' : 'click'} at ${w}x${h} (#239)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await p.evaluate(() => {
+      const five = ['brimstoneOil', 'emberheart', 'cinderCharm', 'frostBrand', 'wintersGrasp'];
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [...five, 'everfrostCrown'], loadouts: { marches: five }, ...window.__lb.build.grown({}), world: {}, signature: false, lastBastion: false, runs: {} } };
+    });
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await skipTour(p, touch); // #240: this browser's first champion screen
+    // every piece of text showing on the screen (its popups too) that is smaller than 14 px; the relic tooltip's own text is #235's
+    const small = () => p.evaluate(() => {
+      const out = [];
+      for (const root of [document.querySelector('.champion-screen')]) {
+        const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+          const e = n.parentElement, r = e.getBoundingClientRect();
+          if (!n.textContent.trim() || !r.width || !r.height || e.closest('[hidden]') || getComputedStyle(e).visibility === 'hidden') continue;
+          const px = parseFloat(getComputedStyle(e).fontSize);
+          if (px < 14) out.push(`${px}px "${n.textContent.trim().slice(0, 24)}"`);
+        }
+      }
+      return out;
+    });
+    const look = () => p.evaluate(() => {
+      const width = (e) => e.getBoundingClientRect().width;
+      const slots = [...document.querySelectorAll('.cs-slot')];
+      const double = document.querySelector('.cs-slot.double'), single = slots.find((s) => !s.classList.contains('double'));
+      const tip = document.getElementById('tooltip');
+      return {
+        slots: slots.map((s) => (s.classList.contains('empty') ? (s.classList.contains('deny') ? 'x' : 'o') : s.classList.contains('double') ? 'D' : 'R')).join(''),
+        deny: [...document.querySelectorAll('.cs-slot.deny')].map((s) => s.dataset.tip).join('|'),
+        badge: document.querySelector('.cs-relic[data-relic="everfrostCrown"] .cs-badge')?.textContent ?? '',
+        blocked: [...document.querySelectorAll('.cs-relic.blocked')].map((b) => b.dataset.relic).join(','),
+        why: document.querySelector('.cs-why').textContent,
+        tip: tip && getComputedStyle(tip).display !== 'none' ? tip.textContent : '',
+        double: double ? { badge: double.querySelector('.cs-badge')?.textContent ?? '', wide: width(double) >= 2 * width(single), name: double.getAttribute('aria-label') } : null,
+        loadout: (window.__lb.save.champions.paladin.loadouts.marches ?? []).join(','),
+      };
+    });
+    const tiny = await small();
+    const first = await look();
+    let hover = null;
+    if (!touch) { // the mouse only points at it: the slot greys, and the relic's own tip says why
+      await p.hover('.cs-relic[data-relic="everfrostCrown"]');
+      hover = await look();
+      tiny.push(...await small());
+      await p.mouse.move(4, 4);
+    }
+    const away = await look();
+    await press('.cs-relic[data-relic="everfrostCrown"]'); // picked: the slot stays grey, so its reason can be read on it
+    if (touch) await press('.cs-slot.deny'); else await p.hover('.cs-slot.deny');
+    const refused = await look();
+    tiny.push(...await small());
+    await press('.cs-hero [data-figure]'); // a tap elsewhere
+    const lifted = await look();
+    await press('.cs-slot[data-unslot="wintersGrasp"]');
+    const freed = await look();
+    await press('.cs-relic[data-relic="everfrostCrown"]');
+    if (!touch) await p.mouse.move(4, 4);
+    const crowned = await look();
+    // the three ⓘ: each opens its own text, on screen, and closes its own way
+    const pop = () => p.evaluate(() => {
+      const q = document.querySelector('.kit-info-pop'), r = q.getBoundingClientRect();
+      return { open: !q.hidden, text: q.hidden ? '' : q.textContent.trim(), fits: q.hidden || (r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight), lit: [...document.querySelectorAll('.kit-info[aria-expanded="true"]')].map((b) => b.dataset.info).join(',') };
+    });
+    const info = {};
+    for (const [key, shut] of [['slots', 'again'], ['sets', 'x'], ['talents', 'Escape']]) {
+      if (key === 'talents') await press('[data-cs="talents"]'); // #240: the plan's ⓘ is on the Talents tab
+      await press(`.kit-info[data-info="${key}"]`);
+      const opened = await pop();
+      tiny.push(...await small());
+      if (shut === 'again') await press(`.kit-info[data-info="${key}"]`);
+      else if (shut === 'x') await press('.kit-info-pop .kit-close');
+      else await p.keyboard.press('Escape');
+      info[key] = { opened, closed: await pop() };
+    }
+    const still = await p.locator('.champion-screen').count(); // Escape closed the popup, not the screen
+    await p.close();
+    const reason = /a legendary takes 2 slots/i;
+    const infoOk = Object.entries(info).every(([key, i]) => i.opened.open && i.opened.fits && i.opened.lit === key && !i.closed.open && i.closed.lit === '')
+      && /legendary takes 2 slots/i.test(info.slots.opened.text) && /at most 4 relics of one family/i.test(info.slots.opened.text) && /2 class relics/i.test(info.slots.opened.text)
+      && /set/i.test(info.sets.opened.text) && /bonus/i.test(info.sets.opened.text) && /talent point/i.test(info.talents.opened.text) && /between levels/i.test(info.talents.opened.text);
+    const ok = first.slots === 'RRRRRo' && first.badge === '2 slots' && first.blocked === 'everfrostCrown' && first.double === null
+      && (touch || (hover.slots === 'RRRRRx' && reason.test(hover.deny) && reason.test(hover.tip))) && away.slots === 'RRRRRo'
+      && refused.slots === 'RRRRRx' && reason.test(refused.deny) && reason.test(refused.why) && reason.test(refused.tip) && refused.loadout === first.loadout
+      && lifted.slots === 'RRRRRo'
+      && freed.slots === 'RRRRoo' && freed.blocked === ''
+      && crowned.slots === 'RRRRD' && crowned.double.badge === '2 slots' && crowned.double.wide && /2 slots/.test(crowned.double.name) && crowned.loadout.split(',').includes('everfrostCrown')
+      && infoOk && still === 1 && (touch || tiny.length === 0) && errs.length === 0;
+    return { ok, detail: `slots ${first.slots}, the Crown's badge "${first.badge}", blocked ${first.blocked || '-'}${hover ? `; pointed at -> ${hover.slots} "${hover.deny}", away -> ${away.slots}` : ''}; tapped -> ${refused.slots}, the slot says "${refused.tip.slice(0, 60)}", under the inventory "${refused.why}"; a tap elsewhere -> ${lifted.slots}; a common out -> ${freed.slots}; the Crown in -> ${crowned.slots}, ${crowned.double ? `badge "${crowned.double.badge}"${crowned.double.wide ? ', two slots wide' : ', NOT two slots wide'}` : 'NO double slot'}; info ${Object.entries(info).map(([key, i]) => `${key} ${i.opened.open ? 'opens' : 'STAYS SHUT'}${i.opened.fits ? '' : ' (off screen)'}/${i.closed.open ? 'STAYS OPEN' : 'closes'}`).join(', ')}${still ? '' : ', Escape left the screen'}${touch ? '' : `; text under 14 px: ${tiny.length ? [...new Set(tiny)].join(', ') : 'none'}`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #240: the champion screen in three tabs, and its tour on a first visit ----------
+// From the title at 1280x720 with the mouse and in phone landscape by touch: the first opening brings the tour, five steps of one
+// sentence (slots, inventory, the legendary rule, Build, PLAY), each ringing its part with its bubble on screen, and PLAY can't be
+// pressed under it; Next goes through them and Done ends it. Loadout, Build and Talents then show one at a time (the slots and the
+// inventory, the line about champion levels, the talent plan), the champion and PLAY on all three; the plan edited or cleared comes
+// back on Talents. The screen opened again, and after a reload, has no tour; the ⓘ beside the tabs plays it again, Enter goes a step on,
+// Escape and Skip leave it with the screen still open. PLAY on the Build tab starts the level. At 1280x720 no text is under 14 px.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`champion screen: the tour on a first visit (5 steps, Next, Done, Skip, Escape, again from its info button, never twice by itself), the Loadout, Build and Talents tabs with PLAY on each, ${touch ? 'tap' : 'click'} at ${w}x${h} (#240)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    const seed = () => p.evaluate(() => {
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue'], loadouts: { marches: ['brimstoneOil'] }, ...window.__lb.build.grown({}), xp: 180, level: 2, world: {}, signature: false, lastBastion: false, runs: {} } };
+    });
+    await seed();
+    const key = () => p.evaluate(() => localStorage.getItem('lastbastion.championTour'));
+    const before = await key();
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const tiny = [];
+    // what shows: the tour's step (its ring around its part, its bubble on screen), the open tab and its parts, the champion, PLAY
+    const look = () => p.evaluate(() => {
+      const shown = (sel) => { const e = document.querySelector(sel); return !!e && e.getClientRects().length > 0; };
+      const veil = document.querySelector('.kit-tour');
+      let tour = null;
+      if (veil) {
+        const ring = veil.querySelector('.kit-tour-ring').getBoundingClientRect(), pop = veil.querySelector('.kit-tour-pop').getBoundingClientRect();
+        const at = { slots: '.cs-slots', inventory: '.cs-inventory', legendary: '.cs-slots', build: '.cs-tabs', play: '.cs-go' }[veil.dataset.step];
+        const t = document.querySelector(at).getBoundingClientRect();
+        tour = {
+          step: veil.dataset.step, text: veil.querySelector('p').textContent, count: veil.querySelector('[data-tour-count]').textContent, next: veil.querySelector('[data-tour-next]').textContent,
+          ringed: ring.left <= t.left && ring.top <= t.top && ring.right >= t.right && ring.bottom >= t.bottom && ring.width < t.width + 20,
+          fits: pop.left >= 0 && pop.top >= 0 && pop.right <= innerWidth && pop.bottom <= innerHeight,
+        };
+      }
+      const play = document.querySelector('[data-play]'), pb = play.getBoundingClientRect();
+      const small = [];
+      for (const e of document.querySelectorAll('.champion-screen *')) {
+        if ([...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && e.getClientRects().length && parseFloat(getComputedStyle(e).fontSize) < 14) small.push(`${e.className || e.tagName}:${getComputedStyle(e).fontSize}`);
+      }
+      return {
+        tour, small,
+        tab: [...document.querySelectorAll('[data-cs]')].filter((b) => b.classList.contains('on') && b.getAttribute('aria-selected') === 'true').map((b) => b.dataset.cs).join(),
+        parts: ['.cs-slots', '.cs-sets', '.cs-inventory', '.cs-build', '.cs-talents'].filter(shown).join(' '),
+        figure: shown('.cs-hero [data-figure] canvas'),
+        build: document.querySelector('.cs-build').textContent.replace(/\s+/g, ' ').trim(),
+        plan: document.querySelectorAll('.cs-plan li').length,
+        why: document.querySelector('.cs-why').textContent,
+        playReach: pb.bottom <= innerHeight + 1 && document.elementFromPoint(pb.left + pb.width / 2, pb.top + pb.height / 2)?.closest('[data-play]') === play,
+        fits: (() => { const b = document.querySelector('.champion-screen').getBoundingClientRect(); return b.top >= -1 && b.left >= -1 && b.bottom <= innerHeight + 1 && b.right <= innerWidth + 1; })(),
+        mainTabs: [...document.querySelectorAll('.kit-tab')].map((t) => (t.classList.contains('on') ? 'X' : 'o')).join(''),
+        game: !!window.__lb.game,
+      };
+    });
+    const see = async () => { const v = await look(); tiny.push(...v.small); return v; };
+    // the first visit: the tour, step by step
+    const steps = [];
+    for (let i = 0; i < 5; i++) {
+      const v = await see();
+      if (!v.tour) break;
+      steps.push({ ...v.tour, playReach: v.playReach, tab: v.tab });
+      await press('[data-tour-next]');
+    }
+    const seen = await key();
+    const done = await see();
+    // the tabs, one at a time
+    await press('[data-cs="build"]');
+    const build = await see();
+    await press('[data-cs="talents"]');
+    const talents = await see();
+    await press('[data-spend-talents]'); // #238: a real talent point, spent on the tree
+    await press('.talent.open');
+    await press('.kit-screen.talents [data-back]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const planned = await see();
+    await press('[data-reset-points]'); // outside a run: every point back, for free
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const cleared = await see();
+    await press('[data-cs="loadout"]');
+    await press('.cs-relic[data-relic="dragonsTongue"]'); // a legendary beside the common: slotted, and the screen stays on Loadout
+    await p.locator('.cs-slot.double').waitFor({ timeout: 3000 });
+    const loadout = await see();
+    // opened again, and after a reload: no tour by itself
+    await press('.champion-screen [data-back]');
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const second = await see();
+    await p.reload();
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await seed();
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const reloaded = await see();
+    // again from the ⓘ, on the Build tab: it starts on Loadout; Enter goes on, Escape leaves it and the screen stays
+    await press('[data-cs="build"]');
+    await press('[data-tour]');
+    const replay = await see();
+    await p.keyboard.press('Enter');
+    const entered = await see();
+    await p.keyboard.press('Escape');
+    const escaped = { ...(await see()), screen: await p.locator('.champion-screen').count() };
+    await press('[data-tour]');
+    const third = await see();
+    await press('[data-tour-skip]');
+    const skipped = await see();
+    // PLAY from another tab
+    await press('[data-cs="build"]');
+    await press('[data-play]');
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, held: g.player.relics.held.join(',') } : null; });
+    await p.close();
+    const one = (t) => t.split(/[.!?](\s|$)/).filter((x) => x && x.trim()).length === 1;
+    const tourOk = before === null && seen !== null && steps.map((s) => s.step).join() === 'slots,inventory,legendary,build,play'
+      && steps.every((s, i) => s.ringed && s.fits && one(s.text) && s.count === `${i + 1} / 5` && s.next === (i === 4 ? 'Done' : 'Next') && !s.playReach && s.tab === 'loadout')
+      && /slots/i.test(steps[0].text) && /inventory/i.test(steps[1].text) && /legendary relic takes 2 slots/i.test(steps[2].text) && /Build/.test(steps[3].text) && /PLAY/.test(steps[4].text)
+      && !done.tour && !done.game;
+    const tabsOk = done.tab === 'loadout' && done.parts === '.cs-slots .cs-sets .cs-inventory'
+      && build.tab === 'build' && build.parts === '.cs-build' && /Level 2/.test(build.build) && /3 stat points to spend/.test(build.build) && /champion levels: each level gives 3 stat points/i.test(build.build)
+      && talents.tab === 'talents' && talents.parts === '.cs-talents' && talents.plan === 0
+      && planned.tab === 'talents' && planned.parts === '.cs-talents' && planned.plan === 1 && cleared.tab === 'talents' && cleared.plan === 0
+      && loadout.tab === 'loadout' && loadout.parts === '.cs-slots .cs-sets .cs-inventory'
+      && [done, build, talents, planned, cleared, loadout].every((v) => v.playReach && v.figure && v.fits && v.mainTabs === 'oXooo' && !v.tour);
+    const onceOk = !second.tour && second.tab === 'loadout' && !reloaded.tour
+      && replay.tour?.step === 'slots' && replay.tab === 'loadout' && entered.tour?.step === 'inventory'
+      && !escaped.tour && escaped.screen === 1 && escaped.playReach && third.tour?.step === 'slots' && !skipped.tour && skipped.playReach;
+    const ok = tourOk && tabsOk && onceOk && run?.realm === 'marches' && run.level === 1 && run.held.split(',')[0] === 'brimstoneOil' && (touch || tiny.length === 0) && errs.length === 0;
+    return { ok, detail: `first visit: ${steps.map((s) => `${s.count} ${s.step}${s.ringed ? '' : ' (no ring)'}${s.fits ? '' : ' (off screen)'}${s.playReach ? ' (PLAY open)' : ''}`).join(', ') || 'NO tour'}, last button "${steps[4]?.next ?? '?'}", then ${done.tour ? 'STILL up' : 'gone'}; tabs: ${[done, build, talents, loadout].map((v) => `${v.tab} [${v.parts}]${v.playReach ? '' : ' PLAY out of reach'}`).join(' · ')}; Build "${build.build}"; plan ${planned.plan} on ${planned.tab}, cleared ${cleared.plan} on ${cleared.tab}; opened again ${second.tour ? 'TOUR' : 'no tour'}, after a reload ${reloaded.tour ? 'TOUR' : 'no tour'}; info button -> ${replay.tour?.step ?? 'NONE'} on ${replay.tab}, Enter -> ${entered.tour?.step ?? 'NONE'}, Escape -> ${escaped.tour ? 'still up' : 'gone'} (screen ${escaped.screen}), Skip -> ${skipped.tour ? 'still up' : 'gone'}; PLAY on Build -> ${run ? `${run.realm} ${run.level} holding ${run.held}` : 'NO run'}${touch ? '' : `; under 14 px: ${[...new Set(tiny)].join(', ') || 'none'}`}${errs.length ? `; ERRORS ${errs.join(' | ')}` : ''}` };
+  });
+}
+
 // ---------- v0.10 (#193): a v0.7-v0.9 save (format 6) loads as format 7 with its champions, its relics kept, the old text under Restore ----------
-await check('save v7: a format-6 save migrates with champions, and the Keep, Chronicle and Settings still open (#193)', async () => {
+await check('save v7: a format-6 save migrates with champions (as format 8 now, #237), and the Keep, Chronicle and Settings still open (#193)', async () => {
   const { readFileSync } = await import('node:fs');
   const v6 = readFileSync(new URL('../tests/fixtures/saves/format6-v0.7.4.json', import.meta.url), 'utf8');
   const errs = errors.length;
@@ -1842,7 +3118,7 @@ await check('save v7: a format-6 save migrates with champions, and the Keep, Chr
   const label = await page.locator('[data-restore]').first().textContent();
   await page.click('[data-act="back"]');
   await page.click('[data-act="back"]');
-  const ok = s.version === 7 && kept && opened.every(Boolean) && label.includes('v0.7-v0.9') && errors.length === errs;
+  const ok = s.version === 8 && kept && opened.every(Boolean) && label.includes('v0.7-v0.9') && errors.length === errs;
   return { ok, detail: `format ${s.version}, ${champs.length} champions holding all ${s.picks.length} picked relics ${kept}, Keep/Chronicle ${opened.join('/')}, restore row "${label?.trim()}", ${errors.length - errs} errors` };
 });
 
@@ -3436,6 +4712,96 @@ await check('Arenas: the altar, strongbox, lair and cache are drawn props; grasp
   }),
 );
 
+// ---------- #210: the Great Keep as a fortress: its wings are rooms (forge, armory, chapel, barracks) that open by the start wave ----------
+// Test mode, the Great Keep: at wave 1 every gate is shut; at wave 6 (past the mid-Act boss) one wing is open by the start. Walked into with
+// the keyboard, the room names its feature ("Forge fires", not "Vents"), and its floor holds its own rigged furniture (anvils, weapon racks,
+// bunks), pixel for pixel from the props atlas.
+await check('Great Keep: a fortress whose wings are the forge, armory, chapel and barracks, one open by wave 6, walked into, furnished (#210)', async () => {
+  const start = (wave, seed) => inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.props());
+    return inPage(async ([wave, seed]) => {
+      const lb = window.__lb, wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait();
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      set('tm-arena', 'keep');
+      set('tm-act', '1');
+      set('tm-wave', String(wave));
+      const g = window.__startTest(seed);
+      g.player.invulnerable = true;
+      for (let i = 0; i < 60 && !(lb.state === 'playing' && g.time > 0.3); i++) {
+        if (lb.state === 'choice') lb.run(1, false, 'input');
+        await wait(50);
+      }
+      const open = g.arena.regions.filter((r) => r.id !== 'core' && g.regionOpen[r.id]).map((r) => r.id);
+      return { arena: g.arena.id, open, names: g.arena.regions.filter((r) => r.id !== 'core' && r.id !== 'vault').map((r) => r.name), state: lb.state };
+    }, [wave, seed]);
+  });
+  const first = await start(1);
+  const later = await start(6, 3); // seed 3 opens the forge first: its fires go by their own name, not "Vents"
+  const wing = later.open[0];
+  // stand in the open wing's gate, on the core's side, and walk in with the key that points into the wing
+  const key = { north: 'KeyW', south: 'KeyS', east: 'KeyD', west: 'KeyA' }[wing];
+  await inPage((wing) => {
+    const g = window.__lb.game, r = g.arena.regions.find((q) => q.id === wing), core = g.arena.regions.find((q) => q.id === 'core').floor;
+    const gx = r.gate.x + r.gate.w / 2, gy = r.gate.y + r.gate.h / 2;
+    const x = wing === 'east' ? core.x + core.w - 30 : wing === 'west' ? core.x + 30 : gx;
+    const y = wing === 'south' ? core.y + core.h - 30 : wing === 'north' ? core.y + 30 : gy;
+    Object.assign(g.player, { x, y });
+    g.enemies.length = 0;
+    g.texts.length = 0;
+    window.__lb.run(1, false, 'input');
+  }, wing);
+  let walked = null;
+  if (key) {
+    await page.keyboard.down(key);
+    for (let i = 0; i < 12 && !walked?.seen; i++) {
+      walked = await inPage((wing) => {
+        const lb = window.__lb, g = lb.game;
+        g.enemies.length = 0;
+        lb.run(10, false, 'input');
+        return { seen: g.regionSeen.includes(wing), texts: g.texts.map((t) => t.text) };
+      }, wing);
+    }
+    await page.keyboard.up(key);
+  }
+  // the wing's furniture, read back from the baked ground against the atlas (src/render/props.json: row y, anchor x, anchor y, a solid pixel's y)
+  const props = await inPage(async (wing) => {
+    const lb = window.__lb, g = lb.game, r = g.arena.regions.find((q) => q.id === wing);
+    const img = new Image();
+    img.src = 'sprites/props.png';
+    await img.decode();
+    const atlas = document.createElement('canvas');
+    [atlas.width, atlas.height] = [img.width, img.height];
+    atlas.getContext('2d').drawImage(img, 0, 0);
+    const a = atlas.getContext('2d'), ground = lb.arenaCanvas(g.arena.id).getContext('2d');
+    const P = { pillar: [0, 38, 80, 50], anvil: [853, 38, 50, 50], rack: [925, 40, 81, 40], bunk: [1026, 38, 30, 20] };
+    const inWing = g.arena.obstacles.filter((o) => o.x >= r.floor.x && o.x <= r.floor.x + r.floor.w && o.y >= r.floor.y && o.y <= r.floor.y + r.floor.h);
+    const kinds = [...new Set(inWing.map((o) => o.kind))];
+    const drawn = inWing.filter((o) => {
+      const m = P[o.kind];
+      if (!m) return false;
+      const want = a.getImageData(m[1], m[0] + m[3], 1, 1).data;
+      const got = ground.getImageData(Math.round(o.x), Math.round(o.y + m[3] - m[2]), 1, 1).data;
+      return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
+    }).length;
+    return { kinds, count: inWing.length, drawn, name: r.name };
+  }, wing);
+  const want = { north: ['the forge', 'Forge fires', 'anvil'], east: ['the armory', 'Strongbox', 'rack'], south: ['the chapel', 'Shrine', 'pillar'], west: ['the barracks', 'Lair', 'bunk'] }[wing] ?? [];
+  const ok = first.arena === 'keep' && first.open.length === 0 && later.open.length === 1
+    && later.names.join() === 'the forge,the armory,the chapel,the barracks'
+    && walked?.seen === true && walked.texts.some((t) => t.includes(want[1]))
+    && props.name === want[0] && props.kinds.join() === want[2] && props.count === 4 && props.drawn === 4;
+  return { ok, detail: `wave 1: ${first.open.length} wings open; wave 6: ${later.open.join('/') || 'none'} open (${props.name}); walked in ${walked?.seen ? 'yes' : 'NO'}, it says "${walked?.texts.find((t) => t.includes(want[1])) ?? walked?.texts.join(' | ') ?? ''}"; furniture ${props.kinds.join('/')} x${props.count}, ${props.drawn} drawn from the atlas; wings: ${later.names.join(', ')}` };
+});
+
 
 // ---------- #194: one 6-set bonus a run: a test run holding six Flame and six Frost relics lights only one family's 6 ----------
 await check('Relics: with six Flame and six Frost relics held, only one family reaches its 6-set bonus; the other stops at its 4 (#194)', () =>
@@ -3575,7 +4941,7 @@ await check('Frame cache: the sprite gallery adds nothing to it; a run through A
 // seconds in, "Level up" before its screen (which opens once the card is closed), the utility when it unlocks and a status once a foe
 // near the champion burns (as level 2's Flame relics make them); each one once, kept in the save, with an icon and no spotlight
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
-  await check(`Marches tutorial: levels 1-2 teach moving, relics, the ability, level-ups, the utility and a status on flash cards, once each, none in a full run, ${touch ? 'tap' : 'Enter'} at ${w}x${h} (#60)`, async () => {
+  await check(`Marches tutorial: level 1 teaches moving, relics, the ability, champion XP (no level-up screen, #238) and a status on flash cards, once each, none in a full run, ${touch ? 'tap' : 'Enter'} at ${w}x${h} (#60)`, async () => {
     const TUTORIAL = ['move', 'relics', 'ability', 'levelUp', 'utility', 'sets', 'status'];
     const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
     const errs = [];
@@ -3642,13 +5008,13 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       for (let i = 0; i < 9000 && lb.game === g && lb.state !== 'results'; i++) {
         const c = document.querySelector('[data-card]');
         if (c && tut.includes(c.dataset.card)) {
-          const e = { id: c.dataset.card, tick: g.tick, icon: !!c.querySelector('.card-pic.icon'), spot: !!lb.spotlight, levelUps: g.pendingLevelUps, screenUnder: !!document.querySelector('.levelup') };
+          const e = { id: c.dataset.card, name: c.querySelector('h2').textContent, tick: g.tick, icon: !!c.querySelector('.card-pic.icon'), spot: !!lb.spotlight, levelUps: g.pendingLevelUps, xp: g.player.xp, screenUnder: !!document.querySelector('.levelup') };
           lb.run(1, false, true); // Got it, and a step
-          e.screenAfter = !!document.querySelector('.levelup [data-pick]'); // the level-up card's screen follows it
+          e.screenAfter = !!document.querySelector('.levelup [data-pick]'); // #238: no level-up screen follows the XP card
           out.push(e);
           continue;
         }
-        const need = ['move', 'relics', 'ability', 'levelUp', 'utility'].every((id) => lb.save.cards.includes(id));
+        const need = ['move', 'relics', 'ability', 'levelUp'].every((id) => lb.save.cards.includes(id)); // #238: the utility unlocks at champion level 2, so its card waits for level 2
         if (need && !burnt && lb.state === 'playing') { // as a Flame relic does in level 2: a foe near the champion catches fire
           const foe = g.enemies.find((f) => !f.dead && !f.hidden && Math.hypot(f.x - g.player.x, f.y - g.player.y) < 300);
           if (foe) { foe.statuses.burn = { stacks: 1, time: 3, power: 1 }; burnt = true; }
@@ -3661,13 +5027,13 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ids = seen.out.map((e) => e.id);
     const at = (id) => seen.out.find((e) => e.id === id);
-    const want = ['relics', 'ability', 'levelUp', 'utility', 'status'];
+    const want = ['relics', 'ability', 'levelUp', 'status'];
     const lvl = at('levelUp');
     const ok = full.every((id) => !TUTORIAL.includes(id)) && opening.pick > 0 && !opening.card && opening.level === 1
       && move?.id === 'move' && move.name === 'Move and fight' && /WASD/.test(move.text) && move.icon && move.ribbon === 'New' && move.state === 'choice' && !move.spot && move.fits && move.saved && held && closed
       && want.every((id) => ids.filter((x) => x === id).length === 1) && !ids.includes('move') && seen.out.every((e) => e.icon && !e.spot)
-      && at('relics').tick >= 120 && at('ability').tick >= 480 && lvl.levelUps > 0 && !lvl.screenUnder && lvl.screenAfter
-      && TUTORIAL.filter((id) => id !== 'sets').every((id) => seen.cards.filter((x) => x === id).length === 1) && errs.length === 0;
+      && at('relics').tick >= 120 && at('ability').tick >= 480 && lvl.name === 'Champion XP' && lvl.xp > 0 && lvl.levelUps === 0 && !lvl.screenUnder && !lvl.screenAfter && !ids.includes('utility')
+      && TUTORIAL.filter((id) => id !== 'sets' && id !== 'utility').every((id) => seen.cards.filter((x) => x === id).length === 1) && errs.length === 0;
     return { ok, detail: `full run: ${full.filter((id) => TUTORIAL.includes(id)).length} tutorial cards (${full.length} cards); level ${opening.level}: opening pick ${opening.pick ? 'first' : 'MISSING'}${opening.card ? ' UNDER A CARD' : ''}; "${move?.name ?? 'no move card'}" ${move ? `(${move.icon}, fits ${move.fits}, held ${held}, closed ${closed})` : ''}; then ${seen.out.map((e) => `${e.id}@${e.tick}`).join(', ')}${lvl ? `; level-up card with ${lvl.levelUps} pending, screen after ${lvl.screenAfter}` : ''}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
@@ -3683,9 +5049,9 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.goto(`http://localhost:${PORT}/?debug`);
     await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
     const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
-    await p.evaluate(() => {
-      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, talentPlan: [], world: { marches: [6] }, signature: false, lastBastion: false } };
-    });
+    await p.evaluate((run) => {
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [6] }), world: { marches: [6] }, signature: false, lastBastion: false, runs: { marches: run } } }; // #237: its realm run at level 7
+    }, runAt(7));
     await press('[data-go="map"]');
     await press('.wm-realm.r-marches');
     await p.locator('.rr-panel').waitFor({ timeout: 3000 });
@@ -3763,7 +5129,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const stayed = await p.evaluate(() => window.__lb.state === 'menu' && !document.querySelector('.kit-screen.daily') && !!document.querySelector('.kit-title'));
     await p.evaluate(() => {
       const s = window.__lb.save;
-      s.champions = { ...s.champions, viking: { name: 'Sigrun', inventory: ['brimstoneOil'], loadouts: { marches: ['brimstoneOil'] }, talentPlan: [], world: { marches: [7] }, signature: false, lastBastion: false } };
+      s.champions = { ...s.champions, viking: { name: 'Sigrun', inventory: ['brimstoneOil'], loadouts: { marches: ['brimstoneOil'] }, ...window.__lb.build.grown({ marches: [7] }), world: { marches: [7] }, signature: false, lastBastion: false, runs: {} } };
       s.meta.startRelic = 1; // Armorer's Choice
       s.classes.viking.xp = 1e6; // mastery up to the Keepsake
     });
@@ -3787,13 +5153,13 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 
 // ---------- #208: v0.10's whole road, from a new save to the Marches crown, through the real screens ----------
 // At 1280x720 with the mouse and keys. The title's Take up arms -> the Viking's card -> Onward makes a new champion (no relics, level 1,
-// one slot); the Map tab -> the Marches -> its road -> FIGHT plays level 1, which the bot clears in full (all 5 waves and its boss;
+// one slot); the Map tab -> the Marches -> its road -> FIGHT plays level 1, which the bot clears in full (all 6 waves, #243, and its boss;
 // the champion can't be hurt, the one shortcut), and its Steel rare (key 1) joins the champion. Back on the road, Loadout slots that rare
 // for level 2 and PLAY starts it holding the rare. There the champion stands still at 1 HP until a foe really kills it: "Thou art
 // slain", then the champion screen says where it fell, and RESTART plays level 2 again on the same seed, which the bot clears. Levels
 // 3-7 each go road -> Loadout (every relic won slotted; the level's own slots are live, the rest idle) -> PLAY, holding the live ones,
 // played out to the level's last wave and its rare; level 7's crown Warden falls and the crown's gold card (Enter) gives the signature.
-await check('journey: a new champion, its loadout slots, the map, the realm road, level 1 cleared, a fall in level 2 and its restart, levels 3-7 and the Marches crown pick, click and keys at 1280x720 (#208)', async () => {
+await check('journey: a new champion, its loadout slots, the map, the realm road, level 1 cleared, its relics kept into level 2 after a reload, a fall in level 2 and its restart from the checkpoint, levels 3-7 carrying the run, and the Marches crown pick, click and keys at 1280x720 (#208, #237)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const errs = [];
   p.on('pageerror', (e) => errs.push(e.message));
@@ -3819,7 +5185,7 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
       }
       lb.run(1, false, !fall);
     }
-    return { held, state: lb.state, cleared: !!g.level?.cleared, over: g.over, wave: g.wave, last: g.level?.last, level: g.level?.level, seed: g.seed };
+    return { held, end: [...g.player.relics.held], state: lb.state, cleared: !!g.level?.cleared, over: g.over, wave: g.wave, last: g.level?.last, level: g.level?.level, seed: g.seed, gold: g.gold, plevel: g.player.level };
   }, fall);
   const opening = async () => { // the level's opening pick
     await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
@@ -3838,8 +5204,9 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   await press('[data-class="viking"]');
   await press('[data-start]');
   await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  await skipTour(p); // #240: this browser's first champion screen
   const born = await screen();
-  want(born.champ?.name === 'Viking' && born.champ.inventory.length === 0 && born.empty && born.slots === 'o-----' && born.play === 'Play' && /The Marches · Level 1/.test(born.next) && /1 slot\b/.test(born.next), `new champion ${JSON.stringify(born)}`);
+  want(born.champ?.name === 'Viking' && born.champ.inventory.length === 0 && born.empty && born.slots === 'ooo---' && born.play === 'Play' && /The Marches · Level 1/.test(born.next) && /3 slots\b/.test(born.next), `new champion ${JSON.stringify(born)}`);
   log.push(`new ${born.champ?.name ?? '?'} (${born.slots}, "${born.next}")`);
   // the Map tab -> the Marches -> the road on level 1 -> FIGHT
   await press('.kit-tab[data-tab="map"]');
@@ -3860,22 +5227,30 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   const won = (await screen()).champ;
   want(won.inventory.length === 1 && won.world.marches?.[0] === 1, `after level 1 ${JSON.stringify(won)}`);
   log.push(`map ${open} -> "${road1}" -> cleared waves 1-${one.wave}, took a ${steel.fams[0]} rare`);
-  // back on the road at level 2; Loadout slots the rare, PLAY
-  await press('[data-menu]');
+  // #237: level 1 cleared is the realm run's checkpoint, in the save: after a reload the road goes on at level 2 with level 1's relics kept
+  const kept = await p.evaluate(() => window.__lb.save.champions.viking?.runs?.marches ?? null);
+  want(kept?.level === 2 && kept.carry?.relics.held.join() === one.end.join() && kept.carry.level === one.plevel && kept.carry.gold === one.gold, `checkpoint ${JSON.stringify(kept && { level: kept.level, held: kept.carry?.relics.held })} after level 1 held ${one.end.join()}`);
+  await p.reload();
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await press('[data-go="map"]');
+  await press('.wm-realm.r-marches');
   await p.locator('.rr-panel').waitFor({ timeout: 3000 });
   const road2 = (await p.locator('.rr-name').textContent()).trim();
-  want(road2 === 'The Marches · Level 2', `road after level 1 "${road2}"`);
+  const facts2 = await p.evaluate(() => document.querySelector('.rr-facts').textContent.replace(/\s+/g, ' ').trim());
+  want(road2 === 'The Marches · Level 2' && new RegExp(`Run level\\s*Level ${one.plevel}\\s*Relics kept\\s*${one.end.length}\\s*Enemy`).test(facts2) && !/Head start/.test(facts2), `road after level 1 and a reload "${road2}" (${facts2})`);
+  log.push(`reloaded: "${road2}", ${facts2}`);
+  // Loadout slots the rare: the run is under way, so every slot idles and it stays out (the loadout went in at level 1), PLAY
   await press('[data-loadout]');
   await p.locator('.champion-screen').waitFor({ timeout: 3000 });
   const bare = await screen();
   await press(`.cs-relic[data-relic="${won.inventory[0]}"]`);
   const slotted = await screen();
-  want(bare.slots === 'o-----' && /Level 2/.test(bare.next) && slotted.slots === 'R-----' && slotted.champ.loadouts.marches?.join() === won.inventory[0], `level 2 loadout ${bare.slots} -> ${slotted.slots}`);
+  want(bare.slots === '------' && /Level 2/.test(bare.next) && /run in progress/.test(bare.next) && slotted.slots === 'r-----' && slotted.champ.loadouts.marches?.join() === won.inventory[0], `level 2 loadout ${bare.slots} -> ${slotted.slots}`);
   await press('[data-play]');
   await opening();
   // the fall: at 1 HP and standing still, the first blow that lands ends it
   const fell = await playOut(true);
-  want(fell.over && fell.level === 2 && fell.state === 'results' && fell.held[0] === won.inventory[0], `the fall ${JSON.stringify(fell)}`);
+  want(fell.over && fell.level === 2 && fell.state === 'results' && fell.held.slice(0, one.end.length).join() === one.end.join() && (!fell.held.includes(won.inventory[0]) || one.end.includes(won.inventory[0])), `the fall ${JSON.stringify(fell)}: level 1 held ${one.end.join()}`);
   await p.locator('.results [data-retry]').waitFor({ timeout: 3000 });
   const slain = await p.evaluate(() => ({ head: document.querySelector('.results .kit-head').textContent.trim(), retry: document.querySelector('[data-retry]').textContent.trim() }));
   want(slain.head === 'Thou art slain' && slain.retry === 'Quick restart · The Marches · Level 2', `results ${JSON.stringify(slain)}`);
@@ -3886,11 +5261,14 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   await press('[data-play]');
   await opening();
   const again = await playOut(false);
-  want(again.level === 2 && again.seed === fell.seed && again.cleared && again.wave === again.last, `restart ${JSON.stringify(again)}`);
-  log.push(`level 2 with ${fell.held[0]}: "${slain.head}" at wave ${fell.wave}, "${after.next}" -> ${after.play} on the ${again.seed === fell.seed ? 'same' : 'OTHER'} seed, cleared`);
+  want(again.level === 2 && again.seed === fell.seed && again.held.join() === fell.held.join() && again.cleared && again.wave === again.last, `restart ${JSON.stringify(again)}`);
+  log.push(`level 2 holding level 1's ${one.end.join()}: "${slain.head}" at wave ${fell.wave}, "${after.next}" -> ${after.play} on the ${again.seed === fell.seed ? 'same' : 'OTHER'} seed with the same relics, cleared`);
   await rarePick(2);
-  // levels 3-7 by the road, every relic won in the loadout
-  const base = [1, 1, 2, 2, 3, 3, 4];
+  await p.locator('.level-cleared [data-retry]').waitFor({ timeout: 3000 });
+  const onward = (await p.locator('.level-cleared [data-retry]').textContent()).trim();
+  want(onward === 'Continue to level 3', `after level 2 the main button says "${onward}"`); // #237: the run goes on; #241: from the level-cleared screen
+  // levels 3-7 by the road, every relic won in the loadout: none goes in, the run holds what it found
+  let before = again.end; // #237: each level goes on holding what the level before ended with
   for (let n = 3; n <= 7; n++) {
     await p.locator('[data-menu]').waitFor({ timeout: 3000 });
     await press('[data-menu]');
@@ -3904,12 +5282,13 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
       await free.first().click();
     }
     const lo = await screen();
-    const live = +(lo.next.match(/(\d+) slots?/)?.[1] ?? 0), loadout = lo.champ.loadouts.marches ?? [];
-    want(road === `The Marches · Level ${n}` && live >= base[n - 1] && lo.slots.replace(/[-r]/g, '').length === live && loadout.length === Math.min(6, lo.champ.inventory.length), `level ${n}: "${road}", ${lo.slots} for ${live} slots, loadout ${loadout.join()}`);
+    const loadout = lo.champ.loadouts.marches ?? [];
+    want(road === `The Marches · Level ${n}` && /run in progress/.test(lo.next) && lo.slots.replace(/[-r]/g, '').length === 0 && loadout.length === Math.min(6, lo.champ.inventory.length), `level ${n}: "${road}", ${lo.slots} ("${lo.next}"), loadout ${loadout.join()}`);
     await press('[data-play]');
     await opening();
     const run = await playOut(false);
-    want(run.level === n && run.cleared && run.wave === run.last && run.held.slice(0, live).join() === loadout.slice(0, live).join(), `level ${n} ${JSON.stringify(run)}`);
+    want(run.level === n && run.cleared && run.wave === run.last && run.held.slice(0, before.length).join() === before.join(), `level ${n} ${JSON.stringify(run)}: held before ${before.join()}`);
+    before = run.end;
     log.push(`L${n} ${lo.slots} held ${run.held.length}`);
     await rarePick(n);
   }
@@ -3923,7 +5302,7 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   await p.locator('[data-menu]').waitFor({ timeout: 3000 });
   const end = (await screen()).champ;
   await p.close();
-  want(/The Marches crowned/.test(crown.head) && crown.cards === 1 && crown.name === "Jarl's Torc" && crown.gold && end.signature && end.inventory.includes('jarlsTorc') && end.world.marches[0] === 7, `crown ${JSON.stringify(crown)}, champion ${JSON.stringify(end)}`);
+  want(/The Marches crowned/.test(crown.head) && crown.cards === 1 && crown.name === "Jarl's Torc" && crown.gold && end.signature && end.inventory.includes('jarlsTorc') && end.world.marches[0] === 7 && !end.runs.marches, `crown ${JSON.stringify(crown)}, champion ${JSON.stringify(end)}`); // #237: the last level ends the run
   want(errs.length === 0, `errors: ${errs[0]}`);
   log.push(`"${crown.head}": ${crown.name}${crown.gold ? ' (gold)' : ''}, ${end.inventory.length} relics, signature ${end.signature}`);
   return { ok: bad.length === 0, detail: `${log.join('; ')}${bad.length ? `; WRONG: ${bad.join(' | ')}` : ''}` };
@@ -3931,10 +5310,11 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
 
 // ---------- #208: the slot rules left over from #197's check, by touch in phone landscape ----------
 // #197 plays a legendary's two slots and the one-legendary rule. Here a Viking with the Keep's two extra slots (Armorer's Choice, the
-// Keepsake) on level 7 (six slots), reached by the champion screen's arrow: two class relics shut out a third ("at most 2"), the signature still goes beside them, four Steel
-// relics shut out a fifth ("at most 4 of one family"), six filled leave no free slot, PLAY holds all six; level 1 from the road has
-// three live slots, the rest idle, and its run holds the first three.
-await check('slot rules: at most 2 class relics (the signature beside them), 4 of one family, no seventh slot; a smaller level takes the first ones, tap at 844x390 (#208)', async () => {
+// Keepsake) and six Marches levels cleared but no realm run in progress (#237: so its run starts at level 1, with five slots: a realm run's
+// three and the Keep's two), reached by the champion screen's arrow: two class relics shut out a third ("at most 2"), the signature still
+// goes beside them, four Steel relics shut out a fifth ("at most 4 of one family"), six filled leave no free slot, PLAY holds the first
+// five; level 1 from the road has the same five live slots, the sixth idle, and its run holds the same five.
+await check('slot rules: at most 2 class relics (the signature beside them), 4 of one family, no seventh slot; the five slots of a realm run take the first five, from the champion screen and from the road, tap at 844x390 (#208, #237)', async () => {
   const p = await browser.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true, isMobile: true });
   const errs = [];
   p.on('pageerror', (e) => errs.push(e.message));
@@ -3943,12 +5323,13 @@ await check('slot rules: at most 2 class relics (the signature beside them), 4 o
   const tap = (sel) => p.locator(sel).first().tap();
   await p.evaluate(() => {
     const s = window.__lb.save;
-    s.champions = { viking: { name: 'Sigrun', inventory: ['stormbornPelt', 'wolfskin', 'ironhide', 'towerShield', 'thornMail', 'anvilHeart', 'shockSigil', 'jarlsTorc'], loadouts: {}, talentPlan: [], world: { marches: [6] }, signature: true, lastBastion: false } };
+    s.champions = { viking: { name: 'Sigrun', inventory: ['stormbornPelt', 'wolfskin', 'ironhide', 'towerShield', 'thornMail', 'anvilHeart', 'shockSigil', 'jarlsTorc'], loadouts: {}, ...window.__lb.build.grown({ marches: [6] }), world: { marches: [6] }, signature: true, lastBastion: false, runs: {} } };
     s.meta.startRelic = 1; // Armorer's Choice: a slot
     s.classes.viking.xp = 1e6; // mastery up to the Keepsake: a slot
   });
   await tap('[data-go="champion"]'); // the Paladin's screen, then the next champion's arrow: the Viking
   await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  await skipTour(p, true); // #240: this browser's first champion screen
   await tap('[data-champ="1"]');
   await p.locator('.champion-screen .cs-relic').first().waitFor({ timeout: 3000 });
   const look = () => p.evaluate(() => ({
@@ -3973,7 +5354,7 @@ await check('slot rules: at most 2 class relics (the signature beside them), 4 o
   await tap('[data-play]');
   await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
   const run7 = await p.evaluate(() => ({ level: window.__lb.game?.level?.level, held: window.__lb.game?.player.relics.held.join() ?? '' }));
-  // the opening screens answered, then the pause menu's End run, and level 1 (one slot of its own, two from the Keep) from the road
+  // the opening screens answered, then the pause menu's End run, and level 1 (the same five slots) from the road
   await p.waitForFunction(() => window.__lb.state === 'choice', null, { timeout: 5000 }).catch(() => {});
   for (let i = 0; i < 8 && (await p.evaluate(() => window.__lb.state)) === 'choice'; i++) {
     await p.locator('[data-pick], [data-leave]').first().waitFor({ timeout: 3000 }).catch(() => {});
@@ -3997,14 +5378,15 @@ await check('slot rules: at most 2 class relics (the signature beside them), 4 o
   const run1 = await p.evaluate(() => ({ level: window.__lb.game?.level?.level, held: window.__lb.game?.player.relics.held.join() ?? '' }));
   await p.close();
   const six7 = 'stormbornPelt,towerShield,thornMail,anvilHeart,shockSigil,jarlsTorc';
-  const ok = /Level 7/.test(first.next) && /6 slots/.test(first.next) && first.slots === 'oooooo' && Object.keys(first.blocked).length === 0
+  const five = six7.split(',').slice(0, 5).join();
+  const ok = /Level 1/.test(first.next) && /5 slots/.test(first.next) && first.slots === 'ooooo-' && Object.keys(first.blocked).length === 0
     && classes.loadout === 'stormbornPelt,wolfskin' && classes.blocked.ironhide === 'At most 2 class relics.' && !classes.blocked.jarlsTorc
     && /Ironhide: At most 2 class relics/.test(third.why) && third.loadout === classes.loadout
-    && full.slots === 'RRRRRR' && full.blocked.ironhide === 'No free slot for it (a legendary takes two).' && /No free slot/.test(full.blocked.jarlsTorc ?? '')
+    && full.slots === 'RRRRRr' && full.blocked.ironhide === 'No free slot for it.' && /No free slot/.test(full.blocked.jarlsTorc ?? '')
     && fifth.blocked.ironhide === 'At most 4 relics of one family.' && /Ironhide: At most 4 relics of one family/.test(fifth.why) && !fifth.loadout.includes('ironhide')
-    && six.loadout === six7 && six.slots === 'RRRRRR' && run7.level === 7 && run7.held.startsWith(six7)
-    && /Level 1/.test(small.next) && /3 slots/.test(small.next) && small.slots === 'RRRrrr' && run1.level === 1 && run1.held.split(',').slice(0, 4).join() === six7.split(',').slice(0, 3).join() && errs.length === 0;
-  return { ok, detail: `"${first.next}" ${first.slots}; 2 class relics -> Ironhide "${classes.blocked.ironhide ?? '-'}", signature ${classes.blocked.jarlsTorc ? 'blocked' : 'free'}; six in: ${full.slots}, Torc "${full.blocked.jarlsTorc ?? '-'}"; a slot free -> Ironhide "${fifth.blocked.ironhide ?? '-'}"; level 7 holds ${run7.held}; level 1 "${small.next}" ${small.slots}, holds ${run1.held}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    && six.loadout === six7 && six.slots === 'RRRRRr' && run7.level === 1 && run7.held.split(',').slice(0, 6).join() === five
+    && /Level 1/.test(small.next) && /5 slots/.test(small.next) && small.slots === 'RRRRRr' && run1.level === 1 && run1.held.split(',').slice(0, 6).join() === five && errs.length === 0;
+  return { ok, detail: `"${first.next}" ${first.slots}; 2 class relics -> Ironhide "${classes.blocked.ironhide ?? '-'}", signature ${classes.blocked.jarlsTorc ? 'blocked' : 'free'}; six in: ${full.slots}, Torc "${full.blocked.jarlsTorc ?? '-'}"; a slot free -> Ironhide "${fifth.blocked.ironhide ?? '-'}"; PLAY holds ${run7.held}; level 1 "${small.next}" ${small.slots}, holds ${run1.held}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 // ---------- #206: test mode starts any realm level: Settings -> Test mode -> "Start at" a realm level -> the level's run ----------
@@ -4031,15 +5413,615 @@ await check('test mode: "Start at" a realm level starts that level through its h
   const run = await p.evaluate(() => {
     const g = window.__lb.game;
     return g && { test: g.vars.test, realm: g.level?.realm, level: g.level?.level, last: g.level?.last, start: g.startWave, wave: g.wave, act: g.act, lv: g.player.level, arena: g.arena.id,
-      picks: g.pendingAbilityTiers.length, offer: g.player.relics.offers[0]?.from, families: document.querySelector('[data-families]')?.textContent.trim() ?? '', hud: document.body.innerText.includes('TEST') };
+      picks: g.pendingAbilityTiers.length, tiers: g.player.upgrades.length, offer: g.player.relics.offers[0]?.from, families: document.querySelector('[data-families]')?.textContent.trim() ?? '', hud: document.body.innerText.includes('TEST') };
   });
   await p.locator('[data-pick="0"]').click().catch(() => {});
   const held = await p.evaluate(() => window.__lb.game.player.relics.held.length);
   await p.close();
-  const ok = before === 'false,false,false' && after === 'true,true,true' && /Iron Hold · Level 4 \(waves 21–30\)/.test(label ?? '')
-    && run?.test === 1 && run.realm === 'ironHold' && run.level === 4 && run.last === 30 && run.start === 21 && [20, 21].includes(run.wave) && run.act === 3 && run.lv === 19 && run.arena === 'keep' // wave 21 may already have begun
-    && run.picks > 0 && run.offer === 'start' && /Steel/.test(run.families) && run.hud && held === 1 && errs.length === 0;
-  return { ok, detail: `"${label}"; act/wave/level disabled ${before} -> ${after}; run: ${run ? `test ${run.test}, ${run.realm} level ${run.level}, waves ${run.start}-${run.last} (on wave ${run.wave}, Act ${run.act}), lv ${run.lv}, ${run.arena}, ${run.picks} queued ability picks, offer from ${run.offer} "${run.families}", TEST tag ${run.hud}` : 'none'}; picked -> ${held} held${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  const ok = before === 'false,false,false' && after === 'true,true,true' && /Iron Hold · Level 4 \(waves 25–32\)/.test(label ?? '')
+    && run?.test === 1 && run.realm === 'ironHold' && run.level === 4 && run.last === 32 && run.start === 25 && [24, 25].includes(run.wave) && run.act === 3 && run.lv === 10 && run.arena === 'keep' // wave 25 may already have begun (#243: waves 25-32)
+    && run.picks === 0 && run.tiers === 3 && run.offer === 'start' && /Steel/.test(run.families) && run.hud && held === 1 && errs.length === 0;
+  return { ok, detail: `"${label}"; act/wave/level disabled ${before} -> ${after}; run: ${run ? `test ${run.test}, ${run.realm} level ${run.level}, waves ${run.start}-${run.last} (on wave ${run.wave}, Act ${run.act}), lv ${run.lv}, ${run.arena}, ${run.picks} queued ability picks, ${run.tiers} ability tiers held, offer from ${run.offer} "${run.families}", TEST tag ${run.hud}` : 'none'}; picked -> ${held} held${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #215: the Forgemaster: Settings -> Test mode -> "Start at" the Iron Hold's level 3 -> the opening pick -> its last wave ----------
+// The champion stands beside him and trades plain blows (no ability, no bot moves, unhurt), so the fight goes the same way every run:
+// his plate breaks blow by blow, his hammer comes down in a marked arc, each new phase reforges the plate whole, from phase 2 the forge
+// presses slam a checkerboard (a third stroke in phase 3), and his fall clears the level.
+await check('Forgemaster: test mode starts the Iron Hold level 3; its last wave is his; hammer, presses, plates broken and reforged each phase, level cleared (#215)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="ironHold:3"]').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption('keep');
+  await p.locator('#tm-start').selectOption('ironHold:3');
+  await p.evaluate(() => {
+    // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    const clangs = { n: 0 };
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'clang' && clangs.n++), real(n));
+    }
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 24, the level's last (#243)
+    g.breather = 0.01;
+    const out = { wave: 0, id: '', plates: [], broke: false, hammer: [0, 0, 0], presses: [0, 0, 0], reforged: [], phases: [], dead: false };
+    let f = null;
+    const seen = new WeakSet();
+    for (let i = 0; i < 60000 && lb.state !== 'results' && !(f?.dead && g.level.cleared); i++) {
+      g.player.invulnerable = true;
+      // beside him, trading blows, once this phase has shown its moves (the hammer; from phase 2 the presses too); until then a
+      // few steps off, out of reach of his blows but inside his, so he keeps swinging and pressing
+      const shown = f && out.hammer[f.phase - 1] > 0 && (f.phase === 1 || out.presses[f.phase - 1] > 0);
+      if (f && !f.dead) (g.player.x = f.x - f.r - (shown ? 16 : 220)), (g.player.y = f.y);
+      lb.run(1, false, false);
+      f ??= g.enemies.find((e) => e.def.boss) ?? null;
+      if (!f) continue;
+      if (!out.id) (out.id = f.def.id), (out.wave = g.wave), out.plates.push(f.armorHp);
+      if (f.phase > out.phases.length + 1) out.phases.push(+g.time.toFixed(1)), out.reforged.push(f.armorHp);
+      if (out.phases.length === 0 && f.armorHp !== out.plates[out.plates.length - 1]) out.plates.push(f.armorHp);
+      if (f.armorHp === 0) out.broke = true;
+      const mine = g.zones.filter((z) => z.owner === f && !seen.has(z)); // the zones one blow set this tick
+      for (const z of mine) seen.add(z);
+      out.hammer[f.phase - 1] = Math.max(out.hammer[f.phase - 1], mine.filter((z) => z.color === '#f08a1c').length);
+      out.presses[f.phase - 1] = Math.max(out.presses[f.phase - 1], mine.filter((z) => z.color === '#9a9aa0').length);
+      if (f.dead) out.dead = true;
+    }
+    return { ...out, max: f?.armorMax, clangs: clangs.n, cleared: !!g.level?.cleared, test: g.vars.test };
+  });
+  await p.close();
+  const oneByOne = fight.plates.length >= 4 && fight.plates.slice(1).every((v, i) => v < fight.plates[i]);
+  const ok = fight.test === 1 && fight.wave === 24 && fight.id === 'forgemaster' && fight.plates[0] === 6 && fight.max === 6 && oneByOne && fight.broke && fight.clangs > 0
+    && fight.phases.length === 2 && fight.reforged.every((n) => n === 6) && fight.hammer[0] === 5 && fight.presses[0] === 0 && fight.presses[1] === 25 && fight.presses[2] === 38
+    && fight.dead && fight.cleared && errs.length === 0;
+  return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}; plates ${fight.plates.join('>')} of ${fight.max}, ${fight.clangs} clangs; phases at ${fight.phases.join(', ')} s, reforged to ${fight.reforged.join('/')}; hammer zones ${fight.hammer.join('/')}, press tiles ${fight.presses.join('/')} by phase; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #217: the Iron Hold's Steel relics: a test run holding all four, fought through the real input for 30 s ----------
+await check('Relics: Rivet Hammer, Pavise, Reprisal Cuirass and Heart of the Hold each do their work in a fight, and their HUD tiles say what they do (#217)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const ids = ['rivetHammer', 'pavise', 'reprisalCuirass', 'heartOfTheHold'];
+    const start = await inPage(async (ids) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), 'paladin');
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave and a level-1 champion: the horde reaches her and hits
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), '1');
+      const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
+      for (const id of listed) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land and are counted, the run just never ends
+      await wait(300);
+      const tip = (id) => document.querySelector(`#h-relics .relic[data-id="${id}"]`)?.dataset.tip ?? '';
+      return { listed: listed.length, held: g.player.relics.held.filter((id) => ids.includes(id)).length, tips: ids.map(tip) };
+    }, ids);
+    // the champion steps toward the horde (arrow keys) and holds her ground for 30 s: every number below comes from real hits
+    await page.keyboard.down('ArrowRight');
+    await inPage(() => window.__lb.run(60, false, 'input'));
+    await page.keyboard.up('ArrowRight');
+    await inPage(() => window.__lb.run(1800, false, 'input'));
+    const fight = await inPage((ids) => {
+      const p = window.__lb.game.player, s = (id) => p.relics.stats[id] ?? { damage: 0, prevented: 0 };
+      return { rivet: s(ids[0]).damage, pavise: s(ids[1]).prevented, reprisal: s(ids[2]).damage, heart: s(ids[3]).damage, stacks: p.armorStacks };
+    }, ids);
+    const [rivet, pavise, reprisal, heart] = start.tips;
+    const said = [/rivet/i.test(rivet), /in front of you/.test(pavise), /full force/.test(reprisal), /never fade/.test(heart)];
+    const worked = fight.rivet > 0 && fight.pavise > 0 && fight.reprisal > 0 && fight.heart > 0 && fight.stacks > 0;
+    const ok = start.listed === 4 && start.held === 4 && said.every(Boolean) && worked;
+    const r = (v) => Math.round(v);
+    return { ok, detail: `test mode lists ${start.listed}/4, held ${start.held}; tiles say ${said.map((x) => (x ? 'yes' : 'NO')).join('/')}; rivets ${r(fight.rivet)} dmg, Pavise turned away ${r(fight.pavise)}, reprisals ${r(fight.reprisal)} dmg, Heart thorns ${r(fight.heart)} dmg, ${fight.stacks} armor stacks` };
+  }),
+);
+
+// ---------- #218: the Iron Hold's Steel class relics: each champion's own, in a test run fought through the real input (ability on Space) ----------
+await check('Relics: Iron Halo, Legion Plate and Bodkin Points each work for their own champion in a fight, test mode lists each for its class only, and their HUD tiles say what they do (#218)', async () => {
+  const cases = [
+    { classId: 'angel', id: 'ironHalo', says: /Heavenly Radiance gives .* armor stacks/ },
+    // Legion Plate's bonus is 3% per stack of a level-1 skeleton's hit (a fraction of a point), so its fight runs twice as long
+    { classId: 'necromancer', id: 'legionPlate', says: /hit of your minions gives you an armor stack/, secs: 60 },
+    { classId: 'archer', id: 'bodkinPoints', says: /arrow hit is a bodkin/ },
+  ];
+  const ids = cases.map((c) => c.id);
+  const out = [];
+  for (const c of cases) {
+    await inPage(() => location.reload());
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const start = await inPage(async ({ c, ids }) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), c.classId);
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave and a level-1 champion, as #217's check
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), '1');
+      const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
+      const own = document.querySelector(`#tm-relics select[data-relic="${c.id}"]`);
+      if (own) set(own, '1');
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land and are counted, the run just never ends
+      await wait(300);
+      return { listed, held: g.player.relics.held.includes(c.id), tip: document.querySelector(`#h-relics .relic[data-id="${c.id}"]`)?.dataset.tip ?? '' };
+    }, { c, ids });
+    // the champion steps toward the horde and fights for 30 s (or c.secs), casting the ability (Space) whenever it is ready
+    await page.keyboard.down('ArrowRight');
+    await inPage(() => window.__lb.run(60, false, 'input'));
+    await page.keyboard.up('ArrowRight');
+    await page.keyboard.down('Space');
+    let stacks = 0;
+    for (let i = 0; i < (c.secs ?? 30); i++) stacks = Math.max(stacks, await inPage(() => (window.__lb.run(60, false, 'input'), window.__lb.game.player.armorStacks)));
+    await page.keyboard.up('Space');
+    const damage = await inPage((id) => window.__lb.game.player.relics.stats[id]?.damage ?? 0, c.id);
+    const ok = start.listed.length === 1 && start.listed[0] === c.id && start.held && c.says.test(start.tip) && damage > 0 && stacks > 0;
+    out.push({ ok, text: `${c.classId}: lists ${start.listed.join('+') || 'none'}, held ${start.held}, tile ${c.says.test(start.tip) ? 'yes' : 'NO'}, ${damage.toFixed(1)} dmg in ${c.secs ?? 30} s, up to ${stacks} armor stacks` });
+  }
+  return { ok: out.every((o) => o.ok), detail: out.map((o) => o.text).join('; ') };
+});
+
+// ---------- #216: the Iron King: Settings -> Test mode -> "Start at" the Iron Hold's level 5 -> the opening pick -> its last wave ----------
+// The champion trades plain blows beside him (no ability, no bot moves, unhurt), so the fight goes the same way every run: phase 1 his
+// plate breaks blow by blow, his Decree lines land and his guard of Iron Knights comes; phase 2 he casts the plate off and raises the tower
+// shield (blows at his front ring off it, so the champion steps round to his back) and rushes; phase 3 the thorns bite a blow struck up
+// close and the Decree is a star of 8 lines. Each phase holds its 12 s as a crown boss's does, and his fall clears the level.
+await check('Iron King: test mode starts the Iron Hold level 5; its crown boss: plate, then shield (blocked in front), then thorns, each phase 12 s, level cleared (#216)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="ironHold:5"]').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption('keep');
+  await p.locator('#tm-start').selectOption('ironHold:5');
+  await p.evaluate(() => {
+    // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    const sounds = { block: [0, 0, 0] };
+    let k = null;
+    if (lb.view) {
+      const real = lb.view.sfx;
+      lb.view.sfx = (n) => ((n === 'block' && k && sounds.block[k.phase - 1]++), real(n));
+    }
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 40, the level's last
+    g.breather = 0.01;
+    const out = { wave: 0, id: '', crown: false, banner: '', plates: [], decree: [0, 0, 0], rush: [0, 0, 0], guard: 0, phases: [], armorAt2: -1, bites: [0, 0, 0], dead: false };
+    const seen = new WeakSet();
+    let bitAt;
+    for (let i = 0; i < 90000 && lb.state !== 'results' && !(k?.dead && g.level.cleared); i++) {
+      g.player.invulnerable = true;
+      if (k && !k.dead) {
+        // phase 1 and 3: a step off his front edge; phase 2: at his front until the shield has rung, then round at his back
+        const back = k.phase === 2 && sounds.block[1] > 0;
+        const a = back ? k.angle + Math.PI : k.phase === 2 ? k.angle : Math.PI;
+        g.player.x = k.x + Math.cos(a) * (k.r + 16);
+        g.player.y = k.y + Math.sin(a) * (k.r + 16);
+      }
+      lb.run(1, false, false);
+      k ??= g.enemies.find((e) => e.def.boss) ?? null;
+      if (!k) continue;
+      if (!out.id) (out.id = k.def.id), (out.wave = g.wave), (out.crown = k.crown), (out.banner = g.banner?.text ?? ''), out.plates.push(k.armorHp);
+      if (k.phase > out.phases.length + 1) {
+        out.phases.push(+g.time.toFixed(1));
+        if (k.phase === 2) out.armorAt2 = k.armorHp;
+      }
+      if (out.phases.length === 0 && k.armorHp !== out.plates[out.plates.length - 1]) out.plates.push(k.armorHp);
+      const mine = g.zones.filter((z) => z.owner === k && !seen.has(z)); // the zones one Decree set this tick
+      for (const z of mine) seen.add(z);
+      out.decree[k.phase - 1] = Math.max(out.decree[k.phase - 1], mine.length);
+      if (k.state === 1) out.rush[k.phase - 1]++;
+      out.guard = Math.max(out.guard, g.enemies.filter((e) => e.def.id === 'ironKnight' && !e.dead).length);
+      if (k.thornsAt !== undefined && k.thornsAt !== bitAt) (bitAt = k.thornsAt), out.bites[k.phase - 1]++; // his own thorns (the wave's thorn bearers bite too)
+      if (k.dead) out.dead = true;
+    }
+    return { ...out, block: sounds.block, cleared: !!g.level?.cleared, test: g.vars.test };
+  });
+  await p.close();
+  const oneByOne = fight.plates.length >= 3 && fight.plates.slice(1).every((v, i) => v < fight.plates[i]);
+  const long = fight.phases.length === 2 && fight.phases[1] - fight.phases[0] >= 12;
+  const ok = fight.test === 1 && fight.wave === 40 && fight.id === 'ironKing' && fight.crown && fight.banner === 'The Iron King · Crown boss' && fight.plates[0] === 8 && oneByOne
+    && fight.guard >= 2 && fight.decree[0] === 24 && fight.decree[2] === 48 && fight.rush[0] === 0 && fight.rush[1] > 0 && long && fight.armorAt2 === 0
+    && fight.block[0] === 0 && fight.block[1] > 0 && fight.bites[1] === 0 && fight.bites[2] > 0 && fight.dead && fight.cleared && errs.length === 0;
+  return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; plates ${fight.plates.join('>')}, guard ${fight.guard}; phases at ${fight.phases.join(', ')} s, plate ${fight.armorAt2} at phase 2; decree zones ${fight.decree.join('/')}, rush ticks ${fight.rush.join('/')}, shield blocks ${fight.block.join('/')}, thorn bites ${fight.bites.join('/')} by phase; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #236: no boss ends two levels of a realm: Settings -> Test mode -> "Start at" a Marches level -> the opening pick -> its last wave ----------
+// Level 1 ends on the Black Knight (Act I's opener); level 5 used to draw him again. Now it ends on another boss, the same one on any seed.
+await check('Bosses: the Marches level 1 ends on the Black Knight; level 5 ends on another boss, the same on every seed (#236)', async () => {
+  const lastBoss = async (start, seed) => {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    if (!(await p.locator(`#tm-start option[value="${start}"]`).count())) return (await p.close(), null);
+    await p.locator('#tm-class').selectOption('paladin');
+    await p.locator('#tm-start').selectOption(start);
+    await p.evaluate((seed) => {
+      const now = Date.now; // test mode seeds from the clock
+      Date.now = () => seed;
+      try {
+        [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+      } finally {
+        Date.now = now;
+      }
+    }, seed);
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click();
+    const out = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.player.invulnerable = true;
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1; // straight on to the level's last wave
+      g.breather = 0.01;
+      let b = null;
+      for (let i = 0; i < 4000 && !b; i++) (lb.run(1, false, false), (b = g.enemies.find((e) => e.def.boss) ?? null));
+      return { wave: g.wave, last: g.level.last, name: b?.def.name ?? '', key: g.bossesSeen.at(-1) ?? '' };
+    });
+    const hud = await p.waitForFunction(() => document.getElementById('h-boss-name')?.textContent, null, { timeout: 5000 }).then((h) => h.jsonValue()).catch(() => '');
+    await p.close();
+    return { ...out, hud, errs: errs.length };
+  };
+  const l1 = await lastBoss('marches:1', 2654435761);
+  if (!l1) return { skip: true, detail: 'no realm-level start in this build' };
+  const l5 = await lastBoss('marches:5', 2654435761);
+  const l5b = await lastBoss('marches:5', 12345);
+  const ok = l1.wave === 6 && l1.key === 'blackKnight' && l5.wave === 30 && l5.key && l5.key !== 'blackKnight' && l5b.key === l5.key
+    && l5.hud.startsWith(l5.name) && l1.hud.startsWith(l1.name) && !l1.errs && !l5.errs && !l5b.errs;
+  return { ok, detail: `level 1 wave ${l1.wave}: ${l1.key} "${l1.hud}"; level 5 wave ${l5.wave}: ${l5.key} "${l5.hud}", on another seed ${l5b.key}` };
+});
+
+// ---------- #243: longer levels: a level runs on its own waves ----------
+// A new Viking from the title -> the Map tab -> the Marches -> its road: level 1's panel says Waves 1–6. FIGHT plays it out (the bot,
+// who can't be hurt, the one shortcut): the scale's old boss wave 5 is a plain wave, and the level's one boss comes on wave 6, its last.
+// Its rare (key 1), then the level-cleared screen's Continue (#241) goes into level 2, waves 7–12: Act I ends inside it at wave 10 with no boss, no Merchant
+// and no fork; the fight goes on into Act II, and the boss comes on wave 12.
+await check('longer levels: the Marches level 1 is waves 1–6 with its one boss on wave 6; Continue into level 2 (waves 7–12), where Act I ends with no boss, no Merchant and no fork, click and keys at 1280x720 (#243)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const press = (sel) => p.locator(sel).first().click();
+  const bad = [];
+  const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+  // the level played out, every screen answered by its first option; which waves had a boss on the field, and any Merchant or fork
+  const playOut = () => p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    const out = { first: g.startWave, last: g.level?.last, level: g.level?.level, bossWaves: [], shop: false, acts: [g.act], banners: [] };
+    for (let i = 0; i < 120000 && lb.game === g && lb.state !== 'results'; i++) {
+      if (lb.state === 'playing') g.player.invulnerable = true;
+      lb.run(1, false, true);
+      if (g.pendingMerchant || g.pendingRoute) out.shop = true;
+      if (g.enemies.some((e) => e.def.boss && !e.side) && !out.bossWaves.includes(g.wave)) out.bossWaves.push(g.wave);
+      if (g.act !== out.acts.at(-1)) out.acts.push(g.act), out.banners.push(g.banner?.text ?? '');
+    }
+    return { ...out, wave: g.wave, cleared: !!g.level?.cleared, state: lb.state, minutes: +(g.time / 60).toFixed(1) };
+  });
+  const opening = async () => { // the level's opening pick
+    await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
+    await press('[data-pick="0"]');
+  };
+  await press('[data-go="start"]');
+  await press('[data-class="viking"]');
+  await press('[data-start]');
+  await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  await skipTour(p);
+  await press('.kit-tab[data-tab="map"]');
+  await p.locator('.wm-map').waitFor({ timeout: 3000 });
+  await press('.wm-realm.r-marches');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  const facts = await p.evaluate(() => document.querySelector('.rr-facts').textContent.replace(/\s+/g, ' ').trim());
+  want(/Waves\s*1–6/.test(facts), `level 1's panel says "${facts}"`);
+  await press('[data-fight]');
+  await opening();
+  const one = await playOut();
+  want(one.level === 1 && one.first === 1 && one.last === 6 && one.cleared && one.wave === 6 && one.state === 'results' && one.bossWaves.join() === '6' && !one.shop, `level 1 ${JSON.stringify(one)}`);
+  await p.locator('.rare-pick').waitFor({ timeout: 5000 });
+  await p.keyboard.press('1');
+  await p.locator('.level-cleared [data-retry]').waitFor({ timeout: 3000 });
+  const onward = (await p.locator('.level-cleared [data-retry]').textContent()).trim();
+  want(onward === 'Continue to level 2', `the main button says "${onward}"`);
+  await press('.level-cleared [data-retry]');
+  await opening();
+  const two = await playOut();
+  await p.close();
+  want(two.level === 2 && two.first === 7 && two.last === 12 && two.cleared && two.wave === 12 && two.state === 'results' && two.bossWaves.join() === '12' && !two.shop && two.acts.join() === '1,2' && /^Act II/.test(two.banners[0] ?? ''), `level 2 ${JSON.stringify(two)}`);
+  want(errs.length === 0, `errors: ${errs[0]}`);
+  return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `panel "Waves 1–6"; level 1: waves ${one.first}-${one.wave}, boss on wave ${one.bossWaves.join()}, ${one.minutes} min; "${onward}"; level 2: waves ${two.first}-${two.wave}, boss on wave ${two.bossWaves.join()}, Act ${two.acts.join(' -> ')} ("${two.banners[0]}"), no Merchant, no fork, ${two.minutes} min` };
+});
+
+// ---------- #219: the Iron Hold's five levels, their rewards, its crown and its theme, as one realm run ----------
+// A Paladin who holds the Marches crown: the map opens the Iron Hold, its road starts on level 1 (Knight picked on the road) and its
+// panel names the keep-locked reward and waves 1–8; FIGHT, and the level plays the Iron Hold's own theme. The realm is one run (#237):
+// each level is fought on from its last wave with a strong blow on every swing (the shortcuts), its boss falls, its reward is picked, and
+// the level-cleared screen (#241) goes on: level 1 (a pool boss on wave 8) offers 1 of 2 locked Steel rares (key 1), then "Continue to
+// level 2"; level 2 (the Warden, 3 phases, wave 16) the same, then Back to the map: the road stands at level 3 with "Continue from level
+// 3"; level 3 (the Forgemaster, wave 24) banks the Paladin's Steel class relic on one card (Enter); level 4 (the Warden as an elite: 4
+// phases, wave 32) a Steel rare again; level 5 (the Iron King as crown boss, wave 40) the Knight crown's pick of the two Steel
+// legendaries (key 2), and its level-cleared screen has no Continue: the run is over. The Champion and Legend crowns are fought from the
+// same level-5 checkpoint put back on their tier (the one save shortcut): the Champion crown gives the other legendary on one card (a
+// click), the Legend crown the title and the palette, named on the level-cleared screen.
+await check('Iron Hold: the map opens it with the Marches crown, its road and theme; one realm run on Knight: levels 1, 2 and 4 keep a locked Steel rare, level 3 the class relic, level 4 the Warden as an elite, the Knight crown picks a legendary and ends the run; the Champion crown gives the other, the Legend crown a title and a palette (#219)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const press = (sel) => p.locator(sel).first().click();
+  const bad = [], log = [];
+  const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+  const champ = () => p.evaluate(() => window.__lb.save.champions.paladin);
+  await p.evaluate(() => {
+    window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7] }), world: { marches: [7] }, signature: false, lastBastion: false, runs: {} } };
+  });
+  const road = async (tier) => {
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    if (tier !== undefined) await press(`.rr-tier[data-tier="${tier}"]`);
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    return p.evaluate(() => ({ name: document.querySelector('.rr-name').textContent.trim(), text: document.querySelector('.rr-panel').textContent.replace(/\s+/g, ' '), go: document.querySelector('[data-fight]').textContent.trim() }));
+  };
+  // the level's opening pick (a Steel relic), `before` (while the run plays in real time), then on from the level's last wave to its end
+  let strong = 0; // the strong blow's Strength: set in level 1, and the run carries it on
+  const fight = async (before) => {
+    await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
+    await press('[data-pick="0"]');
+    const seen = before ? await before() : null;
+    const out = await p.evaluate((strong) => {
+      const lb = window.__lb, g = lb.game, s = g.player.stats;
+      s.str = strong && s.str >= strong * 0.9 ? s.str : Math.max(strong, s.str * 40);
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1;
+      g.breather = 0.01;
+      let held = [], boss = null;
+      for (let i = 0; i < 60000 && lb.game === g && lb.state !== 'results'; i++) {
+        if (lb.state === 'playing') g.player.invulnerable = true;
+        held = [...g.player.relics.held];
+        lb.run(1, false, true);
+        const b = g.enemies.find((e) => e.def.boss && !e.side);
+        if (b) boss = { name: b.def.name, phases: b.def.phases ?? 2, crown: !!b.crown, phase: Math.max(boss?.phase ?? 0, b.phase), hp: boss?.hp ?? b.maxHp / (lb.enemyDef(b.def.id).hp * g.waveHpMult * g.tier.enemyHp) }; // `hp`: his HP over a plain one's at this wave (#220)
+      }
+      return { held, boss, str: s.str, level: g.level?.level, first: g.startWave, tier: g.tierIndex, cleared: !!g.level?.cleared, wave: g.wave, state: lb.state };
+    }, strong);
+    strong = out.str;
+    return { ...out, seen };
+  };
+  const screenOf = (sel) => p.evaluate((sel) => ({
+    head: document.querySelector(`${sel} .kit-head`)?.textContent.trim() ?? '',
+    cards: [...document.querySelectorAll(`${sel} [data-pick]`)].map((b) => ({ name: b.querySelector('h2')?.textContent.trim() ?? '', fam: b.querySelector('.fam')?.textContent.trim() ?? '' })),
+  }), sel);
+  // the level-cleared screen (#241): its main button, its sub line, and what the crown gave
+  const clearedScreen = async () => {
+    await p.locator('.level-cleared [data-menu]').waitFor({ timeout: 5000 });
+    return p.evaluate(() => ({
+      next: document.querySelector('.level-cleared [data-retry]')?.textContent.trim() ?? '',
+      map: document.querySelector('.level-cleared [data-menu]')?.textContent.trim() ?? '',
+      sub: document.querySelector('.level-cleared .sub')?.textContent.replace(/\s+/g, ' ').trim() ?? '',
+      gift: document.querySelector('.level-cleared [data-crown-gift]')?.textContent.replace(/\s+/g, ' ').trim() ?? '',
+    }));
+  };
+  const keepLocked = async (n, run, taken) => { // a keep-locked level's pick of locked Steel rares: key 1 keeps the first
+    await p.locator('.rare-pick').waitFor({ timeout: 5000 });
+    const pick = await screenOf('.rare-pick');
+    want(run.cleared && run.level === n && run.tier === 1 && run.first === n * 8 - 7 && run.wave === n * 8 && pick.head === `The Iron Hold · Level ${n} cleared` && pick.cards.length >= 1 && pick.cards.length <= 2
+      && pick.cards.every((c) => /Steel/.test(c.fam) && !taken.includes(c.name)), `level ${n} ${JSON.stringify(run)} pick ${JSON.stringify(pick)} (taken ${taken.join()})`);
+    await p.keyboard.press('1');
+    taken.push(pick.cards[0]?.name);
+    return pick;
+  };
+  try {
+    // the map opens the Iron Hold; its road on level 1, on Knight
+    await press('[data-go="map"]');
+    await p.locator('.wm-map').waitFor({ timeout: 3000 });
+    const open = await p.evaluate(() => document.querySelector('.wm-realm.r-ironHold')?.disabled === false);
+    want(open, 'the Iron Hold is shut on the map');
+    await press('.wm-realm.r-ironHold');
+    const r1 = await road(1);
+    want(r1.name === 'The Iron Hold · Level 1' && /Keep a locked relic/.test(r1.text) && /Waves\s*1–8/.test(r1.text) && r1.go === 'Fight!', `road ${JSON.stringify(r1)}`);
+    // level 1, playing its own theme: a pool boss, then 1 of 2 locked Steel rares
+    const taken = [];
+    await press('[data-fight]');
+    const one = await fight(() => p.waitForFunction(() => window.__lb.music?.().arena === 'ironHold', null, { timeout: 10000 }).then(() => 'ironHold', () => p.evaluate(() => String(window.__lb.music?.().arena))));
+    want(one.seen === 'ironHold', `theme ${one.seen}`);
+    want(!!one.boss && !/Warden|Forgemaster|Iron King/.test(one.boss.name), `level 1 boss ${JSON.stringify(one.boss)}`);
+    const keep1 = await keepLocked(1, one, taken);
+    want(keep1.cards.length === 2, `level 1 shows ${keep1.cards.length} rares`);
+    const c1 = await clearedScreen();
+    const after1 = await champ();
+    want(c1.next === 'Continue to level 2' && after1.inventory.length === 1 && after1.world.ironHold?.[1] === 1 && after1.runs.ironHold?.level === 2 && after1.runs.ironHold.tier === 1, `after level 1 "${c1.next}" ${JSON.stringify({ inv: after1.inventory, world: after1.world.ironHold, run: after1.runs.ironHold?.level })}`);
+    log.push(`map open, "${r1.name}" (waves 1–8), theme ${one.seen}, ${one.boss?.name} on wave ${one.wave}; "${keep1.head}": ${keep1.cards.map((c) => c.name).join('/')} -> ${after1.inventory.join()}; "${c1.next}"`);
+    // level 2 by Continue: the Warden, a second rare, then Back to the map: the road stands at level 3
+    await press('.level-cleared [data-retry]');
+    const two = await fight();
+    want(two.boss?.name === 'The Warden' && two.boss.phases === 3 && two.held.slice(0, one.held.length).join() === one.held.join(), `level 2 boss ${JSON.stringify(two.boss)}, held ${two.held.join()} after ${one.held.join()}`);
+    const keep2 = await keepLocked(2, two, taken);
+    const c2 = await clearedScreen();
+    want(c2.next === 'Continue to level 3' && c2.map === 'Back to the map', `after level 2 ${JSON.stringify(c2)}`);
+    await press('.level-cleared [data-menu]');
+    const r3 = await road();
+    want(r3.name === 'The Iron Hold · Level 3' && /Your class relic of Steel/.test(r3.text) && /Forgemaster/.test(r3.text) && r3.go === 'Continue from level 3', `road 3 ${JSON.stringify(r3)}`);
+    log.push(`L2 ${two.boss?.name} (${two.boss?.phases} phases) on wave ${two.wave}, kept ${keep2.cards[0]?.name}; the map: "${r3.name}", "${r3.go}"`);
+    // level 3: the Forgemaster, the class relic on one card
+    await press('[data-fight]');
+    const three = await fight();
+    await p.locator('.class-pick').waitFor({ timeout: 5000 });
+    const cls = await screenOf('.class-pick');
+    want(three.cleared && three.level === 3 && three.wave === 24 && /Forgemaster/.test(three.boss?.name ?? '') && cls.head === 'The Iron Hold · Level 3 cleared' && cls.cards.length === 1 && cls.cards[0].name === 'Aegis of the Faithful', `level 3 ${JSON.stringify(three)} card ${JSON.stringify(cls)}`);
+    await p.keyboard.press('Enter');
+    const c3 = await clearedScreen();
+    const after3 = await champ();
+    want(c3.next === 'Continue to level 4' && after3.inventory.includes('aegisFaithful') && after3.inventory.length === 3, `after level 3 "${c3.next}" ${JSON.stringify(after3.inventory)}`);
+    log.push(`L3 ${three.boss?.name} on wave ${three.wave}: "${cls.head}": ${cls.cards[0]?.name}`);
+    // level 4: the Warden as an elite, a phase more; a third rare
+    await press('.level-cleared [data-retry]');
+    const four = await fight();
+    want(four.boss?.name === 'The Warden, Elite' && four.boss.phases === 4 && four.boss.phase === 4 && !four.boss.crown && Math.abs(four.boss.hp - 1.4) < 0.02, `level 4 boss ${JSON.stringify(four.boss)}`); // #220: an elite has 1.4 times the HP
+    const keep4 = await keepLocked(4, four, taken);
+    const c4 = await clearedScreen();
+    const after4 = await champ();
+    const checkpoint5 = after4.runs.ironHold; // the run as it stands before level 5
+    want(c4.next === 'Continue to level 5' && after4.inventory.length === 4 && checkpoint5?.level === 5, `after level 4 "${c4.next}" ${JSON.stringify({ inv: after4.inventory, run: checkpoint5?.level })}`);
+    log.push(`L4 ${four.boss?.name} (${four.boss?.phases} phases) on wave ${four.wave}, kept ${keep4.cards[0]?.name}`);
+    // level 5 on Knight: the Iron King as crown boss, the pick of the two Steel legendaries, and the run is over
+    await press('.level-cleared [data-retry]');
+    const five = await fight();
+    await p.locator('.legendary-pick').waitFor({ timeout: 5000 });
+    const leg = await screenOf('.legendary-pick');
+    want(five.cleared && five.level === 5 && five.wave === 40 && five.tier === 1 && /Iron King/.test(five.boss?.name ?? '') && five.boss.crown && leg.head === '👑 The Iron Hold crowned' && leg.cards.length === 2, `Knight crown ${JSON.stringify(five)} pick ${JSON.stringify(leg)}`);
+    await p.keyboard.press('2');
+    const c5 = await clearedScreen();
+    const knight = await champ();
+    const took = knight.inventory.find((id) => ['unbreakable', 'heartOfTheHold'].includes(id));
+    want(c5.next === '' && c5.map === 'Back to the map' && /last level/.test(c5.sub) && !c5.gift && !!took && knight.world.ironHold[1] === 5 && !knight.runs.ironHold, `after the Knight crown ${JSON.stringify(c5)} ${JSON.stringify({ inv: knight.inventory, world: knight.world.ironHold, run: knight.runs.ironHold?.level })}`);
+    log.push(`L5 ${five.boss?.name} (crown) on wave ${five.wave}: "${leg.head}" on Knight: ${leg.cards.map((c) => c.name).join('/')} -> ${took}; no Continue, the run is over`);
+    // a higher crown, from the level-5 checkpoint put back on its tier
+    const crownOn = async (tier, world) => {
+      await p.evaluate(([tier, world, run]) => {
+        const c = window.__lb.save.champions.paladin;
+        c.world.ironHold = world;
+        c.runs.ironHold = { ...run, tier };
+      }, [tier, world, checkpoint5]);
+      await press('.level-cleared [data-menu]');
+      const r = await road();
+      await press('[data-fight]');
+      return { r, run: await fight() };
+    };
+    // the Champion crown: the other legendary on one card
+    const top = await crownOn(2, [0, 5, 4]);
+    want(top.r.name === 'The Iron Hold · Level 5' && /The other Steel legendary/.test(top.r.text) && top.r.go === 'Continue from level 5', `road Champion ${JSON.stringify(top.r)}`);
+    await p.locator('.crown-pick').waitFor({ timeout: 5000 });
+    const other = await screenOf('.crown-pick');
+    await press('.crown-pick [data-pick="0"]');
+    const cc = await clearedScreen();
+    const champion = await champ();
+    want(top.run.cleared && top.run.tier === 2 && other.head === '👑 The Iron Hold crowned' && other.cards.length === 1 && other.cards[0].name !== leg.cards[1]?.name
+      && champion.inventory.includes('unbreakable') && champion.inventory.includes('heartOfTheHold') && champion.world.ironHold[2] === 5 && cc.next === '' && !cc.gift, `Champion crown ${JSON.stringify(top.run)} card ${JSON.stringify(other)} champion ${JSON.stringify(champion.inventory)}`);
+    log.push(`Champion crown: ${other.cards[0]?.name}; inventory ${champion.inventory.join()}`);
+    // the Legend crown: a title and a palette, named on the level-cleared screen
+    const legend = await crownOn(3, [0, 5, 5, 4]);
+    want(legend.r.name === 'The Iron Hold · Level 5' && /The title Ironsworn/.test(legend.r.text) && /A palette/.test(legend.r.text), `road Legend ${JSON.stringify(legend.r)}`);
+    const cl = await clearedScreen();
+    const account = await p.evaluate(() => ({ titles: window.__lb.save.titles, palettes: window.__lb.save.palettes, world: window.__lb.save.champions.paladin.world.ironHold }));
+    await press('.level-cleared [data-menu]');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await p.close();
+    want(legend.run.cleared && legend.run.tier === 3 && /Legend crown/.test(cl.gift) && /Ironsworn/.test(cl.gift) && /Iron colours/.test(cl.gift) && account.titles.includes('Ironsworn') && account.palettes.includes(6) && account.world[3] === 5, `Legend crown ${JSON.stringify(legend.run)} "${cl.gift}" ${JSON.stringify(account)}`);
+    want(errs.length === 0, `errors: ${errs[0]}`);
+    log.push(`Legend crown: "${cl.gift}"`);
+    return { ok: bad.length === 0, detail: `${log.join('; ')}${bad.length ? `; WRONG: ${bad.join(' | ')}` : ''}` };
+  } catch (e) { // a screen that never came: say how far the run got and what stood there instead
+    const at = await p.evaluate(() => `${window.__lb.state}: "${document.querySelector('.kit-head, .rr-name')?.textContent.trim() ?? ''}"`).catch(() => '?');
+    await p.close().catch(() => {});
+    return { ok: false, detail: `${log.join('; ')}; STOPPED at ${at}: ${String(e.message).split('\n')[0]}${bad.length ? `; WRONG: ${bad.join(' | ')}` : ''}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  }
+});
+
+// ---------- #248: the ability bar's upgrade chips, key badge and the utility's name never cover one another ----------
+await check('Ability bar: 0 to 3 upgrade chips, the E key and the utility name all stay readable at 1280x720, 1920x1080 and 844x390 (#248)', async () => {
+  await inPage(() => {
+    localStorage.removeItem('lastbastion.save');
+    location.reload();
+  });
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+  await inPage(async () => {
+    const wait = (ms = 60) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait();
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'archer');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '20');
+    window.__startTest().player.invulnerable = true;
+  });
+  const bad = [], seen = [];
+  for (const [w, h] of [[1280, 720], [1920, 1080], [844, 390]]) {
+    await page.setViewportSize({ width: w, height: h });
+    for (const n of [0, 1, 2, 3]) {
+      await inPage((k) => { window.__lb.game.player.upgrades = ['burningRain', 'pinning', 'doubleVolley'].slice(0, k); }, n);
+      await page.waitForTimeout(250);
+      const r = await inPage(() => {
+        const box = (el) => { const b = el.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+        const shown = (el) => el.getClientRects().length > 0;
+        const P = box(document.querySelector('.hud-ability'));
+        const chips = [...document.querySelectorAll('#h-ab-ups .hud-badge')].filter(shown);
+        const key = document.querySelector('#h-ut-slot .hud-key'), name = document.getElementById('h-ut-name');
+        const parts = [...chips.map((c) => ['chip', c]), ...(shown(key) ? [['key', key], ['name', name]] : [])];
+        const inside = (b) => b.l >= P.l - 1 && b.r <= P.r + 1 && b.t >= P.t - 1 && b.b <= P.b + 1;
+        const cut = parts.filter(([, el]) => !inside(box(el)) || el.scrollWidth > el.clientWidth + 1).map(([k]) => k);
+        const over = [];
+        for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+          const a = box(parts[i][1]), b = box(parts[j][1]);
+          if (a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1) over.push(`${parts[i][0]}/${parts[j][0]}`);
+        }
+        return { chips: chips.length, key: shown(key), name: name.textContent, cut, over, offscreen: P.l < 0 || P.r > innerWidth || P.b > innerHeight };
+      });
+      seen.push(`${w}x${h}/${n}: ${r.chips} chips${r.key ? '' : ', key hidden (phone)'}`);
+      if (r.cut.length || r.over.length || r.offscreen) bad.push(`${w}x${h} with ${n}: cut [${r.cut}] overlapping [${r.over}]${r.offscreen ? ' off screen' : ''}`);
+      if (w > 844 && (r.chips !== n || !r.key || !r.name)) bad.push(`${w}x${h} with ${n}: ${r.chips} chips, key ${r.key}, name "${r.name}"`);
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
+  return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : seen.join('; ') };
 });
 
 await check('no console errors', async () => {

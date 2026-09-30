@@ -1,9 +1,13 @@
 import { DUOS, FAMILIES, type RelicId, type SetLevel } from '../../config/relics';
 import type { Enemy, Game, Player } from '../../core/types';
+import { bodkinShare, bodkinStep, haloStacks, holdThorns, inFront, keepReprisal, perStack, rivetStep } from '../../logic/relics';
+import * as scale from '../../logic/abilities';
+import { attackDamage } from '../../logic/formulas';
 import { talentMods } from '../../logic/talents';
 import { relicContext } from '../relicContext';
 import { applyStatus, damageEnemy } from '../combat';
-import { aOf, awakened, bonus, credit, fullArmorStacks, gainArmorStacks, hasDuo, nOf, nova, relicDamage, relicHeal, sOf, strike, type RelicHooks } from '../relicCore';
+import { addBleed, aOf, attackHit, awakened, bonus, credit, fullArmorStacks, gainArmorStacks, hasDuo, nOf, nova, relicDamage, relicHeal, sOf, strike, type RelicHooks } from '../relicCore';
+import { burst, floatText } from '../effects';
 
 /**
  * 🛡️ Steel (RELICS.md): armor stacks, block and thorns. Relics block hits (combat.damagePlayer's onIncoming), throw damage back or build armor
@@ -104,6 +108,130 @@ export const STEEL_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     },
     onBlock(g, _ev, p) {
       if (awakened(p, 'ironhide') && p.abilityTime > 0) relicHeal(g, p, p.stats.hp * aOf('ironhide').heal); // Unstoppable
+    },
+  },
+  // ---------------------------------------------------------------- v0.11 (#217): the Iron Hold
+  rivetHammer: {
+    onHit(g, ev, p) {
+      if (!attackHit(p, ev.source) || ev.enemy.dead) return;
+      const n = nOf(p, 'rivetHammer');
+      const step = rivetStep(g.vars['rivet.n'] ?? 0, n.every);
+      g.vars['rivet.n'] = step.count;
+      if (!step.rivet) return;
+      const e = ev.enemy;
+      if (awakened(p, 'rivetHammer') && !e.def.boss && e.armorHp > 0) {
+        e.armorHp = 0; // Sunder: the plate or the shield goes at once, from any side
+        floatText(g, e.x, e.y - e.r - 22, 'SUNDERED', F.color, 15);
+        burst(g, e.x, e.y, F.color, 10, 200);
+      }
+      damageEnemy(g, e, relicDamage(p, n.damage), false, 0, 0, 'relic'); // no direction: a rivet is not turned by a shield's front
+      gainArmorStacks(g, p, 1);
+    },
+  },
+
+  pavise: {
+    onIncoming(g, ev, p) {
+      const e = ev.attacker;
+      const n = nOf(p, 'pavise');
+      if (ev.blocked || !e || !inFront(p.facing, e.x - p.x, e.y - p.y, n.arc) || g.rng() >= n.chance) return;
+      ev.blocked = true;
+      g.vars['pavise.front'] = 1; // Riposte answers this block, not another relic's
+      credit(g, p, 'pavise', 'prevented', ev.amount, true);
+    },
+    onBlock(g, ev, p) {
+      const front = g.vars['pavise.front'] === 1;
+      g.vars['pavise.front'] = 0;
+      if (front && awakened(p, 'pavise') && ev.attacker && !ev.attacker.dead) damageEnemy(g, ev.attacker, ev.amount * aOf('pavise').mult, false, 0, 0, 'relic'); // Riposte
+    },
+  },
+
+  reprisalCuirass: {
+    onIncoming(g, ev, p) {
+      // the hit's full force, before armor, ward or a block: at the damage taken after armor it read 0.6% in the sim (#217)
+      g.vars['reprisal.kept'] = keepReprisal(g.vars['reprisal.kept'] ?? 0, ev.amount, p.stats.hp * nOf(p, 'reprisalCuirass').cap);
+    },
+    onHit(g, ev, p) {
+      const kept = g.vars['reprisal.kept'] ?? 0;
+      if (ev.source !== 'attack' || kept <= 0 || ev.enemy.dead) return;
+      g.vars['reprisal.kept'] = 0;
+      const amount = kept * nOf(p, 'reprisalCuirass').mult;
+      const at = ev.enemy;
+      damageEnemy(g, at, amount, false, 0, 0, 'relic');
+      if (awakened(p, 'reprisalCuirass')) nova(g, at.x, at.y, aOf('reprisalCuirass').radius, amount * aOf('reprisalCuirass').frac, 0, F.color); // Vengeance
+      if (hasDuo(p, 'ironTithe')) {
+        // Iron Tithe (#218): the reprisal is paid back in blood; its bleed and heal are the duo's work, as Lightning Rod's strikes are
+        const d = DUOS.ironTithe.n;
+        relicContext.acting = 'ironTithe';
+        if (!at.dead) addBleed(g, p, at, d.bleed, amount * d.power);
+        relicHeal(g, p, amount * d.heal, true);
+        relicContext.acting = 'reprisalCuirass';
+      }
+    },
+  },
+
+  heartOfTheHold: {
+    onDamageTaken(g, ev, p) {
+      gainArmorStacks(g, p, 1);
+      if (ev.attacker && !ev.attacker.dead) damageEnemy(g, ev.attacker, holdThorns(p.armorStacks, relicDamage(p, nOf(p, 'heartOfTheHold').per)), false, 0, 0, 'relic');
+    },
+    onBlock(g, ev, p) {
+      gainArmorStacks(g, p, 1);
+      if (ev.attacker && !ev.attacker.dead) damageEnemy(g, ev.attacker, holdThorns(p.armorStacks, relicDamage(p, nOf(p, 'heartOfTheHold').per)), false, 0, 0, 'relic');
+    },
+    onIncoming(g, ev, p) {
+      if (ev.blocked || !awakened(p, 'heartOfTheHold') || !fullArmorStacks(p)) return; // Iron Keep
+      const cut = ev.amount * aOf('heartOfTheHold').cut;
+      ev.amount -= cut;
+      credit(g, p, 'heartOfTheHold', 'prevented', cut, true);
+    },
+  },
+
+  // ---------------------------------------------------------------- v0.11 (#218): the Iron Hold's class relics
+  ironHalo: {
+    onAbilityUsed(g, _ev, p) {
+      const ability = p.cls.ability;
+      if (ability.id !== 'heavenlyRadiance') return;
+      const s = scale.heavenlyRadiance(ability, sOf(p));
+      gainArmorStacks(g, p, haloStacks(sOf(p), nOf(p, 'ironHalo').per));
+      // the strike rides this cast's burst, with the stacks it just gave: onAbilityUsed comes after Radiance's own hits have landed, and
+      // the stacks fade (4 s) long before the next cast, so striking from onHit left Iron Halo at 0 damage in play (#218)
+      const dmg = relicDamage(p, nOf(p, 'ironHalo').damage) * p.armorStacks;
+      for (const e of g.hash.query(p.x, p.y, s.radius, [])) if (!e.dead) damageEnemy(g, e, dmg, false, 0, 0, 'relic', 'holy');
+      if (awakened(p, 'ironHalo')) relicHeal(g, p, perStack(attackDamage(s.heal, p.stats.int), p.armorStacks, aOf('ironHalo').heal), true); // Aureole
+    },
+  },
+
+  legionPlate: {
+    onHit(g, ev, p) {
+      if (ev.source !== 'minion') return;
+      const n = nOf(p, 'legionPlate');
+      const step = rivetStep(g.vars['legion.n'] ?? 0, n.every);
+      g.vars['legion.n'] = step.count;
+      if (p.armorStacks > 0 && !ev.enemy.dead) damageEnemy(g, ev.enemy, perStack(ev.amount, p.armorStacks, n.per), false, 0, 0, 'relic');
+      if (step.rivet) gainArmorStacks(g, p, 1);
+    },
+    tick(g, _dt, p) {
+      if (!awakened(p, 'legionPlate')) return;
+      const hp = aOf('legionPlate').hp;
+      for (const m of g.minions) {
+        // Iron Legion: every skeleton you raised (not the quest and event units, nor a relic's) gets its plate once
+        if (m.kind || m.relicBy || m.ironLegion) continue;
+        m.ironLegion = true;
+        m.maxHp *= 1 + hp;
+        m.hp *= 1 + hp;
+      }
+    },
+  },
+
+  bodkinPoints: {
+    onHit(g, ev, p) {
+      if (ev.source !== 'attack' || ev.enemy.dead) return;
+      const n = nOf(p, 'bodkinPoints');
+      const step = bodkinStep(g.vars['bodkin.n'] ?? 0, n.every, awakened(p, 'bodkinPoints') && fullArmorStacks(p)); // Armor-Piercer
+      g.vars['bodkin.n'] = step.count;
+      if (!step.bodkin) return;
+      damageEnemy(g, ev.enemy, ev.amount * bodkinShare(n.mult, n.perFocus, sOf(p)), false, 0, 0, 'relic'); // no direction: no shield's front turns it
+      gainArmorStacks(g, p, 1);
     },
   },
 };

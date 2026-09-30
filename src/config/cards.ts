@@ -24,7 +24,7 @@ export const MECHANIC_CARDS: Record<MechanicCard, { name: string; text: string; 
 /**
  * v0.10 (#60, docs/road-to-the-crown.md item 10): the tutorial is the Marches' levels 1 and 2, taught on the same flash cards. Each basic
  * shows the moment it first comes up there (logic/cards tutorialCard): moving once the opening pick is taken, relics once one is held, the
- * ability a few seconds in, a level-up before its screen, the utility when it unlocks, a set bonus when one lights, a status when one is
+ * ability a few seconds in, champion XP once some is collected (#238), the utility when it unlocks (champion level 2), a set bonus when one lights, a status when one is
  * seen. Seen once, never again (save.cards), like every card; other realms and full runs never show them.
  */
 export const TUTORIAL = {
@@ -38,7 +38,7 @@ export const TUTORIAL_CARDS: Record<TutorialCard, { name: string; text: string; 
   move: { name: 'Move and fight', icon: '🏃', text: 'Move with WASD, the arrows or your left thumb. Attacks are automatic.' },
   relics: { name: 'Relics', icon: '💎', text: 'Lasting powers, each of a family. Two of one family give a set bonus.' },
   ability: { name: 'Signature ability', icon: '✨', text: 'Space, right mouse or your right thumb casts it. Then it recharges.' },
-  levelUp: { name: 'Level up', icon: '⬆', text: 'Fallen foes give XP. Each level, pick one of the upgrades offered.' },
+  levelUp: { name: 'Champion XP', icon: '⬆', text: 'Foes give XP. Clear the level to bank it: your champion levels up after.' }, // #238: no level-up inside a level
   utility: { name: 'Utility ability', icon: '💨', text: 'A second ability: E, Shift or the small button. It has its own timer.' },
   sets: { name: 'Set bonus', icon: '🔗', text: 'Two relics of one family light its set bonus. Four and six add more.' },
   status: { name: 'Status effects', icon: '🔥', text: 'Burning hurts over time, Chilled slows. The Glossary lists every status.' },
@@ -49,8 +49,10 @@ export const ENEMY_CARDS: Record<EnemyId, string> = {
   wolf: 'Fast. Crouches, then leaps: step aside.',
   crossbow: 'Shoots from range. Close in or dodge the bolts.',
   knight: 'Slow and tough. Barely flinches.',
+  ironKnight: 'Iron plates shrug off blows. Each hit breaks one: keep swinging.',
   cultist: 'Runs at you and explodes. Kill it before it arrives.',
   shieldBearer: 'Blocks arrows from the front. Hit it from the side.',
+  thornBearer: 'Spiked shield: blows struck up close bite back. Strike from range.',
   priest: 'Heals the horde. Hunt him down first.',
   cavalry: 'Winds up, then charges in a line. Step out of it.',
   bannerman: 'Commander: foes near him hit harder. Kill him first.',
@@ -64,6 +66,7 @@ export const ENEMY_CARDS: Record<EnemyId, string> = {
   siegeTower: 'Unloads troops until it is destroyed.',
   assassin: 'Vanishes and stabs from behind. Keep moving.',
   shieldwall: 'Near untouchable from the front in a line. Flank it.',
+  ironShieldwall: 'His iron shield turns blows from the front. He turns slowly: step round him.',
   boneCollector: 'Eats corpses and grows. Kill him early.',
   siegeCamp: 'Musters troops until you tear it down.',
   plagueCart: 'Rolls across the field leaking poison.',
@@ -74,6 +77,8 @@ export const ENEMY_CARDS: Record<EnemyId, string> = {
   abbot: 'Boss. Poison flasks, and priests to heal him.',
   dragon: 'Act boss. Fire across the field: watch the ground.',
   warden: 'Act boss. Calls knights and reshapes the arena.',
+  forgemaster: 'Boss. Break his plate, then dodge the hammer and the presses.',
+  ironKing: 'Crown boss. Break his plate, step round his shield, beware his thorns.',
   usurper: 'The last foe. Put out the Royal Flames to hurt him.',
   royalFlame: 'While one burns, the Usurper cannot be hurt.',
 };

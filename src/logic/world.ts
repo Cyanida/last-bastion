@@ -1,14 +1,18 @@
 // v0.10 (#190): what opens on the world map, a level's slots and ring step, and what a clear pays (config/world.ts)
 import { ACTS, FINAL } from '../config/acts';
-import { BOSSES, type BossKey } from '../config/bosses';
+import { ARENAS, type ArenaId } from '../config/arenas';
+import { BOSS_RULES, BOSSES, type BossKey } from '../config/bosses';
 import { SQUADS } from '../config/director';
 import { TIER_UNLOCK, TIERS } from '../config/economy';
 import { ENEMIES, type EnemyId } from '../config/enemies';
 import { FAMILIES, relicDef, type FamilyId, type RelicId } from '../config/relics';
 import { WAVES } from '../config/waves';
+import { isBossWave } from './waves';
 import { REALM_IDS, REALMS, WORLD, WORLD_BOSSES, type CrownReward, type EndBoss, type LevelReward, type RealmId } from '../config/world';
-import { actBoss, actOf, bossForWave, type BossDraw } from './acts';
+import { ACT_BOSSES, actBoss, actOf, hashSeed, isActEnd, pickMidBoss } from './acts';
+import { squadOnTier, waveRng } from './director';
 import { expectedLevel } from './formulas';
+import { championStep } from './championLevels'; // it reads this file too: both only call the other inside functions
 
 // ---------- #191: the level runner's rules (systems/levels.ts plays them) ----------
 
@@ -22,14 +26,35 @@ export const headStartLevel = (wave: number): number => Math.round(expectedLevel
 export const wingsOpenBy = (wave: number): number => ((wave - 1) % ACTS.length >= WAVES.bossEvery ? 1 : 0);
 
 /**
- * A level's end boss on its last wave: a named one (config/bosses.ts), the Usurper, or the usual draw for 'pool' and for a realm boss not
- * built yet. Outside the Last Bastion a wave-40 draw is an Act boss, never the Usurper.
+ * #236: every level's end boss in a realm, so no plain boss ends two of its levels. A named one (config/bosses.ts) or the Usurper as
+ * named; 'pool' (and a realm boss not built yet) draws from the bosses its wave could bring that no other level of the realm ends on,
+ * from the realm's own seed, so a level always ends on the same boss. An elite or crown boss is its own variant: it does not use up
+ * its plain boss. Outside the Last Bastion a wave-40 draw is an Act boss, never the Usurper.
  */
-export function levelBoss(end: EndBoss, wave: number, draw: BossDraw): BossKey | null {
-  if (end.boss === 'usurper') return FINAL.boss;
-  if (BOSSES[end.boss]) return end.boss;
-  const key = bossForWave(wave, draw);
-  return key === FINAL.boss ? actBoss(actOf(wave)) : key;
+export function realmBosses(realm: RealmId): BossKey[] {
+  const def = REALMS[realm];
+  const seed = hashSeed(realm);
+  const arena = (def.arena in ARENAS ? def.arena : 'courtyard') as ArenaId; // a realm arena not built yet plays the courtyard (game.ts)
+  const used = def.levels.filter((lv) => !lv.boss.elite && !lv.boss.crown && BOSSES[lv.boss.boss]).map((lv) => lv.boss.boss);
+  return def.levels.map(({ boss: end, waves }) => {
+    if (end.boss === 'usurper') return FINAL.boss;
+    if (BOSSES[end.boss]) return end.boss;
+    const key = poolBoss(waves[1], arena, seed, used);
+    used.push(key);
+    return key;
+  });
+}
+
+/** A level's end boss on its last wave (realmBosses). */
+export const levelBoss = (realm: RealmId, level: number): BossKey => realmBosses(realm)[level - 1];
+
+/** A pool draw on `wave` from the bosses not in `used`: the Act's own Act boss first, Act I's arena opener, else the mid-Act draw. */
+function poolBoss(wave: number, arena: ArenaId, seed: number, used: BossKey[]): BossKey {
+  const act = actOf(wave);
+  const fresh = (keys: readonly BossKey[]) => keys.find((k) => !used.includes(k)) ?? keys[0];
+  if (isActEnd(wave)) return fresh([actBoss(act), ...ACT_BOSSES]);
+  if (act < BOSS_RULES.poolFromAct) return fresh(ARENAS[arena].bosses);
+  return pickMidBoss(act, { seed, arena, seen: used, quests: [] }, waveRng(seed ^ 0xb055, wave)); // Decided: no quest boss ends a level
 }
 
 /**
@@ -40,6 +65,15 @@ export function levelSkip(realm: RealmId, level: number): { waves: number; level
   const [first, last] = REALMS[realm].levels[level - 1].waves;
   return { waves: first - 1, levels: headStartLevel(first) - 1, share: (last - first + 1) / (FINAL.act * ACTS.length) };
 }
+
+/** #212: the foe that marches in `realm`'s levels in place of `id` (its realm variant), else `id` itself. No realm: the plain foe. */
+export const realmFoe = (realm: RealmId | undefined, id: EnemyId): EnemyId => (realm && REALMS[realm].foes?.[id]) || id;
+
+/**
+ * #249: the foes a realm level fields on every difficulty, whatever the tier roster says (config/world.ts `fields`): in the Iron Hold
+ * the shieldwall squads march on Squire and Knight too. A plain run (no level) has none.
+ */
+export const levelFields = (lv: { realm: RealmId } | null | undefined): EnemyId[] | undefined => (lv ? REALMS[lv.realm].fields : undefined);
 
 /** One champion's world progress: per realm, the highest level cleared on each tier (index into config/economy TIERS). */
 export type WorldProgress = Partial<Record<RealmId, number[]>>;
@@ -87,6 +121,23 @@ export function levelStep(realm: RealmId, level: number): { hp: number; damage: 
   return { hp: s.hp[level - 1] ?? 1, damage: s.damage[level - 1] ?? 1 };
 }
 
+/** #243: a level's wave length (WORLD.levelWaves): multipliers on the foes a wave brings and on the time they trickle in over; the Last Bastion keeps 1. */
+export function levelWaves(realm: RealmId, level: number): { foes: number; pace: number } {
+  if (realm === 'lastBastion') return { foes: 1, pace: 1 };
+  const s = realm === 'marches' ? WORLD.levelWaves.marches : WORLD.levelWaves.realm;
+  return { foes: s.foes[level - 1] ?? 1, pace: s.pace[level - 1] ?? 1 };
+}
+
+/**
+ * #243: a realm level runs on its own waves, not the 40-wave scale's Acts: its one boss wave is its last, and an Act that ends inside
+ * it moves on with no Merchant and no fork (they are the Last Bastion's, which keeps the scale). Decided: the scale's boss waves inside
+ * a level (x5, x0) play as plain waves, so no boss comes twice in a realm (#236) and none stands right before a level's own.
+ */
+export const ownWaves = (lv: { realm: RealmId } | null | undefined): boolean => !!lv && lv.realm !== 'lastBastion';
+
+/** Is `wave` a boss wave of this run? A realm level: its last wave only (ownWaves). Else the 40-wave scale's (x5, x0). */
+export const bossWaveIn = (lv: { realm: RealmId; last: number } | null | undefined, wave: number): boolean => (ownWaves(lv) ? wave === lv!.last : isBossWave(wave));
+
 /** What clearing `level` on `tier` pays, judged by the progress before it: the level's reward on its first clear on any tier, the crown's on a first crown. */
 export function clearRewards(p: WorldProgress, realm: RealmId, level: number, tier: number): { level: LevelReward[]; crown: CrownReward[] } {
   const def = REALMS[realm];
@@ -97,6 +148,16 @@ export function clearRewards(p: WorldProgress, realm: RealmId, level: number, ti
     if (!isCrowned(p, realm, tier)) out.crown.push(...def.crown.tiers[tier]);
   }
   return out;
+}
+
+/**
+ * #219: what a clear's crown rewards give the account: the realm's title and palette (config/world `legend`), each only when the crown
+ * pays it and the realm has one. applyRun banks them with the run; the level-cleared screen names them.
+ */
+export function crownGifts(realm: RealmId, crown: CrownReward[]): { title?: string; palette?: number } {
+  const legend = REALMS[realm].legend;
+  if (!legend) return {};
+  return { ...(crown.some((r) => r.kind === 'title') ? { title: legend.title } : {}), ...(crown.some((r) => r.kind === 'palette') ? { palette: legend.palette } : {}) };
 }
 
 /** Fold one clear into the progress (a new object; the old one is untouched). */
@@ -150,24 +211,27 @@ export function roadTier(p: WorldProgress, realm: RealmId, want: number): number
 
 /**
  * The foes a level features: the squads that first march in its waves (members and commander), newest first; a level with no new
- * squad shows the last ones in by then. Decided: at most `max`, so the panel stays a glance.
+ * squad shows the last ones in by then. Decided: at most `max`, so the panel stays a glance. #249: only squads `tier` fields in
+ * `realm`'s levels (no tier: every squad), and the realm's own foes (its variants, config/world.ts `foes`) come first: they are its lesson.
  */
-export function featuredFoes(waves: [number, number], max = 3): EnemyId[] {
-  const inBy = SQUADS.filter((s) => s.from <= waves[1]);
+export function featuredFoes(waves: [number, number], max = 3, tier?: number, realm?: RealmId): EnemyId[] {
+  const fields = realm && REALMS[realm].fields;
+  const inBy = SQUADS.filter((s) => s.from <= waves[1] && squadOnTier(s, tier, fields));
   const fresh = inBy.filter((s) => s.from >= waves[0]);
-  const ids = (fresh.length ? fresh : inBy).slice().reverse().flatMap((s) => [...(s.commander ? [s.commander] : []), ...s.members.map(([id]) => id)]);
-  return [...new Set(ids)].slice(0, max);
+  const ids = [...new Set((fresh.length ? fresh : inBy).slice().reverse().flatMap((s) => [...(s.commander ? [s.commander] : []), ...s.members.map(([id]) => id)]))];
+  const own = (id: EnemyId) => realmFoe(realm, id) !== id;
+  return [...ids.filter(own), ...ids.filter((id) => !own(id))].slice(0, max);
 }
 
 /** The end boss in words: a named one, or the draw on its wave (a mid-Act boss on a wave x5, the Act's boss on a wave x0). */
 export function bossName(end: EndBoss, wave: number): string {
   if (end.boss === 'usurper') return ENEMIES.usurper.name;
   const named = BOSSES[end.boss] ? (BOSSES[end.boss].name ?? ENEMIES[BOSSES[end.boss].from].name) : (WORLD_BOSSES as Record<string, { name: string }>)[end.boss]?.name;
-  return named ?? (wave % 10 === 5 ? 'A mid-Act boss' : 'An Act boss');
+  return named ?? (isActEnd(wave) ? 'An Act boss' : 'A mid-Act boss'); // as poolBoss draws it
 }
 
 const familyName = (f?: FamilyId) => (f ? FAMILIES[f].name : 'a');
-const REWARD_TEXT: Record<LevelReward['kind'] | CrownReward['kind'], (r: LevelReward | CrownReward, family?: FamilyId) => string> = {
+const REWARD_TEXT: Record<LevelReward['kind'] | CrownReward['kind'], (r: LevelReward | CrownReward, family?: FamilyId, legend?: { title: string }) => string> = {
   rarePick: (r) => `Pick 1 of ${(r as { of: number }).of} ${familyName((r as { family: FamilyId }).family)} rares`,
   keepLocked: () => `Keep a locked relic of a family you held (or ${WORLD.keepLockedRunes} Runes)`,
   classRelic: (_, f) => `Your class relic of ${familyName(f)}`,
@@ -175,13 +239,13 @@ const REWARD_TEXT: Record<LevelReward['kind'] | CrownReward['kind'], (r: LevelRe
   signature: () => 'Your signature relic',
   legendaryPick: (_, f) => `Pick 1 of 2 ${familyName(f)} legendaries`,
   legendaryOther: (_, f) => `The other ${familyName(f)} legendary`,
-  title: () => 'A title',
+  title: (_, __, legend) => (legend ? `The title ${legend.title}` : 'A title'), // #219: a realm that names its own
   palette: () => 'A palette',
 };
 
 /**
- * Everything the level panel shows for `level` of `realm` on `tier`: the head start (with the Keep's and mastery's levels, `bonus`),
- * slots, enemy HP against Squire in the Marches, the featured family and foes, the end boss, and what a clear pays now (empty once taken).
+ * Everything the level panel shows for `level` of `realm` on `tier`: the realm run's slots (with the Keep's and mastery's, `bonus`; #237:
+ * the head start is gone), enemy HP against Squire in the Marches, the featured family and foes, the end boss, and what a clear pays now (empty once taken).
  */
 export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier: number, bonus: { slots: number; levels: number } = { slots: 0, levels: 0 }) {
   const def = REALMS[realm], lv = def.levels[level - 1];
@@ -189,14 +253,14 @@ export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier
   return {
     name: `${def.name} · Level ${level}`,
     waves: lv.waves,
-    headStart: headStartLevel(lv.waves[0]) + bonus.levels,
     slots: slotsFor(realm, level, bonus.slots),
-    enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * levelStep(realm, level).hp * 100),
+    enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * levelStep(realm, level).hp * championStep(realm, level).hp * 100), // #238: with the champion level it expects, as the level plays
     family: lv.family,
-    foes: featuredFoes(lv.waves).map((id) => ENEMIES[id].name),
+    foes: featuredFoes(lv.waves, undefined, tier, realm).map((id) => ENEMIES[realmFoe(realm, id)].name), // #212: as they march there; #249: only what this tier fields
     boss: bossName(lv.boss, lv.waves[1]),
     crownBoss: !!lv.boss.crown,
-    rewards: [...r.level, ...r.crown].map((x) => REWARD_TEXT[x.kind](x, def.family)),
+    eliteBoss: !!lv.boss.elite, // #219: it comes as an elite, a phase more
+    rewards: [...r.level, ...r.crown].map((x) => REWARD_TEXT[x.kind](x, def.family, def.legend)),
     tiers: TIERS.map((t, i) => ({ name: t.name, open: tierOpen(p, realm, i), cleared: bestCleared(p, realm, i) >= level })),
     open: levelOpen(p, realm, level, tier),
   };

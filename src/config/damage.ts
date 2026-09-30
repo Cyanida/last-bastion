@@ -13,8 +13,10 @@ export const DAMAGE_TYPES: Record<DamageType, { name: string; color: string }> =
 export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>>>> = {
   wolf: { fire: 1.5, frost: 0.75 },
   knight: { frost: 1.25 }, // his armor (below) is his physical defence
+  ironKnight: { frost: 1.25 }, // #212: his plates (PLATES below) are his defence
   cultist: { shadow: 0.5, holy: 1.5, fire: 0.75 },
   shieldBearer: { physical: 0.85, fire: 1.25 },
+  thornBearer: { physical: 0.85, fire: 1.25 }, // #214: the shield bearer's, spikes and all
   priest: { holy: 0.5, shadow: 1.5 },
   chaplain: { holy: 0.5, shadow: 1.5 },
   cavalry: { frost: 1.3 },
@@ -31,6 +33,7 @@ export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>
   assassin: { holy: 1.25 },
   dragon: { fire: 0.1, frost: 1.5, physical: 0.9 },
   warden: { physical: 0.85, shadow: 1.3 },
+  forgemaster: { fire: 0.5, frost: 1.3 }, // #215: forge-hot iron: fire barely warms it, frost cracks it
   usurper: { shadow: 0.7, holy: 1.25, physical: 0.9 },
   royalFlame: { fire: 0.1, frost: 2 }, // fire feeds it; frost puts it out
 };
@@ -43,7 +46,36 @@ export const ARMOR: Partial<Record<EnemyId, { frac: number; reduction: number; b
   knight: { frac: 0.5, reduction: 0.6 },
   cavalry: { frac: 0.3, reduction: 0.4 },
   shieldBearer: { frac: 0.3, reduction: 0.5, backBreak: true },
+  thornBearer: { frac: 0.3, reduction: 0.5, backBreak: true },
   mirrorKnight: { frac: 0.4, reduction: 0.5 },
+};
+/**
+ * #212: plate armor that counts hits, not damage (the Iron Hold's knights). While a plate is left every hit does `reduction` less, and
+ * every hit breaks a plate, plus one more for each full `heavy` share of max HP it carried, so a slow heavy hitter needs no more
+ * swings than a fast one. Damage over time slips under the plate: it is reduced and breaks none. At 0 plates he takes full damage.
+ */
+export const PLATES: Partial<Record<EnemyId, { plates: number; reduction: number; heavy: number }>> = {
+  ironKnight: { plates: 6, reduction: 0.75, heavy: 0.2 },
+  forgemaster: { plates: 6, reduction: 0.6, heavy: 0.2 }, // #215: reforged at every new phase (config/bosses.ts FORGEMASTER)
+  ironKing: { plates: 8, reduction: 0.6, heavy: 0.2 }, // #216: his phase 1 only; he casts off what is left at phase 2 (config/bosses.ts IRON_KING)
+};
+/**
+ * #213: an iron tower shield that is always up (the Iron Hold's shieldwalls). A hit that comes at its front (within the foe's
+ * `frontBlock` of his facing) does `reduction` less, and shots from the front are stopped outright; from the side or behind it lands in
+ * full, as does damage with no direction (areas, ticks). The man behind it turns at most `turn` radians a second, so you can step round.
+ */
+export const TOWER_SHIELDS: Partial<Record<EnemyId, { reduction: number; turn: number }>> = {
+  ironShieldwall: { reduction: 0.85, turn: 1.8 },
+  ironKing: { reduction: 0.85, turn: 1.4 }, // #216: his phase 2 only (logic/ironKing towerShieldOf); a king turns slower than a shieldwall, so stepping round him works
+};
+/**
+ * #214: thorns that hit back (the Iron Hold's Thorn Bearers). A blow of the champion's own (his attack or an ability, not a status or field
+ * tick, a relic's proc, a minion or the arena) that lands while he stands within `reach` of the bearer's edge bites him for `share` of
+ * the blow, at most `cap` of his max HP, at most once per `cd` seconds per bearer. Armor and blocks apply; thorns never take his last HP.
+ */
+export const THORNS: Partial<Record<EnemyId, { share: number; cap: number; reach: number; cd: number }>> = {
+  thornBearer: { share: 0.2, cap: 0.05, reach: 100, cd: 0.35 },
+  ironKing: { share: 0.15, cap: 0.04, reach: 100, cd: 0.5 }, // #216: his phase 3 only (logic/ironKing thornsOf); a boss takes many blows, so a smaller, slower bite
 };
 /** v0.7.3 (#59): how much of a blocked (shield bearer) or thrown-back (mirror knight) shot's damage wears the shield or mirror down. */
 export const ARMOR_WEAR = { block: 1, reflect: 0.5 };

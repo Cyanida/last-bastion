@@ -4,6 +4,7 @@
  *
  *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json>     maxed saves, the family-following bot, a win stops the run
  *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json> signature     ...every run holding the class's signature relic (#201)
+ *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json> hold=<id>,<id> ...every run holding those relics from the start (#217)
  *   npx vite-node scripts/relic-report.ts run <classId> <runs> <out.json> loadout       ...each run the Last Bastion, with the loadout the bot fills (#207)
  *   npx vite-node scripts/relic-report.ts merge <out.json> ...                the tables
  *
@@ -13,7 +14,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { CLASS_ORDER, type ClassId } from '../src/config/classes';
 import { MASTERY, META, META_IDS } from '../src/config/economy';
-import { DUO_IDS, FAMILIES, FAMILY_IDS, isDuo, isFamily, keyName, RELIC_IDS, relicDef, SIGNATURE, type FamilyId, type RelicKey } from '../src/config/relics';
+import { DUO_IDS, FAMILIES, FAMILY_IDS, isDuo, isFamily, keyName, RELIC_IDS, relicDef, SIGNATURE, type FamilyId, type RelicId, type RelicKey } from '../src/config/relics';
 import type { Game, RelicStat } from '../src/core/types';
 import { createGame, type RunOptions } from '../src/game';
 import { familySets } from '../src/logic/relics';
@@ -89,7 +90,7 @@ const [cmd, ...args] = process.argv.slice(2);
 if (cmd === 'run') {
   const [classId, runsArg, out, extra] = args as [ClassId, string, string, string?];
   const maxed = Object.fromEntries(META_IDS.map((id) => [id, META[id].max]));
-  const opts: RunOptions = { tier: 0, arena: 'courtyard', meta: maxed, classXp: MASTERY[MASTERY.length - 1].xp, treasure: 3, relics: extra === 'signature' ? [SIGNATURE.relic[classId]] : undefined };
+  const opts: RunOptions = { tier: 0, arena: 'courtyard', meta: maxed, classXp: MASTERY[MASTERY.length - 1].xp, treasure: 3, relics: extra === 'signature' ? [SIGNATURE.relic[classId]] : extra?.startsWith('hold=') ? (extra.slice(5).split(',') as RelicId[]) : undefined };
   // #207 loadout mode: the Last Bastion, the champion as it stands there (sim/levels expectedChampion) and the loadout the bot fills from it
   const withLevel = (variant: number): RunOptions => (extra === 'loadout' ? levelOptions(classId, expectedChampion(classId, 'lastBastion', 1), 'lastBastion', 1, opts.tier ?? 0, variant, opts) : opts);
   const rows = Array.from({ length: Number(runsArg) }, (_, i) => play(classId, 1000 + i * 7919, withLevel(i % 2), i % 2));

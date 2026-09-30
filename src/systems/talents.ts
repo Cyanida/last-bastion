@@ -14,18 +14,24 @@ import { floatText, ring } from './effects';
  * abilityDur/abilityCd, utilityCd/utilityPower) that combat, abilities and the utility read from p.mods.
  */
 
-/** Spend a talent point. False when the node cannot be taken (prerequisites, keystone rules, no points). */
-export function spendTalent(g: Game, id: string): boolean {
+/** A talent joins the build: its flat stats once, its mods every tick (talentPassives). #238: a champion's talents come in this way, with no point spent. */
+export function learnTalent(g: Game, id: string): void {
   const p = g.player;
-  if (!canTakeTalent(p.talents, id, g.talentPoints, g.talentRowCap, g.treasure?.id)) return false;
-  const node = TALENT_BY_ID[id];
   p.talents = [...p.talents, id];
-  g.talentPoints--;
-  for (const [key, add] of Object.entries(node.stats ?? {}) as [StatKey, number][]) {
+  for (const [key, add] of Object.entries(TALENT_BY_ID[id]?.stats ?? {}) as [StatKey, number][]) {
     p.stats[key] += add;
     if (key === 'hp') p.hp += add;
   }
   g.talentModsCache = null;
+}
+
+/** Spend a talent point. False when the node cannot be taken (prerequisites, keystone rules, no points). */
+export function spendTalent(g: Game, id: string): boolean {
+  const p = g.player;
+  if (!canTakeTalent(p.talents, id, g.talentPoints, g.talentRowCap, g.treasure?.id)) return false;
+  g.talentPoints--;
+  learnTalent(g, id);
+  const node = TALENT_BY_ID[id];
   floatText(g, p.x, p.y - 50, node.name, '#e9c95a', 16);
   ring(g, p.x, p.y, 100, '#e9c95a', 0.5);
   sfx(g, 'levelup');

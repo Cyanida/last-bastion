@@ -1,5 +1,7 @@
-import { ARMOR, BACK_ARC, BOSS_RESOLVE, RESISTS, STATUS_TUNING, STATUSES, type DamageType, type StatusId } from '../config/damage';
+import type { DamageSource } from '../core/types';
+import { ARMOR, BACK_ARC, PLATES, BOSS_RESOLVE, RESISTS, STATUS_TUNING, STATUSES, type DamageType, type StatusId } from '../config/damage';
 import type { EnemyId } from '../config/enemies';
+import { angleDiff } from '../core/math';
 
 /** Pure status-effect and damage-type rules, shared by enemies, the player and minions. */
 
@@ -88,6 +90,28 @@ export function throughArmor(amount: number, armorHp: number, reduction: number)
 }
 
 /**
+ * #212: a hit on plate armor (config/damage.ts PLATES). While a plate is left the hit does `reduction` less; a hit (`breaks`: not a
+ * status tick) breaks one plate, plus one per full `heavy` share of `maxHp` it carried. At 0 plates it lands in full.
+ */
+export function throughPlates(amount: number, plates: number, maxHp: number, cfg: { reduction: number; heavy: number }, breaks = true): { dealt: number; plates: number; broke: boolean } {
+  if (plates <= 0) return { dealt: amount, plates: 0, broke: false };
+  const broken = breaks && amount > 0 ? 1 + Math.floor(amount / (cfg.heavy * maxHp)) : 0;
+  const left = Math.max(0, plates - broken);
+  return { dealt: amount * (1 - cfg.reduction), plates: left, broke: left === 0 && broken > 0 };
+}
+
+/**
+ * #214: what a thorn bearer's spikes (config/damage.ts THORNS) bite back for one hit on it: `share` of the blow, at most `cap` of the
+ * champion's `maxHp`. Only his own blows count (an attack or an ability, not a tick), struck from within `reach` of the bearer's edge
+ * (`gap`: the distance from the champion to that edge), and at most once per `cd` seconds (`since`: seconds since the last bite).
+ */
+export function thornsBite(blow: number, hit: { source: DamageSource; tick: boolean; gap: number; since: number }, maxHp: number, cfg: { share: number; cap: number; reach: number; cd: number }): number {
+  if (blow <= 0 || hit.tick || (hit.source !== 'attack' && hit.source !== 'ability')) return 0;
+  if (hit.gap > cfg.reach || hit.since < cfg.cd) return 0;
+  return Math.min(blow * cfg.share, cfg.cap * maxHp);
+}
+
+/**
  * v0.7.5 (#95): a hit on a boss through its resolve (BOSS_RESOLVE). `load` is the damage it took lately (as of time `t`), draining at
  * `perSec` of its max HP a second; what lands past the `burst` allowance does `excess` of itself, up to `cap` in all. Returns the
  * damage and the new load.
@@ -107,4 +131,27 @@ export function fromBehind(kx: number, ky: number, facing: number): boolean {
   return Math.min(d, Math.PI * 2 - d) < BACK_ARC;
 }
 
-export const armorFor = (id: EnemyId, maxHp: number) => (ARMOR[id] ? Math.round(maxHp * ARMOR[id]!.frac) : 0);
+/** #213: did a hit travelling along (kx, ky) come at the front of an enemy facing `facing`, within `arc` radians either side? */
+export function atFront(kx: number, ky: number, facing: number, arc: number): boolean {
+  if (kx === 0 && ky === 0) return false; // no direction (an area, a tick): no front to come at
+  return angleDiff(Math.atan2(-ky, -kx), facing) < arc;
+}
+
+/**
+ * #213: a hit on an iron tower shield (config/damage.ts TOWER_SHIELDS). From the front (within `arc` of his facing) it does `reduction`
+ * less and counts as blocked; from the side, from behind or with no direction it lands in full.
+ */
+export function throughTowerShield(amount: number, kx: number, ky: number, facing: number, arc: number, reduction: number): { dealt: number; blocked: boolean } {
+  const blocked = amount > 0 && atFront(kx, ky, facing, arc);
+  return { dealt: blocked ? amount * (1 - reduction) : amount, blocked };
+}
+
+/** #213: turn a facing toward `want` by at most `step` radians, the short way round (a slow-turning shield bearer). */
+export function turnToward(facing: number, want: number, step: number): number {
+  const d = Math.atan2(Math.sin(want - facing), Math.cos(want - facing));
+  const to = Math.abs(d) <= step ? want : facing + Math.sign(d) * step;
+  return Math.atan2(Math.sin(to), Math.cos(to)); // kept in -PI..PI
+}
+
+/** The armor bar an enemy starts with: an ARMOR soak pool in HP, or #212's PLATES as a count of plates. */
+export const armorFor = (id: EnemyId, maxHp: number) => (PLATES[id] ? PLATES[id]!.plates : ARMOR[id] ? Math.round(maxHp * ARMOR[id]!.frac) : 0);

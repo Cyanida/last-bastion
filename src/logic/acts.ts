@@ -48,7 +48,7 @@ export function bossForWave(wave: number, draw: BossDraw): BossKey | null {
   return pickMidBoss(act, draw, waveRng(draw.seed ^ 0xb055, wave));
 }
 
-const ACT_BOSSES = Object.keys(BOSSES).filter((k) => BOSSES[k].slot === 'act');
+export const ACT_BOSSES = Object.keys(BOSSES).filter((k) => BOSSES[k].slot === 'act');
 /** The Act boss of `act` in table order, round again past Act III (never the Usurper). */
 export const actBoss = (act: number): BossKey => ACT_BOSSES[(act - 1) % ACT_BOSSES.length];
 const MID_BOSSES = Object.keys(BOSSES).filter((k) => BOSSES[k].slot === 'mid');

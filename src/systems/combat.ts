@@ -2,7 +2,7 @@ import { credit, relicContext } from './relicContext';
 import { ATTUNEMENT, FAMILIES, isFamily, RELIC_COLOR, type RelicKey } from '../config/relics';
 import { addWork } from '../logic/relics';
 import { ABILITY_UPGRADES } from '../config/abilityUpgrades';
-import { ARMOR, ARMOR_WEAR, DAMAGE_TYPES, ENEMY_STATUS, STATUSES, type DamageType } from '../config/damage';
+import { ARMOR, ARMOR_WEAR, DAMAGE_TYPES, PLATES, ENEMY_STATUS, STATUSES, TOWER_SHIELDS, THORNS, type DamageType } from '../config/damage';
 import { AFFIXES, ELITES } from '../config/elites';
 import { GOLD } from '../config/economy';
 import { GAME, RENDER, SKILL } from '../config/game';
@@ -14,9 +14,11 @@ import { angleDiff, compact, dist2, TAU } from '../core/math';
 import type { Body, DamageSource, Enemy, Game, Minion, Player, Projectile, Status } from '../core/types';
 import { addField, fireProjectile, recycleProjectile } from '../entities/hazards';
 import { goldDrop } from '../logic/economy';
+import { onSlab } from '../logic/presses';
 import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
-import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, throughResolve, typeMultiplier, type StatusApply } from '../logic/status';
+import { thornsOf, towerShieldOf } from '../logic/ironKing';
+import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, thornsBite, throughPlates, throughResolve, throughTowerShield, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
 import { lastStand, zoneStruck } from './dodge';
@@ -127,7 +129,7 @@ export function applyStatus(e: Enemy, s: Status | null, g?: Game): void {
  * Returns the damage that reached the enemy's HP. kx/ky is a knockback impulse, and also tells which way the hit travelled.
  * Order: resistance / weakness -> Cursed -> elite barrier -> armor -> HP.
  */
-export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx = 0, ky = 0, source: DamageSource = 'attack', type: DamageType = 'physical'): number {
+export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx = 0, ky = 0, source: DamageSource = 'attack', type: DamageType = 'physical', tick = false): number {
   if (e.dead) return 0;
   if (e.warded) {
     if (e.flash <= 0) floatText(g, e.x, e.y - e.r - 20, 'WARDED', '#e9c95a', 14); // at most once per flash, or it floods the screen
@@ -138,6 +140,17 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   const chill = e.statuses.slow?.by ? 1 + e.statuses.slow.stacks * FAMILIES.frost.n.chillVuln : 0; // v0.7 A8: a relic's chill: +4% damage taken per stack
   amount *= typeMult * damageTakenFactor(e.statuses) * (chill || 1);
   if (e.def.boss && source !== 'hazard') amount *= g.player.mods.bossDamage;
+  const thorns = thornsOf(e.def.id, e.phase); // #216: the Iron King's only in his thorns phase
+  if (thorns) thornsBack(g, e, amount, source, tick, thorns); // #214: the blow as it arrives, before his shield turns any of it
+  const plates = PLATES[e.def.id];
+  if (plates && e.armorHp > 0) {
+    // #212: iron plates count hits: each one breaks a plate (a status tick slips under them), and until they are gone every hit is dulled
+    const hit = throughPlates(amount, e.armorHp, e.maxHp, plates, !tick);
+    if (hit.plates < e.armorHp) sfx(g, 'clang');
+    amount = hit.dealt;
+    e.armorHp = hit.plates;
+    if (hit.broke) breakPlates(g, e);
+  }
   const armor = ARMOR[e.def.id];
   if (armor && e.armorHp > 0) {
     if (armor.backBreak) {
@@ -160,6 +173,13 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   // shieldwall: while the line holds, anything that comes at the pavises from the front barely scratches
   const wall = e.def.wall;
   if (wall && e.charged && (kx !== 0 || ky !== 0) && !fromBehind(kx, ky, e.angle)) amount *= 1 - wall.reduction;
+  const tower = towerShieldOf(e.def.id, e.phase); // #216: the Iron King's only in his shield phase
+  if (tower) {
+    // #213: the iron tower shield is always up: a blow at his front is turned, one from the side or behind lands in full
+    const hit = throughTowerShield(amount, kx, ky, e.angle, e.def.frontBlock ?? 0, tower.reduction);
+    if (hit.blocked) shieldBlock(g, e);
+    amount = hit.dealt;
+  }
   if (e.def.boss) {
     // v0.7.5 (#95): a boss's resolve: a burst past its allowance does a fraction, so one ability cannot end the fight (status ticks included)
     const r = throughResolve(amount, e.maxHp, e.resolve, e.resolveT, g.time);
@@ -201,6 +221,40 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   return dealt;
 }
 
+/** #213: a blow rings off the iron tower shield: sparks off its face, a dull clank, and BLOCKED (at most once per flash, like WARDED). */
+function shieldBlock(g: Game, e: Enemy): void {
+  if (e.flash <= 0) floatText(g, e.x, e.y - e.r - 20, 'BLOCKED', '#c7ced6', 14);
+  burst(g, e.x + Math.cos(e.angle) * e.r, e.y + Math.sin(e.angle) * e.r - 6, '#e5b545', 5, 120);
+  sfx(g, 'block');
+}
+
+/** #214: a thorn bearer's spikes bite back at the champion for a blow he struck up close (logic/status thornsBite). */
+function thornsBack(g: Game, e: Enemy, blow: number, source: DamageSource, tick: boolean, cfg: NonNullable<(typeof THORNS)[keyof typeof THORNS]>): void {
+  const p = g.player;
+  const gap = Math.sqrt(dist2(p.x, p.y, e.x, e.y)) - e.r;
+  const bite = thornsBite(blow, { source, tick, gap, since: g.time - (e.thornsAt ?? -Infinity) }, p.stats.hp, cfg);
+  if (bite <= 0) return;
+  e.thornsAt = g.time;
+  const before = p.hp;
+  damagePlayer(g, bite, true, null, `${e.def.name}'s thorns`, true); // no attacker: the champion's own thorns and reflects don't answer back
+  g.vars['thorns.bites'] = (g.vars['thorns.bites'] ?? 0) + 1; // the play test and the sim read these
+  g.vars['thorns.taken'] = (g.vars['thorns.taken'] ?? 0) + Math.max(0, before - p.hp);
+  floatText(g, e.x, e.y - e.r - 14, 'THORNS', '#c7ced6', 13);
+  burst(g, (e.x + p.x) / 2, (e.y + p.y) / 2, '#96a1b2', 6, 180);
+  sfx(g, 'thorns');
+}
+
+/** #212: the last plate falls: he stands in his mail from now on (his bare sprite), and takes full damage. */
+function breakPlates(g: Game, e: Enemy): void {
+  floatText(g, e.x, e.y - e.r - 22, 'ARMOR BROKEN', '#9a9aa0', 15);
+  burst(g, e.x, e.y, '#9a9aa0', 18, 240);
+  shake(g, 5);
+  if (e.def.sprite === 'ironKnight') {
+    e.def = { ...e.def, sprite: 'ironKnightBare' };
+    e.spr = null; // the letter-grid fallback is cached per enemy
+  }
+}
+
 /** Damage of a player attack or ability with the given base and scaling stat, crit rolled from Dexterity. */
 export function rollPlayerHit(g: Game, base: number, scaling: 'str' | 'dex' | 'int'): { amount: number; crit: boolean } {
   const p = g.player;
@@ -238,7 +292,7 @@ function revive(g: Game): boolean {
 }
 
 /** `cause` names what hurt when it was not an enemy (the run log's cause of death). */
-export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, attacker: Enemy | null = null, cause = 'something unseen'): void {
+export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, attacker: Enemy | null = null, cause = 'something unseen', spare = false): void {
   const p = g.player;
   if (g.over || p.invulnT > 0) return;
   if (p.invulnerable) {
@@ -268,6 +322,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
     p.ward -= soak;
     taken -= soak;
   }
+  if (spare) taken = Math.min(taken, Math.max(0, p.hp - 1)); // #214: thorns hurt, but never take the last HP
   p.hp -= taken;
   p.flash = 0.12;
   g.bossHit = true;
@@ -406,6 +461,7 @@ function wearArmor(g: Game, e: Enemy, amount: number): void {
 /** Shield bearers stop projectiles that come at their front. */
 function blockedByShield(e: Enemy, vx: number, vy: number): boolean {
   if (!e.def.frontBlock) return false;
+  if (TOWER_SHIELDS[e.def.id] && !towerShieldOf(e.def.id, e.phase)) return false; // #216: the Iron King's shield is down outside its phase
   if (e.def.wall && !e.charged) return false; // a shieldwall spearman on his own is just a man with a plank
   if (ARMOR[e.def.id]?.backBreak && e.armorHp <= 0) return false; // shield broken
   return angleDiff(Math.atan2(-vy, -vx), e.angle) < e.def.frontBlock;
@@ -466,6 +522,7 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
       wearArmor(g, e, pr.damage * ARMOR_WEAR.block); // v0.7.3 (#59): a blocked shot wears the shield down
       floatText(g, e.x, e.y - e.r - 8, 'blocked', '#9a9aa0', 11);
       burst(g, pr.x, pr.y, '#c9a227', 4, 90);
+      if (TOWER_SHIELDS[e.def.id]) sfx(g, 'block'); // #213: the iron shield rings
       return false;
     }
     const v = Math.hypot(pr.vx, pr.vy) || 1;
@@ -484,7 +541,9 @@ export function updateZones(g: Game, dt: number): void {
   compact(g.zones, (z) => {
     if (z.owner?.dead) return false;
     z.t += dt;
-    const inside = z.hostile && dist2(z.x, z.y, g.player.x, g.player.y) <= (z.r + g.player.r) ** 2;
+    // #211: a press's zone is its square slab; the rest are circles
+    const on = (b: Body): boolean => (z.slab ? onSlab(z.x, z.y, z.slab, b.x, b.y, b.r) : dist2(z.x, z.y, b.x, b.y) <= (z.r + b.r) ** 2);
+    const inside = z.hostile && on(g.player);
     if (z.t < z.delay) {
       if (inside && z.delay >= SKILL.perfect.minDelay) z.lastIn = g.time; // v0.6: the perfect dodge watches who stood in it
       return true;
@@ -493,15 +552,15 @@ export function updateZones(g: Game, dt: number): void {
     if (z.hostile) {
       if (z.delay >= SKILL.perfect.minDelay) zoneStruck(g, z.lastIn, inside);
       if (inside) hurtTarget(g, g.player, z.damage, true, z.owner);
-      for (const m of g.minions) if (dist2(z.x, z.y, m.x, m.y) <= (z.r + m.r) ** 2) hurtTarget(g, m, z.damage, true, z.owner);
+      for (const m of g.minions) if (on(m)) hurtTarget(g, m, z.damage, true, z.owner);
       ring(g, z.x, z.y, z.r, z.color);
       burst(g, z.x, z.y, z.color, 18, 240);
       shake(g, 8);
-      sfx(g, 'boom');
+      sfx(g, z.slab ? 'slam' : 'boom'); // #211: iron on stone
     } else {
       let hits = 0;
-      for (const e of g.hash.query(z.x, z.y, z.r, near)) {
-        if (e.dead) continue;
+      for (const e of g.hash.query(z.x, z.y, z.slab ? z.r * Math.SQRT2 : z.r, near)) {
+        if (e.dead || (z.slab && !onSlab(z.x, z.y, z.slab, e.x, e.y, e.r))) continue; // #211: the slab's corners reach past its half width
         damageEnemy(g, e, z.damage, z.crit, 0, 0, z.source, z.dtype);
         applyStatus(e, z.status, g);
         if (z.maxHits > 0 && ++hits >= z.maxHits) break;
@@ -537,7 +596,7 @@ export function updateFields(g: Game, dt: number): void {
           if (e.dead) continue;
           const outer = relicContext.acting;
           relicContext.acting = f.by ?? outer; // a relic's field (Scorched Earth) credits its relic
-          damageEnemy(g, e, f.dps * GAME.fieldTick, false, 0, 0, f.by ? 'relic' : 'ability', f.dtype);
+          damageEnemy(g, e, f.dps * GAME.fieldTick, false, 0, 0, f.by ? 'relic' : 'ability', f.dtype, true); // a tick: it breaks no plates (#212)
           if (f.apply) applyStatus(e, { apply: [f.apply] }, g);
           relicContext.acting = outer;
         }

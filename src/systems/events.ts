@@ -11,6 +11,7 @@ import { squadOnTier, squadPlan, squadUnits } from '../logic/director';
 import { rollAffixes } from '../logic/elites';
 import { enemyDmgMult, enemyHpMult } from '../logic/formulas';
 import { placeRng, rollEvent } from '../logic/quests';
+import { bossWaveIn, levelFields } from '../logic/world';
 import { clampToRects, floorPoint, regionAt } from '../logic/regions';
 import { pacingOf, unlockedPool } from '../logic/waves';
 import { moveTo, POISON } from './aiHelpers';
@@ -54,7 +55,8 @@ const START: Partial<Record<EventKind, (g: Game, ev: WaveEvent, rng: Rng) => voi
 };
 
 function startEvent(g: Game): void {
-  const kind = rollEvent(g.seed, g.wave);
+  const boss = bossWaveIn(g.level, g.wave); // #243: a level's own boss wave brings no event
+  const kind = rollEvent(g.seed, g.wave, boss);
   if (!kind) return;
   const rng = placeRng(g.seed, g.wave);
   const at = clearPoint(g, floorPoint(g.openFloors, rng, 120));
@@ -63,13 +65,13 @@ function startEvent(g: Game): void {
   g.eventsSeen++;
   START[kind]?.(g, ev, rng);
   const name = `${EVENTS[kind].icon} ${EVENTS[kind].name}`;
-  g.banner = { text: pacingOf(g.wave) === 'breather' ? `A lull — ${name}` : `${g.banner.text} · ${name}`, t: 3 };
+  g.banner = { text: pacingOf(g.wave, boss) === 'breather' ? `A lull — ${name}` : `${g.banner.text} · ${name}`, t: 3 };
 }
 
 /** Two squads at once, from opposite sides of the player (the director's squad path, placed by hand). */
 function springAmbush(g: Game): void {
   const p = g.player;
-  const pool = SQUADS.filter((t) => t.from <= g.wave && squadOnTier(t, g.tierIndex)).map((t) => ({ value: t, weight: t.weight }));
+  const pool = SQUADS.filter((t) => t.from <= g.wave && squadOnTier(t, g.tierIndex, levelFields(g.level))).map((t) => ({ value: t, weight: t.weight }));
   const a = g.rng() * TAU;
   for (const side of [1, -1]) {
     const t = pool.length ? pickWeighted(pool, g.rng) : SQUADS[0];
@@ -89,7 +91,7 @@ function openCursedChest(g: Game, ev: WaveEvent): void {
   g.gold += EVENTS.cursedChest.gold * g.act;
   g.salvage += 1;
   floatText(g, p.x, p.y - 44, `+${EVENTS.cursedChest.gold * g.act}g · ◆ shard`, '#c9a227', 16);
-  const pool = unlockedPool(g.wave, null, g.tierIndex);
+  const pool = unlockedPool(g.wave, null, g.tierIndex, levelFields(g.level));
   for (let i = 0; i < EVENTS.cursedChest.elites; i++) {
     const a = (i / EVENTS.cursedChest.elites) * TAU + g.rng();
     const e = spawnEnemy(g, pickWeighted(pool, g.rng), p.x + Math.cos(a) * 170, p.y + Math.sin(a) * 170, rollAffixes(g.wave, g.rng));

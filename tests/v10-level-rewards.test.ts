@@ -1,3 +1,4 @@
+import { expectedLevel } from '../src/logic/formulas';
 import { describe, expect, it } from 'vitest';
 import { RUNES } from '../src/config/economy';
 import { createGame, summarizeRun } from '../src/game';
@@ -11,17 +12,17 @@ const marches = (level: number, cleared = true) => ({ realm: 'marches' as const,
 
 describe('levels: rewards count only the waves played (#192)', () => {
   it('a level skips the waves before its first and the head start levels; its share of a full run', () => {
-    expect(levelSkip('marches', 1)).toEqual({ waves: 0, levels: 0, share: 5 / 40 });
-    expect(levelSkip('marches', 7)).toEqual({ waves: 30, levels: headStartLevel(31) - 1, share: 10 / 40 });
+    expect(levelSkip('marches', 1)).toEqual({ waves: 0, levels: 0, share: 6 / 40 }); // #243: waves 1-6
+    expect(levelSkip('marches', 7)).toEqual({ waves: 35, levels: headStartLevel(36) - 1, share: 5 / 40 }); // waves 36-40
     expect(levelSkip('lastBastion', 1)).toEqual({ waves: 0, levels: 0, share: 1 });
   });
 
-  it('class XP from a level equals a fresh run that played the same waves and levels', () => {
+  it('class XP from a level equals a fresh run that played the same waves, at the levels the pace gives them (#238: a level has no level-ups)', () => {
     const skip = levelSkip('marches', 5);
-    const lv = applyRun(defaultSave(), run({ wave: 26, wavesCleared: 25, level: 23, realmLevel: marches(5) }));
-    const fresh = applyRun(defaultSave(), run({ wave: 6, wavesCleared: 25 - skip.waves, level: 23 - skip.levels }));
+    const lv = applyRun(defaultSave(), run({ wave: 31, wavesCleared: 30, level: 5, realmLevel: marches(5) })); // level 5 (waves 25-30): the champion's, which mastery doesn't count
+    const fresh = applyRun(defaultSave(), run({ wave: 7, wavesCleared: 30 - skip.waves, level: 1 + Math.round(expectedLevel(31) - expectedLevel(25)) }));
     expect(lv.classXp).toBe(fresh.classXp);
-    expect(lv.save.tierWaves[0]).toBe(5); // the tier record counts the 5 waves played, not 25
+    expect(lv.save.tierWaves[0]).toBe(6); // the tier record counts the 6 waves played, not 30
   });
 
   it("the gold cap is the level's share of a full run's", () => {
@@ -29,7 +30,7 @@ describe('levels: rewards count only the waves played (#192)', () => {
     const full = applyRun(defaultSave(), run({ gold })).gold;
     const short = applyRun(defaultSave(), run({ gold, realmLevel: marches(1, false) })).gold;
     expect(full).toBeGreaterThan(RUNES.runGoldCap);
-    expect(short).toBeLessThanOrEqual(2 * RUNES.runGoldCap * (5 / 40));
+    expect(short).toBeLessThanOrEqual(2 * RUNES.runGoldCap * (6 / 40));
     expect(applyRun(defaultSave(), run({ gold: 100, realmLevel: marches(1, false) })).gold).toBe(100); // under the cap: face value
   });
 

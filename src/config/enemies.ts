@@ -5,8 +5,10 @@ export type EnemyId =
   | 'wolf'
   | 'crossbow'
   | 'knight'
+  | 'ironKnight'
   | 'cultist'
   | 'shieldBearer'
+  | 'thornBearer'
   | 'priest'
   | 'cavalry'
   | 'bannerman'
@@ -20,9 +22,12 @@ export type EnemyId =
   | 'siegeTower'
   | 'assassin'
   | 'shieldwall'
+  | 'ironShieldwall'
   | 'boneCollector'
   | 'dragon'
   | 'warden'
+  | 'forgemaster'
+  | 'ironKing'
   | 'blackKnight'
   | 'warlord'
   | 'lich'
@@ -127,6 +132,11 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     ...base, id: 'knight', name: 'Armored Knight', sprite: 'knight', behavior: 'chaser',
     hp: 120, damage: 18, speed: 52, radius: 15, xp: 5, knockbackResist: 0.85, attackCd: 1.1,
   },
+  // #212: the Iron Hold's knight. His plate counts hits, not damage (config/damage.ts PLATES): break it with many blows, then he is soft
+  ironKnight: {
+    ...base, id: 'ironKnight', name: 'Iron Knight', sprite: 'ironKnight', behavior: 'chaser',
+    hp: 110, damage: 18, speed: 50, radius: 15, xp: 6, knockbackResist: 0.9, attackCd: 1.2,
+  },
   cultist: {
     ...base, id: 'cultist', name: 'Cultist', sprite: 'cultist', behavior: 'exploder',
     hp: 26, damage: 30, speed: 98, radius: 12, xp: 3, fuse: 0.8, blastRadius: 85,
@@ -135,6 +145,11 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   shieldBearer: {
     ...base, id: 'shieldBearer', name: 'Shield Bearer', sprite: 'shieldBearer', behavior: 'chaser',
     hp: 70, damage: 12, speed: 58, radius: 14, xp: 4, knockbackResist: 0.6, frontBlock: 1.1,
+  },
+  // #214: the Iron Hold's shield bearer. The same shield, spiked: a blow struck at him up close bites back (config/damage.ts THORNS)
+  thornBearer: {
+    ...base, id: 'thornBearer', name: 'Thorn Bearer', sprite: 'thornBearer', behavior: 'chaser',
+    hp: 70, damage: 12, speed: 56, radius: 14, xp: 5, knockbackResist: 0.6, frontBlock: 1.1,
   },
   // pressures slow killers: keeps the horde topped up until you hunt him down
   priest: {
@@ -186,6 +201,12 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   shieldwall: {
     ...base, id: 'shieldwall', name: 'Shieldwall Spearman', sprite: 'shieldwall', behavior: 'chaser',
     hp: 60, damage: 11, speed: 54, radius: 13, xp: 4, knockbackResist: 0.7, frontBlock: 1.2, wall: { radius: 72, neighbors: 2, reduction: 0.8 },
+  },
+  // #213: the Iron Hold's shieldwall. An iron tower shield that is always up, line or no line (config/damage.ts TOWER_SHIELDS), on a man
+  // who turns slowly: step round him and strike his side or back
+  ironShieldwall: {
+    ...base, id: 'ironShieldwall', name: 'Iron Shieldwall', sprite: 'ironShieldwall', behavior: 'chaser',
+    hp: 64, damage: 12, speed: 50, radius: 13, xp: 5, knockbackResist: 0.8, frontBlock: 1.2,
   },
   // goes for the corpses before he goes for you, and every one makes him bigger. The Necromancer's rival.
   boneCollector: {
@@ -252,6 +273,20 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     ...boss, id: 'warden', name: 'The Warden', sprite: 'warden', behavior: 'chaser', phases: 3,
     hp: 1050, damage: 22, speed: 80, radius: 30, xp: 120,
     specialCd: 7.5, windup: 1.0, specialMult: 1.5, zoneRadius: 46, summon: 'knight', summonCount: 2, p2SpeedMult: 1.1,
+  },
+  // #215: the Iron Hold's level-3 boss (config/bosses.ts FORGEMASTER, systems/bosses.ts). His plate breaks blow by blow (config/damage.ts
+  // PLATES) and he reforges it at every new phase; his hammer, his sparks and his forge presses
+  forgemaster: {
+    ...boss, id: 'forgemaster', name: 'The Forgemaster', sprite: 'forgemaster', behavior: 'chaser', phases: 3,
+    hp: 1000, damage: 22, speed: 70, radius: 30, xp: 120,
+    specialCd: 5.5, windup: 0.9, specialMult: 1.4, zoneRadius: 46, projSpeed: 330, poolLife: 4, poolDps: 12, p2SpeedMult: 1.1,
+  },
+  // #216: the Iron Hold's crown boss (config/bosses.ts IRON_KING, systems/bosses.ts). A phase for each of the realm's lessons: his plate
+  // (config/damage.ts PLATES), then his iron tower shield (TOWER_SHIELDS, frontBlock), then his thorns (THORNS)
+  ironKing: {
+    ...boss, id: 'ironKing', name: 'The Iron King', sprite: 'ironKing', behavior: 'chaser', phases: 3,
+    hp: 1150, damage: 24, speed: 74, radius: 32, xp: 150, frontBlock: 1.2,
+    specialCd: 5, windup: 0.9, specialMult: 1.4, zoneRadius: 40, chargeSpeed: 620, chargeDist: 440, summon: 'ironKnight', summonCount: 2, p2SpeedMult: 1.1,
   },
   // ---- v0.6: the end of the run (config/acts.ts FINAL, systems/bosses.ts) ----
   usurper: {

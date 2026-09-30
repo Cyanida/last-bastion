@@ -24,6 +24,7 @@ export function createPlayer(cls: ClassDef, arena: ArenaDef, stats: Stats = cls.
     r: GAME.playerRadius,
     hp: stats.hp,
     level: 1,
+    levelWorth: 1,
     xp: 0,
     facing: 0,
     flip: false,

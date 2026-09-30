@@ -1,11 +1,13 @@
 import { FINAL } from '../config/acts';
-import { DRAGON, WARDEN } from '../config/bosses';
+import { DRAGON, FORGEMASTER, IRON_KING, WARDEN } from '../config/bosses';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
 import { addZone, timer } from '../entities/hazards';
 import { waypoint } from '../logic/regions';
-import { hammerZones, wardenMove, wardenSpecialCd } from '../logic/crownBoss';
+import { hammerZones, wardenJudges, wardenMove, wardenSpecialCd } from '../logic/crownBoss';
+import { forgeCd, forgeMove, pressTiles, slamZones } from '../logic/forgemaster';
+import { decreeZones, kingCd, kingMove } from '../logic/ironKing';
 import { angleTo, chargeStart, chargeThrough, distTo, hitDamage, keepRange, move, moveTo, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { pickTarget, registerBoss } from './enemyAI';
 import { burst, floatText, ring, shake } from './effects';
@@ -113,8 +115,8 @@ const closeSeal = timer('warden.seal', (g, a: { e: Enemy; x: number; y: number }
 registerBoss('warden', (g, e, dt) => {
   const t = pickTarget(g, e);
   const def = e.def;
-  // #202: the crown's Judgement begins: his own third phase, and the next seal comes at once
-  if (e.crown && e.phase >= 3 && e.state !== 3) {
+  // #202: the crown's Judgement begins: his own third phase, and the next seal comes at once (#219: an elite's fourth)
+  if (wardenJudges(e.phase, e.crown) && e.state !== 3) {
     e.state = 3;
     e.special = Math.min(e.special, 0.8);
     g.banner = { text: 'The Warden’s judgement', t: 2.5 };
@@ -150,6 +152,106 @@ registerBoss('warden', (g, e, dt) => {
   }
   if (move.close) closeSeal(g, WARDEN.close.after, { e, x, y }); // the circle closes
   if (move.summon) summon(g, e);
+});
+
+// ---------------------------------------------------------------- #215: the Forgemaster, the Iron Hold's level-3 boss (config/bosses.ts FORGEMASTER)
+
+const EMBER = '#f08a1c';
+const IRON = '#9a9aa0';
+
+registerBoss('forgemaster', (g, e, dt) => {
+  const t = pickTarget(g, e);
+  const def = e.def;
+  // a new phase (enemyAI's enterPhase moved e.phase on): he reforges his plate whole, so it has to be broken again
+  if (e.phase > 1 && e.state < e.phase) {
+    e.state = e.phase;
+    e.armorHp = e.armorMax;
+    g.banner = { text: 'The Forgemaster reforges his plate', t: 2.2 };
+    markPhase(g, 'The Forgemaster reforges his plate');
+    ring(g, e.x, e.y, 130, EMBER, 0.6);
+    sfx(g, 'clang');
+  }
+  seek(e, t, e.speed, dt);
+  touch(g, e, t);
+  e.special -= dt;
+  if (e.special > 0 || distTo(e, g.player) > FORGEMASTER.reach) return;
+  e.special = forgeCd(e.phase);
+  sfx(g, 'warn');
+  const move = forgeMove(e.phase, e.combo++);
+  if (move.slam) {
+    // his hammer comes down in an arc in front of him; from phase 3 the struck ground stays molten (the Dragon's fire fields' burn)
+    const a = angleTo(e, t);
+    e.flip = t.x < e.x;
+    for (const z of slamZones(e.x, e.y, e.r, a)) addZone(g, { x: z.x, y: z.y, r: FORGEMASTER.slam.radius, delay: def.windup!, damage: specialDamage(e) * FORGEMASTER.slam.damage, hostile: true, color: EMBER, owner: e, dtype: 'fire', leaveField: move.slag ? fireField(g, e) : null });
+    const s = FORGEMASTER.sparks;
+    if (move.sparks && !e.telegraph) aimFan(g, e, { angle: a, count: s.count, spread: s.spread, windup: s.windup, damage: hitDamage(e) * s.damage, speed: def.projSpeed!, range: s.range, dtype: 'fire', color: EMBER });
+    return;
+  }
+  // the forge presses: a checkerboard of marked tiles round you, one colour slamming after the other
+  const { x, y } = g.player;
+  for (const z of pressTiles(x, y, move.strokes)) addZone(g, { x: z.x, y: z.y, r: FORGEMASTER.press.radius, delay: z.delay, damage: specialDamage(e) * FORGEMASTER.press.damage, hostile: true, color: IRON, owner: e });
+  g.banner = { text: 'The presses fall', t: 1.4 };
+  shake(g, 6);
+});
+
+// ---------------------------------------------------------------- #216: the Iron King, the Iron Hold's crown boss (config/bosses.ts IRON_KING)
+
+const KING_PHASE: Record<number, string> = { 2: 'The Iron King raises his shield', 3: 'The Iron King’s thorns' };
+const kingPhase = new WeakMap<Enemy, number>(); // the phase whose change of guard has been shown (e.state is his rush)
+
+registerBoss('ironKing', (g, e, dt) => {
+  const t = pickTarget(g, e);
+  const def = e.def;
+  // a new phase (enemyAI's enterPhase moved e.phase on): a change of guard, plate -> shield -> thorns (logic/ironKing kingGuard)
+  if (e.phase > (kingPhase.get(e) ?? 1)) {
+    kingPhase.set(e, e.phase);
+    e.armorHp = 0; // whatever plate is left he casts off: the plate is phase 1's lesson
+    g.banner = { text: KING_PHASE[e.phase] ?? def.name, t: 2.4 };
+    markPhase(g, KING_PHASE[e.phase] ?? def.name);
+    burst(g, e.x, e.y, IRON, 24, 260);
+    ring(g, e.x, e.y, 150, IRON, 0.6);
+    sfx(g, e.phase === 2 ? 'block' : 'thorns');
+  }
+  if (e.state === 1) {
+    // the rush winds up along its line
+    e.timer -= dt;
+    e.telegraph!.t += dt;
+    if (e.timer > 0) return;
+    e.state = 2;
+    e.timer = def.chargeDist! / def.chargeSpeed!;
+    e.telegraph = null;
+    chargeStart(e);
+    return;
+  }
+  if (e.state === 2) {
+    // behind the shield, straight down the line: it runs through you once
+    e.timer -= dt;
+    move(e, e.angle, def.chargeSpeed!, dt);
+    chargeThrough(g, e);
+    if (e.timer <= 0) e.state = 0;
+    return;
+  }
+  seek(e, t, e.speed, dt);
+  touch(g, e, t);
+  e.special -= dt;
+  if (e.special > 0 || distTo(e, g.player) > IRON_KING.reach) return;
+  e.special = kingCd(e.phase);
+  sfx(g, 'warn');
+  const blow = kingMove(e.phase, e.combo++);
+  const a = angleTo(e, g.player);
+  if (blow.rush) {
+    e.state = 1;
+    e.timer = def.windup!;
+    e.angle = a;
+    e.flip = Math.cos(a) < 0;
+    e.telegraph = { angle: a, length: def.chargeDist!, width: e.r * 2.4, t: 0, dur: e.timer };
+    return;
+  }
+  // the Decree: lines of iron marked out from him, one straight at you, landing from the inside out
+  for (const z of decreeZones(e.x, e.y, e.r, a, blow.decree)) addZone(g, { x: z.x, y: z.y, r: def.zoneRadius!, delay: z.delay, damage: specialDamage(e) * IRON_KING.decree.damage, hostile: true, color: IRON, owner: e });
+  g.banner = { text: 'The King’s decree', t: 1.2 };
+  if (blow.guard) summon(g, e); // his guard of Iron Knights
+  shake(g, 5);
 });
 
 // ---------------------------------------------------------------- v0.6: the Usurper, the end of the run (config/acts.ts FINAL)

@@ -1,5 +1,222 @@
 # Balance notes
 
+## v0.11: the Iron Hold's shieldwalls on every tier (#249)
+
+The Iron Shieldwall (#213) came only from Champion (`WAVES.tierRoster`), so on Squire and Knight, the tiers the Iron Hold opens with,
+nobody met one. Now the Iron Hold's levels field its shieldwall squads on every tier (`REALMS.ironHold.fields`); plain runs, the
+Daily Trial and the other realms keep the tier roster. The squad keeps its own first wave (9), so they march from level 2 on. On the
+tiers below Champion a fielded squad comes at `fieldsWeight` of its weight (Champion and Legend keep 1). The road's featured foes now
+list only squads the chosen tier fields in that level, the realm's own foes first.
+
+`npm run sim -- levels 8 1 ironHold`: 40 first tries a level on Knight (paladin, viking, angel, necromancer, archer; 8 seeds each), the
+realm as one run. First-try clear rate and a clear's median minutes; "within 20%" is of the target (level 4: 52-78%).
+
+| Level | Waves | Target | Before (no shieldwalls on Knight) | Shieldwalls, weight 1 | Pass 1: weight 0.5 | Pass 2: weight 0.25 (now) |
+|---|---|---|---|---|---|---|
+| Iron Hold 1 | 1-8 | 90% | 93%, 4.6 | 93%, 4.6 | 93%, 4.6 | 93%, 4.6 |
+| Iron Hold 2 | 9-16 | 82% | 78%, 5.6 | 75%, 5.5 | 75%, 5.7 | 75%, 5.7 |
+| Iron Hold 3 | 17-24 | 73% | 70%, 5.8 | 80%, 5.8 | 75%, 5.8 | 75%, 5.7 |
+| Iron Hold 4 | 25-32 | 65% | 78%, 7.1 | 80%, 6.9 | 80%, 6.8 | 78%, 7.0 |
+| Iron Hold 5 | 33-40 | 55-60% | 53%, 8.2 | 63%, 7.7 | 63%, 7.9 | 60%, 7.8 |
+
+A realm clean / with retries: 32.2 / 42.1 minutes before, 32.1 / 40.4 now. Per class, first tries cleared of 8 (now): level 2 paladin
+6, viking 8, angel 8, necromancer 7, archer 1; level 5 5, 3, 8, 7, 1. At full weight the shieldwalls made levels 3-5 easier for the
+bot, not harder: a slow squad the bot steps round takes a squad slot and budget that would have bought lances or a crusade. Halving
+their weight moved nothing on level 4 (80%, 23% over its target); at a quarter it is 78%, where it stood before (at the 20% line), and
+level 5 is 60%, in its band. The per-level rates carry about 8 points of noise at 40 tries. On Squire a level from 2 on still meets
+them in most runs (the play check's level 2 run meets a squad in its third wave).
+
+The golden realm run of the Iron Hold's levels 1-2 (tests/v10-level-golden.test.ts) was re-recorded: its level 2 (Knight) meets the
+shieldwall squads now. The Marches' runs and the Iron Hold's level 1 are unchanged.
+
+## v0.11: the Iron Hold's balance pass (#220)
+
+The release's last issue: every class through every level of the Marches and the Iron Hold on Knight, against rule 9.
+
+**The bot now plays a realm as a player does** (`src/sim/levels.ts simulateRealm`, which `npm run sim -- levels` runs). Until now it
+played each level on its own: a later level started with the 3-relic loadout and the bot's build, and none of what a realm run carries
+(#237). It did spend its champion's stat points, ability tiers and talent points (`botBuild`), but it entered the Marches' level 7 with 4
+relics where a run holds 18. Now one run goes from level 1 to the crown: each level goes on from the checkpoint of the one before
+(relics at their tiers, gold, the build), the champion banks each clear's XP and the bot spends its points before the next level. A
+fall counts as that level's first try lost; the bot is raised where it fell and plays the level out, so the run reaches the later levels
+as a player's retry does. That alone moved the Marches' levels 2-7 from 0-25% to 60-90%, and showed the late levels as too easy, not
+too hard.
+
+**Tuned** (two passes), in `src/config/champion.ts` and `src/config/world.ts`:
+- **Enemy scaling by champion level** (`CHAMPION.scaling`, `logic/championLevels championStep`): the pace is read at the level's end
+  (`at` 1, was midway), a run level's strength is 0.2 (`perRunLevel`, was 0.12) and a champion's run levels count 0.9 each (`worth`,
+  was 0.8). The early levels, whose waves span the most pace levels, ease the most. The Marches: x0.45, 0.58, 0.67, 0.75, 0.82, 0.75,
+  0.69 (were 0.74, 0.72, 0.74, 0.78, 0.82, 0.74, 0.69); the Iron Hold: x2.81, 2.10, 1.84, 1.56, 1.36 (were 2.95, 2.06, 1.74, 1.47,
+  1.28). The Last Bastion keeps its first fit (`scaling.finale`) until its own release.
+- **The level step** (`WORLD.levelStep`), up from its floor where a run's relics made a level too easy: the Marches HP x0.89, 0.72,
+  0.74, 0.82, 0.88, 1.1, 0.93 and damage x1.02, 0.82, 0.84, 0.93, 1, 1.25, 1.06 (were 0.72 and 0.82 throughout); a relic realm HP
+  x0.77, 0.77, 0.83, 0.99, 1.07 and damage x0.92, 0.86, 0.93, 1.12, 1.23 (were 0.75, 0.8, 0.75, 0.72, 0.72 and 0.9, 0.88, 0.84, 0.82,
+  0.82). Level 1 steps up only to stay where it was: champion scaling eases it most.
+- **The elite end boss** (`WORLD.eliteBoss`): HP x1.4 and damage x1.15 on top of its extra phase (it had its plain self's numbers).
+- **The Marches' level 1** brings foes x1.6 over a trickle x2.8 (`WORLD.levelWaves`, were 1.5 and 2.5): eased, it ran 3.9 minutes.
+
+What the level panel shows on Knight (Enemy HP): the Marches 59, 60, 72, 89, 105, 119, 93% (were 77, 75, 77, 81, 86, 78, 72%); the Iron
+Hold 335, 251, 237, 240, 225% (were 343, 256, 203, 164, 143%).
+
+`npm run sim -- levels 8 1 marches,ironHold`: 40 first tries a level on Knight (paladin, viking, angel, necromancer, archer; 8 seeds
+each; "before" and "the bot as a run" 4 seeds, 20 tries). First-try clear rate and a clear's median minutes. Target: about 95% at the
+Marches' level 1, 90% at a realm's level 1 and 55-60% at its last, falling evenly between.
+
+| Level | Waves | Target | Before (levels on their own) | The bot as a run, nothing tuned | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|---|---|
+| Marches 1 | 1-6 | 95% | 75%, 4.2 | 75%, 4.2 | 90%, 3.9 | 93%, 4.2 |
+| Marches 2 | 7-12 | 89% | 5%, 4.2 | 65%, 4.4 | 68%, 4.5 | 75%, 4.3 |
+| Marches 3 | 13-18 | 83% | 25%, 6.4 | 70%, 4.3 | 78%, 4.4 | 78%, 4.3 |
+| Marches 4 | 19-24 | 77% | 10%, 6.8 | 75%, 5.2 | 85%, 5.2 | 78%, 5.0 |
+| Marches 5 | 25-30 | 70% | 15%, 7.4 | 75%, 5.2 | 85%, 5.2 | 65%, 5.3 |
+| Marches 6 | 31-35 | 64% | 10%, 6.6 | 90%, 4.6 | 92%, 4.6 | 74%, 4.6 |
+| Marches 7 | 36-40 | 58% | 0% | 60%, 5.1 | 79%, 5.2 | 59%, 5.2 |
+| Iron Hold 1 | 1-8 | 90% | 95%, 4.6 | 95%, 4.6 | 85%, 4.6 | 93%, 4.6 |
+| Iron Hold 2 | 9-16 | 82% | 75%, 6.1 | 80%, 5.5 | 80%, 5.7 | 78%, 5.6 |
+| Iron Hold 3 | 17-24 | 73% | 75%, 7.4 | 85%, 6.0 | 83%, 5.8 | 70%, 5.8 |
+| Iron Hold 4 | 25-32 | 65% | 70%, 8.0 | 90%, 6.7 | 93%, 6.7 | 78%, 7.1 |
+| Iron Hold 5 | 33-40 | 55-60% | 30%, 8.5 | 85%, 7.8 | 78%, 7.8 | 53%, 8.2 |
+
+Per class, first tries cleared of 8 (pass 2):
+
+| Level | Paladin | Viking | Angel | Necromancer | Archer |
+|---|---|---|---|---|---|
+| Marches 1 | 8 | 8 | 7 | 8 | 6 |
+| Marches 2 | 5 | 7 | 8 | 5 | 5 |
+| Marches 3 | 4 | 7 | 8 | 7 | 5 |
+| Marches 4 | 5 | 7 | 8 | 6 | 5 |
+| Marches 5 | 5 | 5 | 8 | 4 | 4 |
+| Marches 6 | 5 of 7 | 7 | 8 | 5 | 4 |
+| Marches 7 (the crown) | 4 of 7 | 5 | 8 | 4 | 2 |
+| Iron Hold 1 | 8 | 8 | 8 | 8 | 5 |
+| Iron Hold 2 | 6 | 8 | 8 | 7 | 2 |
+| Iron Hold 3 | 4 | 6 | 8 | 8 | 2 |
+| Iron Hold 4 | 7 | 7 | 7 | 8 | 2 |
+| Iron Hold 5 (the crown) | 5 | 4 | 8 | 4 | 0 |
+
+| Target (rule 9) | Before | Pass 2 | |
+|---|---|---|---|
+| First-try clear about 95% at Marches level 1 | 75% | 93% | met |
+| About 90% at realm level 1 (Iron Hold) | 95% | 93% | met |
+| 55-60% at realm level 5 (Iron Hold) | 30% | 53% | 2 points under |
+| Falling evenly between | Marches 2-7 0-25% | widest: Marches 2 75% against 89%, Marches 6 74% against 64%, Iron Hold 4 78% against 65% | within 20%, Iron Hold 4 at it |
+| The Marches' level 1 takes at least 4 minutes | 4.2 | 4.2 | met |
+| A realm's level 1 takes 4-6 minutes (Iron Hold) | 4.6 | 4.6 | met |
+| A realm's last level takes 7-10 minutes (Iron Hold) | 8.5 | 8.2 | met |
+| A realm in about 35 minutes clean, 45 with retries (Iron Hold) | 36.0 / 53.4 | 32.2 / 42.1 | met |
+| A 6-set in most crown-level clears | Marches 7 no clears, Iron Hold 5 17% | Marches 7 22%, Iron Hold 5 100% | the Marches missed |
+| Relic moments per findable relic 0.4-0.6 (a realm played through) | Marches 0.45, Iron Hold 0.43 | 0.66, 0.38 | both just outside |
+| Power at a level's first wave within 15% of a continuous run | 1 of 10 levels | 1 of 10 levels | not comparable |
+
+Still missed after two passes (the plan's gate rule: reported, not tuned further):
+- **The Archer at the Iron Hold's crown: 0 first tries of 8** (2 of 8 at levels 2-4, 2 of 8 at the Marches' crown), against 4-8 of 8
+  for the other four. The average sits on the target, the spread between the classes does not: the bot's Angel clears 55 of 56
+  first tries past the Marches' level 1, its Archer 27 of 96. The bot underrates the Archer (AGENTS.md), but a level step cannot
+  close a gap between classes; it needs the Archer itself looked at (v0.15.0's classes, or a hand-played check of the Iron King).
+- **A 6-set in most Marches crown clears: 22%.** Each Marches level features another family, so a run ends on 18 relics spread over
+  seven families.
+- **Power against a continuous run** no longer measures anything in a relic realm: a level-8 champion walks into wave 1 (+698%).
+  In the Marches a champion held at level 5 stands 35-44% under a run's level-up power at levels 5-7, and its carried relics (13-18
+  against 8-13) make up for it; the clear rates are the measure.
+- The per-level rates carry about 8 points of noise at 40 tries, so Marches 2 (75% against 89%) and Marches 6 and Iron Hold 4 (10-13
+  points over) are the ones a later pass should look at first.
+
+The golden level runs (tests/v10-level-golden.test.ts) were re-recorded, with the Iron Hold's level 1 and a realm run of its levels
+1-2 added. `npm run test:perf` has a fortress scene: an Iron Hold level in the Great Keep, 250 foes (138 of them the realm's own)
+under its forge presses, p95 16.8 ms.
+
+## v0.11: longer levels (#243)
+
+Jesse's playtest (#234): level 1 was over in two minutes. A relic realm's five levels are 8 waves each (1-8, 9-16, 17-24, 25-32, 33-40; were
+5, 5, 10, 10, 10) and the Marches' seven 6, 6, 6, 6, 6, 5, 5 (1-6, 7-12, 13-18, 19-24, 25-30, 31-35, 36-40; were 5 each and 10). Rule 9's
+targets, as a clear's median minutes on Knight: a realm's level 1 4-6, its last level 7-10, the Marches' level 1 at least 4.
+
+- **A level runs on its own waves** (`logic/world ownWaves`, `bossWaveIn`): its one boss wave is its last. The scale's boss waves inside a
+  level (x5, x0) are plain waves with their full host, and an Act that ends inside a level moves on with no Merchant and no fork. The
+  Last Bastion, the Daily Trial and a plain run keep the 40-wave scale (the v0.8 golden runs did not move).
+- **Wave length, in levels only** (`WORLD.levelWaves`, `logic/world levelWaves`): `foes` multiplies the foes a wave brings (the director's
+  budget) and `pace` the time they trickle in over. The Marches: foes 1.5, 0.9, 0.9, 0.9, 0.9, 0.8, 0.8 and pace 2.5, 2, 2, 2, 2, 2.2, 2.2;
+  a relic realm: foes 1.6, 1.2, 1.1, 0.95, 0.9 and pace 2, 1.5, 1.5, 1.8, 2.2. Early levels, which a champion walks through, get more
+  foes; late levels get a slower trickle, which lengthens a level and eases it. A foe's XP is divided by `foes`, so a level pays what
+  its waves pay at the pace.
+- **The level step** (`WORLD.levelStep`), tuned again: the Marches HP x0.72 and damage x0.82 on every level (were 0.85-0.9); a relic realm
+  HP x0.75, 0.8, 0.75, 0.72, 0.72 and damage x0.9, 0.88, 0.84, 0.82, 0.82 (were 0.7, 0.85, 0.9, 0.9, 0.9 and 0.85, 0.9, 0.9, 0.9, 0.9).
+  0.72 and 0.82 are its floor: a level on Knight stays harder than on Squire (145% x 0.72 = 104%, 125% x 0.82 = 103%).
+- **Champion XP** (`CHAMPION.xp.perLevel`): 180 x the level (was 140), at most 840. The Marches' levels pay 252, 612, 768, 816, 864, 822
+  and 912 XP at the pace (were 180 to 1734), so a first pass still gives a level per level up to the cap of 5, and level 8 at the crown
+  (the level the Iron Hold's first level expects).
+
+`npm run sim -- levels 4 1 marches,ironHold`: 20 first tries a level on Knight (paladin, viking, angel, necromancer, archer; 4 seeds
+each), a level on its own with expected progress. Clear rate and a clear's median minutes; "new shape" is the new splits and boss
+rule with nothing tuned:
+
+| Level | Before (release/0.11.0) | New shape | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|
+| Marches 1 | 85%, 2.8 (waves 1-5) | 75%, 3.4 | 80%, 3.5 | 75%, 4.2 |
+| Marches 2 | 20%, 3.8 (6-10) | 0% | 5%, 5.0 | 5%, 4.2 |
+| Marches 3 | 30%, 4.8 (11-15) | 10%, 6.8 | 25%, 6.7 | 25%, 6.4 |
+| Marches 4 | 20%, 5.6 (16-20) | 10%, 6.8 | 15%, 6.3 | 10%, 6.8 |
+| Marches 5 | 10%, 5.5 (21-25) | 5%, 6.9 | 20%, 6.9 | 15%, 7.4 |
+| Marches 6 | 5%, 6.2 (26-30) | 0% | 0% | 10%, 6.6 |
+| Marches 7 | 0% (31-40) | 0% | 0% | 0% |
+| Iron Hold 1 | 100%, 1.9 (1-5) | 100%, 3.2 | 95%, 4.0 | 95%, 4.6 |
+| Iron Hold 2 | 90%, 2.6 (6-10) | 65%, 5.9 | 65%, 5.9 | 75%, 6.1 |
+| Iron Hold 3 | 70%, 6.3 (11-20) | 75%, 6.4 | 55%, 6.8 | 75%, 7.4 |
+| Iron Hold 4 | 60%, 7.9 (21-30) | 45%, 7.1 | 50%, 6.9 | 55%, 8.3 |
+| Iron Hold 5 | 35%, 8.7 (31-40) | 20%, 6.9 | 35%, 7.7 | 30%, 8.5 |
+
+| Target | Before | Pass 2 | |
+|---|---|---|---|
+| The Marches' level 1 takes at least 4 minutes | 2.8 | 4.2 | met |
+| A realm's level 1 takes 4-6 minutes (Iron Hold) | 1.9 | 4.6 | met |
+| A realm's last level takes 7-10 minutes (Iron Hold) | 8.7 | 8.5 | met |
+| A realm in about 35 minutes clean, 45 with retries (Iron Hold) | 28.8 / 40.1 | 36.0 / 56.1 | clean met |
+| First-try clear about 95% at Marches level 1 | 85% | 75% | missed by 21% |
+| About 90% at realm level 1 (Iron Hold) | 100% | 95% | met |
+| 55-60% at realm level 5 (Iron Hold) | 35% | 30% | missed by 45% |
+
+Pass 1: the level step eased (the Marches to HP 0.72-0.75 and damage 0.82), foes up on the first levels (the Marches 1.3, a realm 1.5,
+1.2, 1.1) and the pace stretched 1.3-1.5. It moved the minutes little: a small wave's trickle is 4 seconds, so stretching it by half adds
+next to nothing, and the time goes into the fight. Pass 2: the numbers above (more foes and a trickle 2-2.5 times as long on the first
+levels, fewer foes and a slower trickle on the late ones).
+
+Still missed after two passes (the plan's gate rule: reported, not tuned further): Marches level 1 at 75% and the Iron Hold's level 5 at
+30%, with the level step at its floor just over Squire's. Neither was met before this issue either (85%, 35%; 20 tries a level put about
+10 points of noise on each). The Marches past level 1 stay the hard end, as #238 noted: 0-25% before and after, with a champion held at
+level 5 from level 5 to the crown against waves 25-40 (enemy scaling's `worth` and the expected champion levels are #238's levers, not
+this issue's). The golden level runs (tests/v10-level-golden.test.ts) were re-recorded.
+
+## v0.11: champion levels (#238)
+
+No level-up inside a level any more: a champion keeps one level all level long, and enemies scale to the champion level a level expects.
+In `src/config/champion.ts`:
+- **A champion level** is worth 5 of the old run levels (`runLevels`: five times the class's growth), gives 3 stat points (each two rare
+  boons of its stat: +10 attack stat, +80 HP, +32% of base attack speed, +6 secondary) and a talent point; an ability or utility tier
+  costs 2 stat points. The cap is 5 + 5 per crown, at most 30.
+- **Champion XP**: a level costs 140 × the level, at most 840. The Marches' levels pay 180, 480, 558, 726, 639, 729 and 1734 XP at the
+  pace, so a first pass gives a level per level up to the cap of 5 and level 9 at the crown; a replay banks a quarter.
+- **Enemy scaling** (`scaling`, `logic/championLevels championStep`, folded into a level's tier with the ring step and the level step):
+  enemy HP and damage × the expected champion's strength over that of the player the waves were tuned for (the pace's level midway
+  through them), strength being 1 + 0.12 per run level and a champion's run levels counting 0.8 each. The Marches: ×0.77, 0.78, 0.81,
+  0.85, 0.89, 0.81, 0.71 (expected level 1, 2, 3, 4, 5, 5, 5); the Iron Hold: ×3.35, 2.55, 2.01, 1.55, 1.30 (expected level 8, 9, 10, 10, 10).
+
+Measured with the bot on Knight, 12 first tries a level (paladin, viking, angel, archer, 3 seeds each), a level on its own with expected
+progress as `npm run sim -- levels` plays it; before is release/0.11.0 with the head start and in-level level-ups:
+
+| Level | Before | After |
+|---|---|---|
+| Marches 1 | 12/12 | 11/12 |
+| Marches 2 | 4/12 | 4/12 |
+| Marches 4 | 5/12 | 3/12 |
+| Marches 7 | 1/12 | 0/12 |
+| Iron Hold 1 | 12/12 | 12/12 |
+| Iron Hold 3 | 6/12 | 8/12 |
+| Iron Hold 5 | 5/12 | 5/12 |
+
+A first fit, not a tuning pass: `worth` 1 (no discount) cleared no Marches level 4 and 2/12 of Iron Hold 5. The Marches' late levels
+(a level-5 champion at waves 16-40, the cap before the crown) stay the hard end; the release's balance issue tunes every level on these
+numbers. The golden level runs (tests/v10-level-golden.test.ts) were re-recorded.
+
 ## v0.10: two tuning passes toward rule 9 (#221)
 
 `npm run sim -- levels 6 1 marches,ironHold,lastBastion` (30 first tries a level on Knight with expected progress, as #207). Changed, in

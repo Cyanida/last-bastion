@@ -3,7 +3,7 @@ import { ROUTES } from '../config/routes';
 import { addListener, type GameEvents } from '../core/events';
 import { routeChoices, type Route } from '../logic/routes';
 import { markRoute } from './runlog';
-import { ARENAS, HAZARD_GRACE } from '../config/arenas';
+import { ARENAS, HAZARD_GRACE, PRESSES } from '../config/arenas';
 import { RELIC_DROPS, relicDef, type Rarity, type RelicId, RELIC_MOMENTS } from '../config/relics';
 import { sfx } from '../sim/view';
 import type { Game } from '../core/types';
@@ -154,6 +154,7 @@ export function nextAct(g: Game, route: Route | null = null): void {
   g.enemies.length = g.pickups.length = g.corpses.length = g.fields.length = g.zones.length = g.projectiles.length = g.barriers.length = g.squads.length = 0;
   g.timers.length = 0; // #182: a delayed blast or volley aimed at the old field stays behind with it
   g.hazardT = HAZARD_GRACE; // #182: the new arena's hazard starts on its own clock, not the old arena's
+  g.pressT = PRESSES.grace; // #211: and the forge presses too
   g.minions.forEach((m, i) => Object.assign(m, { x: p.x + 40 * Math.cos(i * 2), y: p.y + 40 * Math.sin(i * 2) }));
   const theme = actTheme(g);
   g.banner = { text: `${actName(g.act)} — ${theme.name}`, t: 3.5 };
@@ -161,6 +162,17 @@ export function nextAct(g: Game, route: Route | null = null): void {
   if (route?.focus === 'pilgrim') g.pendingShrine = shrineChoices(g); // a blessing to start the Act with
   floatText(g, p.x, p.y - 50, g.arena.name, '#e9c95a', 16);
   sfx(g, 'wave');
+  initQuests(g); // what is left of the old Act's quests fails; a new board is up
+}
+
+/**
+ * #243: an Act that ends inside a realm level. The fight goes on where it stands, in the realm's own arena: the next Act's theme and
+ * quest board, and nothing swept off the field. No Merchant and no fork: they are the Last Bastion's (logic/world ownWaves).
+ */
+export function turnAct(g: Game): void {
+  g.act++;
+  g.route = null;
+  g.banner = { text: `${actName(g.act)} — ${actTheme(g).name}`, t: 3 };
   initQuests(g); // what is left of the old Act's quests fails; a new board is up
 }
 

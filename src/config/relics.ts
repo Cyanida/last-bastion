@@ -29,6 +29,7 @@ export interface RelicDef {
 }
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
+const ord = (v: number) => `${v}${v === 2 ? 'nd' : v === 3 ? 'rd' : 'th'}`;
 
 /** Keeps each relic's numbers typed and its text in sync with them. Tier III (awakened) keeps tier II's numbers. */
 function relic<N extends Record<string, number>, A extends Record<string, number> = Record<string, never>>(r: {
@@ -315,6 +316,22 @@ export const RELICS = {
     awaken: ['Consecrated Steel', (a) => `At full armor stacks Divine Shield's burst is ${pct(a.bonus)} larger.`], desc: (n) => `When Divine Shield ends you gain an armor stack per ${n.per} Faith.` }),
   ironhide: relic({ name: 'Ironhide', rarity: 'rare', icon: '🐗', family: 'steel', classId: 'viking', n: { every: 2 }, n2: { every: 1.5 }, a: { heal: 0.02 },
     awaken: ['Unstoppable', (a) => `During Rage, blocked hits heal ${pct(a.heal)} of your max HP.`], desc: (n) => `Berserker Rage gives an armor stack every ${n.every} s.` }),
+  // v0.11 (#217): the Iron Hold's Steel relics: armor you break, shields that block from the front, thorns that hit back
+  rivetHammer: relic({ name: 'Rivet Hammer', rarity: 'common', icon: '🔩', family: 'steel', n: { every: 4, damage: 22 }, n2: { every: 3, damage: 28 },
+    awaken: ['Sunder', "A rivet breaks the armor or shield of the enemy it strikes (not a boss's)."], desc: (n) => `Every ${ord(n.every)} attack hit drives a rivet: +${n.damage} damage (grows with level) and an armor stack.` }),
+  pavise: relic({ name: 'Pavise', rarity: 'rare', icon: '🚪', family: 'steel', n: { chance: 0.25, arc: 60 }, n2: { chance: 0.35 }, a: { mult: 3 },
+    awaken: ['Riposte', (a) => `A block from the front strikes the attacker for ${a.mult}× the hit.`], desc: (n) => `${pct(n.chance)} chance to block a hit from an enemy in front of you (within ${n.arc}° of where you strike).` }),
+  reprisalCuirass: relic({ name: 'Reprisal Cuirass', rarity: 'rare', icon: '🦔', family: 'steel', n: { mult: 8, cap: 0.25 }, n2: { mult: 10 }, a: { radius: 90, frac: 0.5 },
+    awaken: ['Vengeance', (a) => `The reprisal also strikes every enemy within ${a.radius} px of the target for ${pct(a.frac)} of it.`], desc: (n) => `Every hit that comes at you, blocked or not, is kept at full force (up to ${pct(n.cap)} of your max HP); your next attack hit adds ${n.mult}× that as damage.` }),
+  heartOfTheHold: relic({ name: 'Heart of the Hold', rarity: 'legendary', icon: '🏰', family: 'steel', n: { extra: 3, per: 8 }, n2: { per: 12 }, a: { cut: 0.2 },
+    awaken: ['Iron Keep', (a) => `At full armor stacks, hits take ${pct(a.cut)} less damage.`], desc: (n) => `Your armor stacks never fade and you hold ${n.extra} more. A hit you take or block gives an armor stack, and the attacker takes ${n.per} damage per stack you hold (grows with level).` }),
+  // v0.11 (#218): the Iron Hold's class relics for the three champions who had no Steel one
+  ironHalo: relic({ name: 'Iron Halo', rarity: 'rare', icon: '💫', family: 'steel', classId: 'angel', n: { per: 5, damage: 6 }, n2: { per: 4, damage: 8 }, a: { heal: 0.05 },
+    awaken: ['Aureole', (a) => `Heavenly Radiance heals ${pct(a.heal)} more for every armor stack you hold.`], desc: (n) => `Heavenly Radiance gives 1 + Grace/${n.per} armor stacks, and strikes everything it hits for ${n.damage} damage per armor stack you hold (grows with level).` }),
+  legionPlate: relic({ name: 'Legion Plate', rarity: 'rare', icon: '⛓️', family: 'steel', classId: 'necromancer', n: { every: 6, per: 0.03 }, n2: { every: 4, per: 0.04 }, a: { hp: 0.5 },
+    awaken: ['Iron Legion', (a) => `Skeletons you raise wear plate: ${pct(a.hp)} more HP.`], desc: (n) => `Every ${ord(n.every)} hit of your minions gives you an armor stack, and their hits deal ${pct(n.per)} more for every armor stack you hold.` }),
+  bodkinPoints: relic({ name: 'Bodkin Points', rarity: 'rare', icon: '📌', family: 'steel', classId: 'archer', n: { every: 3, mult: 0.4, perFocus: 0.02 }, n2: { mult: 0.6 },
+    awaken: ['Armor-Piercer', 'At full armor stacks every arrow hit is a bodkin.'], desc: (n) => `Every ${ord(n.every)} arrow hit is a bodkin: ${pct(n.mult)} of the hit again, +${pct(n.perFocus)} per Focus, that no shield turns, and an armor stack.` }),
 
   // ---------------------------------------------------------------- ☠ Cursed (v0.7.1 B6): no family; the awakening lifts the curse
   hungeringBlade: relic({ name: 'Hungering Blade', rarity: 'legendary', icon: '🗡️', cursed: true, n: { per: 0.02, max: 0.6, starve: 5, bite: 0.06 }, n2: { per: 0.03, max: 0.9 },
@@ -406,6 +423,8 @@ export const DUOS = {
   martyrsCovenant: duo("Martyr's Covenant", '📜', ['blood', 'holy'], ['bloodPact', 'guardiansAegis'], (n) => `${pct(n.share)} of the damage you take comes back as ward over ${n.over} s.`, { share: 0.3, over: 3 }),
   requiem: duo('Requiem', '🎼', ['holy', 'grave'], ['haloOfMercy', 'deathmask'], 'Cursed enemies always drop a mercy orb.'),
   consecration: duo('Consecration', '⛪', ['holy', 'steel'], ['rallyBanner', 'thornMail'], (n) => `Ward you gain also gives an armor stack, and a block heals ${pct(n.heal)} of your max HP.`, { heal: 0.02 }),
+  // v0.11 (#218): the Iron Hold's duo: what comes at you is paid back in blood
+  ironTithe: duo('Iron Tithe', '⚖️', ['steel', 'blood'], ['reprisalCuirass', 'vampireFang'], (n) => `A reprisal opens ${n.bleed} bleed stacks on its target and heals you ${pct(n.heal)} of its damage.`, { bleed: 3, power: 0.1, heal: 0.03 }),
 } satisfies Record<string, DuoDef>;
 export type DuoId = keyof typeof DUOS;
 export const DUO_IDS = Object.keys(DUOS) as DuoId[];

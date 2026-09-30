@@ -33,6 +33,18 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #200 (v0.10, on the merged code after #196): Ember Mantle, a new Flame rare, joins every class's pool on top of #196's
  * tuned starter commons, so viking:98765, its curse run, angel:1234 and both Necromancer runs draw different relics on purpose (the same
  * five runs #200 changed alone); #196's seed changes (paladin:9, archer:13 variant 1) still reach the Act boss and stand.
+ * Re-recorded for #210 (v0.11): the Great Keep's wings are rooms with fixed features (the forge's fires, the armory's strongbox, the
+ * chapel's shrine, the barracks' lair), so the four runs that reach the keep meet different wings on purpose.
+ * Re-recorded for v0.11 (merge of #210 and #212 on release/0.11.0, after #200 and #196 came in from release/0.10.0): the Great Keep's
+ * fixed wing rooms on top of the v0.10 relic changes move these runs' draws on purpose; each run still reaches the first Act boss.
+ * Re-recorded for #217 (v0.11): four new Steel relics (Rivet Hammer, a starter common, plus Pavise, Reprisal Cuirass and Heart of the
+ * Hold) join the relic pool, so every run's relic draws moved on purpose (archer:5 alone draws none of them); every seed still reaches the Act boss.
+ * Re-recorded for #217 on the merged code (after #196, #197, #200, #201, #205, #210 and #212 came into release/0.11.0): the four Steel
+ * relics on top of Ember Mantle, the tuned commons and the Great Keep's wing rooms move every run but archer:5 on purpose; each run
+ * still reaches the first Act boss.
+ * Re-recorded for #218 (v0.11): the Steel class relics of the Angel, the Necromancer and the Archer join their pools and Iron Tithe
+ * (Reprisal Cuirass + Vampire Fang) joins the duos, so the runs of those three classes draw different relics on purpose; every seed still
+ * reaches the first Act boss.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -69,20 +81,20 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 
 // v0.8 #99 + #100 + #101: re-recorded on release/0.8.0 because boss draws, boss relic families and the Squire enemy roster changed on purpose
 const GOLDEN: Record<string, string> = {
-  'paladin:9': 'wave 15 kills 636 level 17 gold 2511 relics 6 hash 90cf3d22',
-  'paladin:98765': 'wave 15 kills 609 level 16 gold 2498 relics 7 hash 66d27dc9',
-  'viking:98765': 'wave 18 kills 751 level 18 gold 3226 relics 7 hash 4e07099',
-  'viking:5': 'wave 18 kills 676 level 18 gold 3636 relics 7 hash bb2efac8',
-  'angel:1234': 'wave 19 kills 795 level 19 gold 3616 relics 7 hash d415d65b',
-  'angel:98765': 'wave 16 kills 719 level 18 gold 3540 relics 7 hash d5c6635c',
-  'necromancer:1234': 'wave 21 kills 846 level 20 gold 4310 relics 8 hash 5a6add30',
-  'necromancer:5': 'wave 19 kills 752 level 19 gold 3242 relics 7 hash f34eeb26',
-  'archer:2027': 'wave 9 kills 301 level 10 gold 883 relics 4 hash 48aea908',
-  'archer:5': 'wave 9 kills 263 level 11 gold 869 relics 4 hash 5254d592',
-  'paladin:7 meta': 'wave 16 kills 612 level 18 gold 2374 relics 7 hash d3995b55',
-  'viking:98765 curse': 'wave 18 kills 815 level 18 gold 3846 relics 7 hash 33d1476c',
-  'angel:98765 oath 3': 'wave 13 kills 527 level 14 gold 2529 relics 5 hash b4058e85',
-  'archer:13 variant 1': 'wave 20 kills 966 level 20 gold 4419 relics 7 hash df881b25',
+  'paladin:9': 'wave 15 kills 638 level 16 gold 2530 relics 6 hash 75119a9',
+  'paladin:98765': 'wave 16 kills 644 level 17 gold 2703 relics 6 hash d731100d',
+  'viking:98765': 'wave 18 kills 811 level 18 gold 3433 relics 7 hash ea110cf7',
+  'viking:5': 'wave 9 kills 269 level 10 gold 767 relics 4 hash 70af9ff',
+  'angel:1234': 'wave 18 kills 784 level 18 gold 3259 relics 6 hash e195f8bb',
+  'angel:98765': 'wave 17 kills 725 level 18 gold 3609 relics 7 hash a9273f62',
+  'necromancer:1234': 'wave 9 kills 290 level 10 gold 835 relics 4 hash ddce38b6',
+  'necromancer:5': 'wave 9 kills 269 level 10 gold 714 relics 3 hash a355106',
+  'archer:2027': 'wave 9 kills 299 level 10 gold 849 relics 3 hash a754676f',
+  'archer:5': 'wave 20 kills 858 level 19 gold 3984 relics 9 hash f56fce7a',
+  'paladin:7 meta': 'wave 15 kills 596 level 18 gold 2217 relics 8 hash fe4c37bb',
+  'viking:98765 curse': 'wave 17 kills 744 level 17 gold 4727 relics 7 hash aa1a88df',
+  'angel:98765 oath 3': 'wave 18 kills 777 level 18 gold 4605 relics 7 hash 9ccfd807',
+  'archer:13 variant 1': 'wave 20 kills 997 level 20 gold 4201 relics 7 hash e428caa0',
 };
 
 describe('v0.8 golden runs', () => {
