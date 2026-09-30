@@ -10,6 +10,8 @@ import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLev
 import { addListener, type EventName } from './core/events';
 import { moodOf, type Stinger } from './logic/runMusic';
 import { showWhatsNewNow } from './logic/whatsNew';
+import { showTourNow } from './logic/tour';
+import type { ChampionTab } from './config/glossary';
 import { inTutorial, nextCard, statusSeen, tutorialCard } from './logic/cards';
 import { CARD_IDS, CARDS, type CardId } from './config/cards';
 import { clamp } from './core/math';
@@ -143,6 +145,7 @@ function toWhatsNew(): void {
   menu();
   showWhatsNew(platform.whatsNew!, toTitle);
 }
+const CHAMPION_TOUR_KEY = 'lastbastion.championTour'; // #240
 function whatsNewOnce(): void {
   const key = 'lastbastion.whatsNew';
   const seen = prefs.get(key);
@@ -254,22 +257,25 @@ function playLevel(id: ClassId, realm: RealmId, level: number, tier: number): vo
  * #197: the champion screen: the picked champion on its pedestal, the loadout for the level it plays next (`at`: a level from the road's
  * Loadout button), the inventory, the talent plan, PLAY, and the main tabs.
  */
-function toChampion(at?: { realm: RealmId; level: number; tier: number }): void {
+function toChampion(at?: { realm: RealmId; level: number; tier: number }, tab: ChampionTab = 'loadout'): void {
   menu();
+  // #240: the tour opens by itself the first time a champion screen does; its own key, like What's new, not the save
+  const tour = showTourNow(prefs.get(CHAMPION_TOUR_KEY));
+  if (tour) prefs.set(CHAMPION_TOUR_KEY, '1');
   const id = pickedClass(save);
   if (!save.champions[id]) setChampion(id, newChampion(id)); // made the first time its screen opens
   const champ = champOf(id);
   const { realm, level, tier } = at ?? nextStop(champ, save.settings.tier);
   const finale = realm === 'lastBastion';
   const loadout = champ.loadouts[realm] ?? [];
-  const again = () => toChampion(at);
+  const again = (on: ChampionTab = 'loadout') => toChampion(at, on);
   const saveLoadout = (ids: typeof loadout) => {
     setChampion(id, { ...champOf(id), loadouts: { ...champOf(id).loadouts, [realm]: fitLoadout(id, ids, WORLD.maxSlots, finale) } });
     again();
   };
   showChampion({
     classId: id, name: champ.name, palette: save.settings.palettes[id] ?? 0, gold: save.gold, runes: save.runes, realm, realmName: REALMS[realm].name,
-    level, tier, slots: championSlots(save.meta, save.classes[id].xp, realm, level), loadout, inventory: champ.inventory, plan: champ.talentPlan, fell: fellAt(id, realm, level, tier),
+    level, tier, slots: championSlots(save.meta, save.classes[id].xp, realm, level), loadout, inventory: champ.inventory, plan: champ.talentPlan, fell: fellAt(id, realm, level, tier), tab, tour,
   }, {
     slot: (r) => saveLoadout([...loadout, r]),
     unslot: (r) => saveLoadout(loadout.filter((x) => x !== r)),
@@ -277,13 +283,13 @@ function toChampion(at?: { realm: RealmId; level: number; tier: number }): void 
       const lib = buildingLevel(save.buildings, 'library');
       showTalents({ classId: id, taken: champ.talentPlan, points: talentsFor(id).length, rowCap: TALENT_ROW_CAP[Math.min(TALENT_ROW_CAP.length - 1, lib)], plan: true }, {
         spend: (t) => (setChampion(id, { ...champOf(id), talentPlan: [...champOf(id).talentPlan, t] }), true),
-        back: again,
+        back: () => again('talents'),
       });
     },
-    clearPlan: () => (setChampion(id, { ...champOf(id), talentPlan: [] }), again()),
+    clearPlan: () => (setChampion(id, { ...champOf(id), talentPlan: [] }), again('talents')),
     play: () => playLevel(id, realm, level, tier),
     champ: (step) => (pickClass(CLASS_ORDER[(CLASS_ORDER.indexOf(id) + step + CLASS_ORDER.length) % CLASS_ORDER.length]), toChampion()),
-    tab: (t) => (t === 'map' ? toMap(again) : t === 'keep' ? toKeep() : t === 'relics' ? showCompendium(save, again) : t === 'deeds' ? toChronicle(again) : again()),
+    tab: (t) => (t === 'map' ? toMap(() => again()) : t === 'keep' ? toKeep() : t === 'relics' ? showCompendium(save, () => again()) : t === 'deeds' ? toChronicle(() => again()) : again()),
     back: toTitle,
   });
 }
