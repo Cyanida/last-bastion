@@ -58,6 +58,7 @@ const results = [];
  * branch's code lacks what the check needs (a patch branch cut from an older release).
  */
 async function check(name, fn) {
+  if (process.env.PLAY_ONLY && !process.env.PLAY_ONLY.split('|').some((part) => name.includes(part))) return; // a filter for repeated runs: PLAY_ONLY='(#211)|(#212)' runs the checks whose names hold any of these parts
   try {
     const r = await fn();
     results.push({ name, ok: !!r.ok || !!r.skip, skip: !!r.skip, detail: r.detail ?? '' });
@@ -1730,8 +1731,9 @@ await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his f
     const g = lb.game;
     // the run waits under the card: a known state. Take the knight the card is about (or any whose plates are whole), read his plates now, and from
     // here on log every blow that reaches them, the ones the real frames land after "Got it" too: each blow writes his plates, then his HP
-    const knight = [lb.spotlight, ...(g?.enemies ?? [])].find((e) => e && e.def.id === 'ironKnight' && !e.dead && e.armorHp === e.armorMax);
+    const knight = [lb.spotlight, ...(g?.enemies ?? [])].find((e) => e && e.def.id === 'ironKnight' && !e.dead);
     if (knight) {
+      knight.armorHp = knight.armorMax; // a known start: the bot may have struck him before his card opened, so his plates are made whole
       // four times his HP, so a champion whose opening pick hits hard still lands light blows (one plate each); heavy blows are
       // still judged by the rule below, against his (new) max HP
       knight.maxHp *= 4;
@@ -1746,11 +1748,12 @@ await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his f
       } });
       window.__knight = { knight, log };
     }
-    return { id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g?.level?.realm, level: g?.level?.level, plain: g?.enemies.filter((e) => e.def.id === 'knight').length };
+    return { id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g?.level?.realm, level: g?.level?.level, plain: g?.enemies.filter((e) => e.def.id === 'knight').length, knights: (g?.enemies ?? []).filter((e) => e.def.id === 'ironKnight').map((e) => `${e.armorHp}/${e.armorMax}${e.dead ? ' dead' : ''}`).join(' '), spot: !!lb.spotlight, state: lb.state };
   });
   if (card.id) await p.click('[data-leave]');
+  // "Got it" closes the card and the run plays on: wait for that state, not a fixed time
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 10000 }).catch(() => {});
   const fight = await p.evaluate(async () => {
-    await new Promise((r) => setTimeout(r, 100));
     const lb = window.__lb, g = lb.game;
     const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
     // follow that Iron Knight through the fight: his plates blow by blow, his sprite at the end
@@ -1774,7 +1777,7 @@ await check('Iron Hold: level 3 names the Iron Knight, level 2 fields him, his f
   const ok = panel.name === 'The Iron Hold · Level 3' && /Iron Knight/.test(panel.text) && !/Armored Knight/.test(panel.text)
     && card.realm === 'ironHold' && card.level === 2 && card.id === 'ironKnight' && card.title === 'Iron Knight' && /Each hit breaks one/.test(card.text ?? '') && card.plain === 0
     && fight.closed && fight.found && fight.start === 6 && fight.max === 6 && oneByOne && fight.broken && fight.bare === 'ironKnightBare' && fight.clangs > 0 && errs.length === 0;
-  return { ok, detail: `panel "${panel.name}" ${/Iron Knight/.test(panel.text) ? 'names the Iron Knight' : 'NO Iron Knight'}; run ${card.realm} ${card.level}, card ${card.id ?? 'NONE'} "${card.title ?? ''}", plain knights ${card.plain}; closed ${fight.closed}; ${fight.found ? `plates ${fight.steps.join('>')} of ${fight.max} (per blow ${fight.blows.join(',')}; ${fight.ticks} ticks), sprite ${fight.bare}, ${fight.clangs} clangs${fight.dead ? ', killed' : ''}` : 'no Iron Knight on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  return { ok, detail: `panel "${panel.name}" ${/Iron Knight/.test(panel.text) ? 'names the Iron Knight' : 'NO Iron Knight'}; run ${card.realm} ${card.level}, card ${card.id ?? 'NONE'} "${card.title ?? ''}", plain knights ${card.plain}; closed ${fight.closed}; ${fight.found ? `plates ${fight.steps.join('>')} of ${fight.max} (per blow ${fight.blows.join(',')}; ${fight.ticks} ticks), sprite ${fight.bare}, ${fight.clangs} clangs${fight.dead ? ', killed' : ''}` : `no Iron Knight on the field (knights ${card.knights || 'none'}, spotlight ${card.spot}, state ${card.state})`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 // ---------- #211: the Iron Hold's forge presses: map -> the Iron Hold -> level 1 -> FIGHT. The bot plays until a press marks the slabs round the
@@ -1804,16 +1807,23 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
     const lb = window.__lb, g = lb.game, p = g.player, S = 80;
     const marked = () => g.zones.filter((z) => z.slab && z.hostile);
     const onSlab = (z, b) => Math.hypot(Math.max(Math.abs(b.x - z.x) - S / 2, 0), Math.max(Math.abs(b.y - z.y) - S / 2, 0)) < b.r;
-    const wait = () => { p.invulnerable = true; for (let i = 0; i < 40000 && !marked().length && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, true); p.invulnerable = false; return marked(); };`;
-  const still = await p.evaluate(`(() => { ${setup}
+    const wait = () => { p.invulnerable = true; for (let i = 0; i < 40000 && !marked().length && lb.game === g && lb.state !== 'results'; i++) { p.hp = p.stats.hp; lb.run(1, false, true); } p.invulnerable = false; return marked(); };`;
+  const { still, dodge } = await p.evaluate(`(() => { ${setup}
+    const reaches = (zs) => zs.length >= 2 && zs.some((z) => onSlab(z, p));
+    const letGo = () => { p.invulnerable = true; for (let i = 0; i < 1000 && marked().length; i++) lb.run(1, false, true); p.invulnerable = false; return wait(); };
+    const first = () => {
     const sounds = (window.__press = { warn: 0, slam: 0 });
     const real = lb.view.sfx;
     lb.view.sfx = (n) => ((n in sounds && sounds[n]++), real(n));
-    const zs = wait();
+    // a press whose slabs do not reach his own (a wall or an obstacle where its slab would be) is let go by: the next one is the one used
+    let zs = wait();
+    for (let n = 0; n < 8 && zs.length && !reaches(zs); n++) zs = letGo();
     if (!zs.length) return { found: false, realm: g.level?.realm, wave: g.wave };
     const warned = sounds.warn > 0;
     // a foe on a marked slab beside the champion's (the others sent far off), tough enough to live through it
     const mine = zs.find((z) => onSlab(z, p)), other = zs.find((z) => z !== mine);
+    if (!mine) return { found: false, realm: g.level?.realm, wave: g.wave, why: 'no slab under him' };
+    p.hp = p.stats.hp; // a known start: full health, whatever the real frames before this call cost him
     const [foe, ...rest] = g.enemies.filter((e) => !e.dead);
     for (const e of rest) Object.assign(e, { x: p.x + 3000, y: p.y });
     if (foe && other) Object.assign(foe, { x: other.x, y: other.y, hp: 1e6, maxHp: 1e6 });
@@ -1825,7 +1835,11 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
     const px = (wx, wy) => [...c.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data];
     // the ram over a 3x3 grid across the slab: the champion standing on it hides some of those points, never all
     const grid = [-1, 0, 1].flatMap((i) => [-1, 0, 1].map((j) => [mine.x + (i * S) / 4, mine.y + (j * S) / 4 - 10]));
-    const bracket = px(mine.x - S / 2 + 4, mine.y - S / 2 + 4), ramOn = grid.map(([x, y]) => px(x, y).join());
+    // the bracket is 3 px thick and the canvas rounds its camera, so one pixel can miss it, and the ram (a bigger sprite once the props atlas has
+    // loaded) can hide a corner: the warmest pixel in a small patch at each of the slab's four corners is the sample
+    const warm = (a) => a[0] - a[1] - a[2];
+    const bracket = [-1, 1].flatMap((sx) => [-1, 1].flatMap((sy) => Array.from({ length: 12 }, (_, i) => Array.from({ length: 12 }, (_, j) => px(mine.x + sx * (S / 2 - 8) + i - 4, mine.y + sy * (S / 2 - 8) + j - 4))).flat())).sort((a, b) => warm(b) - warm(a))[0];
+    const ramOn = grid.map(([x, y]) => px(x, y).join());
     const keep = g.zones;
     g.zones = g.zones.filter((z) => !z.slab);
     lb.draw();
@@ -1837,34 +1851,36 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
     for (let i = 0; i < 1000 && marked().length; i++) { onIt = onSlab(mine, p); hp = p.hp; foeHp = foe?.hp ?? 0; lb.run(1, false, 'input'); if (foe && other && marked().length) Object.assign(foe, { x: other.x, y: other.y }); }
     return { found: true, realm: g.level?.realm, level: g.level?.level, arena: g.arena.id, n: zs.length, warned, onIt, hurt: hp - p.hp, foeHurt: foe && other ? foeHp - foe.hp : -1, slam: sounds.slam - slams,
       bracket, ram: ramOn.filter((v, i) => v !== ramOff[i]).length >= 3, props: lb.props() };
-  })()`);
-  // the next marking: step off the line with the keyboard (a line across: up or down, towards the open floor; a line down: left or right)
-  let dodge = { found: false };
-  if (still.found) {
-    const key = await p.evaluate(`(() => { ${setup}
-      const zs = wait();
-      if (!zs.length) return null;
-      const across = zs.every((z) => z.y === zs[0].y), mid = g.bounds;
-      return across ? (p.y > mid.y + mid.h / 2 ? 'KeyW' : 'KeyS') : (p.x > mid.x + mid.w / 2 ? 'KeyA' : 'KeyD');
-    })()`);
-    if (key) {
-      await p.keyboard.down(key);
-      dodge = await p.evaluate(`(() => { ${setup}
-        const zs = marked(), hp0 = p.hp;
+  };
+    const still = first();
+    // the next marking, in this same call so no real frame runs between the two halves: step off the line with the keyboard (a line across: up or down,
+    // towards the open floor; a line down: left or right). The key is a real keydown on the window, which the input layer reads as it reads the keyboard
+    let dodge = { found: false };
+    if (still.found) {
+      let zs = wait();
+      for (let n = 0; n < 8 && zs.length && !zs.some((z) => onSlab(z, p)); n++) zs = letGo(); // one that reaches him: else there is nothing to step off
+      if (zs.length) {
+        p.hp = p.stats.hp; // nothing else may hurt him: the slam is what is being missed
+        const across = zs.every((z) => z.y === zs[0].y), mid = g.bounds;
+        const key = across ? (p.y > mid.y + mid.h / 2 ? 'KeyW' : 'KeyS') : (p.x > mid.x + mid.w / 2 ? 'KeyA' : 'KeyD');
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: key, key }));
+        const hp0 = p.hp;
         for (const e of g.enemies) Object.assign(e, { x: p.x + 3000, y: p.y }); // nothing else to hurt him
         let onIt = true, hp = p.hp;
         for (let i = 0; i < 1000 && marked().length; i++) { onIt = zs.some((z) => onSlab(z, p)); hp = p.hp; lb.run(1, false, 'input'); }
-        return { found: true, key: '${key}', onIt, hurt: hp - p.hp, start: hp0 };
-      })()`);
-      await p.keyboard.up(key);
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: key, key }));
+        dodge = { found: true, key, onIt, hurt: hp - p.hp, start: hp0 };
+      } else dodge = { found: false, why: ['state ' + lb.state, lb.game === g ? 'same game' : 'other game', 'wave ' + g.wave, 'cleared ' + !!(g.level && g.level.cleared), 'over ' + !!g.over, 'hp ' + Math.round(p.hp), 'foes ' + g.enemies.length, 'pressT ' + g.pressT, 'time ' + g.time.toFixed(1)].join(', ') };
     }
-  }
+    return { still, dodge };
+  })()`);
   await p.close();
   // the bracket's glow pulses, so one sample can catch it dim: a warm hue (red well over green, over twice the blue) is the proof
   const red = still.bracket && still.bracket[0] > still.bracket[1] + 30 && still.bracket[0] > 2 * still.bracket[2];
   const ok = still.found && still.realm === 'ironHold' && still.level === 1 && still.arena === 'keep' && still.n >= 2 && still.warned && red && still.ram
-    && still.onIt && still.hurt > 0 && still.slam > 0 && still.foeHurt > 0 && dodge.found && !dodge.onIt && dodge.hurt === 0 && errs.length === 0;
-  return { ok, detail: still.found ? `${still.realm} level ${still.level} in the ${still.arena}: ${still.n} slabs marked${still.warned ? ' with a warning' : ''}, bracket rgb(${(still.bracket ?? []).slice(0, 3).join(',')}), ram ${still.ram ? 'drawn' : 'NOT drawn'}${still.props ? '' : ' (props atlas not loaded yet)'}; standing still: ${still.onIt ? 'on the slab' : 'OFF the slab'}, hurt ${Math.round(still.hurt)}, ${still.slam} slam sound(s), the foe beside him hurt ${Math.round(still.foeHurt)}; stepped aside (${dodge.key ?? 'no key'}): ${dodge.found ? `${dodge.onIt ? 'STILL on a slab' : 'off the slabs'}, hurt ${Math.round(dodge.hurt)}` : 'no second marking'}${errs.length ? `; errors: ${errs[0]}` : ''}` : `no press marked slabs (${still.realm}, wave ${still.wave})` };
+    && still.onIt && still.hurt > 0 && still.slam > 0 && still.foeHurt > 0 && dodge.found && !dodge.onIt && dodge.hurt < still.hurt / 2 && // (a hair of other damage or regeneration is not a slam: it hurt him ten or more)
+     errs.length === 0;
+  return { ok, detail: still.found ? `${still.realm} level ${still.level} in the ${still.arena}: ${still.n} slabs marked${still.warned ? ' with a warning' : ''}, bracket rgb(${(still.bracket ?? []).slice(0, 3).join(',')}), ram ${still.ram ? 'drawn' : 'NOT drawn'}${still.props ? '' : ' (props atlas not loaded yet)'}; standing still: ${still.onIt ? 'on the slab' : 'OFF the slab'}, hurt ${Math.round(still.hurt)}, ${still.slam} slam sound(s), the foe beside him hurt ${Math.round(still.foeHurt)}; stepped aside (${dodge.key ?? 'no key'}): ${dodge.found ? `${dodge.onIt ? 'STILL on a slab' : 'off the slabs'}, hurt ${+dodge.hurt.toFixed(2)}` : `no second marking (${dodge.why})`}${errs.length ? `; errors: ${errs[0]}` : ''}` : `no press marked slabs (${still.realm}, wave ${still.wave})` };
 });
 
 // ---------- #213: the Iron Hold's shieldwalls: map -> the Iron Hold -> level 2 -> FIGHT; the director's shieldwall squad marches in as Iron
@@ -1915,20 +1931,24 @@ await check('Iron Hold: shieldwalls march as Iron Shieldwalls with their flash c
     return { id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g.level?.realm, level: g.level?.level, spawned, plain };
   });
   if (card.id) await p.click('[data-leave]');
+  // "Got it" closes the card and the run plays on: wait for that state, not a fixed time
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 10000 }).catch(() => {});
   const fight = await p.evaluate(async () => {
-    await new Promise((r) => setTimeout(r, 100));
     const lb = window.__lb, g = lb.game, pl = g.player;
     const closed = !document.querySelector('[data-card]') && lb.state === 'playing';
     const walls = () => g.enemies.filter((e) => e.def.id === 'ironShieldwall' && !e.dead);
     // until the line breaks formation to fight (a state, not a clock): in formation they face the march, not the champion
-    for (let i = 0; i < 5000 && walls().some((e) => e.ai === 'regroup') && lb.game === g; i++) lb.run(1, false, false);
-    const w = walls()[0];
+    for (let i = 0; i < 20000 && walls().some((e) => e.ai === 'regroup') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const w = walls().find((e) => e.ai !== 'regroup') ?? walls()[0]; // one that has broken formation: a man in the line does not turn toward anyone
     if (!w) return { closed, found: false };
     const arc = lb.enemyDef('ironShieldwall').frontBlock;
     // a known state: he stands alone (everything else is cleared away), and the champion is put beside him, facing him
     for (const o of g.enemies) if (o !== w) o.dead = true;
     lb.run(1, false, false);
-    const swing = (side) => {
+    // his HP is made huge so no swing, crit or not, can kill him; a swing's damage varies (crits), so each side is struck five times and its
+    // weakest blow is the number: the rule shows in the plain blows, one crit in the five cannot tip it
+    w.maxHp = 1e6;
+    const one = (side) => {
       w.hp = w.maxHp;
       const a = w.angle + side;
       pl.x = w.x + Math.cos(a) * (w.r + pl.r + 4);
@@ -1937,6 +1957,10 @@ await check('Iron Hold: shieldwalls march as Iron Shieldwalls with their flash c
       const b0 = window.__blocks.n, texts0 = g.texts.filter((t) => t.text === 'BLOCKED').length;
       for (let i = 0; i < 30 && w.hp === w.maxHp && !w.dead; i++) lb.run(1, false, false); // one swing: until it lands
       return { dealt: w.maxHp - Math.max(0, w.hp), blocks: window.__blocks.n - b0, text: g.texts.filter((t) => t.text === 'BLOCKED').length > texts0 };
+    };
+    const swing = (side) => {
+      const all = Array.from({ length: 5 }, () => one(side));
+      return { dealt: Math.min(...all.map((r) => r.dealt)), blocks: all.reduce((n, r) => n + r.blocks, 0), text: all.some((r) => r.text) };
     };
     const front = swing(0);
     const back = swing(Math.PI);
@@ -1949,7 +1973,7 @@ await check('Iron Hold: shieldwalls march as Iron Shieldwalls with their flash c
     pl.attackTimer = 99;
     lb.run(10, false, false);
     const d = Math.abs(Math.atan2(Math.sin(w.angle - a0), Math.cos(w.angle - a0)));
-    return { closed, found: true, arc, front, back, turned: +d.toFixed(3) };
+    return { closed, found: true, arc, front, back, turned: +d.toFixed(3), diag: `ai ${w.ai}, hp ${w.hp}, timer ${w.attackTimer}, stun ${w.stun ?? ''}, dead ${w.dead}, x ${w.x.toFixed(0)}` };
   });
   await p.close();
   const ok = card.realm === 'ironHold' && card.level === 2 && card.spawned === 5 && card.plain === 0
@@ -1957,7 +1981,7 @@ await check('Iron Hold: shieldwalls march as Iron Shieldwalls with their flash c
     && fight.closed && fight.found && fight.front.blocks > 0 && fight.front.text && fight.back.blocks === 0 && !fight.back.text
     && fight.front.dealt > 0 && fight.back.dealt > 0 && fight.front.dealt < fight.back.dealt * 0.5
     && fight.turned > 0 && fight.turned < fight.arc / 2 && errs.length === 0;
-  return { ok, detail: `run ${card.realm} ${card.level}: ${card.spawned} Iron Shieldwalls, ${card.plain} plain; card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${fight.closed}; ${fight.found ? `front swing ${fight.front.dealt.toFixed(1)} (${fight.front.blocks} clanks${fight.front.text ? ', BLOCKED' : ''}), back swing ${fight.back.dealt.toFixed(1)} (${fight.back.blocks} clanks); turned ${fight.turned} rad in ten ticks` : 'no Iron Shieldwall on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  return { ok, detail: `run ${card.realm} ${card.level}: ${card.spawned} Iron Shieldwalls, ${card.plain} plain; card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${fight.closed}; ${fight.found ? `front swing ${fight.front.dealt.toFixed(1)} (${fight.front.blocks} clanks${fight.front.text ? ', BLOCKED' : ''}), back swing ${fight.back.dealt.toFixed(1)} (${fight.back.blocks} clanks); turned ${fight.turned} rad in ten ticks (${fight.diag})` : 'no Iron Shieldwall on the field'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 // ---------- #214: the Iron Hold's thorn bearers: map -> the Iron Hold -> level 2 -> FIGHT; a shield bearer brought in as a wave brings him
