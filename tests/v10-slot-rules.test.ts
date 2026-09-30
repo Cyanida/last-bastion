@@ -13,7 +13,7 @@ describe('relics: the slot rules (#195)', () => {
     expect(slotBlock('viking', [], 'hungeringBlade', 6)).toBe('cursed');
     expect(slotBlock('viking', [], 'fireArrows', 6)).toBe('otherClass');
     expect(slotBlock('viking', ['brimstoneOil'], 'brimstoneOil', 6)).toBe('slotted');
-    expect(slotBlock('viking', ['brimstoneOil'], 'dragonsTongue', 2)).toBe('slots'); // 1 + 2 > 2
+    expect(slotBlock('viking', ['brimstoneOil'], 'dragonsTongue', 2)).toBe('double'); // 1 + 2 > 2, one slot free (#239)
     expect(slotBlock('viking', ['brimstoneOil'], 'dragonsTongue', 3)).toBeNull();
     expect(slotBlock('viking', ['brimstoneOil', 'emberheart', 'cinderCharm', 'salamanderScale'], 'dragonsTongue', 6)).toBe('family');
     expect(slotBlock('viking', ['dragonsTongue'], 'everfrostCrown', 6)).toBe('legendary');

@@ -13,7 +13,7 @@
  * Not covered: a gamepad beyond the press that answers a screen, and how it feels.
  */
 import { chromium } from 'playwright';
-import { spawnTree, killTree } from './lib/process-tree.mjs';
+import { spawnTree, killTree, waitForServer } from './lib/process-tree.mjs';
 
 const PORT = Number(process.env.PLAY_PORT ?? 4180);
 
@@ -28,14 +28,7 @@ const stop = () => killTree(preview);
 process.on('exit', stop);
 process.on('SIGINT', () => { stop(); process.exit(130); });
 process.on('SIGTERM', () => { stop(); process.exit(143); });
-for (let i = 0; i < 60; i++) {
-  try {
-    await fetch(`http://localhost:${PORT}/`);
-    break;
-  } catch {
-    await new Promise((r) => setTimeout(r, 250));
-  }
-}
+await waitForServer(`http://localhost:${PORT}/`, PORT);
 
 const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
@@ -791,11 +784,52 @@ await check('relic offer: the card shows the effect first, details on hover or t
     await P.wait(50); // let the screen settle: the real cursor's own pointerover would hide a tip shown before it
     card.dispatchEvent(new PointerEvent('pointerover', { bubbles: true })); // a hover: focus() is not reliable in a CI page without window focus
     const tip = document.getElementById('tooltip'); // read at once: the tip is placed synchronously
-    const shown = tip?.style.display === 'block' && tip.innerText.includes('For this build') && tip.innerText.includes('Tier II');
+    const shown = tip?.style.display === 'block' && tip.innerText.includes('For this build') && tip.innerText.includes('compendium'); // #235: every tier is on its compendium page
     await P.click('[data-skip]'); // skipped, so the later checks still take Butcher's Hook fresh
     return { ok: big && first && lines.length === 1 && !lines[0].innerText.includes('\n') && shown && rel.offers.length === 0, detail: `effect "${effect.innerText}", line "${lines[0]?.innerText}" (${lines.length}), bigger ${big}, tip shown ${shown}${shown ? '' : ` (${tip?.style.display}: ${(tip?.innerText ?? '').slice(0, 60)})`}` };
   }),
 );
+
+// #235: a relic card shows its short line (at most 90 characters) and tier chips, never the long text; its ⓘ, clicked with the mouse,
+// opens the relic's compendium page with every tier over the pick without taking the card, and Esc closes it; no text on the card or the
+// page is under 14 px at 1280x720
+const minFont = (sel) => page.evaluate((sel) => {
+  let min = Infinity, at = '';
+  for (const root of document.querySelectorAll(sel)) {
+    for (const el of [root, ...root.querySelectorAll('*')]) {
+      const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+      if (!own || el.getBoundingClientRect().width === 0) continue;
+      const px = parseFloat(getComputedStyle(el).fontSize);
+      if (px < min) { min = px; at = `${el.tagName.toLowerCase()}.${el.className} "${el.textContent.trim().slice(0, 20)}"`; }
+    }
+  }
+  return { min, at };
+}, sel);
+await check('relic offer: a short line and tier chips, the ⓘ opens its compendium page, no text under 14 px (#235)', async () => {
+  const setup = await inPage(() => {
+    const P = window.__play, rel = window.__lb.game.player.relics;
+    rel.offers.push({ from: 'lair', options: ['heartOfTheHold', 'reprisalCuirass', 'thunderDrum', 'guardiansAegis'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 0, duo: null });
+    if (!P.toChoice()) return null;
+    return [...document.querySelectorAll('.relic-card')].map((c) => ({ p: c.querySelector('p').innerText, chips: c.querySelectorAll('.tier-chips i').length, info: !!c.querySelector('.relic-info'), long: c.innerText.includes('Awaken') || c.innerText.includes('Tier II'),
+      // the whole card on the 1280x720 screen, its short line inside it and not cut off
+      fits: (() => { const r = c.getBoundingClientRect(), l = c.querySelector('p'), lr = l.getBoundingClientRect(); return r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight && lr.left >= r.left && lr.right <= r.right && lr.bottom <= r.bottom && l.scrollWidth <= l.clientWidth && c.scrollHeight <= c.clientHeight + 1; })() }));
+  });
+  if (!setup) return { ok: false, detail: 'no relic offer' };
+  const cardFont = await minFont('.relic-card');
+  await page.locator('[data-pick="0"] .relic-info').click();
+  const opened = await inPage(() => {
+    const pg = document.querySelector('.relic-page');
+    return { page: !!pg, tiers: pg?.querySelectorAll('.tierline').length ?? 0, text: pg?.innerText.replace(/\s+/g, ' ').slice(0, 80) ?? '', state: window.__lb.state, offers: window.__lb.game.player.relics.offers.length };
+  });
+  const pageFont = await minFont('.relic-page');
+  await page.keyboard.press('Escape');
+  const closed = await inPage(() => ({ page: !!document.querySelector('.relic-page'), state: window.__lb.state, offers: window.__lb.game.player.relics.offers.length }));
+  await inPage(() => window.__play.click('[data-skip]'));
+  const short = setup.every((c) => c.p.length > 0 && c.p.length <= 90 && c.chips === 3 && c.info && !c.long && c.fits);
+  const ok = short && opened.page && opened.tiers >= 3 && opened.state === 'choice' && opened.offers === 1 && !closed.page && closed.state === 'choice' && closed.offers === 1
+    && cardFont.min >= 14 && pageFont.min >= 14;
+  return { ok, detail: `cards ${setup.map((c) => `"${c.p}" (${c.p.length}, ${c.chips} chips${c.info ? ', ⓘ' : ''}${c.long ? ', LONG' : ''}${c.fits ? '' : ', DOES NOT FIT'})`).join('; ')}; ⓘ page ${opened.page} (${opened.tiers} tier lines: "${opened.text}"), still picking ${opened.state}/${opened.offers}; Esc closed ${!closed.page}; smallest font card ${cardFont.min}px (${cardFont.at}), page ${pageFont.min}px` };
+});
 
 await check('relic offer: take a relic', () =>
   inPage(async () => {
@@ -1945,7 +1979,7 @@ await check('Iron Hold: a shield bearer marches as the Thorn Bearer, his flash c
 
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
 // From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
-// of the Marches run's three slots (#237), a second legendary says why it can't go in, a slot tapped takes its relic out, a
+// slots (#239: as one wide frame) of the Marches run's three (#237), a second legendary says why it can't go in, a slot tapped takes its relic out, a
 // common fills the slot and shows its set chip, the plan gets a talent on the tree, the Map
 // tab opens the world map and comes back; PLAY starts level 1 with the slotted relic and the plan; a level ended early comes home as
 // "fell at wave N" with RESTART, which plays the level again on the same seed
@@ -2022,7 +2056,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = first.fits && first.figure && first.slots === 'ooo---' && first.inv === 4 && first.blocked === '' && first.play === 'Play' && first.playReach && first.greens === 1 && first.tabs === 'oXooo'
       && /The Marches · Level 1/.test(first.next) && /3 slots/.test(first.next) && first.sets === ''
-      && slotted.slots === 'RRo---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === ''
+      && slotted.slots === 'Ro---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === ''
       && /everfrost crown: at most 1 legendary/i.test(refused.why) && refused.loadout === 'dragonsTongue'
       && common.slots === 'Roo---' && common.loadout === 'brimstoneOil' && common.sets === '1'
       && planned.plan === 1 && planned.savedPlan === 1 && map === 1
@@ -2031,6 +2065,44 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     return { ok, detail: `slots ${first.slots}, ${first.inv} relics, "${first.next}", ${first.play}${first.playReach ? '' : ' (out of reach)'}, tabs ${first.tabs}; Dragon's Tongue -> ${slotted.slots} (sets ${slotted.sets || '-'}, blocked ${slotted.blocked || '-'}); Everfrost -> "${refused.why}"; out, Brimstone -> ${common.slots}; plan ${planned.plan}; map ${map ? 'opens' : '?'}; run ${run ? `${run.realm} ${run.level}, held ${run.held}` : 'none'}; after a fall "${fell.next}" ${fell.play} -> level ${again?.level} seed ${again?.seed === run?.seed ? 'same' : 'new'}${first.fits ? '' : ' (off screen)'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
+
+// #235: on the champion screen at 1280x720 every relic, in a slot or the inventory, has its ⓘ; hovered, its tooltip is the short line; the
+// ⓘ clicked opens its compendium page without slotting it, and Esc closes the page and stays on the screen; no text under 14 px on the
+// screen's own panels (slots, sets, inventory, talent plan, the level to play: all but the header and the tab bar every main screen shares)
+await check('champion screen: relic tooltips are the short line, the ⓘ opens the compendium page, no text under 14 px (#235)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['rivetHammer', 'heartOfTheHold', 'emberheart'], loadouts: { marches: ['rivetHammer'] }, talentPlan: [], world: {}, signature: false, lastBastion: false } };
+  });
+  await p.locator('[data-go="champion"]').click();
+  await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  const font = (sel) => p.evaluate((sel) => {
+    let min = Infinity;
+    for (const root of document.querySelectorAll(sel)) for (const el of [root, ...root.querySelectorAll('*')]) {
+      if ([...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && el.getBoundingClientRect().width > 0) min = Math.min(min, parseFloat(getComputedStyle(el).fontSize));
+    }
+    return min;
+  }, sel);
+  const infos = await p.evaluate(() => ({ slots: document.querySelectorAll('.cs-slot[data-unslot] .relic-info').length, inv: document.querySelectorAll('.cs-relic .relic-info').length, relics: document.querySelectorAll('.cs-relic').length }));
+  const relicFont = await font('.cs-main, .cs-go');
+  await p.locator('.cs-relic[data-relic="emberheart"]').hover();
+  const tip = await p.evaluate(() => { const t = document.getElementById('tooltip'); return { shown: t?.style.display === 'block', text: t?.innerText ?? '' }; });
+  const tipFont = await font('#tooltip');
+  await p.locator('.cs-relic[data-relic="emberheart"] .relic-info').click();
+  const opened = await p.evaluate(() => ({ page: document.querySelector('.relic-page')?.innerText.replace(/\s+/g, ' ') ?? '', loadout: (window.__lb.save.champions.paladin.loadouts.marches ?? []).join(',') }));
+  const pageFont = await font('.relic-page');
+  await p.keyboard.press('Escape');
+  const after = await p.evaluate(() => ({ page: !!document.querySelector('.relic-page'), screen: !!document.querySelector('.champion-screen') }));
+  await p.close();
+  const shortTip = tip.shown && tip.text.includes('More damage for every burning enemy near you.') && !/Tier II:|Awakens at/.test(tip.text);
+  const ok = infos.slots >= 1 && infos.inv === infos.relics && shortTip && /Tier|II/.test(opened.page) && /250 px/.test(opened.page) && opened.loadout === 'rivetHammer'
+    && !after.page && after.screen && relicFont >= 14 && tipFont >= 14 && pageFont >= 14 && errs.length === 0;
+  return { ok, detail: `ⓘ on ${infos.slots} slot(s), ${infos.inv}/${infos.relics} inventory relics; tip ${tip.shown ? `"${tip.text.split('\n').slice(0, 2).join(' / ')}"` : 'NOT shown'}; page "${opened.page.slice(0, 70)}", loadout ${opened.loadout}; Esc: page ${after.page ? 'still open' : 'closed'}, screen ${after.screen}; smallest font on the screen ${relicFont}px, tip ${tipFont}px, page ${pageFont}px${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
 
 // ---------- #205: a realm level's relics don't count for "in one run" deeds; a full run's do, and the Chronicle says so ----------
 await check('deeds: six relics held in a Marches level leave Reliquarian at 0; in a full run it is earned; the Chronicle says "full run" (#205)', async () => {
@@ -2162,6 +2234,110 @@ await check('import: asks first and keeps the replaced save as a backup, once', 
     rows1 >= 1 && rows2 === texts.length && new Set(texts).size === texts.length;
   return { ok, detail: `asked ${asked.length}×, gold ${before.gold} -> ${kept} (no) -> ${gold} (yes), backup is the old save ${top === before.text}, restore rows ${rows1} -> ${rows2}, ${texts.length} backups, ${new Set(texts).size} distinct` };
 });
+
+// ---------- #239: the champion screen explains itself: a legendary is one double slot with a "2 slots" badge, a relic that can't go in
+// greys the empty slots with the reason, and an ⓘ by the slots, the set chips and the talent plan opens and closes ----------
+// At 1280x720 with the mouse and in phone landscape by touch, on a champion with five slots filled: the Everfrost Crown wears its
+// "2 slots" badge in the inventory and can't go in; pointing at it (mouse) and tapping it greys the one empty slot, which says "a
+// legendary takes 2 slots" in its own tip and under the inventory; a tap elsewhere lifts the grey. A common taken out, the Crown goes in
+// as one frame two slots wide with its badge. Each ⓘ opens its text on screen and closes again: by the same ⓘ, by its ×, and by Escape
+// (which leaves the screen open). At 1280x720 no text on the screen or its popups is under 14 px.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`champion screen: a legendary is one double slot with a "2 slots" badge, a blocked relic greys the empty slot with the reason, the three info buttons open and close, ${touch ? 'tap' : 'click'} at ${w}x${h} (#239)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await p.evaluate(() => {
+      const five = ['brimstoneOil', 'emberheart', 'cinderCharm', 'frostBrand', 'wintersGrasp'];
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: [...five, 'everfrostCrown'], loadouts: { marches: five }, talentPlan: [], world: {}, signature: false, lastBastion: false } };
+    });
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    // every piece of text showing on the screen (its popups too) that is smaller than 14 px; the relic tooltip's own text is #235's
+    const small = () => p.evaluate(() => {
+      const out = [];
+      for (const root of [document.querySelector('.champion-screen')]) {
+        const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+          const e = n.parentElement, r = e.getBoundingClientRect();
+          if (!n.textContent.trim() || !r.width || !r.height || e.closest('[hidden]') || getComputedStyle(e).visibility === 'hidden') continue;
+          const px = parseFloat(getComputedStyle(e).fontSize);
+          if (px < 14) out.push(`${px}px "${n.textContent.trim().slice(0, 24)}"`);
+        }
+      }
+      return out;
+    });
+    const look = () => p.evaluate(() => {
+      const width = (e) => e.getBoundingClientRect().width;
+      const slots = [...document.querySelectorAll('.cs-slot')];
+      const double = document.querySelector('.cs-slot.double'), single = slots.find((s) => !s.classList.contains('double'));
+      const tip = document.getElementById('tooltip');
+      return {
+        slots: slots.map((s) => (s.classList.contains('empty') ? (s.classList.contains('deny') ? 'x' : 'o') : s.classList.contains('double') ? 'D' : 'R')).join(''),
+        deny: [...document.querySelectorAll('.cs-slot.deny')].map((s) => s.dataset.tip).join('|'),
+        badge: document.querySelector('.cs-relic[data-relic="everfrostCrown"] .cs-badge')?.textContent ?? '',
+        blocked: [...document.querySelectorAll('.cs-relic.blocked')].map((b) => b.dataset.relic).join(','),
+        why: document.querySelector('.cs-why').textContent,
+        tip: tip && getComputedStyle(tip).display !== 'none' ? tip.textContent : '',
+        double: double ? { badge: double.querySelector('.cs-badge')?.textContent ?? '', wide: width(double) >= 2 * width(single), name: double.getAttribute('aria-label') } : null,
+        loadout: (window.__lb.save.champions.paladin.loadouts.marches ?? []).join(','),
+      };
+    });
+    const tiny = await small();
+    const first = await look();
+    let hover = null;
+    if (!touch) { // the mouse only points at it: the slot greys, and the relic's own tip says why
+      await p.hover('.cs-relic[data-relic="everfrostCrown"]');
+      hover = await look();
+      tiny.push(...await small());
+      await p.mouse.move(4, 4);
+    }
+    const away = await look();
+    await press('.cs-relic[data-relic="everfrostCrown"]'); // picked: the slot stays grey, so its reason can be read on it
+    if (touch) await press('.cs-slot.deny'); else await p.hover('.cs-slot.deny');
+    const refused = await look();
+    tiny.push(...await small());
+    await press('.cs-hero [data-figure]'); // a tap elsewhere
+    const lifted = await look();
+    await press('.cs-slot[data-unslot="wintersGrasp"]');
+    const freed = await look();
+    await press('.cs-relic[data-relic="everfrostCrown"]');
+    if (!touch) await p.mouse.move(4, 4);
+    const crowned = await look();
+    // the three ⓘ: each opens its own text, on screen, and closes its own way
+    const pop = () => p.evaluate(() => {
+      const q = document.querySelector('.kit-info-pop'), r = q.getBoundingClientRect();
+      return { open: !q.hidden, text: q.hidden ? '' : q.textContent.trim(), fits: q.hidden || (r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight), lit: [...document.querySelectorAll('.kit-info[aria-expanded="true"]')].map((b) => b.dataset.info).join(',') };
+    });
+    const info = {};
+    for (const [key, shut] of [['slots', 'again'], ['sets', 'x'], ['talents', 'Escape']]) {
+      await press(`.kit-info[data-info="${key}"]`);
+      const opened = await pop();
+      tiny.push(...await small());
+      if (shut === 'again') await press(`.kit-info[data-info="${key}"]`);
+      else if (shut === 'x') await press('.kit-info-pop .kit-close');
+      else await p.keyboard.press('Escape');
+      info[key] = { opened, closed: await pop() };
+    }
+    const still = await p.locator('.champion-screen').count(); // Escape closed the popup, not the screen
+    await p.close();
+    const reason = /a legendary takes 2 slots/i;
+    const infoOk = Object.entries(info).every(([key, i]) => i.opened.open && i.opened.fits && i.opened.lit === key && !i.closed.open && i.closed.lit === '')
+      && /legendary takes 2 slots/i.test(info.slots.opened.text) && /at most 4 relics of one family/i.test(info.slots.opened.text) && /2 class relics/i.test(info.slots.opened.text)
+      && /set/i.test(info.sets.opened.text) && /bonus/i.test(info.sets.opened.text) && /talent points/i.test(info.talents.opened.text) && /plan/i.test(info.talents.opened.text);
+    const ok = first.slots === 'RRRRRo' && first.badge === '2 slots' && first.blocked === 'everfrostCrown' && first.double === null
+      && (touch || (hover.slots === 'RRRRRx' && reason.test(hover.deny) && reason.test(hover.tip))) && away.slots === 'RRRRRo'
+      && refused.slots === 'RRRRRx' && reason.test(refused.deny) && reason.test(refused.why) && reason.test(refused.tip) && refused.loadout === first.loadout
+      && lifted.slots === 'RRRRRo'
+      && freed.slots === 'RRRRoo' && freed.blocked === ''
+      && crowned.slots === 'RRRRD' && crowned.double.badge === '2 slots' && crowned.double.wide && /2 slots/.test(crowned.double.name) && crowned.loadout.split(',').includes('everfrostCrown')
+      && infoOk && still === 1 && (touch || tiny.length === 0) && errs.length === 0;
+    return { ok, detail: `slots ${first.slots}, the Crown's badge "${first.badge}", blocked ${first.blocked || '-'}${hover ? `; pointed at -> ${hover.slots} "${hover.deny}", away -> ${away.slots}` : ''}; tapped -> ${refused.slots}, the slot says "${refused.tip.slice(0, 60)}", under the inventory "${refused.why}"; a tap elsewhere -> ${lifted.slots}; a common out -> ${freed.slots}; the Crown in -> ${crowned.slots}, ${crowned.double ? `badge "${crowned.double.badge}"${crowned.double.wide ? ', two slots wide' : ', NOT two slots wide'}` : 'NO double slot'}; info ${Object.entries(info).map(([key, i]) => `${key} ${i.opened.open ? 'opens' : 'STAYS SHUT'}${i.opened.fits ? '' : ' (off screen)'}/${i.closed.open ? 'STAYS OPEN' : 'closes'}`).join(', ')}${still ? '' : ', Escape left the screen'}${touch ? '' : `; text under 14 px: ${tiny.length ? [...new Set(tiny)].join(', ') : 'none'}`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
 
 // ---------- v0.10 (#193): a v0.7-v0.9 save (format 6) loads as format 7 with its champions, its relics kept, the old text under Restore ----------
 await check('save v7: a format-6 save migrates with champions, and the Keep, Chronicle and Settings still open (#193)', async () => {
@@ -4448,7 +4624,7 @@ await check('slot rules: at most 2 class relics (the signature beside them), 4 o
   const ok = /Level 7/.test(first.next) && /5 slots/.test(first.next) && first.slots === 'ooooo-' && Object.keys(first.blocked).length === 0
     && classes.loadout === 'stormbornPelt,wolfskin' && classes.blocked.ironhide === 'At most 2 class relics.' && !classes.blocked.jarlsTorc
     && /Ironhide: At most 2 class relics/.test(third.why) && third.loadout === classes.loadout
-    && full.slots === 'RRRRRr' && full.blocked.ironhide === 'No free slot for it (a legendary takes two).' && /No free slot/.test(full.blocked.jarlsTorc ?? '')
+    && full.slots === 'RRRRRr' && full.blocked.ironhide === 'No free slot for it.' && /No free slot/.test(full.blocked.jarlsTorc ?? '')
     && fifth.blocked.ironhide === 'At most 4 relics of one family.' && /Ironhide: At most 4 relics of one family/.test(fifth.why) && !fifth.loadout.includes('ironhide')
     && six.loadout === six7 && six.slots === 'RRRRRr' && run7.level === 7 && run7.held.split(',').slice(0, 6).join() === five
     && /Level 1/.test(small.next) && /5 slots/.test(small.next) && small.slots === 'RRRRRr' && run1.level === 1 && run1.held.split(',').slice(0, 6).join() === five && errs.length === 0;
@@ -4737,6 +4913,55 @@ await check('Iron King: test mode starts the Iron Hold level 5; its crown boss: 
     && fight.guard >= 2 && fight.decree[0] === 24 && fight.decree[2] === 48 && fight.rush[0] === 0 && fight.rush[1] > 0 && long && fight.armorAt2 === 0
     && fight.block[0] === 0 && fight.block[1] > 0 && fight.bites[1] === 0 && fight.bites[2] > 0 && fight.dead && fight.cleared && errs.length === 0;
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; plates ${fight.plates.join('>')}, guard ${fight.guard}; phases at ${fight.phases.join(', ')} s, plate ${fight.armorAt2} at phase 2; decree zones ${fight.decree.join('/')}, rush ticks ${fight.rush.join('/')}, shield blocks ${fight.block.join('/')}, thorn bites ${fight.bites.join('/')} by phase; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #236: no boss ends two levels of a realm: Settings -> Test mode -> "Start at" a Marches level -> the opening pick -> its last wave ----------
+// Level 1 ends on the Black Knight (Act I's opener); level 5 used to draw him again. Now it ends on another boss, the same one on any seed.
+await check('Bosses: the Marches level 1 ends on the Black Knight; level 5 ends on another boss, the same on every seed (#236)', async () => {
+  const lastBoss = async (start, seed) => {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    if (!(await p.locator(`#tm-start option[value="${start}"]`).count())) return (await p.close(), null);
+    await p.locator('#tm-class').selectOption('paladin');
+    await p.locator('#tm-start').selectOption(start);
+    await p.evaluate((seed) => {
+      const now = Date.now; // test mode seeds from the clock
+      Date.now = () => seed;
+      try {
+        [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+      } finally {
+        Date.now = now;
+      }
+    }, seed);
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click();
+    const out = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.player.invulnerable = true;
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1; // straight on to the level's last wave
+      g.breather = 0.01;
+      let b = null;
+      for (let i = 0; i < 4000 && !b; i++) (lb.run(1, false, false), (b = g.enemies.find((e) => e.def.boss) ?? null));
+      return { wave: g.wave, last: g.level.last, name: b?.def.name ?? '', key: g.bossesSeen.at(-1) ?? '' };
+    });
+    const hud = await p.waitForFunction(() => document.getElementById('h-boss-name')?.textContent, null, { timeout: 5000 }).then((h) => h.jsonValue()).catch(() => '');
+    await p.close();
+    return { ...out, hud, errs: errs.length };
+  };
+  const l1 = await lastBoss('marches:1', 2654435761);
+  if (!l1) return { skip: true, detail: 'no realm-level start in this build' };
+  const l5 = await lastBoss('marches:5', 2654435761);
+  const l5b = await lastBoss('marches:5', 12345);
+  const ok = l1.wave === 5 && l1.key === 'blackKnight' && l5.wave === 25 && l5.key && l5.key !== 'blackKnight' && l5b.key === l5.key
+    && l5.hud.startsWith(l5.name) && l1.hud.startsWith(l1.name) && !l1.errs && !l5.errs && !l5b.errs;
+  return { ok, detail: `level 1 wave ${l1.wave}: ${l1.key} "${l1.hud}"; level 5 wave ${l5.wave}: ${l5.key} "${l5.hud}", on another seed ${l5b.key}` };
 });
 
 await check('no console errors', async () => {
