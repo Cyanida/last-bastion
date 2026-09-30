@@ -3,6 +3,8 @@ import { createGame, summarizeRun } from '../src/game';
 import { newChampion } from '../src/logic/champions';
 import { checkpoint, newRealmRun, readRealmRun } from '../src/logic/realmRun';
 import { applyRun, defaultSave, exportSave, importSave, migrate } from '../src/logic/save';
+import { REALMS } from '../src/config/world';
+import { slotsFor } from '../src/logic/world';
 import { addRelic } from '../src/systems/relics';
 import { takeCarry } from '../src/systems/levels';
 import { oldSave } from './fixtures/saves';
@@ -34,6 +36,14 @@ describe('realm runs: checkpoints and the carry (#237)', () => {
     expect([g2.startWave, g2.wave]).toEqual([6, 5]);
     expect(g2.level).toMatchObject({ realm: 'marches', level: 2, from: g1.player.level });
     expect(r.offers[0]?.from).toBe('start'); // the opening pick stays at every level
+  });
+
+  it("the loadout is the run's: 3 slots at every level of a realm and of the Marches, in at level 1 only; the Keep's two on top", () => {
+    for (const realm of ['marches', 'ironHold'] as const) expect(REALMS[realm].levels.map((_, i) => slotsFor(realm, i + 1))).toEqual(REALMS[realm].levels.map(() => 3));
+    expect(slotsFor('ironHold', 1, 2)).toBe(5);
+    expect(slotsFor('lastBastion', 1)).toBe(5);
+    const g = createGame('viking', 11, { level: { realm: 'marches', level: 1, relics: ['brimstoneOil', 'emberheart', 'cinderCharm', 'serratedEdge'] } });
+    expect(g.player.relics.held).toEqual(['brimstoneOil', 'emberheart', 'cinderCharm']);
   });
 
   it('a checkpoint survives a save round trip, and the level goes on the same from it', () => {

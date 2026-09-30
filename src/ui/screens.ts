@@ -268,7 +268,7 @@ export interface ChampionInfo {
   realmName: string;
   level: number; // the level PLAY starts (1-based)
   tier: number;
-  slots: number; // that level's slots, with the Keep's and mastery's
+  slots: number; // that level's slots, with the Keep's and mastery's; #237: 0 when its realm run goes on from a checkpoint (the loadout went in at level 1)
   loadout: RelicId[]; // the realm's saved loadout, at the most slots
   inventory: RelicId[];
   plan: string[]; // the talent plan, in order
@@ -286,14 +286,15 @@ export function showChampion(
 ): void {
   const c = CLASSES[info.classId];
   const finale = info.realm === 'lastBastion';
+  const RUN_ON = 'The realm run is under way: its loadout went in at level 1.'; // #237: no slots (info.slots 0) past a run's level 1
   const view = slotView(info.classId, info.loadout, info.slots, finale);
   const goes = fitLoadout(info.classId, info.loadout, info.slots, finale);
   const tier = REALMS[info.realm].levels[info.level - 1].relicTier;
   const slot = (s: (typeof view)[number], i: number) => {
     const idle = s.live ? '' : ' idle';
-    if (!s.id) return `<span class="cs-slot empty${idle}" data-slot="${i}" title="${s.live ? 'An empty slot: tap a relic in the inventory' : `Not open in this level (${info.slots} slot${info.slots > 1 ? 's' : ''})`}">${s.live ? '' : kit.icon('lock')}</span>`;
+    if (!s.id) return `<span class="cs-slot empty${idle}" data-slot="${i}" title="${s.live ? 'An empty slot: tap a relic in the inventory' : info.slots ? `Not open in this level (${info.slots} slot${info.slots > 1 ? 's' : ''})` : RUN_ON}">${s.live ? '' : kit.icon('lock')}</span>`;
     const r = relicDef(s.id);
-    return `<button class="cs-slot${idle}${s.second ? ' second' : ''}" data-slot="${i}" data-unslot="${s.id}" aria-label="${esc(`${r.name}: take it out`)}" data-tip="${esc(`${relicTip(s.id, tier)}${s.live ? '' : '\nNot in this level: no slot left for it.'}\nTap to take it out.`)}">${kit.rarityGlyph(relicRarity(s.id), s.second ? '' : r.icon)}</button>`;
+    return `<button class="cs-slot${idle}${s.second ? ' second' : ''}" data-slot="${i}" data-unslot="${s.id}" aria-label="${esc(`${r.name}: take it out`)}" data-tip="${esc(`${relicTip(s.id, tier)}${s.live ? '' : info.slots ? '\nNot in this level: no slot left for it.' : `\n${RUN_ON}`}\nTap to take it out.`)}">${kit.rarityGlyph(relicRarity(s.id), s.second ? '' : r.icon)}</button>`;
   };
   const sets = Object.entries(familySets(goes)) as [FamilyId, { count: number; level: number }][];
   const chip = ([f, st]: [FamilyId, { count: number; level: number }]) =>
@@ -320,7 +321,7 @@ export function showChampion(
         </div>
       </div>
       <div class="cs-go">
-        <span class="cs-next">${kit.icon('map')}<span><b>${esc(info.realmName)} · Level ${info.level}</b><small>${TIERS[info.tier].name} · ${info.slots} slot${info.slots > 1 ? 's' : ''}${info.fell ? ` · fell at wave ${info.fell}` : ''}</small></span></span>
+        <span class="cs-next">${kit.icon('map')}<span><b>${esc(info.realmName)} · Level ${info.level}</b><small>${TIERS[info.tier].name} · ${info.slots ? `${info.slots} slot${info.slots > 1 ? 's' : ''}` : 'run in progress'}${info.fell ? ` · fell at wave ${info.fell}` : ''}</small></span></span>
         ${kit.button(info.fell ? 'Restart' : 'Play', { kind: 'go', size: 'big', attrs: 'data-play' })}
       </div>
       ${kit.tabs(kit.MAIN_TABS, 'champion')}

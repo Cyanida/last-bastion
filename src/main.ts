@@ -274,7 +274,8 @@ function toChampion(at?: { realm: RealmId; level: number; tier: number }): void 
   };
   showChampion({
     classId: id, name: champ.name, palette: save.settings.palettes[id] ?? 0, gold: save.gold, runes: save.runes, realm, realmName: REALMS[realm].name,
-    level, tier, slots: championSlots(save.meta, save.classes[id].xp, realm, level), loadout, inventory: champ.inventory, plan: champ.talentPlan, fell: fellAt(id, realm, level, tier),
+    level, tier, slots: runAt(champ, realm, level, tier)?.carry ? 0 : championSlots(save.meta, save.classes[id].xp, realm, level), loadout, // #237: a run past its level 1 takes no loadout: it went in there
+    inventory: champ.inventory, plan: champ.talentPlan, fell: fellAt(id, realm, level, tier),
   }, {
     slot: (r) => saveLoadout([...loadout, r]),
     unslot: (r) => saveLoadout(loadout.filter((x) => x !== r)),

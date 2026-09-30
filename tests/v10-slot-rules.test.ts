@@ -35,10 +35,10 @@ describe('relics: the slot rules (#195)', () => {
   });
 
   it('a level slots only what fits its slots and rules', () => {
-    const g = createGame('viking', 3, { level: { realm: 'marches', level: 3, relics: ['brimstoneOil', 'dragonsTongue', 'emberheart', 'cinderCharm'] } });
-    expect(g.player.relics.held).toEqual(['brimstoneOil', 'emberheart']); // 2 slots; the legendary would take 2 more
-    const h = createGame('viking', 3, { level: { realm: 'marches', level: 3, relics: ['brimstoneOil', 'dragonsTongue'] }, meta: { startRelic: 1 } });
-    expect(h.player.relics.held).toEqual(['brimstoneOil', 'dragonsTongue']); // Armorer's Choice: a third slot
+    const g = createGame('viking', 3, { level: { realm: 'marches', level: 3, relics: ['brimstoneOil', 'emberheart', 'dragonsTongue', 'cinderCharm'] } });
+    expect(g.player.relics.held).toEqual(['brimstoneOil', 'emberheart', 'cinderCharm']); // 3 slots (#237: a realm run's loadout size); the legendary would take 2 more
+    const h = createGame('viking', 3, { level: { realm: 'marches', level: 3, relics: ['brimstoneOil', 'emberheart', 'dragonsTongue'] }, meta: { startRelic: 1 } });
+    expect(h.player.relics.held).toEqual(['brimstoneOil', 'emberheart', 'dragonsTongue']); // Armorer's Choice: a fourth slot
   });
 
   it('tier by position: I early in a realm, II late; I in the Last Bastion', () => {
