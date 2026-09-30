@@ -299,3 +299,26 @@ export function bodkinStep(count: number, every: number, armorPiercer: boolean):
   const step = rivetStep(count, every);
   return { count: step.count, bodkin: step.rivet || armorPiercer };
 }
+
+// ---------------------------------------------------------------- v0.12 (#229): the Cinderlands' Flame relics
+
+/**
+ * Flashpowder: what a hit does once the powder's clock (`every` s since the last spark) is ready: an enemy at `need`+ burn stacks flares,
+ * any other is lit; before then, nothing.
+ */
+export const spark = (stacks: number, need: number, now: number, last: number, every: number): 'flare' | 'light' | null =>
+  now - last < every ? null : stacks >= need ? 'flare' : 'light';
+
+/**
+ * Pitch Pot: who gets a patch this time: the nearest enemy to (x, y) within `reach` (the pot's fling), then every burning one, nearest
+ * first; one patch each, never on one already standing in pitch, and no more than the patches still free.
+ */
+export function pitchDrips<T extends { x: number; y: number }>(near: T[], burning: (e: T) => boolean, x: number, y: number, reach: number, free: number, inPitch: (e: T) => boolean): T[] {
+  if (free <= 0) return [];
+  const d2 = (e: T) => (e.x - x) ** 2 + (e.y - y) ** 2;
+  const byDistance = near.filter((e) => d2(e) <= reach * reach).sort((a, b) => d2(a) - d2(b));
+  return byDistance.filter((e, i) => (i === 0 || burning(e)) && !inPitch(e)).slice(0, free);
+}
+
+/** Crown of Cinders: the burn stacks a neighbour catches from a burning enemy that dies (the awakening adds `extra`). */
+export const leapStacks = (stacks: number, extra: number): number => (stacks > 0 ? stacks + extra : 0);

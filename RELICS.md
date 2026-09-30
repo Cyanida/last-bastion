@@ -406,6 +406,52 @@ Iron Halo was measured again after its strike moved onto the cast itself: it use
 cast gives its stacks, so it only ever struck with stacks from elsewhere (the 18.1% first read was that, in maxed builds full of Steel);
 now each cast strikes everything in Radiance's radius once, with the stacks it just gave (6 Angel runs, 6 won).
 
+## C4 · The Cinderlands' Flame relics (v0.12, [#229](https://github.com/Cyanida/last-bastion/issues/229))
+
+Three of the Cinderlands' five new Flame relics (docs/road-to-the-crown.md, "The Cinderlands" and v0.12.0 item 4): two rares and the
+family's second legendary. The Cinderlands teach fire that spreads over the floor, burn stacks on you and bursts of fire when foes die; each
+relic takes one of those for the player, and each does something the Flame relics before it do not: a burst from a hit (Salamander Scale only
+multiplies the hit), fire that comes from the burning foes themselves (Ember Mantle's and Salamander Scale's fire comes from you or from a
+kill at full stacks) and a burn that passes on whole (Cinder Charm throws one ember, Pyre only explodes). Numbers in `config/relics.ts` (the
+three entries after Radiant Brand), behaviour in `systems/relicFamilies/flame.ts`, the pure rules (when a hit flares, which foes drip pitch,
+what the leap passes on) in `logic/relics.ts`. The class relics for the Viking and the Necromancer and the new duo are separate issues.
+
+| Relic | Rarity | Effect (I → II) | Awakened (III) |
+|---|---|---|---|
+| 🧨 Flashpowder | rare | Once every 1 → 0.7 s your next hit (attack or ability) sparks: an enemy at 2+ burn stacks flares, 32 → 40 fire damage (grows with level) and a burn stack to every enemy within 100 px; any other catches 2 burn stacks | **Chain Reaction**: enemies a flare brings up to 3 burn stacks flare too (one link) |
+| 🛢️ Pitch Pot | rare | Every 2 → 1.5 s you fling burning pitch at the nearest enemy within 360 px, and every burning enemy that near drips it, nearest first: a fire patch at their feet for 3 s (8 damage per second, grows with level) that sets a burn stack; up to 4 → 6 patches, never one on another | **Tar Pit**: an enemy that dies in burning pitch bursts into fire (a Pyre explosion) |
+| 🎇 Crown of Cinders | legendary | Your attack hits set an enemy that isn't burning alight (1 burn stack, 4 per second, grows with level). When a burning enemy dies its fire leaps on: every enemy within 110 → 140 px catches its burn stacks (at its burn's power) and takes 12 → 16 fire damage (grows with level) | **Conflagration**: the fire leaps up to 200 px and adds 1 more burn stack |
+
+- **Where they are found.** None is a common, so none joins the starter pool. All three are in the Cinderlands' pool (the realm's whole
+  family) and, once kept, in the champion's inventory; the runs without a champion (the Daily Trial, the sims) find all three. The Marches'
+  Flame level offers its rares in order, so a champion who owns Salamander Scale and Ember Mantle is offered Flashpowder and Pitch Pot there.
+  Crown of Cinders is the second Flame legendary, so the Cinderlands' Knight crown ("pick 1 of 2 Flame legendaries") offers it beside
+  Dragon's Tongue.
+- **Slot rules.** Crown of Cinders takes 2 slots and is the loadout's one legendary; all three count toward the 4 Flame relics a loadout may
+  hold.
+- **Each lights its own first fire.** First built to feed only on burns other relics lit, all three read 2.3-2.8% in the sims (the bot's
+  runs mostly go Steel: 8 of 12 6-sets), so each now starts a fire itself: the powder lights what it can't flare yet, the pot flings its
+  pitch at the nearest foe, the crown's attacks light foes that aren't burning.
+- **Decided: Flashpowder has one clock for all enemies**, not one per enemy: with Inferno (every hit burns) a clock per enemy would flare on
+  nearly every hit in a crowd. **Decided: a flare's own burn stacks can set off Chain Reaction once**, never a second link, so a crowd goes up
+  in a ring of bursts and not a runaway. **Decided: the Crown passes on the dead foe's stacks at the burn's own power**, not a fixed one, so
+  it spreads whatever built the burn; the burns it passes on are the Crown's work from then on.
+- **Burn stacks on you** are the realm's foes' lesson; no relic here reads them, because a relic that only works in the Cinderlands would sit
+  under 3% everywhere else (the shares below are measured in a plain run).
+
+**Measured.** `npm run sim -- relics 3 hold=<id>` (every run holds the named relic from the start; maxed saves, 15 runs each;
+measured again on release/0.12.0 with the Ember Forge and the Torchbearers in). Share from wave 21 on, target 3-35%:
+
+| Relic | Runs held at wave 20 | Share |
+|---|---|---|
+| 🎇 Crown of Cinders | 15 | 7.5% |
+| 🛢️ Pitch Pot | 14 | 7.3% |
+| 🧨 Flashpowder | 13 | 4.5% |
+
+All three sit inside the band. Their first versions, which only fed on burns other relics lit, read 2.3% (Flashpowder, at 3+ stacks),
+2.5% (Pitch Pot) and 2.8% (Crown of Cinders); lighting their own first fire lifted the pot and the crown into the band, and Flashpowder
+read 3.0% at 20 → 26 damage in 90 px, so it went to 32 → 40 in 100 px. The power index stayed in its band in every run (2.02-2.14).
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
@@ -451,7 +497,7 @@ the end for comparison.
 
 Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shines; every relic works for every class unless it names one.
 
-#### 🔥 Flame (6 + 3 class)
+#### 🔥 Flame (9 + 3 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -461,6 +507,9 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Cinder Charm | common | A burning enemy you kill throws an ember at the nearest enemy: 1 → 2 burn stacks | **Ember Storm**: the ember splits in three | any |
 | Ember Mantle *(v0.10, #200)* | rare | Every 1.5 → 1 s, enemies within 120 px of you catch fire: 1 burn stack | **Firewalk**: you leave a trail of fire (6 damage per second, for 2 s) | Viking, Paladin |
 | Dragon's Tongue | legendary | Every 8 → 6 s your next attack also breathes a cone of fire: 3 → 4 burn stacks | **Wyrmfire**: the cone detonates every burn it touches for its remaining damage at once | Archer, Paladin |
+| Flashpowder *(v0.12)* | rare | Once every 1 → 0.7 s your next hit sparks: an enemy at 2+ burn stacks flares, 32 → 40 fire damage (grows with level) and a burn stack to every enemy within 100 px; any other catches 2 burn stacks | **Chain Reaction**: enemies a flare brings up to 3 burn stacks flare too (one link) | any |
+| Pitch Pot *(v0.12)* | rare | Every 2 → 1.5 s you fling burning pitch at the nearest enemy, and every burning enemy near you drips it: a fire patch at their feet for 3 s (8 damage per second, grows with level) that sets a burn stack (up to 4 → 6 patches) | **Tar Pit**: an enemy that dies in burning pitch bursts into fire (a Pyre explosion) | Paladin, Viking |
+| Crown of Cinders *(v0.12)* | legendary | Your attack hits set an enemy that isn't burning alight (1 burn stack). When a burning enemy dies its fire leaps on: every enemy within 110 → 140 px catches its burn stacks and takes 12 → 16 fire damage (grows with level) | **Conflagration**: the fire leaps up to 200 px and adds 1 more burn stack | any |
 | Fire Arrows *(Archer)* | rare | Arrow Volley arrows each add a burn stack; burn damage +2% → 3% per Focus | **Rain of Cinders**: the Volley's area keeps burning for 3 s | Archer |
 | Sunfire Censer *(Angel)* | rare | Heavenly Radiance adds 1 + Grace/6 → Grace/4 burn stacks to everything it hits | **Solar Flare**: enemies killed by Radiance burst into fire (a Pyre explosion) | Angel |
 | Radiant Brand *(Paladin)* | rare | Divine Shield's burst adds 2 + Faith/5 → Faith/4 burn stacks | **Pillar of Dawn**: while the shield holds, burning enemies touching you take their burn damage again every second | Paladin |

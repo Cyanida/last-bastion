@@ -3,6 +3,7 @@ import type { Enemy, Game, Player } from '../../core/types';
 import { addField } from '../../entities/hazards';
 import { damageEnemy, nearestEnemy } from '../combat';
 import { burst, line } from '../effects';
+import { leapStacks, pitchDrips, spark } from '../../logic/relics';
 import { addBurn, aOf, attackHit, awakened, bonus, burnStacks, cone, flash, maxBurn, nOf, nova, relicDamage, type RelicHooks, sOf } from '../relicCore';
 
 /**
@@ -18,6 +19,26 @@ function pyre(g: Game, p: Player, e: Enemy): void {
   nova(g, e.x, e.y, n.pyreRadius, dmg, 120, F.color, 'fire');
   burst(g, e.x, e.y, F.color, 14, 240);
 }
+
+/**
+ * Flashpowder (#229): `e` flares: fire damage and a burn stack to everything round it. Awakened (Chain Reaction), each enemy the flare
+ * brings up to the stack count flares too, one link only (`link` false), so a crowd goes up in a ring of bursts and not a runaway.
+ */
+function flare(g: Game, p: Player, e: Enemy, link: boolean): void {
+  const n = nOf(p, 'flashpowder');
+  const need = aOf('flashpowder').stacks;
+  const caught: Enemy[] = [];
+  nova(g, e.x, e.y, n.radius, relicDamage(p, n.damage), 80, F.color, 'fire', (o) => {
+    const before = burnStacks(o);
+    addBurn(g, p, o, 1, relicDamage(p, n.power));
+    if (o !== e && before < need && burnStacks(o) >= need) caught.push(o);
+  });
+  burst(g, e.x, e.y, F.color, 16, 260);
+  if (link && awakened(p, 'flashpowder')) for (const o of caught) if (!o.dead) flare(g, p, o, false);
+}
+
+/** Pitch Pot (#229): does `e` stand in a patch of its burning pitch? */
+const inPitch = (g: Game, e: Enemy): boolean => g.fields.some((f) => f.by === 'pitchPot' && (f.x - e.x) ** 2 + (f.y - e.y) ** 2 <= f.r * f.r);
 
 export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
   brimstoneOil: {
@@ -159,6 +180,54 @@ export const FLAME_RELICS: Partial<Record<RelicId, RelicHooks>> = {
         const b = e.statuses.burn;
         if (b) damageEnemy(g, e, b.power * b.stacks, false, 0, 0, 'relic', 'fire');
       }
+    },
+  },
+
+  // ---------------------------------------------------------------- v0.12 (#229): the Cinderlands
+  flashpowder: {
+    onHit(g, ev, p) {
+      // a hit of yours (an attack, an ability, a hit your minions land with Legion), not a relic's burst or a burn's tick
+      if (!attackHit(p, ev.source) && ev.source !== 'ability') return;
+      const n = nOf(p, 'flashpowder');
+      const does = spark(burnStacks(ev.enemy), n.stacks, g.time, g.vars['powder.t'] ?? -99, n.every);
+      if (!does || ev.enemy.dead) return;
+      g.vars['powder.t'] = g.time;
+      if (does === 'flare') flare(g, p, ev.enemy, true);
+      else if (ev.enemy.hp > 0) addBurn(g, p, ev.enemy, n.light, relicDamage(p, n.power)); // not burning enough yet: the powder lights it for the next spark
+    },
+  },
+
+  pitchPot: {
+    tick(g, dt, p) {
+      const n = nOf(p, 'pitchPot');
+      if ((g.vars['pitch.t'] = (g.vars['pitch.t'] ?? 0) + dt) < n.every) return;
+      g.vars['pitch.t'] = 0;
+      const laid = g.fields.reduce((c, f) => c + (f.by === 'pitchPot' ? 1 : 0), 0);
+      const near = g.hash.query(p.x, p.y, n.reach, []).filter((e) => !e.dead);
+      for (const e of pitchDrips(near, (o) => burnStacks(o) > 0, p.x, p.y, n.reach, n.max - laid, (o) => inPitch(g, o))) {
+        addField(g, { x: e.x, y: e.y, r: n.radius, life: n.life, dps: relicDamage(p, n.dps), hostile: false, color: F.color, dtype: 'fire', apply: { id: 'burn', stacks: 1, power: relicDamage(p, n.power) } });
+        burst(g, e.x, e.y, F.color, 6, 120);
+      }
+    },
+    onKill(g, ev, p) {
+      if (awakened(p, 'pitchPot') && inPitch(g, ev.enemy)) pyre(g, p, ev.enemy); // Tar Pit
+    },
+  },
+
+  crownOfCinders: {
+    onHit(g, ev, p) {
+      if (attackHit(p, ev.source) && ev.enemy.hp > 0 && burnStacks(ev.enemy) === 0) addBurn(g, p, ev.enemy, 1, relicDamage(p, nOf(p, 'crownOfCinders').power));
+    },
+    onKill(g, ev, p) {
+      // the dead enemy's burn is still on it when onKill runs (killEnemy clears nothing), so its stacks and power pass on as they were
+      const b = ev.enemy.statuses.burn;
+      if (!b || b.stacks <= 0) return;
+      const n = nOf(p, 'crownOfCinders');
+      const woke = awakened(p, 'crownOfCinders'); // Conflagration
+      const stacks = leapStacks(b.stacks, woke ? aOf('crownOfCinders').extra : 0);
+      const power = b.power;
+      nova(g, ev.enemy.x, ev.enemy.y, woke ? aOf('crownOfCinders').reach : n.radius, relicDamage(p, n.damage), 60, F.color, 'fire', (e) => addBurn(g, p, e, stacks, power));
+      burst(g, ev.enemy.x, ev.enemy.y, F.color, 12, 220);
     },
   },
 };
