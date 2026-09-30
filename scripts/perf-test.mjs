@@ -139,7 +139,8 @@ for (const modifier of SCENARIOS) {
     topUp();
     lb.run(180, true, true); // the fight is on: particles, numbers, procs, and the sprite caches are warm
     window.__slabs = 0; // the fortress: the most slabs a forge press marked at once while it was measured
-    window.__topUp = setInterval(() => lb.state === 'playing' && (final || fortress || (g.modifier = modifier), (window.__slabs = Math.max(window.__slabs, g.zones.filter((z) => z.slab).length)), topUp()), 500);
+    // the fortress: a press is never more than a second off (its own clock runs 8 s, longer than the measurement), so its slabs and rams are always in the frames
+    window.__topUp = setInterval(() => lb.state === 'playing' && (final || fortress || (g.modifier = modifier), fortress && g.pressT > 1 && (g.pressT = 1), (window.__slabs = Math.max(window.__slabs, g.zones.filter((z) => z.slab).length)), topUp()), 500);
     lb.setPerf(true); // section timers and draw counts, like the overlay
     lb.resetPerf();
   }, modifier);
