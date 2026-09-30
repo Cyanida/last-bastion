@@ -31,9 +31,10 @@ const DORIAN = [0, 2, 3, 5, 7, 9, 10];
 const PHRYGIAN = [0, 1, 3, 5, 7, 8, 10];
 const MIXOLYDIAN = [0, 2, 4, 5, 7, 9, 10];
 const MINOR = [0, 2, 3, 5, 7, 8, 10];
+const PHRYGIAN_DOMINANT = [0, 1, 4, 5, 7, 8, 10]; // #231: Phrygian with a major third: the flat second's dread, and heat
 
 /** #219: a theme is an arena's, or a realm's own (its levels play it in place of their arena's). */
-export type ThemeId = ArenaId | 'ironHold';
+export type ThemeId = ArenaId | 'ironHold' | 'cinderlands';
 
 export const THEMES: Record<ThemeId, Theme> = {
   courtyard: {
@@ -63,7 +64,7 @@ export const THEMES: Record<ThemeId, Theme> = {
     lead: 'horn',
     boss: { midi: 43, hits: [[0, 1], [1, 0.6], [2, 0.8], [3, 0.6], [3.5, 0.5]] },
   },
-  // #223: the Ember Forge, until the Cinderlands' own theme: the keep's march in a Phrygian minor, a hammer on the anvil for the drum
+  // #223: the Ember Forge (a plain run there; the Cinderlands' levels play their own theme, #231): the keep's march in a Phrygian minor, a hammer on the anvil for the drum
   emberForge: {
     name: 'The Ember Forge', root: 4, mode: PHRYGIAN, bpm: 80, meter: 4,
     chords: [0, 1, 3, 0, 5, 1, 6, 0], // i bII iv i | VI bII vii i
@@ -92,10 +93,20 @@ export const THEMES: Record<ThemeId, Theme> = {
     lead: 'horn',
     boss: { midi: 36, hits: [[0, 1], [0.75, 0.45], [1, 0.8], [2, 1], [2.75, 0.45], [3, 0.8], [3.5, 0.5]] },
   },
+  // #231: the Cinderlands' own theme over the Ember Forge: a slow fire dance in three, a harp flickering over an organ's glow, a flute for the lead
+  cinderlands: {
+    name: 'The Cinderlands', root: 11, mode: PHRYGIAN_DOMINANT, bpm: 90, meter: 3,
+    chords: [0, 1, 0, 3, 0, 6, 1, 0], // I bII I iv | I bvii bII I: it keeps falling back onto the flat second, like a fire that won't go out
+    drone: 'drone', pad: 'organ',
+    pulse: { voice: 'harp', steps: [0, 2, 1, 3, null, 2] }, // flames licking up the chord, a breath before the last
+    perc: { midi: 47, hits: [[0, 0.75], [1, 0.3], [1.5, 0.4], [2, 0.55]] }, // a hand drum's dance
+    lead: 'flute',
+    boss: { midi: 38, hits: [[0, 1], [0.5, 0.45], [1, 0.7], [1.5, 0.45], [2, 0.9], [2.5, 0.55]] },
+  },
 };
 
 /** #219: the realms whose levels play a theme of their own; the rest play their arena's. */
-export const REALM_THEMES: Partial<Record<RealmId, ThemeId>> = { ironHold: 'ironHold' };
+export const REALM_THEMES: Partial<Record<RealmId, ThemeId>> = { ironHold: 'ironHold', cinderlands: 'cinderlands' };
 
 /**
  * Mixing and the adaptive rules. Volumes are gains; the run mix sits under the menu's so the music never gets louder than the effects.

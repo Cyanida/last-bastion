@@ -90,6 +90,17 @@ export const WARDEN = {
 };
 
 /**
+ * #231: the Grand Inquisitor as the Cinderlands' elite (its level 4; his script is systems/enemyAI.ts, logic/crownBoss.ts). His extra
+ * phase, after his two, is the Auto-da-fé: every pyre of his lines stays alight where it lands, so the fan fences the floor off in walls
+ * of fire until about his next cast, and standing in one stacks the Torchbearers' burn (config/damage.ts ENEMY_STATUS: it falls off a
+ * stack at a time, and your utility puts it out). No more lines and no more Cultists than his second phase: the fire that stays is the phase.
+ */
+export const INQUISITOR = {
+  pyreFrom: 3, // the phase his pyres stay alight from: only the elite gets there (a plain Inquisitor has two)
+  pyre: { life: 2.5, dps: 8 }, // the burning ground a pyre leaves, as wide as the pyre (they stand closer than that, so a line is a wall): seconds, and fire a second before scaling
+};
+
+/**
  * #215: the Forgemaster, the Iron Hold's level-3 boss (logic/forgemaster.ts, systems/bosses.ts). Three phases like an Act boss, since his
  * level ends on an Act's last wave; no minimum phase time (that is the crown boss's). Phase 1: his hammer comes down in a marked arc in
  * front of him. From phase 2 every other blow is his forge presses instead: a checkerboard of marked tiles round you that slam one colour,
