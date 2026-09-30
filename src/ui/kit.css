@@ -675,7 +675,7 @@
 /* ---------- #197: the champion screen (Survivor.io style): the champion on a pedestal between its six slots, the inventory and the
    talent plan beside it, the next level and one big green PLAY under it, the main tabs at the bottom ---------- */
 .champion-screen { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 8px; width: min(1100px, calc(96 * var(--vw))); height: min(700px, calc(94 * var(--vh))); padding: 12px 14px 0; color: var(--kit-light); }
-.champion-screen .kit-head .kit-purse { position: absolute; top: 0; left: 0; gap: 8px; }
+.champion-screen .kit-head .kit-purse { position: absolute; top: 0; left: 0; right: auto; gap: 8px; } /* right: auto, or it spans the header and takes the back button's clicks */
 .cs-main { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; min-height: 0; }
 /* #239: the six slots in one row under the pedestal, so a legendary is one frame two slots wide */
 .cs-slots { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 12px; }
