@@ -199,6 +199,11 @@ export const WORLD = {
     /** #232: a relic realm's own wave lengths, in place of `realm`'s. The Cinderlands' levels 2-4 are longer (more foes over a longer time): the realm ran 29 minutes clean against rule 9's 35. */
     own: { cinderlands: { foes: [1.6, 1.3, 1.25, 1.05, 0.9], pace: [2, 1.65, 1.7, 2, 2.2] } } as Partial<Record<RealmId, { foes: number[]; pace: number[] }>>,
   },
+  /**
+   * #259: a level whose road features one of its realm's `fields` foes (the Iron Hold's Iron Shieldwall) brings a squad of it for sure,
+   * on a wave drawn per seed from the level's first `within` waves where that squad is fielded; any more come at `fieldsWeight`.
+   */
+  featuredSquad: { within: 3 },
   /** Rule 6: the Last Bastion's elite foes and limits. */
   finale: { minAffixes: 2, eliteCap: 0.35, eliteChanceMult: 1.5, armorersChoice: false, merchantRelics: false },
   /**

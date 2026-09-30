@@ -20,6 +20,7 @@ export interface DirectorInput {
   tier?: number; // v0.8 (#101): the difficulty tier's roster (WAVES.tierRoster); none = every type
   fields?: readonly EnemyId[]; // #249: types fielded on every tier here (a realm's own foes in its levels, logic/world levelFields)
   fieldsWeight?: number; // #249: a multiplier on a squad's weight when it comes only thanks to `fields` (config/world.ts fieldsWeight)
+  featured?: readonly string[]; // #259: squad templates this wave brings for sure, before the rolled ones (logic/world featuredSquads)
   themeBias?: Partial<Record<EnemyId, number>>; // the current Act's theme
   budgetMult?: number; // curses
   squadMult?: number;
@@ -119,6 +120,15 @@ export function directWave(input: DirectorInput): DirectedWave {
     const templates = SQUADS.filter((t) => wave >= t.from && squadOnTier(t, input.tier, input.fields)).map((t) => ({ value: t, weight: t.weight * (t.commander ? bias(t.commander) : 1) * bias(t.members[0][0]) * (squadOnTier(t, input.tier) ? 1 : (input.fieldsWeight ?? 1)) }));
     const squadChance = Math.min(0.95, (sq.chance + sq.perWave * (wave - sq.fromWave) + DIRECTOR.actBias.squadChance[actIdx(wave)]) * (input.squadMult ?? 1));
     let squadBudget = budget * (sq.maxShare + DIRECTOR.actBias.maxShare[actIdx(wave)]);
+    // #259: a featured squad comes for sure, out of the squad budget : it takes a rolled squad's place rather than adding one
+    // (taken from the loose foes instead, the rolled squads kept, Knight measured the same: BALANCE.md)
+    for (const t of SQUADS.filter((s) => input.featured?.includes(s.id))) {
+      const cost = squadCost(t);
+      squadBudget -= cost;
+      left -= cost;
+      const index = squads.push(squadPlan(t)) - 1;
+      units.push(...squadUnits(t, index, (commander) => affixesFor(commander && input.eliteCommanders === true)));
+    }
     while (templates.length > 0 && squads.length < sq.maxPerWave && rng() < squadChance) {
       const t = pickWeighted(templates, rng);
       const cost = squadCost(t);
