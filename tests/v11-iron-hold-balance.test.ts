@@ -57,7 +57,7 @@ describe('the level step and wave length, as tuned (#220)', () => {
   it('the level panel shows the Enemy HP a level plays at', () => {
     const shown = (realm: 'marches' | 'ironHold', level: number, tier: number) => levelPanel({ marches: [7] }, realm, level, tier).enemyHp;
     expect(shown('marches', 1, 1)).toBe(59);
-    expect(shown('marches', 1, 0)).toBe(40);
+    expect(shown('marches', 1, 0)).toBe(34); // #250: Squire's ease (40% before)
     expect([1, 2, 3, 4, 5].map((l) => shown('ironHold', l, 1))).toEqual([335, 251, 237, 240, 225]);
     const g = createGame('viking', 3, { tier: 1, level: { realm: 'ironHold', level: 5 } });
     expect(Math.round(g.tier.enemyHp * 100)).toBe(225);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { REALMS } from '../src/config/world';
 import { championStep } from '../src/logic/championLevels';
-import { featuredFoes, levelPanel, levelStep, nextLevel, recordClear, roadLevels, roadTier, type WorldProgress } from '../src/logic/world';
+import { featuredFoes, levelPanel, levelStep, nextLevel, recordClear, roadLevels, roadTier, tierStep, type WorldProgress } from '../src/logic/world';
 
 const SQUIRE = 0, KNIGHT = 1, CHAMPION = 2;
 const cleared = (realm: 'marches' | 'ironHold', upTo: number, tier: number, p: WorldProgress = {}): WorldProgress =>
@@ -29,7 +29,7 @@ describe('the realm road (#199)', () => {
   });
 });
 
-const M1_SQUIRE = Math.round(100 * levelStep('marches', 1).hp * championStep('marches', 1).hp); // #243: the numbers are tuned in config/world.ts; the panel shows their product
+const M1_SQUIRE = Math.round(100 * levelStep('marches', 1).hp * championStep('marches', 1).hp * tierStep(0, 'marches', 1).hp); // #243: the numbers are tuned in config/world.ts; the panel shows their product (#250: with Squire's ease)
 
 describe('the level panel (#199)', () => {
   it('Marches level 1: waves, no head start (#237), slots, Squire HP with its level step (#221), Steel featured, a pool boss, its rare pick', () => {
@@ -56,7 +56,7 @@ describe('the level panel (#199)', () => {
     expect(levelPanel(cleared('marches', 1, SQUIRE), 'marches', 1, SQUIRE).rewards).toEqual([]);
     const iron = levelPanel(cleared('marches', 7, SQUIRE), 'ironHold', 3, SQUIRE);
     expect(iron.rewards).toEqual(['Your class relic of Steel']);
-    expect(iron.enemyHp).toBe(Math.round(107 * levelStep('ironHold', 3).hp * championStep('ironHold', 3).hp)); // 107% x level 3's step (#221, #243) x the champion step (#238: a level-10 champion)
+    expect(iron.enemyHp).toBe(Math.round(107 * levelStep('ironHold', 3).hp * championStep('ironHold', 3).hp * tierStep(SQUIRE, 'ironHold', 3).hp)); // 107% x level 3's step (#221, #243) x the champion step (#238: a level-10 champion) x Squire's ease (#250)
     expect(iron.open).toBe(false);
     expect(levelPanel({}, 'ironHold', 5, KNIGHT).rewards).toEqual(['Pick 1 of 2 Steel legendaries']);
   });

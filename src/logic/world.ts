@@ -121,6 +121,18 @@ export function levelStep(realm: RealmId, level: number): { hp: number; damage: 
   return { hp: s.hp[level - 1] ?? 1, damage: s.damage[level - 1] ?? 1 };
 }
 
+/**
+ * #250: a tier's own ease in a realm's levels (TierDef.realmEase: Squire's), from its first level's to its last's, even between; 1 on a
+ * tier without one and in the Last Bastion (a whole run, its own release tunes it).
+ */
+export function tierStep(tier: number, realm: RealmId, level: number): { hp: number; damage: number } {
+  const e = TIERS[tier]?.realmEase;
+  if (!e || realm === 'lastBastion') return { hp: 1, damage: 1 };
+  const t = REALMS[realm].levels.length > 1 ? (level - 1) / (REALMS[realm].levels.length - 1) : 0;
+  const at = ([a, b]: [number, number]) => Math.round((a + (b - a) * t) * 1000) / 1000;
+  return { hp: at(e.hp), damage: at(e.damage) };
+}
+
 /** #243: a level's wave length (WORLD.levelWaves): multipliers on the foes a wave brings and on the time they trickle in over; the Last Bastion keeps 1. */
 export function levelWaves(realm: RealmId, level: number): { foes: number; pace: number } {
   if (realm === 'lastBastion') return { foes: 1, pace: 1 };
@@ -277,7 +289,7 @@ export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier
     name: `${def.name} · Level ${level}`,
     waves: lv.waves,
     slots: slotsFor(realm, level, bonus.slots),
-    enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * levelStep(realm, level).hp * championStep(realm, level).hp * 100), // #238: with the champion level it expects, as the level plays
+    enemyHp: Math.round(TIERS[tier].enemyHp * ringStep(realm).hp * levelStep(realm, level).hp * championStep(realm, level).hp * tierStep(tier, realm, level).hp * 100), // #238: with the champion level it expects, as the level plays; #250: and Squire's ease
     family: lv.family,
     foes: featuredFoes(lv.waves, undefined, tier, realm).map((id) => ENEMIES[realmFoe(realm, id)].name), // #212: as they march there; #249: only what this tier fields
     boss: bossName(lv.boss, lv.waves[1]),
