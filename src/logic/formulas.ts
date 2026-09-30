@@ -77,6 +77,9 @@ export function healFactor(wave: number): number {
 }
 export const enemyDmgMult = (wave: number): number => actScaled(wave, WAVES.dmg);
 
+/** #238: a player's level on the in-run scale the formulas were tuned on: a champion's level counts as CHAMPION.runLevels each (p.levelWorth). */
+export const runLevel = (p: { level: number; levelWorth: number }): number => 1 + (p.level - 1) * p.levelWorth;
+
 /** Per-level automatic growth. Returns a new stats object. */
 export function applyGrowth(stats: Stats, growth: Stats): Stats {
   const out = { ...stats };

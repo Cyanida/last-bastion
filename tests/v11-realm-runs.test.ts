@@ -34,7 +34,7 @@ describe('realm runs: checkpoints and the carry (#237)', () => {
     expect(g2.player.level).toBe(g1.player.level); // no head start: the level the run grew
     expect(g2.player.stats).toEqual(g1.player.stats);
     expect([g2.startWave, g2.wave]).toEqual([6, 5]);
-    expect(g2.level).toMatchObject({ realm: 'marches', level: 2, from: g1.player.level });
+    expect(g2.level).toMatchObject({ realm: 'marches', level: 2 });
     expect(r.offers[0]?.from).toBe('start'); // the opening pick stays at every level
   });
 
@@ -100,7 +100,7 @@ describe('realm runs: checkpoints and the carry (#237)', () => {
     const g2 = createGame('viking', run.seed, { level: { realm: 'marches', level: 2, carry: run.carry } });
     g2.wavesCleared = 10;
     const s = summarizeRun(g2);
-    expect(s.realmLevel).toMatchObject({ level: 2, from: run.carry!.level });
+    expect(s.realmLevel).toMatchObject({ level: 2, xp: 0 }); // #238: what it collected, for the champion
     expect(applyRun(defaultSave(), s).classXp).toBeGreaterThanOrEqual(0);
   });
 

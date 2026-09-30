@@ -36,8 +36,9 @@ describe('v0.10 the Marches tutorial on flash cards (#60)', () => {
 
   it('with a choice screen due only the level-up card shows, before its screen', () => {
     expect(tutorialCard(view(), [], true)).toBeNull(); // the opening pick opens first; moving waits for play
-    expect(tutorialCard(view({ levelUp: true }), [], true)).toBe('levelUp');
-    expect(tutorialCard(view({ levelUp: true }), ['levelUp'], true)).toBeNull();
+    expect(tutorialCard(view({ levelUp: true }), [], true)).toBeNull(); // #238: no level-up screen in a level: the XP card waits for play like the rest
+    expect(tutorialCard(view({ levelUp: true }), ['move', 'relics', 'ability'])).toBe('levelUp');
+    expect(tutorialCard(view({ levelUp: true }), ['move', 'relics', 'ability', 'levelUp'])).toBeNull();
   });
 
   it('seen once, never again', () => {

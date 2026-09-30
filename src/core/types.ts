@@ -29,6 +29,7 @@ import type { StatusApply, StatusMap } from '../logic/status';
 import type { Sprite } from '../render/sprites';
 import type { SpatialHash } from './spatial';
 import type { RealmId } from '../config/world';
+import type { StatPoints } from '../config/champion';
 
 export type StatKey = 'hp' | 'str' | 'dex' | 'int' | 'atkSpd' | 'moveSpd' | 'secondary';
 export type Stats = Record<StatKey, number>;
@@ -151,7 +152,8 @@ export interface Player extends Body {
   stats: Stats;
   hp: number;
   level: number;
-  xp: number;
+  levelWorth: number; // #238: run levels one of its levels stands for: 1 in a plain run, CHAMPION.runLevels for a champion (logic/formulas runLevel)
+  xp: number; // toward the next level; #238: in a realm level, the XP collected so far, banked as champion XP on its clear
   facing: number;
   flip: boolean;
   attackTimer: number;
@@ -600,6 +602,6 @@ export interface Game {
   glows: Glow[]; // v0.6: lights the evolutions set every tick (wisps, souls, rings); cleared at the start of each tick
   // --- v0.10 levels (#191, systems/levels.ts) ---
   startWave: number; // the first wave this run plays: 1, or a level's first wave (its head start)
-  level: { realm: RealmId; level: number; last: number; cleared: boolean; from?: number } | null; // the realm level this run is (null: a plain run); cleared once its last wave is
+  level: { realm: RealmId; level: number; last: number; cleared: boolean; champion: { level: number; points: StatPoints; xp: number; next: number } } | null; // #238 `champion`: the champion's level and stat points as the run holds them, and its XP bar entering the level; // the realm level this run is (null: a plain run); cleared once its last wave is
   over: boolean;
 }

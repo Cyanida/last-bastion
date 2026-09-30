@@ -7,8 +7,9 @@ import { createGame, summarizeRun, type RunOptions } from '../game';
 import { championBonus, fitLoadout, newChampion, ownable, rarePickOptions, type Champion } from '../logic/champions';
 import { attackDamage, critChance } from '../logic/formulas';
 import { familySets } from '../logic/relics';
-import { branchPlan } from '../logic/talents';
-import { slotsFor } from '../logic/world';
+import { botBuild, expectedChampionLevel, levelCap, xpForLevel } from '../logic/championLevels';
+import { masteryBonus } from '../logic/economy';
+import { recordClear, slotsFor } from '../logic/world';
 import type { RunSummary } from '../logic/save';
 import { botStep } from './bot';
 
@@ -59,6 +60,7 @@ const firstOf = (c: Champion, classId: ClassId, family: FamilyId | undefined, pi
 function clear(c: Champion, classId: ClassId, realm: RealmId, level: number): Champion {
   const def = REALMS[realm];
   const r = def.levels[level - 1].reward;
+  c = { ...c, world: recordClear(c.world, realm, level, 1) }; // #238: its crowns set its level cap
   const add = (id: RelicId | undefined) => (id ? { ...c, inventory: [...c.inventory, id] } : c);
   if (r?.kind === 'rarePick') c = add(rarePickOptions(c, r.family, r.of)[0]);
   // a kept locked relic: the realm's own family, which the bot holds in its realm (rule 5); the rarest the family has left, not a legendary
@@ -80,7 +82,9 @@ export function expectedChampion(classId: ClassId, realm: RealmId, level: number
   let c = newChampion(classId);
   for (const r of CROWNED_BEFORE[realm]) for (let l = 1; l <= REALMS[r].levels.length; l++) c = clear(c, classId, r, l);
   for (let l = 1; l < level; l++) c = clear(c, classId, realm, l);
-  return c;
+  // #238: at the level enemy scaling expects there, as far as the crowns it holds let it (5 before the Marches crown)
+  const at = Math.min(levelCap(c.world), expectedChampionLevel(realm, level));
+  return { ...c, level: at, xp: xpForLevel(at) };
 }
 
 /**
@@ -110,12 +114,14 @@ export interface LevelRun {
   summary: RunSummary;
 }
 
-/** The RunOptions of a level for `c`, with the bot's loadout (in the slots the Keep and mastery in `extra` give) and talent plan. */
+/** The RunOptions of a level for `c`, with the bot's loadout (in the slots the Keep and mastery in `extra` give) and its build at the champion's level. */
 export function levelOptions(classId: ClassId, c: Champion, realm: RealmId, level: number, tier: number, variant = 0, extra: RunOptions = {}): RunOptions {
   const def = REALMS[realm].levels[level - 1];
   const slots = slotsFor(realm, level, championBonus(extra.meta ?? {}, extra.classXp ?? 0).slots);
   const relics = botLoadout(classId, c.inventory, slots, def.family, realm === 'lastBastion');
-  return { ...extra, tier, level: { realm, level, relics, talentPlan: branchPlan(classId, variant) }, inventory: c.inventory, fresh: c.inventory };
+  // #238: the bot's build at the champion's level (expectedChampion: the level enemy scaling expects, held at its crown cap)
+  const champion = botBuild(classId, c.level, variant, masteryBonus(extra.classXp ?? 0).utilityTier ? 2 : 1);
+  return { ...extra, tier, level: { realm, level, relics, champion }, inventory: c.inventory, fresh: c.inventory };
 }
 
 /** A first try at `level` of `realm` by the bot, with expected progress (or champion `c`). The run stops on the clear, a death or `maxSeconds`. */

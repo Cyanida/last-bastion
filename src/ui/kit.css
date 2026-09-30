@@ -717,6 +717,7 @@
 .cs-relic.blocked { filter: grayscale(0.85) brightness(0.7); }
 .cs-why { margin: 6px 0 0; font-size: 14px; color: #7a1a24; min-height: 1em; }
 .cs-empty { margin: 0; font-size: 14px; }
+.cs-level { margin: 0 0 6px; font-size: 15px; }
 .cs-plan { margin: 0 0 6px; padding-left: 22px; columns: 2; font-size: 14px; }
 .cs-go { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 18px; }
 .cs-next { display: flex; align-items: center; gap: 8px; }
@@ -755,7 +756,7 @@
 .compact .cs-side h2 { font-size: 11px; margin-bottom: 3px; }
 .compact .cs-relic .kit-rarity { width: 36px; height: 36px; }
 .compact .cs-relic .kit-glyph { font-size: 18px; }
-.compact .cs-empty, .compact .cs-why, .compact .cs-plan { font-size: 11px; }
+.compact .cs-empty, .compact .cs-why, .compact .cs-plan, .compact .cs-level { font-size: 11px; }
 .compact .cs-next b { font-size: 12px; }
 .compact .cs-next small { font-size: 11px; }
 .compact .cs-go .kit-btn.big { padding: 4px 30px 3px; font-size: 18px; }
