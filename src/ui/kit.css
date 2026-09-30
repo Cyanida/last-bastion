@@ -485,7 +485,9 @@
 .compact .keep-castle { padding: 10px; }
 .compact .keep-head { margin-bottom: 6px; }
 .compact .keep-head h1 { font-size: 17px; }
-.compact .keep-plate { font-size: 10px; padding: 0 5px; }
+.compact .keep-plate { font-size: 10px; padding: 0 4px; gap: 3px; }
+.compact .keep-plate .pips { gap: 1px; }
+.compact .keep-plate .pips i { width: 4px; height: 4px; } /* #256: the Library's and the Watchtower's plates stand close on a phone: they never touch */
 .compact .keep-panel { padding: 10px; }
 /* ---------- #187: the compendium, the glossary and the flash cards in the kit ----------
    .kit-book: a frame that reads like a book: a ribbon heading, the close button in its corner, and a parchment that scrolls */

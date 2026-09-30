@@ -6871,6 +6871,123 @@ await check('Ability bar: 0 to 3 upgrade chips, the E key and the utility name a
   return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : seen.join('; ') };
 });
 
+// ---------- #256: no menu text under 14 px at 1280x720 on the title, the world map, the road, class select, the Keep and the talent tree ----------
+// Played through the screens with the mouse at 1280x720 and by touch in phone landscape, on a champion with three Marches levels cleared
+// (and later a run at level 3 holding three relics), 12 wins and full mastery: the title, the map, the road on level 3 (its "The run
+// starts at level 1" note) and on level 4 with the run (its relics row, a relic's tooltip with its glossary block), class select, the Keep
+// and a building's panel, the champion screen's Talents tab and the talent tree with a talent's tooltip. At 1280x720 no text showing is
+// under 14 px (#235's rule); at both sizes the realm names, the road's tier buttons and its bottom row, the Keep's plates and a champion
+// tile's record never overlap one another or spill out of their box.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`menus: no text under 14 px at 1280x720, nothing overlapping or cut off, on the title, map, road, class select, Keep and talent tree, ${touch ? 'tap' : 'click'} at ${w}x${h} (#256)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = async (sel) => {
+      await (touch ? p.locator(sel).first().tap({ timeout: 5000 }) : p.locator(sel).first().click({ timeout: 5000 }));
+      await p.waitForTimeout(120);
+    };
+    const title = async () => {
+      await p.goto(`http://localhost:${PORT}/?debug`);
+      await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+      await seed(false);
+    };
+    const seed = (run) => p.evaluate(([run, carry]) => {
+      const lb = window.__lb, three = ['brimstoneOil', 'emberheart', 'frostBrand'];
+      lb.save.champions = { paladin: { name: 'Hild', inventory: three, loadouts: { marches: three.slice(0, 2) }, ...lb.build.grown({}), world: { marches: [3] }, signature: false, lastBastion: false, runs: run ? { marches: { ...carry, carry: { ...carry.carry, relics: { ...carry.carry.relics, held: three } } } } : {} } };
+      lb.save.wins = { ...lb.save.wins, paladin: 12 };
+      lb.save.classes.paladin.xp = 1e9; // Mastery 25: the longest record a champion tile holds
+      lb.save.cards = [...lb.cardIds];
+    }, [run, runAt(3)]);
+    // every piece of text showing (the tooltip too) smaller than 14 px, and the labels that overlap one another or spill out of their box
+    const look = (screen) => p.evaluate((screen) => {
+      const tiny = [];
+      const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        const e = n.parentElement, r = e.getBoundingClientRect();
+        if (!n.textContent.trim() || !r.width || !r.height || e.closest('[hidden], #hud') || getComputedStyle(e).visibility === 'hidden') continue;
+        const px = parseFloat(getComputedStyle(e).fontSize);
+        if (px < 14) tiny.push(`${screen}: ${px}px "${n.textContent.trim().slice(0, 24)}"`);
+      }
+      const shown = (sel) => [...document.querySelectorAll(sel)].filter((e) => e.getClientRects().length && !e.closest('[hidden]'));
+      const name = (e) => e.textContent.trim().replace(/\s+/g, ' ').slice(0, 20);
+      const bad = [];
+      for (const sel of ['.wm-name', '.rr-tier', '.rr-go:not([hidden]) > *', '.keep-plate']) {
+        const els = shown(sel);
+        for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++) {
+          const a = els[i].getBoundingClientRect(), b = els[j].getBoundingClientRect();
+          if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) bad.push(`${screen}: "${name(els[i])}" over "${name(els[j])}"`);
+        }
+      }
+      for (const [sel, box] of [['.wm-name, .wm-opens', '.wm-map'], ['.keep-plate', '.keep-yard'], ['.champ-rec, .champ-name', '.card.champ'], ['.rr-go:not([hidden]) > *', '.rr-panel']]) {
+        for (const e of shown(sel)) {
+          const r = e.getBoundingClientRect(), o = e.closest(box).getBoundingClientRect();
+          if (r.left < o.left - 1 || r.right > o.right + 1 || r.top < o.top - 1 || r.bottom > o.bottom + 1 || e.scrollWidth > e.clientWidth + 1) bad.push(`${screen}: "${name(e)}" cut off`);
+        }
+      }
+      const tip = document.getElementById('tooltip');
+      return { tiny, bad, gloss: !!tip && tip.style.display === 'block' && !!tip.querySelector('.gloss') };
+    }, screen);
+    const seen = [];
+    const at = async (screen) => {
+      await p.waitForTimeout(150);
+      const r = await look(screen);
+      seen.push(r);
+      return r;
+    };
+    await seed(false);
+    await at('title');
+    await press('[data-go="map"]');
+    await at('map');
+    await press('.wm-realm.r-marches');
+    await press('.rr-flag.l-3');
+    const note = await p.evaluate(() => document.querySelector('.rr-from')?.textContent ?? '');
+    await at('road');
+    await press('[data-back]');
+    await seed(true);
+    await press('.wm-realm.r-marches');
+    await press('.rr-flag.l-4');
+    const run = await p.evaluate(() => ({ relics: document.querySelectorAll('.rr-relic').length, note: document.querySelector('.rr-from')?.textContent ?? '' }));
+    await at('road with a run');
+    let gloss = null;
+    if (!touch) {
+      await p.hover('.rr-relic');
+      gloss = (await at('a run relic\'s tooltip')).gloss;
+      await p.mouse.move(2, 2);
+    }
+    await title();
+    await press('[data-go="start"]');
+    await at('class select');
+    await title();
+    await press('[data-go="keep"]');
+    await p.locator('.keep-yard').waitFor({ timeout: 3000 });
+    await at('the Keep');
+    await press('.keep-bld.b-armory');
+    await at('the Armory\'s panel');
+    await title();
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await skipTour(p, touch);
+    await press('[data-cs="talents"]');
+    await at('champion Talents tab');
+    await press('[data-spend-talents]');
+    await p.locator('.kit-screen.talents').waitFor({ timeout: 3000 });
+    await at('talent tree');
+    if (!touch) {
+      await p.hover('.talent');
+      await at('a talent\'s tooltip');
+    }
+    await p.close();
+    const tiny = touch ? [] : [...new Set(seen.flatMap((s) => s.tiny))];
+    const bad = [...new Set(seen.flatMap((s) => s.bad))];
+    const ok = seen.length === (touch ? 9 : 11) && tiny.length === 0 && bad.length === 0 && note === 'The run starts at level 1' && run.relics === 3 && run.note === 'the run stands at level 3'
+      && (touch || gloss) && errs.length === 0;
+    return { ok, detail: `${seen.length} screens; road notes "${note}" / "${run.note}" with ${run.relics} run relics${touch ? '' : `, a relic's tooltip ${gloss ? 'with' : 'WITHOUT'} its glossary block; under 14 px: ${tiny.slice(0, 8).join(', ') || 'none'}${tiny.length > 8 ? ` (+${tiny.length - 8})` : ''}`}; overlapping or cut off: ${bad.slice(0, 8).join(', ') || 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
