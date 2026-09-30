@@ -310,8 +310,8 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   // stacks from his hits (config/damage.ts ENEMY_STATUS), fire that spreads, and bursts of fire when foes die in his heat
   cinderColossus: {
     ...boss, id: 'cinderColossus', name: 'The Cinder Colossus', sprite: 'cinderColossus', behavior: 'chaser', phases: 3,
-    hp: 1200, damage: 24, speed: 66, radius: 34, xp: 160,
-    specialCd: 4.8, windup: 1, specialMult: 1.4, zoneRadius: 42, poolLife: 4.5, poolDps: 10, summon: 'cultist', summonCount: 3, p2SpeedMult: 1.1,
+    hp: 1200, damage: 18, speed: 66, radius: 34, xp: 160, // #232: damage 24 -> 18 and his fires' 10 -> 8 a second: he felled 16 of the 28 first tries that reached him (BALANCE.md)
+    specialCd: 4.8, windup: 1, specialMult: 1.4, zoneRadius: 42, poolLife: 4.5, poolDps: 8, summon: 'cultist', summonCount: 3, p2SpeedMult: 1.1,
   },
   // ---- v0.6: the end of the run (config/acts.ts FINAL, systems/bosses.ts) ----
   usurper: {

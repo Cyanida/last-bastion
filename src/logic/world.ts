@@ -108,17 +108,17 @@ export function ringStep(realm: RealmId): { hp: number; damage: number } {
   return { hp: WORLD.ringStep.hp[i], damage: WORLD.ringStep.damage[i] };
 }
 
-/** #221: enemy HP and damage multipliers for a level's place in its realm (WORLD.levelStep); the Last Bastion keeps 1. */
+/** #221: enemy HP and damage multipliers for a level's place in its realm (WORLD.levelStep; #232: a relic realm's own where it has them); the Last Bastion keeps 1. */
 export function levelStep(realm: RealmId, level: number): { hp: number; damage: number } {
   if (realm === 'lastBastion') return { hp: 1, damage: 1 };
-  const s = realm === 'marches' ? WORLD.levelStep.marches : WORLD.levelStep.realm;
+  const s = realm === 'marches' ? WORLD.levelStep.marches : WORLD.levelStep.own[realm] ?? WORLD.levelStep.realm;
   return { hp: s.hp[level - 1] ?? 1, damage: s.damage[level - 1] ?? 1 };
 }
 
 /** #243: a level's wave length (WORLD.levelWaves): multipliers on the foes a wave brings and on the time they trickle in over; the Last Bastion keeps 1. */
 export function levelWaves(realm: RealmId, level: number): { foes: number; pace: number } {
   if (realm === 'lastBastion') return { foes: 1, pace: 1 };
-  const s = realm === 'marches' ? WORLD.levelWaves.marches : WORLD.levelWaves.realm;
+  const s = realm === 'marches' ? WORLD.levelWaves.marches : WORLD.levelWaves.own[realm] ?? WORLD.levelWaves.realm; // #232: a relic realm's own where it has them
   return { foes: s.foes[level - 1] ?? 1, pace: s.pace[level - 1] ?? 1 };
 }
 

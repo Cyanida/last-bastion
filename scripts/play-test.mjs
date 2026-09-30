@@ -1669,6 +1669,88 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #232: the Cinderlands' balance pass, as a player meets it: map -> the Cinderlands -> Knight; every flag's panel shows the Enemy
+// HP its level plays at (its own level steps: the crown level eased), level 4 names its Elite boss, and FIGHT on level 1 plays at the HP
+// its panel showed. Then a realm run standing at level 4: Continue from level 4, its last wave brings the Grand Inquisitor as an elite
+// on 1.4 times the HP, and in his Auto-da-fé his pyres leave fire that burns 2.5 s at 8 a second (as a foe's blow scales): the numbers the sim measured him on ----------
+const CINDER_HP = [335, 251, 237, 240, 200]; // levels 1-5 on Knight, as tests/v12-cinderlands-balance.test.ts pins them
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`balance: the Cinderlands' road on Knight shows Enemy HP ${CINDER_HP.slice(0, 4).join(', ')} and ${CINDER_HP[4]}% for levels 1-5, level 4 an Elite boss, and FIGHT plays level 1 at ${CINDER_HP[0]}%; from level 4 the elite Grand Inquisitor has 1.4 times the HP and his Auto-da-fé's pyres burn 2.5 s at 8 a second, ${touch ? 'tap' : 'click'} at ${w}x${h} (#232)`, async () => {
+    const errs = [];
+    const open = async (world, runs) => {
+      const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+      p.on('pageerror', (e) => errs.push(e.message));
+      await p.goto(`http://localhost:${PORT}/?debug`);
+      await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+      await p.evaluate(([world, runs]) => {
+        const lb = window.__lb;
+        lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs } };
+        lb.save.cards = [...lb.cardIds]; // every flash card seen: none stops the fight
+      }, [world, runs]);
+      const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+      await press('[data-go="map"]');
+      await press('.wm-realm.r-cinderlands');
+      await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+      await press('.rr-tier[data-tier="1"]');
+      await p.waitForTimeout(100);
+      const panel = async (l) => {
+        await press(`.rr-flag.l-${l}`);
+        await p.waitForTimeout(100);
+        const text = (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ');
+        return { hp: text.match(/Enemy HP\s*(\d+)%/)?.[1] ?? '?', boss: text.match(/(End boss|Elite boss|Crown boss)/)?.[1] ?? '?', inquisitor: /Grand Inquisitor/.test(text), go: (await p.locator('[data-fight]').first().textContent()).trim() };
+      };
+      return { p, press, panel };
+    };
+    // the road: the Marches crowned, the Cinderlands' first four levels cleared on Knight, no run in progress
+    const a = await open({ marches: [7], cinderlands: [0, 4] }, {});
+    const shown = [];
+    for (let l = 1; l <= 5; l++) shown.push(await a.panel(l));
+    await a.panel(1);
+    await a.press('[data-fight]');
+    await a.p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await a.p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100), champion: g.player.level } : null; });
+    await a.p.close();
+    // the elite: a realm run on Knight standing at level 4
+    const b = await open({ marches: [7], cinderlands: [0, 3] }, { cinderlands: runAt(4, 1) });
+    const four = await b.panel(4);
+    await b.press('[data-fight]');
+    await b.p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const elite = await b.p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      if (!g?.level) return null;
+      g.player.invulnerable = true;
+      lb.run(30, false, true); // the opening pick, if one stands
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1;
+      g.breather = 0.01;
+      let boss = null;
+      for (let i = 0; i < 4000 && !boss; i++) (lb.run(1, false, true), (boss = g.enemies.find((e) => e.def.boss && !e.side) ?? null));
+      if (!boss) return { level: g.level.level, wave: g.wave, name: null };
+      const out = { level: g.level.level, wave: g.wave, tier: g.tierIndex, levelHp: Math.round(g.tier.enemyHp * 100), name: boss.def.name, phases: boss.def.phases, hp: boss.maxHp / (lb.enemyDef(boss.def.id).hp * g.waveHpMult * g.tier.enemyHp), banner: false, phase: 1, pyres: 0, life: 0, dps: 0 };
+      boss.hp = boss.maxHp * 0.25; // worn down to his last phase; he stands until his pyres are seen
+      const scale = g.waveDmgMult * g.tier.enemyDmg;
+      for (let i = 0; i < 1800 && out.pyres < 3; i++) {
+        boss.hp = Math.max(boss.hp, boss.maxHp * 0.1);
+        g.player.invulnerable = true;
+        lb.run(1, false, true);
+        if (g.banner?.text === 'The Inquisitor’s auto-da-fé') out.banner = true;
+        out.phase = Math.max(out.phase, boss.phase);
+        const fire = g.fields.filter((f) => f.hostile && f.dtype === 'fire' && f.apply?.id === 'burn');
+        if (fire.length > out.pyres) (out.pyres = fire.length), (out.life = fire[0].max), (out.dps = fire[0].dps / scale);
+      }
+      return out;
+    });
+    await b.p.close();
+    const ok = shown.map((s) => s.hp).join() === CINDER_HP.join() && shown.map((s) => s.boss).join() === 'End boss,End boss,End boss,Elite boss,Crown boss' && shown[3].inquisitor
+      && run?.realm === 'cinderlands' && run.level === 1 && run.tier === 1 && run.hp === CINDER_HP[0] && run.champion === 10 // four Cinderlands levels cleared: level 10, the cap with one crown
+      && four.boss === 'Elite boss' && four.hp === String(CINDER_HP[3]) && four.go === 'Continue from level 4'
+      && elite?.level === 4 && elite.wave === 32 && elite.tier === 1 && elite.levelHp === CINDER_HP[3] && elite.name === 'The Grand Inquisitor, Elite' && elite.phases === 3 && Math.abs(elite.hp - 1.4) < 0.02
+      && elite.phase === 3 && elite.banner && elite.pyres >= 3 && elite.life === 2.5 && Math.abs(elite.dps - 8) < 0.01 && errs.length === 0;
+    return { ok, detail: `panels Enemy HP ${shown.map((s) => `${s.hp}%`).join(', ')}; bosses ${shown.map((s) => s.boss).join(', ')}; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%, champion level ${run.champion}` : 'none'}; level 4 "${four.go}" (${four.boss}, ${four.hp}%): ${elite?.name ? `${elite.name} on wave ${elite.wave}, ${elite.phases} phases, HP x${elite.hp.toFixed(2)}, phase ${elite.phase}${elite.banner ? ', the auto-da-fé announced' : ''}, ${elite.pyres} pyres alight for ${elite.life} s at ${elite.dps.toFixed(1)} a second` : `no elite (${JSON.stringify(elite)})`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 // ---------- #237: the head start is gone: a realm run starts at level 1, wave 1 ----------
 // A champion from before v0.11, four Marches levels cleared and no run in progress, four relics in its Marches loadout: the road opens on
 // level 1 with the run's three slots and no head start; level 5 (open) says the run starts at level 1 and its FIGHT is off; FIGHT on

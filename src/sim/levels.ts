@@ -106,6 +106,9 @@ export function powerOf(g: Game): number {
 export interface LevelRun {
   classId: ClassId; realm: RealmId; level: number; seed: number;
   cleared: boolean; // its last wave cleared
+  fellWave?: number | null; // #232: the wave a lost first try fell on (null: it cleared, or ran out of time)
+  fellBoss?: boolean; // #232: it fell with the level's end boss on the floor
+  bossSeconds?: number | null; // #232: seconds the end boss stood, from its arrival to the level's end (null: never met)
   time: number; // seconds played
   loadout: RelicId[]; // what the bot slotted
   champion?: number; // #220: the champion level it played at (a realm run's: by the XP its earlier levels banked)
@@ -138,6 +141,8 @@ function playLevel(g: Game, classId: ClassId, realm: RealmId, level: number, var
   let sixAt: number | null = null;
   let heldBefore = -1;
   let fell: number | null = null;
+  let fellWave: number | null = null, fellBoss = false, bossAt: number | null = null;
+  const bossUp = () => g.enemies.some((e) => e.def.boss && !e.side);
   const moments = () => Object.entries(g.vars).filter(([k]) => k.startsWith('moments.')).reduce((n, [, v]) => n + v, 0);
   const carried = moments(); // a realm run carries its counters on: a level's moments are those it met itself
   const done = () => !!g.level?.cleared || g.victory !== 'none';
@@ -148,12 +153,15 @@ function playLevel(g: Game, classId: ClassId, realm: RealmId, level: number, var
       heldBefore = g.player.relics.held.length;
       if (Object.values(familySets(g.player.relics.held)).some((s) => s?.level === 6)) sixAt = Math.max(first, g.wave);
     }
+    if (bossAt === null && g.wave === g.level?.last && bossUp()) bossAt = g.time;
+    if (g.over && fell === null) (fellWave = g.wave), (fellBoss = bossUp());
     if (g.over && revive && !done()) (fell ??= g.time), (g.over = false), (g.player.hp = g.player.stats.hp), (g.player.invulnT = 3); // as continuousPower
   }
   const r = g.player.relics;
   const sets = familySets(r.held);
   return {
     classId, realm, level, seed: g.seed, cleared: fell === null && done(), time: fell ?? g.time, loadout, champion: g.player.level,
+    fellWave, fellBoss, bossSeconds: bossAt === null ? null : g.time - bossAt,
     power, relicsAtStart, held: r.held.length, duos: r.duos.length, sixes: FAMILY_IDS.filter((f) => sets[f]?.level === 6).length, sixAt,
     moments: moments() - carried,
     pool: r.pool.filter((id) => !isCursedRelic(id)).length,
