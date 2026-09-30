@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SQUADS } from '../src/config/director';
 import { TIERS } from '../src/config/economy';
+import type { EnemyId } from '../src/config/enemies';
 import { REALM_IDS, REALMS } from '../src/config/world';
 import { directWave, squadOnTier } from '../src/logic/director';
 import { tierAllows } from '../src/logic/waves';
@@ -12,7 +13,7 @@ const wall = SQUADS.find((t) => t.id === 'shieldwall')!;
 const iron = levelFields({ realm: 'ironHold' });
 
 /** Shieldwall spearmen the director sends over waves `from`-`to` of a few seeds, on `tier`, with the run's `fields`. */
-function walls(tier: number, fields: readonly ('shieldwall')[] | undefined, from = 9, to = 40): number {
+function walls(tier: number, fields: readonly EnemyId[] | undefined, from = 9, to = 40): number {
   let n = 0;
   for (let seed = 1; seed <= 6; seed++)
     for (let wave = from; wave <= to; wave++) n += directWave({ seed, wave, tier, fields }).units.filter((u) => u.id === 'shieldwall').length;

@@ -2368,9 +2368,9 @@ await check('Iron Hold on Squire: the road lists only foes Squire fields, and a 
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
   await p.evaluate((run) => {
-    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], ironHold: [1] }), world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false, runs: { ironHold: run } });
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], ironHold: [4] }), world: { marches: [7], ironHold: [4] }, signature: true, lastBastion: false, runs: { ironHold: run } });
     const lb = window.__lb;
-    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold level 1 cleared, its realm run at level 2 on Squire
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold levels 1-4 cleared on Squire (so every flag opens), its realm run at level 2 on Squire
     lb.save.cards = lb.cardIds.filter((id) => id !== 'ironShieldwall'); // every other card already seen, so his is the one that shows
   }, runAt(2, 0));
   await p.click('[data-go="map"]');
@@ -2400,11 +2400,11 @@ await check('Iron Hold on Squire: the road lists only foes Squire fields, and a 
   const met = await p.evaluate(() => {
     const lb = window.__lb, g = lb.game;
     if (!g) return { started: false };
-    g.player.invulnerable = true;
-    for (let i = 0; i < 120000 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results' && !g.level?.cleared; i++) lb.run(1, false, true);
+    // unhurt every tick: the Paladin's own shield, when the bot casts it, drops invulnerability as it ends
+    for (let i = 0; i < 120000 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results' && !g.level?.cleared; i++) (g.player.invulnerable = true), lb.run(1, false, true);
     const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
     const walls = g.enemies.filter((e) => e.def.id === 'ironShieldwall');
-    return { started: true, realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, wave: g.wave, card: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, walls: walls.length, inSquad: walls.filter((e) => e.squad).length, plain: g.enemies.filter((e) => e.def.id === 'shieldwall').length };
+    return { started: true, state: lb.state, screen: document.querySelector('#overlay h2, #overlay h1')?.textContent ?? '', time: Math.round(g.time), realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, wave: g.wave, card: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, walls: walls.length, inSquad: walls.filter((e) => e.squad).length, plain: g.enemies.filter((e) => e.def.id === 'shieldwall').length };
   });
   await p.close();
   const bad = road.filter((r) => r.tier !== '0' || /Mirror Knight|Hound Master|Siege Tower/.test(r.foes) || !r.seen || !r.foes);
@@ -2413,7 +2413,7 @@ await check('Iron Hold on Squire: the road lists only foes Squire fields, and a 
     && met.started && met.realm === 'ironHold' && met.level === 2 && met.tier === 0 && met.card === 'ironShieldwall' && met.title === 'Iron Shieldwall'
     && met.walls > 0 && met.inSquad > 0 && met.plain === 0 && errs.length === 0;
   const l2 = road.find((r) => r.n === 2);
-  return { ok, detail: `road on Squire: level 2 "${l2?.foes}"; ${bad.length ? `WRONG: ${bad.map((r) => `L${r.n}@${r.w} tier ${r.tier} "${r.foes}"${r.seen ? '' : ' (not in view)'}`).join('; ')}` : 'no foe Squire does not field, at 1280 and 1920'}; Iron Shieldwall named on ${walled.length}/8 of levels 2-5; fight: ${met.started ? `${met.realm} ${met.level} on tier ${met.tier}, wave ${met.wave}: card ${met.card ?? 'NONE'} "${met.title ?? ''}", ${met.walls} Iron Shieldwalls (${met.inSquad} in a squad), ${met.plain} plain` : 'did not start'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  return { ok, detail: `road on Squire: level 2 "${l2?.foes}"; ${bad.length ? `WRONG: ${bad.map((r) => `L${r.n}@${r.w} tier ${r.tier} "${r.foes}"${r.seen ? '' : ' (not in view)'}`).join('; ')}` : 'no foe Squire does not field, at 1280 and 1920'}; Iron Shieldwall named on ${walled.length}/8 of levels 2-5; fight: ${met.started ? `${met.realm} ${met.level} on tier ${met.tier}, wave ${met.wave} at ${met.time} s (${met.state}${met.screen ? `, "${met.screen}"` : ''}): card ${met.card ?? 'NONE'} "${met.title ?? ''}", ${met.walls} Iron Shieldwalls (${met.inSquad} in a squad), ${met.plain} plain` : 'did not start'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 // ---------- #213: the Iron Hold's shieldwalls: map -> the Iron Hold -> level 2 -> FIGHT; the director's shieldwall squad marches in as Iron
