@@ -13,6 +13,7 @@ export const DAMAGE_TYPES: Record<DamageType, { name: string; color: string }> =
 export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>>>> = {
   wolf: { fire: 1.5, frost: 0.75 },
   torchbearer: { fire: 0.75 }, // #225: soot and scorched leather
+  cinderHound: { fire: 0.75, frost: 1.25 }, // #226: a burning coat: the wolf's weakness to fire turned round
   knight: { frost: 1.25 }, // his armor (below) is his physical defence
   ironKnight: { frost: 1.25 }, // #212: his plates (PLATES below) are his defence
   cultist: { shadow: 0.5, holy: 1.5, fire: 0.75 },
@@ -78,6 +79,15 @@ export const TOWER_SHIELDS: Partial<Record<EnemyId, { reduction: number; turn: n
 export const THORNS: Partial<Record<EnemyId, { share: number; cap: number; reach: number; cd: number }>> = {
   thornBearer: { share: 0.2, cap: 0.05, reach: 100, cd: 0.35 },
   ironKing: { share: 0.15, cap: 0.04, reach: 100, cd: 0.5 }, // #216: his phase 3 only (logic/ironKing thornsOf); a boss takes many blows, so a smaller, slower bite
+};
+/**
+ * #226: foes that burst into fire when they die (the Cinderlands' Cinder Hounds). Where one falls a marked blast of `radius` goes off
+ * `delay` seconds later, for `damage` x the foe's own blow as fire, to the champion and his minions only: step out of the mark. Whatever
+ * felled it, it bursts; within the Cinder Colossus's heat his own, bigger blast takes its place (logic/deathBurst.ts).
+ */
+export const DEATH_BURSTS: Partial<Record<EnemyId, { radius: number; delay: number; damage: number }>> = {
+  // a wolf has 12 HP and hunts in packs of 4-5, so a swing can set off several: each one small (a bite and a half: he has no bleed), with 0.8 s to step out
+  cinderHound: { radius: 52, delay: 0.8, damage: 1.5 },
 };
 /** v0.7.3 (#59): how much of a blocked (shield bearer) or thrown-back (mirror knight) shot's damage wears the shield or mirror down. */
 export const ARMOR_WEAR = { block: 1, reflect: 0.5 };

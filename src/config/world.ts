@@ -114,7 +114,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
   cinderlands: {
     name: 'The Cinderlands', ring: 2, opens: { crowns: 1 }, arena: 'emberForge', family: 'flame', release: '0.12.0',
     teaches: 'Fire that spreads, burn stacks on you, bursts of fire when foes die',
-    foes: { peasant: 'torchbearer' }, // #225: torchbearers
+    foes: { peasant: 'torchbearer', wolf: 'cinderHound' }, // #225: torchbearers; #226: cinder hounds
     levels: relicRealmLevels('flame', 'inquisitor', 'emberQueen', 'cinderColossus'), crown: RELIC_CROWN,
   },
   frozenPass: {

@@ -12,6 +12,7 @@ import { actName } from '../logic/acts';
 import { shieldBurst } from '../logic/abilities';
 import { duoTier, familySets, looseRelics, softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
+import { deathBurstOf } from '../logic/deathBurst';
 import { platesOf, thornsOf, towerShieldOf } from '../logic/ironKing';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
@@ -37,6 +38,7 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
   const tower = towerShieldOf(e.def.id, e.phase); // #213
   const thorns = thornsOf(e.def.id, e.phase); // #214
   const burns = ENEMY_STATUS[e.def.id]?.decay; // #225
+  const bursts = deathBurstOf(e.def.id); // #226
   const burnStacks = ENEMY_STATUS[e.def.id]?.stacks ?? 1; // #228: the Cinder Colossus's hits put on two
   const statuses = activeStatuses(e.statuses).map((id) => `${STATUSES[id].name}${e.statuses[id]!.stacks > 1 ? ` ×${e.statuses[id]!.stacks}` : ''}`);
   html('h-inspect', `
@@ -47,6 +49,7 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
     ${tower ? `<div>Iron shield: turns ${Math.round(tower.reduction * 100)}% of blows from the front. Strike his side or back</div>` : ''}
     ${plates ? `<div>${e.armorHp > 0 ? `Iron plates: ${e.armorHp} left, each hit breaks one` : 'Armor broken'}</div>` : ''}
     ${thorns ? `<div>Thorns: a blow struck up close bites back ${Math.round(thorns.share * 100)}%</div>` : ''}
+    ${bursts ? `<div>Bursts into fire where it dies, ${bursts.delay} s after it falls: step out of the mark</div>` : ''}
     ${burns ? `<div>Each blow sets you burning: ${burnStacks > 1 ? `${burnStacks} stacks` : 'a stack'} more, one falls every ${burns} s</div>` : ''}
     ${armor ? `<div>${e.armorHp > 0 ? (armor.backBreak ? 'Shield up: strike it from behind' : `Armored: soaks ${Math.round(armor.reduction * 100)}% until broken`) : 'Armor broken'}</div>` : ''}
     ${e.def.aura ? `<div>Aura: ${e.def.aura.kind === 'heal' ? 'heals and rallies' : `+${Math.round((e.def.aura.value - 1) * 100)}% ${e.def.aura.kind}`} nearby allies</div>` : ''}

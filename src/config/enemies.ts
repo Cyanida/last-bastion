@@ -4,6 +4,7 @@ export type EnemyId =
   | 'peasant'
   | 'torchbearer'
   | 'wolf'
+  | 'cinderHound'
   | 'crossbow'
   | 'knight'
   | 'ironKnight'
@@ -127,6 +128,11 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   torchbearer: { ...base, id: 'torchbearer', name: 'Torchbearer', sprite: 'torchbearer', behavior: 'chaser', hp: 22, damage: 7, speed: 72, radius: 12, xp: 1 },
   wolf: {
     ...base, id: 'wolf', name: 'Wolf', sprite: 'wolf', behavior: 'lunger',
+    hp: 12, damage: 6, speed: 135, radius: 10, xp: 1, lungeRange: 130, lungeSpeed: 380, windup: 0.35, lungeTime: 0.4, recover: 0.6,
+  },
+  // #226: the Cinderlands' wolf. His coat burns: where he dies he bursts into fire, a marked blast a moment later (config/damage.ts DEATH_BURSTS)
+  cinderHound: {
+    ...base, id: 'cinderHound', name: 'Cinder Hound', sprite: 'cinderHound', behavior: 'lunger',
     hp: 12, damage: 6, speed: 135, radius: 10, xp: 1, lungeRange: 130, lungeSpeed: 380, windup: 0.35, lungeTime: 0.4, recover: 0.6,
   },
   crossbow: {

@@ -12,7 +12,8 @@ import { sfx } from '../sim/view';
 import { emit } from '../core/events';
 import { angleDiff, compact, dist2, TAU } from '../core/math';
 import type { Body, DamageSource, Enemy, Game, Minion, Player, Projectile, Status } from '../core/types';
-import { addField, fireProjectile, recycleProjectile } from '../entities/hazards';
+import { addField, addZone, fireProjectile, recycleProjectile } from '../entities/hazards';
+import { deathBurst, deathBurstOf } from '../logic/deathBurst';
 import { goldDrop } from '../logic/economy';
 import { onSlab } from '../logic/presses';
 import { inRects } from '../logic/regions';
@@ -25,6 +26,7 @@ import { lastStand, zoneStruck } from './dodge';
 import { spawnEnemy } from './spawning';
 
 const BLOOD = '#8e1b1b';
+const FIRE = '#e07b28';
 const near: Enemy[] = []; // scratch for the loops in this file
 const SEEK_TURN = 6; // v0.6: radians a second a seeking bolt can turn
 const nearest: Enemy[] = []; // nearestEnemy's own scratch: it may be called from inside those loops
@@ -68,6 +70,13 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   if (g.modifier === 'plague' && !boss) {
     const n = MODIFIERS.plague.n;
     addField(g, { x: e.x, y: e.y, r: n.radius, life: n.life, dps: n.dps * g.waveDmgMult * g.tier.enemyDmg, hostile: true, color: '#6f8f4e' });
+  }
+  // #226: a foe whose coat burns bursts where it fell: a marked blast a moment later (no owner: it is dead, and nothing calls it off)
+  const blast = deathBurstOf(e.def.id) && deathBurst({ id: e.def.id, x: e.x, y: e.y, damage: e.damage }, g.enemies.find((c) => c.def.id === 'cinderColossus' && !c.dead));
+  if (blast) {
+    addZone(g, { ...blast, hostile: true, color: FIRE, dtype: 'fire', art: 'fire', cause: `a ${e.def.name}'s burst` });
+    burst(g, e.x, e.y, FIRE, 10, 160);
+    g.vars['deathBursts'] = (g.vars['deathBursts'] ?? 0) + 1; // the play test reads it
   }
   if (e.elite) {
     g.elitesKilled++;
@@ -551,7 +560,7 @@ export function updateZones(g: Game, dt: number): void {
     if (z.killsOwner && z.owner) killEnemy(g, z.owner, 'hazard');
     if (z.hostile) {
       if (z.delay >= SKILL.perfect.minDelay) zoneStruck(g, z.lastIn, inside);
-      if (inside) hurtTarget(g, g.player, z.damage, true, z.owner);
+      if (inside) hurtTarget(g, g.player, z.damage, true, z.owner, z.cause);
       for (const m of g.minions) if (on(m)) hurtTarget(g, m, z.damage, true, z.owner);
       ring(g, z.x, z.y, z.r, z.color);
       burst(g, z.x, z.y, z.color, 18, 240);
