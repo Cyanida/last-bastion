@@ -8,8 +8,6 @@ import { applyGrowth } from '../src/logic/formulas';
 import { headStartLevel, levelBoss, wingsOpenBy } from '../src/logic/world';
 import { updateSpawning } from '../src/systems/spawning';
 
-const draw = { seed: 7, arena: 'courtyard' as const, seen: [], quests: [] };
-
 /** Stand the run at the end of wave `wave` with the field empty, and let one spawning step close it. */
 function clearWave(g: Game, wave: number): void {
   g.wave = wave;
@@ -96,12 +94,11 @@ describe('levels: the head start (#191)', () => {
 
 describe('levels: the end boss and "level cleared" (#191)', () => {
   it('the end boss: named, the Usurper, or the draw; never the Usurper at wave 40 outside the Last Bastion', () => {
-    expect(levelBoss({ boss: 'warden', crown: true }, 40, draw)).toBe('warden');
-    expect(levelBoss({ boss: 'usurper' }, 40, draw)).toBe(FINAL.boss);
-    expect(levelBoss({ boss: 'ironKing', crown: true }, 40, draw)).toBe('ironKing'); // #216: built now
-    expect(levelBoss({ boss: 'barrowKing', crown: true }, 40, draw)).not.toBe(FINAL.boss); // not built yet: an Act boss
-    expect(levelBoss({ boss: 'pool' }, 40, draw)).not.toBe(FINAL.boss);
-    expect(levelBoss({ boss: 'pool' }, 5, draw)).toBe('blackKnight'); // Act I keeps the arena's opener
+    expect(levelBoss('marches', 7)).toBe('warden');
+    expect(levelBoss('lastBastion', 1)).toBe(FINAL.boss);
+    expect(levelBoss('ironHold', 5)).toBe('ironKing'); // #216: built now
+    expect(levelBoss('barrowvale', 5)).not.toBe(FINAL.boss); // not built yet: an Act boss
+    expect(levelBoss('marches', 1)).toBe('blackKnight'); // Act I keeps the arena's opener
   });
 
   it("the level's last wave brings its realm's boss", () => {

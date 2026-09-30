@@ -12,6 +12,7 @@ export const DAMAGE_TYPES: Record<DamageType, { name: string; color: string }> =
 /** Damage multipliers per enemy: below 1 resists, above 1 is a weakness. Shown in the inspect tooltip. */
 export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>>>> = {
   wolf: { fire: 1.5, frost: 0.75 },
+  torchbearer: { fire: 0.75 }, // #225: soot and scorched leather
   knight: { frost: 1.25 }, // his armor (below) is his physical defence
   ironKnight: { frost: 1.25 }, // #212: his plates (PLATES below) are his defence
   cultist: { shadow: 0.5, holy: 1.5, fire: 0.75 },
@@ -125,12 +126,17 @@ export const STATUS_TUNING = {
   maxSlowStacksFromAbility: 4, // ability slows never freeze on their own
 };
 
-/** What enemy hits put on the player (and on minions). */
-export const ENEMY_STATUS: Partial<Record<EnemyId, { id: StatusId; stacks?: number; power?: number; time?: number }>> = {
+/**
+ * What enemy hits put on the player (and on minions). `decay` (#225): the burn falls off one stack at a time, a stack every `decay`
+ * seconds after the last hit that fed it, instead of all at once (logic/status tickStatuses); the champion's utility puts it out.
+ */
+export const ENEMY_STATUS: Partial<Record<EnemyId, { id: StatusId; stacks?: number; power?: number; time?: number; decay?: number }>> = {
   wolf: { id: 'bleed', power: 1.5 },
   cultist: { id: 'burn', stacks: 2, power: 3 },
   lich: { id: 'curse' },
   abbot: { id: 'poison', power: 5 },
   assassin: { id: 'bleed', stacks: 3, power: 2 },
   dragon: { id: 'burn', power: 2 },
+  // #225: the Cinderlands' torchbearers: a stack a blow, up to burn's 5; 1.2 fire a second per stack, one stack off every 1.5 s
+  torchbearer: { id: 'burn', stacks: 1, power: 1.2, time: 1.5, decay: 1.5 },
 };

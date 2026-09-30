@@ -1,13 +1,15 @@
 // v0.10 (#190): what opens on the world map, a level's slots and ring step, and what a clear pays (config/world.ts)
 import { ACTS, FINAL } from '../config/acts';
-import { BOSSES, type BossKey } from '../config/bosses';
+import { ARENAS, type ArenaId } from '../config/arenas';
+import { BOSS_RULES, BOSSES, type BossKey } from '../config/bosses';
 import { SQUADS } from '../config/director';
 import { TIER_UNLOCK, TIERS } from '../config/economy';
 import { ENEMIES, type EnemyId } from '../config/enemies';
 import { FAMILIES, relicDef, type FamilyId, type RelicId } from '../config/relics';
 import { WAVES } from '../config/waves';
 import { REALM_IDS, REALMS, WORLD, WORLD_BOSSES, type CrownReward, type EndBoss, type LevelReward, type RealmId } from '../config/world';
-import { actBoss, actOf, bossForWave, type BossDraw } from './acts';
+import { ACT_BOSSES, actBoss, actOf, hashSeed, isActEnd, pickMidBoss } from './acts';
+import { waveRng } from './director';
 import { expectedLevel } from './formulas';
 
 // ---------- #191: the level runner's rules (systems/levels.ts plays them) ----------
@@ -22,14 +24,35 @@ export const headStartLevel = (wave: number): number => Math.round(expectedLevel
 export const wingsOpenBy = (wave: number): number => ((wave - 1) % ACTS.length >= WAVES.bossEvery ? 1 : 0);
 
 /**
- * A level's end boss on its last wave: a named one (config/bosses.ts), the Usurper, or the usual draw for 'pool' and for a realm boss not
- * built yet. Outside the Last Bastion a wave-40 draw is an Act boss, never the Usurper.
+ * #236: every level's end boss in a realm, so no plain boss ends two of its levels. A named one (config/bosses.ts) or the Usurper as
+ * named; 'pool' (and a realm boss not built yet) draws from the bosses its wave could bring that no other level of the realm ends on,
+ * from the realm's own seed, so a level always ends on the same boss. An elite or crown boss is its own variant: it does not use up
+ * its plain boss. Outside the Last Bastion a wave-40 draw is an Act boss, never the Usurper.
  */
-export function levelBoss(end: EndBoss, wave: number, draw: BossDraw): BossKey | null {
-  if (end.boss === 'usurper') return FINAL.boss;
-  if (BOSSES[end.boss]) return end.boss;
-  const key = bossForWave(wave, draw);
-  return key === FINAL.boss ? actBoss(actOf(wave)) : key;
+export function realmBosses(realm: RealmId): BossKey[] {
+  const def = REALMS[realm];
+  const seed = hashSeed(realm);
+  const arena = (def.arena in ARENAS ? def.arena : 'courtyard') as ArenaId; // a realm arena not built yet plays the courtyard (game.ts)
+  const used = def.levels.filter((lv) => !lv.boss.elite && !lv.boss.crown && BOSSES[lv.boss.boss]).map((lv) => lv.boss.boss);
+  return def.levels.map(({ boss: end, waves }) => {
+    if (end.boss === 'usurper') return FINAL.boss;
+    if (BOSSES[end.boss]) return end.boss;
+    const key = poolBoss(waves[1], arena, seed, used);
+    used.push(key);
+    return key;
+  });
+}
+
+/** A level's end boss on its last wave (realmBosses). */
+export const levelBoss = (realm: RealmId, level: number): BossKey => realmBosses(realm)[level - 1];
+
+/** A pool draw on `wave` from the bosses not in `used`: the Act's own Act boss first, Act I's arena opener, else the mid-Act draw. */
+function poolBoss(wave: number, arena: ArenaId, seed: number, used: BossKey[]): BossKey {
+  const act = actOf(wave);
+  const fresh = (keys: readonly BossKey[]) => keys.find((k) => !used.includes(k)) ?? keys[0];
+  if (isActEnd(wave)) return fresh([actBoss(act), ...ACT_BOSSES]);
+  if (act < BOSS_RULES.poolFromAct) return fresh(ARENAS[arena].bosses);
+  return pickMidBoss(act, { seed, arena, seen: used, quests: [] }, waveRng(seed ^ 0xb055, wave)); // Decided: no quest boss ends a level
 }
 
 /**

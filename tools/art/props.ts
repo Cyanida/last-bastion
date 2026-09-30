@@ -280,6 +280,26 @@ function press(): Figure {
   return f;
 }
 
+/**
+ * #223: the Ember Forge's crucible: a squat black-iron pot on three stubby legs over a ring of hot stones, brimming with molten metal,
+ * its pouring lip to the right with a run of it cooling down the side.
+ */
+function crucible(): Figure {
+  const f = new Figure(72, 72);
+  f.part(O, ell(36, 60, 30, 9), 'stone', 0, { details: dots([[12, 59], [22, 64], [50, 64], [60, 58]], 'stone', 5) }); // hearth stones
+  f.part(O, ell(36, 58, 15, 4), 'ember', 0.1, { profile: 'flat', details: dots([[28, 57], [40, 59], [46, 57]], 'ember', 6) }); // coals under it
+  f.part(O, [[16, 50], [21, 50], [19, 62], [14, 62]], 'darksteel', 0.2, { dim: 1 }); // legs
+  f.part(O, [[51, 50], [56, 50], [58, 62], [53, 62]], 'darksteel', 0.2);
+  f.part(O, [[33, 54], [39, 54], [39, 64], [33, 64]], 'darksteel', 0.3);
+  f.part(O, [[8, 24], [64, 24], [62, 38], [56, 50], [44, 56], [28, 56], [16, 50], [10, 38]], 'black', 1, { folds: [0.5, 7, 0], details: dots([[14, 30], [58, 30], [36, 50]], 'steel', 5) }); // the pot, riveted
+  f.part(O, [[62, 22], [71, 18], [70, 25], [63, 29]], 'black', 1.1); // its pouring lip
+  f.part(O, ell(36, 24, 29, 7), 'darksteel', 1.2, { trim: ['steel', 1] }); // rim
+  f.part(O, ell(36, 24, 25, 5), 'fire', 1.3, { details: dots([[26, 23], [30, 24], [44, 22], [48, 25]], 'glow', 5) }); // molten metal
+  f.part(O, ell(33, 23, 10, 2), 'glow', 1.4, { profile: 'flat', outline: false }); // its brightest skin
+  f.part(O, [[64, 26], [68, 24], [67, 34], [65, 42], [63, 36]], 'ember', 1.5, { profile: 'flat' }); // a run down the side, cooling
+  return f;
+}
+
 export const PROPS: PropDef[] = [
   { id: 'pillar', w: 76, h: 100, anchor: [38, 80], r: 30, frames: [pillar()] },
   { id: 'brazier', w: 56, h: 72, anchor: [28, 54], r: 20, frames: [0, 1, 2, 3].map(brazier) },
@@ -303,6 +323,8 @@ export const PROPS: PropDef[] = [
   { id: 'bunk', w: 76, h: 52, anchor: [38, 30], r: 30, frames: [bunk()] },
   // #211: the Iron Hold's forge press; its anchor is the middle of its face, where it lands on the marked tile
   { id: 'press', w: 76, h: 96, anchor: [38, 88], r: 1, frames: [press()] },
+  // #223: the Ember Forge's crucible, drawn for its obstacles' radius; it stands in for the pillar's radius in the smelter
+  { id: 'crucible', w: 72, h: 72, anchor: [36, 58], r: 28, frames: [crucible()] },
 ];
 
 export const propPaths = { png: 'public/sprites/props.png', json: 'src/render/props.json' };

@@ -2,6 +2,7 @@ import type { SpriteId } from '../render/sprites';
 
 export type EnemyId =
   | 'peasant'
+  | 'torchbearer'
   | 'wolf'
   | 'crossbow'
   | 'knight'
@@ -121,6 +122,8 @@ const boss = { boss: true, scale: 4, knockbackResist: 1, attackCd: 1.3 };
 
 export const ENEMIES: Record<EnemyId, EnemyDef> = {
   peasant: { ...base, id: 'peasant', name: 'Peasant', sprite: 'peasant', behavior: 'chaser', hp: 22, damage: 8, speed: 72, radius: 12, xp: 1 },
+  // #225: the Cinderlands' peasant. A torch for a pitchfork: each blow that lands leaves a burn stack on you (config/damage.ts ENEMY_STATUS)
+  torchbearer: { ...base, id: 'torchbearer', name: 'Torchbearer', sprite: 'torchbearer', behavior: 'chaser', hp: 22, damage: 7, speed: 72, radius: 12, xp: 1 },
   wolf: {
     ...base, id: 'wolf', name: 'Wolf', sprite: 'wolf', behavior: 'lunger',
     hp: 12, damage: 6, speed: 135, radius: 10, xp: 1, lungeRange: 130, lungeSpeed: 380, windup: 0.35, lungeTime: 0.4, recover: 0.6,

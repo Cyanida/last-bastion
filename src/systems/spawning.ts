@@ -110,7 +110,7 @@ function startWave(g: Game): void {
   g.wave++;
   const draw = { seed: g.seed, arena: g.arena.id, seen: g.bossesSeen, quests: questsTakenThisAct(g) };
   const lv = g.level;
-  const key = lv && g.wave === lv.last ? levelBoss(REALMS[lv.realm].levels[lv.level - 1].boss, g.wave, draw) : bossForWave(g.wave, draw); // #191: a level ends on its realm's boss
+  const key = lv && g.wave === lv.last ? levelBoss(lv.realm, lv.level) : bossForWave(g.wave, draw); // #191: a level ends on its realm's boss
   if (key) g.bossesSeen.push(key);
   const boss = key ? bossDef(key).from : null;
   const plan = directWave({

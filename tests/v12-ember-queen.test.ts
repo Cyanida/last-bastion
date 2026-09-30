@@ -26,7 +26,7 @@ describe('the Ember Queen as the Cinderlands level 3 boss (#227)', () => {
   it('ends the Cinderlands level 3, three phases, and is never drawn outside it', () => {
     const lv = REALMS.cinderlands.levels[2];
     expect(lv.boss).toEqual({ boss: 'emberQueen' });
-    expect(levelBoss(lv.boss, lv.waves[1], draw)).toBe('emberQueen');
+    expect(levelBoss('cinderlands', 3)).toBe('emberQueen');
     expect(bossName(lv.boss, lv.waves[1])).toBe('The Ember Queen');
     expect('emberQueen' in WORLD_BOSSES).toBe(false); // built now: config/bosses.ts has her
     expect(ENEMIES.emberQueen.boss).toBe(true);

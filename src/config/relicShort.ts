@@ -1,0 +1,102 @@
+import type { DuoId, RelicId } from './relics';
+
+/**
+ * v0.11 (#235): every relic's and duo's short line, what a card shows: what it does in about 12 words (a test keeps each at most
+ * RELIC_SHORT_MAX characters). The numbers per tier and the awakening stay in the full text, in the compendium (relicDesc).
+ */
+export const RELIC_SHORT_MAX = 90;
+
+export const RELIC_SHORT: Record<RelicId | DuoId, string> = {
+  // 🔥 Flame
+  brimstoneOil: 'Attacks may set enemies burning.',
+  emberheart: 'More damage for every burning enemy near you.',
+  cinderCharm: 'Burning kills throw an ember that sets the next enemy burning.',
+  salamanderScale: 'Enemies deep in burn stacks take more damage from you.',
+  emberMantle: 'Enemies close to you catch fire every few seconds.',
+  dragonsTongue: 'Every few seconds your attack also breathes a cone of fire.',
+  fireArrows: "Arrow Volley's arrows burn; Focus makes burns hurt more.",
+  sunfireCenser: 'Heavenly Radiance sets everything it hits burning; Grace adds stacks.',
+  radiantBrand: "Divine Shield's burst sets enemies burning; Faith adds stacks.",
+  // ❄️ Frost
+  frostBrand: 'Attacks nearly always chill.',
+  wintersGrasp: 'Your signature ability chills everything it hits.',
+  shatterglass: 'Hits on frozen enemies always crit, and crit harder.',
+  glacialHeart: 'Take less damage while chilled enemies crowd you.',
+  everfrostCrown: 'Every few seconds a frost nova chills everything around you.',
+  rimebow: 'Crits chill; Focus makes your chill last longer.',
+  frostwardHalo: 'Heavenly Radiance chills and heals more per frozen enemy near you.',
+  lichLantern: "Skeletons' hits chill; Soul Power chills harder.",
+  // ⚡ Storm
+  stormPennant: 'Attacks may chain to another enemy.',
+  quicksilverSpurs: 'Chains and crits stack attack and movement speed.',
+  tempestEye: 'More crit chance, and crits chain to another enemy.',
+  thunderDrum: 'Your ability sounds a thunderclap that chains from every enemy hit.',
+  stormcallersHorn: 'Every few kills, lightning strikes the toughest enemy near you.',
+  galeforceQuiver: 'Arrows pierce more with Focus, and every third arrow hit chains.',
+  stormbornPelt: 'During Berserker Rage every few hits chain to another enemy.',
+  // 🩸 Blood
+  serratedEdge: 'Crits open heavy bleeds.',
+  butchersHook: 'Bleeding enemies are slower and take more damage from your attacks.',
+  berserkerTooth: 'More attack speed, and more still the lower your HP.',
+  vampireFang: 'Hits on bleeding enemies heal you.',
+  bloodPact: 'Much more damage, for a smaller max HP.',
+  wolfskin: 'During Berserker Rage your hits bleed; Rage adds stacks.',
+  // ✨ Holy
+  rallyBanner: 'Heal at the start of every wave.',
+  blessedWater: 'Your healing is stronger.',
+  guardiansAegis: 'Gain a ward every few seconds.',
+  haloOfMercy: 'Kills may drop a mercy orb that heals you.',
+  phoenixFeather: 'Once a run, rise from death.',
+  reliquary: "Hits you take shorten Divine Shield's cooldown; Faith shortens it more.",
+  seraphHalo: 'Heavenly Radiance also fires light bolts in all directions.',
+  hallowedBones: 'Skeletons carry a ward, and heal you when they expire.',
+  // 💀 Grave
+  soulLantern: 'Kills may raise a skeleton ally.',
+  hexDoll: 'Your signature ability curses what it hits: they take more damage.',
+  gravePact: 'Your ability blesses your minions, or raises a skeleton if you have none.',
+  gravediggersSpade: 'More damage for every corpse near you.',
+  deathmask: 'Hits may curse; cursed enemies deal less damage.',
+  boneChime: 'Minions share your attack speed; Soul Power adds more.',
+  // 🛡️ Steel
+  towerShield: 'A chance to block a hit.',
+  thornMail: 'Enemies that hit you take many times that damage back.',
+  anvilHeart: 'More damage the more armor you have.',
+  shockSigil: 'Taking damage releases a shockwave around you.',
+  unbreakable: 'Every so often, blocks a hit that would take a big chunk of HP.',
+  aegisFaithful: 'When Divine Shield ends, gain armor stacks; Faith adds more.',
+  ironhide: 'Berserker Rage gives an armor stack every few seconds.',
+  rivetHammer: 'Every 4th hit rivets: bonus damage and an armor stack.',
+  pavise: 'A chance to block hits from enemies in front of you.',
+  reprisalCuirass: 'Hits that come at you are kept and added to your next attack.',
+  heartOfTheHold: 'Armor stacks never fade and you hold more; attackers take thorns per stack.',
+  ironHalo: 'Heavenly Radiance gives armor stacks and hits harder per stack you hold.',
+  legionPlate: 'Minion hits give you armor, and armor makes their hits stronger.',
+  bodkinPoints: 'Every 3rd arrow hit is a bodkin: extra damage, shields ignored, and armor.',
+  // ☠ Cursed
+  hungeringBlade: 'Kills stack damage this wave. Curse: without kills it feeds on your HP.',
+  doomBell: 'Kills burst around the dead. Curse: the horde moves faster.',
+  scepterOfRuin: 'A much shorter ability cooldown. Curse: every cast costs HP.',
+  abyssalEye: 'Enemies near you take more damage. Curse: they hit you harder too.',
+  crimsonChalice: 'Your damage heals you. Curse: a smaller max HP.',
+  tyrantsBanner: 'Slain elites give damage and attack speed for the run. Curse: more elites.',
+  // 👑 Signature
+  oathkeepersSeal: 'Divine Shield keeps the blows it turns away and strikes back with them.',
+  jarlsTorc: 'During Berserker Rage your attacks cleave around the target.',
+  dawnstar: 'Heavenly Radiance calls beams of dawn on the strongest enemies.',
+  phylactery: 'Raise Dead also raises a Bone Knight.',
+  eagleFletching: 'Arrow Volley arrows may strike twice.',
+  // ✦ Duos
+  thermalShock: 'A burning enemy that freezes takes all its burn damage at once.',
+  wildfire: 'Chains copy the burn stacks of the enemy they jump from.',
+  boilingBlood: 'Enemies that burn and bleed take both ticks faster.',
+  funeralPyre: 'Fire that touches a corpse detonates it.',
+  hailstorm: 'Chains chill, and jump further from frozen enemies.',
+  rimeDead: "Skeletons' hits chill, and frozen enemies you kill rise as skeletons.",
+  glacierPlate: 'A block freezes the attacker.',
+  redLightning: 'Chains bleed, and crits on bleeding enemies chain further.',
+  lightningRod: 'The shockwave calls lightning on every enemy it hits.',
+  martyrsCovenant: 'Part of the damage you take comes back as ward.',
+  requiem: 'Cursed enemies always drop a mercy orb.',
+  consecration: 'Ward you gain gives armor, and blocks heal you.',
+  ironTithe: 'A reprisal opens bleeds on its target and heals you.',
+};

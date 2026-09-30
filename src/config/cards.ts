@@ -46,6 +46,7 @@ export const TUTORIAL_CARDS: Record<TutorialCard, { name: string; text: string; 
 
 export const ENEMY_CARDS: Record<EnemyId, string> = {
   peasant: 'Weak alone, deadly in a crowd. Keep moving.',
+  torchbearer: 'Each blow adds a burn stack. Step back, or your utility puts it out.',
   wolf: 'Fast. Crouches, then leaps: step aside.',
   crossbow: 'Shoots from range. Close in or dodge the bolts.',
   knight: 'Slow and tough. Barely flinches.',
