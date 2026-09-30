@@ -10,6 +10,7 @@ export interface StatusInst {
   time: number;
   power: number; // damage per second per stack, for damage-over-time effects
   by?: string; // v0.7: the relic or duo that last put it on (its ticks are credited to it)
+  decay?: number; // #225: when `time` runs out one stack falls and the rest burn on for this long (a Cinderlands burn)
 }
 export type StatusMap = Partial<Record<StatusId, StatusInst>> & { immune?: Partial<Record<StatusId, number>> };
 
@@ -19,6 +20,7 @@ export interface StatusApply {
   time?: number;
   power?: number;
   max?: number; // v0.7: a higher stack cap for this application (Flame's Stoked)
+  decay?: number; // #225: the stacks fall off one at a time, one every `decay` seconds (StatusInst.decay)
 }
 
 /** Applies one effect following its stacking rule. Returns 'frozen' when Chilled stacks tipped over into a freeze. */
@@ -29,8 +31,11 @@ export function applyStatusTo(map: StatusMap, a: StatusApply, boss = false): 'ap
   const power = a.power ?? 0;
   const cur = map[a.id];
   const max = Math.max(def.maxStacks, a.max ?? 0);
-  if (!cur) map[a.id] = { stacks: Math.min(max, a.stacks ?? 1), time, power };
-  else if (def.stacking === 'stacks') Object.assign(cur, { stacks: Math.min(max, cur.stacks + (a.stacks ?? 1)), time: Math.max(cur.time, time), power: Math.max(cur.power, power) });
+  if (!cur) map[a.id] = a.decay ? { stacks: Math.min(max, a.stacks ?? 1), time, power, decay: a.decay } : { stacks: Math.min(max, a.stacks ?? 1), time, power };
+  else if (def.stacking === 'stacks') {
+    Object.assign(cur, { stacks: Math.min(max, cur.stacks + (a.stacks ?? 1)), time: Math.max(cur.time, time), power: Math.max(cur.power, power) });
+    if (a.decay) cur.decay = a.decay; // #225: once fed by a decaying burn, it all falls off a stack at a time
+  }
   else if (def.stacking === 'strongest') Object.assign(cur, { power: Math.max(cur.power, power), time: Math.min(STATUS_TUNING.poisonMaxTime, cur.time + time) });
   else cur.time = Math.max(cur.time, time);
 
@@ -53,12 +58,26 @@ export function tickStatuses(map: StatusMap, dt: number, dots: Partial<Record<Da
     const dot = STATUSES[id].dot;
     if (dot) dots[dot] = (dots[dot] ?? 0) + s.power * s.stacks * Math.min(dt, s.time);
     if ((s.time -= dt) <= 0) {
+      if (s.decay && s.stacks > 1) {
+        // #225: one stack falls, the rest burn on
+        s.stacks--;
+        s.time += s.decay;
+        continue;
+      }
       delete map[id];
       if (id === 'stun') map.immune = { ...map.immune, stun: STATUS_TUNING.stunImmunity }; // no stun-locking
     }
   }
   if (map.immune) for (const id of Object.keys(map.immune) as StatusId[]) if ((map.immune[id]! -= dt) <= 0) delete map.immune[id];
   return dots;
+}
+
+/** #225: the champion's utility puts out a Cinderlands burn (one that decays a stack at a time). Returns the stacks put out. */
+export function smother(map: StatusMap): number {
+  const b = map.burn;
+  if (!b?.decay) return 0;
+  delete map.burn;
+  return b.stacks;
 }
 
 export const cleanse = (map: StatusMap): void => void (['burn', 'slow', 'bleed', 'poison', 'stun', 'fear', 'curse'] as StatusId[]).forEach((id) => delete map[id]);

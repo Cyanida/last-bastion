@@ -36,7 +36,7 @@ describe('the Iron King as the Iron Hold crown boss (#216)', () => {
   it('ends the Iron Hold level 5 as its crown boss, three phases, and is never drawn outside it', () => {
     const lv = REALMS.ironHold.levels[4];
     expect(lv.boss).toEqual({ boss: 'ironKing', crown: true });
-    expect(levelBoss(lv.boss, lv.waves[1], draw)).toBe('ironKing');
+    expect(levelBoss('ironHold', 5)).toBe('ironKing');
     expect(bossName(lv.boss, lv.waves[1])).toBe('The Iron King');
     expect('ironKing' in WORLD_BOSSES).toBe(false); // built now: config/bosses.ts has him
     expect(ENEMIES.ironKing.boss).toBe(true);

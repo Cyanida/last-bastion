@@ -2,7 +2,8 @@ import { EVOLUTIONS, type EvolutionId } from '../config/evolutions';
 import { UTILITIES } from '../config/utility';
 import type { ClassDef } from '../config/classes';
 import { GAME } from '../config/game';
-import { relicDef, relicDesc, TIER_NUMERALS, type RelicId } from '../config/relics';
+import { relicDef, TIER_NUMERALS, type RelicId } from '../config/relics';
+import { RELIC_SHORT } from '../config/relicShort'; // #235: a card shows the short line
 import { RELIC_CARD_CHANCE, STAT_LABELS, TALENT_CARD_CHANCE, TRADEOFF_CHANCE, TRADEOFF_IDS, TRADEOFFS, UPGRADE_CHOICES, UPGRADE_RARITIES, UPGRADES, type TradeoffDef, type TradeoffId, type UpgradeRarity } from '../config/upgrades';
 import { pickWeighted } from '../core/math';
 import type { Mods, Rng, StatKey, Stats } from '../core/types';
@@ -94,7 +95,7 @@ export function optionText(o: LevelUpOption, cls: ClassDef, relicTier = 0): { ti
   }
   if (o.kind === 'tradeoff') return { title: TRADEOFFS[o.id].name, desc: TRADEOFFS[o.id].desc, tag: 'Tradeoff' };
   if (o.kind === 'talent') return { title: 'Talent point', desc: 'One more point to spend in your talent tree (pause menu).', tag: 'Talent' };
-  if (o.kind === 'relic') return { title: `${relicDef(o.id).icon} ${relicDef(o.id).name}`, desc: relicDesc(o.id, relicTier + 1), tag: relicTier > 0 ? `Relic · tier ${TIER_NUMERALS[relicTier + 1]}` : `Relic · ${relicDef(o.id).rarity}` };
+  if (o.kind === 'relic') return { title: `${relicDef(o.id).icon} ${relicDef(o.id).name}`, desc: RELIC_SHORT[o.id], tag: relicTier > 0 ? `Relic · tier ${TIER_NUMERALS[relicTier + 1]}` : `Relic · ${relicDef(o.id).rarity}` };
   const title = statLabel(o.key, cls);
   const amount = upgradeAmount(o.key, o.rarity);
   const gain = UPGRADES[o.key].mode === 'mult' ? `+${Math.round((amount - 1) * 100)}%` : `+${amount}`;

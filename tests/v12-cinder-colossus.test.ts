@@ -7,6 +7,7 @@ import type { Enemy, Game } from '../src/core/types';
 import { createGame } from '../src/game';
 import { actBoss, bossForWave } from '../src/logic/acts';
 import { burstsIn, colossusCd, colossusLesson, colossusMove, kindleSeeds, slamFan, spreadNext } from '../src/logic/cinderColossus';
+import { smother, tickStatuses } from '../src/logic/status';
 import { bossName, levelBoss } from '../src/logic/world';
 import { killEnemy, updateZones } from '../src/systems/combat';
 import { updateEnemies } from '../src/systems/enemyAI';
@@ -45,7 +46,7 @@ describe('the Cinder Colossus as the Cinderlands crown boss (#228)', () => {
   it('ends the Cinderlands level 5 as its crown boss, three phases, and is never drawn outside it', () => {
     const lv = REALMS.cinderlands.levels[4];
     expect(lv.boss).toEqual({ boss: 'cinderColossus', crown: true });
-    expect(levelBoss(lv.boss, lv.waves[1], draw)).toBe('cinderColossus');
+    expect(levelBoss('cinderlands', 5)).toBe('cinderColossus');
     expect(bossName(lv.boss, lv.waves[1])).toBe('The Cinder Colossus');
     expect('cinderColossus' in WORLD_BOSSES).toBe(false); // built now: config/bosses.ts has him
     expect(ENEMIES.cinderColossus.boss).toBe(true);
@@ -58,6 +59,7 @@ describe('the Cinder Colossus as the Cinderlands crown boss (#228)', () => {
   it('a lesson for each phase: burn stacks, fire that spreads, bursts; his blows by phase', () => {
     expect([1, 2, 3].map(colossusLesson)).toEqual(['burn', 'spread', 'burst']);
     expect(ENEMY_STATUS.cinderColossus).toMatchObject({ id: 'burn', stacks: 2 });
+    expect(ENEMY_STATUS.cinderColossus!.decay).toBe(ENEMY_STATUS.torchbearer!.decay); // #225's burn stacks: they fall one at a time, and the utility puts them out
     expect([0, 1, 2].map((n) => colossusMove(1, n))).toEqual(Array(3).fill({ slam: true, kindle: false, brood: false }));
     expect([0, 1].map((n) => colossusMove(2, n))).toEqual([{ slam: false, kindle: true, brood: false }, { slam: true, kindle: false, brood: false }]);
     expect([0, 1, 2, 3].map((n) => colossusMove(3, n).brood)).toEqual([true, false, false, true]);
@@ -127,6 +129,13 @@ describe('the Cinder Colossus as the Cinderlands crown boss (#228)', () => {
     updateZones(g, 0.001);
     expect(p.hp).toBeLessThan(hp);
     expect(p.statuses.burn?.stacks ?? 0).toBeGreaterThanOrEqual(2);
+    expect(p.statuses.burn?.decay).toBe(ENEMY_STATUS.cinderColossus!.decay);
+    // the burn falls a stack at a time, and the champion's utility puts it out (#225)
+    p.statuses.burn = { stacks: 3, time: 0.01, power: 1, decay: ENEMY_STATUS.cinderColossus!.decay };
+    tickStatuses(p.statuses, 0.02);
+    expect(p.statuses.burn?.stacks).toBe(2);
+    expect(smother(p.statuses)).toBe(2);
+    expect(p.statuses.burn).toBeUndefined();
     // phase 2: the first blow kindles the ground round you, and the fire spreads patch by patch
     toPhase(g, c, 2);
     expect(g.banner?.text).toBe('The Cinder Colossus kindles the ground');

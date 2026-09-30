@@ -1,13 +1,19 @@
-import { FLAGSTONE, PRESSES } from '../config/arenas';
+import { FLAGSTONE, LAVA, PRESSES } from '../config/arenas';
+import { GAME } from '../config/game';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Game } from '../core/types';
 import { addZone } from '../entities/hazards';
+import { inLava, lavaTick } from '../logic/lava';
 import { openSlab, pressesOn, pressShape, pressSlabs } from '../logic/presses';
+import { damageEnemy, damageMinion, damagePlayer } from './combat';
 
 /** Each arena's environmental hazard, on a timer. Damage scales with the wave like enemy damage. */
 export function updateArena(g: Game, dt: number): void {
   updatePresses(g, dt);
+  updateLava(g, dt);
+  // #224: the Cinderlands' spreading fire hooks in here, on its own clock like the presses; it catches from the lava's banks
+  // (logic/lava.ts lavaBanks)
   const hz = g.arena.hazard;
   if (!hz || g.wave === 0) return;
   g.hazardT -= dt;
@@ -65,5 +71,24 @@ function updatePresses(g: Game, dt: number): void {
     const z = { x: s.x, y: s.y, r: FLAGSTONE / 2, slab: FLAGSTONE, delay: PRESSES.delay, color: '#e0683f', source: 'hazard' as const };
     addZone(g, { ...z, damage, hostile: true, art: 'press' });
     addZone(g, { ...z, damage: damage * PRESSES.foeMult, hostile: false });
+  }
+}
+
+/**
+ * #223: the Ember Forge's lava burns whoever stands in it, every GAME.fieldTick: you (a dodge's invulnerability carries you over it),
+ * your minions, and foes x LAVA.foeMult, so a horde chasing you across a channel pays for it. Terrain, so it burns from the first second.
+ */
+function updateLava(g: Game, dt: number): void {
+  const lava = g.arena.lava;
+  if (!lava?.length) return;
+  g.lavaT -= dt;
+  if (g.lavaT > 0) return;
+  g.lavaT += GAME.fieldTick;
+  const scale = g.waveDmgMult * g.tier.enemyDmg;
+  const p = g.player;
+  if (inLava(p.x, p.y, p.r, lava)) damagePlayer(g, lavaTick(LAVA.dps, GAME.fieldTick, scale, LAVA.foeMult, false), true, null, 'the lava');
+  for (const m of g.minions) if (inLava(m.x, m.y, m.r, lava)) damageMinion(g, m, lavaTick(LAVA.dps, GAME.fieldTick, scale, LAVA.foeMult, false));
+  for (const e of g.enemies) {
+    if (!e.dead && inLava(e.x, e.y, e.r, lava)) damageEnemy(g, e, lavaTick(LAVA.dps, GAME.fieldTick, scale, LAVA.foeMult, true), false, 0, 0, 'hazard', 'fire', true);
   }
 }
