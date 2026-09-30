@@ -1671,7 +1671,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const LOADOUT = ['brimstoneOil', 'emberheart'];
     await p.evaluate((two) => {
       const lb = window.__lb;
-      lb.save.champions = { paladin: { name: 'Hild', inventory: two, loadouts: { marches: two }, talentPlan: [], world: {}, signature: false, lastBastion: false, runs: {} } };
+      lb.save.champions = { paladin: { name: 'Hild', inventory: two, loadouts: { marches: two }, ...lb.build.grown({}), world: {}, signature: false, lastBastion: false, runs: {} } };
       lb.save.cards = [...lb.cardIds]; // every flash card seen: nothing stops the fight
     }, LOADOUT);
     // the road as a player sees it: the flags' run marks, the panel's row (only what is shown and can be pressed), the run in the save
