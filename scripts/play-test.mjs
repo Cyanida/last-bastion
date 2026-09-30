@@ -5280,6 +5280,121 @@ await check('Relics: Flashpowder, Pitch Pot and Crown of Cinders each do their w
   }),
 );
 
+// ---------- #230: the Cinderlands' Flame class relics: each champion's own, in a test run fought through the real input (ability on Space) ----------
+await check("Relics: Surtr's Brand and Bonefire each work for their own champion in a fight, test mode lists each for its class only, and their HUD tiles say what they do (#230)", async () => {
+  const cases = [
+    // 30 s holds a whole Berserker Rage and its end, where the fire bursts out. Rage takes `deathless` for its own (Undying), so the Viking
+    // cannot lean on it as the others do: he fights at level 25, strong enough to stand in this wave, and the flag is set again every second
+    { classId: 'viking', id: 'surtrsBrand', says: /stokes your axe/, level: '25' },
+    { classId: 'necromancer', id: 'bonefire', says: /Your skeletons burn/, secs: 40 }, // the skeletons have to be raised and reach the horde first
+  ];
+  const ids = cases.map((c) => c.id);
+  const out = [];
+  for (const c of cases) {
+    await inPage(() => location.reload());
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const start = await inPage(async ({ c, ids }) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), c.classId);
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave and a level-1 champion, as #217's check
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), c.level ?? '1');
+      const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
+      const own = document.querySelector(`#tm-relics select[data-relic="${c.id}"]`);
+      if (own) set(own, '1');
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land and are counted, the run just never ends
+      await wait(300);
+      return { listed, held: g.player.relics.held.includes(c.id), tip: document.querySelector(`#h-relics .relic[data-id="${c.id}"]`)?.dataset.tip ?? '' };
+    }, { c, ids });
+    // the champion steps toward the horde and fights for 30 s (or c.secs), casting the ability (Space) whenever it is ready
+    await page.keyboard.down('ArrowRight');
+    await inPage(() => window.__lb.run(60, false, 'input'));
+    await page.keyboard.up('ArrowRight');
+    await page.keyboard.down('Space');
+    let burning = 0;
+    const second = () => {
+      const lb = window.__lb;
+      lb.run(60, false, 'input');
+      if (!lb.game) throw new Error(`the run ended (${lb.state})`);
+      lb.game.player.deathless = true;
+      return lb.game.enemies.filter((e) => !e.dead && e.statuses.burn).length;
+    };
+    for (let i = 0; i < (c.secs ?? 30); i++) burning = Math.max(burning, await inPage(second));
+    await page.keyboard.up('Space');
+    const damage = await inPage((id) => window.__lb.game.player.relics.stats[id]?.damage ?? 0, c.id);
+    const ok = start.listed.length === 1 && start.listed[0] === c.id && start.held && c.says.test(start.tip) && damage > 0;
+    out.push({ ok, text: `${c.classId}: lists ${start.listed.join('+') || 'none'}, held ${start.held}, tile ${c.says.test(start.tip) ? 'yes' : 'NO'}, ${damage.toFixed(1)} dmg in ${c.secs ?? 30} s, up to ${burning} enemies burning at once` });
+  }
+  return { ok: out.every((o) => o.ok), detail: out.map((o) => o.text).join('; ') };
+});
+
+// ---------- #230: Baptism of Fire, the Cinderlands' duo: a test run holding its two relics (and two that light the first burns) takes the
+// gold card at a relic moment, then fights through the real input for 30 s ----------
+await check('Relics: Baptism of Fire is taken as the gold card once Flashpowder and Blessed Water are held, its tile says what it does, and its flares heal in a fight (#230)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const start = await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), 'paladin');
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave and a level-1 champion, as #217's check
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), '1');
+      for (const id of ['flashpowder', 'blessedWater', 'brimstoneOil', 'emberMantle']) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
+      const lb = window.__lb;
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land (so there is something to heal), the run just never ends
+      await wait(300);
+      // a relic moment with the duo ready, as a boss's fall gives it; the gold card is picked on the real screen
+      g.player.relics.offers.push({ from: 'boss', options: ['butchersHook', 'guardiansAegis', 'stormPennant'], rerolls: 0, duo: 'baptismOfFire' });
+      // (a step answers any screen that is up before it, a level-up say, with its first option; the relic moment's cards are left to the check)
+      const find = () => [...document.querySelectorAll('[data-pick]')].find((b) => b.innerText.includes('Baptism of Fire'));
+      let card = find();
+      for (let i = 0; i < 40 && !card; i++) {
+        lb.run(1, false, 'input');
+        await wait(50);
+        card = find();
+      }
+      const gold = !!card?.classList.contains('duo-card');
+      card?.click();
+      await wait(300);
+      const tile = document.querySelector('#h-relics .relic[data-duo="baptismOfFire"]');
+      const tiles = [...document.querySelectorAll('#h-relics .relic[data-id]')].map((t) => t.dataset.id);
+      return { gold, formed: g.player.relics.duos.includes('baptismOfFire'), tip: tile?.dataset.tip ?? '', joined: !tiles.includes('flashpowder') && !tiles.includes('blessedWater'), state: lb.state };
+    });
+    // the champion steps into the horde (arrow keys) and holds her ground for 30 s; the heals below come from real flares
+    await page.keyboard.down('ArrowRight');
+    await inPage(() => window.__lb.run(60, false, 'input'));
+    await page.keyboard.up('ArrowRight');
+    for (let i = 0; i < 30; i++) await inPage(() => window.__lb.run(60, false, 'input'));
+    const fight = await inPage(() => {
+      const s = window.__lb.game.player.relics.stats;
+      return { healed: s.baptismOfFire?.healing ?? 0, flares: s.flashpowder?.damage ?? 0 };
+    });
+    const says = /flare heals you/.test(start.tip);
+    const ok = start.gold && start.formed && start.joined && says && fight.healed > 0 && fight.flares > 0;
+    return { ok, detail: `gold card ${start.gold}, formed ${start.formed}, one tile for its two relics ${start.joined}, tile says ${says ? 'yes' : 'NO'}; in 30 s its flares dealt ${Math.round(fight.flares)} and healed ${fight.healed.toFixed(1)} HP` };
+  }),
+);
+
 // ---------- #216: the Iron King: Settings -> Test mode -> "Start at" the Iron Hold's level 5 -> the opening pick -> its last wave ----------
 // The champion trades plain blows beside him (no ability, no bot moves, unhurt), so the fight goes the same way every run: phase 1 his
 // plate breaks blow by blow, his Decree lines land and his guard of Iron Knights comes; phase 2 he casts the plate off and raises the tower

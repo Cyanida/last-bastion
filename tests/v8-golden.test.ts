@@ -48,6 +48,9 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #229 (v0.12, on the merged code after #223, #225, #235, #236 and #239 came into release/0.12.0): Flashpowder, Pitch Pot
  * and Crown of Cinders, three new Flame relics, join every class's pool, so seven runs draw different relics on purpose (both paladin:9
  * and paladin:7 meta, angel:1234, the oath run, necromancer:1234 and both plain Archer runs); every seed still reaches the first Act boss.
+ * Re-recorded for #230 (v0.12): the Flame class relics of the Viking and the Necromancer join their pools and Baptism of Fire
+ * (Flashpowder + Blessed Water) joins the duos, so viking:5 and both Necromancer runs draw different relics on purpose; every seed still
+ * reaches the first Act boss.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -87,11 +90,11 @@ const GOLDEN: Record<string, string> = {
   'paladin:9': 'wave 14 kills 554 level 15 gold 1658 relics 4 hash 20c5e54b',
   'paladin:98765': 'wave 16 kills 644 level 17 gold 2703 relics 6 hash d731100d',
   'viking:98765': 'wave 18 kills 811 level 18 gold 3433 relics 7 hash ea110cf7',
-  'viking:5': 'wave 9 kills 269 level 10 gold 767 relics 4 hash 70af9ff',
+  'viking:5': 'wave 9 kills 268 level 11 gold 807 relics 4 hash 4a712663',
   'angel:1234': 'wave 21 kills 969 level 20 gold 4625 relics 8 hash 4e2b1230',
   'angel:98765': 'wave 17 kills 725 level 18 gold 3609 relics 7 hash a9273f62',
-  'necromancer:1234': 'wave 17 kills 634 level 17 gold 3078 relics 6 hash 4a441383',
-  'necromancer:5': 'wave 9 kills 269 level 10 gold 714 relics 3 hash a355106',
+  'necromancer:1234': 'wave 11 kills 360 level 13 gold 1383 relics 5 hash 5bf60068',
+  'necromancer:5': 'wave 19 kills 737 level 19 gold 3511 relics 7 hash 7bb5572f',
   'archer:2027': 'wave 9 kills 289 level 10 gold 889 relics 3 hash e3214744',
   'archer:5': 'wave 20 kills 868 level 19 gold 3973 relics 9 hash 876daba2',
   'paladin:7 meta': 'wave 14 kills 533 level 17 gold 1978 relics 7 hash e8557a92',

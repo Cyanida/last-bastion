@@ -322,3 +322,18 @@ export function pitchDrips<T extends { x: number; y: number }>(near: T[], burnin
 
 /** Crown of Cinders: the burn stacks a neighbour catches from a burning enemy that dies (the awakening adds `extra`). */
 export const leapStacks = (stacks: number, extra: number): number => (stacks > 0 ? stacks + extra : 0);
+
+// ---------------------------------------------------------------- v0.12 (#230): the Cinderlands' class relics and duo
+
+/** Surtr's Brand: a Rage hit stokes the axe, up to `base` + Rage stokes; `full` when the count stands at its most (Twilight bursts then). */
+export function stoke(count: number, base: number, rage: number): { count: number; full: boolean } {
+  const cap = base + Math.floor(Math.max(0, rage));
+  const next = Math.min(cap, count + 1);
+  return { count: next, full: next >= cap };
+}
+
+/** Bonefire: the burn a skeleton sets, per second and stack: `power` (already grown with level), `perSoul` more for every point of Soul Power. */
+export const bonefireBurn = (power: number, perSoul: number, soul: number): number => power * (1 + perSoul * Math.max(0, soul));
+
+/** Baptism of Fire: what a flare heals, `per` of max HP for each enemy it caught, up to `max` of them. */
+export const baptismHeal = (maxHp: number, per: number, caught: number, max: number): number => maxHp * per * Math.min(max, Math.max(0, caught));

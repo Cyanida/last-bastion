@@ -229,6 +229,11 @@ export const RELICS = {
     awaken: ['Tar Pit', 'An enemy that dies in burning pitch bursts into fire (a Pyre explosion).'], desc: (n) => `Every ${n.every} s you fling burning pitch at the nearest enemy, and every burning enemy near you drips it: a fire patch at their feet for ${n.life} s (${n.dps} damage per second, grows with level) that sets a burn stack (up to ${n.max} patches).` }),
   crownOfCinders: relic({ name: 'Crown of Cinders', rarity: 'legendary', icon: '🎇', family: 'flame', n: { radius: 110, damage: 12, power: 4 }, n2: { radius: 140, damage: 16 }, a: { reach: 200, extra: 1 },
     awaken: ['Conflagration', (a) => `The fire leaps up to ${a.reach} px and adds ${a.extra} more burn stack.`], desc: (n) => `Your attack hits set an enemy that isn't burning alight (1 burn stack). When a burning enemy dies its fire leaps on: every enemy within ${n.radius} px catches its burn stacks and takes ${n.damage} fire damage (grows with level).` }),
+  // v0.12 (#230): the Cinderlands' class relics for the two champions who had no Flame one
+  surtrsBrand: relic({ name: "Surtr's Brand", rarity: 'rare', icon: '☄️', family: 'flame', classId: 'viking', n: { base: 8, damage: 24, radius: 170, stacks: 2, power: 4 }, n2: { damage: 32 },
+    awaken: ['Twilight', 'At full stokes the fire bursts out at once, and the count starts again.'], desc: (n) => `During Berserker Rage every attack hit stokes your axe (up to ${n.base} + Rage stokes). When Rage ends the fire bursts out: ${n.damage} fire damage per stoke (grows with level) and ${n.stacks} burn stacks to every enemy within ${n.radius} px.` }),
+  bonefire: relic({ name: 'Bonefire', rarity: 'rare', icon: '🪵', family: 'flame', classId: 'necromancer', n: { every: 1.5, radius: 90, power: 8, perSoul: 0.04 }, n2: { every: 1 }, a: { radius: 110, damage: 24, stacks: 2 },
+    awaken: ['Balefire', (a) => `A skeleton you raise rises in a burst of fire: ${a.damage} fire damage (grows with level) and ${a.stacks} burn stacks to every enemy within ${a.radius} px.`], desc: (n) => `Your skeletons burn: every ${n.every} s each sets the enemies within ${n.radius} px of it alight, a burn stack (${n.power} damage per second, grows with level, +${pct(n.perSoul)} per Soul Power).` }),
 
   // ---------------------------------------------------------------- ❄️ Frost
   frostBrand: relic({ name: 'Frost Brand', rarity: 'common', icon: '❄️', family: 'frost', n: { chance: 0.9, chill: 1 }, n2: { chance: 1 }, a: { reduce: 0.2 },
@@ -434,6 +439,8 @@ export const DUOS = {
   consecration: duo('Consecration', '⛪', ['holy', 'steel'], ['rallyBanner', 'thornMail'], (n) => `Ward you gain also gives an armor stack, and a block heals ${pct(n.heal)} of your max HP.`, { heal: 0.02 }),
   // v0.11 (#218): the Iron Hold's duo: what comes at you is paid back in blood
   ironTithe: duo('Iron Tithe', '⚖️', ['steel', 'blood'], ['reprisalCuirass', 'vampireFang'], (n) => `A reprisal opens ${n.bleed} bleed stacks on its target and heals you ${pct(n.heal)} of its damage.`, { bleed: 3, power: 0.1, heal: 0.03 }),
+  // v0.12 (#230): the Cinderlands' duo: the fire that cleanses. Flame's 5th recipe: a duo a realm takes a family past 4 (RELICS.md C5)
+  baptismOfFire: duo('Baptism of Fire', '⛲', ['flame', 'holy'], ['flashpowder', 'blessedWater'], (n) => `A flare heals you ${pct(n.heal)} of your max HP for every enemy it catches (up to ${n.max}).`, { heal: 0.01, max: 4 }),
 } satisfies Record<string, DuoDef>;
 export type DuoId = keyof typeof DUOS;
 export const DUO_IDS = Object.keys(DUOS) as DuoId[];

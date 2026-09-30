@@ -20,6 +20,8 @@ export const RELIC_SHORT: Record<RelicId | DuoId, string> = {
   flashpowder: 'Every so often a hit sparks: burning enemies flare, others catch fire.',
   pitchPot: 'Flings burning pitch at the nearest enemy; burning enemies drip it too.',
   crownOfCinders: "Attacks light enemies, and a dying enemy's burn leaps to those near it.",
+  surtrsBrand: 'Hits during Berserker Rage stoke a burst of fire for when it ends.',
+  bonefire: 'Your skeletons burn: they set the enemies next to them alight.',
   // ❄️ Frost
   frostBrand: 'Attacks nearly always chill.',
   wintersGrasp: 'Your signature ability chills everything it hits.',
@@ -102,4 +104,5 @@ export const RELIC_SHORT: Record<RelicId | DuoId, string> = {
   requiem: 'Cursed enemies always drop a mercy orb.',
   consecration: 'Ward you gain gives armor, and blocks heal you.',
   ironTithe: 'A reprisal opens bleeds on its target and heals you.',
+  baptismOfFire: 'A flare heals you for every enemy it catches.',
 };

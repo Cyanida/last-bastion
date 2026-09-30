@@ -37,14 +37,17 @@ function golden({ cls, seed, level, variant = 0 }: GoldenLevel): string {
 // and again on release/0.11.0 with #217's Rivet Hammer in the starter pool (level 1's relic draws changed on purpose);
 // re-recorded again for #218 (v0.11): the Archer's and the Angel's Steel class relics join their pools, so their level 1 draws (and those two
 // runs) moved, gameplay changed on purpose, and the Angel's once more when Iron Halo's strike moved onto the cast; these seeds still fall on Marches level 7 on Knight, so its runs pin the head start, the loadout and the fight up to the fall;
-// re-recorded for #237: a realm run's loadout is 3 slots at every level (level 7 had 4), so the three level 7 runs slot one relic fewer (gameplay changed on purpose)
+// re-recorded for #237: a realm run's loadout is 3 slots at every level (level 7 had 4), so the three level 7 runs slot one relic fewer (gameplay changed on purpose);
+// re-recorded for #230 (v0.12): the Viking has a Flame class relic now, so the bot's taste for him (the families of his class relics, sim/levels
+// tasteOf) takes Flame in and his level 7 loadout leads with Salamander Scale, as the Paladin's and the Angel's do; on this seed he now clears
+// level 7 where he fell at its first wave (the other two level 7 runs still fall)
 const GOLDEN: Record<string, string> = {
   'marches 1 paladin:1': 'cleared wave 5 kills 105 level 6 loadout - relics 3 hash fdf9ffdb',
   'marches 1 archer:2': 'cleared wave 5 kills 105 level 5 loadout - relics 3 hash 2f77b214',
   'marches 1 angel:4 variant 1': 'cleared wave 5 kills 107 level 6 loadout - relics 3 hash d27e0983',
   'marches 7 paladin:1': 'fell wave 33 kills 417 level 25 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash f6ce171a',
   'marches 7 angel:1': 'fell wave 38 kills 1002 level 27 loadout salamanderScale+anvilHeart+berserkerTooth relics 7 hash 99818d39',
-  'marches 7 viking:2 variant 1': 'fell wave 30 kills 90 level 24 loadout tempestEye+anvilHeart+salamanderScale relics 4 hash 6045c1c1',
+  'marches 7 viking:2 variant 1': 'cleared wave 40 kills 1101 level 28 loadout salamanderScale+anvilHeart+berserkerTooth relics 7 hash 4b0ac950',
 };
 
 describe('v0.10 golden level runs (#207)', () => {
