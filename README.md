@@ -178,6 +178,7 @@ npm run sim -- economy 80    # one save played run after run, buying the Keep gr
 npm run sim -- deep 3        # the fresh / maxed table, but wins march on into Endless: depth is not capped at wave 40
 npm run sim -- pacing 4      # from the run logs: run length, minutes per Act, quiet time, the longest stretches with nothing new
 npm run sim -- levels 6      # realm levels (v0.10): each realm as one run on Knight with expected progress, against the plan's rule 9 targets
+npm run sim -- levels 8 squire marches,ironHold  # #250: the same on Squire (a Squire player's progress) and on Knight, then Squire's bar per level and class
 npm run sim -- relics 3 loadout  # the relic tables for the Last Bastion, with the loadout the bot fills (v0.10)
 ```
 
