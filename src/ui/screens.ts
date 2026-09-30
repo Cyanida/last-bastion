@@ -1118,7 +1118,7 @@ export function showRarePick(level: string, family: FamilyId, options: RelicId[]
   const el = show(`
     <div class="levelup rare-pick ${text.cls ?? ''}">
       ${choiceHead(text.head ?? `${level} cleared`)}
-      <p class="sub">${options.length ? text.sub ?? `Choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} rare to keep. It joins your champion's relics for every loadout.` : text.empty ?? `You hold every ${FAMILIES[family].name} rare already.`}</p>
+      <p class="sub">${options.length ? text.sub ?? `Choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} rare to keep. It joins your champion's relics for every loadout.` : text.empty ?? `You already own every ${FAMILIES[family].name} rare, so you get ${runes} Runes instead.`}</p>
       ${options.length ? `<div class="cards">${options.map((id, i) => relicCard(id, 1, [], `data-pick="${i}"`, `<div class="num">${i + 1}</div>`)).join('')}</div>` : `<div class="row">${kit.button(`Take ◆ ${runes} Runes`, { kind: 'gold', attrs: 'data-runes' })}</div>`}
     </div>`);
   wireRelicInfo(el);
