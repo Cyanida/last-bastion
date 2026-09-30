@@ -58,7 +58,7 @@ npm run dev              # web, http://localhost:5173
 | `npm run dev` | Vite dev server with hot reload |
 | `npm run dev:electron` | the same dev server inside the Electron shell |
 | `npm run build` | type check + production build to `dist/` (also emits `sw.js`) |
-| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (1038 tests) |
+| `npm run typecheck` / `npm test` | `tsc --noEmit` / vitest (1045 tests) |
 | `npm run test:play` | the headless play test (`scripts/play-test.mjs`): answers every choice screen, uses keyboard, mouse and touch, banks a run |
 | `npm run test:perf` | headless Chromium frame-time test of Fog, Blood Moon and the Usurper's last phase against the built game, with the run music playing, plus a check that the music plays in every arena (PERF.md) |
 | `npm run sim` | headless balance simulation, see below |
