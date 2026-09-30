@@ -1965,7 +1965,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await opening();
     const one = await entering();
     want(one.head === 'Your opening pick' && one.picks === 3 && one.queued === 0 && one.level === 1 && one.start === 1 && one.plevel === 1, `FIGHT opens level 1 on ${JSON.stringify(one)}`);
-    await p.evaluate(() => { const g = window.__lb.game; g.player.xp = 150; g.level.cleared = true; }); // as if its foes and its boss fell: a level's worth of XP, and the level ends once its spoils are taken
+    await p.evaluate(() => { const g = window.__lb.game; g.player.xp = 200; g.level.cleared = true; }); // as if its foes and its boss fell: a level's worth of XP (a champion level costs 180, #243), and the level ends once its spoils are taken
     await press('[data-pick="0"]');
     await p.locator('.rare-pick').waitFor({ timeout: 5000 });
     await press('.rare-pick [data-pick="0"]');
@@ -1990,7 +1990,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const first = await look();
     const champ0 = await saved();
     want(first.state === 'results' && first.head === 'Level cleared' && /The Marches · Level 1/.test(first.sub), `the screen: "${first.head}", "${first.sub}" (${first.state})`);
-    want(champ0.level === 2 && champ0.xp === 150 && champ0.run === 2 && /^Champion XP\+150 XP · level 2/.test(first.xp) && /level up/.test(first.xp) && /Level 1 → 2/.test(first.up) && /\+3 stat points · \+1 talent point/.test(first.up), `XP "${first.xp}", level up "${first.up}", saved ${JSON.stringify(champ0)}`);
+    want(champ0.level === 2 && champ0.xp === 200 && champ0.run === 2 && /^Champion XP\+200 XP · level 2/.test(first.xp) && /level up/.test(first.xp) && /Level 1 → 2/.test(first.up) && /\+3 stat points · \+1 talent point/.test(first.up), `XP "${first.xp}", level up "${first.up}", saved ${JSON.stringify(champ0)}`);
     want(first.go === 'Continue to level 2' && first.goMain && first.mains === 1 && first.map === 'Back to the map' && first.fits, `buttons "${first.go}" (${first.goMain ? 'green, big' : 'NOT the main button'}, ${first.mains} big) / "${first.map}", ${first.fits ? 'on screen' : 'OFF SCREEN'}`);
     want(first.points === '3' && first.strength.n === '0' && first.strength.plus && !first.strength.minus && /^\+\d+ .+ a point$/.test(first.strength.gives) && first.options.length === 2 && first.options.every((o) => o.on) && first.utility === 2 && first.talents === 'Talents (1 to spend)' && first.small === '',
       `the build to start: ${JSON.stringify({ points: first.points, strength: first.strength, options: first.options, utility: first.utility, talents: first.talents, small: first.small })}`);
@@ -2053,7 +2053,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.evaluate(() => {
       const lb = window.__lb;
       lb.save.cards.splice(0, lb.save.cards.length, ...lb.cardIds);
-      lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown({}), xp: 420, level: 3, world: {}, signature: false, lastBastion: false, runs: {} } };
+      lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown({}), xp: 540, level: 3, world: {}, signature: false, lastBastion: false, runs: {} } };
     });
     await press('[data-go="champion"]');
     await p.locator('.champion-screen').waitFor({ timeout: 3000 });
@@ -5627,9 +5627,9 @@ await check('Bosses: the Marches level 1 ends on the Black Knight; level 5 ends 
 // ---------- #243: longer levels: a level runs on its own waves ----------
 // A new Viking from the title -> the Map tab -> the Marches -> its road: level 1's panel says Waves 1–6. FIGHT plays it out (the bot,
 // who can't be hurt, the one shortcut): the scale's old boss wave 5 is a plain wave, and the level's one boss comes on wave 6, its last.
-// Its rare (key 1), then the results' Onward goes into level 2, waves 7–12: Act I ends inside it at wave 10 with no boss, no Merchant
+// Its rare (key 1), then the level-cleared screen's Continue (#241) goes into level 2, waves 7–12: Act I ends inside it at wave 10 with no boss, no Merchant
 // and no fork; the fight goes on into Act II, and the boss comes on wave 12.
-await check('longer levels: the Marches level 1 is waves 1–6 with its one boss on wave 6; Onward into level 2 (waves 7–12), where Act I ends with no boss, no Merchant and no fork, click and keys at 1280x720 (#243)', async () => {
+await check('longer levels: the Marches level 1 is waves 1–6 with its one boss on wave 6; Continue into level 2 (waves 7–12), where Act I ends with no boss, no Merchant and no fork, click and keys at 1280x720 (#243)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const errs = [];
   p.on('pageerror', (e) => errs.push(e.message));
@@ -5672,10 +5672,10 @@ await check('longer levels: the Marches level 1 is waves 1–6 with its one boss
   want(one.level === 1 && one.first === 1 && one.last === 6 && one.cleared && one.wave === 6 && one.state === 'results' && one.bossWaves.join() === '6' && !one.shop, `level 1 ${JSON.stringify(one)}`);
   await p.locator('.rare-pick').waitFor({ timeout: 5000 });
   await p.keyboard.press('1');
-  await p.locator('.results [data-retry]').waitFor({ timeout: 3000 });
-  const onward = (await p.locator('.results [data-retry]').textContent()).trim();
-  want(onward === 'Onward · The Marches · Level 2', `the gold button says "${onward}"`);
-  await press('.results [data-retry]');
+  await p.locator('.level-cleared [data-retry]').waitFor({ timeout: 3000 });
+  const onward = (await p.locator('.level-cleared [data-retry]').textContent()).trim();
+  want(onward === 'Continue to level 2', `the main button says "${onward}"`);
+  await press('.level-cleared [data-retry]');
   await opening();
   const two = await playOut();
   await p.close();
