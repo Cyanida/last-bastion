@@ -1,7 +1,9 @@
 // v0.10 (#202): the crown boss rules (docs/road-to-the-crown.md rule 3) and the Warden's third phase as the Marches' crown boss
-import { WARDEN } from '../config/bosses';
+import { INQUISITOR, WARDEN } from '../config/bosses';
+import { ENEMY_STATUS } from '../config/damage';
 import { WORLD, type EndBoss } from '../config/world';
 import { TAU } from '../core/math';
+import type { StatusApply } from './status';
 
 /** A level's end boss is its realm's crown boss. */
 export const isCrownFight = (end: EndBoss | undefined): boolean => !!end?.crown;
@@ -28,6 +30,22 @@ export const elitePhases = (phases: number): number => phases + WORLD.eliteBoss.
  * Hold's level 4 ends on more than level 2's Warden again. A plain Warden never gets there: he has three phases.
  */
 export const wardenJudges = (phase: number, crown: boolean): boolean => phase >= (crown ? 3 : 4);
+
+/**
+ * #231: the Grand Inquisitor's Auto-da-fé, the elite's extra phase after his two (the Cinderlands' level 4): his pyres stay alight. A
+ * plain Inquisitor (and the Heretic) never gets there: he has two phases.
+ */
+export const inquisitorPyres = (phase: number): boolean => phase >= INQUISITOR.pyreFrom;
+
+/**
+ * The burning ground one of his pyres leaves in the Auto-da-fé, or null before it: INQUISITOR.pyre's fire x `scale` (the wave's and the
+ * difficulty's enemy damage), and the Torchbearers' falling burn (#225) on whoever stands in it, a stack a tick.
+ */
+export function pyreField(phase: number, scale: number): { life: number; dps: number; apply: StatusApply } | null {
+  if (!inquisitorPyres(phase)) return null;
+  const b = ENEMY_STATUS.torchbearer!;
+  return { life: INQUISITOR.pyre.life, dps: INQUISITOR.pyre.dps * scale, apply: { ...b, power: (b.power ?? 0) * scale } };
+}
 
 /** One of the Warden's seals: its outer ring's gaps and what comes with it. `n` counts his seals so far (0-based). */
 export interface WardenMove {

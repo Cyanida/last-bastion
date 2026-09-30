@@ -1542,11 +1542,12 @@ export interface Sprite {
 /**
  * v0.4 mastery palettes: a canvas filter over the class sprite (0 = as drawn; Ashen, Gilded, Midnight). v0.5: Frost and Verdant tint treasure guardians only.
  * #219: Iron, the Iron Hold's Legend crown: cold dark steel (Ashen is pale and warm).
+ * #231: Cinder, the Cinderlands' Legend crown: a dark ember red (Gilded is bright gold).
  * #156: Midnight tints from sepia like Gilded, so every champion turns night-blue (a hue-rotate turned the Necromancer green and the Archer pink).
  */
-export const SPRITE_PALETTES = ['', 'saturate(0.35) brightness(1.1)', 'sepia(1) saturate(2.2) hue-rotate(-10deg) brightness(1.1)', 'sepia(1) hue-rotate(185deg) saturate(1.7) brightness(0.72)', 'sepia(1) hue-rotate(160deg) saturate(2.5) brightness(1.15)', 'sepia(1) hue-rotate(60deg) saturate(2.2) brightness(0.95)', 'grayscale(1) sepia(0.3) hue-rotate(175deg) contrast(1.3) brightness(0.9)'];
+export const SPRITE_PALETTES = ['', 'saturate(0.35) brightness(1.1)', 'sepia(1) saturate(2.2) hue-rotate(-10deg) brightness(1.1)', 'sepia(1) hue-rotate(185deg) saturate(1.7) brightness(0.72)', 'sepia(1) hue-rotate(160deg) saturate(2.5) brightness(1.15)', 'sepia(1) hue-rotate(60deg) saturate(2.2) brightness(0.95)', 'grayscale(1) sepia(0.3) hue-rotate(175deg) contrast(1.3) brightness(0.9)', 'sepia(1) saturate(3.2) hue-rotate(-32deg) contrast(1.2) brightness(0.8)'];
 /** A palette's name, as a swatch's tip and a crown's reward say it. */
-export const PALETTE_NAMES = ['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours', 'Frost colours', 'Verdant colours', 'Iron colours'];
+export const PALETTE_NAMES = ['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours', 'Frost colours', 'Verdant colours', 'Iron colours', 'Cinder colours'];
 
 /** `scale` is device pixels per grid pixel here: getSprite passes spriteSize's cell. */
 function rasterize(rows: string[], scale: number, white: boolean, flip: boolean, palette = 0): HTMLCanvasElement {

@@ -119,6 +119,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
     foes: { peasant: 'torchbearer', wolf: 'cinderHound' }, // #225: torchbearers; #226: cinder hounds
     hazard: 'fire', // #224: fire that spreads from the lava
     levels: relicRealmLevels('flame', 'inquisitor', 'emberQueen', 'cinderColossus'), crown: RELIC_CROWN,
+    legend: { title: 'Cinderborn', palette: 7 }, // #231 Decided: the plan names neither
   },
   frozenPass: {
     name: 'The Frozen Pass', ring: 3, opens: { crowns: 2 }, arena: 'frozenPass', family: 'frost', release: '0.14.0',
