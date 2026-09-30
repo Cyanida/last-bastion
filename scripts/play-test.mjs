@@ -2105,7 +2105,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = first.fits && first.figure && first.slots === 'ooo---' && first.inv === 4 && first.blocked === '' && first.play === 'Play' && first.playReach && first.greens === 1 && first.tabs === 'oXooo'
       && /The Marches · Level 1/.test(first.next) && /3 slots/.test(first.next) && first.sets === ''
-      && slotted.slots === 'Ro---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === ''
+      && slotted.slots === 'Ro---' && slotted.loadout === 'dragonsTongue' && slotted.blocked === 'everfrostCrown' && slotted.sets === '1' // #237: three slots, so the legendary goes in and counts for its set
       && /everfrost crown: at most 1 legendary/i.test(refused.why) && refused.loadout === 'dragonsTongue'
       && common.slots === 'Roo---' && common.loadout === 'brimstoneOil' && common.sets === '1'
       && planned.plan === 1 && planned.savedPlan === 1 && map === 1
@@ -2389,7 +2389,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 }
 
 // ---------- v0.10 (#193): a v0.7-v0.9 save (format 6) loads as format 7 with its champions, its relics kept, the old text under Restore ----------
-await check('save v7: a format-6 save migrates with champions, and the Keep, Chronicle and Settings still open (#193)', async () => {
+await check('save v7: a format-6 save migrates with champions (as format 8 now, #237), and the Keep, Chronicle and Settings still open (#193)', async () => {
   const { readFileSync } = await import('node:fs');
   const v6 = readFileSync(new URL('../tests/fixtures/saves/format6-v0.7.4.json', import.meta.url), 'utf8');
   const errs = errors.length;
@@ -2412,7 +2412,7 @@ await check('save v7: a format-6 save migrates with champions, and the Keep, Chr
   const label = await page.locator('[data-restore]').first().textContent();
   await page.click('[data-act="back"]');
   await page.click('[data-act="back"]');
-  const ok = s.version === 7 && kept && opened.every(Boolean) && label.includes('v0.7-v0.9') && errors.length === errs;
+  const ok = s.version === 8 && kept && opened.every(Boolean) && label.includes('v0.7-v0.9') && errors.length === errs;
   return { ok, detail: `format ${s.version}, ${champs.length} champions holding all ${s.picks.length} picked relics ${kept}, Keep/Chronicle ${opened.join('/')}, restore row "${label?.trim()}", ${errors.length - errs} errors` };
 });
 
@@ -4530,7 +4530,7 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   await p.locator('.rr-panel').waitFor({ timeout: 3000 });
   const road2 = (await p.locator('.rr-name').textContent()).trim();
   const facts2 = await p.evaluate(() => document.querySelector('.rr-facts').textContent.replace(/\s+/g, ' ').trim());
-  want(road2 === 'The Marches · Level 2' && facts2.includes(`Relics kept ${one.end.length}`) && facts2.includes(`Run level Level ${one.plevel}`) && !/Head start/.test(facts2), `road after level 1 and a reload "${road2}" (${facts2})`);
+  want(road2 === 'The Marches · Level 2' && new RegExp(`Run level\\s*Level ${one.plevel}\\s*Relics kept\\s*${one.end.length}\\s*Enemy`).test(facts2) && !/Head start/.test(facts2), `road after level 1 and a reload "${road2}" (${facts2})`);
   log.push(`reloaded: "${road2}", ${facts2}`);
   // Loadout slots the rare: the run is under way, so every slot idles and it stays out (the loadout went in at level 1), PLAY
   await press('[data-loadout]');
