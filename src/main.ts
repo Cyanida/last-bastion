@@ -53,7 +53,7 @@ import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSe
 import { crashReport } from './logic/crash';
 import { crownGifts, levelPanel, mapRealms, roadLevels, roadTier } from './logic/world';
 import { REALMS, WORLD, type RealmId } from './config/world';
-import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, keepLockedPick, legendaryPickOptions, newChampion, nextStop, rarePickOptions, rewardRelics, runAt, runFor, runLevel, runStarts, type Champion } from './logic/champions';
+import { championBonus, championSlots, fitLoadout, freshRelics, grantRelic, keepLockedEmptyText, keepLockedPick, legendaryPickOptions, newChampion, nextStop, rarePickOptions, rewardRelics, runAt, runFor, runLevel, runStarts, type Champion } from './logic/champions';
 import { checkpoint } from './logic/realmRun';
 import { roadGo, roadOpensOn, roadRun } from './logic/realmRoad';
 import { TALENT_ROW_CAP } from './config/economy';
@@ -61,7 +61,7 @@ import { takeCarry, type LevelStart } from './systems/levels';
 import { isCompactLayout, textScale } from './logic/textSize';
 import { TREASURE_RULES, TREASURES, treasureDesc } from './config/treasures';
 import { inText } from './logic/treasures';
-import { FAMILIES, RELIC_MOMENTS, relicDef, TIER_NUMERALS, type RelicId } from './config/relics';
+import { FAMILIES, RELIC_IDS, RELIC_MOMENTS, relicDef, TIER_NUMERALS, type RelicId } from './config/relics';
 import { BOOK_IDS } from './config/acts';
 import { looseRelics } from './logic/relics';
 import { TRAITS } from './config/traits';
@@ -754,11 +754,11 @@ function endRun(g: Game): void {
     else if (x.kind === 'keepLocked' && family)
       steps.push((next) => showRarePick(level, family, keepLockedPick(champOf(id), id, family, held, WORLD.keepLockedOf), WORLD.keepLockedRunes, (relic) => (keep(relic), next()), {
         sub: `Choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} relic you had yet to win, to keep. It joins your champion's relics for every loadout.`,
-        empty: `You held no ${FAMILIES[family].name} relic still to win when it ended.`,
+        empty: keepLockedEmptyText(champOf(id), id, family, FAMILIES[family].name),
       }));
     else if (x.kind === 'legendaryPick' && family)
       steps.push((next) => showRarePick(level, family, legendaryPickOptions(champOf(id), family), WORLD.keepLockedRunes, (relic) => (keep(relic), next()), {
-        head: crownHead, cls: 'legendary-pick', empty: `You hold both ${FAMILIES[family].name} legendaries already.`,
+        head: crownHead, cls: 'legendary-pick', empty: `You already own both ${FAMILIES[family].name} legendaries, so you get ${WORLD.keepLockedRunes} Runes instead.`,
         sub: `The ${r.tier} crown: choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} legendary to keep. The Champion's crown gives the other.`,
       }));
   }
@@ -1060,6 +1060,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       },
       quality,
       kit, // #185: the play test and the kit sheet preview build components with the UI kit's helpers
+      relicRares: (family: string) => RELIC_IDS.filter((id) => { const d = relicDef(id); return d.family === family && d.rarity === 'rare' && !d.classId; }), // #257: the play test gives a champion every rare of a family
       cardIds: CARD_IDS, // v0.8 (#124): the perf test marks every flash card seen
       get spotlight() {
         return spotlightOn(); // #133: the play test checks the spotlight is on the card's foe

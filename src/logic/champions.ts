@@ -223,6 +223,17 @@ export function keepLockedPick(c: Champion, classId: ClassId, family: FamilyId |
   return [...opts.filter((id) => held.includes(id)), ...opts.filter((id) => !held.includes(id))].slice(0, of);
 }
 
+/**
+ * #257: the sentence on a keep-locked level's reward when keepLockedPick is empty, saying which of its two reasons applies: no rare of
+ * the family left to win (all owned), or none of the family held when the level ended (keepLockedOptions keeps only held families).
+ */
+export function keepLockedEmptyText(c: Champion, classId: ClassId, family: FamilyId, name: string, runes = WORLD.keepLockedRunes): string {
+  const none = lockedIn(championPool(classId, c.inventory, family), c.inventory).every((id) => { const d = relicDef(id); return d.rarity !== 'rare' || !!d.classId || !!d.signature; });
+  return none
+    ? `You already own every ${name} relic this level offers, so you get ${runes} Runes instead.`
+    : `You held no ${name} relic when the level ended, so there is none to keep, and you get ${runes} Runes instead.`;
+}
+
 /** The champion's class relic of a family (every class has one per family), or null. */
 export const classRelicOf = (classId: ClassId, family: FamilyId | undefined): RelicId | null =>
   RELIC_IDS.find((id) => relicDef(id).family === family && relicDef(id).classId === classId) ?? null;

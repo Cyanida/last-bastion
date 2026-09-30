@@ -7094,6 +7094,35 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+
+// ---------- #257: a keep-a-relic level with no relic left to keep says why and what you get instead ----------
+await check('Iron Hold: a level 1 clear by a champion who owns every Steel rare says so in one plain sentence above a lone "Take 2 Runes" (#257)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const press = (sel) => p.locator(sel).first().click();
+  await p.evaluate(() => {
+    const lb = window.__lb;
+    lb.save.champions = { paladin: { name: 'Hild', inventory: lb.relicRares('steel'), loadouts: {}, ...lb.build.grown({ marches: [7] }), world: { marches: [7] }, signature: false, lastBastion: false, runs: {} } };
+  });
+  await press('[data-go="map"]');
+  await press('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await press('.rr-tier[data-tier="1"]');
+  await press('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
+  await p.evaluate(() => { window.__lb.game.level.cleared = true; }); // as if its boss fell: the level ends once its opening pick is taken
+  await press('[data-pick="0"]');
+  await p.locator('.rare-pick').waitFor({ timeout: 5000 });
+  const got = await p.evaluate(() => ({ sub: document.querySelector('.rare-pick .sub')?.textContent.trim(), cards: document.querySelectorAll('.rare-pick [data-pick]').length, buttons: [...document.querySelectorAll('.rare-pick button')].map((b) => b.textContent.trim()) }));
+  await p.screenshot({ path: `${process.env.TEMP ?? '.'}/lb257-no-relic.png` });
+  const ok = got.sub === 'You already own every Steel relic this level offers, so you get 2 Runes instead.' && got.cards === 0 && got.buttons.length === 1 && /Take ◆ 2 Runes/.test(got.buttons[0]) && errs.length === 0;
+  await p.close();
+  return { ok, detail: ok ? got.sub : `${JSON.stringify(got)} ${errs.join('|')}` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
