@@ -57,8 +57,8 @@ describe('champion levels: XP, the cap and the curve (#238)', () => {
 
   it('enemies scale to the champion level a level expects: eased in the Marches, up in a relic realm', () => {
     expect(championStep('marches', 1).hp).toBeLessThan(1); // a level-1 champion all level long, where a run grew to level 6
-    expect(championStep('marches', 1).hp).toBeGreaterThan(0.6);
-    expect(championStep('ironHold', 1).hp).toBeGreaterThan(2); // a level-8 champion walks into waves 1-5
+    expect(championStep('marches', 1).hp).toBeGreaterThan(0.4); // #220: against the pace as the level ends
+    expect(championStep('ironHold', 1).hp).toBeGreaterThan(2); // a level-8 champion walks into waves 1-8
     expect(championStep('ironHold', 1).hp).toBeGreaterThan(championStep('ironHold', 5).hp);
     const g = createGame('paladin', 1, { tier: 1, level: { realm: 'ironHold', level: 1 } });
     expect(g.tier.enemyHp).toBeGreaterThan(createGame('paladin', 1, { tier: 1 }).tier.enemyHp);

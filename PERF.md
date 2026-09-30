@@ -86,6 +86,11 @@ builds the scenario through the `?debug` hook, lets the real loop run 300 frames
 GitHub's runners raster the canvas in software (no GPU) and are roughly twice as slow as a desktop, so 34 ms there (two vsyncs)
 is the equivalent of the 20 ms desktop budget. The number to watch over time is the p95 in the job's log, not just the pass mark.
 
+Its scenes: a wave-20 horde of 250 under Fog and under a Blood Moon, the Usurper in his last phase with 150 of his host, and (v0.11,
+#220) the fortress: an Iron Hold level in the Great Keep, 250 foes, over half of them the realm's own (Iron Knights, Iron Shieldwalls,
+Thorn Bearers), under its forge presses and the Keep's braziers. The fortress scene also fails when it is not the fortress (another
+arena, none of the realm's foes, or no press seen marking slabs). On the desktop it read p95 16.8 ms (update 1.0, render 1.2).
+
 ## At the v0.4.0 release
 
 CI run on the release commit (software raster, `PERF_BUDGET_MS=34`): Fog p95 **16.8 ms** (avg 17.0, update 0.6, render 0.9), Blood Moon p95 **16.7 ms**

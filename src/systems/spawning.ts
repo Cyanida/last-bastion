@@ -23,7 +23,7 @@ import { ACTS } from '../config/acts';
 import { actTheme, turnAct } from './acts';
 import { killEnemy } from './combat';
 import { createSquad } from './squads';
-import { REALMS } from '../config/world';
+import { REALMS, WORLD } from '../config/world';
 import { bossWaveIn, levelBoss, levelWaves, ownWaves, realmFoe } from '../logic/world';
 import { crownHpFloor, elitePhases, isCrownFight, isEliteFight } from '../logic/crownBoss';
 
@@ -84,12 +84,14 @@ function crownBoss(g: Game, e: Enemy): void {
   g.banner = { text: `${e.def.name} · Crown boss`, t: 3 };
 }
 
-/** #219: a level's last-wave boss comes as an elite when the level says so: more phases on the same HP (logic/crownBoss elitePhases), and its name says so. */
+/** #219: a level's last-wave boss comes as an elite when the level says so: more phases (logic/crownBoss elitePhases) on more HP (#220, WORLD.eliteBoss), and its name says so. */
 function eliteBoss(g: Game, e: Enemy): void {
   const lv = g.level;
   if (!lv || g.wave !== lv.last || !isEliteFight(REALMS[lv.realm].levels[lv.level - 1]?.boss)) return;
   if (bossDef(g.bossesSeen[g.bossesSeen.length - 1] ?? '').from !== e.def.id) return;
   e.def = { ...e.def, name: `${e.def.name}, Elite`, phases: elitePhases(e.def.phases ?? 2) };
+  e.maxHp = e.hp = Math.round(e.hp * WORLD.eliteBoss.hp);
+  e.damage *= WORLD.eliteBoss.damage;
   g.banner = { text: `${e.def.name} · one phase more`, t: 3 };
 }
 
