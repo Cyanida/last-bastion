@@ -9,7 +9,7 @@ import { CLASSES } from '../config/classes';
 import { TALENT_BY_ID, TALENTS } from '../config/talents';
 import type { TreasureId } from '../config/treasures';
 import { UPGRADES } from '../config/upgrades';
-import { UTILITY_TRACKS, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
+import { UTILITY, UTILITY_TRACKS, UTILITY_UPGRADES, type UtilityUpgradeId } from '../config/utility';
 import { REALM_IDS, REALMS, type RealmId } from '../config/world';
 import type { StatKey, Stats } from '../core/types';
 import { pickAbilityUpgrade } from './abilityUpgrades';
@@ -141,19 +141,40 @@ export const talentPointsEarned = (level: number, bonus = 0): number => (level -
 /** Talent points still to spend. */
 export const talentPointsFree = (c: ChampionGrowth, bonus = 0): number => talentPointsEarned(c.level, bonus) - c.talents.length;
 
-/** What one point in `stat` gives a class: which of its stats, how much is added to it, and the line a screen shows ("+10 Strength", "+32% Attack Speed", "+6 Faith"). */
-export function pointGives(classId: ClassId, stat: ChampionStat): { key: StatKey; amount: number; name: string; text: string } {
+/**
+ * What one point in `stat` gives a class: which of its stats, how much is added to it, and the line a screen shows ("+10 Strength",
+ * "+32% Attack Speed", "+6 Faith"). #241: `n` points' worth in the line, for a stat's total (`amount` stays one point's).
+ */
+export function pointGives(classId: ClassId, stat: ChampionStat, n = 1): { key: StatKey; amount: number; name: string; text: string } {
   const key = CHAMPION_STAT_KEYS[classId][stat];
   const { rarity, boons } = CHAMPION.point;
   const boon = upgradeAmount(key, rarity);
   const share = UPGRADES[key].mode === 'mult';
   const label = statLabel(key, CLASSES[classId]);
-  return { key, amount: (share ? CLASSES[classId].base[key] * (boon - 1) : boon) * boons, name: CHAMPION_STAT_NAMES[stat].name, text: share ? `+${Math.round((boon - 1) * boons * 100)}% ${label}` : `+${boon * boons} ${label}` };
+  return { key, amount: (share ? CLASSES[classId].base[key] * (boon - 1) : boon) * boons, name: CHAMPION_STAT_NAMES[stat].name, text: share ? `+${Math.round((boon - 1) * boons * n * 100)}% ${label}` : `+${boon * boons * n} ${label}` };
 }
 
 /** One point into `stat`. */
 export const spendStat = <C extends ChampionGrowth>(c: C, stat: ChampionStat): C =>
   statPointsFree(c) < 1 || !CHAMPION_STATS.includes(stat) ? c : { ...c, points: { ...c.points, [stat]: (c.points[stat] ?? 0) + 1 } };
+
+/**
+ * #241: the stat points a realm run has played with already (the most any checkpoint's carry holds per stat): they stay until the run
+ * ends, as resetPoints keeps the whole build. A point put in since the checkpoint is not in the run yet and can still come out.
+ */
+export function heldPoints(c: Pick<Champion, 'runs'>): StatPoints {
+  const held: StatPoints = {};
+  for (const run of Object.values(c.runs)) for (const s of CHAMPION_STATS) if (run?.carry?.points[s]) held[s] = Math.max(held[s] ?? 0, run.carry.points[s]!);
+  return held;
+}
+
+/** #241: one point back out of `stat` (the minus beside it), down to what a run holds (`held`: heldPoints). */
+export function unspendStat<C extends ChampionGrowth>(c: C, stat: ChampionStat, held: StatPoints = {}): C {
+  const n = c.points[stat] ?? 0;
+  if (n < 1 || n <= (held[stat] ?? 0)) return c;
+  const { [stat]: _out, ...rest } = c.points;
+  return { ...c, points: n > 1 ? { ...rest, [stat]: n - 1 } : rest };
+}
 
 /** The ability tier a champion can buy next (0-2: tiers come in order), or null: all bought. Its two options: logic/abilityUpgrades upgradeOptions. */
 export const nextAbilityTier = (c: ChampionGrowth): number | null => (c.upgrades.length < 3 ? c.upgrades.length : null);
@@ -191,6 +212,70 @@ export const inRun = (c: Pick<Champion, 'runs'>): boolean => Object.values(c.run
 /** Every stat and talent point back, for free: only outside a run (the same object while one goes on). */
 export const resetPoints = <C extends ChampionGrowth & Pick<Champion, 'runs'>>(c: C): C =>
   inRun(c) ? c : { ...c, points: {}, upgrades: [], utilityUpgrades: [], talents: [] };
+
+// ---------- the spending screens (#241) ----------
+
+/** The champion level its utility ability unlocks at (UTILITY.unlockLevel in run levels, a champion level being worth several). */
+export const utilityUnlockLevel = 1 + Math.ceil((UTILITY.unlockLevel - 1) / CHAMPION.runLevels);
+
+/** What `from` -> `to` champion levels gave to spend (the level-cleared screen's "level up" line). */
+export const levelUpGains = (from: number, to: number): { levels: number; statPoints: number; talentPoints: number } => {
+  const levels = Math.max(0, to - from);
+  return { levels, statPoints: levels * CHAMPION.statPoints, talentPoints: levels * CHAMPION.talentPoints };
+};
+
+/** A two-way tier to buy: which tier (0-based), its two options, and whether the points are there. `locked`: a line saying what opens it. */
+export interface TierChoice<Id extends string> {
+  bought: Id[];
+  next: { tier: number; options: readonly Id[]; canBuy: boolean } | null; // null: every tier bought (or none open yet)
+  locked: string | null;
+}
+
+/**
+ * #241: a champion's build as the level-cleared screen and the champion screen's Build tab show it: its level and XP bar, the points
+ * free to spend, each stat with what a point gives and whether its plus and minus can be pressed, and the ability and utility tier
+ * that can be bought next. `bonus`: the account's permanent talent points; `utilityTiers`: how many its mastery opens.
+ * Decided: the minus takes back only points no realm run has played with yet (heldPoints); tiers and talents come back with the free
+ * reset outside a run, never one at a time. A utility tier can be bought once the utility itself is unlocked (champion level 2).
+ */
+export interface BuildView {
+  level: number;
+  cap: number;
+  capped: boolean;
+  xp: number; // into its level
+  next: number; // what the next level costs
+  statPoints: number;
+  talentPoints: number;
+  tierCost: number;
+  stats: { id: ChampionStat; name: string; desc: string; gives: string; points: number; total: string; canAdd: boolean; canTake: boolean }[];
+  ability: TierChoice<AbilityUpgradeId>;
+  utility: TierChoice<UtilityUpgradeId>;
+  canReset: boolean; // outside a realm run, with something spent
+}
+
+export function buildView(c: Champion, classId: ClassId, o: { bonus?: number; utilityTiers?: number } = {}): BuildView {
+  const at = levelProgress(c);
+  const free = statPointsFree(c);
+  const held = heldPoints(c);
+  const abilityTier = nextAbilityTier(c);
+  const utilityTier = nextUtilityTier(c, classId, o.utilityTiers ?? 1);
+  const utilityOpen = c.level >= utilityUnlockLevel;
+  return {
+    level: at.level, cap: at.cap, capped: at.capped, xp: at.into, next: at.next,
+    statPoints: free, talentPoints: talentPointsFree(c, o.bonus ?? 0), tierCost: CHAMPION.tierCost,
+    stats: CHAMPION_STATS.map((id) => {
+      const points = c.points[id] ?? 0;
+      return { id, name: CHAMPION_STAT_NAMES[id].name, desc: CHAMPION_STAT_NAMES[id].desc, gives: pointGives(classId, id).text, points, total: pointGives(classId, id, points).text, canAdd: free >= 1, canTake: points > (held[id] ?? 0) };
+    }),
+    ability: { bought: [...c.upgrades], next: abilityTier === null ? null : { tier: abilityTier, options: ABILITY_TRACKS[classId][abilityTier], canBuy: free >= CHAMPION.tierCost }, locked: null },
+    utility: {
+      bought: [...c.utilityUpgrades],
+      next: utilityTier === null || !utilityOpen ? null : { tier: utilityTier, options: UTILITY_TRACKS[classId][utilityTier], canBuy: free >= CHAMPION.tierCost },
+      locked: utilityOpen ? null : `Unlocks at champion level ${utilityUnlockLevel}.`,
+    },
+    canReset: !inRun(c) && (statPointsSpent(c) > 0 || c.talents.length > 0),
+  };
+}
 
 // ---------- reading a stored champion's growth (save v8) ----------
 

@@ -86,6 +86,24 @@ const skipTour = async (p = page, touch = false) => {
   await (touch ? skip.tap() : skip.click());
 };
 /**
+ * #241: after a level's opening relic pick the fight begins. An Act's quest board may still come first (Act I's, at a realm's level 1):
+ * its quests are the Act's, not the champion's build, and it is set out from as it stands. Returns the headings of the screens that came
+ * before the fight, for the check to see that none was a build screen.
+ */
+const intoFight = async (p, press) => {
+  const seen = [];
+  for (let i = 0; i < 4; i++) {
+    await p.waitForTimeout(200); // the run steps a tick before its next screen opens
+    await p.waitForFunction(() => window.__lb.state === 'playing' || !!document.querySelector('#overlay .kit-head'), null, { timeout: 5000 }).catch(() => {});
+    const head = await p.evaluate(() => (window.__lb.state === 'choice' ? document.querySelector('#overlay .kit-head')?.textContent.trim() ?? '?' : ''));
+    if (!head) break;
+    seen.push(head);
+    if (!(await p.locator('#overlay [data-leave]').count())) break; // not a board: the check fails on its heading
+    await press('#overlay [data-leave]');
+  }
+  return seen;
+};
+/**
  * #204: the Daily Trial is the one full 40-wave run left on the menus (the Classic run is gone). Opened as a save that already took a
  * trial keeps it (a check's own save has no Marches crown), then begun from the title through its own screen, as a player does.
  */
@@ -1816,7 +1834,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const second = pick.cards[1]?.name;
     const ok = /Steel/.test(opening) && pick.head === 'The Marches · Level 1 cleared' && pick.cards.length === 2 && pick.cards.every((c) => /Steel/.test(c.fam) && /rare/.test(c.rarity) && c.inside)
-      && pick.cards[0].name !== second && kept.inv.length === 1 && kept.cleared[0] === 1 && /Back to the Marches/.test(menu) && retry === 'Onward · The Marches · Level 2'
+      && pick.cards[0].name !== second && kept.inv.length === 1 && kept.cleared[0] === 1 && /Back to the map/.test(menu) && retry === 'Continue to level 2'
       && road.name === 'The Marches · Level 2' && road.open.slice(0, 3).join() === 'true,true,false' && /Flame relics featured/.test(road.text) && /Pick 1 of 2 Flame rares/.test(road.text) && errs.length === 0;
     return { ok, detail: `opening "${opening.trim()}"; "${pick.head}": ${pick.cards.map((c) => `${c.name} (${c.fam.trim()}, ${c.inside ? 'in view' : 'off screen'})`).join(' / ')}; took ${second} -> inventory [${kept.inv.join()}], cleared ${kept.cleared.join('/')}; "${retry}" / "${menu}" -> "${road.name}"${/Pick 1 of 2 Flame rares/.test(road.text) ? ', Flame pick next' : ''}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
@@ -1826,7 +1844,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 // Map -> the Marches -> FIGHT: level 1 is played to its end by the bot (hard blows, so it is quick) and no level-up, ability or utility
 // screen ever opens: the champion stays level 1 while the HUD counts the XP up. The clear banks that XP as champion XP (the results say
 // so) and the champion is level 2. On the champion screen the Build tab shows 3 stat points and the Talents tab a point to spend: a
-// talent is taken on the tree, the stat points go into Strength (through the dev helper until #241's screens), nothing can be reset
+// talent is taken on the tree, the stat points go into Strength and Vitality (the Build tab's plus buttons, #241), nothing can be reset
 // inside the realm run, and PLAY starts level 2 with all of it: level 2, the growth, +20 Strength, the talent, and the utility unlocked.
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   await check(`champion levels: a level shows no level-up screen, its clear banks champion XP (level 2), and the points spent are in the next level, ${touch ? 'tap' : 'click'} at ${w}x${h} (#238)`, async () => {
@@ -1883,7 +1901,8 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     if (!(await p.locator('.champion-screen').count())) { await press('[data-go="champion"]').catch(() => {}); }
     await press('[data-cs="build"]');
     const build = await p.evaluate(() => document.querySelector('.cs-build')?.textContent.replace(/\s+/g, ' ').trim() ?? '');
-    const spent = await p.evaluate(() => { const b = window.__lb.build; return [b.spend('strength'), b.spend('strength'), b.spend('vitality'), b.spend('strength'), b.reset()]; }); // three points, no fourth, no reset inside the run
+    for (const s of ['strength', 'strength', 'vitality']) await press(`[data-stat-add="${s}"]`); // #241: the Build tab's own plus buttons
+    const spent = await p.evaluate(() => ({ left: document.querySelector('[data-stat-points]').textContent, plus: [...document.querySelectorAll('[data-stat-add]')].every((b) => b.disabled), reset: !!document.querySelector('[data-reset-build]') })); // three points, no fourth, no reset inside the run
     await press('[data-cs="talents"]');
     const before = await p.evaluate(() => ({ button: document.querySelector('[data-spend-talents]')?.textContent.trim() ?? '', reset: !!document.querySelector('[data-reset-points]') }));
     await press('[data-spend-talents]');
@@ -1903,10 +1922,208 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = hud.level === '1' && /^\+[1-9]\d* XP$/.test(hud.xp) && played.cleared && played.screens === 0 && played.queued === 0 && played.top === 1 && played.collected > 0
       && banked.xp === played.collected && banked.level === 2 && new RegExp(`\\+${banked.xp} XP · level 2`).test(banked.line) && /level up/.test(banked.line) && banked.run === 2
-      && /Level 2/.test(build) && /3 stat points to spend/.test(build) && spent.join() === 'true,true,true,false,false'
+      && /Level 2/.test(build) && /3 stat points to spend/.test(build) && spent.left === '0' && spent.plus && !spent.reset
       && /Spend points \(1\)/.test(before.button) && !before.reset && tree.sub && tree.open > 0 && after === 0 && tab.taken === 1 && tab.saved === 1 && !tab.reset && tab.points.strength === 2 && tab.points.vitality === 1
       && next?.level === 2 && next.wave === 6 && next.plevel === 2 && Math.abs(next.str - (banked.str + 5 * next.grow + 20)) < 0.01 && next.talents === 1 && next.queued === 0 && next.utility && next.points.strength === 2 && errs.length === 0;
-    return { ok, detail: `level 1: ${played.cleared ? 'cleared' : `NOT cleared (wave ${played.wave}, ${played.state})`}, ${played.screens} level-up screens, ${played.queued} queued, champion level ${played.top} all level, HUD "level ${hud.level}, ${hud.xp}"; banked ${banked.xp} XP of ${played.collected} -> level ${banked.level} ("${banked.line}"); Build tab "${build.slice(0, 70)}"; spends ${spent.join()}; talents "${before.button}"${before.reset || tab.reset ? ', RESET OFFERED IN A RUN' : ''}, ${tab.taken} taken; level ${next?.level}: champion level ${next?.plevel}, Strength ${next?.str} (checkpoint ${banked.str} + growth + 20), ${next?.talents} talent, utility ${next?.utility ? 'unlocked' : 'LOCKED'}, ${next?.queued} queued${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    return { ok, detail: `level 1: ${played.cleared ? 'cleared' : `NOT cleared (wave ${played.wave}, ${played.state})`}, ${played.screens} level-up screens, ${played.queued} queued, champion level ${played.top} all level, HUD "level ${hud.level}, ${hud.xp}"; banked ${banked.xp} XP of ${played.collected} -> level ${banked.level} ("${banked.line}"); Build tab "${build.slice(0, 70)}"; three points spent: ${JSON.stringify(spent)}; talents "${before.button}"${before.reset || tab.reset ? ', RESET OFFERED IN A RUN' : ''}, ${tab.taken} taken; level ${next?.level}: champion level ${next?.plevel}, Strength ${next?.str} (checkpoint ${banked.str} + growth + 20), ${next?.talents} talent, utility ${next?.utility ? 'unlocked' : 'LOCKED'}, ${next?.queued} queued${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #241: the level-cleared screen spends the points, and a level starts with no build screen ----------
+// Map -> the Marches -> FIGHT: the level opens on its opening relic pick (then the Act's quest board: the level's own, no build screen,
+// and nothing queued for the champion). The level is cleared with a level's worth of
+// XP collected (as if its foes and its boss fell). After its rare pick the "Level cleared" screen shows the XP, the level up (3 stat
+// points, a talent point) and the build: a point goes into Strength and one into Vitality, the Vitality point comes back out with its
+// minus, the ability's first upgrade is bought with the two points left (its two cards are dim while only one point is free), and a
+// talent is taken on the tree, which comes back to this screen. "Continue to level 2" starts level 2 (its opening pick and quest
+// board, no build screen) with all of it: champion level 2, the Strength point on top of the growth, the upgrade, the talent.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`level cleared: its screen shows the XP and the level up, spends stat points (plus, minus), buys an ability upgrade and takes a talent, and Continue starts level 2 with no build screen and all of it in, ${touch ? 'tap' : 'click'} at ${w}x${h} (#241)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate(() => { const lb = window.__lb; lb.save.cards.splice(0, lb.save.cards.length, ...lb.cardIds); }); // every flash card seen: none stops the run
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    const bad = [];
+    const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+    // what stands before the fight: the screen that is up, anything queued, and the champion as the level holds it
+    const entering = () => p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, pl = g.player;
+      return {
+        state: lb.state, head: document.querySelector('#overlay .kit-head')?.textContent.trim() ?? '', picks: document.querySelectorAll('#overlay [data-pick]').length,
+        queued: g.pendingLevelUps + g.pendingAbilityTiers.length + g.pendingUtilityTiers.length, level: g.level?.level, wave: g.wave, start: g.startWave,
+        id: pl.cls.id, plevel: pl.level, str: pl.stats.str, hp: pl.stats.hp, grow: pl.cls.growth.str, upgrades: pl.upgrades.join(), talents: pl.talents.length, points: g.level?.champion.points,
+      };
+    });
+    const opening = () => p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('#overlay [data-pick]'), null, { timeout: 5000 });
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-marches');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('[data-fight]');
+    await opening();
+    const one = await entering();
+    want(one.head === 'Your opening pick' && one.picks === 3 && one.queued === 0 && one.level === 1 && one.start === 1 && one.plevel === 1, `FIGHT opens level 1 on ${JSON.stringify(one)}`);
+    await p.evaluate(() => { const g = window.__lb.game; g.player.xp = 150; g.level.cleared = true; }); // as if its foes and its boss fell: a level's worth of XP, and the level ends once its spoils are taken
+    await press('[data-pick="0"]');
+    await p.locator('.rare-pick').waitFor({ timeout: 5000 });
+    await press('.rare-pick [data-pick="0"]');
+    await p.locator('.level-cleared').waitFor({ timeout: 3000 });
+    // the screen: its lines, its two buttons, the build panel; all of it on screen
+    const look = () => p.evaluate(() => {
+      const root = document.querySelector('.level-cleared'), text = (sel) => root.querySelector(sel)?.textContent.replace(/\s+/g, ' ').trim() ?? '';
+      const box = root.getBoundingClientRect(), go = root.querySelector('[data-retry]'), gb = go?.getBoundingClientRect();
+      const stat = (id) => { const r = root.querySelector(`.bp-stat[data-stat="${id}"]`); return { n: r.querySelector('[data-stat-n]').textContent, gives: r.querySelector('[data-stat-gives]').textContent, total: r.querySelector('[data-stat-total]').textContent, plus: !r.querySelector('[data-stat-add]').disabled, minus: !r.querySelector('[data-stat-take]').disabled }; };
+      return {
+        state: window.__lb.state, head: text('.kit-head'), sub: text('.sub'), xp: text('[data-champion-xp]'), up: text('[data-level-up]'), points: text('[data-stat-points]'),
+        go: go?.textContent.trim() ?? '', goMain: !!go && go.classList.contains('go') && go.classList.contains('big'), map: text('[data-menu]'), mains: root.querySelectorAll('.kit-btn.big').length,
+        fits: box.top >= -1 && box.left >= -1 && box.bottom <= innerHeight + 1 && box.right <= innerWidth + 1 && !!gb && gb.bottom <= innerHeight + 1 && document.elementFromPoint(gb.left + gb.width / 2, gb.top + gb.height / 2)?.closest('[data-retry]') === go,
+        strength: stat('strength'), vitality: stat('vitality'),
+        options: [...root.querySelectorAll('[data-buy-ability]')].map((b) => ({ id: b.dataset.buyAbility, name: b.querySelector('b').textContent, on: !b.disabled })),
+        bought: [...root.querySelectorAll('[data-tier="ability"] .bp-bought li b')].map((b) => b.textContent).join(),
+        utility: root.querySelectorAll('[data-buy-utility]').length, talents: text('[data-spend-talents]'),
+        small: [...root.querySelectorAll('*')].filter((e) => [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && e.getClientRects().length && parseFloat(getComputedStyle(e).fontSize) < (innerHeight >= 600 ? 14 : 11)).map((e) => `${e.className || e.tagName}:${getComputedStyle(e).fontSize}`).join(),
+      };
+    });
+    const saved = () => p.evaluate((id) => { const c = window.__lb.save.champions[id]; return { level: c.level, xp: c.xp, points: c.points, upgrades: c.upgrades.join(), talents: c.talents.length, run: c.runs.marches?.level, str: c.runs.marches?.carry?.stats.str }; }, one.id);
+    const first = await look();
+    const champ0 = await saved();
+    want(first.state === 'results' && first.head === 'Level cleared' && /The Marches · Level 1/.test(first.sub), `the screen: "${first.head}", "${first.sub}" (${first.state})`);
+    want(champ0.level === 2 && champ0.xp === 150 && champ0.run === 2 && /^Champion XP\+150 XP · level 2/.test(first.xp) && /level up/.test(first.xp) && /Level 1 → 2/.test(first.up) && /\+3 stat points · \+1 talent point/.test(first.up), `XP "${first.xp}", level up "${first.up}", saved ${JSON.stringify(champ0)}`);
+    want(first.go === 'Continue to level 2' && first.goMain && first.mains === 1 && first.map === 'Back to the map' && first.fits, `buttons "${first.go}" (${first.goMain ? 'green, big' : 'NOT the main button'}, ${first.mains} big) / "${first.map}", ${first.fits ? 'on screen' : 'OFF SCREEN'}`);
+    want(first.points === '3' && first.strength.n === '0' && first.strength.plus && !first.strength.minus && /^\+\d+ .+ a point$/.test(first.strength.gives) && first.options.length === 2 && first.options.every((o) => o.on) && first.utility === 2 && first.talents === 'Talents (1 to spend)' && first.small === '',
+      `the build to start: ${JSON.stringify({ points: first.points, strength: first.strength, options: first.options, utility: first.utility, talents: first.talents, small: first.small })}`);
+    // a point into Strength and one into Vitality: one left, so the upgrades (two points) go dim; the minus gives the Vitality point back
+    await press('[data-stat-add="strength"]');
+    await press('[data-stat-add="vitality"]');
+    const two = await look();
+    await press('[data-stat-take="vitality"]');
+    const back = await look();
+    want(two.points === '1' && two.strength.n === '1' && two.strength.minus && two.vitality.n === '1' && two.vitality.total !== '' && two.options.every((o) => !o.on), `two points in: ${JSON.stringify({ points: two.points, strength: two.strength, vitality: two.vitality, options: two.options.map((o) => o.on) })}`);
+    want(back.points === '2' && back.vitality.n === '0' && !back.vitality.minus && back.vitality.total === '' && back.strength.n === '1' && back.options.every((o) => o.on), `the minus: ${JSON.stringify({ points: back.points, vitality: back.vitality, options: back.options.map((o) => o.on) })}`);
+    // the ability's first upgrade for the two points left
+    const pick = back.options[1];
+    await press(`[data-buy-ability="${pick?.id}"]`);
+    const bought = await look();
+    want(bought.points === '0' && bought.bought === pick?.name && !bought.strength.plus && bought.strength.minus && bought.options.length === 2 && bought.options.every((o) => !o.on) && !bought.options.some((o) => o.id === pick?.id), `bought ${pick?.name}: ${JSON.stringify({ points: bought.points, bought: bought.bought, next: bought.options })}`);
+    // the talent point, on the tree; its back button comes back here with the build as it was left
+    await press('[data-spend-talents]');
+    await p.locator('.kit-screen.talents').waitFor({ timeout: 3000 });
+    await press('.talent.open');
+    await press('.kit-screen.talents [data-back]');
+    await p.locator('.level-cleared').waitFor({ timeout: 3000 });
+    const after = await look();
+    const champ1 = await saved();
+    const gives = Number(/\d+/.exec(after.strength.gives)?.[0]);
+    want(after.talents === 'Talent tree' && after.points === '0' && after.strength.n === '1' && after.bought === pick?.name && after.go === 'Continue to level 2', `back from the tree: ${JSON.stringify({ talents: after.talents, points: after.points, strength: after.strength.n, bought: after.bought })}`);
+    want(champ1.points.strength === 1 && !champ1.points.vitality && champ1.upgrades === pick?.id && champ1.talents === 1, `saved ${JSON.stringify(champ1)}`);
+    // Continue: straight into level 2, its opening pick the only screen, then the fight with everything spent
+    await press('[data-retry]');
+    await opening();
+    const next = await entering();
+    await press('[data-pick="0"]');
+    const boards = await intoFight(p, press);
+    const fight = await entering();
+    await p.close();
+    want(next.head === 'Your opening pick' && next.queued === 0 && next.level === 2 && next.wave === next.start - 1, `Continue opens level 2 on ${JSON.stringify({ head: next.head, queued: next.queued, level: next.level, wave: next.wave, start: next.start })}`);
+    want(fight.state === 'playing' && fight.queued === 0 && fight.level === 2 && boards.every((b) => /quest board/i.test(b)), `after its opening pick: ${fight.state}, ${fight.queued} queued, screens [${boards.join(' | ')}]`);
+    want(next.plevel === 2 && Math.abs(next.str - (champ0.str + 5 * next.grow + gives)) < 0.01 && next.upgrades === pick?.id && next.talents === 1 && next.points?.strength === 1 && !next.points?.vitality,
+      `level 2's champion: level ${next.plevel}, Strength ${next.str} (checkpoint ${champ0.str} + growth ${5 * next.grow} + ${gives}), upgrades [${next.upgrades}], ${next.talents} talent, points ${JSON.stringify(next.points)}`);
+    want(errs.length === 0, `errors: ${errs[0]}`);
+    return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `FIGHT -> "${one.head}", nothing queued; "${first.head}": "${first.xp}", "${first.up}"; ${first.points} points: +Strength +Vitality -> ${two.points} left, upgrades dim; -Vitality -> ${back.points}; bought ${pick?.name} -> ${bought.points}; a talent on the tree -> "${after.talents}"; "${first.go}" -> "${next.head}" of level ${next.level}${boards.length ? ` and ${boards.length} quest board` : ''}, no build screen, then the fight: champion level ${next.plevel}, Strength ${next.str} = ${champ0.str} + growth + ${gives}, [${next.upgrades}], ${next.talents} talent` };
+  });
+}
+
+// ---------- #241: the champion screen's Build tab spends the same points, with the free reset, and PLAY goes straight into the fight ----------
+// A level-3 champion outside a run (6 stat points). Build: two points into Focus and one into Vitality, the minus takes a Focus point
+// back, the utility's first upgrade is bought; Reset points gives all six back (and the talent taken on the Talents tab). Two points
+// into Vitality again, and PLAY: the opening relic pick (and Act I's quest board: the Act's quests, no build screen), then the fight, at
+// champion level 3 with the HP of those two points.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`champion screen: the Build tab spends stat points (plus, minus), buys a utility upgrade and resets for free, and PLAY starts the level with no build screen and the points in, ${touch ? 'tap' : 'click'} at ${w}x${h} (#241)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    const bad = [];
+    const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+    await p.evaluate(() => {
+      const lb = window.__lb;
+      lb.save.cards.splice(0, lb.save.cards.length, ...lb.cardIds);
+      lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown({}), xp: 420, level: 3, world: {}, signature: false, lastBastion: false, runs: {} } };
+    });
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await skipTour(p, touch);
+    await press('[data-cs="build"]');
+    const look = () => p.evaluate(() => {
+      const root = document.querySelector('.cs-build'), c = window.__lb.save.champions.paladin;
+      const stat = (id) => { const r = root.querySelector(`.bp-stat[data-stat="${id}"]`); return { n: r.querySelector('[data-stat-n]').textContent, gives: r.querySelector('[data-stat-gives]').textContent, total: r.querySelector('[data-stat-total]').textContent, plus: !r.querySelector('[data-stat-add]').disabled, minus: !r.querySelector('[data-stat-take]').disabled }; };
+      const play = document.querySelector('[data-play]'), pb = play.getBoundingClientRect();
+      return {
+        shown: root.getClientRects().length > 0, tab: document.querySelector('[data-cs].on')?.dataset.cs, level: root.querySelector('.cs-level')?.textContent.replace(/\s+/g, ' ').trim() ?? '', points: root.querySelector('[data-stat-points]').textContent,
+        focus: stat('focus'), vitality: stat('vitality'),
+        ability: [...root.querySelectorAll('[data-buy-ability]')].map((b) => !b.disabled), utility: [...root.querySelectorAll('[data-buy-utility]')].map((b) => ({ id: b.dataset.buyUtility, name: b.querySelector('b').textContent, on: !b.disabled })),
+        bought: [...root.querySelectorAll('[data-tier="utility"] .bp-bought li b')].map((b) => b.textContent).join(),
+        reset: !!root.querySelector('[data-reset-build]'), plan: document.querySelectorAll('.cs-plan li').length,
+        play: pb.bottom <= innerHeight + 1 && document.elementFromPoint(pb.left + pb.width / 2, pb.top + pb.height / 2)?.closest('[data-play]') === play,
+        saved: { points: c.points, upgrades: c.upgrades.length, utility: c.utilityUpgrades.join(), talents: c.talents.length },
+      };
+    });
+    const start = await look();
+    want(start.shown && start.tab === 'build' && /^Level 3/.test(start.level) && start.points === '6' && start.focus.plus && !start.focus.minus && start.ability.length === 2 && start.ability.every(Boolean) && start.utility.length === 2 && start.utility.every((o) => o.on) && !start.reset && start.play,
+      `the Build tab: ${JSON.stringify({ level: start.level, points: start.points, focus: start.focus, ability: start.ability, utility: start.utility, reset: start.reset, play: start.play })}`);
+    await press('[data-stat-add="focus"]');
+    await press('[data-stat-add="focus"]');
+    await press('[data-stat-add="vitality"]');
+    const three = await look();
+    await press('[data-stat-take="focus"]');
+    const taken = await look();
+    want(three.points === '3' && three.focus.n === '2' && three.focus.total !== '' && three.vitality.n === '1' && three.reset && three.saved.points.focus === 2, `three points in: ${JSON.stringify({ points: three.points, focus: three.focus, vitality: three.vitality, reset: three.reset, saved: three.saved })}`);
+    want(taken.points === '4' && taken.focus.n === '1' && taken.saved.points.focus === 1, `the minus: ${JSON.stringify({ points: taken.points, focus: taken.focus, saved: taken.saved })}`);
+    const pick = taken.utility[0];
+    await press(`[data-buy-utility="${pick?.id}"]`);
+    const bought = await look();
+    want(bought.points === '2' && bought.bought === pick?.name && bought.saved.utility === pick?.id && bought.utility.length === 0, `bought ${pick?.name}: ${JSON.stringify({ points: bought.points, bought: bought.bought, saved: bought.saved, next: bought.utility })}`);
+    // a talent on the Talents tab's tree, then the Build tab's reset: every point back, the talent too, and the screen stays on Build
+    await press('[data-cs="talents"]');
+    await press('[data-spend-talents]');
+    await p.locator('.kit-screen.talents').waitFor({ timeout: 3000 });
+    await press('.talent.open');
+    await press('.kit-screen.talents [data-back]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await press('[data-cs="build"]');
+    const planned = await look();
+    await press('[data-reset-build]');
+    await p.waitForFunction(() => document.querySelector('.cs-build [data-stat-points]')?.textContent === '6', null, { timeout: 3000 }).catch(() => {});
+    const reset = await look();
+    want(planned.plan === 1 && planned.saved.talents === 1 && planned.reset, `a talent taken: ${JSON.stringify({ plan: planned.plan, saved: planned.saved, reset: planned.reset })}`);
+    want(reset.tab === 'build' && reset.shown && reset.points === '6' && reset.focus.n === '0' && reset.vitality.n === '0' && reset.bought === '' && reset.utility.length === 2 && !reset.reset && reset.plan === 0 && Object.keys(reset.saved.points).length === 0 && reset.saved.utility === '' && reset.saved.talents === 0,
+      `Reset points: ${JSON.stringify({ tab: reset.tab, points: reset.points, focus: reset.focus.n, vitality: reset.vitality.n, bought: reset.bought, reset: reset.reset, plan: reset.plan, saved: reset.saved })}`);
+    // two points into Vitality, and PLAY: the opening pick is the only screen before the fight
+    await press('[data-stat-add="vitality"]');
+    await press('[data-stat-add="vitality"]');
+    const vit = await look();
+    await press('[data-play]');
+    await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('#overlay [data-pick]'), null, { timeout: 5000 });
+    const entering = () => p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, pl = g.player;
+      return { state: lb.state, head: document.querySelector('#overlay .kit-head')?.textContent.trim() ?? '', queued: g.pendingLevelUps + g.pendingAbilityTiers.length + g.pendingUtilityTiers.length, level: g.level?.level, start: g.startWave, plevel: pl.level, hp: pl.stats.hp, base: pl.cls.base.hp, grow: pl.cls.growth.hp, points: g.level?.champion.points, utility: pl.utilityUpgrades.length };
+    });
+    const open = await entering();
+    await press('[data-pick="0"]');
+    const boards = await intoFight(p, press);
+    const fight = await entering();
+    await p.close();
+    const gives = Number(/\d+/.exec(vit.vitality.gives)?.[0]);
+    want(vit.points === '4' && vit.vitality.n === '2' && vit.vitality.total === `+${2 * gives} ${vit.vitality.gives.replace(/^\+\d+ | a point$/g, '')}`, `two into Vitality: ${JSON.stringify({ points: vit.points, vitality: vit.vitality })}`);
+    want(open.head === 'Your opening pick' && open.queued === 0 && open.level === 1 && open.start === 1 && fight.state === 'playing' && fight.queued === 0 && boards.every((b) => /quest board/i.test(b)), `PLAY: "${open.head}" (${open.queued} queued, level ${open.level}, wave ${open.start}), then [${boards.join(' | ')}], then ${fight.state}`);
+    want(open.plevel === 3 && open.points?.vitality === 2 && open.utility === 0 && Math.abs(open.hp - (open.base + 10 * open.grow + 2 * gives)) < 0.01, `the fight's champion: level ${open.plevel}, HP ${open.hp} (base ${open.base} + growth ${10 * open.grow} + ${2 * gives}), points ${JSON.stringify(open.points)}, ${open.utility} utility upgrades`);
+    want(errs.length === 0, `errors: ${errs[0]}`);
+    return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `Build tab: "${start.level}"; +Focus +Focus +Vitality -> ${three.points} left; -Focus -> ${taken.points}; bought ${pick?.name} -> ${bought.points}; a talent; Reset points -> ${reset.points} points, ${reset.plan} talents, still on Build; +2 Vitality ("${vit.vitality.total}") -> PLAY -> "${open.head}"${boards.length ? ` and ${boards.length} quest board` : ''}, no build screen, then the fight at champion level ${open.plevel} with HP ${open.hp}` };
   });
 }
 
@@ -4949,9 +5166,9 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   want(again.level === 2 && again.seed === fell.seed && again.held.join() === fell.held.join() && again.cleared && again.wave === again.last, `restart ${JSON.stringify(again)}`);
   log.push(`level 2 holding level 1's ${one.end.join()}: "${slain.head}" at wave ${fell.wave}, "${after.next}" -> ${after.play} on the ${again.seed === fell.seed ? 'same' : 'OTHER'} seed with the same relics, cleared`);
   await rarePick(2);
-  await p.locator('.results [data-retry]').waitFor({ timeout: 3000 });
-  const onward = (await p.locator('.results [data-retry]').textContent()).trim();
-  want(onward === 'Onward · The Marches · Level 3', `after level 2 the gold button says "${onward}"`); // #237: the run goes on
+  await p.locator('.level-cleared [data-retry]').waitFor({ timeout: 3000 });
+  const onward = (await p.locator('.level-cleared [data-retry]').textContent()).trim();
+  want(onward === 'Continue to level 3', `after level 2 the main button says "${onward}"`); // #237: the run goes on; #241: from the level-cleared screen
   // levels 3-7 by the road, every relic won in the loadout: none goes in, the run holds what it found
   let before = again.end; // #237: each level goes on holding what the level before ended with
   for (let n = 3; n <= 7; n++) {

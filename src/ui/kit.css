@@ -741,6 +741,42 @@
 .cs-empty { margin: 0; font-size: 14px; }
 .cs-level { margin: 0 0 6px; font-size: 15px; }
 .cs-plan { margin: 0 0 6px; padding-left: 22px; columns: 2; font-size: 14px; }
+/* #241: the build panel (the champion screen's Build tab and the level-cleared screen): a row per stat with its minus, its points and
+   its plus, then the ability's and the utility's next upgrade as two parchment cards */
+.build-panel { display: grid; gap: 6px; text-align: left; }
+.bp-stats { display: grid; }
+.bp-stat { display: grid; grid-template-columns: minmax(0, 1.2fr) auto 30px auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 3px 0; border-bottom: 1px dotted rgba(90, 61, 37, 0.5); }
+.bp-name { display: grid; }
+.bp-name b { font: 800 15px var(--kit-num); letter-spacing: 0.03em; }
+.bp-name small, .bp-total { font-size: 14px; }
+.bp-total { color: #6b4a08; font-weight: bold; text-align: right; }
+.bp-n { font: 900 18px var(--kit-num); text-align: center; font-variant-numeric: lining-nums tabular-nums; }
+.bp-step { width: 34px; height: 34px; font: 900 20px/1 var(--kit-num); color: var(--kit-brass-light); }
+.bp-step:disabled { filter: grayscale(0.85) brightness(0.7); cursor: not-allowed; }
+.bp-tier h3 { margin: 4px 0; font: 800 15px var(--kit-num); letter-spacing: 0.04em; }
+.bp-bought { margin: 0 0 4px; padding-left: 20px; font-size: 14px; }
+.bp-cost { margin: 0 0 4px; font-size: 14px; }
+.bp-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bp-option { display: grid; gap: 2px; align-content: start; text-align: left; padding: 6px 10px; color: var(--kit-ink); font: inherit; cursor: pointer; background: linear-gradient(#f6ead0, #dcc48e); border: 2px solid var(--kit-brass-dark); border-radius: 8px; }
+.bp-option b { font: 800 15px var(--kit-num); }
+.bp-option span { font-size: 14px; }
+.bp-option:hover:not(:disabled) { border-color: var(--kit-brass); box-shadow: 0 0 0 2px var(--kit-brass-light); }
+.bp-option:focus-visible { outline: 3px solid var(--kit-brass-dark); outline-offset: 2px; }
+.bp-option:disabled { opacity: 0.55; cursor: not-allowed; }
+[data-build-row], [data-talent-row] { margin: 8px 0 6px; justify-content: flex-start; }
+[data-build-row]:empty { display: none; }
+/* the level-cleared screen: what the clear banked in two columns under the XP line, so the build under it is in view without scrolling */
+.level-cleared .stats.wide { display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; min-width: 0; margin: 0 0 6px; font-size: 16px; }
+.level-cleared .stats.wide > [data-champion-xp] { grid-column: 1 / -1; }
+.compact .level-cleared .stats.wide { column-gap: 14px; font-size: 14px; }
+.level-cleared .kit-scroll > h2 { margin-top: 4px; }
+.level-cleared .kit-btn.small { font-size: 14px; }
+.compact .level-cleared .kit-btn.small { font-size: 12px; }
+.compact .bp-stat { gap: 6px; padding: 2px 0; }
+.compact .bp-step { width: 30px; height: 30px; font-size: 18px; }
+.compact .bp-name b, .compact .bp-tier h3, .compact .bp-option b { font-size: 13px; }
+.compact .bp-name small, .compact .bp-total, .compact .bp-bought, .compact .bp-cost, .compact .bp-option span { font-size: 12px; }
+.compact .bp-option { padding: 4px 8px; }
 .cs-go { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; gap: 18px; }
 .cs-next { display: flex; align-items: center; gap: 8px; }
 .cs-next > span { display: grid; }

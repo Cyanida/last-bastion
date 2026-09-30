@@ -35,10 +35,7 @@ import { questTake } from './systems/quests';
 import { spawnEnemy } from './systems/spawning';
 import { densestCluster, resolveAim } from './logic/aim';
 import { masteryBonus, masteryRank, rerollCost, accountLevel, bonusTalentPoints, buildingLevel } from './logic/economy';
-import { buildOf as championBuild, buyAbilityTier, buyUtilityTier, inRun, levelCap, levelForXp, levelProgress, newGrowth, resetPoints, spendStat, spendTalent, statPointsFree, talentPointsFree, xpFromWorld } from './logic/championLevels';
-import type { ChampionStat } from './config/champion';
-import type { AbilityUpgradeId } from './config/abilityUpgrades';
-import type { UtilityUpgradeId } from './config/utility';
+import { buildOf as championBuild, buildView, buyAbilityTier, buyUtilityTier, heldPoints, inRun, levelCap, levelForXp, newGrowth, resetPoints, spendStat, spendTalent, talentPointsFree, unspendStat, xpFromWorld, type BuildView } from './logic/championLevels';
 import type { WorldProgress } from './logic/world';
 import { buyMeta, defaultSave, type Save, buyBuilding, today } from './logic/save';
 import { buildArena, loadProps, propsLoaded } from './render/arena';
@@ -52,7 +49,7 @@ import { abilityAimRadius } from './systems/abilities';
 import { relicOfferLine, relicPreview, relicShares, skipReward } from './systems/relics';
 import { initTooltips } from './ui/tooltip';
 import { buildHud, resetHud, setMuteIcon, showHud, toast, updateHud, updateInspect } from './ui/hud';
-import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, showChampion, pickClass, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showCrownPick, showResults, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
+import { clearOverlay, showAbilityUpgrade, showBoard, showChronicle, showClassSelect, showCompendium, showDaily, showKeep, showWorldMap, showRealmRoad, showChampion, pickClass, pickedClass, showLevelUp, showMerchant, showPause, showPeddler, showRelicOffer, showRarePick, showCrownPick, showResults, showLevelCleared, type BuildActions, showRoutes, showRunHistory, showSaveDialog, type RunResult, showSettings, showShrine, showTalents, showTitle, showTreasures, showUtilityUpgrade, showMastery, showWhatsNew, showGlossary, showFlashCard, showTestMode, showCrash, type TitleInfo } from './ui/screens';
 import { crashReport } from './logic/crash';
 import { levelPanel, mapRealms, roadLevels, roadTier } from './logic/world';
 import { REALMS, WORLD, type LevelReward, type RealmId } from './config/world';
@@ -251,11 +248,28 @@ const champOf = (id: ClassId): Champion => save.champions[id] ?? newChampion(id)
 const setChampion = (id: ClassId, c: Champion) => commit({ ...save, champions: { ...save.champions, [id]: c } });
 /** #238: the account's permanent talent points, a champion's on top of its levels' (the Keep, its mastery, account perks, deeds). */
 const talentBonus = (id: ClassId): number => bonusTalentPoints(save.meta, save.classes[id].xp, accountLevel(CLASS_ORDER.map((c) => save.classes[c].xp)), save.talentPoints);
-/** #238: a spend on the picked champion (logic/championLevels: the same object back when it can't be done); true when it took. */
-const spendOn = (f: (c: Champion) => Champion): boolean => {
-  const id = pickedClass(save), next = f(champOf(id));
+/** #238: a spend on a champion (logic/championLevels: the same object back when it can't be done); true when it took. */
+const spendOn = (id: ClassId, f: (c: Champion) => Champion): boolean => {
+  const next = f(champOf(id));
   return next !== champOf(id) && (setChampion(id, next), true);
 };
+/** #241: a champion's build as its spending screens show it, and their presses: each spends through logic/championLevels and says how the build stands now. */
+const utilityTiersOf = (id: ClassId): number => (masteryBonus(save.classes[id].xp).utilityTier ? 2 : 1);
+const buildNow = (id: ClassId): BuildView => buildView(champOf(id), id, { bonus: talentBonus(id), utilityTiers: utilityTiersOf(id) });
+const buildActions = (id: ClassId): BuildActions => {
+  const spend = (f: (c: Champion) => Champion) => (spendOn(id, f), buildNow(id));
+  return {
+    stat: (stat, by) => spend((c) => (by > 0 ? spendStat(c, stat) : unspendStat(c, stat, heldPoints(c)))),
+    ability: (a) => spend((c) => buyAbilityTier(c, id, a)),
+    utility: (u) => spend((c) => buyUtilityTier(c, id, u, utilityTiersOf(id))),
+  };
+};
+/** #238: the champion's talent tree, between levels: real points, spent by hand; a talent taken is in its next level. */
+const championTalents = (id: ClassId, back: () => void): void =>
+  showTalents({ classId: id, taken: champOf(id).talents, points: talentPointsFree(champOf(id), talentBonus(id)), rowCap: rowCapNow(), champion: true }, {
+    spend: (t) => spendOn(id, (c) => spendTalent(c, id, t, talentBonus(id), rowCapNow())),
+    back,
+  });
 const rowCapNow = (): number => TALENT_ROW_CAP[Math.min(TALENT_ROW_CAP.length - 1, buildingLevel(save.buildings, 'library'))];
 
 /**
@@ -303,18 +317,13 @@ function toChampion(at?: { realm: RealmId; level: number; tier: number }, tab: C
     classId: id, name: champ.name, palette: save.settings.palettes[id] ?? 0, gold: save.gold, runes: save.runes, realm, realmName: REALMS[realm].name,
     level, tier, slots: runAt(champ, realm, level, tier)?.carry ? 0 : championSlots(save.meta, save.classes[id].xp, realm, level), loadout, // #237: a run past its level 1 takes no loadout: it went in there
     inventory: champ.inventory, talents: champ.talents, fell: fellAt(id, realm, level, tier), tab, tour,
-    champion: { ...levelProgress(champ), xp: levelProgress(champ).into, statPoints: statPointsFree(champ), talentPoints: talentPointsFree(champ, talentBonus(id)), canReset: !inRun(champ) },
+    build: buildNow(id), inRun: inRun(champ),
   }, {
     slot: (r) => saveLoadout([...loadout, r]),
     unslot: (r) => saveLoadout(loadout.filter((x) => x !== r)),
-    // #238: real talent points, spent by hand on the tree; a talent taken is in the champion's next level
-    talents: () => {
-      showTalents({ classId: id, taken: champ.talents, points: talentPointsFree(champ, talentBonus(id)), rowCap: rowCapNow(), champion: true }, {
-        spend: (t) => spendOn((c) => spendTalent(c, id, t, talentBonus(id), rowCapNow())),
-        back: () => again('talents'),
-      });
-    },
-    resetPoints: () => (setChampion(id, resetPoints(champOf(id))), again('talents')),
+    talents: () => championTalents(id, () => again('talents')),
+    resetPoints: (on) => (setChampion(id, resetPoints(champOf(id))), again(on)),
+    build: buildActions(id), // #241: the Build tab spends the stat points
     play: () => playLevel(id, realm, level, tier),
     champ: (step) => (pickClass(CLASS_ORDER[(CLASS_ORDER.indexOf(id) + step + CLASS_ORDER.length) % CLASS_ORDER.length]), toChampion()),
     tab: (t) => (t === 'map' ? toMap(() => again()) : t === 'keep' ? toKeep() : t === 'relics' ? showCompendium(save, () => again()) : t === 'deeds' ? toChronicle(() => again()) : again()),
@@ -693,8 +702,6 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     relicShares: relicShares(g),
     restart: g.daily ? `the Daily Trial ${g.daily}` : g.level ? `${REALMS[g.level.realm].name} · Level ${g.level.cleared ? (g.level.level < REALMS[g.level.realm].levels.length ? g.level.level + 1 : 1) : g.level.level}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
     endless: g.victory === 'endless' ? { score: endlessScore(g), rank: result.endlessRank, board: after.endless[id] } : null,
-    road: g.level?.cleared ? REALMS[g.level.realm].name : null, // a cleared level goes back to its road; a lost one to the champion screen (endRun)
-    onward: !!g.level?.cleared && g.level.level < REALMS[g.level.realm].levels.length, // #237: its realm run goes on at the next level; its last level ends the run, and a restart is a new run from level 1
     levelRewards: result.levelRewards.level,
     championXp: g.level?.cleared ? result.champion : null, // #238: what the clear banked, and the level it brought
     crownRewards: result.levelRewards.crown,
@@ -726,9 +733,10 @@ function endRun(g: Game): void {
     setChampion(g.player.cls.id, { ...c, runs: next ? { ...rest, [g.level!.realm]: next } : rest });
   }
   const lv = g.level, tier = g.tierIndex;
-  // a cleared level goes back to the realm road; a lost one to the champion screen on that level, whose RESTART plays its seed again
-  const home = lv ? (lv.cleared ? () => toRoad(lv.realm) : () => toChampion({ realm: lv.realm, level: lv.level, tier })) : toTitle; // #204: a Daily Trial goes home
-  const results = () => showResults(r, { retry: () => again(g), menu: home });
+  // a lost level goes to the champion screen on that level, whose RESTART plays its seed again
+  const home = lv ? () => toChampion({ realm: lv.realm, level: lv.level, tier }) : toTitle; // #204: a Daily Trial goes home
+  // #241: a cleared level ends on its level-cleared screen, where the points are spent; anything else on the results
+  const results = lv?.cleared ? () => toLevelCleared(g.player.cls.id, lv.realm, lv.level, tier, r) : () => showResults(r, { retry: () => again(g), menu: home });
   // #200: a Marches level's first clear lets the champion keep one of its family's rares. Its clear is banked already, so closing the
   // game on this screen loses the pick (ponytail: a pending-reward field in the save would keep it; the save format isn't this issue's)
   const pick = r.levelRewards.find((x): x is Extract<LevelReward, { kind: 'rarePick' }> => x.kind === 'rarePick');
@@ -740,6 +748,25 @@ function endRun(g: Game): void {
     commit(relic ? { ...save, champions: { ...save.champions, [id]: grantRelic(champOf(id), relic) } } : { ...save, runes: save.runes + WORLD.keepLockedRunes });
     crowned();
   });
+}
+
+/**
+ * #241: the level-cleared screen, at every checkpoint: what the clear banked, then the champion's points, spent here (or later on the
+ * champion screen). Continue goes straight into the realm run's next level (playLevel): no build screen comes before the fight, only
+ * what the level itself opens with, its opening relic pick and the Act's quest board. Decided: the quest board stays: its quests are the
+ * level's content, not the champion's build, and when they start is balance (the waves' quest foes wait for it). Back to the map opens
+ * the realm's road, where the run waits at its checkpoint. Decided: "the map" is the realm's own road on the map, the one place the run
+ * is continued or started over from (#242); the world map is its back button.
+ */
+function toLevelCleared(id: ClassId, realm: RealmId, level: number, tier: number, r: RunResult): void {
+  const next = level < REALMS[realm].levels.length ? level + 1 : null; // the realm's last level ends the run
+  const show = (): void => showLevelCleared({ classId: id, name: champOf(id).name, realmName: REALMS[realm].name, level, next, result: r, build: buildNow(id) }, {
+    build: buildActions(id),
+    talents: () => championTalents(id, show),
+    next: () => playLevel(id, realm, runLevel(champOf(id), realm, tier), tier), // #237: from its checkpoint
+    map: () => toRoad(realm),
+  });
+  show();
 }
 
 function mute(): void {
@@ -1004,15 +1031,8 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       get save() {
         return save;
       },
-      /**
-       * #238: the play test's way to spend stat points until the level-cleared screen and the Build tab (#241) do: each goes through
-       * logic/championLevels on the picked champion and says whether it took. `grown`: the growth a champion with this progress has.
-       */
+      /** #238: `grown`: the growth a champion with this progress has, for a check's own champion. #241: points are spent on the real screens. */
       build: {
-        spend: (stat: ChampionStat) => spendOn((c) => spendStat(c, stat)),
-        ability: (id: AbilityUpgradeId) => spendOn((c) => buyAbilityTier(c, pickedClass(save), id)),
-        utility: (id: UtilityUpgradeId) => spendOn((c) => buyUtilityTier(c, pickedClass(save), id, masteryBonus(save.classes[pickedClass(save)].xp).utilityTier ? 2 : 1)),
-        reset: () => spendOn(resetPoints),
         grown: (world: WorldProgress) => ({ ...newGrowth(), xp: xpFromWorld(world), level: levelForXp(xpFromWorld(world), levelCap(world)) }),
       },
       quality,
