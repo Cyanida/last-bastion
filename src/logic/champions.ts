@@ -108,7 +108,7 @@ export const championRealmOpen = (c: Champion, realm: RealmId): boolean => (real
 
 /**
  * The Keep and mastery, repurposed for levels (rule 8): Armorer's Choice and the Keepsake mastery rank each add a starting slot;
- * Veteran Levies (and the Seasoned mastery rank) add levels on top of the head start.
+ * Veteran Levies (and the Seasoned mastery rank) add levels: in a realm level their growth, on top of the champion's (#238).
  */
 export function championBonus(meta: MetaRanks, classXp: number): { slots: number; levels: number } {
   const mastery = masteryBonus(classXp);

@@ -317,7 +317,7 @@ export interface ChampionInfo {
 /**
  * #197: the champion screen, the home of the road to the crown (Survivor.io style): the champion on a pedestal with its six slots around
  * it (the loadout for the realm it plays next; slots past the level's own idle), the set chips of what goes in, the inventory to fill the
- * slots from, the talent plan, the next level and one big green PLAY (RESTART after a fall), and the tab bar.
+ * slots from, its level and talents (#238), the next level and one big green PLAY (RESTART after a fall), and the tab bar.
  * #240: in three tabs, one at a time: Loadout (the slots, the set chips and the inventory), Build and Talents (the plan); the pedestal,
  * the next level and PLAY stay on all three. A first visit opens a short tour (kit.tour), and the ⓘ beside the tabs plays it again.
  */
