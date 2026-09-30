@@ -1,5 +1,4 @@
-import type { ArenaId } from '../config/arenas';
-import { MUSIC, THEMES, type Theme } from '../config/music';
+import { MUSIC, REALM_THEMES, THEMES, type Theme, type ThemeId } from '../config/music';
 import type { Game } from '../core/types';
 import { clampIndex, inRange, pick, RANGES, rngFor, type NoteEvent, type Voice } from './music';
 import { pacingOf } from './waves';
@@ -15,7 +14,7 @@ import { bossWaveIn } from './world';
 export type Layer = 0 | 1 | 2 | 3;
 export type Cue = 'fork' | 'victory';
 export interface Mood {
-  arena: ArenaId;
+  arena: ThemeId;
   layer: Layer;
   cue: Cue | null;
 }
@@ -178,7 +177,7 @@ export function nextBeat(c: Pick<Conductor, 'at' | 'arena'>, now: number, lead =
 /** Where the music is: the theme, the layer it plays, how far into the theme, and when the next bar starts (AudioContext seconds). */
 export interface Conductor {
   seed: number;
-  arena: ArenaId;
+  arena: ThemeId;
   layer: Layer;
   bar: number;
   at: number;
@@ -188,11 +187,11 @@ export interface Conductor {
 /** One bar to play. `from`: the first bar in a new arena, crossfading out of this one. */
 export interface Bar {
   at: number;
-  arena: ArenaId;
+  arena: ThemeId;
   layer: Layer;
   bar: number;
   cue: Cue | null;
-  from: ArenaId | null;
+  from: ThemeId | null;
 }
 
 export const newConductor = (mood: Mood, seed: number, at: number): Conductor => ({ seed, arena: mood.arena, layer: mood.layer, bar: 0, at, calm: 0, cue: mood.cue });
@@ -221,5 +220,8 @@ export function moodOf(g: Pick<Game, 'arena' | 'wave' | 'enemies' | 'player' | '
   const cue: Cue | null = g.victory === 'pending' ? 'victory' : g.pendingRoute ? 'fork' : null;
   const dense = g.enemies.length >= MUSIC.danger.enemies || g.player.hp < g.player.stats.hp * MUSIC.danger.hp;
   const layer: Layer = g.pendingMerchant || cue ? 0 : g.enemies.some((e) => e.def.boss) ? 3 : dense ? 2 : g.wave === 0 || pacingOf(g.wave, bossWaveIn(g.level, g.wave)) === 'breather' ? 0 : 1;
-  return { arena: g.arena.id, layer, cue };
+  return { arena: themeOf(g), layer, cue }; // #219: a realm with a theme of its own plays it in its levels
 }
+
+/** #219: the theme a run plays: its realm's own (config/music REALM_THEMES) in a level of that realm, else its arena's. */
+export const themeOf = (g: Pick<Game, 'arena'> & { level?: Game['level'] }): ThemeId => (g.level && REALM_THEMES[g.level.realm]) || g.arena.id;

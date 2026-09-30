@@ -21,11 +21,11 @@ import { buildingLevel, classXpForRun, masteryBonus, metaCost, metaLoadout, rune
 import { advanceChain, emptyTreasure, type ChainRun, type TreasureRecord } from './treasures';
 import { keepRuns, readRunLog, type RunLog } from './runlog';
 import { recordTierRun, tierUnlockedFor } from './difficulty';
-import { championsFromV6, grantSignature, newChampion, readChampions, type Champion } from './champions';
-import { clearRewards, levelSkip, recordClear } from './world';
+import { championsFromV6, grantRewards, newChampion, readChampions, type Champion } from './champions';
+import { clearRewards, crownGifts, levelSkip, recordClear } from './world';
 import { clearXp, firstClear, grantXp } from './championLevels';
 import { expectedLevel } from './formulas';
-import type { CrownReward, LevelReward, RealmId } from '../config/world';
+import { REALM_IDS, REALMS, type CrownReward, type LevelReward, type RealmId } from '../config/world';
 
 export const SAVE_VERSION = 8; // v0.11 (#237): a champion's unfinished realm runs (logic/realmRun.ts), and (#238) its XP, level and spent points (logic/championLevels.ts); v7 was v0.10's champions (logic/champions.ts)
 export const READABLE_VERSIONS = [2, 3, 4, 5, 6, 7, 8]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
@@ -272,7 +272,7 @@ export function migrate(raw: unknown, legacyBest?: unknown): Save {
     if (isObj(raw.dailyGold) && typeof raw.dailyGold.date === 'string') save.dailyGold = { date: raw.dailyGold.date, curse: num(raw.dailyGold.curse), trial: num(raw.dailyGold.trial) };
     if (Array.isArray(raw.achievements)) save.achievements = raw.achievements.filter((a): a is string => typeof a === 'string').map((a) => RENAMED_ACHIEVEMENTS[a] ?? a);
     // v0.7.5: only titles the game can award, so an imported save can't carry markup into the page (#105)
-    const known = new Set<unknown>([...ACHIEVEMENTS.flatMap((a) => a.tiers.map((t) => t.reward.title)), ...MASTERY.map((r) => (r.reward.kind === 'title' ? r.reward.title : undefined))].filter(Boolean));
+    const known = new Set<unknown>([...ACHIEVEMENTS.flatMap((a) => a.tiers.map((t) => t.reward.title)), ...MASTERY.map((r) => (r.reward.kind === 'title' ? r.reward.title : undefined)), ...REALM_IDS.map((r) => REALMS[r].legend?.title)].filter(Boolean)); // #219: and a realm's Legend crown
     if (Array.isArray(raw.titles)) save.titles = [...new Set(raw.titles.filter((t): t is string => known.has(t)))];
     if (known.has(raw.title)) save.title = raw.title as string;
     if (Array.isArray(raw.palettes)) save.palettes = [...new Set(raw.palettes.map((p) => Math.floor(num(p))).filter((p) => p > 0))];
@@ -453,7 +453,9 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
   // this clear's crown may just have raised
   const xp = lv?.cleared && champion ? clearXp(lv.xp ?? 0, firstClear(champion.world, lv.realm, lv.level)) : 0;
   const cleared = lv?.cleared && champion ? grantXp({ ...champion, world: recordClear(champion.world, lv.realm, lv.level, run.tier) }, xp) : null;
-  const champions = cleared ? { ...save.champions, [run.classId]: levelRewards.crown.some((r) => r.kind === 'signature') ? grantSignature(cleared, run.classId) : cleared } : save.champions; // #201: the Marches crown
+  // #201, #219: the rewards with no choice (the signature relic, a realm's class relic, the other legendary) are banked with the run
+  const champions = cleared ? { ...save.champions, [run.classId]: grantRewards(cleared, run.classId, REALMS[lv!.realm].family, [...levelRewards.level, ...levelRewards.crown]) } : save.champions;
+  const gift = cleared ? crownGifts(lv!.realm, levelRewards.crown) : {}; // #219: the Legend crown's title and palette, for the whole account
   const feats = Object.fromEntries(FEAT_KEYS.map((k) => [k, Math.max(c[k], run.feats?.[k] ?? 0)])) as Record<FeatKey, number>;
   return {
     classXp,
@@ -477,6 +479,8 @@ export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { sav
       },
       relicPicks,
       champions,
+      titles: gift.title && !save.titles.includes(gift.title) ? [...save.titles, gift.title] : save.titles,
+      palettes: gift.palette !== undefined && !save.palettes.includes(gift.palette) ? [...save.palettes, gift.palette] : save.palettes,
       treasures: run.treasure
         ? { ...save.treasures, [run.classId]: advanceChain(run.classId, save.treasures[run.classId], run.treasure, { unlocked: masteryBonus(prev.xp).treasureStep, difficulty: run.tier, acts }) }
         : save.treasures,

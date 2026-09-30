@@ -17,6 +17,18 @@ export function crownHpFloor(maxHp: number, phase: number, phases: number, elaps
   return hold === phases ? 1 : Math.floor(maxHp * (1 - hold / phases)) + 1;
 }
 
+/** #219: a level's end boss comes as an elite (rule 3: a relic realm's level 4, its first boss again). */
+export const isEliteFight = (end: EndBoss | undefined): boolean => !!end?.elite;
+
+/** An elite end boss's phases: WORLD.eliteBoss.phases more than its plain self's. */
+export const elitePhases = (phases: number): number => phases + WORLD.eliteBoss.phases;
+
+/**
+ * The Warden's Judgement: the crown boss's own third phase (#202), and the elite's extra phase after his three (#219), so the Iron
+ * Hold's level 4 ends on more than level 2's Warden again. A plain Warden never gets there: he has three phases.
+ */
+export const wardenJudges = (phase: number, crown: boolean): boolean => phase >= (crown ? 3 : 4);
+
 /** One of the Warden's seals: its outer ring's gaps and what comes with it. `n` counts his seals so far (0-based). */
 export interface WardenMove {
   gaps: number;
@@ -29,12 +41,12 @@ export interface WardenMove {
 
 export function wardenMove(phase: number, crown: boolean, n: number): WardenMove {
   const gaps = WARDEN.seal.gaps[Math.min(phase, WARDEN.seal.gaps.length) - 1];
-  if (crown && phase >= 3) return { gaps, inner: true, sweep: false, close: false, hammer: true, summon: n % WARDEN.crown.summonEvery === 0 };
+  if (wardenJudges(phase, crown)) return { gaps, inner: true, sweep: false, close: false, hammer: true, summon: n % WARDEN.crown.summonEvery === 0 };
   return { gaps, inner: false, sweep: phase >= 2, close: phase === 3, hammer: false, summon: phase === 3 };
 }
 
 /** The Warden's seal cooldown: quicker in the crown's Judgement. */
-export const wardenSpecialCd = (base: number, phase: number, crown: boolean): number => (crown && phase >= 3 ? WARDEN.crown.specialCd : base);
+export const wardenSpecialCd = (base: number, phase: number, crown: boolean): number => (wardenJudges(phase, crown) ? WARDEN.crown.specialCd : base);
 
 /**
  * The Judgement's hammer: ring k (1-based) of zones at k x `step` from (x, y), spaced so neighbouring zones overlap a little, landing ring

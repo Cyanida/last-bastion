@@ -1,6 +1,7 @@
 import { ABILITY_UPGRADES, type AbilityUpgradeId } from '../config/abilityUpgrades';
 import { ACHIEVEMENTS, CATEGORIES, tierReward, type AchievementCategory, type AchievementDef } from '../config/achievements';
 import { ARENAS, type ArenaId } from '../config/arenas';
+import { THEMES, type ThemeId } from '../config/music';
 import { CLASS_ORDER, CLASSES, type ClassDef, type ClassId } from '../config/classes';
 import { CURSES } from '../config/curses';
 import { ARENA_FAMILIES, FAMILIES, FAMILY_IDS, type FamilyId, type Rarity, RELIC_IDS, RELIC_MAX_TIER, RELIC_WEIGHTS, relicDesc, TIER_NUMERALS } from '../config/relics';
@@ -50,7 +51,7 @@ import type { Route } from '../logic/routes';
 import { EVOLUTION_IDS, EVOLUTIONS, type EvolutionId } from '../config/evolutions';
 import { requirementText } from '../logic/evolutions';
 import { optionText, statLabel, type LevelUpOption } from '../logic/upgrades';
-import { drawSheetFrame, outlineSprite, portraitSprite, SHEETS, SPRITE_PALETTES } from '../render/sprites';
+import { drawSheetFrame, outlineSprite, PALETTE_NAMES, portraitSprite, SHEETS, SPRITE_PALETTES } from '../render/sprites';
 import { frameAt, type AnimName } from '../logic/animation';
 import { oathReward } from '../logic/oaths';
 import type { Goal } from '../logic/goals';
@@ -289,7 +290,7 @@ export function showRealmRoad(
           <div class="rr-foes">
             ${pn.family ? `<p>${kit.icon(pn.family)} <b>${FAMILIES[pn.family].name}</b> relics featured</p>` : ''}
             <p><small>Foes</small> ${esc(pn.foes.join(', '))}</p>
-            <p><small>${pn.crownBoss ? 'Crown boss' : 'End boss'}</small> <b>${esc(pn.boss)}</b></p>
+            <p><small>${pn.crownBoss ? 'Crown boss' : pn.eliteBoss ? 'Elite boss' : 'End boss'}</small> <b>${esc(pn.boss)}</b></p>
           </div>
           <div class="rr-rewards">
             <small>${pn.rewards.length ? 'First clear' : 'Replay'}</small>
@@ -638,7 +639,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId) => void; b
   // #65: the roster: a small tile per champion, in a strip that scrolls sideways, so more champions fit without a taller screen
   const tile = (c: ClassDef) => {
     const { palettes, chosen, n } = paletteOf(c);
-    const swatches = palettes.length ? `<div class="swatches">${[0, ...palettes].map((p) => `<span class="swatch ${chosen === p ? 'on' : ''}" data-palette="${c.id}:${p}" data-tip="${['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours'][p]}"><i style="filter:${SPRITE_PALETTES[p] || 'none'}"></i></span>`).join('')}</div>` : '';
+    const swatches = palettes.length ? `<div class="swatches">${[0, ...palettes].map((p) => `<span class="swatch ${chosen === p ? 'on' : ''}" data-palette="${c.id}:${p}" data-tip="${PALETTE_NAMES[p]}"><i style="filter:${SPRITE_PALETTES[p] || 'none'}"></i></span>`).join('')}</div>` : '';
     return `
     <button class="card champ ${selectedClass === c.id ? 'on' : ''}" data-class="${c.id}">
       <div class="portrait" data-sprite="${c.sprite}" data-palette-n="${n}"></div>${swatches}
@@ -1103,15 +1104,19 @@ export function showRelicOffer(
   numberKeys(el, (a) => a === 'reroll' && offer.rerolls > 0 && on.reroll());
 }
 
+/** #219: what a reward screen says in place of the Marches' words (a relic realm's keep-locked pick, its crown's legendaries, its class relic). */
+export interface RewardText { head?: string; sub?: string; empty?: string; cls?: string }
+
 /**
  * v0.10 (#200): a Marches level's first clear: pick 1 of its featured family's rares for the champion to keep (its inventory, for later
- * loadouts). No skip: the pick is the level's reward. With none left to give, one button takes the Runes instead.
+ * loadouts). No skip: the pick is the level's reward. With none left to give, one button takes the Runes instead. #219: a relic realm's
+ * keep-locked levels and its Knight crown's legendaries use it too, with their own words (`text`).
  */
-export function showRarePick(level: string, family: FamilyId, options: RelicId[], runes: number, onPick: (id: RelicId | null) => void): void {
+export function showRarePick(level: string, family: FamilyId, options: RelicId[], runes: number, onPick: (id: RelicId | null) => void, text: RewardText = {}): void {
   const el = show(`
-    <div class="levelup rare-pick">
-      ${choiceHead(`${level} cleared`)}
-      <p class="sub">${options.length ? `Choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} rare to keep. It joins your champion's relics for every loadout.` : `You hold every ${FAMILIES[family].name} rare already.`}</p>
+    <div class="levelup rare-pick ${text.cls ?? ''}">
+      ${choiceHead(text.head ?? `${level} cleared`)}
+      <p class="sub">${options.length ? text.sub ?? `Choose a ${FAMILIES[family].icon} ${FAMILIES[family].name} rare to keep. It joins your champion's relics for every loadout.` : text.empty ?? `You hold every ${FAMILIES[family].name} rare already.`}</p>
       ${options.length ? `<div class="cards">${options.map((id, i) => relicCard(id, 1, [], `data-pick="${i}"`, `<div class="num">${i + 1}</div>`)).join('')}</div>` : `<div class="row">${kit.button(`Take ◆ ${runes} Runes`, { kind: 'gold', attrs: 'data-runes' })}</div>`}
     </div>`);
   wireRelicInfo(el);
@@ -1122,13 +1127,14 @@ export function showRarePick(level: string, family: FamilyId, options: RelicId[]
 
 /**
  * v0.10 (#202): the Marches crowned for the first time: the champion's signature relic, in its gold frame. It is won already (the crown is
- * banked with the run, logic/save applyRun), so the pick is one card: take it (click, tap, 1 or Enter) and go on to the results.
+ * banked with the run, logic/save applyRun), so the pick is one card: take it (click, tap, 1 or Enter) and go on to the results. #219: a
+ * relic realm's class relic (level 3) and its Champion crown's other legendary are banked the same way and shown on it, with `text`.
  */
-export function showCrownPick(realm: string, champion: string, relic: RelicId, onTake: () => void): void {
+export function showCrownPick(realm: string, champion: string, relic: RelicId, onTake: () => void, text: RewardText = {}): void {
   const el = show(`
-    <div class="levelup rare-pick crown-pick">
-      ${choiceHead(`👑 ${realm} crowned`)}
-      <p class="sub">${esc(champion)} wins a signature relic: it joins your champion's relics, and a loadout may slot it beside the two class relics.</p>
+    <div class="levelup rare-pick one-pick ${text.cls ?? 'crown-pick'}">
+      ${choiceHead(text.head ?? `👑 ${realm} crowned`)}
+      <p class="sub">${text.sub ?? `${esc(champion)} wins a signature relic: it joins your champion's relics, and a loadout may slot it beside the two class relics.`}</p>
       <div class="cards">${relicCard(relic, 1, [], 'data-pick="0"', '<div class="num">1</div>')}</div>
     </div>`);
   let taken = false;
@@ -1432,6 +1438,7 @@ export interface LevelClearedInfo {
   level: number; // the level cleared
   next: number | null; // the level the realm run goes on into; null: this was the realm's last level, and the run is over
   result: RunResult; // the clear as it was banked (its championXp is set: the level was cleared)
+  gift?: { title?: string; palette?: number }; // #219: the title and palette its crown gave (logic/world crownGifts)
   build: BuildView;
 }
 
@@ -1447,7 +1454,10 @@ export function showLevelCleared(info: LevelClearedInfo, on: { build: BuildActio
   const G = kit.icon('gold'), R = kit.icon('runes');
   const up = levelUpGains(x.from, x.to);
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+  const gift = info.gift ?? {};
+  const gifts = [gift.title ? `the title <b>${esc(gift.title)}</b>, to wear from the Chronicle` : '', gift.palette !== undefined ? `the <b>${PALETTE_NAMES[gift.palette]}</b>, for every champion` : ''].filter(Boolean);
   const unlocks = [
+    ...(gifts.length ? [`<div class="unlock" data-crown-gift>👑 The ${r.tier} crown: ${gifts.join(' and ')}</div>`] : []), // #219
     ...(r.tierUnlocked ? [`<div class="unlock">⚔ Difficulty unlocked: <b>${r.tierUnlocked}</b></div>`] : []),
     ...r.contracts.map((c) => `<div class="unlock">📜 Weekly contract done: <b>${c.text}</b> <em>${R} +${c.runes}</em></div>`),
     ...r.earned.map((e) => `<div class="unlock">🏆 <b>${e.def.name} · ${TIER_NAMES[e.tier - 1]}</b> — ${e.def.desc} <em>${tierRewardText(e.reward)}</em></div>`),
@@ -1732,7 +1742,7 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
       ${Object.entries(SHEETS).map(([id, d]) => `<div class="tm-gallery"><b>${id}</b>${Object.keys(d.anims).map((a) => `<figure><canvas data-sheet="${id}" data-anim="${a}" width="${d.w * 2}" height="${d.h * 2}"></canvas><figcaption>${a}</figcaption></figure>`).join('')}</div>`).join('')}
       <h2>Music jukebox</h2>
       <div class="tm-grid">
-        <label>Theme <select id="jb-arena">${arenas(setup.arena)}</select></label>
+        <label>Theme <select id="jb-arena">${options((Object.keys(THEMES) as ThemeId[]).map((id) => [id, THEMES[id].name]), setup.arena)}</select></label>
         <label>Layer <input id="jb-layer" type="range" min="0" max="3" step="1" value="1"></label><span id="jb-name"></span>
       </div>
       <div class="row">${kit.button('Play', { kind: 'go', attrs: 'data-play' })}${kit.button('Fork cue', { attrs: 'data-cue="fork"' })}${kit.button('Victory cue', { attrs: 'data-cue="victory"' })}${kit.button('Stop', { attrs: 'data-stop' })}</div>
@@ -1762,7 +1772,7 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
   let playing = false;
   const play = (cue: Cue | null = null) => {
     playing = true;
-    on.play({ arena: field('jb-arena').value as ArenaId, layer: Number(field('jb-layer').value) as Layer, cue });
+    on.play({ arena: field('jb-arena').value as ThemeId, layer: Number(field('jb-layer').value) as Layer, cue });
   };
   const label = () => (field('jb-name').textContent = JUKEBOX_LAYERS[Number(field('jb-layer').value)]);
   label();

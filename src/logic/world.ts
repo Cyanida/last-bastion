@@ -144,6 +144,16 @@ export function clearRewards(p: WorldProgress, realm: RealmId, level: number, ti
   return out;
 }
 
+/**
+ * #219: what a clear's crown rewards give the account: the realm's title and palette (config/world `legend`), each only when the crown
+ * pays it and the realm has one. applyRun banks them with the run; the level-cleared screen names them.
+ */
+export function crownGifts(realm: RealmId, crown: CrownReward[]): { title?: string; palette?: number } {
+  const legend = REALMS[realm].legend;
+  if (!legend) return {};
+  return { ...(crown.some((r) => r.kind === 'title') ? { title: legend.title } : {}), ...(crown.some((r) => r.kind === 'palette') ? { palette: legend.palette } : {}) };
+}
+
 /** Fold one clear into the progress (a new object; the old one is untouched). */
 export function recordClear(p: WorldProgress, realm: RealmId, level: number, tier: number): WorldProgress {
   const best = [...(p[realm] ?? [])];
@@ -212,7 +222,7 @@ export function bossName(end: EndBoss, wave: number): string {
 }
 
 const familyName = (f?: FamilyId) => (f ? FAMILIES[f].name : 'a');
-const REWARD_TEXT: Record<LevelReward['kind'] | CrownReward['kind'], (r: LevelReward | CrownReward, family?: FamilyId) => string> = {
+const REWARD_TEXT: Record<LevelReward['kind'] | CrownReward['kind'], (r: LevelReward | CrownReward, family?: FamilyId, legend?: { title: string }) => string> = {
   rarePick: (r) => `Pick 1 of ${(r as { of: number }).of} ${familyName((r as { family: FamilyId }).family)} rares`,
   keepLocked: () => `Keep a locked relic of a family you held (or ${WORLD.keepLockedRunes} Runes)`,
   classRelic: (_, f) => `Your class relic of ${familyName(f)}`,
@@ -220,7 +230,7 @@ const REWARD_TEXT: Record<LevelReward['kind'] | CrownReward['kind'], (r: LevelRe
   signature: () => 'Your signature relic',
   legendaryPick: (_, f) => `Pick 1 of 2 ${familyName(f)} legendaries`,
   legendaryOther: (_, f) => `The other ${familyName(f)} legendary`,
-  title: () => 'A title',
+  title: (_, __, legend) => (legend ? `The title ${legend.title}` : 'A title'), // #219: a realm that names its own
   palette: () => 'A palette',
 };
 
@@ -240,7 +250,8 @@ export function levelPanel(p: WorldProgress, realm: RealmId, level: number, tier
     foes: featuredFoes(lv.waves).map((id) => ENEMIES[realmFoe(realm, id)].name), // #212: as they march there
     boss: bossName(lv.boss, lv.waves[1]),
     crownBoss: !!lv.boss.crown,
-    rewards: [...r.level, ...r.crown].map((x) => REWARD_TEXT[x.kind](x, def.family)),
+    eliteBoss: !!lv.boss.elite, // #219: it comes as an elite, a phase more
+    rewards: [...r.level, ...r.crown].map((x) => REWARD_TEXT[x.kind](x, def.family, def.legend)),
     tiers: TIERS.map((t, i) => ({ name: t.name, open: tierOpen(p, realm, i), cleared: bestCleared(p, realm, i) >= level })),
     open: levelOpen(p, realm, level, tier),
   };

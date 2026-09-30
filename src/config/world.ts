@@ -71,6 +71,7 @@ export interface RealmDef {
   release: string;
   levels: LevelDef[];
   crown: { first: CrownReward[]; tiers: CrownReward[][] };
+  legend?: { title: string; palette: number }; // #219: what its crown's 'title' and 'palette' rewards are (the Legend crown's): a title to wear and a sprite palette (render/sprites SPRITE_PALETTES), for the whole account
 }
 
 /** #237 (rule 4): a realm is one run, so its loadout size is one number for all its levels: a relic realm 3, the Marches 3. */
@@ -107,6 +108,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
     foes: { knight: 'ironKnight', shieldwall: 'ironShieldwall', shieldBearer: 'thornBearer' }, // #214: thorn bearers
     hazard: 'presses',
     levels: relicRealmLevels('steel', 'warden', 'forgemaster', 'ironKing'), crown: RELIC_CROWN,
+    legend: { title: 'Ironsworn', palette: 6 }, // #219 Decided: the plan names neither
   },
   barrowvale: {
     name: 'The Barrowvale', ring: 2, opens: { crowns: 1 }, arena: 'graveyard', family: 'grave', release: '0.13.0', // the Drowned Fen comes later as a second arena
@@ -151,7 +153,9 @@ export const WORLD = {
   maxSlots: 6, // Armorer's Choice and the Keepsake mastery rank each add a slot, up to this
   openingPick: 3, // every level opens with a pick of 1 from this many relics of its family
   keepLockedRunes: 2, // Decided: a keep-a-locked-relic level cleared holding no family relic pays this many Runes
+  keepLockedOf: 2, // #219 Decided: a keep-locked level shows a pick of 1 of this many rares (like a Marches level's), the ones held at the end first
   crownBoss: { phases: 3, minPhaseSeconds: 12 }, // Decided: 12 s per phase, so a crown boss can't be burst through a phase
+  eliteBoss: { phases: 1 }, // #219 (rule 3): an elite end boss fights this many phases more than its plain self, on the same HP
   /** Rule 4: loadout limits (the slot rules issue enforces them). */
   loadout: { perFamily: 4, legendarySlots: 2, legendaries: 1, legendariesFinale: 2, classRelics: 2 },
   /** Rule 7: enemy HP and damage by ring (rings 1-4, then the finale). One tier step (config/economy TIERS) outweighs the whole ladder. */
