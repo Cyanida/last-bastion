@@ -4,11 +4,11 @@ import { GAME } from '../src/config/game';
 import { createGame } from '../src/game';
 import { inLava } from '../src/logic/lava';
 import { onSlab, slabAt, type Slab } from '../src/logic/presses';
-import { advanceFire, bankSlabs, catchFire, catchSlabs, creep, fireBurn, fireOn, fireTongues, flameState, type FireFront, type Flame } from '../src/logic/spreadingFire';
+import { advanceFire, bankSlabs, catchFire, catchSlabs, creep, fireOn, fireTongues, flameState, type FireFront, type Flame } from '../src/logic/spreadingFire';
 import { updateArena } from '../src/systems/arena';
 import { spawnEnemy } from '../src/systems/spawning';
 
-// #224: the Cinderlands' spreading fire: it catches at the lava's bank and creeps over the floor after the champion, slab by slab
+// #224: the Cinderlands' spreading fire: it catches at the lava's bank and creeps over the floor to where the champion stood, slab by slab
 const C = FLAGSTONE;
 const F = SPREADING_FIRE;
 const DT = 1 / 60;
@@ -17,7 +17,7 @@ const anywhere = () => true;
 describe('spreading fire (#224)', () => {
   it('spreads only in the Cinderlands, in its own arena', () => {
     expect(fireOn('cinderlands', 'emberForge')).toBe(true);
-    expect(fireOn('cinderlands', 'keep')).toBe(false); // test mode may start the level in another arena
+    expect(fireOn('cinderlands', 'keep')).toBe(false);
     expect(fireOn('ironHold', 'keep')).toBe(false);
     expect(fireOn(undefined, 'emberForge')).toBe(false); // a plain run in the Ember Forge keeps just its lava
   });
@@ -51,7 +51,7 @@ describe('spreading fire (#224)', () => {
     expect(fireTongues(F.twoFrom, F.twoFrom)).toBe(2);
   });
 
-  it('creeps to the slab beside it nearest the champion, never a diagonal, and round what it cannot hold', () => {
+  it('creeps to the slab beside it nearest its spot, never a diagonal, and round what it cannot hold', () => {
     expect(creep(200, 200, 600, 210, C, anywhere)).toEqual({ x: 280, y: 200 });
     expect(creep(200, 200, 210, 900, C, anywhere)).toEqual({ x: 200, y: 280 });
     expect(creep(200, 200, 600, 600, C, (s) => s.x <= 200)).toEqual({ x: 200, y: 280 }); // the way east is shut: it goes round
@@ -66,45 +66,54 @@ describe('spreading fire (#224)', () => {
     expect(flameState(F.kindle + F.life, F.kindle, F.life)).toBe('out');
   });
 
-  it('a tongue lights a slab each step after a standing champion, in one unbroken trail, its reach and no further, and burns out', () => {
+  it('a tongue lights a slab each step towards its spot, in one unbroken trail, its reach and no further, and burns out', () => {
     const flames: Flame[] = [];
     const fronts: FireFront[] = [];
-    catchFire(flames, fronts, [{ x: 200, y: 200 }]);
+    catchFire(flames, fronts, [{ x: 200, y: 200 }], 2000, 200);
     expect(flames).toEqual([{ x: 200, y: 200, t: 0 }]);
     const lit: Slab[] = [{ x: 200, y: 200 }];
     let most = 0;
     for (let t = 0; t < F.reach * F.step + F.kindle + F.life + 1; t += DT) {
-      advanceFire(flames, fronts, DT, 1000, 200, C, anywhere);
+      advanceFire(flames, fronts, DT, C, anywhere);
       for (const f of flames) if (!lit.some((s) => s.x === f.x && s.y === f.y)) lit.push({ x: f.x, y: f.y });
       most = Math.max(most, flames.length);
     }
     expect(lit).toHaveLength(F.reach);
-    expect(lit.map((s) => s.x)).toEqual(Array.from({ length: F.reach }, (_, i) => 200 + i * C)); // straight at the champion, slab by slab
+    expect(lit.map((s) => s.x)).toEqual(Array.from({ length: F.reach }, (_, i) => 200 + i * C)); // straight at the spot, slab by slab
+    expect(lit.every((s) => s.y === 200)).toBe(true);
     expect(most).toBeLessThanOrEqual(F.reach);
     expect(flames).toHaveLength(0);
     expect(fronts).toHaveLength(0);
   });
 
+  it('heads for where the champion stood, not after them, and spreads round that spot once it is there', () => {
+    const flames: Flame[] = [];
+    const fronts: FireFront[] = [];
+    catchFire(flames, fronts, [{ x: 200, y: 200 }], 290, 210, { reach: 5, step: F.step }); // the spot: the next slab east
+    const lit: Slab[] = [];
+    for (let t = 0; t < 5 * F.step; t += DT) {
+      advanceFire(flames, fronts, DT, C, anywhere, { step: F.step, kindle: 99, life: 99 });
+      for (const f of flames) if (!lit.some((s) => s.x === f.x && s.y === f.y)) lit.push({ x: f.x, y: f.y });
+    }
+    expect(lit).toHaveLength(5);
+    expect(lit[1]).toEqual({ x: 280, y: 200 }); // the spot's slab
+    for (const s of lit) expect(Math.hypot(s.x - 280, s.y - 200)).toBeLessThanOrEqual(2 * C); // it pools there: nothing runs off
+    for (const [i, s] of lit.entries()) if (i) expect(lit.slice(0, i).some((o) => Math.abs(o.x - s.x) + Math.abs(o.y - s.y) === C)).toBe(true); // each slab beside one alight
+  });
+
   it('never lights a slab that is alight, and dies where it is boxed in', () => {
     const flames: Flame[] = [];
     const fronts: FireFront[] = [];
-    catchFire(flames, fronts, [{ x: 200, y: 200 }, { x: 200, y: 200 }]);
+    catchFire(flames, fronts, [{ x: 200, y: 200 }, { x: 200, y: 200 }], 1000, 200);
     expect(flames).toHaveLength(1); // the same slab twice catches once
     // only two slabs of floor: the tongue lights the second and stops
     const open = (s: Slab) => s.y === 200 && (s.x === 200 || s.x === 280);
-    for (let t = 0; t < 3 * F.step; t += DT) advanceFire(flames, fronts, DT, 1000, 200, C, open);
+    for (let t = 0; t < 3 * F.step; t += DT) advanceFire(flames, fronts, DT, C, open);
     expect(flames.map((f) => f.x).sort()).toEqual([200, 280]);
     expect(fronts).toHaveLength(0);
   });
 
-  it('its burn is the Cinderlands burn, scaled like a foe’s', () => {
-    const b = fireBurn(2);
-    expect(b.id).toBe('burn');
-    expect(b.decay).toBeGreaterThan(0); // it falls off a stack at a time (#225)
-    expect(b.power).toBeCloseTo(fireBurn(1).power! * 2);
-  });
-
-  it('in a Cinderlands level it catches at the bank by the champion with a warning, creeps to them, and burns only once kindled', () => {
+  it('in a Cinderlands level it catches at the bank by the champion with a warning, creeps to where they stand, and burns only once kindled', () => {
     const g = createGame('viking', 5, { level: { realm: 'cinderlands', level: 1 } });
     expect(g.fireT).toBe(F.grace);
     g.wave = Math.max(1, g.wave);
@@ -130,16 +139,15 @@ describe('spreading fire (#224)', () => {
     expect(flameState(under()!.t, F.kindle, F.life)).toBe('kindling');
     expect(p.hp).toBe(hp);
     expect(g.flames.every((f) => !inLava(f.x, f.y, 0, lava))).toBe(true);
-    // stand still: it burns, and leaves a burn stack; a foe on the trail burns harder
+    // stand still: it burns; a foe on the trail burns harder
     const foe = spawnEnemy(g, 'knight', bank.x, bank.y + C);
     const foeHp = foe.hp;
     for (let i = 0; i < Math.ceil((F.kindle + GAME.fieldTick) / DT) + 1; i++) updateArena(g, DT);
     expect(hp - p.hp).toBeGreaterThan(0);
-    expect(p.statuses.burn?.stacks).toBeGreaterThanOrEqual(1);
-    expect(foeHp - foe.hp).toBeGreaterThan(0);
+    expect(p.statuses.burn).toBeUndefined(); // plain fire: it leaves no burn stack
+    expect(foeHp - foe.hp).toBeGreaterThan(hp - p.hp);
     // step off the trail: no more
     Object.assign(p, { x: bank.x + 3 * C, y: bank.y + 2 * C });
-    delete p.statuses.burn;
     g.fireFronts.length = 0; // the tongue creeps no further
     const off = p.hp;
     for (let i = 0; i < 60; i++) updateArena(g, DT);
