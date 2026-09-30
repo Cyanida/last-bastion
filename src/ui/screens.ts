@@ -1,4 +1,5 @@
 import { ABILITY_UPGRADES, type AbilityUpgradeId } from '../config/abilityUpgrades';
+import { BEST_WAVE_LABEL, wavesText } from '../logic/best-wave';
 import { ACHIEVEMENTS, CATEGORIES, tierReward, type AchievementCategory, type AchievementDef } from '../config/achievements';
 import { ARENAS, type ArenaId } from '../config/arenas';
 import { THEMES, type ThemeId } from '../config/music';
@@ -671,7 +672,7 @@ export function showClassSelect(save: Save, on: { pick: (id: ClassId) => void; b
         ${treasure}
         ${save.wins[c.id] ? `<div class="oath-line">⚜ ${save.oaths[c.id] ? `Oath ${save.oaths[c.id]} kept` : 'No Oath kept yet'}</div>` : ''}
         <div class="road-line">${kit.icon('map')} ${roadLine(c.id)}</div>
-        <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: wave ${rec.bestWave}` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
+        <div class="best">${save.wins[c.id] ? `👑 ${save.wins[c.id]} win${save.wins[c.id] > 1 ? 's' : ''} · ` : ''}${rec.bestWave ? `Best: ${wavesText(rec.bestWave)} in a level` : 'Not yet attempted'} · Mastery ${rank}/${MASTERY.length}${next ? ` <span class="dim">(${Math.round(rec.xp)}/${next.xp})</span>` : ''}</div>
       </div>
     </div>`;
   };
@@ -954,7 +955,7 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
   const favorite = (Object.entries(save.relicPicks) as [RelicId, number][]).sort((a, b) => b[1] - a[1])[0];
   const rows = CLASS_ORDER.map((id) => {
     const c = save.classes[id];
-    return `<tr><td>${CLASSES[id].name}</td><td>${c.bestWave}</td><td>${c.kills}</td><td>${c.runs}</td><td>${fmtTime(c.time)}</td><td>${masteryRank(c.xp)}</td></tr>`;
+    return `<tr><td>${CLASSES[id].name}</td><td>${wavesText(c.bestWave)}</td><td>${c.kills}</td><td>${c.runs}</td><td>${fmtTime(c.time)}</td><td>${masteryRank(c.xp)}</td></tr>`;
   }).join('');
   const el = show(kitScreen('chronicle', 'Chronicle', {
     back: 'data-back',
@@ -969,7 +970,7 @@ export function showChronicle(save: Save, onBack: () => void, onEquip?: (title: 
       <p class="hint">${titles.length ? 'Earned from deeds and mastery ranks. The one you wear shows on the title screen and after every run.' : 'Deeds and mastery ranks grant titles; none yet.'}</p>
       ${titleChips}
       <h2>Statistics</h2>
-      <table class="stats-table"><tr><th>Class</th><th>Best wave</th><th>Kills</th><th>Runs</th><th>Playtime</th><th>Mastery</th></tr>${rows}</table>
+      <table class="stats-table"><tr><th>Class</th><th>${BEST_WAVE_LABEL}</th><th>Kills</th><th>Runs</th><th>Playtime</th><th>Mastery</th></tr>${rows}</table>
       <div class="stats wide">
         <div><span>Total playtime</span><b>${fmtTime(records.reduce((s, c) => s + c.time, 0))}</b></div>
         <div><span>Total kills · bosses · elites</span><b>${save.counters.kills} · ${save.counters.bosses} · ${save.counters.elites}</b></div>
@@ -1406,7 +1407,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
         <div><span>Level</span><b>${r.level}</b></div>
         <div><span>${r.daily ? `Daily Trial ${r.daily}` : 'Run seed'}</span><b class="seed">${r.seed}</b></div>
         ${r.curseMult > 1 ? `<div><span>Curses</span><b>×${r.curseMult.toFixed(2)} gold &amp; XP</b></div>` : ''}
-        <div><span>Best wave (${r.cls.name})</span><b>${r.best}</b></div>
+        <div><span>${BEST_WAVE_LABEL} (${r.cls.name})</span><b>${wavesText(r.best)}</b></div>
         <div class="earned"><span>Gold banked</span><b>${G} +${r.gold}${r.goldRaw > r.gold ? ` <s>${r.goldRaw}</s>` : ''}</b></div>
         ${r.runes > 0 ? `<div class="earned"><span>Runes</span><b>${R} +${r.runes}</b></div>` : ''}
         <div class="earned"><span>${r.cls.name} mastery</span><b>+${r.classXp} XP · rank ${r.masteryRank}${r.masteryName ? ` — <em>${r.masteryName}</em>` : ''}</b></div>

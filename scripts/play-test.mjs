@@ -1931,6 +1931,9 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       return { over: g.over, wave: Math.max(1, g.wave), state: lb.state };
     });
     await p.locator('.results [data-menu]').waitFor({ timeout: 3000 });
+    // #254: the best-wave line says it counts the waves of one level, in words, next to the realm's wave it reached
+    const bestLine = await p.evaluate(() => { const rows = [...document.querySelectorAll('.results .stats > div')].map((d) => [d.children[0]?.textContent ?? '', d.children[1]?.textContent ?? '']); return { best: rows.find(([k]) => /^Most waves in one level/.test(k))?.[1] ?? null, reached: rows.find(([k]) => k === 'Reached')?.[1] ?? null, old: rows.some(([k]) => /^Best wave/.test(k)) }; });
+    want(/^\d+ waves?$/.test(bestLine.best ?? '') && !bestLine.old && /wave \d+/.test(bestLine.reached ?? ''), `results best-wave line: ${JSON.stringify(bestLine)} after the fall at wave ${fell.wave}`);
     await press('.results [data-menu]');
     await p.locator('.champion-screen').waitFor({ timeout: 3000 });
     await skipTour(p, touch); // #240: this browser's first champion screen
