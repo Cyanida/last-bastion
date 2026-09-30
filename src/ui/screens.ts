@@ -41,7 +41,7 @@ import { REALMS, WORLD } from '../config/world';
 import { fitLoadout, slotBlock, slotCost, slotView } from '../logic/champions';
 import { levelUpGains, type BuildView, type TierChoice } from '../logic/championLevels';
 import type { ChampionStat } from '../config/champion';
-import { fellLine, roadGo, runMark, type RoadRun } from '../logic/realmRoad';
+import { checkpointFact, fellLine, roadGo, runMark, type RoadRun } from '../logic/realmRoad';
 import { exportSave, importSave, saveFormatLabel, type EndlessEntry, type Save } from '../logic/save';
 import type { SaveBackup } from '../core/storage';
 import { exportRunLogs, type MarkKind, type RunLog } from '../logic/runlog';
@@ -277,6 +277,7 @@ export function showRealmRoad(
   const tier = (t: LevelPanel['tiers'][number], i: number) =>
     `<button class="rr-tier${i === info.tier ? ' on' : ''}${t.cleared ? ' cleared' : ''}" data-tier="${i}" aria-pressed="${i === info.tier}" title="${t.name}${t.cleared ? ': cleared' : t.open ? '' : ': not open yet'}"${t.open ? '' : ' disabled'}>${kit.icon(t.open ? TIER_CROWNS[i] : 'lock')}<span>${t.name}</span></button>`;
   const fact = (label: string, value: string | number) => `<span class="rr-fact"><small>${label}</small><b>${value}</b></span>`;
+  const cp = checkpointFact(info.trail?.level ?? 1);
   const el = show(`
     <div class="kit-frame realm-road">
       <header class="kit-head">${kit.closeButton('back', { attrs: 'data-back' })}${kit.ribbon(`${kit.icon('map')} ${esc(info.realmName)}`, { attrs: 'role="heading" aria-level="1"' })}</header>
@@ -285,7 +286,7 @@ export function showRealmRoad(
         <div class="rr-top">${kit.ribbon(esc(pn.name), { cls: 'rr-name' })}<div class="rr-tiers">${pn.tiers.map(tier).join('')}</div></div>
         <div class="rr-body">
           <div class="rr-facts">
-            ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${info.run ? `${fact('Run level', `Level ${info.run.level}`)}${fact('Relics kept', info.run.relics)}` : fact('Slots', pn.slots)}${fact('Enemy HP', `${pn.enemyHp}%`)}
+            ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${info.run ? `${fact(cp.label, cp.value)}${fact('Relics kept', info.run.relics)}` : fact('Slots', pn.slots)}${fact('Enemy HP', `${pn.enemyHp}%`)}
           </div>
           <div class="rr-foes">
             ${pn.family ? `<p>${kit.icon(pn.family)} <b>${FAMILIES[pn.family].name}</b> relics featured</p>` : ''}

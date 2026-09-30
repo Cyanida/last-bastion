@@ -5591,7 +5591,7 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   await p.locator('.rr-panel').waitFor({ timeout: 3000 });
   const road2 = (await p.locator('.rr-name').textContent()).trim();
   const facts2 = await p.evaluate(() => document.querySelector('.rr-facts').textContent.replace(/\s+/g, ' ').trim());
-  want(road2 === 'The Marches · Level 2' && new RegExp(`Run level\\s*Level ${one.plevel}\\s*Relics kept\\s*${one.end.length}\\s*Enemy`).test(facts2) && !/Head start/.test(facts2), `road after level 1 and a reload "${road2}" (${facts2})`);
+  want(road2 === 'The Marches · Level 2' && new RegExp(`Checkpoint\\s*Level 1 cleared\\s*Relics kept\\s*${one.end.length}\\s*Enemy`).test(facts2) && !/Head start/.test(facts2), `road after level 1 and a reload "${road2}" (${facts2})`);
   log.push(`reloaded: "${road2}", ${facts2}`);
   // Loadout slots the rare: the run is under way, so every slot idles and it stays out (the loadout went in at level 1), PLAY
   await press('[data-loadout]');
