@@ -3,7 +3,7 @@ import { talentsFor } from '../src/config/talents';
 import { REALM_IDS, REALMS } from '../src/config/world';
 import { createGame } from '../src/game';
 import { botBuild, championStep, expectedChampionLevel } from '../src/logic/championLevels';
-import { levelStep, parseTestLevel, ringStep, testLevels } from '../src/logic/world';
+import { levelStep, parseTestLevel, ringStep, testLevels, tierStep } from '../src/logic/world';
 import { createTestRun, isTestRun, type TestSetup } from '../src/systems/testMode';
 
 const row0 = talentsFor('viking').filter((n) => n.row === 0).slice(0, 2).map((n) => n.id);
@@ -41,7 +41,7 @@ describe('test mode starts any realm level (#206)', () => {
     expect(t.level?.realm).toBe('ironHold');
     expect(t.startWave).toBe(25);
     expect(t.player.level).toBe(expectedChampionLevel('ironHold', 4));
-    expect(t.tier.enemyHp).toBeCloseTo(createGame('viking', 3).tier.enemyHp * ringStep('ironHold').hp * levelStep('ironHold', 4).hp * championStep('ironHold', 4).hp, 5);
+    expect(t.tier.enemyHp).toBeCloseTo(createGame('viking', 3).tier.enemyHp * ringStep('ironHold').hp * levelStep('ironHold', 4).hp * championStep('ironHold', 4).hp * tierStep(0, 'ironHold', 4).hp, 5); // #250: test mode plays Squire, with its ease
   });
 
   it('spends the chosen talents along the plan and pays for every one, and holds the chosen relics', () => {

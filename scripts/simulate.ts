@@ -175,7 +175,7 @@ if (mode === 'levels') {
     ...(squire ? CLASSES.map((c, i) => node(['run', c, String(runs), '1', realms, knights[i]])) : []),
   ]);
   await node(['merge', ...outs]);
-  if (squire) (await node(['merge', ...knights])), await node(['bar', ...outs, '--', ...knights]);
+  if (squire) (await node(['merge', ...knights])), await node(['bar', ...outs, 'vs', ...knights]);
   console.log(`
 (${((Date.now() - started) / 1000).toFixed(0)}s)`);
   process.exit(0);

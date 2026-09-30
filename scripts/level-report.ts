@@ -5,7 +5,7 @@
  *
  *   npx vite-node scripts/level-report.ts run <classId> <runs> <tier> <realms> <out.json>    first tries at every level of those realms
  *   npx vite-node scripts/level-report.ts merge <out.json> ...                               the tables and rule 9's targets
- *   npx vite-node scripts/level-report.ts bar <squire.json> ... -- <knight.json> ...         #250: Squire against Knight, per level and class
+ *   npx vite-node scripts/level-report.ts bar <squire.json> ... vs <knight.json> ...         #250: Squire against Knight, per level and class
  *
  * `realms`: comma-separated RealmIds (default marches,ironHold: the Marches and a stand-in relic realm; add lastBastion for the finale).
  * Each row is a level's first try in a realm run: the realms before it crowned on Knight, no Keep ranks, no mastery (src/sim/levels.ts).
@@ -37,7 +37,7 @@ if (cmd === 'run') {
   console.log(`${classId}: ${levels.length} level runs, ${levels.filter((r) => r.cleared).length} cleared`);
 } else if (cmd === 'bar') {
   // #250: Squire is the easier tier: its first tries at least SQUIRE_BAR.margin over Knight's on every level, every class but the Archer over the floor
-  const cut = args.indexOf('--');
+  const cut = args.indexOf('vs'); // not '--': vite-node takes that one itself
   const read = (fs: string[]) => fs.flatMap((f) => (JSON.parse(readFileSync(f, 'utf8')) as Out).levels);
   const rows = squireBar(read(args.slice(0, cut)), read(args.slice(cut + 1)));
   const classes = CLASS_ORDER.filter((c) => rows.some((r) => r.classes[c] !== undefined));

@@ -233,13 +233,19 @@ export interface TierDef {
   eliteMult: number;
   gold: number;
   classXp: number;
+  /**
+   * #250: enemy HP and damage in a realm's levels on this tier, on top of the rest (logic/world tierStep): `[first, last]`, from the
+   * realm's first level to its last, even between. Plain runs, the Daily Trial and the Last Bastion don't take it. None: 1.
+   */
+  realmEase?: { hp: [number, number]; damage: [number, number] };
 }
 /** v0.10 (#203, plan rule 7): what opens each difficulty, by index into TIERS. Squire and Knight are open from the start; a tier
  * with `win` opens once that tier is won: in a realm (logic/world tierOpen), its crown won on that tier; in a run with no realm,
  * the Usurper beaten on it. This replaces #79's wave rule. */
 export const TIER_UNLOCK: { win?: number }[] = [{}, {}, { win: 1 }, { win: 2 }];
 export const TIERS: TierDef[] = [
-  { name: 'Squire', enemyHp: 1, enemyDmg: 1, eliteMult: 1, gold: 1, classXp: 1 },
+  // #250: Squire eases a realm's later levels most: a champion held at its crown cap meets them on a level step that keeps rising (BALANCE.md)
+  { name: 'Squire', enemyHp: 1, enemyDmg: 1, eliteMult: 1, gold: 1, classXp: 1, realmEase: { hp: [0.85, 0.7], damage: [0.85, 0.75] } },
   { name: 'Knight', enemyHp: 1.45, enemyDmg: 1.25, eliteMult: 1.5, gold: 1.6, classXp: 1.5 },
   { name: 'Champion', enemyHp: 2.1, enemyDmg: 1.6, eliteMult: 2.2, gold: 2.5, classXp: 2.2 },
   { name: 'Legend', enemyHp: 3.2, enemyDmg: 2.1, eliteMult: 3, gold: 4, classXp: 3.5 },
