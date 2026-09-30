@@ -2615,6 +2615,47 @@ await check('Iron Hold on Squire: the road lists only foes Squire fields, and a 
   return { ok, detail: `road on Squire: level 2 "${l2?.foes}"; ${bad.length ? `WRONG: ${bad.map((r) => `L${r.n}@${r.w} tier ${r.tier} "${r.foes}"${r.seen ? '' : ' (not in view)'}`).join('; ')}` : 'no foe Squire does not field, at 1280 and 1920'}; Iron Shieldwall named on ${walled.length}/8 of levels 2-5; fight: ${met.started ? `${met.realm} ${met.level} on tier ${met.tier}, wave ${met.wave} at ${met.time} s (${met.state}${met.screen ? `, "${met.screen}"` : ''}): card ${met.card ?? 'NONE'} "${met.title ?? ''}", ${met.walls} Iron Shieldwalls (${met.inSquad} in a squad), ${met.plain} plain` : 'did not start'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #259: the Iron Hold's level 2 on Squire always brings its featured squad: on each of several run seeds, map -> the Iron
+// Hold -> Squire -> level 2 (the road naming the Iron Shieldwall) -> FIGHT; the bot plays, unhurt, nothing put in the queue by hand, and a
+// squad of Iron Shieldwalls marches in within the level's first WORLD.featuredSquad.within waves (9-11) ----------
+await check('Iron Hold level 2 on Squire: the featured Iron Shieldwalls come as a squad on every seed, in the level\'s first waves (#259)', async () => {
+  const seeds = [20237, 1, 2, 3, 4];
+  const runs = [];
+  const errs = [];
+  for (const seed of seeds) {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate((run) => {
+      const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], ironHold: [1] }), world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false, runs: { ironHold: run } });
+      const lb = window.__lb;
+      lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // Iron Hold level 1 cleared on Squire, its run at level 2
+      lb.save.cards = [...lb.cardIds]; // every card seen: no flash card stops the fight
+    }, { ...runAt(2, 0), seed });
+    await p.click('[data-go="map"]');
+    await p.click('.wm-realm.r-ironHold');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await p.click('.rr-tier[data-tier="0"]');
+    await p.click('.rr-flag.l-2');
+    await p.waitForTimeout(60);
+    const foes = await p.evaluate(() => document.querySelector('.rr-foes')?.textContent.replace(/\s+/g, ' ').trim() ?? '');
+    await p.click('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    runs.push({ seed, foes, ...await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      if (!g) return { started: false };
+      const squadWalls = () => g.enemies.filter((e) => e.def.id === 'ironShieldwall' && e.squad).length;
+      for (let i = 0; i < 120000 && squadWalls() === 0 && g.wave <= 11 && lb.game === g && lb.state !== 'results' && !g.level?.cleared; i++) (g.player.invulnerable = true), lb.run(1, false, true);
+      return { started: true, runSeed: g.seed, level: g.level?.level, tier: g.tierIndex, wave: g.wave, walls: squadWalls(), plain: g.enemies.filter((e) => e.def.id === 'shieldwall').length };
+    }) });
+    await p.close();
+  }
+  const good = (r) => r.started && /Iron Shieldwall/.test(r.foes) && r.runSeed === r.seed && r.level === 2 && r.tier === 0 && r.wave >= 9 && r.wave <= 11 && r.walls > 0 && r.plain === 0;
+  const ok = runs.every(good) && errs.length === 0;
+  return { ok, detail: `${runs.map((r) => `seed ${r.seed}: ${r.started ? `${good(r) ? '' : 'WRONG '}level ${r.level} tier ${r.tier} seed ${r.runSeed}, ${r.walls} Iron Shieldwalls in a squad by wave ${r.wave}, ${r.plain} plain${/Iron Shieldwall/.test(r.foes) ? '' : ` (road: "${r.foes}")`}` : 'did not start'}`).join('; ')}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #213: the Iron Hold's shieldwalls: map -> the Iron Hold -> level 2 -> FIGHT; the director's shieldwall squad marches in as Iron
 // Shieldwalls with their own flash card, "Got it" closes it, and then, from a known state (him alone, the champion put in front of him, then
 // behind him, then at his side), a real swing at his shield is turned with BLOCKED and a clank, the same swing lands in full on his back,

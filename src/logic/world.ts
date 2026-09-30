@@ -227,6 +227,25 @@ export function featuredFoes(waves: [number, number], max = 3, tier?: number, re
   return [...ids.filter(own), ...ids.filter((id) => !own(id))].slice(0, max);
 }
 
+/**
+ * #259: the squads a level brings for sure, and the wave each comes on: one of each squad (fielded on `tier`) that holds a `fields` foe
+ * the level's road features, so a road that names the Iron Shieldwall never plays out without a squad of them. Decided: only a realm's
+ * `fields` foes (held to `fieldsWeight`); its other own foes come at their full weight. The wave is drawn per seed from the level's
+ * first WORLD.featuredSquad.within waves where the squad is fielded (from its own first wave, before the level's boss wave), on the
+ * director's per-wave stream (waveRng) salted, so the wave's own draws stay as they were.
+ */
+export function featuredSquads(realm: RealmId, level: number, tier: number, seed: number): { template: string; wave: number }[] {
+  const fields = REALMS[realm].fields;
+  const waves = REALMS[realm].levels[level - 1]?.waves;
+  if (!fields?.length || !waves) return [];
+  const featured = featuredFoes(waves, undefined, tier, realm);
+  return SQUADS.filter((s) => s.from <= waves[1] && squadOnTier(s, tier, fields) && s.members.some(([id]) => fields.includes(id) && featured.includes(id))).map((s) => {
+    const first = Math.max(waves[0], s.from);
+    const last = Math.max(first, Math.min(waves[1] - 1, first + WORLD.featuredSquad.within - 1)); // not the boss wave, where it can be helped
+    return { template: s.id, wave: first + Math.floor(waveRng(seed ^ 0x259, first)() * (last - first + 1)) };
+  });
+}
+
 /** The end boss in words: a named one, or the draw on its wave (a mid-Act boss on a wave x5, the Act's boss on a wave x0). */
 export function bossName(end: EndBoss, wave: number): string {
   if (end.boss === 'usurper') return ENEMIES.usurper.name;
