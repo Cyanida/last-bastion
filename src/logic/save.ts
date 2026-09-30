@@ -25,8 +25,8 @@ import { championsFromV6, grantSignature, newChampion, readChampions, type Champ
 import { clearRewards, levelSkip, recordClear } from './world';
 import type { CrownReward, LevelReward, RealmId } from '../config/world';
 
-export const SAVE_VERSION = 7; // v0.10 (#193): champions, one per class (logic/champions.ts); v6 was v0.7's relic rework
-export const READABLE_VERSIONS = [2, 3, 4, 5, 6, 7]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
+export const SAVE_VERSION = 8; // v0.11 (#237): a champion's unfinished realm runs (logic/realmRun.ts); v7 was v0.10's champions (logic/champions.ts)
+export const READABLE_VERSIONS = [2, 3, 4, 5, 6, 7, 8]; // v2 (game v0.2) and v3 (v0.3) have the same shape minus later fields, which get defaults
 
 /**
  * v0.6: Keep ranks that v0.5 sold and v0.6 took away or cut short: the Armory's four damage tracks, the top two ranks of HP and speed,
@@ -57,7 +57,7 @@ export function legacyRefund(meta: Record<string, unknown>): { gold: number; run
 }
 export const SAVE_KEY = 'lastbastion.save';
 /** v0.7: which game versions wrote a save format, for the backup list (Settings › Save data). */
-export const saveFormatLabel = (version: number): string => ({ 2: 'v0.2', 3: 'v0.3', 4: 'v0.4-v0.5', 5: 'v0.6', 6: 'v0.7-v0.9', 7: 'v0.10' } as Record<number, string>)[version] ?? (version ? `save format ${version}` : 'unreadable');
+export const saveFormatLabel = (version: number): string => ({ 2: 'v0.2', 3: 'v0.3', 4: 'v0.4-v0.5', 5: 'v0.6', 6: 'v0.7-v0.9', 7: 'v0.10', 8: 'v0.11' } as Record<number, string>)[version] ?? (version ? `save format ${version}` : 'unreadable');
 export const LEGACY_BEST_KEY = 'lastbastion.best'; // v0.1: { [classId]: bestWave }
 
 export interface ClassRecord {
@@ -174,7 +174,7 @@ export interface RunSummary {
   evolutions?: EvolutionId[]; // v0.6: taken this run
   duos?: DuoId[]; // v0.7: formed this run
   endlessScore?: number; // v0.6: 0 unless the run went on into Endless
-  realmLevel?: { realm: RealmId; level: number; cleared: boolean }; // v0.10 (#192): the realm level this run was; its head start doesn't count
+  realmLevel?: { realm: RealmId; level: number; cleared: boolean; from?: number }; // v0.10 (#192): the realm level this run was; its head start doesn't count. #237 `from`: the player's level carried into it (a realm run's later level), counted by the level before
 }
 
 const emptyClass = (): ClassRecord => ({ bestWave: 0, runs: 0, kills: 0, time: 0, xp: 0 });
@@ -387,7 +387,7 @@ export const today = (now: Date): string => now.toISOString().slice(0, 10);
 export function applyRun(save: Save, run: RunSummary, date = '', at = ''): { save: Save; classXp: number; tierUnlocked: boolean; runes: number; gold: number; firstWin: boolean; endlessRank: number; oathKept: number; contracts: Contract[]; levelRewards: { level: LevelReward[]; crown: CrownReward[] } } {
   // v0.10 (#192): a realm level counts only the waves it played and the levels grown in them, and its gold cap is its share of a full run
   const lv = run.realmLevel;
-  const skip = lv ? levelSkip(lv.realm, lv.level) : { waves: 0, levels: 0, share: 1 };
+  const skip = lv ? { ...levelSkip(lv.realm, lv.level), ...(lv.from ? { levels: lv.from - 1 } : {}) } : { waves: 0, levels: 0, share: 1 };
   const wavesPlayed = Math.max(0, run.wavesCleared - skip.waves);
   // v0.10 (#205): wave deeds count the waves played; "in one run" deeds and Six of a Kind count only in the Last Bastion, where no loadout
   // hands the relics out (decided: a run with no level, the full run the Last Bastion replaces, counts as one)

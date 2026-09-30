@@ -248,11 +248,12 @@ const TIER_CROWNS = ['crown-squire', 'crown-knight', 'crown-champion', 'crown-le
 
 /**
  * #199: the realm road, the realm's part of the painted map with a flag per level (a lock on one not open yet, the crown of the highest
- * tier it is cleared on), and the level panel for the picked flag: tier crowns, head start, slots, enemy HP, the featured family and
+ * tier it is cleared on), and the level panel for the picked flag: tier crowns, the run's slots (#237: or the realm run's level and
+ * relics kept, when it goes on from a checkpoint; a level the run can't start at says so, its FIGHT off), enemy HP, the featured family and
  * foes, the end boss, what a first clear pays, and FIGHT, the screen's one gold button.
  */
 export function showRealmRoad(
-  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null },
+  info: { realm: RealmId; realmName: string; level: number; tier: number; champion: string; road: RoadLevel[]; panel: LevelPanel; fell?: number | null; run?: { level: number; relics: number } | null; starts?: boolean },
   on: { level: (n: number) => void; tier: (t: number) => void; fight: () => void; loadout: () => void; back: () => void },
 ): void {
   const { realm, panel: pn } = info;
@@ -271,7 +272,7 @@ export function showRealmRoad(
         <div class="rr-top">${kit.ribbon(esc(pn.name), { cls: 'rr-name' })}<div class="rr-tiers">${pn.tiers.map(tier).join('')}</div></div>
         <div class="rr-body">
           <div class="rr-facts">
-            ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${fact('Head start', `Level ${pn.headStart}`)}${fact('Slots', pn.slots)}${fact('Enemy HP', `${pn.enemyHp}%`)}
+            ${fact('Waves', `${pn.waves[0]}–${pn.waves[1]}`)}${info.run ? `${fact('Run level', `Level ${info.run.level}`)}${fact('Relics kept', info.run.relics)}` : fact('Slots', pn.slots)}${fact('Enemy HP', `${pn.enemyHp}%`)}
           </div>
           <div class="rr-foes">
             ${pn.family ? `<p>${kit.icon(pn.family)} <b>${FAMILIES[pn.family].name}</b> relics featured</p>` : ''}
@@ -283,7 +284,7 @@ export function showRealmRoad(
             ${pn.rewards.length ? `<ul>${pn.rewards.map((r) => `<li>${kit.icon('crown')}${esc(r)}</li>`).join('')}</ul>` : '<p>First-clear rewards taken: a replay pays gold and XP for the waves played.</p>'}
           </div>
         </div>
-        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${info.fell ? ` · <small>fell at wave ${info.fell}</small>` : ''}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${kit.button('Fight!', { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !pn.open })}</div>`, { cls: 'rr-panel' })}
+        <div class="rr-go"><span class="rr-champ">${kit.icon('champion')} ${esc(info.champion)}${info.fell ? ` · <small>fell at wave ${info.fell}</small>` : ''}${pn.open && info.starts === false ? ' · <small class="rr-from">The run starts at level 1</small>' : ''}</span>${kit.button('Loadout', { icon: 'relics', attrs: 'data-loadout' })}${kit.button('Fight!', { kind: 'gold', size: 'big', attrs: 'data-fight', disabled: !pn.open || info.starts === false })}</div>`, { cls: 'rr-panel' })}
     </div>`);
   click(el, '[data-back]', () => on.back());
   click(el, '.rr-flag', (b) => on.level(Number(b.dataset.level)));
@@ -303,7 +304,7 @@ export interface ChampionInfo {
   realmName: string;
   level: number; // the level PLAY starts (1-based)
   tier: number;
-  slots: number; // that level's slots, with the Keep's and mastery's
+  slots: number; // that level's slots, with the Keep's and mastery's; #237: 0 when its realm run goes on from a checkpoint (the loadout went in at level 1)
   loadout: RelicId[]; // the realm's saved loadout, at the most slots
   inventory: RelicId[];
   plan: string[]; // the talent plan, in order
@@ -321,6 +322,7 @@ export function showChampion(
 ): void {
   const c = CLASSES[info.classId];
   const finale = info.realm === 'lastBastion';
+  const RUN_ON = 'The realm run is under way: its loadout went in at level 1.'; // #237: no slots (info.slots 0) past a run's level 1
   const view = slotView(info.classId, info.loadout, info.slots, finale);
   const goes = fitLoadout(info.classId, info.loadout, info.slots, finale);
   const tier = REALMS[info.realm].levels[info.level - 1].relicTier;
@@ -328,11 +330,11 @@ export function showChampion(
   const two = `<span class="cs-badge">${WORLD.loadout.legendarySlots} slots</span>`;
   const slot = (s: (typeof view)[number], i: number) => {
     const idle = s.live ? '' : ' idle';
-    if (!s.id) return `<span class="cs-slot empty${idle}" data-slot="${i}" tabindex="0" data-tip="${s.live ? 'An empty slot: tap a relic in the inventory to put it here.' : `Locked in this level (${info.slots} slot${info.slots > 1 ? 's' : ''}): later levels and the Keep open more.`}">${s.live ? '' : kit.icon('lock')}</span>`;
+    if (!s.id) return `<span class="cs-slot empty${idle}" data-slot="${i}" tabindex="0" data-tip="${s.live ? 'An empty slot: tap a relic in the inventory to put it here.' : info.slots ? `Locked (${info.slots} slot${info.slots > 1 ? 's' : ''} for the realm run): the Keep opens more.` : RUN_ON}">${s.live ? '' : kit.icon('lock')}</span>`;
     if (s.second) return '';
     const r = relicDef(s.id);
     const double = slotCost(s.id) > 1;
-    return `<button class="cs-slot${idle}${double ? ' double' : ''}" data-slot="${i}" data-unslot="${s.id}" aria-label="${esc(`${r.name}${double ? ', 2 slots' : ''}: take it out`)}" data-tip="${esc(`${relicTip(s.id, tier)}${double ? `\nA legendary: it takes ${WORLD.loadout.legendarySlots} slots.` : ''}${s.live ? '' : '\nNot in this level: no slot left for it.'}\nTap to take it out.`)}">${kit.rarityGlyph(relicRarity(s.id), r.icon)}${double ? two : ''}${infoButton(s.id, r.name)}</button>`;
+    return `<button class="cs-slot${idle}${double ? ' double' : ''}" data-slot="${i}" data-unslot="${s.id}" aria-label="${esc(`${r.name}${double ? ', 2 slots' : ''}: take it out`)}" data-tip="${esc(`${relicTip(s.id, tier)}${double ? `\nA legendary: it takes ${WORLD.loadout.legendarySlots} slots.` : ''}${s.live ? '' : info.slots ? '\nNot in this run: no slot left for it.' : `\n${RUN_ON}`}\nTap to take it out.`)}">${kit.rarityGlyph(relicRarity(s.id), r.icon)}${double ? two : ''}${infoButton(s.id, r.name)}</button>`;
   };
   const sets = Object.entries(familySets(goes)) as [FamilyId, { count: number; level: number }][];
   const chip = ([f, st]: [FamilyId, { count: number; level: number }]) =>
@@ -356,12 +358,12 @@ export function showChampion(
             ${info.inventory.length ? `<div class="cs-inv">${info.inventory.map(relic).join('')}</div>` : '<p class="cs-empty">No relics yet. Levels cleared win them; tap one to put it in a slot.</p>'}
             <p class="cs-why" aria-live="polite"></p>`, { cls: 'cs-inventory' })}
           ${kit.parch(`<h2>Talent plan <small>${info.plan.length}</small>${kit.infoButton('talents', 'How the talent plan works')}</h2>
-            ${plan ? `<ol class="cs-plan">${plan}</ol>` : '<p class="cs-empty">No plan: the head start leaves its points to spend.</p>'}
+            ${plan ? `<ol class="cs-plan">${plan}</ol>` : '<p class="cs-empty">No plan: talent points are yours to spend in the run.</p>'}
             <div class="row">${kit.button('Edit plan', { size: 'small', attrs: 'data-plan' })}${info.plan.length ? kit.button('Clear', { size: 'small', attrs: 'data-clear-plan' }) : ''}</div>`, { cls: 'cs-talents' })}
         </div>
       </div>
       <div class="cs-go">
-        <span class="cs-next">${kit.icon('map')}<span><b>${esc(info.realmName)} · Level ${info.level}</b><small>${TIERS[info.tier].name} · ${info.slots} slot${info.slots > 1 ? 's' : ''}${info.fell ? ` · fell at wave ${info.fell}` : ''}</small></span></span>
+        <span class="cs-next">${kit.icon('map')}<span><b>${esc(info.realmName)} · Level ${info.level}</b><small>${TIERS[info.tier].name} · ${info.slots ? `${info.slots} slot${info.slots > 1 ? 's' : ''}` : 'run in progress'}${info.fell ? ` · fell at wave ${info.fell}` : ''}</small></span></span>
         ${kit.button(info.fell ? 'Restart' : 'Play', { kind: 'go', size: 'big', attrs: 'data-play' })}
       </div>
       ${kit.tabs(kit.MAIN_TABS, 'champion')}
@@ -1118,8 +1120,8 @@ export function showTalents(info: { classId: ClassId; taken: string[]; points: n
   };
   const el = show(kitScreen('talents', info.plan ? 'Talent plan' : 'Talents', {
     back: 'data-back',
-    // #197: the champion's talent plan is picked on the same tree: tap talents in the order the head start spends its points on them
-    sub: info.plan ? `Tap talents in the order the head start spends its points: ${info.taken.length} planned · a keystone needs ${TALENTS.keystonePoints} points in its branch` : `${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${TALENTS.levelsPerPoint} levels · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}${info.rowCap < TALENTS.rows - 1 ? ' · <b>keystones open when the Library is raised in the Keep</b>' : ''}`,
+    // #197: the champion's talent plan is picked on the same tree: tap talents in the order to take them in (#237: no head start spends them)
+    sub: info.plan ? `Tap talents in the order you mean to take them: ${info.taken.length} planned · a keystone needs ${TALENTS.keystonePoints} points in its branch` : `${info.points > 0 ? `<b>${info.points} point${info.points > 1 ? 's' : ''} to spend</b>` : 'No points to spend'} · a point every ${TALENTS.levelsPerPoint} levels · a keystone needs ${TALENTS.keystonePoints} points in its branch, and only one keystone${keystone ? ` (yours: ${keystone.name})` : ''}${info.rowCap < TALENTS.rows - 1 ? ' · <b>keystones open when the Library is raised in the Keep</b>' : ''}`,
     body: `<div class="tree">${branches.map(column).join('')}</div>`,
   }));
   click(el, '[data-talent]', (b) => {
@@ -1224,6 +1226,7 @@ export interface RunResult {
   goals: Goal[]; // v0.6: the three closest goals, after this run
   contracts: Contract[]; // weekly contracts this run completed
   restart: string; // what Quick Restart keeps: "Viking · Stalwart · Oath 3"
+  onward?: boolean; // #237: a cleared level goes on into the realm run's next level (`restart` names it) instead
   relicShares: { id: RelicKey; tier: number; from: RelicSource; damage: number; healing: number; mitigation: number }[]; // v0.7: which relics carried the run
   wins: number; // the class's wins, this one included
   masteryNext: { name: string; need: number } | null; // the next mastery rank and the class XP still missing
@@ -1283,7 +1286,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
       ${buildHtml(r.build)}`, { cls: 'kit-scroll' })}
       <footer class="row">${deciding
         ? `${kit.button('Bank the win', { kind: 'gold', size: 'big', attrs: 'data-bank' })}${kit.button('March on into Endless', { kind: 'go', attrs: 'data-endless' })}${kit.button('Bank and restart', { attrs: `data-restart data-tip="Bank the win and start again at once: ${esc(r.restart)}"` })}`
-        : `${kit.button(`Quick restart · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button(r.road ? `Back to ${esc(r.road.replace(/^The /, 'the '))}` : r.daily ? 'Back to the title' : 'Choose another champion', { attrs: 'data-menu' })}`}</footer>
+        : `${kit.button(`${r.onward ? 'Onward' : 'Quick restart'} · ${esc(r.restart)}`, { kind: 'gold', size: 'big', attrs: 'data-retry data-tip="Enter"' })}${kit.button(r.road ? `Back to ${esc(r.road.replace(/^The /, 'the '))}` : r.daily ? 'Back to the title' : 'Choose another champion', { attrs: 'data-menu' })}`}</footer>
     </div>`);
   if ('bank' in on) {
     click(el, '[data-endless]', on.endless);

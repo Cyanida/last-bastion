@@ -7,8 +7,8 @@ import { oldSave } from './fixtures/saves';
 
 /** #193: save v7 keeps a champion per class; a v6 save migrates without losing a relic. */
 describe('save v7: champions (#193)', () => {
-  it('is format 7, and a new save has no champions yet', () => {
-    expect(SAVE_VERSION).toBe(7);
+  it('is format 7 (8 since v0.11, #237), and a new save has no champions yet', () => {
+    expect(SAVE_VERSION).toBe(8);
     expect(saveFormatLabel(7)).toBe('v0.10');
     expect(defaultSave().champions).toEqual({});
   });
@@ -70,7 +70,8 @@ describe('save v7: champions (#193)', () => {
     const seasoned = MASTERY[MASTERY.findIndex((r) => r.reward.kind === 'startLevel')].xp;
     expect(championBonus({ startRelic: 1 }, keepsake)).toEqual({ slots: 2, levels: 0 });
     expect(championBonus({ startLevel: 1 }, seasoned).levels).toBe(2);
-    expect(championSlots({ startRelic: 1 }, keepsake, 'marches', 1)).toBe(3);
-    expect(championSlots({ startRelic: 1 }, keepsake, 'ironHold', 5)).toBe(6); // 5 + 2, capped at 6
+    expect(championSlots({ startRelic: 1 }, keepsake, 'marches', 1)).toBe(5); // #237: a realm run's 3 slots + 2
+    expect(championSlots({ startRelic: 1 }, keepsake, 'ironHold', 5)).toBe(5); // the same at every level of the run
+    expect(championSlots({ startRelic: 1 }, keepsake, 'lastBastion', 1)).toBe(6); // 5 + 2, capped at 6
   });
 });

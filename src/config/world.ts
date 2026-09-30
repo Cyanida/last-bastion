@@ -49,7 +49,7 @@ export type CrownReward = { kind: 'signature' } | { kind: 'legendaryPick' } | { 
 
 export interface LevelDef {
   waves: [number, number]; // first and last wave, on the 40-wave scale
-  slots: number; // starting relic slots, before Armorer's Choice and Keepsake
+  slots: number; // starting relic slots, before Armorer's Choice and Keepsake. #237: a realm's levels all have its run's loadout size (RUN_SLOTS): the loadout goes in at level 1 only
   relicTier: number; // the tier starting relics come in at
   family?: FamilyId; // the opening pick's family: the realm's own, or the Marches level's featured family; none in the Last Bastion (any family)
   boss: EndBoss;
@@ -73,12 +73,15 @@ export interface RealmDef {
   crown: { first: CrownReward[]; tiers: CrownReward[][] };
 }
 
+/** #237 (rule 4): a realm is one run, so its loadout size is one number for all its levels: a relic realm 3, the Marches 3. */
+const RUN_SLOTS = { realm: 3, marches: 3 };
+
 /** Rule 3: a relic realm's five levels. Ends: a pool boss, the realm's first boss, a new boss, the first boss as an elite, the crown boss. */
 function relicRealmLevels(family: FamilyId, first: string, third: string, crown: string, opener = 'pool'): LevelDef[] {
   const waves: [number, number][] = [[1, 5], [6, 10], [11, 20], [21, 30], [31, 40]];
   const bosses: EndBoss[] = [{ boss: opener }, { boss: first }, { boss: third }, { boss: first, elite: true }, { boss: crown, crown: true }];
   const rewards: (LevelReward | undefined)[] = [{ kind: 'keepLocked' }, { kind: 'keepLocked' }, { kind: 'classRelic' }, { kind: 'keepLocked' }, undefined];
-  return waves.map((w, i) => ({ waves: w, slots: i + 1, relicTier: i < 3 ? 1 : 2, family, boss: bosses[i], reward: rewards[i] }));
+  return waves.map((w, i) => ({ waves: w, slots: RUN_SLOTS.realm, relicTier: i < 3 ? 1 : 2, family, boss: bosses[i], reward: rewards[i] }));
 }
 
 const RELIC_CROWN: RealmDef['crown'] = { first: [], tiers: [[], [{ kind: 'legendaryPick' }], [{ kind: 'legendaryOther' }], [{ kind: 'title' }, { kind: 'palette' }]] };
@@ -86,14 +89,13 @@ const RELIC_CROWN: RealmDef['crown'] = { first: [], tiers: [[], [{ kind: 'legend
 /** The Marches: one featured family per level, in this order (levels 1 and 2 are the tutorial). */
 export const MARCHES_FAMILIES: FamilyId[] = ['steel', 'flame', 'blood', 'storm', 'frost', 'holy', 'grave'];
 const MARCHES_WAVES: [number, number][] = [[1, 5], [6, 10], [11, 15], [16, 20], [21, 25], [26, 30], [31, 40]];
-const MARCHES_SLOTS = [1, 1, 2, 2, 3, 3, 4];
 
 export const REALMS: Record<RealmId, RealmDef> = {
   marches: {
     name: 'The Marches', ring: 1, opens: { crowns: 0 }, arena: 'courtyard', release: '0.10.0',
     teaches: 'Marked attacks and the perfect dodge, commanders, and one relic family per level',
     levels: MARCHES_WAVES.map((waves, i) => ({
-      waves, slots: MARCHES_SLOTS[i], relicTier: i < 4 ? 1 : 2, family: MARCHES_FAMILIES[i],
+      waves, slots: RUN_SLOTS.marches, relicTier: i < 4 ? 1 : 2, family: MARCHES_FAMILIES[i],
       boss: i === 6 ? { boss: 'warden', crown: true } : { boss: 'pool' },
       reward: { kind: 'rarePick', family: MARCHES_FAMILIES[i], of: 2 },
     })),
