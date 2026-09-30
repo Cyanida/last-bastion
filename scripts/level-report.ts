@@ -5,6 +5,7 @@
  *
  *   npx vite-node scripts/level-report.ts run <classId> <runs> <tier> <realms> <out.json>    first tries at every level of those realms
  *   npx vite-node scripts/level-report.ts merge <out.json> ...                               the tables and rule 9's targets
+ *   npx vite-node scripts/level-report.ts bar <squire.json> ... -- <knight.json> ...         #250: Squire against Knight, per level and class
  *
  * `realms`: comma-separated RealmIds (default marches,ironHold: the Marches and a stand-in relic realm; add lastBastion for the finale).
  * Each row is a level's first try in a realm run: the realms before it crowned on Knight, no Keep ranks, no mastery (src/sim/levels.ts).
@@ -14,7 +15,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { CLASS_ORDER, type ClassId } from '../src/config/classes';
 import { TIERS } from '../src/config/economy';
 import { REALMS, type RealmId } from '../src/config/world';
-import { continuousPower, levelCell, median, minutesWithRetries, powerGap, realmMinutes, simulateRealm, type LevelCell, type LevelRun } from '../src/sim/levels';
+import { continuousPower, levelCell, median, minutesWithRetries, powerGap, realmMinutes, simulateRealm, SQUIRE_BAR, squireBar, type LevelCell, type LevelRun } from '../src/sim/levels';
 
 type Row = Omit<LevelRun, 'summary'>;
 interface Out { classId: ClassId; tier: number; realms: RealmId[]; levels: Row[]; continuous: Record<number, { power: number; relics: number }>[] }
@@ -34,6 +35,22 @@ if (cmd === 'run') {
   const continuous = Array.from({ length: runs }, (_, i) => continuousPower(classId, 1000 + i * 7919, firstWaves(realms), tier, i % 2));
   writeFileSync(out, JSON.stringify({ classId, tier, realms, levels, continuous } satisfies Out));
   console.log(`${classId}: ${levels.length} level runs, ${levels.filter((r) => r.cleared).length} cleared`);
+} else if (cmd === 'bar') {
+  // #250: Squire is the easier tier: its first tries at least SQUIRE_BAR.margin over Knight's on every level, every class but the Archer over the floor
+  const cut = args.indexOf('--');
+  const read = (fs: string[]) => fs.flatMap((f) => (JSON.parse(readFileSync(f, 'utf8')) as Out).levels);
+  const rows = squireBar(read(args.slice(0, cut)), read(args.slice(cut + 1)));
+  const classes = CLASS_ORDER.filter((c) => rows.some((r) => r.classes[c] !== undefined));
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  console.log(`
+## Squire against Knight (#250: Squire ${Math.round(SQUIRE_BAR.margin * 100)} points over Knight, every class over ${pct(SQUIRE_BAR.floor)} on Squire; ${SQUIRE_BAR.exempt.join(', ')} reported, not held to it)
+`);
+  console.log(`| Level | Knight | Squire | ${classes.map((c) => `${c} (Squire)`).join(' | ')} | Easier | Every class |
+|---|---|---|${classes.map(() => '---').join('|')}|---|---|`);
+  for (const r of rows)
+    console.log(`| ${REALMS[r.realm].name} ${r.level} | ${pct(r.knight)} | ${pct(r.squire)} | ${classes.map((c) => (r.classes[c] === undefined ? '-' : pct(r.classes[c]!))).join(' | ')} | ${r.easier ? '✔' : '**✘**'} | ${r.everyClass ? '✔' : '**✘**'} |`);
+  console.log(`
+${rows.filter((r) => r.easier && r.everyClass).length}/${rows.length} levels meet the bar.`);
 } else if (cmd === 'merge') {
   const outs: Out[] = args.map((f) => JSON.parse(readFileSync(f, 'utf8')));
   const { tier, realms } = outs[0];
