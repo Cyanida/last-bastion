@@ -2289,7 +2289,7 @@ await check('Cinderlands: a peasant marches as the Torchbearer, his flash card s
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
   await p.evaluate((run) => {
-    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], cinderlands: [1] }, signature: true, lastBastion: false, runs: { cinderlands: run } });
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], cinderlands: [1] }), world: { marches: [7], cinderlands: [1] }, signature: true, lastBastion: false, runs: { cinderlands: run } });
     const lb = window.__lb;
     lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Cinderlands level 1 cleared, its realm run at level 2 (#237)
     lb.save.cards = lb.cardIds.filter((id) => id !== 'torchbearer'); // every other card already seen, so his is the one that shows
@@ -2394,7 +2394,7 @@ await check('Cinderlands: fire catches at the lava\'s bank with a warning and cr
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
   await p.evaluate(() => {
-    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], cinderlands: [2] }, signature: true, lastBastion: false, runs: {} });
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], cinderlands: [2] }), world: { marches: [7], cinderlands: [2] }, signature: true, lastBastion: false, runs: {} });
     const lb = window.__lb;
     lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)]));
     lb.save.cards = [...lb.cardIds]; // every flash card seen: nothing stops the fight
@@ -2538,7 +2538,7 @@ await check('Cinderlands: a wolf hunts as the Cinder Hound, his flash card shows
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
   await p.evaluate((run) => {
-    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], cinderlands: [1] }, signature: true, lastBastion: false, runs: { cinderlands: run } });
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], cinderlands: [1] }), world: { marches: [7], cinderlands: [1] }, signature: true, lastBastion: false, runs: { cinderlands: run } });
     const lb = window.__lb;
     lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Cinderlands level 1 cleared, its realm run at level 2 (#237)
     lb.save.cards = lb.cardIds.filter((id) => id !== 'cinderHound'); // every other card already seen, so his is the one that shows
@@ -5982,6 +5982,7 @@ await check('Ember Queen: test mode starts the Cinderlands level 3 in the Ember 
     let aimed = false;
     const seen = new WeakSet();
     if (q) (q.hpFloor = 0), (pl.hp = pl.stats.hp), delete pl.statuses.burn; // the fight proper: unhurt from here
+    for (const z of g.zones) seen.add(z); // what is left of the Kindling that burnt him is not a whole blow: phase 1 waits for one of its own
     for (let i = 0; i < 60000 && q && lb.state !== 'results' && !(q.dead && g.level.cleared); i++) {
       pl.invulnerable = true;
       const ph = q.phase - 1;
