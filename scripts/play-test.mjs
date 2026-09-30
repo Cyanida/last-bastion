@@ -5405,6 +5405,83 @@ await check('Ember Queen: test mode starts the Cinderlands level 3 in the Ember 
   return { ok, detail: `wave ${fight.wave} in ${burn.arena}: ${fight.id || 'no boss'}; her fire left ${burn.stacks} burn stacks (one off every ${burn.decay} s), HUD "${hud}"; phases at ${fight.phases.join(', ')} s ("${fight.flaresUp.join('", "')}"); kindle spots ${fight.kindle.join('/')}, volleys ${fight.volley.join('/')}, flare zones ${fight.flare.join('/')} by phase; burning ground up to ${fight.ground}, trail patches ${fight.trail.join('/')}; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #228: the Cinder Colossus: Settings -> Test mode -> "Start at" the Cinderlands' level 5 -> the opening pick -> its last wave ----------
+// The champion trades plain blows beside him (no ability, no bot moves), so the fight goes the same way every run: phase 1 his hits
+// (the Slam's fan of fire lines and his touch) burn, so the champion takes them there, healed each tick, and the burn stacks (#225's,
+// which fall one at a time); from phase
+// 2 he is unhurt: his embers land round him and the fire spreads patch by patch; phase 3 his brood of Cultists comes and the foes that
+// fall in his heat burst into fire. Each phase holds its 12 s as a crown boss's does, and his fall clears the level.
+await check('Cinder Colossus: test mode starts the Cinderlands level 5; its crown boss: burning hits, then spreading fire, then bursts, each phase 12 s, level cleared (#228)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="cinderlands:5"]').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption((await p.locator('#tm-arena option[value="emberForge"]').count()) ? 'emberForge' : 'keep'); // the Ember Forge once it is built (#223)
+  await p.locator('#tm-start').selectOption('cinderlands:5');
+  await p.evaluate(() => {
+    // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 40, the level's last
+    g.breather = 0.01;
+    const out = { wave: 0, id: '', crown: false, banner: '', decay: 0, burn: [0, 0, 0], slam: [0, 0, 0], patches: [0, 0, 0], bursts: [0, 0, 0], brood: 0, phases: [], dead: false, fell: false };
+    const seen = new WeakSet();
+    let k = null;
+    let patches = 0, bursts = 0;
+    for (let i = 0; i < 90000 && lb.state !== 'results' && !(k?.dead && g.level.cleared); i++) {
+      const burning = k && !k.dead && k.phase === 1; // phase 1: take his burning hits, healed each tick; after it, unhurt
+      g.player.invulnerable = !burning;
+      if (burning) g.player.hp = g.player.stats.hp;
+      if (k && !k.dead) {
+        g.player.x = k.x - (k.r + 16); // a step off his edge
+        g.player.y = k.y;
+      }
+      lb.run(1, false, false);
+      if (g.player.hp <= 0) out.fell = true;
+      k ??= g.enemies.find((e) => e.def.boss) ?? null;
+      if (!k) continue;
+      if (!out.id) (out.id = k.def.id), (out.wave = g.wave), (out.crown = k.crown), (out.banner = g.banner?.text ?? '');
+      if (k.phase > out.phases.length + 1) out.phases.push(+g.time.toFixed(1));
+      const ph = k.phase - 1;
+      out.burn[ph] = Math.max(out.burn[ph], g.player.statuses.burn?.stacks ?? 0);
+      if (burning) out.decay = Math.max(out.decay, g.player.statuses.burn?.decay ?? 0); // #225's burn stacks: they fall one at a time
+      const mine = g.zones.filter((z) => z.owner === k && !seen.has(z) && z.r === k.def.zoneRadius); // the zones one Slam set this tick
+      for (const z of g.zones) if (z.owner === k) seen.add(z);
+      out.slam[ph] = Math.max(out.slam[ph], mine.length);
+      const pa = g.vars['colossus.patches'] ?? 0, bu = g.vars['colossus.bursts'] ?? 0;
+      out.patches[ph] += pa - patches;
+      out.bursts[ph] += bu - bursts;
+      (patches = pa), (bursts = bu);
+      out.brood = Math.max(out.brood, g.enemies.filter((e) => e.def.id === 'cultist' && !e.dead).length);
+      if (k.dead) out.dead = true;
+    }
+    return { ...out, cleared: !!g.level?.cleared, test: g.vars.test };
+  });
+  await p.close();
+  const long = fight.phases.length === 2 && fight.phases[1] - fight.phases[0] >= 12;
+  const ok = fight.test === 1 && fight.wave === 40 && fight.id === 'cinderColossus' && fight.crown && fight.banner === 'The Cinder Colossus · Crown boss' && !fight.fell
+    && fight.burn[0] >= 2 && fight.decay > 0 && fight.slam[0] === 15 && fight.patches[0] === 0 && fight.patches[1] >= 9 && fight.bursts[1] === 0 && fight.bursts[2] > 0
+    && fight.brood >= 1 && long && fight.dead && fight.cleared && errs.length === 0;
+  return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; phases at ${fight.phases.join(', ')} s; burn stacks ${fight.burn.join('/')} (one falls every ${fight.decay} s), slam zones ${fight.slam.join('/')}, fire patches ${fight.patches.join('/')}, bursts ${fight.bursts.join('/')} by phase; brood ${fight.brood}; ${fight.fell ? 'CHAMPION FELL; ' : ''}${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #236: no boss ends two levels of a realm: Settings -> Test mode -> "Start at" a Marches level -> the opening pick -> its last wave ----------
 // Level 1 ends on the Black Knight (Act I's opener); level 5 used to draw him again. Now it ends on another boss, the same one on any seed.
 await check('Bosses: the Marches level 1 ends on the Black Knight; level 5 ends on another boss, the same on every seed (#236)', async () => {

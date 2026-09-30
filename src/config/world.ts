@@ -19,6 +19,7 @@ export const WORLD_BOSSES = {
   gravedigger: { name: 'The Gravedigger', realm: 'barrowvale' }, // Decided: the plan leaves the Barrowvale's level-3 boss unnamed
   barrowKing: { name: 'The Barrow King', realm: 'barrowvale' },
   cinderColossus: { name: 'The Cinder Colossus', realm: 'cinderlands' },
+  emberQueen: { name: 'The Ember Queen', realm: 'cinderlands' },
   rimeWitch: { name: 'The Rime Witch', realm: 'frozenPass' },
   frostJotun: { name: 'The Frost Jötun', realm: 'frozenPass' },
   stormCaller: { name: 'The Storm Caller', realm: 'stormspire' },

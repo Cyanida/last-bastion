@@ -142,4 +142,7 @@ export const ENEMY_STATUS: Partial<Record<EnemyId, { id: StatusId; stacks?: numb
   // #227: the Ember Queen: every blow of hers that lands (a bolt, a burst, a ring of her Flare, her touch) and every tick of her burning
   // ground adds a stack of the same falling burn, a little hotter than a torch's
   emberQueen: { id: 'burn', stacks: 1, power: 1.5, time: 1.5, decay: 1.5 },
+  // #228: the Cinder Colossus's phase-1 lesson, on all his hits: the torchbearers' burn, two stacks a hit (three hits and you are at
+  // the cap) and hotter; it falls a stack at a time like theirs, and your utility puts it out
+  cinderColossus: { id: 'burn', stacks: 2, power: 4, time: 1.5, decay: 1.5 },
 };
