@@ -75,6 +75,16 @@ const runAt = (level, tier = 0) => ({
   carry: { level: 1, xp: 0, stats: {}, baseMods: {}, upgrades: [], talents: [], utilityUpgrades: [], evolutions: [], revives: 0, relics: { held: [], tiers: {}, attune: {}, from: {}, duos: [], cursedAct: 0 }, gold: 0, talentPoints: 0, pendingLevelUps: 0, pendingAbilityTiers: [], pendingUtilityTiers: [], rerolls: 0, banishes: 0, bannedStats: [], vars: {} },
 });
 /**
+ * #240: a champion screen's first opening in a browser brings up its tour. A check that is not about the tour leaves it the way a
+ * player would, with its Skip button, once: a tour that is not there fails the check here, and one that came up a second time would
+ * block the check's next press.
+ */
+const skipTour = async (p = page, touch = false) => {
+  const skip = p.locator('.kit-tour [data-tour-skip]');
+  await skip.waitFor({ timeout: 3000 });
+  await (touch ? skip.tap() : skip.click());
+};
+/**
  * #204: the Daily Trial is the one full 40-wave run left on the menus (the Classic run is gone). Opened as a save that already took a
  * trial keeps it (a check's own save has no Marches crown), then begun from the title through its own screen, as a player does.
  */
@@ -2045,6 +2055,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     });
     await press('[data-go="champion"]');
     await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await skipTour(p, touch); // #240: this browser's first champion screen
     const look = () => p.evaluate(() => {
       const scr = document.querySelector('.champion-screen'), box = scr.getBoundingClientRect();
       const play = document.querySelector('[data-play]'), pb = play.getBoundingClientRect();
@@ -2074,6 +2085,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await press('.cs-slot[data-unslot="dragonsTongue"]');
     await press('.cs-relic[data-relic="brimstoneOil"]');
     const common = await look();
+    await press('[data-cs="talents"]'); // #240: the plan is on the Talents tab
     await press('[data-plan]');
     await press('.talent.open');
     await press('.kit-screen.talents [data-back]');
@@ -2129,6 +2141,7 @@ await check('champion screen: relic tooltips are the short line, the ⓘ opens t
   });
   await p.locator('[data-go="champion"]').click();
   await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  await skipTour(p); // #240: this browser's first champion screen
   const font = (sel) => p.evaluate((sel) => {
     let min = Infinity;
     for (const root of document.querySelectorAll(sel)) for (const el of [root, ...root.querySelectorAll('*')]) {
@@ -2305,6 +2318,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     });
     await press('[data-go="champion"]');
     await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    await skipTour(p, touch); // #240: this browser's first champion screen
     // every piece of text showing on the screen (its popups too) that is smaller than 14 px; the relic tooltip's own text is #235's
     const small = () => p.evaluate(() => {
       const out = [];
@@ -2363,6 +2377,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     });
     const info = {};
     for (const [key, shut] of [['slots', 'again'], ['sets', 'x'], ['talents', 'Escape']]) {
+      if (key === 'talents') await press('[data-cs="talents"]'); // #240: the plan's ⓘ is on the Talents tab
       await press(`.kit-info[data-info="${key}"]`);
       const opened = await pop();
       tiny.push(...await small());
@@ -2385,6 +2400,140 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       && crowned.slots === 'RRRRD' && crowned.double.badge === '2 slots' && crowned.double.wide && /2 slots/.test(crowned.double.name) && crowned.loadout.split(',').includes('everfrostCrown')
       && infoOk && still === 1 && (touch || tiny.length === 0) && errs.length === 0;
     return { ok, detail: `slots ${first.slots}, the Crown's badge "${first.badge}", blocked ${first.blocked || '-'}${hover ? `; pointed at -> ${hover.slots} "${hover.deny}", away -> ${away.slots}` : ''}; tapped -> ${refused.slots}, the slot says "${refused.tip.slice(0, 60)}", under the inventory "${refused.why}"; a tap elsewhere -> ${lifted.slots}; a common out -> ${freed.slots}; the Crown in -> ${crowned.slots}, ${crowned.double ? `badge "${crowned.double.badge}"${crowned.double.wide ? ', two slots wide' : ', NOT two slots wide'}` : 'NO double slot'}; info ${Object.entries(info).map(([key, i]) => `${key} ${i.opened.open ? 'opens' : 'STAYS SHUT'}${i.opened.fits ? '' : ' (off screen)'}/${i.closed.open ? 'STAYS OPEN' : 'closes'}`).join(', ')}${still ? '' : ', Escape left the screen'}${touch ? '' : `; text under 14 px: ${tiny.length ? [...new Set(tiny)].join(', ') : 'none'}`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #240: the champion screen in three tabs, and its tour on a first visit ----------
+// From the title at 1280x720 with the mouse and in phone landscape by touch: the first opening brings the tour, five steps of one
+// sentence (slots, inventory, the legendary rule, Build, PLAY), each ringing its part with its bubble on screen, and PLAY can't be
+// pressed under it; Next goes through them and Done ends it. Loadout, Build and Talents then show one at a time (the slots and the
+// inventory, the line about champion levels, the talent plan), the champion and PLAY on all three; the plan edited or cleared comes
+// back on Talents. The screen opened again, and after a reload, has no tour; the ⓘ beside the tabs plays it again, Enter goes a step on,
+// Escape and Skip leave it with the screen still open. PLAY on the Build tab starts the level. At 1280x720 no text is under 14 px.
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`champion screen: the tour on a first visit (5 steps, Next, Done, Skip, Escape, again from its info button, never twice by itself), the Loadout, Build and Talents tabs with PLAY on each, ${touch ? 'tap' : 'click'} at ${w}x${h} (#240)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    const seed = () => p.evaluate(() => {
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue'], loadouts: { marches: ['brimstoneOil'] }, talentPlan: [], world: {}, signature: false, lastBastion: false, runs: {} } };
+    });
+    await seed();
+    const key = () => p.evaluate(() => localStorage.getItem('lastbastion.championTour'));
+    const before = await key();
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const tiny = [];
+    // what shows: the tour's step (its ring around its part, its bubble on screen), the open tab and its parts, the champion, PLAY
+    const look = () => p.evaluate(() => {
+      const shown = (sel) => { const e = document.querySelector(sel); return !!e && e.getClientRects().length > 0; };
+      const veil = document.querySelector('.kit-tour');
+      let tour = null;
+      if (veil) {
+        const ring = veil.querySelector('.kit-tour-ring').getBoundingClientRect(), pop = veil.querySelector('.kit-tour-pop').getBoundingClientRect();
+        const at = { slots: '.cs-slots', inventory: '.cs-inventory', legendary: '.cs-slots', build: '.cs-tabs', play: '.cs-go' }[veil.dataset.step];
+        const t = document.querySelector(at).getBoundingClientRect();
+        tour = {
+          step: veil.dataset.step, text: veil.querySelector('p').textContent, count: veil.querySelector('[data-tour-count]').textContent, next: veil.querySelector('[data-tour-next]').textContent,
+          ringed: ring.left <= t.left && ring.top <= t.top && ring.right >= t.right && ring.bottom >= t.bottom && ring.width < t.width + 20,
+          fits: pop.left >= 0 && pop.top >= 0 && pop.right <= innerWidth && pop.bottom <= innerHeight,
+        };
+      }
+      const play = document.querySelector('[data-play]'), pb = play.getBoundingClientRect();
+      const small = [];
+      for (const e of document.querySelectorAll('.champion-screen *')) {
+        if ([...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && e.getClientRects().length && parseFloat(getComputedStyle(e).fontSize) < 14) small.push(`${e.className || e.tagName}:${getComputedStyle(e).fontSize}`);
+      }
+      return {
+        tour, small,
+        tab: [...document.querySelectorAll('[data-cs]')].filter((b) => b.classList.contains('on') && b.getAttribute('aria-selected') === 'true').map((b) => b.dataset.cs).join(),
+        parts: ['.cs-slots', '.cs-sets', '.cs-inventory', '.cs-build', '.cs-talents'].filter(shown).join(' '),
+        figure: shown('.cs-hero [data-figure] canvas'),
+        build: document.querySelector('.cs-build').textContent.replace(/\s+/g, ' ').trim(),
+        plan: document.querySelectorAll('.cs-plan li').length,
+        why: document.querySelector('.cs-why').textContent,
+        playReach: pb.bottom <= innerHeight + 1 && document.elementFromPoint(pb.left + pb.width / 2, pb.top + pb.height / 2)?.closest('[data-play]') === play,
+        fits: (() => { const b = document.querySelector('.champion-screen').getBoundingClientRect(); return b.top >= -1 && b.left >= -1 && b.bottom <= innerHeight + 1 && b.right <= innerWidth + 1; })(),
+        mainTabs: [...document.querySelectorAll('.kit-tab')].map((t) => (t.classList.contains('on') ? 'X' : 'o')).join(''),
+        game: !!window.__lb.game,
+      };
+    });
+    const see = async () => { const v = await look(); tiny.push(...v.small); return v; };
+    // the first visit: the tour, step by step
+    const steps = [];
+    for (let i = 0; i < 5; i++) {
+      const v = await see();
+      if (!v.tour) break;
+      steps.push({ ...v.tour, playReach: v.playReach, tab: v.tab });
+      await press('[data-tour-next]');
+    }
+    const seen = await key();
+    const done = await see();
+    // the tabs, one at a time
+    await press('[data-cs="build"]');
+    const build = await see();
+    await press('[data-cs="talents"]');
+    const talents = await see();
+    await press('[data-plan]');
+    await press('.talent.open');
+    await press('.kit-screen.talents [data-back]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const planned = await see();
+    await press('[data-clear-plan]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const cleared = await see();
+    await press('[data-cs="loadout"]');
+    await press('.cs-relic[data-relic="dragonsTongue"]'); // a legendary beside the common: slotted, and the screen stays on Loadout
+    await p.locator('.cs-slot.double').waitFor({ timeout: 3000 });
+    const loadout = await see();
+    // opened again, and after a reload: no tour by itself
+    await press('.champion-screen [data-back]');
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const second = await see();
+    await p.reload();
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await seed();
+    await press('[data-go="champion"]');
+    await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+    const reloaded = await see();
+    // again from the ⓘ, on the Build tab: it starts on Loadout; Enter goes on, Escape leaves it and the screen stays
+    await press('[data-cs="build"]');
+    await press('[data-tour]');
+    const replay = await see();
+    await p.keyboard.press('Enter');
+    const entered = await see();
+    await p.keyboard.press('Escape');
+    const escaped = { ...(await see()), screen: await p.locator('.champion-screen').count() };
+    await press('[data-tour]');
+    const third = await see();
+    await press('[data-tour-skip]');
+    const skipped = await see();
+    // PLAY from another tab
+    await press('[data-cs="build"]');
+    await press('[data-play]');
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, held: g.player.relics.held.join(',') } : null; });
+    await p.close();
+    const one = (t) => t.split(/[.!?](\s|$)/).filter((x) => x && x.trim()).length === 1;
+    const tourOk = before === null && seen !== null && steps.map((s) => s.step).join() === 'slots,inventory,legendary,build,play'
+      && steps.every((s, i) => s.ringed && s.fits && one(s.text) && s.count === `${i + 1} / 5` && s.next === (i === 4 ? 'Done' : 'Next') && !s.playReach && s.tab === 'loadout')
+      && /slots/i.test(steps[0].text) && /inventory/i.test(steps[1].text) && /legendary relic takes 2 slots/i.test(steps[2].text) && /Build/.test(steps[3].text) && /PLAY/.test(steps[4].text)
+      && !done.tour && !done.game;
+    const tabsOk = done.tab === 'loadout' && done.parts === '.cs-slots .cs-sets .cs-inventory'
+      && build.tab === 'build' && build.parts === '.cs-build' && /stat points come with champion levels/i.test(build.build)
+      && talents.tab === 'talents' && talents.parts === '.cs-talents' && talents.plan === 0
+      && planned.tab === 'talents' && planned.parts === '.cs-talents' && planned.plan === 1 && cleared.tab === 'talents' && cleared.plan === 0
+      && loadout.tab === 'loadout' && loadout.parts === '.cs-slots .cs-sets .cs-inventory'
+      && [done, build, talents, planned, cleared, loadout].every((v) => v.playReach && v.figure && v.fits && v.mainTabs === 'oXooo' && !v.tour);
+    const onceOk = !second.tour && second.tab === 'loadout' && !reloaded.tour
+      && replay.tour?.step === 'slots' && replay.tab === 'loadout' && entered.tour?.step === 'inventory'
+      && !escaped.tour && escaped.screen === 1 && escaped.playReach && third.tour?.step === 'slots' && !skipped.tour && skipped.playReach;
+    const ok = tourOk && tabsOk && onceOk && run?.realm === 'marches' && run.level === 1 && run.held.split(',')[0] === 'brimstoneOil' && (touch || tiny.length === 0) && errs.length === 0;
+    return { ok, detail: `first visit: ${steps.map((s) => `${s.count} ${s.step}${s.ringed ? '' : ' (no ring)'}${s.fits ? '' : ' (off screen)'}${s.playReach ? ' (PLAY open)' : ''}`).join(', ') || 'NO tour'}, last button "${steps[4]?.next ?? '?'}", then ${done.tour ? 'STILL up' : 'gone'}; tabs: ${[done, build, talents, loadout].map((v) => `${v.tab} [${v.parts}]${v.playReach ? '' : ' PLAY out of reach'}`).join(' · ')}; Build "${build.build}"; plan ${planned.plan} on ${planned.tab}, cleared ${cleared.plan} on ${cleared.tab}; opened again ${second.tour ? 'TOUR' : 'no tour'}, after a reload ${reloaded.tour ? 'TOUR' : 'no tour'}; info button -> ${replay.tour?.step ?? 'NONE'} on ${replay.tab}, Enter -> ${entered.tour?.step ?? 'NONE'}, Escape -> ${escaped.tour ? 'still up' : 'gone'} (screen ${escaped.screen}), Skip -> ${skipped.tour ? 'still up' : 'gone'}; PLAY on Build -> ${run ? `${run.realm} ${run.level} holding ${run.held}` : 'NO run'}${touch ? '' : `; under 14 px: ${[...new Set(tiny)].join(', ') || 'none'}`}${errs.length ? `; ERRORS ${errs.join(' | ')}` : ''}` };
   });
 }
 
@@ -4498,6 +4647,7 @@ await check('journey: a new champion, its loadout slots, the map, the realm road
   await press('[data-class="viking"]');
   await press('[data-start]');
   await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  await skipTour(p); // #240: this browser's first champion screen
   const born = await screen();
   want(born.champ?.name === 'Viking' && born.champ.inventory.length === 0 && born.empty && born.slots === 'ooo---' && born.play === 'Play' && /The Marches · Level 1/.test(born.next) && /3 slots\b/.test(born.next), `new champion ${JSON.stringify(born)}`);
   log.push(`new ${born.champ?.name ?? '?'} (${born.slots}, "${born.next}")`);
@@ -4622,6 +4772,7 @@ await check('slot rules: at most 2 class relics (the signature beside them), 4 o
   });
   await tap('[data-go="champion"]'); // the Paladin's screen, then the next champion's arrow: the Viking
   await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  await skipTour(p, true); // #240: this browser's first champion screen
   await tap('[data-champ="1"]');
   await p.locator('.champion-screen .cs-relic').first().waitFor({ timeout: 3000 });
   const look = () => p.evaluate(() => ({

@@ -53,7 +53,7 @@ import { oathReward } from '../logic/oaths';
 import type { Goal } from '../logic/goals';
 import type { Contract } from '../logic/contracts';
 import type { WhatsNew } from '../logic/whatsNew';
-import { CHAMPION_HELP, GLOSSARY, SLOT_BLOCK_TEXT } from '../config/glossary';
+import { CHAMPION_BUILD_TEXT, CHAMPION_HELP, CHAMPION_TABS, CHAMPION_TOUR, GLOSSARY, SLOT_BLOCK_TEXT, type ChampionTab } from '../config/glossary';
 import { cardInfo, iconCard, type CardId } from '../config/cards';
 import { AFFIXES, ELITES, type AffixId } from '../config/elites';
 import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
@@ -309,12 +309,16 @@ export interface ChampionInfo {
   inventory: RelicId[];
   plan: string[]; // the talent plan, in order
   fell: number | null; // #197: the wave this level was lost on, this session: the button restarts it
+  tab: ChampionTab; // #240: the tab the screen opens on
+  tour: boolean; // #240: a first visit: the tour opens by itself
 }
 
 /**
  * #197: the champion screen, the home of the road to the crown (Survivor.io style): the champion on a pedestal with its six slots around
  * it (the loadout for the realm it plays next; slots past the level's own idle), the set chips of what goes in, the inventory to fill the
  * slots from, the talent plan, the next level and one big green PLAY (RESTART after a fall), and the tab bar.
+ * #240: in three tabs, one at a time: Loadout (the slots, the set chips and the inventory), Build and Talents (the plan); the pedestal,
+ * the next level and PLAY stay on all three. A first visit opens a short tour (kit.tour), and the ⓘ beside the tabs plays it again.
  */
 export function showChampion(
   info: ChampionInfo,
@@ -346,20 +350,25 @@ export function showChampion(
     return `<button class="cs-relic${info.loadout.includes(id) ? ' on' : why ? ' blocked' : ''}" data-relic="${id}" data-why="${esc(reason)}" aria-label="${esc(relicDef(id).name)}" data-tip="${esc(`${relicTip(id, tier)}${reason ? `\n${reason}` : ''}`)}">${kit.rarityGlyph(relicRarity(id), relicDef(id).icon)}${slotCost(id) > 1 ? two : ''}${infoButton(id, relicDef(id).name)}</button>`;
   };
   const plan = info.plan.map((t) => `<li>${esc(TALENT_BY_ID[t]?.name ?? t)}</li>`).join('');
+  // #240: a part of one tab: in the page all along, hidden while another tab is open
+  const of = (t: ChampionTab) => `data-cs-of="${t}"${t === info.tab ? '' : ' hidden'}`;
+  const tabs = CHAMPION_TABS.map((t) => kit.button(t.label, { size: 'small', cls: t.id === info.tab ? 'on pressed' : '', attrs: `role="tab" data-cs="${t.id}" aria-selected="${t.id === info.tab}"` })).join('');
   const el = show(`
     <div class="kit-frame champion-screen">
       <header class="kit-head">${kit.closeButton('back', { attrs: 'data-back' })}${kit.ribbon(`${kit.icon('champion')} ${esc(info.name)}`, { attrs: 'role="heading" aria-level="1"' })}<div class="kit-purse">${kit.pill('gold', info.gold, { title: 'Gold' })}${info.runes ? kit.pill('runes', info.runes, { title: 'Runes' }) : ''}</div></header>
+      <div class="cs-tabs kit-choice" role="tablist" aria-label="Champion">${tabs}<button class="kit-info" data-tour aria-label="Show the tour again" data-tip="A short tour of this screen.">i</button></div>
       <div class="cs-main">
         <div class="cs-hero pedestal"><div class="hero-figure" data-figure></div><div class="cs-pick"><button class="kit-close cs-arrow" data-champ="-1" aria-label="Previous champion">‹</button>${kit.ribbon(c.name)}<button class="kit-close cs-arrow" data-champ="1" aria-label="Next champion">›</button></div>
-          <div class="cs-slots">${view.map(slot).join('')}${kit.infoButton('slots', 'How slots work')}</div>
-          <div class="cs-sets">${sets.map(chip).join('') || '<small>No set yet</small>'}${kit.infoButton('sets', 'How sets work')}</div></div>
+          <div class="cs-slots" ${of('loadout')}>${view.map(slot).join('')}${kit.infoButton('slots', 'How slots work')}</div>
+          <div class="cs-sets" ${of('loadout')}>${sets.map(chip).join('') || '<small>No set yet</small>'}${kit.infoButton('sets', 'How sets work')}</div></div>
         <div class="cs-side">
           ${kit.parch(`<h2>Inventory <small>${info.inventory.length}</small></h2>
             ${info.inventory.length ? `<div class="cs-inv">${info.inventory.map(relic).join('')}</div>` : '<p class="cs-empty">No relics yet. Levels cleared win them; tap one to put it in a slot.</p>'}
-            <p class="cs-why" aria-live="polite"></p>`, { cls: 'cs-inventory' })}
+            <p class="cs-why" aria-live="polite"></p>`, { cls: 'cs-inventory', attrs: of('loadout') })}
+          ${kit.parch(`<h2>Build</h2><p class="cs-empty">${CHAMPION_BUILD_TEXT}</p>`, { cls: 'cs-build', attrs: of('build') })}
           ${kit.parch(`<h2>Talent plan <small>${info.plan.length}</small>${kit.infoButton('talents', 'How the talent plan works')}</h2>
             ${plan ? `<ol class="cs-plan">${plan}</ol>` : '<p class="cs-empty">No plan: talent points are yours to spend in the run.</p>'}
-            <div class="row">${kit.button('Edit plan', { size: 'small', attrs: 'data-plan' })}${info.plan.length ? kit.button('Clear', { size: 'small', attrs: 'data-clear-plan' }) : ''}</div>`, { cls: 'cs-talents' })}
+            <div class="row">${kit.button('Edit plan', { size: 'small', attrs: 'data-plan' })}${info.plan.length ? kit.button('Clear', { size: 'small', attrs: 'data-clear-plan' }) : ''}</div>`, { cls: 'cs-talents', attrs: of('talents') })}
         </div>
       </div>
       <div class="cs-go">
@@ -407,13 +416,36 @@ export function showChampion(
     } else on.slot(id);
   });
   const help = kit.wireInfo(frame, CHAMPION_HELP);
+  // #240: a tab shows its own parts and hides the others'; no re-render, so what was tapped on a tab is still there on the way back
+  const openTab = (id: ChampionTab) => {
+    for (const part of el.querySelectorAll<HTMLElement>('[data-cs-of]')) part.hidden = part.dataset.csOf !== id;
+    for (const b of el.querySelectorAll<HTMLElement>('[data-cs]')) {
+      b.classList.toggle('on', b.dataset.cs === id);
+      b.classList.toggle('pressed', b.dataset.cs === id);
+      b.setAttribute('aria-selected', String(b.dataset.cs === id));
+    }
+  };
+  click(el, '[data-cs]', (b) => openTab(b.dataset.cs as ChampionTab));
+  // #240: the tour starts on Loadout, where its first steps point; Escape skips it and Enter goes on
+  let tour: ReturnType<typeof kit.tour> | null = null;
+  const startTour = () => {
+    help.close();
+    openTab('loadout');
+    tour = kit.tour(frame, CHAMPION_TOUR, () => (tour = null));
+  };
+  click(el, '[data-tour]', startTour);
   click(el, '[data-plan]', () => on.plan());
   click(el, '[data-champ]', (b) => on.champ(Number(b.dataset.champ)));
   click(el, '[data-clear-plan]', () => on.clearPlan());
   click(el, '[data-play]', () => on.play());
   click(el, '[data-back]', () => on.back());
   kit.wireTabs(el, (id) => on.tab(id));
-  onActions((a) => (a === 'cancel' || a === 'pause' ? help.close() || on.back() : a === 'confirm' && !(document.activeElement instanceof HTMLButtonElement) && on.play()));
+  onActions((a) => {
+    const button = document.activeElement instanceof HTMLButtonElement; // a focused button takes Enter itself
+    if (tour) return a === 'cancel' || a === 'pause' ? tour.skip() : a === 'confirm' && !button && tour.next();
+    return a === 'cancel' || a === 'pause' ? help.close() || on.back() : a === 'confirm' && !button && on.play();
+  });
+  if (info.tour) startTour();
 }
 
 export interface SettingsInfo {
