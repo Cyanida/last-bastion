@@ -654,7 +654,7 @@ function bored(): void {
 
 /** The talent tree, from the pause menu (the game stays paused). */
 function openTalents(g: Game): void {
-  showTalents({ classId: g.player.cls.id, taken: g.player.talents, points: g.talentPoints, rowCap: g.talentRowCap, treasure: g.treasure?.id }, {
+  showTalents({ classId: g.player.cls.id, taken: g.player.talents, points: g.talentPoints, rowCap: g.talentRowCap, treasure: g.treasure?.id, champion: !!g.level }, {
     spend: (id) => choose(g, { c: 'talent', id }),
     back: () => pauseMenu(g),
   });

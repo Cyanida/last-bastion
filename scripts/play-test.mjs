@@ -73,7 +73,7 @@ const inPage = (fn, arg) => page.evaluate(fn, arg);
  */
 const runAt = (level, tier = 0) => ({
   level, tier, seed: 20237,
-  carry: { level: 1, xp: 0, stats: {}, baseMods: {}, upgrades: [], talents: [], utilityUpgrades: [], evolutions: [], revives: 0, relics: { held: [], tiers: {}, attune: {}, from: {}, duos: [], cursedAct: 0 }, gold: 0, talentPoints: 0, pendingLevelUps: 0, pendingAbilityTiers: [], pendingUtilityTiers: [], rerolls: 0, banishes: 0, bannedStats: [], vars: {} },
+  carry: { level: 1, points: {}, stats: {}, baseMods: {}, upgrades: [], talents: [], utilityUpgrades: [], evolutions: [], revives: 0, relics: { held: [], tiers: {}, attune: {}, from: {}, duos: [], cursedAct: 0 }, gold: 0, talentPoints: 0, rerolls: 0, banishes: 0, bannedStats: [], vars: {} },
 });
 /**
  * #240: a champion screen's first opening in a browser brings up its tour. A check that is not about the tour leaves it the way a
@@ -1581,15 +1581,15 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const ok = road.flags.length === 7 && road.flags.every((f) => f.inside) && road.flags.map((f) => f.open).join() === 'true,false,false,false,false,false,false' && road.flags[0].on
       && road.landBg.includes('world-map') && road.name === 'The Marches · Level 1' && road.tiers === 'Xo--' && road.golds === 1 && road.fight && road.onScreen
       && !/Head start/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*85%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
-      && knight.tiers === 'oX--' && /Enemy HP\s*123%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
+      && knight.tiers === 'oX--' && /Enemy HP\s*95%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
       && run?.realm === 'marches' && run.level === 1 && run.last === 5 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
-    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*123%/.test(knight.text) ? 'HP 123%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*95%/.test(knight.text) ? 'HP 95%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
 // ---------- #221: the level step: the panel's Enemy HP on Knight is what the level fights at, eased on level 1 of the Marches ----------
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
-  await check(`level step: the Marches level 1 on Knight shows Enemy HP 123% (Knight 145% eased) and FIGHT plays it at that HP, ${touch ? 'tap' : 'click'} at ${w}x${h} (#221)`, async () => {
+  await check(`level step: the Marches level 1 on Knight shows Enemy HP 95% (Knight 145% eased, and for a level-1 champion, #238) and FIGHT plays it at that HP, ${touch ? 'tap' : 'click'} at ${w}x${h} (#221)`, async () => {
     const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
     const errs = [];
     p.on('pageerror', (e) => errs.push(e.message));
@@ -1606,7 +1606,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
     const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100) } : null; });
     await p.close();
-    const ok = shown === '123' && run?.level === 1 && run.tier === 1 && run.hp === 123 && errs.length === 0;
+    const ok = shown === '95' && run?.level === 1 && run.tier === 1 && run.hp === 95 && errs.length === 0;
     return { ok, detail: `panel Enemy HP ${shown ?? '?'}%; run: ${run ? `level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
@@ -1713,20 +1713,27 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await press('[data-fight]');
     await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
     await press('[data-pick="0"]');
-    const played = await p.evaluate(() => {
-      const lb = window.__lb, g = lb.game, id = g.player.cls.id;
+    // the first foes fall and the HUD counts their XP up, on real frames
+    await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
       g.player.invulnerable = true;
       g.baseMods.damage *= 8; // hard blows: the level is over soon
-      const start = { level: g.player.level, saved: lb.save.champions[id]?.level ?? 1, xp: lb.save.champions[id]?.xp ?? 0 };
-      let screens = 0, queued = 0, top = g.player.level, hud = '';
+      for (let i = 0; i < 6000 && lb.game === g && g.player.xp <= 0; i++) lb.run(1, false, true);
+    });
+    await p.waitForFunction(() => window.__lb.state === 'playing' && /^\+[1-9]/.test(document.getElementById('h-xp-text')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {});
+    const hud = await p.evaluate(() => ({ xp: document.getElementById('h-xp-text')?.textContent ?? '', level: document.getElementById('h-level')?.textContent ?? '' }));
+    const played = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, id = g.player.cls.id;
+      // a level-up, ability or utility screen (a relic offer or the quest board is not one)
+      const levelScreen = () => /^(Level \d+|.*upgrade)/i.test(document.querySelector('.levelup h1')?.textContent.trim() ?? '') && !!document.querySelector('.levelup .sub') && /boon|upgrade/i.test(document.querySelector('.levelup .sub').textContent);
+      let screens = 0, queued = 0, top = g.player.level;
       for (let i = 0; i < 40000 && lb.game === g && lb.state !== 'results'; i++) {
-        if (document.querySelector('.levelup, .ability-upgrade, .utility-upgrade')) screens++;
+        if (lb.state === 'choice' && levelScreen()) screens++;
         queued = Math.max(queued, g.pendingLevelUps + g.pendingAbilityTiers.length + g.pendingUtilityTiers.length);
         top = Math.max(top, g.player.level);
-        if (g.player.xp > 0 && lb.state === 'playing') hud = document.getElementById('h-xp-text')?.textContent ?? hud;
         lb.run(1, false, true);
       }
-      return { id, start, screens, queued, top, hud, cleared: !!g.level?.cleared, collected: Math.round(g.player.xp), state: lb.state, wave: g.wave };
+      return { id, screens, queued, top, cleared: !!g.level?.cleared, collected: Math.round(g.player.xp), state: lb.state, wave: g.wave };
     });
     // the level's Steel rare first (#200), then the results with the champion's XP
     await p.locator('.rare-pick [data-pick]').first().waitFor({ timeout: 5000 }).catch(() => {});
@@ -1764,12 +1771,12 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       return g && { level: g.level?.level, wave: g.startWave, plevel: pl.level, str: pl.stats.str, grow: pl.cls.growth.str, hp: pl.stats.hp, talents: pl.talents.length, queued: g.pendingLevelUps + g.pendingAbilityTiers.length + g.pendingUtilityTiers.length, utility: !document.querySelector('#h-ut-slot')?.classList.contains('locked'), points: g.level?.champion.points };
     });
     await p.close();
-    const ok = played.start.level === 1 && played.cleared && played.screens === 0 && played.queued === 0 && played.top === 1 && played.collected > 0 && /^\+\d+ XP$/.test(played.hud)
+    const ok = hud.level === '1' && /^\+[1-9]\d* XP$/.test(hud.xp) && played.cleared && played.screens === 0 && played.queued === 0 && played.top === 1 && played.collected > 0
       && banked.xp === played.collected && banked.level === 2 && new RegExp(`\\+${banked.xp} XP · level 2`).test(banked.line) && /level up/.test(banked.line) && banked.run === 2
       && /Level 2/.test(build) && /3 stat points to spend/.test(build) && spent.join() === 'true,true,true,false,false'
       && /Spend points \(1\)/.test(before.button) && !before.reset && tree.sub && tree.open > 0 && after === 0 && tab.taken === 1 && tab.saved === 1 && !tab.reset && tab.points.strength === 2 && tab.points.vitality === 1
       && next?.level === 2 && next.wave === 6 && next.plevel === 2 && Math.abs(next.str - (banked.str + 5 * next.grow + 20)) < 0.01 && next.talents === 1 && next.queued === 0 && next.utility && next.points.strength === 2 && errs.length === 0;
-    return { ok, detail: `level 1: ${played.cleared ? 'cleared' : `NOT cleared (wave ${played.wave}, ${played.state})`}, ${played.screens} level-up screens, ${played.queued} queued, champion level ${played.top} all level, HUD "${played.hud}"; banked ${banked.xp} XP of ${played.collected} -> level ${banked.level} ("${banked.line}"); Build tab "${build.slice(0, 70)}"; spends ${spent.join()}; talents "${before.button}"${before.reset || tab.reset ? ', RESET OFFERED IN A RUN' : ''}, ${tab.taken} taken; level ${next?.level}: champion level ${next?.plevel}, Strength ${next?.str} (checkpoint ${banked.str} + growth + 20), ${next?.talents} talent, utility ${next?.utility ? 'unlocked' : 'LOCKED'}, ${next?.queued} queued${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    return { ok, detail: `level 1: ${played.cleared ? 'cleared' : `NOT cleared (wave ${played.wave}, ${played.state})`}, ${played.screens} level-up screens, ${played.queued} queued, champion level ${played.top} all level, HUD "level ${hud.level}, ${hud.xp}"; banked ${banked.xp} XP of ${played.collected} -> level ${banked.level} ("${banked.line}"); Build tab "${build.slice(0, 70)}"; spends ${spent.join()}; talents "${before.button}"${before.reset || tab.reset ? ', RESET OFFERED IN A RUN' : ''}, ${tab.taken} taken; level ${next?.level}: champion level ${next?.plevel}, Strength ${next?.str} (checkpoint ${banked.str} + growth + 20), ${next?.talents} talent, utility ${next?.utility ? 'unlocked' : 'LOCKED'}, ${next?.queued} queued${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
@@ -2496,7 +2503,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const reason = /a legendary takes 2 slots/i;
     const infoOk = Object.entries(info).every(([key, i]) => i.opened.open && i.opened.fits && i.opened.lit === key && !i.closed.open && i.closed.lit === '')
       && /legendary takes 2 slots/i.test(info.slots.opened.text) && /at most 4 relics of one family/i.test(info.slots.opened.text) && /2 class relics/i.test(info.slots.opened.text)
-      && /set/i.test(info.sets.opened.text) && /bonus/i.test(info.sets.opened.text) && /talent points/i.test(info.talents.opened.text) && /plan/i.test(info.talents.opened.text);
+      && /set/i.test(info.sets.opened.text) && /bonus/i.test(info.sets.opened.text) && /talent point/i.test(info.talents.opened.text) && /between levels/i.test(info.talents.opened.text);
     const ok = first.slots === 'RRRRRo' && first.badge === '2 slots' && first.blocked === 'everfrostCrown' && first.double === null
       && (touch || (hover.slots === 'RRRRRx' && reason.test(hover.deny) && reason.test(hover.tip))) && away.slots === 'RRRRRo'
       && refused.slots === 'RRRRRx' && reason.test(refused.deny) && reason.test(refused.why) && reason.test(refused.tip) && refused.loadout === first.loadout
