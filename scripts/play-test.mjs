@@ -1749,15 +1749,21 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
     const onSlab = (z, b) => Math.hypot(Math.max(Math.abs(b.x - z.x) - S / 2, 0), Math.max(Math.abs(b.y - z.y) - S / 2, 0)) < b.r;
     const wait = () => { p.invulnerable = true; for (let i = 0; i < 40000 && !marked().length && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, true); p.invulnerable = false; return marked(); };`;
   const { still, dodge } = await p.evaluate(`(() => { ${setup}
+    const reaches = (zs) => zs.length >= 2 && zs.some((z) => onSlab(z, p));
+    const letGo = () => { p.invulnerable = true; for (let i = 0; i < 1000 && marked().length; i++) lb.run(1, false, true); p.invulnerable = false; return wait(); };
     const first = () => {
     const sounds = (window.__press = { warn: 0, slam: 0 });
     const real = lb.view.sfx;
     lb.view.sfx = (n) => ((n in sounds && sounds[n]++), real(n));
-    const zs = wait();
+    // a press whose slabs do not reach his own (a wall or an obstacle where its slab would be) is let go by: the next one is the one used
+    let zs = wait();
+    for (let n = 0; n < 8 && zs.length && !reaches(zs); n++) zs = letGo();
     if (!zs.length) return { found: false, realm: g.level?.realm, wave: g.wave };
     const warned = sounds.warn > 0;
     // a foe on a marked slab beside the champion's (the others sent far off), tough enough to live through it
     const mine = zs.find((z) => onSlab(z, p)), other = zs.find((z) => z !== mine);
+    if (!mine) return { found: false, realm: g.level?.realm, wave: g.wave, why: 'no slab under him' };
+    p.hp = p.maxHp; // a known start: full health, whatever the real frames before this call cost him
     const [foe, ...rest] = g.enemies.filter((e) => !e.dead);
     for (const e of rest) Object.assign(e, { x: p.x + 3000, y: p.y });
     if (foe && other) Object.assign(foe, { x: other.x, y: other.y, hp: 1e6, maxHp: 1e6 });
@@ -1791,8 +1797,10 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
     // towards the open floor; a line down: left or right). The key is a real keydown on the window, which the input layer reads as it reads the keyboard
     let dodge = { found: false };
     if (still.found) {
-      const zs = wait();
+      let zs = wait();
+      for (let n = 0; n < 8 && zs.length && !zs.some((z) => onSlab(z, p)); n++) zs = letGo(); // one that reaches him: else there is nothing to step off
       if (zs.length) {
+        p.hp = p.maxHp; // nothing else may hurt him: the slam is what is being missed
         const across = zs.every((z) => z.y === zs[0].y), mid = g.bounds;
         const key = across ? (p.y > mid.y + mid.h / 2 ? 'KeyW' : 'KeyS') : (p.x > mid.x + mid.w / 2 ? 'KeyA' : 'KeyD');
         window.dispatchEvent(new KeyboardEvent('keydown', { code: key, key }));
@@ -1802,7 +1810,7 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
         for (let i = 0; i < 1000 && marked().length; i++) { onIt = zs.some((z) => onSlab(z, p)); hp = p.hp; lb.run(1, false, 'input'); }
         window.dispatchEvent(new KeyboardEvent('keyup', { code: key, key }));
         dodge = { found: true, key, onIt, hurt: hp - p.hp, start: hp0 };
-      } else dodge = { found: false, why: `state ${lb.state}, game ${lb.game === g ? 'same' : 'other'}, wave ${g.wave}, cleared ${!!g.level?.cleared}, over ${!!g.over}, hp ${Math.round(p.hp)}, foes ${g.enemies.length}, pressT ${g.pressT?.toFixed(2)}, time ${g.time.toFixed(1)}` };
+      } else dodge = { found: false, why: ['state ' + lb.state, lb.game === g ? 'same game' : 'other game', 'wave ' + g.wave, 'cleared ' + !!(g.level && g.level.cleared), 'over ' + !!g.over, 'hp ' + Math.round(p.hp), 'foes ' + g.enemies.length, 'pressT ' + g.pressT, 'time ' + g.time.toFixed(1)].join(', ') };
     }
     return { still, dodge };
   })()`);
@@ -1877,7 +1885,10 @@ await check('Iron Hold: shieldwalls march as Iron Shieldwalls with their flash c
     // a known state: he stands alone (everything else is cleared away), and the champion is put beside him, facing him
     for (const o of g.enemies) if (o !== w) o.dead = true;
     lb.run(1, false, false);
-    const swing = (side) => {
+    // his HP is made huge so no swing, crit or not, can kill him; a swing's damage varies (crits), so each side is struck five times and its
+    // weakest blow is the number: the rule shows in the plain blows, one crit in the five cannot tip it
+    w.maxHp = 1e6;
+    const one = (side) => {
       w.hp = w.maxHp;
       const a = w.angle + side;
       pl.x = w.x + Math.cos(a) * (w.r + pl.r + 4);
@@ -1886,6 +1897,10 @@ await check('Iron Hold: shieldwalls march as Iron Shieldwalls with their flash c
       const b0 = window.__blocks.n, texts0 = g.texts.filter((t) => t.text === 'BLOCKED').length;
       for (let i = 0; i < 30 && w.hp === w.maxHp && !w.dead; i++) lb.run(1, false, false); // one swing: until it lands
       return { dealt: w.maxHp - Math.max(0, w.hp), blocks: window.__blocks.n - b0, text: g.texts.filter((t) => t.text === 'BLOCKED').length > texts0 };
+    };
+    const swing = (side) => {
+      const all = Array.from({ length: 5 }, () => one(side));
+      return { dealt: Math.min(...all.map((r) => r.dealt)), blocks: all.reduce((n, r) => n + r.blocks, 0), text: all.some((r) => r.text) };
     };
     const front = swing(0);
     const back = swing(Math.PI);
