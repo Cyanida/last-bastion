@@ -2527,6 +2527,88 @@ await check('Cinderlands: fire catches at the lava\'s bank with a warning and cr
   return { ok, detail: still.found ? `${still.realm} level ${still.level} in the ${still.arena}: caught on ${still.caught.n} slab, its middle ${Math.round(still.caught.fromBank)} px from the bank${still.caught.warned ? ' with a warning' : ', NO warning'} ("${still.caught.banner}"), rim ${still.rim.changed}/6 drawn (${still.rim.warm} warm); reached him over ${still.kindling.steps} slabs, kindling: hurt ${+still.kindling.hurt.toFixed(2)}; burning from ${still.burnAt.toFixed(2)} s: hurt ${Math.round(still.hurt)}, the foe on the trail ${Math.round(still.foeHurt)}, flames ${still.flames.changed}/9 drawn (${still.flames.warm} warm)${still.props ? '' : ' (props atlas not loaded yet)'}; ${still.slabs} slabs lit, ${still.chain ? 'one trail' : 'BROKEN trail'}, ${still.wet} past the bank in the lava, ${still.out ? 'burnt out' : 'STILL burning'}; walked off (${dodge.found ? `${Math.round(dodge.walked)} px east: ${dodge.onIt ? `ON the fire ${dodge.onIt} ticks` : 'never on it'}, hurt ${+dodge.hurt.toFixed(2)}` : dodge.why})${errs.length ? `; errors: ${errs[0]}` : ''}` : `no spreading fire: ${still.why}` };
 });
 
+// ---------- #226: the Cinderlands' cinder hounds: map -> the Cinderlands -> level 2 -> FIGHT; a wolf brought in as a wave brings him
+// hunts as the Cinder Hound with his own flash card, "Got it" closes it. The champion's own blows fell him beside him: a marked blast
+// stands where he fell and burns the champion who stays in it; a second one felled, A (a real key) walks the champion out of the mark
+// and the blast costs him nothing ----------
+await check('Cinderlands: a wolf hunts as the Cinder Hound, his flash card shows, he bursts into fire where the champion fells him, and stepping out of the mark with A spares the champion (#226)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], cinderlands: [1] }, signature: true, lastBastion: false, runs: { cinderlands: run } });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Cinderlands level 1 cleared, its realm run at level 2 (#237)
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'cinderHound'); // every other card already seen, so his is the one that shows
+  }, runAt(2));
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-cinderlands');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // a wolf comes in the way a wave brings one, in sight: the realm turns him into its own kind and his card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    g.player.invulnerable = true; // until the measurement starts
+    const b = lb.spawn('wolf', g.player.x + 160, g.player.y);
+    window.__hound = b;
+    for (let i = 0; i < 600 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    return { kind: b?.def.id, sprite: b?.def.sprite, id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g.level?.realm };
+  });
+  if (card.id) await p.click('[data-leave]');
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 3000 }).catch(() => {});
+  // the known state: full HP, open to harm, the hound held beside the champion, every other foe stunned and held far off. The champion's
+  // own attack fells him; `mode` false stands still in the mark, 'input' reads the keys held
+  await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    const mine = () => g.zones.filter((z) => /Cinder Hound/.test(z.cause ?? ''));
+    window.__fell = (b) => {
+      pl.invulnerable = false;
+      pl.hp = pl.stats.hp;
+      Object.assign(b, { x: pl.x + 30, y: pl.y });
+      const before = g.vars.deathBursts ?? 0;
+      for (let i = 0; i < 900 && !b.dead && !g.over && lb.game === g && lb.state === 'playing'; i++) {
+        for (const e of g.enemies) {
+          if (e !== b) Object.assign(e, { x: pl.x + 700, y: pl.y });
+          e.statuses.stun = { stacks: 1, time: 5, power: 0 };
+        }
+        lb.run(1, false, false);
+      }
+      const z = mine()[0];
+      return { dead: b.dead, bursts: (g.vars.deathBursts ?? 0) - before, zones: mine().length, mark: z ? { r: z.r, delay: z.delay, hostile: z.hostile, dtype: z.dtype, at: Math.hypot(z.x - b.x, z.y - b.y), inside: Math.hypot(z.x - pl.x, z.y - pl.y) <= z.r + pl.r } : null };
+    };
+    window.__blast = (mode) => {
+      const z = mine()[0];
+      let lost = 0, ticks = 0;
+      for (; ticks < 300 && mine().length && !g.over && lb.game === g && lb.state === 'playing'; ticks++) {
+        for (const e of g.enemies) Object.assign(e, { x: pl.x + 700, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 };
+        const hp = pl.hp;
+        lb.run(1, false, mode);
+        if (!mine().length) lost = hp - pl.hp; // the tick it went off
+      }
+      return { lost, secs: ticks / 60, gone: !mine().length, away: z ? Math.hypot(z.x - pl.x, z.y - pl.y) - z.r - pl.r : 0, alive: !g.over, max: pl.stats.hp };
+    };
+  });
+  const first = await p.evaluate(() => ({ closed: !document.querySelector('[data-card]') && window.__lb.state === 'playing', fell: window.__fell(window.__hound), blast: window.__blast(false) }));
+  // a second hound felled the same way; this time A walks the champion out of the mark, away from where he fell
+  const fell2 = await p.evaluate(() => window.__fell(window.__lb.spawn('wolf', window.__lb.game.player.x + 30, window.__lb.game.player.y)));
+  await p.keyboard.down('KeyA');
+  const blast2 = await p.evaluate(() => window.__blast('input'));
+  await p.keyboard.up('KeyA');
+  await p.close();
+  const marked = (f) => f.dead && f.bursts === 1 && f.zones === 1 && f.mark.hostile && f.mark.dtype === 'fire' && f.mark.at < 1 && f.mark.inside && f.mark.delay >= 0.7;
+  const ok = card.realm === 'cinderlands' && card.kind === 'cinderHound' && card.sprite === 'cinderHound' && card.id === 'cinderHound' && card.title === 'Cinder Hound' && /bursts into fire/.test(card.text ?? '')
+    && first.closed && marked(first.fell) && first.blast.gone && first.blast.lost > 0 && first.blast.lost < first.blast.max * 0.25 && Math.abs(first.blast.secs - first.fell.mark.delay) < 0.1 && first.blast.alive
+    && marked(fell2) && blast2.gone && blast2.away > 0 && blast2.lost === 0 && blast2.alive && errs.length === 0;
+  const say = (f, b) => `${f.dead ? 'felled' : 'NOT felled'}, ${f.bursts} burst, mark ${f.mark ? `r ${f.mark.r} ${f.mark.dtype} ${f.mark.inside ? 'round the champion' : 'NOT round him'}` : 'NONE'}, went off after ${b.secs.toFixed(2)} s with him ${b.away > 0 ? `${b.away.toFixed(0)} px clear` : 'in it'}: ${b.lost.toFixed(1)} HP of ${b.max}`;
+  return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${first.closed}; stayed: ${say(first.fell, first.blast)}; stepped out with A: ${say(fell2, blast2)}${first.blast.alive && blast2.alive ? '' : ', champion fell'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #197: the champion screen: the champion on a pedestal between six slots, set chips, the inventory, the talent plan, PLAY, the tabs ----------
 // From the title's Champion button, at 1280x720 with the mouse and in phone landscape by touch: a legendary tapped in the inventory takes two
 // slots (#239: as one wide frame) of the Marches run's three (#237), a second legendary says why it can't go in, a slot tapped takes its relic out, a

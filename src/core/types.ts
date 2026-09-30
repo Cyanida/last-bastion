@@ -344,6 +344,7 @@ export interface Zone extends Body {
   hostile: boolean;
   maxHits: number; // 0 = unlimited
   owner: Enemy | null; // cancelled if the owner dies first
+  cause?: string; // #226: an ownerless hostile zone's name in the run log's cause of death (a fallen foe's burst)
   killsOwner: boolean; // suicide blasts
   arrow: boolean;
   color: string;
