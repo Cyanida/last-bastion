@@ -27,10 +27,10 @@ export function rollBoard(seed: number, act: number, fragment = false): { kind: 
 }
 
 /** This wave's event, or null: always on a breather, EVENT_ROLL.chance on other waves from EVENT_ROLL.fromWave, never on a boss wave. */
-export function rollEvent(seed: number, wave: number): EventKind | null {
-  if (isBossWave(wave) || wave < EVENT_ROLL.fromWave) return null;
+export function rollEvent(seed: number, wave: number, boss = isBossWave(wave)): EventKind | null {
+  if (boss || wave < EVENT_ROLL.fromWave) return null;
   const rng = waveRng(seed ^ EVENT_SALT, wave);
-  if (pacingOf(wave) !== 'breather' && rng() >= EVENT_ROLL.chance) return null;
+  if (pacingOf(wave, boss) !== 'breather' && rng() >= EVENT_ROLL.chance) return null;
   return EVENT_KINDS[Math.floor(rng() * EVENT_KINDS.length)];
 }
 

@@ -1598,16 +1598,16 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = road.flags.length === 7 && road.flags.every((f) => f.inside) && road.flags.map((f) => f.open).join() === 'true,false,false,false,false,false,false' && road.flags[0].on
       && road.landBg.includes('world-map') && road.name === 'The Marches · Level 1' && road.tiers === 'Xo--' && road.golds === 1 && road.fight && road.onScreen
-      && !/Head start/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*65%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
-      && knight.tiers === 'oX--' && /Enemy HP\s*95%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
-      && run?.realm === 'marches' && run.level === 1 && run.last === 5 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
-    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*95%/.test(knight.text) ? 'HP 95%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+      && !/Head start/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*53%/.test(road.text) && /Steel relics featured/.test(road.text) && /War Drummer/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
+      && knight.tiers === 'oX--' && /Enemy HP\s*77%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
+      && run?.realm === 'marches' && run.level === 1 && run.last === 6 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
+    return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*77%/.test(knight.text) ? 'HP 77%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
 // ---------- #221: the level step: the panel's Enemy HP on Knight is what the level fights at, eased on level 1 of the Marches ----------
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
-  await check(`level step: the Marches level 1 on Knight shows Enemy HP 95% (Knight 145% eased, and for a level-1 champion, #238) and FIGHT plays it at that HP, ${touch ? 'tap' : 'click'} at ${w}x${h} (#221)`, async () => {
+  await check(`level step: the Marches level 1 on Knight shows Enemy HP 77% (Knight 145% eased, #243, and for a level-1 champion, #238) and FIGHT plays it at that HP, ${touch ? 'tap' : 'click'} at ${w}x${h} (#221)`, async () => {
     const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
     const errs = [];
     p.on('pageerror', (e) => errs.push(e.message));
@@ -1624,7 +1624,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
     const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100) } : null; });
     await p.close();
-    const ok = shown === '95' && run?.level === 1 && run.tier === 1 && run.hp === 95 && errs.length === 0;
+    const ok = shown === '77' && run?.level === 1 && run.tier === 1 && run.hp === 77 && errs.length === 0;
     return { ok, detail: `panel Enemy HP ${shown ?? '?'}%; run: ${run ? `level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
@@ -1866,7 +1866,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       const lb = window.__lb, g = lb.game;
       g.player.invulnerable = true;
       g.baseMods.damage *= 8; // hard blows: the level is over soon
-      for (let i = 0; i < 6000 && lb.game === g && g.player.xp <= 0; i++) lb.run(1, false, true);
+      for (let i = 0; i < 6000 && lb.game === g && g.player.xp < 1; i++) lb.run(1, false, true); // #243: a level's extra foes share its XP, so one foe may pay under 1
     });
     await p.waitForFunction(() => window.__lb.state === 'playing' && /^\+[1-9]/.test(document.getElementById('h-xp-text')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {});
     const hud = await p.evaluate(() => ({ xp: document.getElementById('h-xp-text')?.textContent ?? '', level: document.getElementById('h-level')?.textContent ?? '' }));
@@ -1924,7 +1924,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       && banked.xp === played.collected && banked.level === 2 && new RegExp(`\\+${banked.xp} XP · level 2`).test(banked.line) && /level up/.test(banked.line) && banked.run === 2
       && /Level 2/.test(build) && /3 stat points to spend/.test(build) && spent.left === '0' && spent.plus && !spent.reset
       && /Spend points \(1\)/.test(before.button) && !before.reset && tree.sub && tree.open > 0 && after === 0 && tab.taken === 1 && tab.saved === 1 && !tab.reset && tab.points.strength === 2 && tab.points.vitality === 1
-      && next?.level === 2 && next.wave === 6 && next.plevel === 2 && Math.abs(next.str - (banked.str + 5 * next.grow + 20)) < 0.01 && next.talents === 1 && next.queued === 0 && next.utility && next.points.strength === 2 && errs.length === 0;
+      && next?.level === 2 && next.wave === 7 && next.plevel === 2 && Math.abs(next.str - (banked.str + 5 * next.grow + 20)) < 0.01 && next.talents === 1 && next.queued === 0 && next.utility && next.points.strength === 2 && errs.length === 0;
     return { ok, detail: `level 1: ${played.cleared ? 'cleared' : `NOT cleared (wave ${played.wave}, ${played.state})`}, ${played.screens} level-up screens, ${played.queued} queued, champion level ${played.top} all level, HUD "level ${hud.level}, ${hud.xp}"; banked ${banked.xp} XP of ${played.collected} -> level ${banked.level} ("${banked.line}"); Build tab "${build.slice(0, 70)}"; three points spent: ${JSON.stringify(spent)}; talents "${before.button}"${before.reset || tab.reset ? ', RESET OFFERED IN A RUN' : ''}, ${tab.taken} taken; level ${next?.level}: champion level ${next?.plevel}, Strength ${next?.str} (checkpoint ${banked.str} + growth + 20), ${next?.talents} talent, utility ${next?.utility ? 'unlocked' : 'LOCKED'}, ${next?.queued} queued${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
@@ -2510,7 +2510,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
     const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
     await p.evaluate(() => {
-      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue', 'everfrostCrown'], loadouts: {}, ...window.__lb.build.grown({}), xp: 140, level: 2, world: {}, signature: false, lastBastion: false, runs: {} } };
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue', 'everfrostCrown'], loadouts: {}, ...window.__lb.build.grown({}), xp: 180, level: 2, world: {}, signature: false, lastBastion: false, runs: {} } };
     });
     await press('[data-go="champion"]');
     await p.locator('.champion-screen').waitFor({ timeout: 3000 });
@@ -2878,7 +2878,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
     const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
     const seed = () => p.evaluate(() => {
-      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue'], loadouts: { marches: ['brimstoneOil'] }, ...window.__lb.build.grown({}), xp: 140, level: 2, world: {}, signature: false, lastBastion: false, runs: {} } };
+      window.__lb.save.champions = { paladin: { name: 'Hild', inventory: ['brimstoneOil', 'emberheart', 'dragonsTongue'], loadouts: { marches: ['brimstoneOil'] }, ...window.__lb.build.grown({}), xp: 180, level: 2, world: {}, signature: false, lastBastion: false, runs: {} } };
     });
     await seed();
     const key = () => p.evaluate(() => localStorage.getItem('lastbastion.championTour'));
@@ -5055,7 +5055,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 
 // ---------- #208: v0.10's whole road, from a new save to the Marches crown, through the real screens ----------
 // At 1280x720 with the mouse and keys. The title's Take up arms -> the Viking's card -> Onward makes a new champion (no relics, level 1,
-// one slot); the Map tab -> the Marches -> its road -> FIGHT plays level 1, which the bot clears in full (all 5 waves and its boss;
+// one slot); the Map tab -> the Marches -> its road -> FIGHT plays level 1, which the bot clears in full (all 6 waves, #243, and its boss;
 // the champion can't be hurt, the one shortcut), and its Steel rare (key 1) joins the champion. Back on the road, Loadout slots that rare
 // for level 2 and PLAY starts it holding the rare. There the champion stands still at 1 HP until a foe really kills it: "Thou art
 // slain", then the champion screen says where it fell, and RESTART plays level 2 again on the same seed, which the bot clears. Levels
@@ -5320,8 +5320,8 @@ await check('test mode: "Start at" a realm level starts that level through its h
   await p.locator('[data-pick="0"]').click().catch(() => {});
   const held = await p.evaluate(() => window.__lb.game.player.relics.held.length);
   await p.close();
-  const ok = before === 'false,false,false' && after === 'true,true,true' && /Iron Hold · Level 4 \(waves 21–30\)/.test(label ?? '')
-    && run?.test === 1 && run.realm === 'ironHold' && run.level === 4 && run.last === 30 && run.start === 21 && [20, 21].includes(run.wave) && run.act === 3 && run.lv === 10 && run.arena === 'keep' // wave 21 may already have begun
+  const ok = before === 'false,false,false' && after === 'true,true,true' && /Iron Hold · Level 4 \(waves 25–32\)/.test(label ?? '')
+    && run?.test === 1 && run.realm === 'ironHold' && run.level === 4 && run.last === 32 && run.start === 25 && [24, 25].includes(run.wave) && run.act === 3 && run.lv === 10 && run.arena === 'keep' // wave 25 may already have begun (#243: waves 25-32)
     && run.picks === 0 && run.tiers === 3 && run.offer === 'start' && /Steel/.test(run.families) && run.hud && held === 1 && errs.length === 0;
   return { ok, detail: `"${label}"; act/wave/level disabled ${before} -> ${after}; run: ${run ? `test ${run.test}, ${run.realm} level ${run.level}, waves ${run.start}-${run.last} (on wave ${run.wave}, Act ${run.act}), lv ${run.lv}, ${run.arena}, ${run.picks} queued ability picks, ${run.tiers} ability tiers held, offer from ${run.offer} "${run.families}", TEST tag ${run.hud}` : 'none'}; picked -> ${held} held${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
@@ -5363,7 +5363,7 @@ await check('Forgemaster: test mode starts the Iron Hold level 3; its last wave 
     }
     g.enemies.length = 0;
     g.spawnQueue.length = 0;
-    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 20, the level's last
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 24, the level's last (#243)
     g.breather = 0.01;
     const out = { wave: 0, id: '', plates: [], broke: false, hammer: [0, 0, 0], presses: [0, 0, 0], reforged: [], phases: [], dead: false };
     let f = null;
@@ -5391,7 +5391,7 @@ await check('Forgemaster: test mode starts the Iron Hold level 3; its last wave 
   });
   await p.close();
   const oneByOne = fight.plates.length >= 4 && fight.plates.slice(1).every((v, i) => v < fight.plates[i]);
-  const ok = fight.test === 1 && fight.wave === 20 && fight.id === 'forgemaster' && fight.plates[0] === 6 && fight.max === 6 && oneByOne && fight.broke && fight.clangs > 0
+  const ok = fight.test === 1 && fight.wave === 24 && fight.id === 'forgemaster' && fight.plates[0] === 6 && fight.max === 6 && oneByOne && fight.broke && fight.clangs > 0
     && fight.phases.length === 2 && fight.reforged.every((n) => n === 6) && fight.hammer[0] === 5 && fight.presses[0] === 0 && fight.presses[1] === 25 && fight.presses[2] === 38
     && fight.dead && fight.cleared && errs.length === 0;
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}; plates ${fight.plates.join('>')} of ${fight.max}, ${fight.clangs} clangs; phases at ${fight.phases.join(', ')} s, reforged to ${fight.reforged.join('/')}; hammer zones ${fight.hammer.join('/')}, press tiles ${fight.presses.join('/')} by phase; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
@@ -5619,9 +5619,69 @@ await check('Bosses: the Marches level 1 ends on the Black Knight; level 5 ends 
   if (!l1) return { skip: true, detail: 'no realm-level start in this build' };
   const l5 = await lastBoss('marches:5', 2654435761);
   const l5b = await lastBoss('marches:5', 12345);
-  const ok = l1.wave === 5 && l1.key === 'blackKnight' && l5.wave === 25 && l5.key && l5.key !== 'blackKnight' && l5b.key === l5.key
+  const ok = l1.wave === 6 && l1.key === 'blackKnight' && l5.wave === 30 && l5.key && l5.key !== 'blackKnight' && l5b.key === l5.key
     && l5.hud.startsWith(l5.name) && l1.hud.startsWith(l1.name) && !l1.errs && !l5.errs && !l5b.errs;
   return { ok, detail: `level 1 wave ${l1.wave}: ${l1.key} "${l1.hud}"; level 5 wave ${l5.wave}: ${l5.key} "${l5.hud}", on another seed ${l5b.key}` };
+});
+
+// ---------- #243: longer levels: a level runs on its own waves ----------
+// A new Viking from the title -> the Map tab -> the Marches -> its road: level 1's panel says Waves 1–6. FIGHT plays it out (the bot,
+// who can't be hurt, the one shortcut): the scale's old boss wave 5 is a plain wave, and the level's one boss comes on wave 6, its last.
+// Its rare (key 1), then the results' Onward goes into level 2, waves 7–12: Act I ends inside it at wave 10 with no boss, no Merchant
+// and no fork; the fight goes on into Act II, and the boss comes on wave 12.
+await check('longer levels: the Marches level 1 is waves 1–6 with its one boss on wave 6; Onward into level 2 (waves 7–12), where Act I ends with no boss, no Merchant and no fork, click and keys at 1280x720 (#243)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const press = (sel) => p.locator(sel).first().click();
+  const bad = [];
+  const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+  // the level played out, every screen answered by its first option; which waves had a boss on the field, and any Merchant or fork
+  const playOut = () => p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    const out = { first: g.startWave, last: g.level?.last, level: g.level?.level, bossWaves: [], shop: false, acts: [g.act], banners: [] };
+    for (let i = 0; i < 120000 && lb.game === g && lb.state !== 'results'; i++) {
+      if (lb.state === 'playing') g.player.invulnerable = true;
+      lb.run(1, false, true);
+      if (g.pendingMerchant || g.pendingRoute) out.shop = true;
+      if (g.enemies.some((e) => e.def.boss && !e.side) && !out.bossWaves.includes(g.wave)) out.bossWaves.push(g.wave);
+      if (g.act !== out.acts.at(-1)) out.acts.push(g.act), out.banners.push(g.banner?.text ?? '');
+    }
+    return { ...out, wave: g.wave, cleared: !!g.level?.cleared, state: lb.state, minutes: +(g.time / 60).toFixed(1) };
+  });
+  const opening = async () => { // the level's opening pick
+    await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
+    await press('[data-pick="0"]');
+  };
+  await press('[data-go="start"]');
+  await press('[data-class="viking"]');
+  await press('[data-start]');
+  await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  await skipTour(p);
+  await press('.kit-tab[data-tab="map"]');
+  await p.locator('.wm-map').waitFor({ timeout: 3000 });
+  await press('.wm-realm.r-marches');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  const facts = await p.evaluate(() => document.querySelector('.rr-facts').textContent.replace(/\s+/g, ' ').trim());
+  want(/Waves\s*1–6/.test(facts), `level 1's panel says "${facts}"`);
+  await press('[data-fight]');
+  await opening();
+  const one = await playOut();
+  want(one.level === 1 && one.first === 1 && one.last === 6 && one.cleared && one.wave === 6 && one.state === 'results' && one.bossWaves.join() === '6' && !one.shop, `level 1 ${JSON.stringify(one)}`);
+  await p.locator('.rare-pick').waitFor({ timeout: 5000 });
+  await p.keyboard.press('1');
+  await p.locator('.results [data-retry]').waitFor({ timeout: 3000 });
+  const onward = (await p.locator('.results [data-retry]').textContent()).trim();
+  want(onward === 'Onward · The Marches · Level 2', `the gold button says "${onward}"`);
+  await press('.results [data-retry]');
+  await opening();
+  const two = await playOut();
+  await p.close();
+  want(two.level === 2 && two.first === 7 && two.last === 12 && two.cleared && two.wave === 12 && two.state === 'results' && two.bossWaves.join() === '12' && !two.shop && two.acts.join() === '1,2' && /^Act II/.test(two.banners[0] ?? ''), `level 2 ${JSON.stringify(two)}`);
+  want(errs.length === 0, `errors: ${errs[0]}`);
+  return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `panel "Waves 1–6"; level 1: waves ${one.first}-${one.wave}, boss on wave ${one.bossWaves.join()}, ${one.minutes} min; "${onward}"; level 2: waves ${two.first}-${two.wave}, boss on wave ${two.bossWaves.join()}, Act ${two.acts.join(' -> ')} ("${two.banners[0]}"), no Merchant, no fork, ${two.minutes} min` };
 });
 
 await check('no console errors', async () => {

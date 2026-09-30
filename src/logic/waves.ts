@@ -25,32 +25,36 @@ export interface WaveOptions {
 
 export const isBossWave = (wave: number) => wave % WAVES.bossEvery === 0;
 
-/** v0.5 pacing (WAVES.pacing): a breather, a heavy wave, or neither, from the wave's place in its Act. Boss waves are never either. */
-export function pacingOf(wave: number): 'breather' | 'heavy' | null {
+/**
+ * v0.5 pacing (WAVES.pacing): a breather, a heavy wave, or neither, from the wave's place in its Act. Boss waves are never either.
+ * `boss` (here and below): whether this wave is a boss wave; by default the 40-wave scale's (x5, x0). #243: a realm level has its own,
+ * its last wave only (logic/world bossWaveIn).
+ */
+export function pacingOf(wave: number, boss = isBossWave(wave)): 'breather' | 'heavy' | null {
   const at = ((wave - 1) % ACTS.length) + 1;
-  if (isBossWave(wave)) return null;
+  if (boss) return null;
   return WAVES.pacing.breather.includes(at) ? 'breather' : WAVES.pacing.heavy.includes(at) ? 'heavy' : null;
 }
 
 /** The director's budget multiplier for that pacing. */
-export function pacingBudget(wave: number): number {
-  const pace = pacingOf(wave);
+export function pacingBudget(wave: number, boss = isBossWave(wave)): number {
+  const pace = pacingOf(wave, boss);
   return pace === 'breather' ? WAVES.pacing.breatherBudget : pace === 'heavy' ? WAVES.pacing.heavyBudget : 1;
 }
 
 /** Enemy count: Act I ramps it up, later Acts add only `lateGrowth` a wave (their difficulty comes from stats, then composition). */
-export function enemyCount(wave: number): number {
+export function enemyCount(wave: number, boss = isBossWave(wave)): number {
   const c = WAVES.count;
   const w = Math.min(wave, ACTS.length);
   const n = Math.round(c.base + c.perWave * w + Math.pow(w, c.exp) + Math.max(0, wave - ACTS.length) * c.lateGrowth);
-  return isBossWave(wave) ? Math.max(1, Math.round(n * WAVES.bossEscortFrac)) : n;
+  return boss ? Math.max(1, Math.round(n * WAVES.bossEscortFrac)) : n;
 }
 
 // ---- rules shared by this simple generator and the spawn director (logic/director.ts) ----
 
 /** Non-boss waves from modifierFromWave on sometimes roll a modifier. Consumes rng only when eligible. */
-export function rollModifier(wave: number, rng: Rng, chanceMult = 1, from = WAVES.modifierFromWave): ModifierId | null {
-  if (isBossWave(wave) || wave < from || rng() >= WAVES.modifierChance * chanceMult) return null;
+export function rollModifier(wave: number, rng: Rng, chanceMult = 1, from = WAVES.modifierFromWave, boss = isBossWave(wave)): ModifierId | null {
+  if (boss || wave < from || rng() >= WAVES.modifierChance * chanceMult) return null;
   return MODIFIER_IDS[Math.floor(rng() * MODIFIER_IDS.length)];
 }
 
