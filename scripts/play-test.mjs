@@ -2357,6 +2357,65 @@ await check('Iron Hold: forge presses mark the slabs round you and lower a ram; 
   return { ok, detail: still.found ? `${still.realm} level ${still.level} in the ${still.arena}: ${still.n} slabs marked${still.warned ? ' with a warning' : ''}, bracket rgb(${(still.bracket ?? []).slice(0, 3).join(',')}), ram ${still.ram ? 'drawn' : 'NOT drawn'}${still.props ? '' : ' (props atlas not loaded yet)'}; standing still: ${still.onIt ? 'on the slab' : 'OFF the slab'}, hurt ${Math.round(still.hurt)}, ${still.slam} slam sound(s), the foe beside him hurt ${Math.round(still.foeHurt)}; stepped aside (${dodge.key ?? 'no key'}): ${dodge.found ? `${dodge.onIt ? 'STILL on a slab' : 'off the slabs'}, hurt ${+dodge.hurt.toFixed(2)}` : `no second marking (${dodge.why})`}${errs.length ? `; errors: ${errs[0]}` : ''}` : `no press marked slabs (${still.realm}, wave ${still.wave})` };
 });
 
+// ---------- #249: the Iron Hold on Squire: map -> the Iron Hold -> the road on Squire; every level's featured foes are ones Squire fields
+// there (no Mirror Knight, no Hound Master), the Iron Shieldwall named from level 2, at 1280x720 and 1920x1080; then level 2 -> FIGHT: the
+// bot plays on Squire, nothing put in the queue by hand, until the director's own shieldwall squad marches in as Iron Shieldwalls and his
+// flash card opens ----------
+await check('Iron Hold on Squire: the road lists only foes Squire fields, and a level brings Iron Shieldwalls on its own (#249)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], ironHold: [1] }), world: { marches: [7], ironHold: [1] }, signature: true, lastBastion: false, runs: { ironHold: run } });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Iron Hold level 1 cleared, its realm run at level 2 on Squire
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'ironShieldwall'); // every other card already seen, so his is the one that shows
+  }, runAt(2, 0));
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-ironHold');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-tier[data-tier="0"]');
+  await p.waitForTimeout(100);
+  const road = [];
+  for (const size of [{ width: 1280, height: 720 }, { width: 1920, height: 1080 }]) {
+    await p.setViewportSize(size);
+    for (const n of [1, 2, 3, 4, 5]) {
+      await p.click(`.rr-flag.l-${n}`);
+      await p.waitForTimeout(60);
+      road.push(await p.evaluate(({ n, w }) => {
+        const foes = document.querySelector('.rr-foes');
+        const r = foes?.getBoundingClientRect();
+        return { n, w, tier: document.querySelector('.rr-tier.on')?.dataset.tier, foes: foes?.textContent.replace(/\s+/g, ' ').trim() ?? '', seen: !!r && r.width > 0 && r.bottom <= innerHeight && r.right <= innerWidth };
+      }, { n, w: size.width }));
+    }
+  }
+  await p.setViewportSize({ width: 1280, height: 720 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // the bot plays the level (the real choice screens answered), unhurt, until his flash card opens: only the director's own waves bring him
+  const met = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    if (!g) return { started: false };
+    g.player.invulnerable = true;
+    for (let i = 0; i < 120000 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results' && !g.level?.cleared; i++) lb.run(1, false, true);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    const walls = g.enemies.filter((e) => e.def.id === 'ironShieldwall');
+    return { started: true, realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, wave: g.wave, card: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, walls: walls.length, inSquad: walls.filter((e) => e.squad).length, plain: g.enemies.filter((e) => e.def.id === 'shieldwall').length };
+  });
+  await p.close();
+  const bad = road.filter((r) => r.tier !== '0' || /Mirror Knight|Hound Master|Siege Tower/.test(r.foes) || !r.seen || !r.foes);
+  const walled = road.filter((r) => r.n >= 2 && /Iron Shieldwall/.test(r.foes));
+  const ok = bad.length === 0 && walled.length === 8
+    && met.started && met.realm === 'ironHold' && met.level === 2 && met.tier === 0 && met.card === 'ironShieldwall' && met.title === 'Iron Shieldwall'
+    && met.walls > 0 && met.inSquad > 0 && met.plain === 0 && errs.length === 0;
+  const l2 = road.find((r) => r.n === 2);
+  return { ok, detail: `road on Squire: level 2 "${l2?.foes}"; ${bad.length ? `WRONG: ${bad.map((r) => `L${r.n}@${r.w} tier ${r.tier} "${r.foes}"${r.seen ? '' : ' (not in view)'}`).join('; ')}` : 'no foe Squire does not field, at 1280 and 1920'}; Iron Shieldwall named on ${walled.length}/8 of levels 2-5; fight: ${met.started ? `${met.realm} ${met.level} on tier ${met.tier}, wave ${met.wave}: card ${met.card ?? 'NONE'} "${met.title ?? ''}", ${met.walls} Iron Shieldwalls (${met.inSquad} in a squad), ${met.plain} plain` : 'did not start'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #213: the Iron Hold's shieldwalls: map -> the Iron Hold -> level 2 -> FIGHT; the director's shieldwall squad marches in as Iron
 // Shieldwalls with their own flash card, "Got it" closes it, and then, from a known state (him alone, the champion put in front of him, then
 // behind him, then at his side), a real swing at his shield is turned with BLOCKED and a clank, the same swing lands in full on his back,

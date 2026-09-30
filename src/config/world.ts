@@ -66,6 +66,7 @@ export interface RealmDef {
   arena: WorldArenaId;
   family?: FamilyId; // a relic realm's family
   foes?: Partial<Record<EnemyId, EnemyId>>; // #212: the realm's variants: a foe that marches in its levels as its own kind (logic/world.ts realmFoe)
+  fields?: EnemyId[]; // #249: foes its levels field on every difficulty, whatever the tier roster says (config/waves.ts tierRoster): the realm's own foes are its lesson
   hazard?: 'presses'; // #211: the realm's own hazard in its arena, on top of the arena's (the Iron Hold's forge presses, config/arenas.ts PRESSES)
   teaches: string;
   release: string;
@@ -106,6 +107,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
     name: 'The Iron Hold', ring: 2, opens: { crowns: 1 }, arena: 'keep', family: 'steel', release: '0.11.0',
     teaches: 'Armor you break, shields that block from the front, thorns that hit back',
     foes: { knight: 'ironKnight', shieldwall: 'ironShieldwall', shieldBearer: 'thornBearer' }, // #214: thorn bearers
+    fields: ['shieldwall'], // #249: a Champion foe elsewhere; here Squire and Knight (the tiers the realm opens with) meet its shieldwall squads too
     hazard: 'presses',
     levels: relicRealmLevels('steel', 'warden', 'forgemaster', 'ironKing'), crown: RELIC_CROWN,
     legend: { title: 'Ironsworn', palette: 6 }, // #219 Decided: the plan names neither
