@@ -1580,7 +1580,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await p.close();
     const ok = road.flags.length === 7 && road.flags.every((f) => f.inside) && road.flags.map((f) => f.open).join() === 'true,false,false,false,false,false,false' && road.flags[0].on
       && road.landBg.includes('world-map') && road.name === 'The Marches · Level 1' && road.tiers === 'Xo--' && road.golds === 1 && road.fight && road.onScreen
-      && !/Head start/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*53%/.test(road.text) && /Steel relics featured/.test(road.text) && /Wolf/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
+      && !/Head start/.test(road.text) && /Slots\s*3/.test(road.text) && /Enemy HP\s*53%/.test(road.text) && /Steel relics featured/.test(road.text) && /War Drummer/.test(road.text) && /Pick 1 of 2 Steel rares/.test(road.text)
       && knight.tiers === 'oX--' && /Enemy HP\s*77%/.test(knight.text) && squire.tiers === 'Xo--' && squire.flags[0].on
       && run?.realm === 'marches' && run.level === 1 && run.last === 6 && run.start === 1 && run.tier === 0 && run.arena === 'courtyard' && errs.length === 0;
     return { ok, detail: `${road.flags.length} flags (${road.flags.filter((f) => f.open).length} open${road.flags.every((f) => f.inside) ? '' : ', one off the road'}), "${road.name}", tiers ${road.tiers} -> Knight ${knight.tiers} (${/Enemy HP\s*77%/.test(knight.text) ? 'HP 77%' : 'HP?'}) -> ${squire.tiers}, ${road.golds} gold button, FIGHT ${road.fight ? 'reachable' : 'hidden'}${road.onScreen ? '' : ' (off screen)'}; run: ${run ? `${run.realm} level ${run.level}, waves ${run.start}-${run.last}, tier ${run.tier}, ${run.arena}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
@@ -1848,7 +1848,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       const lb = window.__lb, g = lb.game;
       g.player.invulnerable = true;
       g.baseMods.damage *= 8; // hard blows: the level is over soon
-      for (let i = 0; i < 6000 && lb.game === g && g.player.xp <= 0; i++) lb.run(1, false, true);
+      for (let i = 0; i < 6000 && lb.game === g && g.player.xp < 1; i++) lb.run(1, false, true); // #243: a level's extra foes share its XP, so one foe may pay under 1
     });
     await p.waitForFunction(() => window.__lb.state === 'playing' && /^\+[1-9]/.test(document.getElementById('h-xp-text')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {});
     const hud = await p.evaluate(() => ({ xp: document.getElementById('h-xp-text')?.textContent ?? '', level: document.getElementById('h-level')?.textContent ?? '' }));
@@ -1905,7 +1905,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       && banked.xp === played.collected && banked.level === 2 && new RegExp(`\\+${banked.xp} XP · level 2`).test(banked.line) && /level up/.test(banked.line) && banked.run === 2
       && /Level 2/.test(build) && /3 stat points to spend/.test(build) && spent.join() === 'true,true,true,false,false'
       && /Spend points \(1\)/.test(before.button) && !before.reset && tree.sub && tree.open > 0 && after === 0 && tab.taken === 1 && tab.saved === 1 && !tab.reset && tab.points.strength === 2 && tab.points.vitality === 1
-      && next?.level === 2 && next.wave === 6 && next.plevel === 2 && Math.abs(next.str - (banked.str + 5 * next.grow + 20)) < 0.01 && next.talents === 1 && next.queued === 0 && next.utility && next.points.strength === 2 && errs.length === 0;
+      && next?.level === 2 && next.wave === 7 && next.plevel === 2 && Math.abs(next.str - (banked.str + 5 * next.grow + 20)) < 0.01 && next.talents === 1 && next.queued === 0 && next.utility && next.points.strength === 2 && errs.length === 0;
     return { ok, detail: `level 1: ${played.cleared ? 'cleared' : `NOT cleared (wave ${played.wave}, ${played.state})`}, ${played.screens} level-up screens, ${played.queued} queued, champion level ${played.top} all level, HUD "level ${hud.level}, ${hud.xp}"; banked ${banked.xp} XP of ${played.collected} -> level ${banked.level} ("${banked.line}"); Build tab "${build.slice(0, 70)}"; spends ${spent.join()}; talents "${before.button}"${before.reset || tab.reset ? ', RESET OFFERED IN A RUN' : ''}, ${tab.taken} taken; level ${next?.level}: champion level ${next?.plevel}, Strength ${next?.str} (checkpoint ${banked.str} + growth + 20), ${next?.talents} talent, utility ${next?.utility ? 'unlocked' : 'LOCKED'}, ${next?.queued} queued${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
@@ -5146,7 +5146,7 @@ await check('Forgemaster: test mode starts the Iron Hold level 3; its last wave 
     }
     g.enemies.length = 0;
     g.spawnQueue.length = 0;
-    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 20, the level's last
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 24, the level's last (#243)
     g.breather = 0.01;
     const out = { wave: 0, id: '', plates: [], broke: false, hammer: [0, 0, 0], presses: [0, 0, 0], reforged: [], phases: [], dead: false };
     let f = null;
@@ -5174,7 +5174,7 @@ await check('Forgemaster: test mode starts the Iron Hold level 3; its last wave 
   });
   await p.close();
   const oneByOne = fight.plates.length >= 4 && fight.plates.slice(1).every((v, i) => v < fight.plates[i]);
-  const ok = fight.test === 1 && fight.wave === 20 && fight.id === 'forgemaster' && fight.plates[0] === 6 && fight.max === 6 && oneByOne && fight.broke && fight.clangs > 0
+  const ok = fight.test === 1 && fight.wave === 24 && fight.id === 'forgemaster' && fight.plates[0] === 6 && fight.max === 6 && oneByOne && fight.broke && fight.clangs > 0
     && fight.phases.length === 2 && fight.reforged.every((n) => n === 6) && fight.hammer[0] === 5 && fight.presses[0] === 0 && fight.presses[1] === 25 && fight.presses[2] === 38
     && fight.dead && fight.cleared && errs.length === 0;
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}; plates ${fight.plates.join('>')} of ${fight.max}, ${fight.clangs} clangs; phases at ${fight.phases.join(', ')} s, reforged to ${fight.reforged.join('/')}; hammer zones ${fight.hammer.join('/')}, press tiles ${fight.presses.join('/')} by phase; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
@@ -5402,7 +5402,7 @@ await check('Bosses: the Marches level 1 ends on the Black Knight; level 5 ends 
   if (!l1) return { skip: true, detail: 'no realm-level start in this build' };
   const l5 = await lastBoss('marches:5', 2654435761);
   const l5b = await lastBoss('marches:5', 12345);
-  const ok = l1.wave === 5 && l1.key === 'blackKnight' && l5.wave === 25 && l5.key && l5.key !== 'blackKnight' && l5b.key === l5.key
+  const ok = l1.wave === 6 && l1.key === 'blackKnight' && l5.wave === 30 && l5.key && l5.key !== 'blackKnight' && l5b.key === l5.key
     && l5.hud.startsWith(l5.name) && l1.hud.startsWith(l1.name) && !l1.errs && !l5.errs && !l5b.errs;
   return { ok, detail: `level 1 wave ${l1.wave}: ${l1.key} "${l1.hud}"; level 5 wave ${l5.wave}: ${l5.key} "${l5.hud}", on another seed ${l5b.key}` };
 });
