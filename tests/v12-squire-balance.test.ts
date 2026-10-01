@@ -45,10 +45,10 @@ describe("Squire eases a realm's levels, the later the more (#250)", () => {
     const shown = (realm: 'marches' | 'ironHold' | 'cinderlands', n: number, tier: number) => Array.from({ length: n }, (_, i) => levelPanel({ marches: [7] }, realm, i + 1, tier).enemyHp);
     expect(shown('marches', 7, 0)).toEqual([34, 34, 39, 48, 54, 58, 42]); // were 40, 41, 49, 61, 72, 82, 64; #263: 60, 45 at 6-7 before the cap's ease
     expect(shown('ironHold', 5, 0)).toEqual([197, 141, 123, 115, 96]); // were 231, 173, 164, 166, 156; #263: 127, 122, 109 at 3-5 before the cap's ease
-    expect(shown('cinderlands', 5, 0)).toEqual([197, 141, 123, 115, 85]); // were 231, 173, 164, 166, 138; #263: 127, 122, 97 at 3-5 before the cap's ease
+    expect(shown('cinderlands', 5, 0)).toEqual([197, 132, 123, 110, 85]); // were 231, 173, 164, 166, 138; #263: 127, 122, 97 at 3-5 before the cap's ease; #262: Knight's levels 2 and 4 eased (were 141, 115)
     expect(shown('marches', 7, 1)).toEqual([59, 60, 72, 89, 105, 119, 93]);
     expect(shown('ironHold', 5, 1)).toEqual([335, 251, 237, 240, 225]);
-    expect(shown('cinderlands', 5, 1)).toEqual([335, 251, 237, 240, 200]);
+    expect(shown('cinderlands', 5, 1)).toEqual([335, 235, 237, 230, 200]); // #262
   });
 });
 

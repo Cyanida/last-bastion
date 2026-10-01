@@ -25,6 +25,8 @@
  * rule 9's targets. Add lastBastion to the realms for the finale's targets (duos, 6-sets, minutes).
  * Squire against Knight (#250):  npm run sim -- levels [runs=4] squire [realms=marches,ironHold]
  * The same realm runs on Squire (a Squire player's progress) and on Knight, both tables, then Squire's bar per level and class.
+ * Held at a champion level (#262):  npm run sim -- levels [runs=4] [tier=1] [realms] hold=8
+ * The champion held at that level all realm long (its clears bank no levels): the Marches crown's level, 8, as the v0.12.0 playtest's.
  *
  * Depth past the win (v0.6):  npm run sim -- deep [runs=3] [tier=0]: the default table, wins going on into Endless.
  * v0.7.1: SIM_CLASS=viking,archer runs only those classes (so the tables can run one process per class in parallel).
@@ -170,8 +172,9 @@ if (mode === 'levels') {
   const levelTier = process.argv[argAt + 1] === undefined ? 1 : squire ? 0 : tier;
   const realms = process.argv[argAt + 2] ?? 'marches,ironHold';
   const knights = CLASSES.map((c) => join(dir, `${c}-knight.json`));
+  const hold = process.argv.filter((a) => a.startsWith('hold=')).slice(0, 1); // #262: the champion held at a level
   await Promise.all([
-    ...CLASSES.map((c, i) => node(['run', c, String(runs), String(levelTier), realms, outs[i]])),
+    ...CLASSES.map((c, i) => node(['run', c, String(runs), String(levelTier), realms, outs[i], ...hold])),
     ...(squire ? CLASSES.map((c, i) => node(['run', c, String(runs), '1', realms, knights[i]])) : []),
   ]);
   await node(['merge', ...outs]);

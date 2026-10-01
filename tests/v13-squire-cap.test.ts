@@ -35,7 +35,7 @@ describe('Squire eases a level played at the cap (#263)', () => {
     expect(g.tier.enemyHp).toBeCloseTo(base('hp') * 0.616, 5);
     expect(g.tier.enemyDmg).toBeCloseTo(base('damage') * 0.66, 5);
     expect(Math.round(g.tier.enemyHp * 100)).toBe(levelPanel({ marches: [7] }, 'cinderlands', 5, 0).enemyHp);
-    // the panel is the product of the steps (levelStep is tuned on its own, #262), so only Squire's ease is pinned here: 197, 141, 123, 115, 85 (were 127, 122, 97 at 3-5)
+    // the panel is the product of the steps (levelStep is tuned on its own, #262), so only Squire's ease is pinned here: 197, 132, 123, 110, 85 with #262's Knight step (were 127, 122, 97 at 3-5)
     const shown = (l: number, tier: number) => levelPanel({ marches: [7] }, 'cinderlands', l, tier).enemyHp;
     const steps = (l: number, tier: number) => Math.round(TIERS[tier].enemyHp * ringStep('cinderlands').hp * levelStep('cinderlands', l).hp * championStep('cinderlands', l).hp * tierStep(tier, 'cinderlands', l).hp * 100);
     expect(rows(5, (l) => shown(l, 0))).toEqual(rows(5, (l) => steps(l, 0)));

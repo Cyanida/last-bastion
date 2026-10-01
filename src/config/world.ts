@@ -183,9 +183,10 @@ export const WORLD = {
      * #232: a relic realm's own steps, in place of `realm`'s, where its foes and hazard ask for them. The Cinderlands (BALANCE.md): its
      * level 1 eases (burn stacks and the spreading fire cost the bot first tries the Iron Hold's level 1 did not), its level 3 hits a
      * little harder (88% of first tries cleared it, against 73%) and its crown level eases most (the waves before the Cinder Colossus
-     * felled 12 of 40 first tries and he 16 more). Level 2 eases a touch for its longer waves (levelWaves).
+     * felled 12 of 40 first tries and he 16 more). Level 2 eases a touch for its longer waves (levelWaves). #262: levels 2 and 4 ease
+     * (level 2 to the floor), for a champion with only the Marches crown (a playtest's Paladin fell 3 times on level 2 at level 8-9).
      */
-    own: { cinderlands: { hp: [0.77, 0.77, 0.83, 0.99, 0.95], damage: [0.85, 0.84, 0.98, 1.12, 0.95] } } as Partial<Record<RealmId, { hp: number[]; damage: number[] }>>,
+    own: { cinderlands: { hp: [0.77, 0.72, 0.83, 0.95, 0.95], damage: [0.85, 0.82, 0.98, 1.08, 0.95] } } as Partial<Record<RealmId, { hp: number[]; damage: number[] }>>,
   },
   /**
    * #243 (rule 9): how long a level's waves are, by its place in its realm, so a realm's level 1 takes 4-6 minutes and its last 7-10
@@ -196,8 +197,11 @@ export const WORLD = {
   levelWaves: {
     marches: { foes: [1.6, 0.9, 0.9, 0.9, 0.9, 0.8, 0.8], pace: [2.8, 2, 2, 2, 2, 2.2, 2.2] }, // #220: level 1 foes 1.6 and pace 2.8 (were 1.5, 2.5): eased, it ran under its 4 minutes
     realm: { foes: [1.6, 1.2, 1.1, 0.95, 0.9], pace: [2, 1.5, 1.5, 1.8, 2.2] },
-    /** #232: a relic realm's own wave lengths, in place of `realm`'s. The Cinderlands' levels 2-4 are longer (more foes over a longer time): the realm ran 29 minutes clean against rule 9's 35. */
-    own: { cinderlands: { foes: [1.6, 1.3, 1.25, 1.05, 0.9], pace: [2, 1.65, 1.7, 2, 2.2] } } as Partial<Record<RealmId, { foes: number[]; pace: number[] }>>,
+    /**
+     * #232: a relic realm's own wave lengths, in place of `realm`'s. The Cinderlands' levels 2-4 are longer (more foes over a longer time): the
+     * realm ran 29 minutes clean against rule 9's 35. #262: level 2 brings a relic realm's 1.2 foes (was 1.3) over its longer time: fewer at once.
+     */
+    own: { cinderlands: { foes: [1.6, 1.2, 1.25, 1.05, 0.9], pace: [2, 1.65, 1.7, 2, 2.2] } } as Partial<Record<RealmId, { foes: number[]; pace: number[] }>>,
   },
   /**
    * #259: a level whose road features one of its realm's `fields` foes (the Iron Hold's Iron Shieldwall) brings a squad of it for sure,
