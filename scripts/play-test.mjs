@@ -4735,6 +4735,67 @@ await check('Fast attacks and Leap: the swing keeps up at the cap, E leaps witho
   return { ok, detail: `at the cap ${attacking.length}/${swing.length} frames attacking, ${windUp} wind-up; E: ${leap.map((f) => `${f.anim}${f.frame}`).join(' ')}` };
 });
 
+// ---------- #247: the Viking is a raider: grey-teal wool and a Dane axe, no ginger beard; his rage roars, his hurt shrugs off the blow ----------
+await check('Viking raider: the gallery shows his teal wool and no ginger beard; Space plays the war cry and the drop back, a blow plays his hurt to the straightening up (#247)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('viking'));
+  const look = await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(200);
+    // the idle cell in the gallery, counted by colour: the teal ramp (his coat, tunic, trousers) against the old ginger beard's ramp
+    const c = document.querySelector('[data-sheet="viking"][data-anim="idle"]');
+    const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const hex = (i) => '#' + [px[i], px[i + 1], px[i + 2]].map((v) => v.toString(16).padStart(2, '0')).join('');
+    const teal = new Set(['#303d3d', '#475756', '#61726f', '#7e8f8b', '#9dada8']), ginger = new Set(['#7a3a12', '#a85a1c', '#cf7f2e', '#e8a54c']);
+    let t = 0, g = 0;
+    for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 0) (teal.has(hex(i)) && t++, ginger.has(hex(i)) && g++);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    window.__startTest().player.invulnerable = true;
+    return { teal: t, ginger: g, cell: `${c.width / 2}×${c.height / 2}` };
+  });
+  const frame = () => inPage(() => (window.__lb.run(1, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+  // one foe in reach, the rest far away; once the wave has spawned
+  const pin = () => inPage(() => {
+    const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+    for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+    if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 });
+    return !!e;
+  });
+  for (let i = 0; i < 40 && !(await pin()); i++) await inPage(() => window.__lb.run(10, false, 'input'));
+  // Berserker Rage on Space: the hunch, the war cry with the axe raised (frame 3, held longest) and the drop back into the hold
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, attackTimer: 1e6 })); // no swing in the way of the cast
+  await page.keyboard.down('Space');
+  const cast = [await frame()];
+  await page.keyboard.up('Space');
+  for (let i = 0; i < 60; i++) cast.push(await frame());
+  const castFrames = new Set(cast.filter((f) => f.anim === 'cast').map((f) => f.frame));
+  // a foe's blow: he hunches into it and straightens up, three frames, with no swing of his own to hide it
+  await inPage(() => Object.assign(window.__lb.game.player, { invulnerable: false, attackTimer: 1e6 }));
+  const hurt = [];
+  for (let i = 0; i < 400 && !(hurt.some((f) => f.anim === 'hurt' && f.frame === 2)); i++) {
+    await pin();
+    await inPage(() => { const p = window.__lb.game.player; p.hp = Math.max(p.hp, p.stats.hp * 0.9); p.attackTimer = Math.max(p.attackTimer, 100); });
+    hurt.push(await frame());
+  }
+  await inPage(() => (window.__lb.game.player.invulnerable = true));
+  const hurtFrames = new Set(hurt.filter((f) => f.anim === 'hurt').map((f) => f.frame));
+  // sampled a step at a time, the short first frames can slip between samples: the roar (3) and the drop back (4) exist only in the
+  // new five-frame cast, the straightening up (2) only in the new three-frame hurt
+  const ok = look.teal > 200 && look.ginger === 0 && castFrames.has(3) && castFrames.has(4) && hurtFrames.has(2);
+  return { ok, detail: `gallery idle ${look.cell}: ${look.teal} teal px, ${look.ginger} ginger px; cast frames ${[...castFrames].sort().join(',')}; hurt frames ${[...hurtFrames].sort().join(',')} after ${hurt.length} steps` };
+});
+
 // ---------- #156: the Viking's swing leaves a tapered trail, not a flat wedge; the walk keeps pace with the ground at 1.5x and under a heavy slow ----------
 await check('Swing trail and walk pace: a crescent trail on the swing; the feet follow the ground fast and slowed (#156)', async () => {
   await inPage(() => location.reload());
