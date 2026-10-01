@@ -54,6 +54,7 @@ export const RAMPS = {
   soul: ['#0c2a33', '#155066', '#2182a0', '#3eb1cc', '#7ed8e8', '#c2f1f8', '#ffffff'],
   fire: ['#5a1a06', '#9a3208', '#d4560f', '#f08a1c', '#f8b73c', '#fde38a', '#fffbe0'],
   rot: ['#10170f', '#1f2b1d', '#34452f', '#4f6547', '#6d8763', '#94ab86', '#c6d6b4'], // the Graveyard's grasping hands
+  sage: ['#151b16', '#28322a', '#3e4b3f', '#58685a', '#768778', '#98a895', '#c1cbb7'], // #270: grey-green woodland cloth: the Archer's hood and cloak
 } as const;
 export type Material = keyof typeof RAMPS;
 const METALS = new Set<Material>(['steel', 'plate', 'darksteel', 'gold', 'black']);
