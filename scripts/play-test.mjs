@@ -8078,6 +8078,19 @@ for (const [w, h] of [[1280, 720], [1920, 1080]]) {
       await at('world map');
       await press('.wm-realm.r-marches');
       await at('realm road');
+      // a level fought from the road: its opening relic pick, then the level cleared (as if its boss fell) and what follows it
+      await press('[data-fight]');
+      await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
+      await at('opening relic pick');
+      await p.evaluate(() => { window.__lb.game.level.cleared = true; });
+      await press('#overlay [data-pick]');
+      for (let i = 0; i < 4; i++) {
+        await p.waitForFunction(() => window.__lb.state !== 'playing', null, { timeout: 5000 });
+        const head = await p.evaluate(() => document.querySelector('#overlay .kit-head, #overlay h1')?.textContent.trim().replace(/\s+/g, ' ').slice(0, 24) ?? '');
+        await at(`after the level: ${head || '?'}`);
+        if (await p.locator('.level-cleared, .kit-screen.results').count()) break;
+        await press('#overlay [data-pick], #overlay [data-leave]');
+      }
     });
     await title();
     await visit('class select', async () => {
@@ -8093,6 +8106,10 @@ for (const [w, h] of [[1280, 720], [1920, 1080]]) {
         await press(`[data-cs="${tab}"]`);
         await at(`champion ${tab} tab`);
       }
+      await press('[data-cs="loadout"]');
+      await press('#overlay .kit-info[data-info]');
+      await at("an ⓘ's popup");
+      await press('.kit-info-pop .kit-close');
       await press('[data-cs="talents"]');
       await press('[data-spend-talents]');
       await at('talent tree');
