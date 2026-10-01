@@ -7959,6 +7959,95 @@ await check('Iron Hold: a level 1 clear by a champion who owns every Steel rare 
   return { ok, detail: ok ? got.sub : `${JSON.stringify(got)} ${errs.join('|')}` };
 });
 
+// ---------- #277: the Gravedigger: Settings -> Test mode -> "Start at" the Barrowvale's level 3 -> the opening pick -> its last wave ----------
+// The champion trades plain blows beside him (no ability, no bot moves, unhurt), so the fight goes the same way every run. Until a phase
+// has shown its blows (his Digging and his spade; from phase 2 his Rot; in phase 1 a grave left to rise and one trampled; in phase 3 a risen
+// grave's rot) he waits well off, out of his own reach but inside the Gravedigger's, so the graves dug round him are left behind to rise.
+// Once a grave has risen he walks onto the next open one to trample it. Each new phase calls the open graves up.
+await check('Gravedigger: test mode starts the Barrowvale level 3; its last wave is his; Digging, spade, Rot that lasts, graves that rise unless trampled, his dead called up each phase, level cleared (#277)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="barrowvale:3"]').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption('graveyard'); // the Barrowvale's own arena
+  await p.locator('#tm-start').selectOption('barrowvale:3');
+  await p.evaluate(() => {
+    // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    const out = { arena: g.arena.id, wave: 0, id: '', name: '', dig: [0, 0, 0], spade: [0, 0, 0], rot: [0, 0, 0], rotLife: 0, risen: [0, 0, 0], trampled: [0, 0, 0], spill: [0, 0, 0], plain: true, phases: [], called: [], dead: false };
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to the level's last wave
+    g.breather = 0.01;
+    pl.invulnerable = true;
+    let q = null;
+    for (let i = 0; i < 4000 && !q; i++) (lb.run(1, false, false), (q = g.enemies.find((e) => e.def.boss) ?? null));
+    if (!q) return out;
+    out.id = q.def.id;
+    out.name = q.def.name;
+    out.wave = g.wave;
+    const seen = new WeakSet();
+    for (let i = 0; i < 60000 && lb.state !== 'results' && !(q.dead && g.level.cleared); i++) {
+      pl.invulnerable = true;
+      const k = q.phase - 1;
+      const shown = out.dig[k] > 0 && out.spade[k] > 0 && (q.phase === 1 ? out.risen[0] > 0 && out.trampled[0] > 0 : out.rot[k] > 0) && (q.phase < 3 || out.spill[2] > 0);
+      const open = (q.graves ?? []).find((gr) => gr.t >= 0);
+      const trample = q.phase === 1 && out.risen[0] > 0 && out.trampled[0] === 0 && open;
+      if (!q.dead) {
+        if (trample) (pl.x = open.x), (pl.y = open.y); // he walks onto an open grave
+        else (pl.x = q.x - q.r - (shown ? 16 : 450)), (pl.y = q.y);
+        q.hpFloor = shown ? 0 : q.hp; // while he waits nothing of his moves the fight on
+      }
+      const before = [...(q.graves ?? [])];
+      const px = pl.x, py = pl.y;
+      lb.run(1, false, false);
+      if (q.phase > out.phases.length + 1) out.phases.push(+g.time.toFixed(1)), out.called.push(g.banner?.text ?? '');
+      const ph = q.phase - 1;
+      for (const gr of before) {
+        if ((q.graves ?? []).includes(gr) || gr.t < 0) continue;
+        if (Math.hypot(gr.x - px, gr.y - py) <= 24 + pl.r) out.trampled[ph]++;
+        else {
+          out.risen[ph]++;
+          const up = g.enemies.find((e) => e !== q && Math.hypot(e.x - gr.x, e.y - gr.y) < 20);
+          if (!up || up.def.id !== 'peasant') out.plain = false; // what climbs out is a plain villager
+        }
+      }
+      const mine = g.zones.filter((z) => z.owner === q && !seen.has(z)); // the zones one blow set this tick
+      for (const z of mine) seen.add(z);
+      out.dig[ph] = Math.max(out.dig[ph], mine.filter((z) => z.color === '#8a6a42').length);
+      out.spade[ph] = Math.max(out.spade[ph], mine.filter((z) => z.color === '#c4bba4').length);
+      out.rot[ph] = Math.max(out.rot[ph], mine.filter((z) => z.color === '#6f8f4e').length);
+      const rot = g.fields.filter((f) => f.hostile && f.apply?.id === 'poison');
+      out.rotLife = Math.max(out.rotLife, ...rot.map((f) => f.max));
+      out.spill[ph] = Math.max(out.spill[ph], rot.filter((f) => f.r === 40).length);
+      if (q.dead) out.dead = true;
+    }
+    return { ...out, cleared: !!g.level?.cleared, test: g.vars.test };
+  });
+  await p.close();
+  const ok = fight.test === 1 && fight.arena === 'graveyard' && fight.id === 'gravedigger' && fight.name === 'The Gravedigger' && fight.phases.length === 2
+    && fight.dig.join() === '2,3,4' && fight.spade.every((n) => n === 3) && fight.rot[0] === 0 && fight.rot[1] === 6 && fight.rot[2] === 6 && fight.rotLife >= 14
+    && fight.risen[0] > 0 && fight.trampled[0] > 0 && fight.spill[0] === 0 && fight.spill[1] === 0 && fight.spill[2] > 0 && fight.plain
+    && fight.called.every((t) => t === 'The Gravedigger calls up his dead') && fight.dead && fight.cleared && errs.length === 0;
+  return { ok, detail: `wave ${fight.wave} in ${fight.arena}: ${fight.name || 'no boss'}; phases at ${fight.phases.join(', ')} s ("${fight.called.join('", "')}"); dig ${fight.dig.join('/')}, spade ${fight.spade.join('/')}, rot ${fight.rot.join('/')} zones by phase, rot lasts ${fight.rotLife} s; graves risen ${fight.risen.join('/')}, trampled ${fight.trampled.join('/')}, risen rot ${fight.spill.join('/')}; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
