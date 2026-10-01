@@ -1762,6 +1762,10 @@ for (const [w, h] of [[1280, 720], [1920, 1080]]) {
       lb.save.cards = [...lb.cardIds]; // every flash card seen: none stops the fight
     }, runAt(5, 0));
     const press = (sel) => p.locator(sel).first().click();
+    await press('[data-go="start"]'); // the champion select: the Archer's tile picks him for the road (no run starts), then back to the title
+    await press('[data-class="archer"]');
+    await p.locator('[data-back]').first().scrollIntoViewIfNeeded();
+    await press('[data-back]');
     await press('[data-go="map"]');
     await press('.wm-realm.r-cinderlands');
     await p.locator('.rr-panel').waitFor({ timeout: 3000 });
@@ -6197,6 +6201,7 @@ await check('Forgemaster: test mode starts the Iron Hold level 3; its last wave 
       // few steps off, out of reach of his blows but inside his, so he keeps swinging and pressing
       const shown = f && out.hammer[f.phase - 1] > 0 && (f.phase === 1 || out.presses[f.phase - 1] > 0);
       if (f && !f.dead) (g.player.x = f.x - f.r - (shown ? 16 : 220)), (g.player.y = f.y);
+      if (f && !f.dead && !shown && f.phase === 3) f.hp = Math.max(f.hp, f.maxHp * 0.05); // #263: on Squire's eased level 3 he could fall before his last phase pressed
       lb.run(1, false, false);
       f ??= g.enemies.find((e) => e.def.boss) ?? null;
       if (!f) continue;
