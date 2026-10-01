@@ -1875,20 +1875,21 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 }
 
 // ---------- #262: the Cinderlands on Knight for a champion with only the Marches crown, as the v0.12.0 playtest brought one: map -> the
-// Cinderlands -> Knight -> level 2, after level 1's first clear. Its panel shows the eased Enemy HP, and FIGHT plays level 2 at that HP with
-// the champion at level 9, the level its XP gives (the Marches crowned: 8) ----------
+// Cinderlands -> Knight -> level 2, after level 1's first clear, with the Knight realm run standing at level 2 (#237: only a run's checkpoint
+// can be fought past level 1). Its panel shows the eased Enemy HP, and "Continue from level 2" plays level 2 at that HP with the champion
+// at level 9, the level its XP gives (the Marches crowned: 8) ----------
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
-  await check(`balance: with only the Marches crown and the Cinderlands' level 1 cleared, level 2 on Knight shows Enemy HP ${CINDER_HP[1]}% (was 251%) and FIGHT plays it at that HP at champion level 9, ${touch ? 'tap' : 'click'} at ${w}x${h} (#262)`, async () => {
+  await check(`balance: with only the Marches crown and the Cinderlands' level 1 cleared, level 2 on Knight shows Enemy HP ${CINDER_HP[1]}% (was 251%) and a realm run continues into it at that HP at champion level 9, ${touch ? 'tap' : 'click'} at ${w}x${h} (#262)`, async () => {
     const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
     const errs = [];
     p.on('pageerror', (e) => errs.push(e.message));
     await p.goto(`http://localhost:${PORT}/?debug`);
     await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
-    await p.evaluate(() => {
+    await p.evaluate((run) => {
       const lb = window.__lb, world = { marches: [7], cinderlands: [0, 1] };
-      lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: {} } };
+      lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: { cinderlands: run } } };
       lb.save.cards = [...lb.cardIds]; // every flash card seen: none stops the fight
-    });
+    }, runAt(2, 1));
     const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
     await press('[data-go="map"]');
     await press('.wm-realm.r-cinderlands');
@@ -1898,12 +1899,13 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await press('.rr-flag.l-2');
     await p.waitForTimeout(100);
     const shown = (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ').match(/Enemy HP\s*(\d+)%/)?.[1];
+    const go = (await p.locator('[data-fight]').first().textContent()).trim();
     await press('[data-fight]');
     await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
     const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100), champion: g.player.level } : null; });
     await p.close();
-    const ok = shown === String(CINDER_HP[1]) && run?.realm === 'cinderlands' && run.level === 2 && run.tier === 1 && run.hp === CINDER_HP[1] && run.champion === 9 && errs.length === 0;
-    return { ok, detail: `level 2 panel Enemy HP ${shown ?? '?'}%; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%, champion level ${run.champion}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    const ok = shown === String(CINDER_HP[1]) && go === 'Continue from level 2' && run?.realm === 'cinderlands' && run.level === 2 && run.tier === 1 && run.hp === CINDER_HP[1] && run.champion === 9 && errs.length === 0;
+    return { ok, detail: `level 2 panel Enemy HP ${shown ?? '?'}%; "${go}"; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%, champion level ${run.champion}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
