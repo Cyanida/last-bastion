@@ -1,5 +1,55 @@
 # Balance notes
 
+## v0.13: the Cinderlands on Knight for a champion with only the Marches crown (#262)
+
+The v0.12.0 playtest: a Paladin at champion level 8-9 with only the Marches crown and a real carry fell 3 times at waves 12-13 of the
+Cinderlands' level 2 on Knight (Enemy HP 251%, up to 44 foes at once), where the sim put level 2 at 88%.
+
+**Expected progress against that champion.** The sim's expected champion for the Cinderlands is exactly one with only the Marches crown
+(`src/sim/levels.ts CROWNED_BEFORE`), and its level is the one its XP gives: 8, 9, 10, 10, 10 for levels 1-5 (the Marches crowned is
+5046 XP, level 8; level 1 pays 432, level 2 918; 10 is the one-crown cap), holding 8, 9, 10, 11, 12 relics. So the sim does not expect
+more than the map allows; the playtest's 8-9 at level 2 is the low end of it (a clear banks the XP it collected, a bit under the pace).
+To measure that low end, **the sim can hold its champion at a level** all realm long (`simulateRealm`'s `hold`;
+`npm run sim -- levels 8 1 cinderlands hold=8`): the Marches crown's level, 8, at every level.
+
+**Tuned** (Knight's levels 2 and 4; `src/config/world.ts`): the level step's level 2 to the floor, HP x0.72 and damage x0.82 (were
+0.77, 0.84), level 4 HP x0.95 and damage x1.08 (were 0.99, 1.12); level 2 brings a relic realm's foes x1.2 (was 1.3) over its longer
+trickle, fewer at once. Levels 1, 3 and 5, the Iron Hold and the Marches keep their numbers. Decided: the level step and wave length,
+not the expected champion level, since that level is what the map gives and is shared by every ring-2 realm.
+
+What the level panel shows on Knight (Enemy HP): 335, 235, 237, 230, 200% (were 335, 251, 237, 240, 200%). On Squire, which takes
+Knight's step under its own ease: 197, 132, 127, 117, 97% (were 197, 141, 127, 122, 97%).
+
+`npm run sim -- levels 8 1 cinderlands`, 40 first tries a level on Knight (paladin, viking, angel, necromancer, archer; 8 seeds each),
+the realm as one run, before on release/0.13.0 (8925cf6) and after. First-try clear rate and a clear's median minutes.
+
+| Level | Target | Expected progress: before | Pass 1 (step) | Pass 2 (now: step and foes) | Held at 8: before | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|---|---|---|
+| Cinderlands 1 | 90% | 85%, 4.7 | 85%, 4.7 | 85%, 4.7 | 85%, 4.7 | 85%, 4.7 | 85%, 4.7 |
+| Cinderlands 2 | 82% | 88%, 5.4 | 80%, 5.6 | 88%, 5.3 | 70%, 5.6 | 70%, 5.6 | 68%, 5.5 |
+| Cinderlands 3 | 73% | 78%, 5.9 | 78%, 6.0 | 80%, 6.1 | 73%, 6.1 | 63%, 6.1 | 70%, 6.1 |
+| Cinderlands 4 | 65% | 63%, 6.9 | 65%, 7.0 | 65%, 6.8 | 60%, 7.1 | 55%, 7.1 | 55%, 6.9 |
+| Cinderlands 5 | 55-60% | 55%, 7.5 | 43%, 7.5 | 53%, 7.5 | 35%, 7.6 | 30%, 7.6 | 30%, 7.6 |
+
+Per class with expected progress, first tries cleared of 8 (before -> now): level 2 paladin 7 -> 8, viking 8 -> 7, angel 8 -> 8,
+necromancer 8 -> 8, archer 4 -> 4; level 4 7 -> 7, 4 -> 4, 8 -> 8, 6 -> 7, 0 -> 0. Held at 8 (before -> now): level 2 6 -> 5, 6 -> 6,
+8 -> 8, 8 -> 7, 0 -> 1. A realm clean / with retries: 30.8 / 39.5 minutes before, 30.6 / 38.9 now. Level 2's first tries lost before
+its boss: 4 of 40 before, 3 now (held at 8: 9, 10).
+
+What the numbers say:
+- **With expected progress every level stays in its band** (level 2 88% against 82%, level 4 on its 65%, level 5 53% against
+  55-60%). Level 5 was not touched; its 43% in pass 1 and 53% in pass 2 are the realm run's noise (a run carries what its earlier levels
+  found, so a change at level 2 reshuffles level 5's seeds). The rates carry about 8 points of noise at 40 tries.
+- **Held at 8, the easing did not move the bot**: level 2 70% -> 68%, level 4 60% -> 55%, all within noise. What costs a level-8
+  champion level 2 is its level, not the level's numbers: its foes are scaled for a level-9 champion (`championStep`), and
+  at 8 the bot clears 68-70% against 88% at 9. Levels 3 and 4 held at 8 sit within 20% of their targets (70%
+  against 73%, 55% against 65%); the crown level held at 8 (30%) is not a champion a player brings, since level 2's clear alone takes it
+  to 10.
+- So the change is a small, fair ease where the playtest hurt (fewer foes at once on level 2, 16 points less Enemy HP on the panel),
+  and the rest of the gap is the low end of a champion's level: a player at 8 on level 2 banked under the pace. If a hand-played retry
+  still finds level 2 too hard at 9, the next lever is the expected level of ring 2's level 2 (shared with the Iron Hold and the
+  Barrowvale), not the Cinderlands' step, which is now at its floor.
+
 ## v0.12: a featured squad comes for sure (#259)
 
 Since #249 the Iron Hold's road names the Iron Shieldwall from level 2 on, but on Squire and Knight his squad comes at a quarter of its
