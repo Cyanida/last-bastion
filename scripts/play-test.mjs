@@ -6689,6 +6689,70 @@ await check('Cinder Colossus: test mode starts the Cinderlands level 5; its crow
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; phases at ${fight.phases.join(', ')} s; burn stacks ${fight.burn.join('/')} (one falls every ${fight.decay} s), slam zones ${fight.slam.join('/')}, fire patches ${fight.patches.join('/')}, bursts ${fight.bursts.join('/')} by phase; brood ${fight.brood}; ${fight.fell ? 'CHAMPION FELL; ' : ''}${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #264: a strong build meets every phase of a crown boss: Settings -> Test mode -> "Start at" a relic realm's level 5 -> its last wave ----------
+// The champion strikes forty times his strength from behind the crown boss (unhurt, no ability, no bot moves), so only the crown's hold keeps
+// him up. Each phase holds its 12 s (UNBROKEN shows the hold), and once its time is run a blow ends the phase and no more: the next phase
+// begins at the top of its own share of the bar (two thirds, then one third), not at its floor. The Cinder Colossus and the Iron King alike.
+for (const [realm, id, arena] of [['cinderlands', 'cinderColossus', 'emberForge'], ['ironHold', 'ironKing', 'keep']]) {
+  await check(`Crown boss: a strong build meets each of the ${id === 'ironKing' ? 'Iron King' : 'Cinder Colossus'}'s phases at the top of its share of the bar, each held 12 s (#264)`, async () => {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    if (!(await p.locator(`#tm-start option[value="${realm}:5"]`).count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+    await p.locator('#tm-class').selectOption('paladin');
+    await p.locator('#tm-arena').selectOption((await p.locator(`#tm-arena option[value="${arena}"]`).count()) ? arena : 'keep');
+    await p.locator('#tm-start').selectOption(`${realm}:5`);
+    await p.evaluate(() => {
+      // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+      const now = Date.now;
+      Date.now = () => 2654435761;
+      try {
+        [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+      } finally {
+        Date.now = now;
+      }
+    });
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click();
+    const fight = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.player.stats.str *= 40;
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 40, the level's last
+      g.breather = 0.01;
+      const out = { id: '', crown: false, born: -1, phases: [], shares: [], unbroken: [0, 0, 0], end: -1 };
+      let k = null;
+      for (let i = 0; i < 90000 && lb.state !== 'results' && !(k?.dead && g.level.cleared); i++) {
+        g.player.invulnerable = true;
+        if (k && !k.dead) {
+          g.player.x = k.x + Math.cos(k.angle + Math.PI) * (k.r + 16); // a step behind him: round the Iron King's tower shield
+          g.player.y = k.y + Math.sin(k.angle + Math.PI) * (k.r + 16);
+        }
+        lb.run(1, false, false);
+        k ??= g.enemies.find((e) => e.def.boss) ?? null;
+        if (!k) continue;
+        if (out.born < 0) (out.born = g.time), (out.id = k.def.id), (out.crown = k.crown);
+        const at = +(g.time - out.born).toFixed(2);
+        if (k.phase > out.phases.length + 1) out.phases.push(at), out.shares.push(+(k.hp / k.maxHp).toFixed(3));
+        if (g.texts.some((t) => t.text === 'UNBROKEN')) out.unbroken[k.phase - 1]++;
+        if (k.dead && out.end < 0) out.end = at;
+      }
+      return { ...out, cleared: !!g.level?.cleared };
+    });
+    await p.close();
+    const [p2, p3] = fight.phases, [s2, s3] = fight.shares, min = 11.9;
+    const held = p2 >= min && p3 - p2 >= min && fight.end - p3 >= min && fight.end < 3 * 12 + 6; // each phase its 12 s, and the strong build no longer
+    const whole = s2 >= 2 / 3 - 0.05 && s3 >= 1 / 3 - 0.05; // before #264 a burst left phase 2 at a third and phase 3 at 1 HP
+    const ok = fight.id === id && fight.crown && fight.phases.length === 2 && held && whole && fight.unbroken.every((n) => n > 0) && fight.cleared && errs.length === 0;
+    return { ok, detail: `${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''}: phase 2 at ${p2} s on ${Math.round(s2 * 100)}% HP, phase 3 at ${p3} s on ${Math.round(s3 * 100)}%, fell at ${fight.end} s; UNBROKEN ticks ${fight.unbroken.join('/')} by phase; level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 // ---------- #236: no boss ends two levels of a realm: Settings -> Test mode -> "Start at" a Marches level -> the opening pick -> its last wave ----------
 // Level 1 ends on the Black Knight (Act I's opener); level 5 used to draw him again. Now it ends on another boss, the same one on any seed.
 await check('Bosses: the Marches level 1 ends on the Black Knight; level 5 ends on another boss, the same on every seed (#236)', async () => {
