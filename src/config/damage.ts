@@ -39,6 +39,7 @@ export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>
   emberQueen: { fire: 0.5, frost: 1.3 }, // #227: fire barely warms her, frost bites (as the Forgemaster: a fire build still hurts her)
   usurper: { shadow: 0.7, holy: 1.25, physical: 0.9 },
   royalFlame: { fire: 0.1, frost: 2 }, // fire feeds it; frost puts it out
+  gravedigger: { shadow: 0.6, holy: 1.3 }, // #277: the grave's own: shadow barely touches him, holy burns (a shadow build still hurts him)
 };
 
 /**
@@ -155,4 +156,6 @@ export const ENEMY_STATUS: Partial<Record<EnemyId, { id: StatusId; stacks?: numb
   // #228: the Cinder Colossus's phase-1 lesson, on all his hits: the torchbearers' burn, two stacks a hit (three hits and you are at
   // the cap) and hotter; it falls a stack at a time like theirs, and your utility puts it out. #232: power 4 -> 2.2 (BALANCE.md)
   cinderColossus: { id: 'burn', stacks: 2, power: 2.2, time: 1.5, decay: 1.5 },
+  // #277: the Gravedigger's rot: his plague ground poisons whoever stands in it (systems/bosses.ts), like the Abbot's flasks
+  gravedigger: { id: 'poison', power: 4 },
 };

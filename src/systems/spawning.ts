@@ -34,9 +34,9 @@ function edgePoint(g: Game): { x: number; y: number } {
   return spawnPoint(g.openFloors, g.rng, g.player.x, g.player.y, MIN_SPAWN_DIST);
 }
 
-export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = []): Enemy {
+export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = [], plain = false): Enemy {
   const lw = g.level ? levelWaves(g.level.realm, g.level.level) : null;
-  id = realmFoe(g.level?.realm, id); // #212: in a realm's levels its variants march in place of the plain foe (the Iron Hold's knights)
+  if (!plain) id = realmFoe(g.level?.realm, id); // #212: in a realm's levels its variants march in place of the plain foe (the Iron Hold's knights). #277: `plain` keeps a boss's own call as it is
   const at = x === undefined || y === undefined ? edgePoint(g) : { x, y };
   if (affixes.length && affixes.length < g.oath.n.affixes) {
     // v0.6 Oath (Thrice-Marked): every elite is topped up to three affixes, never the same one twice

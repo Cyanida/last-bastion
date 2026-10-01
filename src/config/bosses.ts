@@ -46,6 +46,7 @@ export const BOSSES: Record<string, BossDef> = {
   ironKing: { from: 'ironKing', slot: 'realm', weight: 0 }, // #216: the Iron Hold's crown boss
   emberQueen: { from: 'emberQueen', slot: 'realm', weight: 0 }, // #227: the Cinderlands' level-3 boss
   cinderColossus: { from: 'cinderColossus', slot: 'realm', weight: 0 }, // #228: the Cinderlands' crown boss
+  gravedigger: { from: 'gravedigger', slot: 'realm', weight: 0 }, // #277: the Barrowvale's level-3 boss
 };
 export type BossKey = string;
 
@@ -168,4 +169,24 @@ export const CINDER_COLOSSUS = {
   burstFrom: 3, // from this phase a foe that falls in his heat bursts
   burst: { reach: 380, radius: 66, delay: 0.7, damage: 0.6 }, // his heat's reach (from his centre); a marked blast where the foe fell, `delay` s later
   broodEvery: 3, // phase 3: his brood (his def's summon x summonCount) on every 3rd blow, the first included
+};
+
+/**
+ * #277: the Gravedigger, the Barrowvale's level-3 boss (logic/gravedigger.ts, systems/bosses.ts). Three phases like the Forgemaster and the
+ * Ember Queen, no minimum phase time. He teaches the realm's two lessons with his own tools. His Digging flings grave-dirt at marked spots
+ * round you (one on you); each leaves an open grave where it lands, and a grave the champion has not walked over within `rise` s climbs
+ * out as a foe (`risen`, at `risenHp` of its HP): trample them. His other blows are his spade in a marked arc in front of him. From phase 2
+ * every third blow is his Rot: a marked line of plague ground from him towards you that lasts (his def's poolLife, poolDps; the poison of
+ * config/damage.ts ENEMY_STATUS). At each new phase every open grave rises at once, and from phase 3 a grave that rises leaves rot there.
+ */
+export const GRAVEDIGGER = {
+  specialCd: [4.4, 4, 3.6], // by phase; his def's specialCd is the first blow
+  reach: 640, // he strikes only this close
+  spade: { zones: 3, arc: 1.3, reach: 40, radius: 38, damage: 1 }, // `zones` in an `arc` (rad) `reach` past his edge, landing after his def's windup; x his special damage
+  dig: { count: [2, 3, 4], spread: 140, radius: 40, first: 0.9, gap: 0.25, damage: 0.7 }, // count by phase: the first on you, the rest on a ring `spread` round you, landing `gap` s apart; x his special damage
+  grave: { radius: 24, rise: [5, 4.5, 4], max: 8 }, // an open grave: trampled when the champion steps on it; rises after `rise` s by phase; at most `max` open at once
+  risen: 'peasant' as const, // what climbs out: the base game's villager (the realm's own foes are its waves', not his)
+  risenHp: 0.6,
+  rot: { from: 2, zones: 6, step: 52, radius: 36, delay: 0.9, gap: 0.08, damage: 0.5 }, // every 3rd blow from phase `from`: `zones` marks `step` apart from his edge towards you, landing outward; x his special damage, then plague ground (his def's poolLife, poolDps)
+  spill: { from: 3, radius: 40 }, // from this phase a grave that rises leaves plague ground this wide
 };

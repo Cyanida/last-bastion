@@ -40,7 +40,8 @@ export type EnemyId =
   | 'siegeCamp'
   | 'plagueCart'
   | 'usurper'
-  | 'royalFlame';
+  | 'royalFlame'
+  | 'gravedigger';
 
 export type Behavior =
   | 'chaser'
@@ -330,5 +331,12 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     range: 340, fireCd: 2.2, projSpeed: 250,
     specialCd: 4.5, windup: 1.2, specialMult: 1.4, flasks: 3, zoneRadius: 70, poolLife: 6, poolDps: 14,
     p2RingFlasks: 7, summon: 'priest', summonCount: 2,
+  },
+  // #277: the Barrowvale's level-3 boss (config/bosses.ts GRAVEDIGGER, systems/bosses.ts). A slow undead sexton who comes at you with his
+  // spade and digs graves round you that rise unless you trample them; his rot (poolLife, poolDps) is plague ground that lasts
+  gravedigger: {
+    ...boss, id: 'gravedigger', name: 'The Gravedigger', sprite: 'gravedigger', behavior: 'chaser', phases: 3,
+    hp: 1100, damage: 22, speed: 68, radius: 30, xp: 120,
+    specialCd: 4.4, windup: 0.9, specialMult: 1.4, zoneRadius: 40, poolLife: 14, poolDps: 8, p2SpeedMult: 1.1,
   },
 };

@@ -268,7 +268,11 @@ export interface Enemy extends Body {
   charged: boolean;
   telegraph: Telegraph | null;
   dead: boolean;
+  graves?: Grave[]; // #277: the Gravedigger's open graves (logic/gravedigger.ts)
 }
+
+/** #277: an open grave the Gravedigger dug: `t` s since the dirt landed (below 0: still in the air); it rises unless trampled. */
+export interface Grave { x: number; y: number; t: number }
 
 /** A group that spawns together, marches in formation and shares a target until it engages. */
 export interface Squad {

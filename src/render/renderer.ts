@@ -20,7 +20,8 @@ import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
 import { typeMultiplier } from '../logic/status';
 import { thornsOf, towerShieldOf } from '../logic/ironKing';
-import { CINDER_COLOSSUS } from '../config/bosses';
+import { CINDER_COLOSSUS, GRAVEDIGGER } from '../config/bosses';
+import { riseTime } from '../logic/gravedigger';
 import { uiScale } from '../ui/tooltip';
 
 export interface View {
@@ -241,6 +242,39 @@ function blitRing(ctx: Ctx, img: HTMLCanvasElement, x: number, y: number): void 
 function disc(ctx: Ctx, x: number, y: number, r: number): void {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, TAU);
+}
+
+/**
+ * #277: the Gravedigger's open graves: a dark pit in a ring of turned earth, and as its time runs out a pale hand claws up out of it and
+ * the rim pulses, so you see which one to trample first.
+ */
+function drawGraves(ctx: Ctx, graves: NonNullable<Enemy['graves']>, rise: number, time: number, visible: (x: number, y: number, r: number) => boolean): void {
+  const r = GRAVEDIGGER.grave.radius;
+  for (const gr of graves) {
+    if (gr.t < 0 || !visible(gr.x, gr.y, r)) continue;
+    const k = clamp(gr.t / rise, 0, 1);
+    ctx.fillStyle = '#5a3d25';
+    ctx.beginPath();
+    ctx.ellipse(gr.x, gr.y, r, r * 0.62, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#120d0a';
+    ctx.beginPath();
+    ctx.ellipse(gr.x, gr.y + 1, r * 0.62, r * 0.36, 0, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 0.45 + 0.4 * k * (0.5 + 0.5 * Math.sin(time * (4 + 8 * k)));
+    ctx.strokeStyle = '#c6d6b4';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(gr.x, gr.y, r + 2, r * 0.62 + 2, 0, 0, TAU);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (k > 0.4) {
+      const h = (k - 0.4) / 0.6 * 12; // the hand rises out of the pit
+      ctx.fillStyle = '#94ab86';
+      ctx.fillRect(gr.x - 2, gr.y - h, 4, h);
+      for (const dx of [-4, -1.5, 1, 3.5]) ctx.fillRect(gr.x + dx, gr.y - h - 4, 1.5, 4);
+    }
+  }
 }
 
 /**
@@ -610,6 +644,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   ctx.globalAlpha = 1;
   // #224: the Cinderlands' spreading fire, slab by slab
   for (const f of g.flames) if (visible(f.x, f.y, FLAGSTONE)) fireSlab(ctx, f.x, f.y, FLAGSTONE, f.t, g.time);
+  // #277: the Gravedigger's open graves (only he keeps any)
+  for (const e of g.enemies) if (e.graves?.length) drawGraves(ctx, e.graves, riseTime(e.phase), g.time, visible);
   drawQuestGround(ctx, g);
 
   end('fields', _t);

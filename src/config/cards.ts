@@ -85,6 +85,7 @@ export const ENEMY_CARDS: Record<EnemyId, string> = {
   cinderColossus: 'Crown boss. His hits burn, his fire spreads, and foes burst near him.',
   usurper: 'The last foe. Put out the Royal Flames to hurt him.',
   royalFlame: 'While one burns, the Usurper cannot be hurt.',
+  gravedigger: 'Boss. Trample his open graves before the dead climb out; his rot lasts.',
 };
 
 export const CARD_IDS = [...(Object.keys(ENEMY_CARDS) as EnemyId[]), ...(Object.keys(MECHANIC_CARDS) as MechanicCard[]), ...(Object.keys(TUTORIAL_CARDS) as TutorialCard[])] as CardId[];
