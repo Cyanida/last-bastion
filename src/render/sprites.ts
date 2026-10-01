@@ -1512,6 +1512,45 @@ export const SPRITES = {
     '....kkkkDhhhhhhhkkkk....',
     '....kkkkkkkkkkkkkkkk....',
   ],
+  // #278: the Barrow King: a letter-grid stand-in (the Iron King's shape) until his rigged sheet loads
+  barrowKing: [
+    '............kkkkkkkk............',
+    '............kDhhhhhk............',
+    '..........kkDhhhhhhhkk..........',
+    '..........kDhhhhhhhhhk..........',
+    '........kkDhhhhhhhhhhhkk........',
+    '........kDhhhhhhhhhhhhhk........',
+    '........khhhkooooRkhhhhk........',
+    '........khhhhkokokhhhhhk........',
+    '........khDhhhhhhhhhhDhk....hhhh',
+    '........kkhhhhhhhhhhhhkk....hhhh',
+    '..........kkkhhhhhkkkk....hDhhhh',
+    '..........kkDhhhhhDhkk....hhhhhh',
+    '......kkkkkDDDDDDDDDhkkkkk..hDhh',
+    '......kDDhkDDDDDDDDhkkDDhk..hhhh',
+    '....kkDDDhkDDDooooDhkDDDDhkk..bb',
+    '....kDDDDhkDDDoDDoDhkDDDDDhk..bb',
+    '..kkDooDhhkDDDDooDDhkhhhDDDhkkbb',
+    '..kDDRRDhhkDDDDoRDDhkhhhDDDhkbbb',
+    '..kDDDhhhhkDDDDDDDDhkhhhhhsakbbb',
+    '..kDDDhhhhkDDDDDDDDhkhhhhhaakkbb',
+    '..kssshhhkkDDDDDDDDhkkkhhk..bb..',
+    '..kksakkkkDDDDDDDDDDhhkkkk..bb..',
+    '....kk..kDhhhhhhhhhhhhhk....bb..',
+    '....kk..khhhhhhhhhhhhhhk....bb..',
+    '........kbbbbboooobbbbhk........',
+    '........kbbbbboooobbbbhk........',
+    '......kkDhhhhhRRRhhhhhhhkk......',
+    '......kDhhhhhhkkkkhhhhhhhk......',
+    '......kDDhhhhk....kDDhhhhk......',
+    '......khhhhhhk....khhhhhhk......',
+    '......khhhhhhk....khhhhhhk......',
+    '......khhhhhhk....khhhhhhk......',
+    '....kkDDDDDDhk....kDDDDDDhkk....',
+    '....kDDDDDDDhk....kDDDDDDDhk....',
+    '....kkDhhhhhkk....kkDhhhhhkk....',
+    '....kkkkkkkkkk....kkkkkkkkkk....',
+  ],
 } satisfies Record<string, string[]>;
 
 export type SpriteId = keyof typeof SPRITES;
@@ -1525,7 +1564,7 @@ export const SPRITE_RES: Partial<Record<SpriteId, number>> = {
   bannerman: 2, drummer: 2, chaplain: 2, // the commanders
   // the siege pieces and the bosses (#138, part 3); the skeleton minion stays 1x on purpose
   ballista: 2, siegeTower: 2, siegeCamp: 2, plagueCart: 2,
-  blackKnight: 2, warlord: 2, lich: 2, inquisitor: 2, abbot: 2, dragon: 2, warden: 2, forgemaster: 2, ironKing: 2, emberQueen: 2, cinderColossus: 2, usurper: 2, royalFlame: 2,
+  blackKnight: 2, warlord: 2, lich: 2, inquisitor: 2, abbot: 2, dragon: 2, warden: 2, forgemaster: 2, ironKing: 2, emberQueen: 2, cinderColossus: 2, usurper: 2, royalFlame: 2, barrowKing: 2,
 };
 
 export interface Sprite {

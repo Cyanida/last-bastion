@@ -7249,6 +7249,84 @@ await check('Cinder Colossus: test mode starts the Cinderlands level 5; its crow
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; phases at ${fight.phases.join(', ')} s; burn stacks ${fight.burn.join('/')} (one falls every ${fight.decay} s), slam zones ${fight.slam.join('/')}, fire patches ${fight.patches.join('/')}, bursts ${fight.bursts.join('/')} by phase; brood ${fight.brood}; ${fight.fell ? 'CHAMPION FELL; ' : ''}${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #278: the Barrow King: Settings -> Test mode -> "Start at" the Barrowvale's level 5 -> the opening pick -> its last wave ----------
+// The champion trades plain blows beside him (unhurt, no ability, no bot moves), so the fight goes the same way every run: phase 1 every
+// Reap opens two graves round the champion; after each Reap he steps onto the one above him (TRAMPLED) and leaves the other, whose dead
+// climbs out; phase 2 no more graves, and every other Reap leaves plague ground that lasts 14 s; phase 3 graves open at his feet, his risen
+// stand round him and turn blows (GUARDED). Each phase holds its 12 s as a crown boss's does, and his fall clears the level.
+await check('Barrow King: test mode starts the Barrowvale level 5; its crown boss: graves that rise unless trampled, then lasting plague, then his guard, each phase 12 s, level cleared (#278)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="barrowvale:5"]').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption('graveyard');
+  await p.locator('#tm-start').selectOption('barrowvale:5');
+  await p.evaluate(() => {
+    // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 40, the level's last
+    g.breather = 0.01;
+    const out = { wave: 0, id: '', crown: false, banner: '', phases: [], banners: [], reaps: [0, 0, 0], trampled: [0, 0, 0], risen: [0, 0, 0], plagues: [0, 0, 0], plagueLife: 0, guarded: 0, guards: 0, dead: false };
+    const seen = new WeakSet();
+    let k = null, grave = null, tr = 0, ri = 0, pl = 0;
+    for (let i = 0; i < 120000 && lb.state !== 'results' && !(k?.dead && g.level.cleared); i++) {
+      g.player.invulnerable = true;
+      if (k && !k.dead) {
+        if (grave) (g.player.x = grave.x), (g.player.y = grave.y); // on to the grave above him: trample it
+        else (g.player.x = k.x - (k.r + 16)), (g.player.y = k.y); // a step off his edge
+      }
+      lb.run(1, false, false);
+      k ??= g.enemies.find((e) => e.def.boss) ?? null;
+      if (!k) continue;
+      if (!out.id) (out.id = k.def.id), (out.wave = g.wave), (out.crown = k.crown), (out.banner = g.banner?.text ?? '');
+      if (k.phase > out.phases.length + 1) out.phases.push(+g.time.toFixed(1)), out.banners.push(g.banner?.text ?? '');
+      const ph = k.phase - 1;
+      const reap = g.zones.filter((z) => z.owner === k && !seen.has(z));
+      for (const z of reap) seen.add(z);
+      if (reap.length) {
+        out.reaps[ph]++;
+        if (k.phase === 1) grave = { x: g.player.x, y: g.player.y - 120 }; // his graves open 120 px round the champion, the first straight above him
+      }
+      const t2 = g.vars['barrow.trampled'] ?? 0, r2 = g.vars['barrow.risen'] ?? 0, p2 = g.vars['barrow.plagues'] ?? 0;
+      if (t2 > tr) grave = null;
+      out.trampled[ph] += t2 - tr;
+      out.risen[ph] += r2 - ri;
+      out.plagues[ph] += p2 - pl;
+      (tr = t2), (ri = r2), (pl = p2);
+      for (const f of g.fields) if (f.hostile && f.color === '#6f8f4e') out.plagueLife = Math.max(out.plagueLife, f.max ?? f.life);
+      if (k.phase === 3) out.guards = Math.max(out.guards, g.vars['barrow.guards'] ?? 0);
+      if (g.texts.some((t) => t.text === 'GUARDED')) out.guarded++;
+      if (k.dead) out.dead = true;
+    }
+    return { ...out, cleared: !!g.level?.cleared, test: g.vars.test };
+  });
+  await p.close();
+  const long = fight.phases.length === 2 && fight.phases[1] - fight.phases[0] >= 12;
+  const ok = fight.test === 1 && fight.wave === 40 && fight.id === 'barrowKing' && fight.crown && fight.banner === 'The Barrow King · Crown boss'
+    && fight.banners[0] === 'The Barrow King spreads the plague' && fight.banners[1] === 'The Barrow King calls his guard'
+    && fight.trampled[0] >= 1 && fight.risen[0] >= 1 && fight.trampled[1] === 0 && fight.risen[1] === 0 && fight.plagues[0] === 0 && fight.plagues[1] >= 1
+    && fight.plagueLife >= 14 && fight.risen[2] >= 1 && fight.guards >= 1 && fight.guarded > 0 && long && fight.dead && fight.cleared && errs.length === 0;
+  return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; phases at ${fight.phases.join(', ')} s ("${fight.banners.join('", "')}"); reaps ${fight.reaps.join('/')}, graves trampled ${fight.trampled.join('/')}, dead risen ${fight.risen.join('/')}, plague Reaps ${fight.plagues.join('/')} by phase; plague lasts ${fight.plagueLife} s; guards up to ${fight.guards}, GUARDED ticks ${fight.guarded}; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #264: a strong build meets every phase of a crown boss: Settings -> Test mode -> "Start at" a relic realm's level 5 -> its last wave ----------
 // The champion strikes forty times his strength from behind the crown boss (unhurt, no ability, no bot moves), so only the crown's hold keeps
 // him up. Each phase holds its 12 s (UNBROKEN shows the hold), and once its time is run a blow ends the phase and no more: the next phase

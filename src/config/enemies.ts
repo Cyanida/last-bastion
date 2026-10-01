@@ -40,7 +40,8 @@ export type EnemyId =
   | 'siegeCamp'
   | 'plagueCart'
   | 'usurper'
-  | 'royalFlame';
+  | 'royalFlame'
+  | 'barrowKing';
 
 export type Behavior =
   | 'chaser'
@@ -330,5 +331,12 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     range: 340, fireCd: 2.2, projSpeed: 250,
     specialCd: 4.5, windup: 1.2, specialMult: 1.4, flasks: 3, zoneRadius: 70, poolLife: 6, poolDps: 14,
     p2RingFlasks: 7, summon: 'priest', summonCount: 2,
+  },
+  // #278: the Barrowvale's crown boss (config/bosses.ts BARROW_KING, systems/bosses.ts). A phase for each lesson: graves round you that let
+  // his barrow guard out unless trampled, plague ground that lasts, and his risen guarding him. `summon` is who climbs out of a grave
+  barrowKing: {
+    ...boss, id: 'barrowKing', name: 'The Barrow King', sprite: 'barrowKing', behavior: 'chaser', phases: 3,
+    hp: 1150, damage: 20, speed: 70, radius: 32, xp: 160,
+    specialCd: 5, windup: 1, specialMult: 1.4, zoneRadius: 42, poolDps: 7, summon: 'knight', summonCount: 1, p2SpeedMult: 1.1,
   },
 };
