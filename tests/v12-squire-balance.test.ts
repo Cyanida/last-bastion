@@ -17,10 +17,10 @@ describe("Squire eases a realm's levels, the later the more (#250)", () => {
   it("takes HP x0.85 to x0.7 and damage x0.85 to x0.75 from a realm's first level to its last", () => {
     expect(TIERS[0].realmEase).toEqual({ hp: [0.85, 0.7], damage: [0.85, 0.75] });
     expect([1, 2, 3, 4, 5].map((l) => tierStep(0, 'ironHold', l))).toEqual([
-      { hp: 0.85, damage: 0.85 }, { hp: 0.813, damage: 0.825 }, { hp: 0.775, damage: 0.8 }, { hp: 0.737, damage: 0.775 }, { hp: 0.7, damage: 0.75 },
-    ]);
+      { hp: 0.85, damage: 0.85 }, { hp: 0.813, damage: 0.825 }, { hp: 0.752, damage: 0.776 }, { hp: 0.693, damage: 0.728 }, { hp: 0.616, damage: 0.66 },
+    ]); // #263: levels 3-5 less 3% per champion level the crown cap holds back (were 0.775, 0.737, 0.7 HP and 0.8, 0.775, 0.75 damage)
     expect(tierStep(0, 'marches', 1)).toEqual({ hp: 0.85, damage: 0.85 });
-    expect(tierStep(0, 'marches', 7)).toEqual({ hp: 0.7, damage: 0.75 });
+    expect(tierStep(0, 'marches', 7)).toEqual({ hp: 0.658, damage: 0.705 }); // #263: x0.94 for the 2 levels the Marches' cap of 5 holds back
   });
 
   it('leaves Knight and up, and the Last Bastion, as they were', () => {
@@ -34,8 +34,8 @@ describe("Squire eases a realm's levels, the later the more (#250)", () => {
   it('plays a Squire level at the HP and damage its panel shows; a plain Squire run takes no ease', () => {
     const g = createGame('paladin', 5, { tier: 0, level: { realm: 'ironHold', level: 4 } });
     const base = ringStep('ironHold').hp * levelStep('ironHold', 4).hp * championStep('ironHold', 4).hp;
-    expect(g.tier.enemyHp).toBeCloseTo(base * 0.737, 5);
-    expect(g.tier.enemyDmg).toBeCloseTo(ringStep('ironHold').damage * levelStep('ironHold', 4).damage * championStep('ironHold', 4).damage * 0.775, 5);
+    expect(g.tier.enemyHp).toBeCloseTo(base * 0.693, 5); // #263: 0.737 less 6% for the cap
+    expect(g.tier.enemyDmg).toBeCloseTo(ringStep('ironHold').damage * levelStep('ironHold', 4).damage * championStep('ironHold', 4).damage * 0.728, 5);
     expect(Math.round(g.tier.enemyHp * 100)).toBe(levelPanel({ marches: [7] }, 'ironHold', 4, 0).enemyHp);
     expect(createGame('paladin', 5, { tier: 0 }).tier.enemyHp).toBe(1);
     expect(createGame('paladin', 5, { tier: 0, realm: 'ironHold' }).tier.enemyHp).toBeCloseTo(ringStep('ironHold').hp);
@@ -43,9 +43,9 @@ describe("Squire eases a realm's levels, the later the more (#250)", () => {
 
   it("shows Squire's Enemy HP on the road; Knight's stays", () => {
     const shown = (realm: 'marches' | 'ironHold' | 'cinderlands', n: number, tier: number) => Array.from({ length: n }, (_, i) => levelPanel({ marches: [7] }, realm, i + 1, tier).enemyHp);
-    expect(shown('marches', 7, 0)).toEqual([34, 34, 39, 48, 54, 60, 45]); // were 40, 41, 49, 61, 72, 82, 64
-    expect(shown('ironHold', 5, 0)).toEqual([197, 141, 127, 122, 109]); // were 231, 173, 164, 166, 156
-    expect(shown('cinderlands', 5, 0)).toEqual([197, 132, 127, 117, 97]); // were 231, 173, 164, 166, 138; #262: Knight's levels 2 and 4 eased (were 141, 122)
+    expect(shown('marches', 7, 0)).toEqual([34, 34, 39, 48, 54, 58, 42]); // were 40, 41, 49, 61, 72, 82, 64; #263: 60, 45 at 6-7 before the cap's ease
+    expect(shown('ironHold', 5, 0)).toEqual([197, 141, 123, 115, 96]); // were 231, 173, 164, 166, 156; #263: 127, 122, 109 at 3-5 before the cap's ease
+    expect(shown('cinderlands', 5, 0)).toEqual([197, 132, 123, 110, 85]); // were 231, 173, 164, 166, 138; #263: 127, 122, 97 at 3-5 before the cap's ease; #262: Knight's levels 2 and 4 eased (were 141, 115)
     expect(shown('marches', 7, 1)).toEqual([59, 60, 72, 89, 105, 119, 93]);
     expect(shown('ironHold', 5, 1)).toEqual([335, 251, 237, 240, 225]);
     expect(shown('cinderlands', 5, 1)).toEqual([335, 235, 237, 230, 200]); // #262

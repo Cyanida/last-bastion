@@ -869,7 +869,7 @@ await check('relic offer: a short line and tier chips, the ⓘ opens its compend
   return { ok, detail: `cards ${setup.map((c) => `"${c.p}" (${c.p.length}, ${c.chips} chips${c.info ? ', ⓘ' : ''}${c.long ? ', LONG' : ''}${c.fits ? '' : ', DOES NOT FIT'})`).join('; ')}; ⓘ page ${opened.page} (${opened.tiers} tier lines: "${opened.text}"), still picking ${opened.state}/${opened.offers}; Esc closed ${!closed.page}; smallest font card ${cardFont.min}px (${cardFont.at}), page ${pageFont.min}px` };
 });
 
-await check('relic offer: hovering a card opens a short tooltip beside or above it, never over the card or the Reroll / Skip buttons (#251)', async () => {
+await check('relic offer: hovering a card opens a short tooltip beside or above it, never over the card, the Reroll / Skip buttons, the screen title or its first line, at 1280x720 and 1920x1080 (#251, #261)', async () => {
   const ready = await inPage(() => {
     const P = window.__play, rel = window.__lb.game.player.relics;
     rel.offers.push({ from: 'lair', options: ['heartOfTheHold', 'reprisalCuirass', 'thunderDrum', 'guardiansAegis'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 1, duo: null });
@@ -877,6 +877,8 @@ await check('relic offer: hovering a card opens a short tooltip beside or above 
   });
   if (!ready) return { ok: false, detail: 'no relic offer' };
   const seen = [];
+  for (const [w, h] of [[1280, 720], [1920, 1080], [1280, 720]]) {
+  await page.setViewportSize({ width: w, height: h });
   for (const n of [0, 1, 2]) {
     await page.mouse.move(2, 2);
     await page.locator(`[data-pick="${n}"] h2`).hover();
@@ -891,13 +893,15 @@ await check('relic offer: hovering a card opens a short tooltip beside or above 
       const over = others.filter((el) => hit(t, box(el)) && el === card).length;
       const btns = [...document.querySelectorAll('[data-reroll], [data-skip]')].filter((el) => hit(t, box(el))).length;
       const own = [...card.querySelectorAll('h2, p, .tier-chips, .tag')].filter((el) => hit(t, box(el))).length;
-      return { shown: true, h: Math.round(t.b - t.t), over, btns, own, inside: t.l >= 0 && t.t >= 0 && t.r <= innerWidth && t.b <= innerHeight, vw: innerWidth };
+      const head = [...document.querySelectorAll('.levelup .kit-head, .levelup .sub')].filter((el) => hit(t, box(el))).length;
+      return { shown: true, head, h: Math.round(t.b - t.t), over, btns, own, inside: t.l >= 0 && t.t >= 0 && t.r <= innerWidth && t.b <= innerHeight, vw: innerWidth };
     }, n));
+  }
   }
   await page.mouse.move(2, 2);
   await inPage(() => window.__play.click('[data-skip]'));
-  const ok = seen.every((x) => x.shown && x.over === 0 && x.btns === 0 && x.own === 0 && x.inside && x.h <= 250);
-  return { ok, detail: seen.map((x, i) => x.shown ? `card ${i + 1}: tooltip ${x.h}px tall at ${x.vw}px wide, over the card ${x.over}, over buttons ${x.btns}, over its text ${x.own}, ${x.inside ? 'on screen' : 'OFF SCREEN'}` : `card ${i + 1}: no tooltip`).join('; ') };
+  const ok = seen.every((x) => x.shown && x.over === 0 && x.btns === 0 && x.own === 0 && x.head === 0 && x.inside && x.h <= 250);
+  return { ok, detail: seen.map((x, i) => x.shown ? `card ${i + 1}: tooltip ${x.h}px tall at ${x.vw}px wide, over the card ${x.over}, over buttons ${x.btns}, over its text ${x.own}, over title/first line ${x.head}, ${x.inside ? 'on screen' : 'OFF SCREEN'}` : `card ${i + 1}: no tooltip`).join('; ') };
 });
 
 await check('relic offer: take a relic', () =>
@@ -1701,9 +1705,9 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 }
 
 // ---------- #250: Squire measured: map -> the Iron Hold -> Squire; every flag's panel shows the Enemy HP its level plays at on Squire,
-// eased the more the later the level (197, 141, 127, 122, 109%, were 231, 173, 164, 166, 156%), FIGHT on level 1 plays at the HP its panel
+// eased the more the later the level (197, 141, 123, 115, 96%, were 231, 173, 164, 166, 156%; #263: levels 3-5 eased for the crown cap), FIGHT on level 1 plays at the HP its panel
 // showed, and Knight's panels are as they were (335 ... 225%) ----------
-const SQUIRE_IRON_HP = [197, 141, 127, 122, 109]; // levels 1-5 on Squire, as tests/v12-squire-balance.test.ts pins them
+const SQUIRE_IRON_HP = [197, 141, 123, 115, 96]; // levels 1-5 on Squire, as tests/v12-squire-balance.test.ts pins them (#263: 3-5 eased for the crown cap, were 127, 122, 109)
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   await check(`balance: the Iron Hold's road on Squire shows Enemy HP ${SQUIRE_IRON_HP.join(', ')}% for levels 1-5, Knight's still 335-225%, and FIGHT plays level 1 on Squire at ${SQUIRE_IRON_HP[0]}%, ${touch ? 'tap' : 'click'} at ${w}x${h} (#250)`, async () => {
     const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
@@ -1741,6 +1745,50 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const ok = squire.join() === SQUIRE_IRON_HP.join() && knight.join() === '335,251,237,240,225'
       && run?.realm === 'ironHold' && run.level === 1 && run.tier === 0 && run.hp === SQUIRE_IRON_HP[0] && errs.length === 0;
     return { ok, detail: `Squire panels Enemy HP ${squire.map((x) => `${x}%`).join(', ')}; Knight ${knight.map((x) => `${x}%`).join(', ')}; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #263: the Cinderlands' crown on Squire at the champion level cap: map -> the Cinderlands -> Squire; levels 3-5's panels show
+// Squire's Enemy HP eased for each champion level the crown cap holds a champion under (197, 132, 123, 110, 85%, were 127, 122, 97% at 3-5; #262: 2 and 4 take Knight's eased step),
+// and an Archer's realm run standing at level 5 on Squire (Continue from level 5) plays the crown at its panel's HP, at level 10, the cap ----------
+const SQUIRE_CINDER_HP = [197, 132, 123, 110, 85]; // levels 1-5 on Squire, as tests/v12-squire-balance.test.ts has them (#263's cap ease with #262's Knight step)
+for (const [w, h] of [[1280, 720], [1920, 1080]]) {
+  await check(`balance: the Cinderlands' road on Squire shows Enemy HP ${SQUIRE_CINDER_HP.join(', ')}% for levels 1-5, and an Archer at the level cap continues his realm run into the crown at ${SQUIRE_CINDER_HP[4]}%, click at ${w}x${h} (#263)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate((run) => {
+      const lb = window.__lb;
+      const world = { marches: [7], cinderlands: [4] }; // the Marches crowned, the Cinderlands' first four levels cleared on Squire
+      lb.save.champions = { archer: { name: 'Wren', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: { cinderlands: run } } };
+      lb.save.cards = [...lb.cardIds]; // every flash card seen: none stops the fight
+    }, runAt(5, 0));
+    const press = (sel) => p.locator(sel).first().click();
+    await press('[data-go="start"]'); // the champion select: the Archer's tile picks him for the road (no run starts), then back to the title
+    await press('[data-class="archer"]');
+    await p.locator('[data-back]').first().scrollIntoViewIfNeeded();
+    await press('[data-back]');
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-cinderlands');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('.rr-tier[data-tier="0"]');
+    await p.waitForTimeout(100);
+    const shown = [];
+    for (let l = 1; l <= 5; l++) {
+      await press(`.rr-flag.l-${l}`);
+      await p.waitForTimeout(100);
+      shown.push((await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ').match(/Enemy HP\s*(\d+)%/)?.[1] ?? '?');
+    }
+    const go = (await p.locator('[data-fight]').first().textContent()).trim(); // level 5's flag stands selected
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100), champion: g.player.level, cls: g.player.cls.id } : null; });
+    await p.close();
+    const ok = shown.join() === SQUIRE_CINDER_HP.join() && go === 'Continue from level 5'
+      && run?.realm === 'cinderlands' && run.level === 5 && run.tier === 0 && run.hp === SQUIRE_CINDER_HP[4] && run.cls === 'archer' && errs.length === 0;
+    return { ok, detail: `Squire panels Enemy HP ${shown.map((x) => `${x}%`).join(', ')}; "${go}"; run: ${run ? `${run.cls} in ${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%, champion level ${run.champion}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
@@ -4720,6 +4768,109 @@ await check('Champion sheets: each class loads its sheet, attacks and casts its 
   return { ok: out.every(([, ok]) => ok), detail: out.map(([c, , s]) => `${c}: ${s}`).join('; ') };
 });
 
+// ---------- #245: the Paladin redrawn as a holy warrior: silver-white plate, gold, a blue cape and no red; his blade blazes on the cast; in a
+// run a blow plays his shield block, Space his cast and E his Challenge, and on the field he still shows plate, gold and blue ----------
+await check('Paladin look: silver-white plate, gold and blue, no red; the blade blazes on the cast; a blow is a block in play (#245)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('paladin'));
+  const kinds = `({
+    plate: (r, g, b) => r >= 190 && b >= r + 5 && g >= r,
+    gold: (r, g, b) => r > 180 && g > 110 && b < 90,
+    blue: (r, g, b) => b > 130 && b > r + 60,
+    red: (r, g, b) => r > 120 && g < 70 && b < 70,
+    blaze: (r, g, b) => r >= 250 && g >= 235 && b >= 170 && b <= 245,
+  })`;
+  // the test-mode gallery: his idle in his new colours, his cast row at its brightest against his idle
+  const gallery = await inPage(async (kinds) => {
+    const K = eval(kinds), wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const count = (anim) => {
+      const c = document.querySelector(`[data-sheet="paladin"][data-anim="${anim}"]`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+      return n;
+    };
+    const idle = count('idle');
+    let blaze = 0;
+    const hurt = new Set();
+    for (let i = 0; i < 25; i++) {
+      blaze = Math.max(blaze, count('cast').blaze);
+      hurt.add(document.querySelector('[data-sheet="paladin"][data-anim="hurt"]').dataset.frame);
+      await wait(60);
+    }
+    document.querySelector('.testmode [data-back]').click();
+    await wait(100);
+    document.querySelector('[data-act="back"]').click();
+    await wait(100);
+    return { idle, blaze, hurt: hurt.size };
+  }, kinds);
+  // a Paladin run in test mode: a foe at his side strikes him, then Space and E, played through the keys
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'paladin');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '5'); // Challenge, his utility, unlocks at level 3
+    window.__startTest();
+  });
+  const seen = new Set(), hurtFrames = new Set();
+  const sample = async (ms) => {
+    for (let t = 0; t < ms; t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+      seen.add(a.anim);
+      if (a.anim === 'hurt') hurtFrames.add(a.frame);
+    }
+  };
+  for (let i = 0; i < 16 && !seen.has('hurt'); i++) {
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 }); // one foe at his side, tough enough to keep striking
+      Object.assign(p, { hp: p.stats.hp, invulnerable: false });
+    });
+    await sample(250);
+  }
+  await sample(400); // the block plays through
+  // on the field, at game size: the pixels where he stands show his plate, gold and blue
+  const field = await inPage((kinds) => {
+    const K = eval(kinds), lb = window.__lb, p = lb.game.player, cam = lb.camera();
+    lb.draw();
+    const c = document.getElementById('game').getContext('2d');
+    const x = Math.round((p.x - 30 - Math.round(cam.x)) * cam.zoom), y = Math.round((p.y - 60 - Math.round(cam.y)) * cam.zoom);
+    const d = c.getImageData(x, y, Math.round(60 * cam.zoom), Math.round(66 * cam.zoom)).data;
+    const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+    for (let i = 0; i < d.length; i += 4) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+    return n;
+  }, kinds);
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('Space');
+  await sample(150);
+  await page.keyboard.up('Space');
+  await sample(600);
+  await inPage(() => Object.assign(window.__lb.game.player, { utilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('KeyE');
+  await sample(150);
+  await page.keyboard.up('KeyE');
+  await sample(400);
+  const { idle } = gallery;
+  const ok = idle.plate >= 60 && idle.gold >= 60 && idle.blue >= 60 && idle.red === 0 && gallery.blaze >= 3 * Math.max(1, idle.blaze) && gallery.hurt === 3
+    && seen.has('hurt') && hurtFrames.size >= 1 && seen.has('cast') && seen.has('skill') && field.plate >= 20 && field.gold >= 20 && field.blue >= 20;
+  return { ok, detail: `gallery idle ${JSON.stringify(idle)}, cast blaze ${gallery.blaze}, hurt frames ${gallery.hurt}; in play ${[...seen].join('/')} (hurt frames ${[...hurtFrames].join(',')}); on the field ${JSON.stringify(field)}` };
+});
+
 // ---------- #156: at the attack-speed cap the Viking swings a short swing that keeps up, and E plays his Leap, not a walk ----------
 await check('Fast attacks and Leap: the swing keeps up at the cap, E leaps without running legs (#156)', async () => {
   await inPage(() => location.reload());
@@ -4766,6 +4917,67 @@ await check('Fast attacks and Leap: the swing keeps up at the cap, E leaps witho
   for (let i = 0; i < 4; i++) leap.push(await frame());
   const ok = attacking.length >= swing.length * 0.8 && windUp === 0 && leap.some((f) => f.anim === 'skill') && !leap.some((f) => f.anim === 'walk');
   return { ok, detail: `at the cap ${attacking.length}/${swing.length} frames attacking, ${windUp} wind-up; E: ${leap.map((f) => `${f.anim}${f.frame}`).join(' ')}` };
+});
+
+// ---------- #247: the Viking is a raider: grey-teal wool and a Dane axe, no ginger beard; his rage roars, his hurt shrugs off the blow ----------
+await check('Viking raider: the gallery shows his teal wool and no ginger beard; Space plays the war cry and the drop back, a blow plays his hurt to the straightening up (#247)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('viking'));
+  const look = await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(200);
+    // the idle cell in the gallery, counted by colour: the teal ramp (his coat, tunic, trousers) against the old ginger beard's ramp
+    const c = document.querySelector('[data-sheet="viking"][data-anim="idle"]');
+    const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const hex = (i) => '#' + [px[i], px[i + 1], px[i + 2]].map((v) => v.toString(16).padStart(2, '0')).join('');
+    const teal = new Set(['#303d3d', '#475756', '#61726f', '#7e8f8b', '#9dada8']), ginger = new Set(['#7a3a12', '#a85a1c', '#cf7f2e', '#e8a54c']);
+    let t = 0, g = 0;
+    for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 0) (teal.has(hex(i)) && t++, ginger.has(hex(i)) && g++);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    window.__startTest().player.invulnerable = true;
+    return { teal: t, ginger: g, cell: `${c.width / 2}×${c.height / 2}` };
+  });
+  const frame = () => inPage(() => (window.__lb.run(1, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+  // one foe in reach, the rest far away; once the wave has spawned
+  const pin = () => inPage(() => {
+    const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+    for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+    if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 });
+    return !!e;
+  });
+  for (let i = 0; i < 40 && !(await pin()); i++) await inPage(() => window.__lb.run(10, false, 'input'));
+  // Berserker Rage on Space: the hunch, the war cry with the axe raised (frame 3, held longest) and the drop back into the hold
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, attackTimer: 1e6 })); // no swing in the way of the cast
+  await page.keyboard.down('Space');
+  const cast = [await frame()];
+  await page.keyboard.up('Space');
+  for (let i = 0; i < 60; i++) cast.push(await frame());
+  const castFrames = new Set(cast.filter((f) => f.anim === 'cast').map((f) => f.frame));
+  // a foe's blow: he hunches into it and straightens up, three frames, with no swing of his own to hide it
+  await inPage(() => Object.assign(window.__lb.game.player, { invulnerable: false, attackTimer: 1e6 }));
+  const hurt = [];
+  for (let i = 0; i < 400 && !(hurt.some((f) => f.anim === 'hurt' && f.frame === 2)); i++) {
+    await pin();
+    await inPage(() => { const p = window.__lb.game.player; p.hp = Math.max(p.hp, p.stats.hp * 0.9); p.attackTimer = Math.max(p.attackTimer, 100); });
+    hurt.push(await frame());
+  }
+  await inPage(() => (window.__lb.game.player.invulnerable = true));
+  const hurtFrames = new Set(hurt.filter((f) => f.anim === 'hurt').map((f) => f.frame));
+  // sampled a step at a time, the short first frames can slip between samples: the roar (3) and the drop back (4) exist only in the
+  // new five-frame cast, the straightening up (2) only in the new three-frame hurt
+  const ok = look.teal > 200 && look.ginger === 0 && castFrames.has(3) && castFrames.has(4) && hurtFrames.has(2);
+  return { ok, detail: `gallery idle ${look.cell}: ${look.teal} teal px, ${look.ginger} ginger px; cast frames ${[...castFrames].sort().join(',')}; hurt frames ${[...hurtFrames].sort().join(',')} after ${hurt.length} steps` };
 });
 
 // ---------- #156: the Viking's swing leaves a tapered trail, not a flat wedge; the walk keeps pace with the ground at 1.5x and under a heavy slow ----------
@@ -6190,6 +6402,7 @@ await check('Forgemaster: test mode starts the Iron Hold level 3; its last wave 
       // few steps off, out of reach of his blows but inside his, so he keeps swinging and pressing
       const shown = f && out.hammer[f.phase - 1] > 0 && (f.phase === 1 || out.presses[f.phase - 1] > 0);
       if (f && !f.dead) (g.player.x = f.x - f.r - (shown ? 16 : 220)), (g.player.y = f.y);
+      if (f && !f.dead && !shown && f.phase === 3) f.hp = Math.max(f.hp, f.maxHp * 0.05); // #263: on Squire's eased level 3 he could fall before his last phase pressed
       lb.run(1, false, false);
       f ??= g.enemies.find((e) => e.def.boss) ?? null;
       if (!f) continue;
@@ -6721,6 +6934,70 @@ await check('Cinder Colossus: test mode starts the Cinderlands level 5; its crow
     && fight.brood >= 1 && long && fight.dead && fight.cleared && errs.length === 0;
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; phases at ${fight.phases.join(', ')} s; burn stacks ${fight.burn.join('/')} (one falls every ${fight.decay} s), slam zones ${fight.slam.join('/')}, fire patches ${fight.patches.join('/')}, bursts ${fight.bursts.join('/')} by phase; brood ${fight.brood}; ${fight.fell ? 'CHAMPION FELL; ' : ''}${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
+
+// ---------- #264: a strong build meets every phase of a crown boss: Settings -> Test mode -> "Start at" a relic realm's level 5 -> its last wave ----------
+// The champion strikes forty times his strength from behind the crown boss (unhurt, no ability, no bot moves), so only the crown's hold keeps
+// him up. Each phase holds its 12 s (UNBROKEN shows the hold), and once its time is run a blow ends the phase and no more: the next phase
+// begins at the top of its own share of the bar (two thirds, then one third), not at its floor. The Cinder Colossus and the Iron King alike.
+for (const [realm, id, arena] of [['cinderlands', 'cinderColossus', 'emberForge'], ['ironHold', 'ironKing', 'keep']]) {
+  await check(`Crown boss: a strong build meets each of the ${id === 'ironKing' ? 'Iron King' : 'Cinder Colossus'}'s phases at the top of its share of the bar, each held 12 s (#264)`, async () => {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    if (!(await p.locator(`#tm-start option[value="${realm}:5"]`).count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+    await p.locator('#tm-class').selectOption('paladin');
+    await p.locator('#tm-arena').selectOption((await p.locator(`#tm-arena option[value="${arena}"]`).count()) ? arena : 'keep');
+    await p.locator('#tm-start').selectOption(`${realm}:5`);
+    await p.evaluate(() => {
+      // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+      const now = Date.now;
+      Date.now = () => 2654435761;
+      try {
+        [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+      } finally {
+        Date.now = now;
+      }
+    });
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click();
+    const fight = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.player.stats.str *= 40;
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 40, the level's last
+      g.breather = 0.01;
+      const out = { id: '', crown: false, born: -1, phases: [], shares: [], unbroken: [0, 0, 0], end: -1 };
+      let k = null;
+      for (let i = 0; i < 90000 && lb.state !== 'results' && !(k?.dead && g.level.cleared); i++) {
+        g.player.invulnerable = true;
+        if (k && !k.dead) {
+          g.player.x = k.x + Math.cos(k.angle + Math.PI) * (k.r + 16); // a step behind him: round the Iron King's tower shield
+          g.player.y = k.y + Math.sin(k.angle + Math.PI) * (k.r + 16);
+        }
+        lb.run(1, false, false);
+        k ??= g.enemies.find((e) => e.def.boss) ?? null;
+        if (!k) continue;
+        if (out.born < 0) (out.born = g.time), (out.id = k.def.id), (out.crown = k.crown);
+        const at = +(g.time - out.born).toFixed(2);
+        if (k.phase > out.phases.length + 1) out.phases.push(at), out.shares.push(+(k.hp / k.maxHp).toFixed(3));
+        if (g.texts.some((t) => t.text === 'UNBROKEN')) out.unbroken[k.phase - 1]++;
+        if (k.dead && out.end < 0) out.end = at;
+      }
+      return { ...out, cleared: !!g.level?.cleared };
+    });
+    await p.close();
+    const [p2, p3] = fight.phases, [s2, s3] = fight.shares, min = 11.9;
+    const held = p2 >= min && p3 - p2 >= min && fight.end - p3 >= min && fight.end < 3 * 12 + 6; // each phase its 12 s, and the strong build no longer
+    const whole = s2 >= 2 / 3 - 0.05 && s3 >= 1 / 3 - 0.05; // before #264 a burst left phase 2 at a third and phase 3 at 1 HP
+    const ok = fight.id === id && fight.crown && fight.phases.length === 2 && held && whole && fight.unbroken.every((n) => n > 0) && fight.cleared && errs.length === 0;
+    return { ok, detail: `${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''}: phase 2 at ${p2} s on ${Math.round(s2 * 100)}% HP, phase 3 at ${p3} s on ${Math.round(s3 * 100)}%, fell at ${fight.end} s; UNBROKEN ticks ${fight.unbroken.join('/')} by phase; level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
 
 // ---------- #236: no boss ends two levels of a realm: Settings -> Test mode -> "Start at" a Marches level -> the opening pick -> its last wave ----------
 // Level 1 ends on the Black Knight (Act I's opener); level 5 used to draw him again. Now it ends on another boss, the same one on any seed.

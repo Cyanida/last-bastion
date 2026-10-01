@@ -43,12 +43,14 @@ Every character, foe, boss and siege piece is drawn the same way: by the rig in 
 | idle | 4 | about 200 ms: breathing, the cape and plume sway |
 | walk | 8 | about 100 ms; the game matches the cycle to the speed |
 | attack | 5-6: ready, wind-up, swing with its trail, impact (held longest), recovery | set per frame |
-| hurt | 1-2 | short: knocked back, head snaps back |
+| hurt | 1-3 | short: knocked back, head snaps back; a shield-bearer blocks instead: shield up toward the blow, a half step back (the Paladin, #245); the Viking takes the blow and keeps going (#247) |
 | death | 4-6 | the last frame held |
 
 - `impact` is the attack frame where the weapon connects: the game shows it at the moment the hit lands and squeezes the other frames
   to fit the attack speed.
 - Wind-ups read big: lean back, weapon high. The impact frame leans into the blow with the feet planted.
+- The Paladin (#245) reads holy: polished `plate` with gold rims, a gold sun on the tabard and the shield, a blue cape and plume, a blade
+  that glows (`glow`, and `blaze` as it burns white-hot on the cast). No foe wears `plate` or `blaze`: they stay the champion's.
 - **Trails** (the swing smear, `outline: false`, flat) take the colour of the damage type: holy gold-white (`glow` + `smear`, the
   Paladin), physical pale steel, fire orange, shadow purple, poison green, frost pale blue. Add the ramp if it is missing.
 
