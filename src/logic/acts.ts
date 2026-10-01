@@ -8,6 +8,7 @@ import type { QuestKind } from '../config/quests';
 import type { Rarity } from '../config/relics';
 import { ROUTES } from '../config/routes';
 import { WAVES } from '../config/waves';
+import { REALMS, type RealmId } from '../config/world';
 import { mulberry32, pickWeighted } from '../core/math';
 import type { Rng } from '../core/types';
 import { waveRng } from './director';
@@ -17,6 +18,9 @@ export const actOf = (wave: number) => Math.max(1, Math.ceil(wave / ACTS.length)
 export const isActEnd = (wave: number) => wave > 0 && wave % ACTS.length === 0;
 export const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 export const actName = (act: number) => `Act ${ROMAN[act - 1] ?? act}`;
+/** #265: a realm run is cut into levels, not Acts: "Level 2 of 5". Wherever a run names its place, a realm level says this and the Last Bastion's run keeps actName. */
+export const levelName = (realm: RealmId, level: number) => `Level ${level} of ${REALMS[realm].levels.length}`;
+export const placeName = (act: number, lv: { realm: RealmId; level: number } | null | undefined) => (lv ? levelName(lv.realm, lv.level) : actName(act));
 
 /** Act I is always The Levy and Act IV the Usurper's host; the others walk the rest of the themes, starting at a seed-dependent one. */
 export function themeFor(act: number, seed: number): (typeof ACT_THEMES)[number] {

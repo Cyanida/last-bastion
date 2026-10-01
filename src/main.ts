@@ -26,7 +26,7 @@ import { banked, createTestRun, isTestRun, type TestSetup } from './systems/test
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
 import { upgradeOptions } from './logic/abilityUpgrades';
 import { rewardText, tierKey, withAchievements } from './logic/achievements';
-import { dailySetup, formatSeed, todayString, type DailySetup } from './logic/acts';
+import { dailySetup, placeName, formatSeed, todayString, type DailySetup } from './logic/acts';
 import { dailyOpen, dailyOpensText } from './logic/daily';
 import { closestGoals } from './logic/goals';
 import { currentProgress, weekKey, weeklyContracts } from './logic/contracts';
@@ -565,7 +565,7 @@ function openChoice(g: Game): void {
     });
   } else if (g.pendingBoard) {
     const trial = TREASURES[g.player.cls.id].trial;
-    showBoard(g.act, g.quests.filter((q) => q.state === 'offered').map((q) => (q.kind === 'trial' ? { ...q, desc: trial.desc } : q)), questTake(g), (picks) => {
+    showBoard(g.act, placeName(g.act, g.level), g.quests.filter((q) => q.state === 'offered').map((q) => (q.kind === 'trial' ? { ...q, desc: trial.desc } : q)), questTake(g), (picks) => {
       choose(g, { c: 'quests', picks });
       resume();
     });
@@ -697,7 +697,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     masteryNext: MASTERY[newRank] ? { name: MASTERY[newRank].name, need: Math.max(0, Math.round(MASTERY[newRank].xp - after.classes[id].xp)) } : null,
     tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[after.tierUnlocked].name : null, earned: checked.earned, title: after.title, slain: g.over,
     seed: formatSeed(g.seed), curseMult: g.vars.curseMult ?? 1, daily: g.daily, build: buildOf(g),
-    act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
+    act: g.act, place: placeName(g.act, g.level), won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
     goals: closestGoals(after, id, weekKey(today(new Date()))),
     relicShares: relicShares(g),
     restart: g.daily ? `the Daily Trial ${g.daily}` : g.level ? `${REALMS[g.level.realm].name} · Level ${g.level.cleared ? (g.level.level < REALMS[g.level.realm].levels.length ? g.level.level + 1 : 1) : g.level.level}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),

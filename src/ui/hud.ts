@@ -8,7 +8,7 @@ import { DUOS, FAMILIES, FAMILY_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, t
 import { MODIFIERS } from '../config/waves';
 import { STAT_KEYS, type Enemy, type Game, type Mods, type Quest, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
-import { actName } from '../logic/acts';
+import { placeName } from '../logic/acts';
 import { shieldBurst } from '../logic/abilities';
 import { duoTier, familySets, looseRelics, softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
@@ -205,7 +205,7 @@ export function updateHud(g: Game, cam?: Cam): void {
   text('h-tier', `${g.tier.name} · ${g.arena.name}`);
 
   $('h-test').classList.toggle('hidden', !isTestRun(g)); // v0.7.1 test mode
-  text('h-wave', g.wave > 0 ? `${g.victory === 'endless' ? 'Endless · ' : ''}${actName(g.act)} · Wave ${g.wave}` : 'Prepare…');
+  text('h-wave', g.wave > 0 ? `${g.victory === 'endless' ? 'Endless · ' : ''}${placeName(g.act, g.level)} · Wave ${g.wave}` : 'Prepare…');
   let left = g.spawnQueue.length;
   for (const e of g.enemies) if (!e.side) left++; // v0.5: lairs, quest targets and events are not the wave
   const clock = `${Math.floor(g.time / 60)}:${String(Math.floor(g.time % 60)).padStart(2, '0')}`; // v0.6: the run's time

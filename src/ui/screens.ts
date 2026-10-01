@@ -1165,13 +1165,13 @@ export function showShrine(options: readonly BlessingId[], onPick: (id: Blessing
 }
 
 /** v0.5: the Act's quest board. Tap a quest (or its number) to take or drop it, up to `take` (a treasure trial is free on top); setting out with none is fine. */
-export function showBoard(act: number, quests: { kind: QuestKind; reward: RewardKind; name: string; desc?: string }[], take: number, onSetOut: (picks: number[]) => void): void {
+export function showBoard(act: number, place: string, quests: { kind: QuestKind; reward: RewardKind; name: string; desc?: string }[], take: number, onSetOut: (picks: number[]) => void): void {
   const picks: number[] = [];
   const reward = (r: RewardKind) => (r === 'gold' ? `${REWARDS.gold.amount * act} gold` : REWARDS[r].name);
   const trial = (i: number) => quests[i]?.kind === 'trial';
   const el = show(`
     <div class="levelup board">
-      ${choiceHead(`📜 ${actName(act)} · The quest board`)}
+      ${choiceHead(`📜 ${place} · The quest board`)}
       <p class="sub">Take up to ${take}. None of it is required: a failed quest costs nothing, and every one done opens a gate.</p>
       <div class="cards">${quests.map((q, i) => `<button class="card panel boon quest ${trial(i) ? 'special' : ''}" data-quest="${i}"><div class="num">${i + 1}</div><h2>${QUESTS[q.kind].icon} ${trial(i) ? q.name : QUESTS[q.kind].name}</h2>${trial(i) ? '<div class="tag">Sacred treasure · free, on top of the others</div>' : ''}<p>${q.desc ?? QUESTS[q.kind].desc}</p><div class="best" data-tip="${esc(REWARDS[q.reward].desc)}">${REWARDS[q.reward].icon} ${reward(q.reward)}</div></button>`).join('')}</div>
       ${kit.button('', { kind: 'gold', size: 'big', attrs: 'data-leave' })}
@@ -1354,6 +1354,7 @@ export interface RunResult {
   build: BuildInfo;
   // v0.6
   act: number;
+  place: string; // #265: where the run reached, by name: its Act, or a realm run's level (logic/acts placeName)
   won: boolean; // the Usurper fell in this run
   firstWin: boolean; // ...and it is the class's first win (it pays VICTORY.firstWin)
   oath: number; // v0.6: the Oath sworn, 0 = a custom run
@@ -1399,7 +1400,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
       <p class="sub">${r.cls.name}${r.title ? `, <em>${esc(r.title)}</em>` : ''} · ${r.tier}${r.oath ? ` · Oath ${r.oath}` : ''}${r.newBest ? ' — <span class="record">new record!</span>' : ''}${deciding ? '<br>Bank the win now, or march on into Endless: waves without end, for a score. Either way the win counts when the run is banked.' : ''}</p>
       ${kit.parch(`
       <div class="stats wide">
-        <div><span>Reached</span><b>${r.endless ? 'Endless · ' : ''}${actName(r.act)} · wave ${r.wave}</b></div>
+        <div><span>Reached</span><b>${r.endless ? 'Endless · ' : ''}${r.place} · wave ${r.wave}</b></div>
         ${r.endless ? `<div class="earned"><span>Endless score</span><b>${r.endless.score}${r.endless.rank ? ` · #${r.endless.rank} for the ${r.cls.name}` : ''}</b></div>` : ''}
         ${winLine}
         ${oathLine}

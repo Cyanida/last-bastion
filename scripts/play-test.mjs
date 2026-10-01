@@ -7105,9 +7105,82 @@ await check('longer levels: the Marches level 1 is waves 1–6 with its one boss
   await opening();
   const two = await playOut();
   await p.close();
-  want(two.level === 2 && two.first === 7 && two.last === 12 && two.cleared && two.wave === 12 && two.state === 'results' && two.bossWaves.join() === '12' && !two.shop && two.acts.join() === '1,2' && /^Act II/.test(two.banners[0] ?? ''), `level 2 ${JSON.stringify(two)}`);
+  want(two.level === 2 && two.first === 7 && two.last === 12 && two.cleared && two.wave === 12 && two.state === 'results' && two.bossWaves.join() === '12' && !two.shop && two.acts.join() === '1,2' && /^Level 2 of 7/.test(two.banners[0] ?? ''), `level 2 ${JSON.stringify(two)}`);
   want(errs.length === 0, `errors: ${errs[0]}`);
   return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `panel "Waves 1–6"; level 1: waves ${one.first}-${one.wave}, boss on wave ${one.bossWaves.join()}, ${one.minutes} min; "${onward}"; level 2: waves ${two.first}-${two.wave}, boss on wave ${two.bossWaves.join()}, Act ${two.acts.join(' -> ')} ("${two.banners[0]}"), no Merchant, no fork, ${two.minutes} min` };
+});
+
+// ---------- #265: a realm run speaks of levels, not Acts ----------
+// A Marches run through the real screens: the HUD plate, the quest board's heading and the wave banner say "Level 1 of 7", never an Act; a fall
+// ends on the results, whose Reached line says the level too. A plain run (test mode's Act and wave) keeps its Acts on the same plate.
+await check('realm run: the HUD, the quest board, the banner and the results say "Level 1 of 7", never an Act; a plain run keeps its Acts (#265)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  const press = (sel) => p.locator(sel).first().click();
+  const bad = [];
+  const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+  await press('[data-go="start"]');
+  await press('[data-class="viking"]');
+  await press('[data-start]');
+  await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  await skipTour(p);
+  await press('.kit-tab[data-tab="map"]');
+  await p.locator('.wm-map').waitFor({ timeout: 3000 });
+  await press('.wm-realm.r-marches');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await press('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
+  await press('[data-pick="0"]');
+  // the quest board of the level's first Act comes before the fight: its heading names the level
+  const heads = await intoFight(p, press);
+  want(/Level 1 of 7/.test(heads[0] ?? '') && !/Act/.test(heads[0] ?? ''), `the quest board's heading: ${JSON.stringify(heads)}`);
+  // the fight runs in real time: the plate and the banners are read as they are drawn
+  const seen = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game;
+    g.player.invulnerable = true;
+    const texts = new Set();
+    let hud = '';
+    for (let i = 0; i < 400 && lb.game === g && !/Wave \d/.test(hud); i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      if (g.banner?.text) texts.add(g.banner.text);
+      hud = document.getElementById('h-wave')?.textContent ?? '';
+    }
+    return { hud, banners: [...texts] };
+  });
+  want(/^Level 1 of 7 · Wave \d+$/.test(seen.hud), `HUD plate "${seen.hud}"`);
+  want(seen.banners.every((b) => !/Act/.test(b)), `a banner names an Act: ${JSON.stringify(seen.banners)}`);
+  const fell = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    g.player.invulnerable = false;
+    for (let i = 0; i < 80000 && lb.game === g && lb.state !== 'results'; i++) {
+      if (lb.state === 'playing') g.player.hp = Math.min(g.player.hp, 1);
+      lb.run(1, false, false);
+    }
+    return { state: lb.state };
+  });
+  await p.locator('.results [data-menu]').waitFor({ timeout: 3000 });
+  const reached = await p.evaluate(() => [...document.querySelectorAll('.results .stats > div')].map((d) => [d.children[0]?.textContent ?? '', d.children[1]?.textContent ?? '']).find(([k]) => k === 'Reached')?.[1] ?? '');
+  want(/^Level 1 of 7 · wave \d+$/.test(reached), `results Reached "${reached}" after the fall (${fell.state})`);
+  await p.close();
+  // a plain run keeps its Acts
+  const q = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  q.on('pageerror', (e) => errs.push(e.message));
+  await q.goto(`http://localhost:${PORT}/?debug`);
+  await q.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await beginDaily(q); // the Daily Trial is a plain run: Acts
+  await intoFight(q, (sel) => q.locator(sel).first().click());
+  const plain = await q.evaluate(async () => {
+    window.__lb.game.player.invulnerable = true;
+    for (let i = 0; i < 400 && !/Wave \d/.test(document.getElementById('h-wave')?.textContent ?? ''); i++) await new Promise((r) => setTimeout(r, 50));
+    return document.getElementById('h-wave')?.textContent ?? '';
+  });
+  await q.close();
+  want(/^Act I · Wave \d+$/.test(plain), `a plain run's HUD plate "${plain}"`);
+  want(errs.length === 0, `errors: ${errs[0]}`);
+  return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `HUD "${seen.hud}", banners ${JSON.stringify(seen.banners)}, results "${reached}", plain run "${plain}"` };
 });
 
 // ---------- #219: the Iron Hold's five levels, their rewards, its crown and its theme, as one realm run ----------
