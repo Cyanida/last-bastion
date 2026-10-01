@@ -28,7 +28,9 @@ function place(el: HTMLElement): void {
   const t = box.getBoundingClientRect();
   const above = r.top - t.height - GAP >= EDGE;
   const s = uiScale(); // the box is zoomed too: its top and left are in scaled pixels
-  const spot = clear ? placeClear(r, t, { width: window.innerWidth, height: window.innerHeight }, GAP, EDGE, headingRects(el), buttonsBottom(el)) : null;
+  const points = pointsLine(el); // #266: a stat's tip (build panel) keeps off the points line, above or below the row
+  const spot = clear ? placeClear(r, t, { width: window.innerWidth, height: window.innerHeight }, GAP, EDGE, headingRects(el), buttonsBottom(el))
+    : points ? placeClear(r, t, { width: window.innerWidth, height: window.innerHeight }, GAP, EDGE, [points], r.bottom) : null;
   if (spot) {
     box.style.top = `${spot.top / s}px`;
     box.style.left = `${spot.left / s}px`;
@@ -36,6 +38,12 @@ function place(el: HTMLElement): void {
   }
   box.style.top = `${(above ? r.top - t.height - GAP : clamp(r.bottom + GAP, EDGE, window.innerHeight - t.height - EDGE)) / s}px`;
   box.style.left = `${clamp(r.left + r.width / 2 - t.width / 2, EDGE, window.innerWidth - t.width - EDGE) / s}px`;
+}
+
+/** #266: the "N stat points to spend" line over the build panel's rows, which a tip on a row must not cover; null elsewhere. */
+function pointsLine(el: HTMLElement): Rect | null {
+  const line = el.closest('.build-panel')?.querySelector('.cs-level');
+  return line ? line.getBoundingClientRect() : null;
 }
 
 /** #261: the title and the sub-lines of the choice screen a card is on: a tip never covers them. */
