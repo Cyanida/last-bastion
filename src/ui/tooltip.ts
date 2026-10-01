@@ -1,7 +1,7 @@
 import { GLOSSARY, type Term } from '../config/glossary';
 import { clamp } from '../core/math';
 import { esc } from './relicText';
-import { placeClear } from '../logic/tipPlace';
+import { placeClear, type Rect } from '../logic/tipPlace';
 
 /**
  * One floating tooltip for every `[data-tip]` element, menus and HUD alike (v0.5). CSS pseudo-element tooltips were clipped by
@@ -28,7 +28,7 @@ function place(el: HTMLElement): void {
   const t = box.getBoundingClientRect();
   const above = r.top - t.height - GAP >= EDGE;
   const s = uiScale(); // the box is zoomed too: its top and left are in scaled pixels
-  const spot = clear ? placeClear(r, t, { width: window.innerWidth, height: window.innerHeight }, GAP, EDGE) : null;
+  const spot = clear ? placeClear(r, t, { width: window.innerWidth, height: window.innerHeight }, GAP, EDGE, headingRects(el), buttonsBottom(el)) : null;
   if (spot) {
     box.style.top = `${spot.top / s}px`;
     box.style.left = `${spot.left / s}px`;
@@ -36,6 +36,18 @@ function place(el: HTMLElement): void {
   }
   box.style.top = `${(above ? r.top - t.height - GAP : clamp(r.bottom + GAP, EDGE, window.innerHeight - t.height - EDGE)) / s}px`;
   box.style.left = `${clamp(r.left + r.width / 2 - t.width / 2, EDGE, window.innerWidth - t.width - EDGE) / s}px`;
+}
+
+/** #261: the title and the sub-lines of the choice screen a card is on: a tip never covers them. */
+function headingRects(el: HTMLElement): Rect[] {
+  const screen = el.closest('.levelup');
+  return screen ? [...screen.querySelectorAll('.kit-head, .sub')].map((h) => h.getBoundingClientRect()) : [];
+}
+
+/** #261: the bottom of the buttons under the card (Reroll / Skip), where a tip can go when above and beside are taken; null if none. */
+function buttonsBottom(el: HTMLElement): number | null {
+  const row = el.closest('.levelup')?.querySelector('.row, :scope > button');
+  return row ? row.getBoundingClientRect().bottom : null;
 }
 
 /** v0.8 (#123): the text size's zoom on the HUD and the screens (main.ts resize sets it). Positions set from pointer or window pixels divide by it. */
