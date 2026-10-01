@@ -247,6 +247,7 @@ export interface Enemy extends Body {
   phaseAt: number; // #202: when its current phase began (g.time)
   secondWind: number; // v0.6 Oath: a boss rises once more from the brink with this fraction of its HP; 0 = none (or spent)
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
+  risen?: boolean; // #275: it rose from its corpse once already, and stays down when it falls again
   waypoint: { x: number; y: number } | null; // v0.5: the gate to walk to when the player is on another floor (logic/regions waypoint)
   statuses: StatusMap;
   dots: Partial<Record<DamageType, number>>;
@@ -446,6 +447,7 @@ export interface Corpse {
   y: number;
   t: number;
   walked?: boolean; // Charnel: walked over already
+  rise?: { id: EnemyId; at: number; side: boolean }; // #275: it rises as `id` when its t reaches `at`, unless trampled first (logic/risingCorpse.ts)
 }
 
 export interface Particle {

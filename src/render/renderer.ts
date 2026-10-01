@@ -20,6 +20,7 @@ import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
 import { typeMultiplier } from '../logic/status';
 import { thornsOf, towerShieldOf } from '../logic/ironKing';
+import { riseProgress } from '../logic/risingCorpse';
 import { CINDER_COLOSSUS } from '../config/bosses';
 import { uiScale } from '../ui/tooltip';
 
@@ -586,10 +587,24 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   const corpseLife = GAME.corpseLifetime * g.arena.corpseLifeMult;
   ctx.fillStyle = '#d8d2bd';
   for (const c of g.corpses) {
-    if (!visible(c.x, c.y, 20)) continue;
+    if (c.rise || !visible(c.x, c.y, 20)) continue;
     ctx.globalAlpha = clamp(1 - c.t / corpseLife, 0, 1) * 0.8;
     ctx.fillRect(c.x - 6, c.y - 1, 12, 3);
     ctx.fillRect(c.x - 1, c.y - 5, 3, 10);
+  }
+  // #275: a corpse that will rise: soul-lit, in a ring that closes as it nears rising and flickers at the end. Walk over it.
+  for (const c of g.corpses) {
+    if (!c.rise || !visible(c.x, c.y, 30)) continue;
+    const k = riseProgress(c), late = k > 0.7;
+    ctx.globalAlpha = late ? 0.65 + 0.35 * Math.sin(g.time * 24) : 0.9;
+    ctx.fillStyle = '#7ec8d8';
+    ctx.fillRect(c.x - 6, c.y - 1, 12, 3);
+    ctx.fillRect(c.x - 1, c.y - 5, 3, 10);
+    ctx.strokeStyle = '#7ec8d8';
+    ctx.lineWidth = late ? 2.5 : 1.5;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 18, -Math.PI / 2, -Math.PI / 2 + k * TAU);
+    ctx.stroke();
   }
 
   end('corpses', _t);

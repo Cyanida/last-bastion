@@ -12,6 +12,7 @@ export const AI: Partial<Record<EnemyId, AiProfile>> = {
   // the levy: circles round to get at you, and runs for the nearest priest when it is going badly
   peasant: { reach: 'melee', flank: 0.65, fleeBelow: 0.3, fleeToHealer: true },
   torchbearer: { reach: 'melee', flank: 0.65, fleeBelow: 0.3, fleeToHealer: true },
+  barrowThrall: { reach: 'melee', flank: 0.65 }, // #275: the dead do not flee
   // pack hunter: always comes from the side, leaps, backs off, comes again
   wolf: { reach: 'melee', flank: 0.95, special: { id: 'lunge', cd: 2.2, range: 130, minRange: 30 }, retreatAfterSpecial: 0.7 },
   cinderHound: { reach: 'melee', flank: 0.95, special: { id: 'lunge', cd: 2.2, range: 130, minRange: 30 }, retreatAfterSpecial: 0.7 }, // #226: hunts as the wolf does
