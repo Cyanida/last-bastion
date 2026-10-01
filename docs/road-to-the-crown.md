@@ -307,8 +307,11 @@ Eleven releases to the full map, 1.0 after the eighth. Each release lists its is
 3. **Bosses: the Barrow King (crown) and one new level-3 boss.** The Lich and the Plague Abbot return. **Gate:** Jesse plays the Barrow King.
 4. **Relics: 8 new Grave relics**: 1 common, 2 rares, a second legendary (Soul Lantern moves to this crown), class relics for the Paladin, Viking, Angel and Archer; one new duo.
 5. **The realm, balance and checks** as in v0.11.
+6. **The sound and music overhaul** (Jesse, 01-10): the whole of [#142](https://github.com/Cyanida/last-bastion/issues/142), the mixer that was planned for v0.16.0 included (buses with Settings sliders, a voice limit with priorities, variation, stereo, distinct sounds per class, enemy, boss, relic family and UI, ambience per arena), and [#140](https://github.com/Cyanida/last-bastion/issues/140): a theme of its own for every boss. Split into issues a builder finishes in one session; the mixer and the voice priorities come first.
+7. **The champion redesigns by ThePaintingBunny** (Jesse, 01-10): the Paladin ([#245](https://github.com/Cyanida/last-bastion/issues/245)), the Viking ([#247](https://github.com/Cyanida/last-bastion/issues/247)), the Angel ([#268](https://github.com/Cyanida/last-bastion/issues/268)), the Necromancer ([#269](https://github.com/Cyanida/last-bastion/issues/269)) and the Archer ([#270](https://github.com/Cyanida/last-bastion/issues/270)). Appearance only, in the rig style of `tools/art/STYLE.md`; the hitboxes stay.
+8. **The UI fit ([#272](https://github.com/Cyanida/last-bastion/issues/272))** (Jesse, 01-10): no text cut off and every back arrow fully visible, on every screen and window size.
 
-**Done when** the Barrowvale can be crowned on Knight by every class within the targets.
+**Done when** the Barrowvale can be crowned on Knight by every class within the targets, every class, enemy family, boss and relic family has its own sound, every boss its own theme, and the five redesigned champions read at a glance with their old hitboxes.
 
 ### v0.14.0 – The Frozen Pass & the Last Bastion
 *feature · 1 gate.* Ring 3 opens, and five crowns open the finale.
@@ -338,7 +341,7 @@ Eleven releases to the full map, 1.0 after the eighth. Each release lists its is
 2. **The perf budget in every realm arena ([#46](https://github.com/Cyanida/last-bastion/issues/46))**, with a 30 fps option.
 3. **A crash sweep ([#47](https://github.com/Cyanida/last-bastion/issues/47))**: every realm crowned and the Last Bastion won on PC without an error.
 4. **The 1.0 scope written down ([#48](https://github.com/Cyanida/last-bastion/issues/48))**: the Marches, four relic realms, the Last Bastion.
-5. **A balance pass over every level and tier**, and the sound mixer part of [#142](https://github.com/Cyanida/last-bastion/issues/142).
+5. **A balance pass over every level and tier.** The sound mixer part of [#142](https://github.com/Cyanida/last-bastion/issues/142) moved to v0.13.0 (Jesse, 01-10).
 
 **Done when** a save from every earlier version migrates in a test, test:perf holds in every arena, and the crash sweep finds no error.
 
@@ -347,7 +350,7 @@ Eleven releases to the full map, 1.0 after the eighth. Each release lists its is
 
 1. **Phone layout for every new screen**, touch-first; levels of 4 to 10 minutes fit phone sessions.
 2. **The iPhone app through TestFlight and the App Store**, once the Apple Developer account exists.
-3. **The sound overhaul ([#142](https://github.com/Cyanida/last-bastion/issues/142))**: distinct sounds per class, enemy, boss and relic, stereo, and sound files allowed (Jesse, 29-09). Split into parts per group when the release starts; the mixer comes first, in v0.16.0.
+3. ~~**The sound overhaul ([#142](https://github.com/Cyanida/last-bastion/issues/142))**~~: moved to v0.13.0 with the mixer and the boss themes ([#140](https://github.com/Cyanida/last-bastion/issues/140)) (Jesse, 01-10).
 
 **Done when** the play test plays a level at 390 px wide by touch, from the map to the crown, with no sideways scroll on any new screen.
 
@@ -402,7 +405,7 @@ You are the main AI for Last Bastion (github.com/Cyanida/last-bastion). This pla
 - ✓ **A pool about twice the size**, a class relic for every champion in every realm, sets easy to max.
 - ✓ **The 15% 6-set target is retired**; **preferred families are gone.**
 - ✓ **Menus in a real game style**, after Kingdom Rush and Survivor.io.
-- ✓ **The sound overhaul ships in 1.0** ([#142](https://github.com/Cyanida/last-bastion/issues/142), Jesse 29-09): the mixer in v0.16.0, the rest in v1.0.0.
+- ✓ **The sound overhaul ships in 1.0** ([#142](https://github.com/Cyanida/last-bastion/issues/142), Jesse 29-09); since 01-10 all of it, the mixer included, in v0.13.0.
 - ◆ **Slot rules**: 4 per family, a legendary costs 2 slots, 2 class relics at most, no cursed; one 6-set bonus per run; tier by position; an opening pick each level.
 - ◆ **The champion-specific rare is a new signature relic**, so no realm gives it a second time.
 - ◆ **Build order by reuse**: Steel, Flame, Grave, Frost, then Storm, Holy, Blood. 1.0 when five crowns can open the Last Bastion.
@@ -457,6 +460,8 @@ You are the main AI for Last Bastion (github.com/Cyanida/last-bastion). This pla
 - ◆ **The Cinderlands' balance pass** (#232): a relic realm can have level steps and wave lengths of its own (`WORLD.levelStep.own`, `WORLD.levelWaves.own`), in place of the one row every relic realm shared, so a realm is tuned on its own foes, hazard and bosses without retuning the ones before it; a realm with none keeps the shared row. The Cinderlands' crown level eases most (Enemy HP 200% on Knight, was 225%) and its levels 2–4 run longer. The Cinder Colossus hits for 18 (was 24), his fires burn 8 a second (10) and his burn 2.2 a stack (4): still two stacks a hit and the realm's hottest; his HP and his 12-second phases stay. The Ember Queen and the elite Grand Inquisitor keep their numbers: the bot, which dodges every marked blow, lost no first try to her and one in 40 to him whatever their HP or fire, and a number the bot can't feel is not tuned on the bot. After two passes the clear rates are 85, 88, 78, 63 and 55% against 90, 82, 73, 65 and 55–60%, all within the band, but not per class: the bot's Archer crowns the Cinderlands on none of 8 first tries, as in the Iron Hold, reported in BALANCE.md.
 - ✓ **28-09:** no approval gates that stop the build; releases stacked on each other's branches up to v1.0.0 (see the top).
 - ✓ **29-09, Jesse's playtest ([#234](https://github.com/Cyanida/last-bastion/issues/234)):** short relic text; no build screens before a level; a champion screen that explains itself; no boss twice in a realm; champion levels with stat and talent points between levels, none inside a level; a realm is one run with checkpoints; levels of about 4–10 minutes. The head start, the per-level slot counts and the talent plan's auto-spend go. Numbers here (3 stat points a level, the level cap, the expected levels per ring) are ◆ starting values for the sim.
+- ✓ **01-10:** the sound and music overhaul ([#142](https://github.com/Cyanida/last-bastion/issues/142), [#140](https://github.com/Cyanida/last-bastion/issues/140)), the five champion redesigns ([#245](https://github.com/Cyanida/last-bastion/issues/245), [#247](https://github.com/Cyanida/last-bastion/issues/247), [#268](https://github.com/Cyanida/last-bastion/issues/268)-[#270](https://github.com/Cyanida/last-bastion/issues/270)) and the UI fit ([#272](https://github.com/Cyanida/last-bastion/issues/272)) come into v0.13.0 (Jesse, in chat).
+- ◆ **The overhaul's sounds** (#142): Jesse allowed recorded sound files (26-09), but the v0.13.0 overhaul is synthesized in code like today's sounds and music: the builders run unattended and can't vet a download's licence, and synthesis keeps the browser build small. The mixer and the cue plumbing take a recorded sample as well as a synth voice, so CC0 files can replace single sounds later without new code.
 
 ---
 
