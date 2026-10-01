@@ -29,4 +29,25 @@ describe('relic card tooltip placement (#251)', () => {
     expect(at.left + t.width).toBeLessThanOrEqual(1914);
     expect(at.top).toBeGreaterThanOrEqual(6);
   });
+
+  describe('keeps off the title and first line, #261', () => {
+    const head = [{ left: 400, top: 20, right: 880, bottom: 150 }];
+    it('skips an above spot that would cover the heading, going beside', () => {
+      const c = { left: 516, top: 200, right: 764, bottom: 558 };
+      const t = { width: 280, height: 150 };
+      const at = placeClear(c, t, view, 8, 6, head)!;
+      expect(overlaps(at, t, head[0])).toBe(false);
+      expect(overlaps(at, t, c)).toBe(false);
+    });
+    it('goes below the buttons when above and beside are taken', () => {
+      const c = { left: 100, top: 200, right: 1180, bottom: 400 };
+      const t = { width: 280, height: 150 };
+      const at = placeClear(c, t, view, 8, 6, head, 450)!;
+      expect(at.top).toBe(458);
+    });
+    it('null when nothing is clear', () => {
+      const c = { left: 100, top: 200, right: 1180, bottom: 400 };
+      expect(placeClear(c, { width: 280, height: 150 }, view, 8, 6, head, 650)).toBeNull();
+    });
+  });
 });
