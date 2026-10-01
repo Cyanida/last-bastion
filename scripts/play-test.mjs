@@ -4915,17 +4915,29 @@ await check('Necromancer look: black, bone, pale skin and green, no purple; Rais
     await sample(250);
   }
   await sample(300); // the ward plays through
-  // on the field, at game size: the pixels where he stands show his bone and his green
-  const field = await inPage((kinds) => {
-    const K = eval(kinds), lb = window.__lb, p = lb.game.player, cam = lb.camera();
-    lb.draw();
-    const c = document.getElementById('game').getContext('2d');
-    const x = Math.round((p.x - 30 - Math.round(cam.x)) * cam.zoom), y = Math.round((p.y - 60 - Math.round(cam.y)) * cam.zoom);
-    const d = c.getImageData(x, y, Math.round(60 * cam.zoom), Math.round(66 * cam.zoom)).data;
-    const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
-    for (let i = 0; i < d.length; i += 4) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
-    return n;
-  }, kinds);
+  // on the field, at game size: the pixels where he stands show his bone and his green. Out of reach of the foe first, so no hit's
+  // white flash covers him, and the best of a few draws
+  await inPage(() => {
+    const g = window.__lb.game, p = g.player;
+    for (const x of g.enemies) if (!x.dead) Object.assign(x, { x: p.x + 2000, y: p.y });
+    p.invulnerable = true;
+  });
+  await sample(300);
+  let field = null;
+  for (let i = 0; i < 4; i++) {
+    const n = await inPage((kinds) => {
+      const K = eval(kinds), lb = window.__lb, p = lb.game.player, cam = lb.camera();
+      lb.draw();
+      const c = document.getElementById('game').getContext('2d');
+      const x = Math.round((p.x - 30 - Math.round(cam.x)) * cam.zoom), y = Math.round((p.y - 60 - Math.round(cam.y)) * cam.zoom);
+      const d = c.getImageData(x, y, Math.round(60 * cam.zoom), Math.round(66 * cam.zoom)).data;
+      const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+      for (let i = 0; i < d.length; i += 4) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+      return n;
+    }, kinds);
+    if (!field || n.bone + n.green > field.bone + field.green) field = n;
+    await sample(100);
+  }
   await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, hp: window.__lb.game.player.stats.hp }));
   await page.keyboard.down('Space');
   await sample(150);
