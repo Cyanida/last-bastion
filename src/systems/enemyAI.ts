@@ -391,7 +391,8 @@ function secondWind(g: Game, e: Enemy): void {
 
 /**
  * #202: a crown boss's phase runs its minimum time (WORLD.crownBoss): until then its HP holds just above the next threshold, and in its
- * last phase at 1. A blow that meets the hold says so, like the Usurper's.
+ * last phase at 1; after it a blow ends the phase and no more, so the next begins on its whole share (#264). A blow that meets the hold says
+ * so, like the Usurper's.
  */
 function holdPhase(g: Game, e: Enemy, phases: number): void {
   e.hpFloor = crownHpFloor(e.maxHp, e.phase, phases, g.time - e.phaseAt);
