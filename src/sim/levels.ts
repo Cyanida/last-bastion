@@ -191,11 +191,13 @@ export const realmSeed = (seed: number, level: number): number => (seed + (level
  * screen. The champion starts as expected progress has it at the realm's level 1, with the XP its cleared levels paid. One row a level:
  * its first try. Decided: a fall counts as that level's first try lost, and the bot is raised where it fell to play the level out (a
  * replay from the checkpoint on the same seed would fall the same way), so the run reaches the later levels with a cleared level's
- * finds and XP, as a player's retry does. A level not over in `maxSeconds` ends the run there.
+ * finds and XP, as a player's retry does. A level not over in `maxSeconds` ends the run there. #262: `hold`, the champion held at that
+ * level all realm long (its clears bank no levels): a champion at the Marches crown's level, as the v0.12.0 playtest brought one.
  */
-export function simulateRealm(classId: ClassId, seed: number, realm: RealmId, tier = 1, variant = 0, maxSeconds = 45 * 60, levels = REALMS[realm].levels.length): LevelRun[] {
+export function simulateRealm(classId: ClassId, seed: number, realm: RealmId, tier = 1, variant = 0, maxSeconds = 45 * 60, levels = REALMS[realm].levels.length, hold?: number): LevelRun[] {
+  const held = (c: Champion): Champion => (hold === undefined ? c : { ...c, level: hold });
   let c = expectedChampion(classId, realm, 1, tier); // #250: on Squire, a Squire player's progress
-  c = grantXp(c, Math.max(0, xpFromWorld(c.world) - c.xp));
+  c = held(grantXp(c, Math.max(0, xpFromWorld(c.world) - c.xp)));
   let run: RealmRun | null = { level: 1, tier, seed: realmSeed(seed, 1), carry: null };
   const rows: LevelRun[] = [];
   while (run && run.level <= levels) {
@@ -205,7 +207,7 @@ export function simulateRealm(classId: ClassId, seed: number, realm: RealmId, ti
     rows.push(playLevel(g, classId, realm, level, variant, run.carry ? [] : opts.level!.relics ?? [], maxSeconds, true));
     if (!g.level?.cleared && g.victory === 'none') break;
     const xp = clearXp(g.player.xp, true);
-    c = grantXp(clear(c, classId, realm, level, tier), xp); // its reward and crown first: the cap follows the crowns held
+    c = held(grantXp(clear(c, classId, realm, level, tier), xp)); // its reward and crown first: the cap follows the crowns held
     run = level < REALMS[realm].levels.length ? { level: level + 1, tier, seed: realmSeed(seed, level + 1), carry: takeCarry(g) } : null;
   }
   return rows;

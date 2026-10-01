@@ -3,7 +3,8 @@
  * level after its first with what the run carries and the champion level its clears banked (src/sim/levels.ts simulateRealm). `npm run sim -- levels [runs=4] [tier=1] [realms]` runs
  * one process per class in parallel and merges them; by hand:
  *
- *   npx vite-node scripts/level-report.ts run <classId> <runs> <tier> <realms> <out.json>    first tries at every level of those realms
+ *   npx vite-node scripts/level-report.ts run <classId> <runs> <tier> <realms> <out.json> [hold=<level>]    first tries at every level of those realms
+ *                                                                                           (#262: hold, the champion held at that level)
  *   npx vite-node scripts/level-report.ts merge <out.json> ...                               the tables and rule 9's targets
  *   npx vite-node scripts/level-report.ts bar <squire.json> ... vs <knight.json> ...         #250: Squire against Knight, per level and class
  *
@@ -24,14 +25,15 @@ const firstWaves = (realms: RealmId[]) => [...new Set(realms.flatMap((r) => REAL
 
 const [cmd, ...args] = process.argv.slice(2);
 if (cmd === 'run') {
-  const [classId, runsArg, tierArg, realmsArg, out] = args as [ClassId, string, string, string, string];
+  const [classId, runsArg, tierArg, realmsArg, out, holdArg] = args as [ClassId, string, string, string, string, string?];
+  const hold = holdArg?.startsWith('hold=') ? Number(holdArg.slice(5)) : undefined; // #262: a champion at the Marches crown's level
   const runs = Number(runsArg);
   const tier = Number(tierArg);
   const realms = realmsArg.split(',') as RealmId[];
   const levels: Row[] = [];
   // #220: a realm is one run: each try plays it from level 1, every later level with what the run carries (src/sim/levels.ts simulateRealm)
   for (const realm of realms)
-    for (let i = 0; i < runs; i++) for (const { summary: _, ...row } of simulateRealm(classId, 1000 + i * 7919, realm, tier, i % 2)) levels.push(row);
+    for (let i = 0; i < runs; i++) for (const { summary: _, ...row } of simulateRealm(classId, 1000 + i * 7919, realm, tier, i % 2, undefined, undefined, hold)) levels.push(row);
   const continuous = Array.from({ length: runs }, (_, i) => continuousPower(classId, 1000 + i * 7919, firstWaves(realms), tier, i % 2));
   writeFileSync(out, JSON.stringify({ classId, tier, realms, levels, continuous } satisfies Out));
   console.log(`${classId}: ${levels.length} level runs, ${levels.filter((r) => r.cleared).length} cleared`);
