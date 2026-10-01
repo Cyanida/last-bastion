@@ -2331,6 +2331,33 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const back = await look();
     want(two.points === '1' && two.strength.n === '1' && two.strength.minus && two.vitality.n === '1' && two.vitality.total !== '' && two.options.every((o) => !o.on), `two points in: ${JSON.stringify({ points: two.points, strength: two.strength, vitality: two.vitality, options: two.options.map((o) => o.on) })}`);
     want(back.points === '2' && back.vitality.n === '0' && !back.vitality.minus && back.vitality.total === '' && back.strength.n === '1' && back.options.every((o) => o.on), `the minus: ${JSON.stringify({ points: back.points, vitality: back.vitality, options: back.options.map((o) => o.on) })}`);
+    // #266: after pressing +, hovering a stat's name shows its tip, and the tip never covers the points line (1280x720 and 1920x1080)
+    const tipClear = async () => {
+      const out = [];
+      for (const stat of ['strength', 'vitality']) {
+        await press(`[data-stat-add="${stat}"]`);
+        await p.hover(`.bp-stat[data-stat="${stat}"] .bp-name`);
+        await p.waitForTimeout(150);
+        out.push(await p.evaluate((st) => {
+          const tip = document.querySelector('#tooltip'), line = document.querySelector('.level-cleared .cs-level');
+          if (!tip || getComputedStyle(tip).display === 'none' || !line) return `${st}: no tip`;
+          const a = tip.getBoundingClientRect(), b = line.getBoundingClientRect();
+          return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top ? `${st}: tip covers the points line` : '';
+        }, stat));
+        await press(`[data-stat-take="${stat}"]`);
+      }
+      return out.filter(Boolean).join(', ');
+    };
+    const size0 = p.viewportSize();
+    const tipBad = [];
+    for (const [w, h] of [[1280, 720], [1920, 1080]]) {
+      await p.setViewportSize({ width: w, height: h });
+      await p.waitForTimeout(200);
+      const r = await tipClear();
+      if (r) tipBad.push(`${w}x${h} ${r}`);
+    }
+    if (size0) await p.setViewportSize(size0);
+    want(tipBad.length === 0, `a stat's tip after +: ${tipBad.join('; ') || 'clear of the points line at 1280x720 and 1920x1080'}`);
     // the ability's first upgrade for the two points left
     const pick = back.options[1];
     await press(`[data-buy-ability="${pick?.id}"]`);
