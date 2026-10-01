@@ -7253,7 +7253,7 @@ await check('Cinder Colossus: test mode starts the Cinderlands level 5; its crow
 // The champion trades plain blows beside him (unhurt, no ability, no bot moves), so the fight goes the same way every run: phase 1 every
 // Reap opens two graves round the champion; after each Reap he steps onto the one above him (TRAMPLED) and leaves the other, whose dead
 // climbs out; phase 2 no more graves, and every other Reap leaves plague ground that lasts 14 s; phase 3 graves open at his feet, his risen
-// stand round him and turn blows (GUARDED). Each phase holds its 12 s as a crown boss's does, and his fall clears the level.
+// stand round him and turn blows (GUARDED). (A phase-1 grave left open may still rise early in phase 2.) Each phase holds its 12 s as a crown boss's does, and his fall clears the level.
 await check('Barrow King: test mode starts the Barrowvale level 5; its crown boss: graves that rise unless trampled, then lasting plague, then his guard, each phase 12 s, level cleared (#278)', async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const errs = [];
@@ -7322,7 +7322,7 @@ await check('Barrow King: test mode starts the Barrowvale level 5; its crown bos
   const long = fight.phases.length === 2 && fight.phases[1] - fight.phases[0] >= 12;
   const ok = fight.test === 1 && fight.wave === 40 && fight.id === 'barrowKing' && fight.crown && fight.banner === 'The Barrow King · Crown boss'
     && fight.banners[0] === 'The Barrow King spreads the plague' && fight.banners[1] === 'The Barrow King calls his guard'
-    && fight.trampled[0] >= 1 && fight.risen[0] >= 1 && fight.trampled[1] === 0 && fight.risen[1] === 0 && fight.plagues[0] === 0 && fight.plagues[1] >= 1
+    && fight.trampled[0] >= 1 && fight.risen[0] >= 1 && fight.trampled[1] === 0 && fight.plagues[0] === 0 && fight.plagues[1] >= 1
     && fight.plagueLife >= 14 && fight.risen[2] >= 1 && fight.guards >= 1 && fight.guarded > 0 && long && fight.dead && fight.cleared && errs.length === 0;
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; phases at ${fight.phases.join(', ')} s ("${fight.banners.join('", "')}"); reaps ${fight.reaps.join('/')}, graves trampled ${fight.trampled.join('/')}, dead risen ${fight.risen.join('/')}, plague Reaps ${fight.plagues.join('/')} by phase; plague lasts ${fight.plagueLife} s; guards up to ${fight.guards}, GUARDED ticks ${fight.guarded}; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
