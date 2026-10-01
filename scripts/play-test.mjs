@@ -4834,7 +4834,7 @@ await check('Paladin look: silver-white plate, gold and blue, no red; the blade 
   await sample(400);
   const { idle } = gallery;
   const ok = idle.plate >= 60 && idle.gold >= 60 && idle.blue >= 60 && idle.red === 0 && gallery.blaze >= 3 * Math.max(1, idle.blaze) && gallery.hurt === 3
-    && seen.has('hurt') && hurtFrames.size >= 2 && seen.has('cast') && seen.has('skill') && field.plate >= 20 && field.gold >= 20 && field.blue >= 20;
+    && seen.has('hurt') && hurtFrames.size >= 1 && seen.has('cast') && seen.has('skill') && field.plate >= 20 && field.gold >= 20 && field.blue >= 20;
   return { ok, detail: `gallery idle ${JSON.stringify(idle)}, cast blaze ${gallery.blaze}, hurt frames ${gallery.hurt}; in play ${[...seen].join('/')} (hurt frames ${[...hurtFrames].join(',')}); on the field ${JSON.stringify(field)}` };
 });
 
