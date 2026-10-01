@@ -1748,7 +1748,7 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 // HP its level plays at (its own level steps: the crown level eased), level 4 names its Elite boss, and FIGHT on level 1 plays at the HP
 // its panel showed. Then a realm run standing at level 4: Continue from level 4, its last wave brings the Grand Inquisitor as an elite
 // on 1.4 times the HP, and in his Auto-da-fé his pyres leave fire that burns 2.5 s at 8 a second (as a foe's blow scales): the numbers the sim measured him on ----------
-const CINDER_HP = [335, 251, 237, 240, 200]; // levels 1-5 on Knight, as tests/v12-cinderlands-balance.test.ts pins them
+const CINDER_HP = [335, 235, 237, 230, 200]; // levels 1-5 on Knight, as tests/v13-cinderlands-knight.test.ts pins them (#262: levels 2 and 4 eased, were 251 and 240)
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   await check(`balance: the Cinderlands' road on Knight shows Enemy HP ${CINDER_HP.slice(0, 4).join(', ')} and ${CINDER_HP[4]}% for levels 1-5, level 4 an Elite boss, and FIGHT plays level 1 at ${CINDER_HP[0]}%; from level 4 the elite Grand Inquisitor has 1.4 times the HP and his Auto-da-fé's pyres burn 2.5 s at 8 a second, ${touch ? 'tap' : 'click'} at ${w}x${h} (#232)`, async () => {
     const errs = [];
@@ -1823,6 +1823,39 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       && elite?.level === 4 && elite.wave === 32 && elite.tier === 1 && elite.levelHp === CINDER_HP[3] && elite.name === 'The Grand Inquisitor, Elite' && elite.phases === 3 && Math.abs(elite.hp - 1.4) < 0.02
       && elite.phase === 3 && elite.banner && elite.pyres >= 3 && elite.life === 2.5 && Math.abs(elite.dps - 8) < 0.01 && errs.length === 0;
     return { ok, detail: `panels Enemy HP ${shown.map((s) => `${s.hp}%`).join(', ')}; bosses ${shown.map((s) => s.boss).join(', ')}; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%, champion level ${run.champion}` : 'none'}; level 4 "${four.go}" (${four.boss}, ${four.hp}%): ${elite?.name ? `${elite.name} on wave ${elite.wave}, ${elite.phases} phases, HP x${elite.hp.toFixed(2)}, phase ${elite.phase}${elite.banner ? ', the auto-da-fé announced' : ''}, ${elite.pyres} pyres alight for ${elite.life} s at ${elite.dps.toFixed(1)} a second` : `no elite (${JSON.stringify(elite)})`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #262: the Cinderlands on Knight for a champion with only the Marches crown, as the v0.12.0 playtest brought one: map -> the
+// Cinderlands -> Knight -> level 2, after level 1's first clear. Its panel shows the eased Enemy HP, and FIGHT plays level 2 at that HP with
+// the champion at level 9, the level its XP gives (the Marches crowned: 8) ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`balance: with only the Marches crown and the Cinderlands' level 1 cleared, level 2 on Knight shows Enemy HP ${CINDER_HP[1]}% (was 251%) and FIGHT plays it at that HP at champion level 9, ${touch ? 'tap' : 'click'} at ${w}x${h} (#262)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate(() => {
+      const lb = window.__lb, world = { marches: [7], cinderlands: [0, 1] };
+      lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: {} } };
+      lb.save.cards = [...lb.cardIds]; // every flash card seen: none stops the fight
+    });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-cinderlands');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('.rr-tier[data-tier="1"]');
+    await p.waitForTimeout(100);
+    await press('.rr-flag.l-2');
+    await p.waitForTimeout(100);
+    const shown = (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ').match(/Enemy HP\s*(\d+)%/)?.[1];
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100), champion: g.player.level } : null; });
+    await p.close();
+    const ok = shown === String(CINDER_HP[1]) && run?.realm === 'cinderlands' && run.level === 2 && run.tier === 1 && run.hp === CINDER_HP[1] && run.champion === 9 && errs.length === 0;
+    return { ok, detail: `level 2 panel Enemy HP ${shown ?? '?'}%; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%, champion level ${run.champion}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 

@@ -14,9 +14,9 @@ import { updateSpawning } from '../src/systems/spawning';
 
 describe('the Cinderlands\' own level steps and wave lengths, as tuned (#232)', () => {
   it('takes its own steps: level 1 eased, level 3 hitting a little harder, the crown level eased most', () => {
-    expect(WORLD.levelStep.own.cinderlands).toEqual({ hp: [0.77, 0.77, 0.83, 0.99, 0.95], damage: [0.85, 0.84, 0.98, 1.12, 0.95] });
+    expect(WORLD.levelStep.own.cinderlands).toEqual({ hp: [0.77, 0.72, 0.83, 0.95, 0.95], damage: [0.85, 0.82, 0.98, 1.08, 0.95] }); // #262: levels 2 and 4 eased
     expect([1, 2, 3, 4, 5].map((l) => levelStep('cinderlands', l))).toEqual([
-      { hp: 0.77, damage: 0.85 }, { hp: 0.77, damage: 0.84 }, { hp: 0.83, damage: 0.98 }, { hp: 0.99, damage: 1.12 }, { hp: 0.95, damage: 0.95 },
+      { hp: 0.77, damage: 0.85 }, { hp: 0.72, damage: 0.82 }, { hp: 0.83, damage: 0.98 }, { hp: 0.95, damage: 1.08 }, { hp: 0.95, damage: 0.95 },
     ]);
     for (const s of Object.values(WORLD.levelStep.own)) {
       expect(s.hp).toHaveLength(5);
@@ -47,7 +47,7 @@ describe('the Cinderlands\' own level steps and wave lengths, as tuned (#232)', 
 
   it('the level panel shows the Enemy HP a Cinderlands level plays at', () => {
     const shown = (realm: 'ironHold' | 'cinderlands', level: number) => levelPanel({ marches: [7] }, realm, level, 1).enemyHp;
-    expect([1, 2, 3, 4, 5].map((l) => shown('cinderlands', l))).toEqual([335, 251, 237, 240, 200]);
+    expect([1, 2, 3, 4, 5].map((l) => shown('cinderlands', l))).toEqual([335, 235, 237, 230, 200]); // #262: levels 2 and 4 eased
     expect([1, 2, 3, 4, 5].map((l) => shown('ironHold', l))).toEqual([335, 251, 237, 240, 225]); // as #220 left it
     const g = createGame('viking', 3, { tier: 1, level: { realm: 'cinderlands', level: 5 } });
     expect(Math.round(g.tier.enemyHp * 100)).toBe(200);

@@ -185,7 +185,7 @@ export const WORLD = {
      * little harder (88% of first tries cleared it, against 73%) and its crown level eases most (the waves before the Cinder Colossus
      * felled 12 of 40 first tries and he 16 more). Level 2 eases a touch for its longer waves (levelWaves).
      */
-    own: { cinderlands: { hp: [0.77, 0.77, 0.83, 0.99, 0.95], damage: [0.85, 0.84, 0.98, 1.12, 0.95] } } as Partial<Record<RealmId, { hp: number[]; damage: number[] }>>,
+    own: { cinderlands: { hp: [0.77, 0.72, 0.83, 0.95, 0.95], damage: [0.85, 0.82, 0.98, 1.08, 0.95] } } as Partial<Record<RealmId, { hp: number[]; damage: number[] }>>,
   },
   /**
    * #243 (rule 9): how long a level's waves are, by its place in its realm, so a realm's level 1 takes 4-6 minutes and its last 7-10
