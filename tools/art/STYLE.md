@@ -43,7 +43,7 @@ Every character, foe, boss and siege piece is drawn the same way: by the rig in 
 | idle | 4 | about 200 ms: breathing, the cape and plume sway |
 | walk | 8 | about 100 ms; the game matches the cycle to the speed |
 | attack | 5-6: ready, wind-up, swing with its trail, impact (held longest), recovery | set per frame |
-| hurt | 1-3 | short: knocked back, head snaps back; a shield-bearer blocks instead: shield up toward the blow, a half step back (the Paladin, #245) |
+| hurt | 1-3 | short: knocked back, head snaps back; a shield-bearer blocks instead: shield up toward the blow, a half step back (the Paladin, #245); the Viking takes the blow and keeps going (#247) |
 | death | 4-6 | the last frame held |
 
 - `impact` is the attack frame where the weapon connects: the game shows it at the moment the hit lands and squeezes the other frames

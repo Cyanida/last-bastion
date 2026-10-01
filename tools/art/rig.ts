@@ -40,6 +40,8 @@ export const RAMPS = {
   // #156: the other champions
   tan: ['#2b150e', '#5a2f1f', '#8a4d33', '#b87354', '#d6966f', '#ecb993', '#f8dcc0'],
   pelt: ['#1a1410', '#33281f', '#4d3e30', '#6b5843', '#8a7459', '#a8927a', '#c9b79f'],
+  teal: ['#1c2424', '#303d3d', '#475756', '#61726f', '#7e8f8b', '#9dada8', '#c3cfca'], // #247: washed-out grey-teal wool: the Viking's coat, tunic and trousers
+  wood: ['#24140a', '#4a2a12', '#6e3f1a', '#955a26', '#b87936', '#d49a52', '#ecc182'], // #247: a wooden haft: the Viking's axe
   bone: ['#2a2419', '#534833', '#807154', '#a99a78', '#cabd98', '#e4dbbd', '#fbf6e4'],
   amethyst: ['#120a1c', '#241335', '#361d4f', '#4c2a6b', '#663d88', '#8657a6', '#a97cc4'],
   fern: ['#0c1a10', '#16301c', '#23472a', '#34623a', '#4a7f4c', '#6b9e62', '#9cc58a'],
