@@ -1705,9 +1705,9 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 }
 
 // ---------- #250: Squire measured: map -> the Iron Hold -> Squire; every flag's panel shows the Enemy HP its level plays at on Squire,
-// eased the more the later the level (197, 141, 127, 122, 109%, were 231, 173, 164, 166, 156%), FIGHT on level 1 plays at the HP its panel
+// eased the more the later the level (197, 141, 123, 115, 96%, were 231, 173, 164, 166, 156%; #263: levels 3-5 eased for the crown cap), FIGHT on level 1 plays at the HP its panel
 // showed, and Knight's panels are as they were (335 ... 225%) ----------
-const SQUIRE_IRON_HP = [197, 141, 127, 122, 109]; // levels 1-5 on Squire, as tests/v12-squire-balance.test.ts pins them
+const SQUIRE_IRON_HP = [197, 141, 123, 115, 96]; // levels 1-5 on Squire, as tests/v12-squire-balance.test.ts pins them (#263: 3-5 eased for the crown cap, were 127, 122, 109)
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   await check(`balance: the Iron Hold's road on Squire shows Enemy HP ${SQUIRE_IRON_HP.join(', ')}% for levels 1-5, Knight's still 335-225%, and FIGHT plays level 1 on Squire at ${SQUIRE_IRON_HP[0]}%, ${touch ? 'tap' : 'click'} at ${w}x${h} (#250)`, async () => {
     const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
@@ -1745,6 +1745,50 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const ok = squire.join() === SQUIRE_IRON_HP.join() && knight.join() === '335,251,237,240,225'
       && run?.realm === 'ironHold' && run.level === 1 && run.tier === 0 && run.hp === SQUIRE_IRON_HP[0] && errs.length === 0;
     return { ok, detail: `Squire panels Enemy HP ${squire.map((x) => `${x}%`).join(', ')}; Knight ${knight.map((x) => `${x}%`).join(', ')}; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #263: the Cinderlands' crown on Squire at the champion level cap: map -> the Cinderlands -> Squire; levels 3-5's panels show
+// Squire's Enemy HP eased for each champion level the crown cap holds a champion under (197, 141, 123, 115, 85%, were 127, 122, 97% at 3-5),
+// and an Archer's realm run standing at level 5 on Squire (Continue from level 5) plays the crown at its panel's HP, at level 10, the cap ----------
+const SQUIRE_CINDER_HP = [197, 141, 123, 115, 85]; // levels 1-5 on Squire, as tests/v13-squire-cap.test.ts has them
+for (const [w, h] of [[1280, 720], [1920, 1080]]) {
+  await check(`balance: the Cinderlands' road on Squire shows Enemy HP ${SQUIRE_CINDER_HP.join(', ')}% for levels 1-5, and an Archer at the level cap continues his realm run into the crown at ${SQUIRE_CINDER_HP[4]}%, click at ${w}x${h} (#263)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate((run) => {
+      const lb = window.__lb;
+      const world = { marches: [7], cinderlands: [4] }; // the Marches crowned, the Cinderlands' first four levels cleared on Squire
+      lb.save.champions = { archer: { name: 'Wren', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: { cinderlands: run } } };
+      lb.save.cards = [...lb.cardIds]; // every flash card seen: none stops the fight
+    }, runAt(5, 0));
+    const press = (sel) => p.locator(sel).first().click();
+    await press('[data-go="start"]'); // the champion select: the Archer's tile picks him for the road (no run starts), then back to the title
+    await press('[data-class="archer"]');
+    await p.locator('[data-back]').first().scrollIntoViewIfNeeded();
+    await press('[data-back]');
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-cinderlands');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('.rr-tier[data-tier="0"]');
+    await p.waitForTimeout(100);
+    const shown = [];
+    for (let l = 1; l <= 5; l++) {
+      await press(`.rr-flag.l-${l}`);
+      await p.waitForTimeout(100);
+      shown.push((await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ').match(/Enemy HP\s*(\d+)%/)?.[1] ?? '?');
+    }
+    const go = (await p.locator('[data-fight]').first().textContent()).trim(); // level 5's flag stands selected
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100), champion: g.player.level, cls: g.player.cls.id } : null; });
+    await p.close();
+    const ok = shown.join() === SQUIRE_CINDER_HP.join() && go === 'Continue from level 5'
+      && run?.realm === 'cinderlands' && run.level === 5 && run.tier === 0 && run.hp === SQUIRE_CINDER_HP[4] && run.cls === 'archer' && errs.length === 0;
+    return { ok, detail: `Squire panels Enemy HP ${shown.map((x) => `${x}%`).join(', ')}; "${go}"; run: ${run ? `${run.cls} in ${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%, champion level ${run.champion}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
@@ -6325,6 +6369,7 @@ await check('Forgemaster: test mode starts the Iron Hold level 3; its last wave 
       // few steps off, out of reach of his blows but inside his, so he keeps swinging and pressing
       const shown = f && out.hammer[f.phase - 1] > 0 && (f.phase === 1 || out.presses[f.phase - 1] > 0);
       if (f && !f.dead) (g.player.x = f.x - f.r - (shown ? 16 : 220)), (g.player.y = f.y);
+      if (f && !f.dead && !shown && f.phase === 3) f.hp = Math.max(f.hp, f.maxHp * 0.05); // #263: on Squire's eased level 3 he could fall before his last phase pressed
       lb.run(1, false, false);
       f ??= g.enemies.find((e) => e.def.boss) ?? null;
       if (!f) continue;

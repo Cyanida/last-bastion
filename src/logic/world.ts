@@ -12,7 +12,7 @@ import { REALM_IDS, REALMS, WORLD, WORLD_BOSSES, type CrownReward, type EndBoss,
 import { ACT_BOSSES, actBoss, actOf, hashSeed, isActEnd, pickMidBoss } from './acts';
 import { squadOnTier, waveRng } from './director';
 import { expectedLevel } from './formulas';
-import { championStep } from './championLevels'; // it reads this file too: both only call the other inside functions
+import { capGap, championStep } from './championLevels'; // it reads this file too: both only call the other inside functions
 
 // ---------- #191: the level runner's rules (systems/levels.ts plays them) ----------
 
@@ -129,7 +129,8 @@ export function tierStep(tier: number, realm: RealmId, level: number): { hp: num
   const e = TIERS[tier]?.realmEase;
   if (!e || realm === 'lastBastion') return { hp: 1, damage: 1 };
   const t = REALMS[realm].levels.length > 1 ? (level - 1) / (REALMS[realm].levels.length - 1) : 0;
-  const at = ([a, b]: [number, number]) => Math.round((a + (b - a) * t) * 1000) / 1000;
+  const cap = 1 - (TIERS[tier].capEase ?? 0) * capGap(realm, level); // #263: less again for each champion level the crown cap holds back
+  const at = ([a, b]: [number, number]) => Math.round((a + (b - a) * t) * cap * 1000) / 1000;
   return { hp: at(e.hp), damage: at(e.damage) };
 }
 

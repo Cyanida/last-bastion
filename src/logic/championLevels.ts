@@ -116,6 +116,17 @@ export function expectedChampionLevel(realm: RealmId, level: number): number {
 }
 
 /**
+ * #263: the champion levels the crown cap holds a champion under what `level` of `realm` would expect without it (CHAMPION.expected's
+ * spread, as expectedChampionLevel has it before its cap): 0 until the cap binds. The Iron Hold and the Cinderlands: 0, 0, 1, 2, 4 (a
+ * champion stands at 10 from level 3 on); the Marches: 0 to its level 5, then 1, 2. Squire eases a level by it (TierDef.capEase).
+ */
+export function capGap(realm: RealmId, level: number): number {
+  const def = REALMS[realm];
+  const [from, to] = CHAMPION.expected[Math.min(CHAMPION.expected.length, def.ring) - 1];
+  return Math.max(0, Math.round(from + ((to - from) * (level - 1)) / def.levels.length) - expectedChampionLevel(realm, level));
+}
+
+/**
  * Enemy HP and damage for the champion level a level expects (CHAMPION.scaling): the expected champion's strength over that of the
  * player the waves were tuned for, who stood at the pace's level `at` of the way through them (#220: at their end). Below 1 where a champion is behind the old pace
  * (no level-up inside the level), well above it in a relic realm, whose first waves a level-8 champion walks into.
