@@ -4947,6 +4947,72 @@ await check('Viking raider: the gallery shows his teal wool and no ginger beard;
   return { ok, detail: `gallery idle ${look.cell}: ${look.teal} teal px, ${look.ginger} ginger px; cast frames ${[...castFrames].sort().join(',')}; hurt frames ${[...hurtFrames].sort().join(',')} after ${hurt.length} steps` };
 });
 
+// ---------- #270: the Archer is a hooded ranger: a grey-green hood and cloak, no steel kettle hat; Space looses the volley into the sky,
+// E plays the end of his roll and a blow plays his bow block ----------
+await check('Archer ranger: the gallery shows his sage hood and cloak and no kettle hat; Space looses the volley, E rolls, a blow plays his hurt (#270)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('archer'));
+  const look = await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(200);
+    // the idle cell in the gallery, counted by colour: the sage ramp (his hood, cowl and cloak) against the old kettle hat's steel
+    const c = document.querySelector('[data-sheet="archer"][data-anim="idle"]');
+    const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const hex = (i) => '#' + [px[i], px[i + 1], px[i + 2]].map((v) => v.toString(16).padStart(2, '0')).join('');
+    const sage = new Set(['#3e4b3f', '#58685a', '#768778', '#98a895']), steel = new Set(['#6c768a', '#96a1b2', '#c7ced6']);
+    let s = 0, k = 0;
+    for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 0) (sage.has(hex(i)) && s++, steel.has(hex(i)) && k++);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'archer');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '5'); // Dodge Roll, his utility, unlocks at level 3
+    window.__startTest().player.invulnerable = true;
+    return { sage: s, steel: k, cell: `${c.width / 2}×${c.height / 2}` };
+  });
+  const frame = () => inPage(() => (window.__lb.run(1, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+  // one foe at his side, the rest far away; once the wave has spawned
+  const pin = () => inPage(() => {
+    const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+    for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+    if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 });
+    return !!e;
+  });
+  for (let i = 0; i < 40 && !(await pin()); i++) await inPage(() => window.__lb.run(10, false, 'input'));
+  // Arrow Volley on Space: drawn with three arrows, loosed into the sky (frame 3, held longest), lowered
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, attackTimer: 1e6 })); // no shot in the way of the cast
+  await page.keyboard.down('Space');
+  const cast = [await frame()];
+  await page.keyboard.up('Space');
+  for (let i = 0; i < 60; i++) cast.push(await frame());
+  const castFrames = new Set(cast.filter((f) => f.anim === 'cast').map((f) => f.frame));
+  // Dodge Roll on E: the end of the roll plays (a short row: one sampled frame is enough)
+  await inPage(() => Object.assign(window.__lb.game.player, { utilityCd: 0, attackTimer: 1e6 }));
+  await page.keyboard.down('KeyE');
+  const roll = [await frame()];
+  await page.keyboard.up('KeyE');
+  for (let i = 0; i < 30; i++) roll.push(await frame());
+  // a foe's blow: his hurt, the bow snapped up to catch it, with no shot of his own to hide it (one sampled frame is enough)
+  await inPage(() => Object.assign(window.__lb.game.player, { invulnerable: false, attackTimer: 1e6 }));
+  const hurt = [];
+  for (let i = 0; i < 400 && !hurt.some((f) => f.anim === 'hurt'); i++) {
+    await pin();
+    await inPage(() => { const p = window.__lb.game.player; p.hp = Math.max(p.hp, p.stats.hp * 0.9); p.attackTimer = Math.max(p.attackTimer, 100); });
+    hurt.push(await frame());
+  }
+  await inPage(() => (window.__lb.game.player.invulnerable = true));
+  const ok = look.sage > 200 && look.steel < 10 && castFrames.has(3) && roll.some((f) => f.anim === 'skill') && hurt.some((f) => f.anim === 'hurt');
+  return { ok, detail: `gallery idle ${look.cell}: ${look.sage} sage px, ${look.steel} steel px; cast frames ${[...castFrames].sort().join(',')}; E: ${roll.filter((f) => f.anim === 'skill').length} roll frames; hurt after ${hurt.length} steps` };
+});
+
 // ---------- #156: the Viking's swing leaves a tapered trail, not a flat wedge; the walk keeps pace with the ground at 1.5x and under a heavy slow ----------
 await check('Swing trail and walk pace: a crescent trail on the swing; the feet follow the ground fast and slowed (#156)', async () => {
   await inPage(() => location.reload());
