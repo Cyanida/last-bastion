@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { WORLD } from '../src/config/world';
 import { createGame } from '../src/game';
 import { expectedChampionLevel, levelForXp, levelCap, xpFromWorld } from '../src/logic/championLevels';
-import { levelPanel, levelStep } from '../src/logic/world';
+import { levelPanel, levelStep, levelWaves } from '../src/logic/world';
 import { simulateRealm } from '../src/sim/levels';
 
 // v0.13 (#262): the Cinderlands on Knight, from level 2 on, for a champion at the Marches crown's level (the v0.12.0 playtest's Paladin,
@@ -22,6 +22,7 @@ describe('a champion with only the Marches crown in the Cinderlands (#262)', () 
   it('eases the Cinderlands\' levels 2 and 4 on Knight, and leaves levels 1, 3 and 5 and the Iron Hold as they were', () => {
     expect(WORLD.levelStep.own.cinderlands).toEqual({ hp: [0.77, 0.72, 0.83, 0.95, 0.95], damage: [0.85, 0.82, 0.98, 1.08, 0.95] });
     expect(levelStep('cinderlands', 2)).toEqual({ hp: 0.72, damage: 0.82 }); // the floor just over Squire (#220)
+    expect(levelWaves('cinderlands', 2)).toEqual({ foes: 1.2, pace: 1.65 }); // fewer foes at once (was 1.3), a relic realm's
     const shown = (realm: 'ironHold' | 'cinderlands', level: number) => levelPanel({ marches: [7] }, realm, level, 1).enemyHp;
     expect([1, 2, 3, 4, 5].map((l) => shown('cinderlands', l))).toEqual([335, 235, 237, 230, 200]); // were 335, 251, 237, 240, 200
     expect([1, 2, 3, 4, 5].map((l) => shown('ironHold', l))).toEqual([335, 251, 237, 240, 225]);

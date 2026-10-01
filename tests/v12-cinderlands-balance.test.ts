@@ -28,7 +28,8 @@ describe('the Cinderlands\' own level steps and wave lengths, as tuned (#232)', 
 
   it('brings more foes over a longer time in its levels 2-4', () => {
     expect([1, 2, 3, 4, 5].map((l) => levelWaves('cinderlands', l))).toEqual([
-      { foes: 1.6, pace: 2 }, { foes: 1.3, pace: 1.65 }, { foes: 1.25, pace: 1.7 }, { foes: 1.05, pace: 2 }, { foes: 0.9, pace: 2.2 },
+      { foes: 1.6, pace: 2 }, { foes: 1.2, pace: 1.65 }, // #262: level 2 brings fewer foes (was 1.3)
+      { foes: 1.25, pace: 1.7 }, { foes: 1.05, pace: 2 }, { foes: 0.9, pace: 2.2 },
     ]);
     for (const w of Object.values(WORLD.levelWaves.own)) expect([w.foes.length, w.pace.length]).toEqual([5, 5]);
   });

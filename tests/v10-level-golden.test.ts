@@ -69,6 +69,8 @@ function golden({ cls, seed, level, variant = 0, realm = 'marches', run }: Golde
 // 9-16) meets them, at REALMS.ironHold.fieldsWeight (its waves changed on purpose; this seed now falls in its last wave); the Marches' runs and the Iron Hold's level 1 (before the squad's wave 9) are unchanged
 // re-recorded for #259: a level whose road features the Iron Shieldwall brings a squad of them for sure (logic/world featuredSquads), so the
 // realm run's level 2 gets one on a wave from 9-11 (its waves changed on purpose; this seed now clears it); every other run is unchanged
+// re-recorded for #262 (v0.13): the Cinderlands' level 2 eases on Knight and brings fewer foes (levelStep.own, levelWaves.own), so the
+// realm run's level 2 changed on purpose (it still clears, on 490 kills, was 540); every other run is unchanged
 const GOLDEN: Record<string, string> = {
   'marches 1 paladin:1': 'cleared wave 6 kills 215 level 1 loadout - relics 2 hash de859cbc',
   'marches 1 archer:2': 'cleared wave 6 kills 222 level 1 loadout - relics 3 hash 67f5b3b3',
@@ -81,7 +83,7 @@ const GOLDEN: Record<string, string> = {
   'iron hold run 1-2 paladin:5': 'cleared wave 8 kills 363 level 8 loadout oathkeepersSeal+anvilHeart+salamanderScale relics 6 hash 165cac3b / cleared wave 16 kills 505 level 9 loadout - relics 3 hash 66558620',
   'cinderlands 1 viking:1': 'cleared wave 8 kills 356 level 8 loadout jarlsTorc+salamanderScale+anvilHeart relics 6 hash cdefd7c1',
   'cinderlands 1 archer:3 variant 1': 'fell wave 5 kills 222 level 8 loadout eagleFletching+salamanderScale+anvilHeart relics 5 hash b459822e',
-  'cinderlands run 1-2 paladin:5': 'cleared wave 8 kills 371 level 8 loadout oathkeepersSeal+salamanderScale+anvilHeart relics 7 hash 953f535e / cleared wave 16 kills 540 level 9 loadout - relics 3 hash eb4a7466',
+  'cinderlands run 1-2 paladin:5': 'cleared wave 8 kills 371 level 8 loadout oathkeepersSeal+salamanderScale+anvilHeart relics 7 hash 953f535e / cleared wave 16 kills 490 level 9 loadout - relics 3 hash 4457d29f',
 };
 
 describe('v0.10 golden level runs (#207)', () => {
