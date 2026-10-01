@@ -59,6 +59,7 @@ export const RAMPS = {
   angelPearl: ['#3a3c52', '#6d7190', '#a3a8c0', '#c9cddd', '#e3e6ef', '#f4f6fa', '#ffffff'], // #268: cool pearl white: the Angel's feathers and staff
   angelLinen: ['#4a4238', '#857a68', '#b8ad96', '#dcd3bd', '#eee8d8', '#f8f5ec', '#ffffff'], // #268: bright linen: the Angel's vestments
   pallor: ['#1b1e1e', '#343a39', '#535b58', '#78807b', '#9ba39c', '#bec5bc', '#e0e5da'], // #269: pale grey, bloodless skin: the Necromancer
+  sage: ['#151b16', '#28322a', '#3e4b3f', '#58685a', '#768778', '#98a895', '#c1cbb7'], // #270: grey-green woodland cloth: the Archer's hood and cloak
 } as const;
 export type Material = keyof typeof RAMPS;
 const METALS = new Set<Material>(['steel', 'plate', 'darksteel', 'gold', 'black']);
