@@ -7959,6 +7959,205 @@ await check('Iron Hold: a level 1 clear by a champion who owns every Steel rare 
   return { ok, detail: ok ? got.sub : `${JSON.stringify(got)} ${errs.join('|')}` };
 });
 
+// ---------- #272: no text cut off and every back arrow fully in the window, on every screen, at 1280x720 and 1920x1080 ----------
+// Walks every screen with the mouse, the way a player reaches it: the title, Settings and its save data and test mode, What's new, the
+// Chronicle, the Daily Trial, the world map and a realm's road, class select, the champion screen's every tab and its talent tree, the
+// Keep, a building's panel and every Keep sub-screen; then a Daily Trial run: the quest board, a level-up, the two upgrade screens,
+// the shrine, the Merchant, the route fork, the pause menu and its talents, treasures and glossary, and the results. On each it lists
+// every piece of text that runs past its own box (or a box that clips it, or the window) and every back or close button that is not a
+// full 40x40 at least 12 px inside the window. UI_FIT_SKIP names any screen still known to fail (none).
+const UI_FIT_SKIP = [];
+for (const [w, h] of [[1280, 720], [1920, 1080]]) {
+  await check(`every screen: no text cut off, every back/close button 40x40 and 12 px inside the window, at ${w}x${h} (#272)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    const title = async () => {
+      await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+      await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+      await p.evaluate(() => {
+        const lb = window.__lb, three = ['brimstoneOil', 'emberheart', 'frostBrand'];
+        lb.save.champions = { paladin: { name: 'Hild', inventory: three, loadouts: { marches: three.slice(0, 2) }, ...lb.build.grown({ marches: [3] }), world: { marches: [3] }, signature: false, lastBastion: false, runs: {} } };
+        lb.save.wins = { ...lb.save.wins, paladin: 12 };
+        lb.save.classes.paladin.xp = 1e9;
+        lb.save.daily['2000-01-01'] ??= 1; // the Daily Trial open
+      });
+      // the title again, with the seeded save
+      await p.locator('[data-go="settings"]').click();
+      await p.locator('.settings [data-act="back"]').click();
+      await p.waitForTimeout(100);
+    };
+    const press = async (sel) => {
+      await p.locator(sel).first().click({ timeout: 4000 });
+      await p.waitForTimeout(150);
+    };
+    const fit = (screen) => p.evaluate(([screen, M]) => {
+      const W = innerWidth, H = innerHeight, out = [];
+      const name = (s) => s.trim().replace(/\s+/g, ' ').slice(0, 30);
+      const style = (e) => getComputedStyle(e);
+      const walk = document.createTreeWalker(document.getElementById('overlay'), NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        const e = n.parentElement;
+        if (!n.textContent.trim() || !e.getClientRects().length || e.closest('[hidden], .hidden, .kit-tour') || style(e).visibility === 'hidden' || +style(e).opacity === 0) continue;
+        const words = document.createRange();
+        words.selectNodeContents(n);
+        const rects = [...words.getClientRects()].filter((r) => r.width > 0.5);
+        if (!rects.length) continue;
+        let xOk = true, yOk = true, scrolledY = false;
+        // its own element and button, then every box that clips it, up to the window; a scrolling box may hold it out of sight
+        const own = e.closest('button, .kit-btn, .kit-pill, .kit-ribbon');
+        for (let a = e; a && a !== document.body; a = a.parentElement) {
+          const cs = style(a), o = a.getBoundingClientRect();
+          const clipX = a === own || a === e || cs.overflowX !== 'visible', clipY = a === own || cs.overflowY !== 'visible';
+          const scrollX = /auto|scroll/.test(cs.overflowX), scrollY = /auto|scroll/.test(cs.overflowY);
+          for (const r of rects) {
+            if (clipX && !scrollX && (r.left < o.left - 1.5 || r.right > o.right + 1.5)) xOk = false;
+            if (clipY && !scrollY && !scrolledY && (r.top < o.top - 2 || r.bottom > o.bottom + 2)) yOk = false;
+          }
+          if (scrollY) scrolledY = true;
+        }
+        for (const r of rects) {
+          if (r.left < -0.5 || r.right > W + 0.5) xOk = false;
+          if (!scrolledY && (r.top < -0.5 || r.bottom > H + 0.5)) yOk = false;
+        }
+        if (!xOk || !yOk) out.push(`${screen}: "${name(n.textContent)}" cut off`);
+      }
+      for (const b of document.querySelectorAll('#overlay .kit-close[aria-label="Back"], #overlay .kit-close[aria-label="Close"], #overlay [data-back], #overlay [data-act="back"]')) {
+        if (!b.getClientRects().length || b.closest('[hidden], .hidden') || style(b).visibility === 'hidden') continue;
+        const r = b.getBoundingClientRect();
+        if (r.width < 40 || r.height < 40 || r.left < M || r.top < M || r.right > W - M || r.bottom > H - M) {
+          out.push(`${screen}: ${b.getAttribute('aria-label') ?? name(b.textContent)} button at ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+        }
+      }
+      return out;
+    }, [screen, 12]);
+    const seen = [], bad = [], missed = [];
+    const at = async (screen) => {
+      await p.waitForTimeout(120);
+      seen.push(screen);
+      bad.push(...(await fit(screen)));
+      if (process.env.UI_FIT_SHOTS) await p.screenshot({ path: `${process.env.UI_FIT_SHOTS}/${w}x${h}-${screen.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png` });
+    };
+    const visit = async (screen, go) => {
+      try {
+        await go();
+      } catch (e) {
+        missed.push(`${screen} (${String(e.message ?? e).split('\n')[0].slice(0, 60)})`);
+      }
+    };
+    await title();
+    await at('title');
+    await visit('Settings', async () => {
+      await press('[data-go="settings"]');
+      await at('Settings');
+      await press('.settings [data-act="save"]');
+      await at('save data');
+      await press('#overlay [data-act="back"]');
+      await press('.settings [data-act="test"]');
+      await at('test mode');
+    });
+    await title();
+    await visit("What's new", async () => {
+      if (!(await p.locator('[data-go="whatsNew"]').count())) return;
+      await press('[data-go="whatsNew"]');
+      await at("What's new");
+    });
+    await title();
+    await visit('Chronicle', async () => {
+      await press('[data-go="chronicle"]');
+      await at('Chronicle');
+    });
+    await title();
+    await visit('Daily Trial', async () => {
+      await press('[data-go="daily"]');
+      await at('Daily Trial');
+    });
+    await title();
+    await visit('world map and road', async () => {
+      await press('[data-go="map"]');
+      await at('world map');
+      await press('.wm-realm.r-marches');
+      await at('realm road');
+    });
+    await title();
+    await visit('class select', async () => {
+      await press('[data-go="start"]');
+      await at('class select');
+    });
+    await title();
+    await visit('champion', async () => {
+      await press('[data-go="champion"]');
+      await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+      await skipTour(p);
+      for (const tab of await p.locator('[data-cs]').evaluateAll((els) => els.map((e) => e.dataset.cs))) {
+        await press(`[data-cs="${tab}"]`);
+        await at(`champion ${tab} tab`);
+      }
+      await press('[data-cs="talents"]');
+      await press('[data-spend-talents]');
+      await at('talent tree');
+    });
+    await title();
+    await visit('the Keep', async () => {
+      await press('[data-go="keep"]');
+      await at('the Keep');
+      await press('.keep-bld');
+      await at("a building's panel");
+      await press('[data-close-building]');
+      for (const sub of ['compendium', 'treasures', 'chronicle', 'history', 'glossary', 'mastery']) {
+        await press(`#overlay [data-${sub}]`);
+        await at(`Keep ${sub}`);
+        await press('#overlay [data-back], #overlay [data-act="back"]');
+      }
+    });
+    await title();
+    await visit('a Daily Trial run', async () => {
+      await press('[data-go="daily"]');
+      await press('.kit-screen.daily [data-start]');
+      await p.waitForFunction(() => window.__lb.state === 'choice', null, { timeout: 5000 });
+      await at('quest board');
+      await press('#overlay [data-leave]');
+      // each run screen brought up through the game's own queue, then answered with its first option
+      for (const screen of ['level-up', 'ability upgrade', 'utility upgrade', 'shrine', 'Merchant', 'route fork']) {
+        const up = await p.evaluate((screen) => {
+          const lb = window.__lb, g = lb.game;
+          if (screen === 'level-up') g.pendingLevelUps++;
+          else if (screen === 'ability upgrade') g.pendingAbilityTiers.push(0);
+          else if (screen === 'utility upgrade') g.pendingUtilityTiers.push(0);
+          else if (screen === 'shrine') g.pendingShrine = ['valor', 'mending', 'swiftness'];
+          else if (screen === 'Merchant') {
+            g.gold = 600;
+            g.pendingMerchant = true;
+          }
+          for (let i = 0; i < 300 && lb.state === 'playing'; i++) lb.run(1, false, true);
+          return lb.state === 'choice';
+        }, screen);
+        if (!up) throw new Error(`no ${screen}`);
+        await at(screen);
+        await press('#overlay [data-pick], #overlay [data-leave]');
+      }
+      await p.evaluate(() => { for (let i = 0; i < 400 && window.__lb.state !== 'playing'; i++) window.__lb.run(1, false, true); });
+      await p.keyboard.press('Escape');
+      await p.locator('[data-quit]').waitFor({ timeout: 3000 });
+      await at('pause');
+      for (const sub of ['talents', 'treasures', 'glossary']) {
+        await press(`#overlay [data-${sub}]`);
+        await at(`pause ${sub}`);
+        await press('#overlay [data-back], #overlay [data-act="back"]');
+      }
+      await press('[data-quit]');
+      await p.locator('.kit-screen.results').waitFor({ timeout: 3000 });
+      await at('results');
+    });
+    await p.close();
+    const skipped = (s) => UI_FIT_SKIP.some((k) => s.startsWith(`${k}:`));
+    const left = [...new Set(bad)].filter((s) => !skipped(s));
+    if (process.env.UI_FIT_LOG) writeFileSync(`${process.env.UI_FIT_LOG}-${w}.txt`, [...seen, '', ...left, '', ...missed].join('\n'));
+    const ok = left.length === 0 && missed.length === 0 && seen.length >= 30 && errs.length === 0;
+    return { ok, detail: `${seen.length} screens; cut off or off screen: ${left.slice(0, 12).join(' | ') || 'none'}${left.length > 12 ? ` (+${left.length - 12})` : ''}${missed.length ? `; not reached: ${missed.join(', ')}` : ''}${UI_FIT_SKIP.length ? `; skipped: ${UI_FIT_SKIP.join(', ')}` : ''}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
