@@ -54,6 +54,10 @@ export const RAMPS = {
   soul: ['#0c2a33', '#155066', '#2182a0', '#3eb1cc', '#7ed8e8', '#c2f1f8', '#ffffff'],
   fire: ['#5a1a06', '#9a3208', '#d4560f', '#f08a1c', '#f8b73c', '#fde38a', '#fffbe0'],
   rot: ['#10170f', '#1f2b1d', '#34452f', '#4f6547', '#6d8763', '#94ab86', '#c6d6b4'], // the Graveyard's grasping hands
+  // #268: the Angel
+  angelSkin: ['#3a1f17', '#6e3b2c', '#a0604a', '#c98a6c', '#e2ae8e', '#f2caa9', '#fbe3cc'], // #268: fair skin: the Angel
+  angelPearl: ['#3a3c52', '#6d7190', '#a3a8c0', '#c9cddd', '#e3e6ef', '#f4f6fa', '#ffffff'], // #268: cool pearl white: the Angel's feathers and staff
+  angelLinen: ['#4a4238', '#857a68', '#b8ad96', '#dcd3bd', '#eee8d8', '#f8f5ec', '#ffffff'], // #268: bright linen: the Angel's vestments
 } as const;
 export type Material = keyof typeof RAMPS;
 const METALS = new Set<Material>(['steel', 'plate', 'darksteel', 'gold', 'black']);
