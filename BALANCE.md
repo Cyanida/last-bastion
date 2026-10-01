@@ -1,5 +1,51 @@
 # Balance notes
 
+## v0.13: Squire's crown at the champion level cap (#263)
+
+A playtest Archer on Squire cleared the Cinderlands' levels 1-4 and fell three times at the Cinder Colossus. From a relic realm's level 3
+on the champion stands at its crown cap (10 with the Marches crown), so levels 4 and 5 bring no stat points while the level step keeps
+rising. Squire's `realmEase` (#250) eases a realm's later levels evenly; it did not know where the cap holds a champion back.
+
+**Tuned** (Squire only; Knight and up untouched): Squire's `capEase` 0.03 (`src/config/economy.ts TIERS`): a realm level's enemy HP
+and damage on Squire are 3% less for each champion level the crown cap holds the champion under what the level expects
+(`logic/championLevels capGap`: CHAMPION.expected before its cap, less the capped level). In `logic/world tierStep`, so the level panel
+and the run both take it. The cap holds back 0, 0, 1, 2, 4 levels in the Iron Hold and the Cinderlands (x1, 1, 0.97, 0.94, 0.88) and
+1, 2 at the Marches' levels 6-7 (x0.97, 0.94). Decided: one rule for every realm, not a Cinderlands crown number: the Iron Hold's crown
+has the same cap and the same gap, and the ease follows the cap if #262 moves the expected champion level. The Last Bastion keeps 1.
+
+What the level panel shows on Squire (Enemy HP): the Cinderlands 197, 141, 123, 115, 85% (were 197, 141, 127, 122, 97%); the Iron Hold
+197, 141, 123, 115, 96% (were 127, 122, 109% at 3-5); the Marches 34, 34, 39, 48, 54, 58, 42% (were 60, 45% at 6-7).
+
+`npm run sim -- levels 8 squire cinderlands` before (Squire and Knight; Knight's as #250 and #232 have it) and
+`npm run sim -- levels 8 0 marches,ironHold,cinderlands` after (Squire; Knight takes no part of the change). 40 first tries a level
+(paladin, viking, angel, necromancer, archer; 8 seeds each), the realm as one run. First-try clear rate and a clear's median minutes;
+Marches and Iron Hold "before" are #250's pass 2.
+
+| Level | Knight | Squire before | Squire after | Archer on Squire (of 8) before -> after | Bar met (after) |
+|---|---|---|---|---|---|
+| Marches 6 | 85% | 98%, 4.7 | 100%, 4.7 | 7 -> 8 | yes |
+| Marches 7 (the crown) | 49% | 90%, 5.1 | 95%, 5.1 | 5 -> 7 | yes |
+| Iron Hold 3 | 73% | 95%, 5.8 | 93%, 5.7 | 6 -> 6 | yes |
+| Iron Hold 4 | 75% | 95%, 6.7 | 93%, 6.8 | 6 -> 5 | yes |
+| Iron Hold 5 (the crown) | 55% | 88%, 7.9 | 88%, 7.9 | 4 -> 4 | yes |
+| Cinderlands 3 | 78% | 95%, 6.0 | 95%, 6.0 | 7 -> 6 | yes |
+| Cinderlands 4 | 63% | 83%, 7.1 | 90%, 7.0 | 4 -> 6 | yes |
+| Cinderlands 5 (the crown) | 55% | 78%, 7.5 | 88%, 7.5 | 3 -> 3 | yes |
+
+The levels the cap does not touch (the Marches 1-5, the Iron Hold and the Cinderlands 1-2) measured within noise of before (Marches 95,
+98, 98, 88, 93%; Iron Hold 100, 95%; Cinderlands 95, 100%). Per class on the Cinderlands' crown, Squire (before -> after): Paladin 8 -> 8,
+Viking 5 -> 8, Angel 8 -> 8, Necromancer 7 -> 8, Archer 3 -> 3; level 4: Viking 5 -> 6, Archer 4 -> 6. The Cinder Colossus felled 7 of 40
+first tries before, 4 now (all four the Archer's). A Squire Cinderlands with retries: 34.3 -> 32.6 minutes.
+
+What is left (reported, not tuned further):
+- **The Archer at the Cinder Colossus stays at 3 of 8** on Squire (4 of 8 at the Iron King). Every other class now clears the
+  Cinderlands' crown on all 8 first tries, and the Archer's level 4 rose 4 -> 6: what is left is the bot's Archer against this boss (it
+  underrates the Archer, AGENTS.md; on Knight it clears him on none), the known class gap (#220, #232, #250). Easing the crown further
+  for one class would take the crown below a fight for the other four; it needs the Archer looked at, or a hand-played Squire check.
+- The Iron Hold's levels 3-5 eased and measured the same (93, 93, 88% against 95, 95, 88%): inside the 8 points of noise at 40 tries.
+- #262 (Knight's levels 2-5) and #264 (the Colossus's phase hold) tune the same levels at the same time; `levelStep` is shared by both
+  tiers, so the Squire numbers above move with theirs.
+
 ## v0.12: a featured squad comes for sure (#259)
 
 Since #249 the Iron Hold's road names the Iron Shieldwall from level 2 on, but on Squire and Knight his squad comes at a quarter of its
