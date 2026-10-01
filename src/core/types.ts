@@ -372,6 +372,8 @@ export interface Field extends Body {
   dtype: DamageType;
   apply: StatusApply | null; // put on whoever stands in it, every tick
   by?: RelicKey; // v0.7: laid by this relic or duo (its damage is credited to it)
+  plague?: boolean; // #276: a fallen foe's lasting plague ground (logic/plagueGround.ts): renewed, and held to its own cap
+  cause?: string; // #276: a hostile field's name in the run log's cause of death
 }
 
 export interface Pickup {

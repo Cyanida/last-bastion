@@ -40,7 +40,8 @@ export type EnemyId =
   | 'siegeCamp'
   | 'plagueCart'
   | 'usurper'
-  | 'royalFlame';
+  | 'royalFlame'
+  | 'blightHound';
 
 export type Behavior =
   | 'chaser'
@@ -330,5 +331,10 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     range: 340, fireCd: 2.2, projSpeed: 250,
     specialCd: 4.5, windup: 1.2, specialMult: 1.4, flasks: 3, zoneRadius: 70, poolLife: 6, poolDps: 14,
     p2RingFlasks: 7, summon: 'priest', summonCount: 2,
+  },
+  // #276: the Barrowvale's wolf, sick with the barrow plague: where he dies the ground stays foul long after (config/damage.ts PLAGUE_GROUND)
+  blightHound: {
+    ...base, id: 'blightHound', name: 'Blight Hound', sprite: 'blightHound', behavior: 'lunger',
+    hp: 12, damage: 6, speed: 135, radius: 10, xp: 1, lungeRange: 130, lungeSpeed: 380, windup: 0.35, lungeTime: 0.4, recover: 0.6,
   },
 };

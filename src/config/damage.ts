@@ -38,6 +38,7 @@ export const RESISTS: Partial<Record<EnemyId, Partial<Record<DamageType, number>
   forgemaster: { fire: 0.5, frost: 1.3 }, // #215: forge-hot iron: fire barely warms it, frost cracks it
   emberQueen: { fire: 0.5, frost: 1.3 }, // #227: fire barely warms her, frost bites (as the Forgemaster: a fire build still hurts her)
   usurper: { shadow: 0.7, holy: 1.25, physical: 0.9 },
+  blightHound: { fire: 1.5, frost: 0.75, shadow: 0.75 }, // #276: the wolf's coat, and the plague in him shrugs off shadow
   royalFlame: { fire: 0.1, frost: 2 }, // fire feeds it; frost puts it out
 };
 
@@ -156,3 +157,14 @@ export const ENEMY_STATUS: Partial<Record<EnemyId, { id: StatusId; stacks?: numb
   // the cap) and hotter; it falls a stack at a time like theirs, and your utility puts it out. #232: power 4 -> 2.2 (BALANCE.md)
   cinderColossus: { id: 'burn', stacks: 2, power: 2.2, time: 1.5, decay: 1.5 },
 };
+/**
+ * #276: foes that leave plague ground where they die (the Barrowvale's Blight Hounds). It lasts `life` seconds (a Plague wave's pools 4,
+ * a plague cart's 6), `radius` wide, and burns `dps` x the foe's own blow a second as shadow, to the champion and his minions only. A hound
+ * that falls within `merge` x `radius` of plague ground already standing renews it instead of laying more, and at most `cap` stand at
+ * once (the oldest fades for a new one), so a pack dying at your feet fouls one patch, not a carpet (logic/plagueGround.ts).
+ */
+export const PLAGUE_GROUND: Partial<Record<EnemyId, { radius: number; life: number; dps: number }>> = {
+  // a pack of 4-5 falls in a heap: one patch, renewed; at 0.6 a 6-blow wolf's patch is 3.6 a second before scaling (a Plague pool's 10)
+  blightHound: { radius: 46, life: 12, dps: 0.6 },
+};
+export const PLAGUE_GROUND_RULES = { merge: 1, cap: 6 };
