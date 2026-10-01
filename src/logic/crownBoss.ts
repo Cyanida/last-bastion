@@ -10,13 +10,14 @@ export const isCrownFight = (end: EndBoss | undefined): boolean => !!end?.crown;
 
 /**
  * What a crown boss's HP holds at, so no blow carries it through a phase (phases split the HP bar evenly, systems/enemyAI): while its phase
- * has not run WORLD.crownBoss.minPhaseSeconds, just above that phase's own threshold; after it, just above the next one, so a burst still
- * lands in the next phase and starts its clock. The last threshold is death: held at 1 HP. 0 = no hold (its last phase, run its time).
+ * has not run WORLD.crownBoss.minPhaseSeconds, just above that phase's own threshold (the last phase's is death: held at 1 HP). After it, on
+ * the threshold itself (#264): a burst ends the phase and no more, so the next phase begins at the top of its own share of the bar and is
+ * fought through, not stood out at its floor. 0 = no hold (its last phase, run its time).
  */
 export function crownHpFloor(maxHp: number, phase: number, phases: number, elapsed: number, min = WORLD.crownBoss.minPhaseSeconds): number {
-  const hold = elapsed < min ? phase : phase + 1; // the threshold it may not pass yet
-  if (hold > phases) return 0;
-  return hold === phases ? 1 : Math.floor(maxHp * (1 - hold / phases)) + 1;
+  if (phase >= phases) return elapsed < min ? 1 : 0;
+  const threshold = Math.floor(maxHp * (1 - phase / phases)); // on it, enterPhase (hp <= its share) moves the phase on
+  return elapsed < min ? threshold + 1 : threshold;
 }
 
 /** #219: a level's end boss comes as an elite (rule 3: a relic realm's level 4, its first boss again). */
