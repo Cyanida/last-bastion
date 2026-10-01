@@ -157,9 +157,9 @@ function necromancer(p: NPose): Figure {
   // wisp over it; `fx` swells the light as he charges a spell
   const st = new Bone(fist[0], fist[1], p.wpn);
   const rings: D[] = [];
-  for (const y of [-20, -12, 7]) rings.push([-0.5, y, 'bone', 4], [0.5, y, 'bone', 4], [-0.5, y + 1, 'bone', 2], [0.5, y + 1, 'bone', 2]);
-  f.part(st, [[-0.9, 17], [0.9, 17], [0.9, -25], [-0.9, -25]], 'bark', za - 0.1, { details: rings });
-  const top = st.child(0, -29);
+  for (const y of [-19, -11, 7]) rings.push([-0.5, y, 'bone', 4], [0.5, y, 'bone', 4], [-0.5, y + 1, 'bone', 2], [0.5, y + 1, 'bone', 2]);
+  f.part(st, [[-0.9, 17], [0.9, 17], [0.9, -23], [-0.9, -23]], 'bark', za - 0.1, { details: rings });
+  const top = st.child(0, -27); // short enough that his idle, wisp and all, stands within the class card's portrait (#156)
   for (const s of [-1, 1]) f.part(top, [[s * 2.6, -3], [s * 5, -3.6], [s * 6.6, -2], [s * 7, 0.6], [s * 6.2, 3], [s * 4.6, 4.2], [s * 3.6, 3.2], [s * 5, 2.2], [s * 5.4, 0.4], [s * 4.6, -1.2], [s * 3, -1]], 'bone', za - 0.07, { dim: s < 0 ? 2 : 1, details: [[s * 5, -2.6, 'bone', 4], [s * 6.2, -0.8, 'bone', 2], [s * 6, 1.6, 'bone', 2]] }); // ram's horns curling down round the skull
   const eye = p.dead ? 0 : p.fx > 0.5 ? 6 : 5;
   f.part(top, [[-3.2, -3.4], [3.2, -3.4], [3.8, 0], [2.6, 2.6], [1.6, 4.4], [-1.6, 4.4], [-2.6, 2.6], [-3.8, 0]], 'bone', za - 0.06, {
