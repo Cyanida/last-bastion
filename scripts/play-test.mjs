@@ -8005,7 +8005,7 @@ for (const [w, h] of [[1280, 720], [1920, 1080]]) {
         if (!rects.length) continue;
         let xOk = true, yOk = true, scrolledY = false;
         // its own element and button, then every box that clips it, up to the window; a scrolling box may hold it out of sight
-        const own = e.closest('button, .kit-btn, .kit-pill, .kit-ribbon');
+        const own = e.closest('button, .kit-btn, .kit-pill, .kit-ribbon, .keep-plate, .relic-info');
         for (let a = e; a && a !== document.body; a = a.parentElement) {
           const cs = style(a), o = a.getBoundingClientRect();
           const clipX = a === own || a === e || cs.overflowX !== 'visible', clipY = a === own || cs.overflowY !== 'visible';
