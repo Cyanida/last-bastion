@@ -447,7 +447,7 @@ export interface Corpse {
   y: number;
   t: number;
   walked?: boolean; // Charnel: walked over already
-  rise?: { id: EnemyId; at: number; side: boolean }; // #275: it rises as `id` when its t reaches `at`, unless trampled first (logic/risingCorpse.ts)
+  rise?: { id: EnemyId; at: number; side: boolean; hp: number }; // #275: it rises as `id` with `hp` when its t reaches `at`, unless trampled first (logic/risingCorpse.ts)
 }
 
 export interface Particle {

@@ -4,22 +4,23 @@ import { ENEMIES, RISING } from '../src/config/enemies';
 import { GAME } from '../src/config/game';
 import type { Corpse } from '../src/core/types';
 import { createGame } from '../src/game';
-import { corpseRise, riseProgress, risenHp, risingOf, stepRising, tramples } from '../src/logic/risingCorpse';
+import { corpseRise, riseProgress, risingOf, stepRising, tramples } from '../src/logic/risingCorpse';
 import { realmFoe } from '../src/logic/world';
 import { killEnemy, updateRisingCorpses } from '../src/systems/combat';
 import { spawnEnemy } from '../src/systems/spawning';
 
 // #275: the Barrowvale's Barrow Thralls, whose corpses rise again unless the champion tramples them
 const cfg = RISING.barrowThrall!;
-const corpse = (x: number, y: number, t = 0): Corpse => ({ x, y, t, rise: corpseRise({ id: 'barrowThrall', side: false }) });
+const corpse = (x: number, y: number, t = 0): Corpse => ({ x, y, t, rise: corpseRise({ id: 'barrowThrall', side: false, maxHp: 22 }) });
 const far = { x: 1000, y: 1000, r: 14 };
 
 describe('a rising corpse (#275)', () => {
   it('only the kinds that rise carry a rise, and never twice', () => {
     expect(risingOf('barrowThrall')).toBe(cfg);
-    expect(corpseRise({ id: 'barrowThrall', side: true })).toEqual({ id: 'barrowThrall', at: cfg.delay, side: true });
-    expect(corpseRise({ id: 'barrowThrall', risen: true, side: false })).toBeUndefined();
-    for (const id of ['peasant', 'torchbearer', 'cinderHound', 'knight'] as const) expect(corpseRise({ id, side: false })).toBeUndefined();
+    expect(corpseRise({ id: 'barrowThrall', side: true, maxHp: 31 })).toEqual({ id: 'barrowThrall', at: cfg.delay, side: true, hp: 16 });
+    expect(corpseRise({ id: 'barrowThrall', side: false, maxHp: 1 })!.hp).toBe(1);
+    expect(corpseRise({ id: 'barrowThrall', risen: true, side: false, maxHp: 22 })).toBeUndefined();
+    for (const id of ['peasant', 'torchbearer', 'cinderHound', 'knight'] as const) expect(corpseRise({ id, side: false, maxHp: 22 })).toBeUndefined();
   });
 
   it('rises when its time comes, not before, and leaves the ground', () => {
@@ -58,8 +59,8 @@ describe('a rising corpse (#275)', () => {
     expect(cfg.delay).toBeGreaterThanOrEqual(3);
     expect(cfg.delay).toBeLessThan(GAME.corpseLifetime);
     expect(cfg.trample).toBeGreaterThan(0);
-    expect(risenHp('barrowThrall', 22)).toBe(11);
-    expect(risenHp('barrowThrall', 1)).toBe(1);
+    expect(cfg.hp).toBe(0.5);
+    expect(corpseRise({ id: 'barrowThrall', side: false, maxHp: ENEMIES.barrowThrall.hp })!.hp).toBe(11);
   });
 });
 
@@ -97,7 +98,7 @@ describe('the Barrowvale marches barrow thralls (#275)', () => {
     age(g, 0.2);
     expect(g.vars['corpsesRisen']).toBe(1);
     const r = g.enemies[g.enemies.length - 1];
-    expect(r).toMatchObject({ x: e.x, y: e.y, risen: true, side: e.side, maxHp: risenHp('barrowThrall', e.maxHp), hp: risenHp('barrowThrall', e.maxHp) });
+    expect(r).toMatchObject({ x: e.x, y: e.y, risen: true, side: e.side, maxHp: Math.round(e.maxHp / 2), hp: Math.round(e.maxHp / 2) });
     expect(r.def.id).toBe('barrowThrall');
     // felled again, he stays down
     killEnemy(g, r);

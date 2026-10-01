@@ -6,10 +6,13 @@ import type { Corpse } from '../core/types';
 /** A foe's rising (config/enemies.ts RISING), if its kind has one. */
 export const risingOf = (id: EnemyId) => RISING[id];
 
-/** What a fallen foe's corpse carries: when it rises and as what, or undefined: its kind stays down, or it has risen once already. */
-export function corpseRise(foe: { id: EnemyId; risen?: boolean; side: boolean }): Corpse['rise'] {
+/**
+ * What a fallen foe's corpse carries: when it rises, as what and with how much HP (its kind's share of the HP it stood with, at least 1),
+ * or undefined: its kind stays down, or it has risen once already.
+ */
+export function corpseRise(foe: { id: EnemyId; risen?: boolean; side: boolean; maxHp: number }): Corpse['rise'] {
   const cfg = RISING[foe.id];
-  return cfg && !foe.risen ? { id: foe.id, at: cfg.delay, side: foe.side } : undefined;
+  return cfg && !foe.risen ? { id: foe.id, at: cfg.delay, side: foe.side, hp: Math.max(1, Math.round(foe.maxHp * cfg.hp)) } : undefined;
 }
 
 /** Whether the champion (at x, y, radius r) stands on a rising corpse: within its kind's `trample` px of his edge. */
@@ -40,9 +43,4 @@ export function stepRising(corpses: Corpse[], champ: { x: number; y: number; r: 
     }
   }
   return out;
-}
-
-/** The HP a risen foe comes back with: its kind's share of the HP it had when it first stood (at least 1). */
-export function risenHp(id: EnemyId, maxHp: number): number {
-  return Math.max(1, Math.round(maxHp * (RISING[id]?.hp ?? 1)));
 }

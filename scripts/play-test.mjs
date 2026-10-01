@@ -7959,6 +7959,100 @@ await check('Iron Hold: a level 1 clear by a champion who owns every Steel rare 
   return { ok, detail: ok ? got.sub : `${JSON.stringify(got)} ${errs.join('|')}` };
 });
 
+// ---------- #275: the Barrowvale's barrow thralls: map -> the Barrowvale -> level 2 -> FIGHT; a peasant brought in as a wave brings him
+// marches as the Barrow Thrall with his own flash card, "Got it" closes it. The champion's own blows fell him beside him: his corpse lies
+// soul-lit and, with the champion standing off it, rises where it lay with half his HP; felled again he stays down. A second one felled,
+// D (a real key) walks the champion over the corpse: it is trampled and never rises ----------
+await check('Barrowvale: a peasant marches as the Barrow Thrall, his flash card shows, his corpse rises again with half his HP unless the champion walks over it with D, and a risen one stays down (#275)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], barrowvale: [1] }), world: { marches: [7], barrowvale: [1] }, signature: true, lastBastion: false, runs: { barrowvale: run } });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Barrowvale level 1 cleared, its realm run at level 2
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'barrowThrall'); // every other card already seen, so his is the one that shows
+  }, runAt(2));
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-barrowvale');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // a peasant comes in the way a wave brings one, in sight: the realm turns him into its own kind and his card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    g.player.invulnerable = true;
+    const b = lb.spawn('peasant', g.player.x + 160, g.player.y);
+    window.__thrall = b;
+    for (let i = 0; i < 600 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    return { kind: b?.def.id, sprite: b?.def.sprite, id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g.level?.realm };
+  });
+  if (card.id) await p.click('[data-leave]');
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 3000 }).catch(() => {});
+  // the known state: every other foe stunned and held far off, the thrall held beside the champion until his own attack fells him.
+  // `mode` false stands still off the corpse, 'input' reads the keys held
+  await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    pl.invulnerable = true; // this check is about the corpse, not the blows
+    const hold = (keep) => { for (const e of g.enemies) if (!keep.includes(e)) Object.assign(e, { x: pl.x + 700, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 }; };
+    window.__fell = (b) => {
+      for (let i = 0; i < 900 && !b.dead && lb.game === g && lb.state === 'playing'; i++) {
+        hold([b]);
+        Object.assign(b, { x: pl.x + 36, y: pl.y });
+        b.statuses.stun = { stacks: 1, time: 5, power: 0 };
+        lb.run(1, false, false);
+      }
+      const c = g.corpses.find((k) => k.rise && Math.hypot(k.x - b.x, k.y - b.y) < 1);
+      return { dead: b.dead, x: b.x, y: b.y, maxHp: b.maxHp, corpse: !!c, at: c?.rise.at };
+    };
+    // ticks until the corpse at (x, y) rises or `secs` pass; reports the thrall that rose there
+    window.__wait = (x, y, secs, mode) => {
+      const c = g.corpses.find((k) => k.rise && Math.hypot(k.x - x, k.y - y) < 1);
+      const trampled0 = g.vars.corpsesTrampled ?? 0;
+      let up = null, ticks = 0, onIt = false;
+      for (; ticks < secs * 60 && lb.game === g && lb.state === 'playing'; ticks++) {
+        hold(up ? [up] : []);
+        lb.run(1, false, mode);
+        if (Math.hypot(pl.x - x, pl.y - y) <= pl.r + 10) onIt = true;
+        up = up ?? g.enemies.find((e) => e.risen && !e.dead && Math.hypot(e.x - x, e.y - y) < 1) ?? null;
+        if (up && mode === false) break;
+      }
+      return { secs: ticks / 60, rose: !!up, kind: up?.def.id, hp: up?.hp, maxHp: up?.maxHp, rise: c ? (c.rise ? 'still rising' : 'trampled') : 'gone', trampled: (g.vars.corpsesTrampled ?? 0) - trampled0, onIt };
+    };
+  });
+  // one evaluate: the game keeps running between them, and the champion's blows would find the risen thrall first
+  const { first, again } = await p.evaluate(() => {
+    const f = window.__fell(window.__thrall);
+    const first = { closed: !document.querySelector('[data-card]') && window.__lb.state === 'playing', fell: f, wait: window.__wait(f.x, f.y, 6, false) };
+    // the risen one, felled again, stays down
+    const up = window.__lb.game.enemies.find((e) => e.risen && !e.dead);
+    if (!up) return { first, again: { found: false } };
+    const f2 = window.__fell(up);
+    const w = window.__wait(f2.x, f2.y, 5, false);
+    return { first, again: { found: true, dead: f2.dead, marked: f2.corpse, rose: w.rose } };
+  });
+  // a second thrall felled the same way; this time D walks the champion over his corpse and on
+  await p.keyboard.down('KeyD');
+  const { fell2, walk } = await p.evaluate(() => {
+    const lb = window.__lb, f = window.__fell(lb.spawn('peasant', lb.game.player.x + 36, lb.game.player.y));
+    return { fell2: f, walk: window.__wait(f.x, f.y, 0.6, 'input') };
+  });
+  await p.keyboard.up('KeyD');
+  const after = await p.evaluate(({ x, y }) => window.__wait(x, y, 5, false), fell2);
+  await p.close();
+  const half = (w, f) => w.maxHp === Math.max(1, Math.round(f.maxHp * 0.5)) && w.hp === w.maxHp;
+  const ok = card.realm === 'barrowvale' && card.kind === 'barrowThrall' && card.sprite === 'barrowThrall' && card.id === 'barrowThrall' && card.title === 'Barrow Thrall' && /Rises again/.test(card.text ?? '')
+    && first.closed && first.fell.dead && first.fell.corpse && first.wait.rose && first.wait.kind === 'barrowThrall' && half(first.wait, first.fell) && Math.abs(first.wait.secs - first.fell.at) < 0.1
+    && again.found && again.dead && !again.marked && !again.rose
+    && fell2.dead && fell2.corpse && walk.onIt && walk.trampled === 1 && walk.rise === 'trampled' && !walk.rose && !after.rose && after.secs >= 4.9 && errs.length === 0;
+  return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${first.closed}; stood off: ${first.fell.dead ? 'felled' : 'NOT felled'}, corpse ${first.fell.corpse ? 'marked' : 'NOT marked'}, ${first.wait.rose ? `rose as ${first.wait.kind} after ${first.wait.secs.toFixed(2)} s with ${first.wait.hp}/${first.wait.maxHp} HP (was ${first.fell.maxHp})` : 'NEVER rose'}; felled again: ${again.found ? (again.rose ? 'ROSE AGAIN' : again.marked ? 'corpse MARKED' : 'stayed down') : 'NO risen thrall'}; walked over with D: ${walk.onIt ? 'on it' : 'NEVER on it'}, ${walk.trampled} trampled, corpse ${walk.rise}, ${after.rose ? 'ROSE' : `stayed down ${after.secs.toFixed(1)} s`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose
   return { ok: real.length === 0, detail: real.slice(0, 3).join(' | ') };
