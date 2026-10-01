@@ -8,7 +8,7 @@ import { sfx } from '../sim/view';
 import { emit } from '../core/events';
 import type { Enemy, Game } from '../core/types';
 import { createEnemy } from '../entities/actors';
-import { actName, bossDef, bossForWave, caravanSellsRelic, isActEnd, themeFor } from '../logic/acts';
+import { placeName, bossDef, bossForWave, caravanSellsRelic, isActEnd, themeFor } from '../logic/acts';
 import { curseValue } from '../logic/curses';
 import { enemyXpMult, waveClearXp } from '../logic/formulas';
 import { gainXp } from './leveling';
@@ -156,7 +156,7 @@ function startWave(g: Game): void {
   g.spawnTimer = 0;
   g.waveT = 0;
   if (g.wave === ACTS.length) g.wave10Time = g.time;
-  const title = g.wave === 1 ? `${actName(1)} — ${themeFor(1, g.seed).name}` : plan.boss ? `Wave ${g.wave} — Boss` : `Wave ${g.wave}`;
+  const title = g.wave === 1 ? `${placeName(1, g.level)} — ${themeFor(1, g.seed).name}` : plan.boss ? `Wave ${g.wave} — Boss` : `Wave ${g.wave}`;
   g.banner = { text: plan.modifier ? `${title} · ${MODIFIERS[plan.modifier].name}` : title, t: plan.modifier ? 3 : 2 };
   sfx(g, 'wave');
   emit(g, 'onWaveStart', { wave: g.wave });

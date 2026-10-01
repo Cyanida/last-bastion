@@ -7,7 +7,7 @@ import { ARENAS, HAZARD_GRACE, PRESSES, SPREADING_FIRE } from '../config/arenas'
 import { RELIC_DROPS, relicDef, type Rarity, type RelicId, RELIC_MOMENTS } from '../config/relics';
 import { sfx } from '../sim/view';
 import type { Game } from '../core/types';
-import { actName, arenaFor, isActEnd, merchantPrice, merchantRerollRng, themeFor, type MerchantItem } from '../logic/acts';
+import { placeName, arenaFor, isActEnd, merchantPrice, merchantRerollRng, themeFor, type MerchantItem } from '../logic/acts';
 import { halfAttunement, relicTier, rollRelics } from '../logic/relics';
 import { floatText } from './effects';
 import { gainXp } from './leveling';
@@ -159,7 +159,7 @@ export function nextAct(g: Game, route: Route | null = null): void {
   g.flames.length = g.fireFronts.length = 0;
   g.minions.forEach((m, i) => Object.assign(m, { x: p.x + 40 * Math.cos(i * 2), y: p.y + 40 * Math.sin(i * 2) }));
   const theme = actTheme(g);
-  g.banner = { text: `${actName(g.act)} — ${theme.name}`, t: 3.5 };
+  g.banner = { text: `${placeName(g.act, g.level)} — ${theme.name}`, t: 3.5 };
   if (route) markRoute(g, `${ROUTE_NAMES[route.focus]} · ${g.arena.name} · ${theme.name}`);
   if (route?.focus === 'pilgrim') g.pendingShrine = shrineChoices(g); // a blessing to start the Act with
   floatText(g, p.x, p.y - 50, g.arena.name, '#e9c95a', 16);
@@ -174,7 +174,7 @@ export function nextAct(g: Game, route: Route | null = null): void {
 export function turnAct(g: Game): void {
   g.act++;
   g.route = null;
-  g.banner = { text: `${actName(g.act)} — ${actTheme(g).name}`, t: 3 };
+  g.banner = { text: `${placeName(g.act, g.level)} — ${actTheme(g).name}`, t: 3 };
   initQuests(g); // what is left of the old Act's quests fails; a new board is up
 }
 

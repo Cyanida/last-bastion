@@ -90,7 +90,7 @@ describe('longer levels: a level runs on its own waves (#243)', () => {
     expect([g.pendingMerchant, g.pendingRoute, g.route]).toEqual([false, null, null]);
     expect(g.act).toBe(2);
     expect(g.arena.id).toBe(arena); // the realm's own arena, not the rotation's
-    expect(g.banner?.text).toMatch(/^Act II/);
+    expect(g.banner?.text).toMatch(/^Level 2 of 7/);
     expect(g.pendingBoard).toBe(true); // Act II's board is up
     g.pendingBoard = false;
     g.breather = 0.001;
