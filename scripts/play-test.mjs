@@ -4687,6 +4687,109 @@ await check('Champion sheets: each class loads its sheet, attacks and casts its 
   return { ok: out.every(([, ok]) => ok), detail: out.map(([c, , s]) => `${c}: ${s}`).join('; ') };
 });
 
+// ---------- #245: the Paladin redrawn as a holy warrior: silver-white plate, gold, a blue cape and no red; his blade blazes on the cast; in a
+// run a blow plays his shield block, Space his cast and E his Challenge, and on the field he still shows plate, gold and blue ----------
+await check('Paladin look: silver-white plate, gold and blue, no red; the blade blazes on the cast; a blow is a block in play (#245)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('paladin'));
+  const kinds = `({
+    plate: (r, g, b) => r >= 190 && b >= r + 5 && g >= r,
+    gold: (r, g, b) => r > 180 && g > 110 && b < 90,
+    blue: (r, g, b) => b > 130 && b > r + 60,
+    red: (r, g, b) => r > 120 && g < 70 && b < 70,
+    blaze: (r, g, b) => r >= 250 && g >= 235 && b >= 170 && b <= 245,
+  })`;
+  // the test-mode gallery: his idle in his new colours, his cast row at its brightest against his idle
+  const gallery = await inPage(async (kinds) => {
+    const K = eval(kinds), wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const count = (anim) => {
+      const c = document.querySelector(`[data-sheet="paladin"][data-anim="${anim}"]`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+      return n;
+    };
+    const idle = count('idle');
+    let blaze = 0;
+    const hurt = new Set();
+    for (let i = 0; i < 25; i++) {
+      blaze = Math.max(blaze, count('cast').blaze);
+      hurt.add(document.querySelector('[data-sheet="paladin"][data-anim="hurt"]').dataset.frame);
+      await wait(60);
+    }
+    document.querySelector('.testmode [data-back]').click();
+    await wait(100);
+    document.querySelector('[data-act="back"]').click();
+    await wait(100);
+    return { idle, blaze, hurt: hurt.size };
+  }, kinds);
+  // a Paladin run in test mode: a foe at his side strikes him, then Space and E, played through the keys
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'paladin');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '5'); // Challenge, his utility, unlocks at level 3
+    window.__startTest();
+  });
+  const seen = new Set(), hurtFrames = new Set();
+  const sample = async (ms) => {
+    for (let t = 0; t < ms; t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+      seen.add(a.anim);
+      if (a.anim === 'hurt') hurtFrames.add(a.frame);
+    }
+  };
+  for (let i = 0; i < 16 && !seen.has('hurt'); i++) {
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 }); // one foe at his side, tough enough to keep striking
+      Object.assign(p, { hp: p.stats.hp, invulnerable: false });
+    });
+    await sample(250);
+  }
+  await sample(400); // the block plays through
+  // on the field, at game size: the pixels where he stands show his plate, gold and blue
+  const field = await inPage((kinds) => {
+    const K = eval(kinds), lb = window.__lb, p = lb.game.player, cam = lb.camera();
+    lb.draw();
+    const c = document.getElementById('game').getContext('2d');
+    const x = Math.round((p.x - 30 - Math.round(cam.x)) * cam.zoom), y = Math.round((p.y - 60 - Math.round(cam.y)) * cam.zoom);
+    const d = c.getImageData(x, y, Math.round(60 * cam.zoom), Math.round(66 * cam.zoom)).data;
+    const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+    for (let i = 0; i < d.length; i += 4) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+    return n;
+  }, kinds);
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('Space');
+  await sample(150);
+  await page.keyboard.up('Space');
+  await sample(600);
+  await inPage(() => Object.assign(window.__lb.game.player, { utilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('KeyE');
+  await sample(150);
+  await page.keyboard.up('KeyE');
+  await sample(400);
+  const { idle } = gallery;
+  const ok = idle.plate >= 60 && idle.gold >= 60 && idle.blue >= 60 && idle.red === 0 && gallery.blaze >= 3 * Math.max(1, idle.blaze) && gallery.hurt === 3
+    && seen.has('hurt') && hurtFrames.size >= 2 && seen.has('cast') && seen.has('skill') && field.plate >= 20 && field.gold >= 20 && field.blue >= 20;
+  return { ok, detail: `gallery idle ${JSON.stringify(idle)}, cast blaze ${gallery.blaze}, hurt frames ${gallery.hurt}; in play ${[...seen].join('/')} (hurt frames ${[...hurtFrames].join(',')}); on the field ${JSON.stringify(field)}` };
+});
+
 // ---------- #156: at the attack-speed cap the Viking swings a short swing that keeps up, and E plays his Leap, not a walk ----------
 await check('Fast attacks and Leap: the swing keeps up at the cap, E leaps without running legs (#156)', async () => {
   await inPage(() => location.reload());
