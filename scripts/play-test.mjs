@@ -4947,6 +4947,99 @@ await check('Viking raider: the gallery shows his teal wool and no ginger beard;
   return { ok, detail: `gallery idle ${look.cell}: ${look.teal} teal px, ${look.ginger} ginger px; cast frames ${[...castFrames].sort().join(',')}; hurt frames ${[...hurtFrames].sort().join(',')} after ${hurt.length} steps` };
 });
 
+// ---------- #268: the Angel is a fighting angel: great pearl wings, white linen and gold, a scepter-staff; she hovers; her death ascends to
+// nothing; in a run a blow plays her parry, Space her Heavenly Radiance and E her Blink, and on the field her wings show ----------
+await check('Angel look: pearl wings, linen and gold in the gallery, her death ends empty; in play a blow parries, Space radiates, E blinks (#268)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('angel'));
+  const kinds = `({
+    pearl: (r, g, b) => b >= 150 && b - r >= 12 && b - r <= 45 && g >= r && b > g,
+    linen: (r, g, b) => r >= 180 && r - b >= 15 && r - b <= 50 && g < r && g > b,
+  })`;
+  // the test-mode gallery: her idle cell in her new colours; her death plays to an empty last frame
+  const gallery = await inPage(async (kinds) => {
+    const K = eval(kinds), wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(200);
+    const count = (anim) => {
+      const c = document.querySelector(`[data-sheet="angel"][data-anim="${anim}"]`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      const n = Object.fromEntries([...Object.keys(K), 'any'].map((k) => [k, 0]));
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) { n.any++; for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++; }
+      return n;
+    };
+    const idle = count('idle'), cell = document.querySelector('[data-sheet="angel"][data-anim="idle"]');
+    const death = document.querySelector('[data-sheet="angel"][data-anim="death"]');
+    let emptyEnd = false;
+    for (let i = 0; i < 40 && !emptyEnd; i++) {
+      await wait(50);
+      if (death.dataset.frame === '9') emptyEnd = count('death').any === 0;
+    }
+    document.querySelector('.testmode [data-back]').click();
+    await wait(100);
+    document.querySelector('[data-act="back"]').click();
+    await wait(100);
+    return { idle, emptyEnd, cell: `${cell.width / 2}×${cell.height / 2}` };
+  }, kinds);
+  // an Angel run in test mode: a foe at her side strikes her, then Space and E, played through the keys
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'angel');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '5'); // Blink, her utility, unlocks at level 3
+    window.__startTest();
+  });
+  const seen = new Set();
+  const sample = async (ms) => {
+    for (let t = 0; t < ms; t += 50) seen.add((await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))))).anim);
+  };
+  for (let i = 0; i < 16 && !seen.has('hurt'); i++) {
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 }); // one foe at her side, tough enough to keep striking
+      Object.assign(p, { hp: p.stats.hp, invulnerable: false });
+    });
+    await sample(250); // one sampled parry frame is enough: 50 ms samples can miss the short ones
+  }
+  // on the field, at game size: the pixels where she hovers show her pearl wings and her linen
+  const field = await inPage((kinds) => {
+    const K = eval(kinds), lb = window.__lb, p = lb.game.player, cam = lb.camera();
+    lb.draw();
+    const c = document.getElementById('game').getContext('2d');
+    const x = Math.round((p.x - 60 - Math.round(cam.x)) * cam.zoom), y = Math.round((p.y - 110 - Math.round(cam.y)) * cam.zoom);
+    const d = c.getImageData(x, y, Math.round(120 * cam.zoom), Math.round(120 * cam.zoom)).data;
+    const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+    for (let i = 0; i < d.length; i += 4) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+    return n;
+  }, kinds);
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('Space');
+  await sample(150);
+  await page.keyboard.up('Space');
+  await sample(600);
+  await inPage(() => Object.assign(window.__lb.game.player, { utilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('KeyE');
+  await sample(150);
+  await page.keyboard.up('KeyE');
+  await sample(400);
+  const { idle } = gallery;
+  const ok = idle.pearl >= 300 && idle.linen >= 150 && gallery.emptyEnd && seen.has('hurt') && seen.has('cast') && seen.has('skill') && field.pearl >= 40 && field.linen >= 20;
+  return { ok, detail: `gallery idle ${gallery.cell} ${JSON.stringify(idle)}, death ends empty ${gallery.emptyEnd}; in play ${[...seen].join('/')}; on the field ${JSON.stringify(field)}` };
+});
+
 // ---------- #156: the Viking's swing leaves a tapered trail, not a flat wedge; the walk keeps pace with the ground at 1.5x and under a heavy slow ----------
 await check('Swing trail and walk pace: a crescent trail on the swing; the feet follow the ground fast and slowed (#156)', async () => {
   await inPage(() => location.reload());

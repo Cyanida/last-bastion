@@ -53,7 +53,7 @@ describe('#268 the Angel redesign', () => {
     expect(d.anims.hurt).toHaveLength(3);
     expect(pickFrame(d, { ...calm, hurt: 0.02 }, 60)).toEqual({ anim: 'hurt', frame: 0 });
     expect(pickFrame(d, { ...calm, hurt: 0.22 }, 60)).toEqual({ anim: 'hurt', frame: 2 });
-    for (const anim of ['idle', 'walk', 'attack', 'cast', 'hurt', 'death', 'skill']) expect(d.anims[anim]?.length, anim).toBeGreaterThan(0);
+    for (const anim of ['idle', 'walk', 'attack', 'cast', 'hurt', 'death', 'skill'] as const) expect(d.anims[anim]?.length, anim).toBeGreaterThan(0);
   });
 
   it('no other sprite wears her linen, pearl or skin, so a foe never looks like her', () => {
