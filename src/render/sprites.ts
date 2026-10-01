@@ -240,6 +240,37 @@ export const SPRITES = {
     '......kkbk....kbkk......',
     '......kkkk....kkkk......',
   ],
+  // #275: the Barrowvale's Barrow Thrall: a letter-grid stand-in until the rigged sheet loads
+  barrowThrall: [
+    '....................bb..',
+    '....................bb..',
+    '........kkkkkkkk..bbbbbb',
+    '........kBBBBBbk..bbbbbb',
+    '....kkBBBBBBBBBBBBhbbb..',
+    '....kkbBbbbbbbbbBbkkbb..',
+    '......kLLLLLLLLLdk..bb..',
+    '......kLLLdLLdLLdk..bb..',
+    '......kLLdcLLkLLdk..bb..',
+    '......kLLLLLLLLLdk..bb..',
+    '......kLLLLddLLLdk..bb..',
+    '......kdLLLLLLLLdk..bb..',
+    '....kkkkBBBBBBBbkkkkbb..',
+    '....kbkkBBBBBBBbkkLLbb..',
+    '..kkBbkBBBbbbbBbkLLLbb..',
+    '..kBBbkBBBbBbbBbkdLLbb..',
+    '..kBBbkBBBbbBbBBbk..bb..',
+    '..kBBbkBBBbbbbBBbk..bb..',
+    '..kdLdkBBBBBBBBBbk..bb..',
+    '..kkddkbBBBBBBBBbk..bb..',
+    '....kdkkbbbbbbbbbk......',
+    '....kkkkbbbbbbbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kkbk....kbkk......',
+    '......kkkk....kkkk......',
+  ],
   // #225: the Cinderlands' Torchbearer: a letter-grid stand-in until the rigged sheet loads
   torchbearer: [
     '...................yo...',
@@ -1526,6 +1557,7 @@ export const SPRITE_RES: Partial<Record<SpriteId, number>> = {
   // the siege pieces and the bosses (#138, part 3); the skeleton minion stays 1x on purpose
   ballista: 2, siegeTower: 2, siegeCamp: 2, plagueCart: 2,
   blackKnight: 2, warlord: 2, lich: 2, inquisitor: 2, abbot: 2, dragon: 2, warden: 2, forgemaster: 2, ironKing: 2, emberQueen: 2, cinderColossus: 2, usurper: 2, royalFlame: 2,
+  barrowThrall: 2, // #275: the Barrowvale's peasant
 };
 
 export interface Sprite {
