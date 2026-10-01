@@ -4900,6 +4900,128 @@ await check('Paladin look: silver-white plate, gold and blue, no red; the blade 
   return { ok, detail: `gallery idle ${JSON.stringify(idle)}, cast blaze ${gallery.blaze}, hurt frames ${gallery.hurt}; in play ${[...seen].join('/')} (hurt frames ${[...hurtFrames].join(',')}); on the field ${JSON.stringify(field)}` };
 });
 
+// ---------- #269: the Necromancer redrawn as a bone priest: black, bone, pale grey skin and a sickly green, no purple; Raise Dead lights a
+// circle of green at his feet; in a run a blow plays his ward, Space his Raise Dead and E his Corpse Explosion, and on the field he shows bone and green ----------
+await check('Necromancer look: black, bone, pale skin and green, no purple; Raise Dead glows at his feet; a blow is a ward in play (#269)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('necromancer'));
+  const kinds = `({
+    green: (r, g, b) => g > 120 && g > r + 60 && g > b + 15,
+    bone: (r, g, b) => r > 150 && g > 135 && b > 95 && r >= g && r - b >= 25 && r - b <= 70,
+    pale: (r, g, b) => r > 100 && g > r + 4 && g > b + 3 && Math.abs(r - b) < 8,
+    purple: (r, g, b) => b > g + 40 && r > g + 20,
+  })`;
+  // the test-mode gallery: his idle in his new colours, his cast row at its greenest against his idle, his hurt's three frames
+  const gallery = await inPage(async (kinds) => {
+    const K = eval(kinds), wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const count = (anim) => {
+      const c = document.querySelector(`[data-sheet="necromancer"][data-anim="${anim}"]`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+      return n;
+    };
+    const idle = count('idle');
+    let glow = 0, purple = idle.purple;
+    const hurt = new Set();
+    for (let i = 0; i < 25; i++) {
+      const cast = count('cast');
+      glow = Math.max(glow, cast.green);
+      purple += cast.purple + count('death').purple + count('skill').purple;
+      hurt.add(document.querySelector('[data-sheet="necromancer"][data-anim="hurt"]').dataset.frame);
+      await wait(60);
+    }
+    document.querySelector('.testmode [data-back]').click();
+    await wait(100);
+    document.querySelector('[data-act="back"]').click();
+    await wait(100);
+    return { idle, glow, purple, hurt: hurt.size };
+  }, kinds);
+  // a Necromancer run in test mode: a foe at his side strikes him, then Space and E, played through the keys
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'necromancer');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '5'); // Corpse Explosion, his utility, unlocks at level 3
+    window.__startTest();
+  });
+  const seen = new Set(), hurtFrames = new Set();
+  const sample = async (ms) => {
+    for (let t = 0; t < ms; t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+      seen.add(a.anim);
+      if (a.anim === 'hurt') hurtFrames.add(a.frame);
+    }
+  };
+  for (let i = 0; i < 16 && !seen.has('hurt'); i++) {
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 }); // one foe at his side, tough enough to keep striking
+      Object.assign(p, { hp: p.stats.hp, invulnerable: false });
+    });
+    await sample(250);
+  }
+  await sample(300); // the ward plays through
+  // on the field, at game size: the pixels where he stands show his bone and his green. Out of reach of the foe first, so no hit's
+  // white flash covers him, and the best of a few draws
+  await inPage(() => {
+    const g = window.__lb.game, p = g.player;
+    for (const x of g.enemies) if (!x.dead) Object.assign(x, { x: p.x + 2000, y: p.y });
+    p.invulnerable = true;
+  });
+  await sample(300);
+  let field = null;
+  for (let i = 0; i < 4; i++) {
+    const n = await inPage((kinds) => {
+      const K = eval(kinds), lb = window.__lb, p = lb.game.player, cam = lb.camera();
+      lb.draw();
+      const c = document.getElementById('game').getContext('2d');
+      const x = Math.round((p.x - 30 - Math.round(cam.x)) * cam.zoom), y = Math.round((p.y - 60 - Math.round(cam.y)) * cam.zoom);
+      const d = c.getImageData(x, y, Math.round(60 * cam.zoom), Math.round(66 * cam.zoom)).data;
+      const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+      for (let i = 0; i < d.length; i += 4) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+      return n;
+    }, kinds);
+    if (!field || n.bone + n.green > field.bone + field.green) field = n;
+    await sample(100);
+  }
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('Space');
+  await sample(150);
+  await page.keyboard.up('Space');
+  await sample(800);
+  // Corpse Explosion needs the dead: a few corpses beside him
+  await inPage(() => {
+    const g = window.__lb.game, p = g.player;
+    for (let i = 0; i < 3; i++) g.corpses.push({ x: p.x + 40 + i * 12, y: p.y + 6, t: 0 });
+    Object.assign(p, { utilityCd: 0, hp: p.stats.hp });
+  });
+  await page.keyboard.down('KeyE');
+  await sample(150);
+  await page.keyboard.up('KeyE');
+  await sample(500);
+  const { idle } = gallery;
+  // sampled a step at a time under load, a short animation may show only one of its frames: one sampled hurt frame is enough in play
+  const ok = idle.green >= 10 && idle.bone >= 60 && idle.pale >= 20 && gallery.purple === 0 && gallery.glow >= 2 * Math.max(1, idle.green) && gallery.hurt === 3
+    && seen.has('hurt') && hurtFrames.size >= 1 && seen.has('cast') && seen.has('skill') && field.bone >= 15 && field.green >= 4;
+  return { ok, detail: `gallery idle ${JSON.stringify(idle)}, cast glow ${gallery.glow}, purple ${gallery.purple}, hurt frames ${gallery.hurt}; in play ${[...seen].join('/')} (hurt frames ${[...hurtFrames].join(',')}); on the field ${JSON.stringify(field)}` };
+});
+
 // ---------- #156: at the attack-speed cap the Viking swings a short swing that keeps up, and E plays his Leap, not a walk ----------
 await check('Fast attacks and Leap: the swing keeps up at the cap, E leaps without running legs (#156)', async () => {
   await inPage(() => location.reload());
