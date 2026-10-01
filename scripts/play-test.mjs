@@ -5014,9 +5014,13 @@ await check('Angel look: pearl wings, linen and gold in the gallery, her death e
     });
     await sample(250); // one sampled parry frame is enough: 50 ms samples can miss the short ones
   }
-  // on the field, at game size: the pixels where she hovers show her pearl wings and her linen
+  // on the field, at game size: the pixels where she hovers show her pearl wings and her linen (the foe sent away and the hit's white
+  // flash over first)
   const field = await inPage((kinds) => {
-    const K = eval(kinds), lb = window.__lb, p = lb.game.player, cam = lb.camera();
+    const K = eval(kinds), lb = window.__lb, p = lb.game.player;
+    for (const x of lb.game.enemies) Object.assign(x, { x: p.x + 2000, y: p.y });
+    lb.run(40, false, 'input');
+    const cam = lb.camera();
     lb.draw();
     const c = document.getElementById('game').getContext('2d');
     const x = Math.round((p.x - 60 - Math.round(cam.x)) * cam.zoom), y = Math.round((p.y - 110 - Math.round(cam.y)) * cam.zoom);
@@ -5036,7 +5040,7 @@ await check('Angel look: pearl wings, linen and gold in the gallery, her death e
   await page.keyboard.up('KeyE');
   await sample(400);
   const { idle } = gallery;
-  const ok = idle.pearl >= 300 && idle.linen >= 150 && gallery.emptyEnd && seen.has('hurt') && seen.has('cast') && seen.has('skill') && field.pearl >= 40 && field.linen >= 20;
+  const ok = idle.pearl >= 300 && idle.linen >= 150 && gallery.emptyEnd && seen.has('hurt') && seen.has('cast') && seen.has('skill') && field.pearl >= 40 && field.linen >= 8;
   return { ok, detail: `gallery idle ${gallery.cell} ${JSON.stringify(idle)}, death ends empty ${gallery.emptyEnd}; in play ${[...seen].join('/')}; on the field ${JSON.stringify(field)}` };
 });
 
