@@ -85,6 +85,7 @@ export const ENEMY_CARDS: Record<EnemyId, string> = {
   cinderColossus: 'Crown boss. His hits burn, his fire spreads, and foes burst near him.',
   usurper: 'The last foe. Put out the Royal Flames to hurt him.',
   royalFlame: 'While one burns, the Usurper cannot be hurt.',
+  blightHound: 'Leaps like a wolf. Where it dies, plague ground lingers: fight off it.',
   barrowThrall: 'Rises again where it falls. Walk over the corpse to keep it down.', // #275
 };
 

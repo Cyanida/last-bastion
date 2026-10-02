@@ -14,6 +14,7 @@ import { angleDiff, compact, dist2, TAU } from '../core/math';
 import type { Body, DamageSource, Enemy, Game, Minion, Player, Projectile, Status } from '../core/types';
 import { addField, addZone, fireProjectile, recycleProjectile } from '../entities/hazards';
 import { deathBurst, deathBurstOf } from '../logic/deathBurst';
+import { plagueGround, plagueGroundOf } from '../logic/plagueGround';
 import { corpseRise, stepRising } from '../logic/risingCorpse';
 import { goldDrop } from '../logic/economy';
 import { onSlab } from '../logic/presses';
@@ -28,6 +29,7 @@ import { spawnEnemy } from './spawning';
 
 const BLOOD = '#8e1b1b';
 const FIRE = '#e07b28';
+const PLAGUE = '#8fa33a'; // #276: a fallen foe's lasting plague ground, yellower than a Plague wave's pools
 const SOUL = '#7ec8d8'; // #275: the cold light of a rising corpse
 const near: Enemy[] = []; // scratch for the loops in this file
 const SEEK_TURN = 6; // v0.6: radians a second a seeking bolt can turn
@@ -79,6 +81,18 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
     addZone(g, { ...blast, hostile: true, color: FIRE, dtype: 'fire', art: 'fire', cause: `a ${e.def.name}'s burst` });
     burst(g, e.x, e.y, FIRE, 10, 160);
     g.vars['deathBursts'] = (g.vars['deathBursts'] ?? 0) + 1; // the play test reads it
+  }
+  // #276: a plague-sick foe fouls the ground where it fell, for long: renewing a patch standing there, or laying one (the oldest of a
+  // full cap goes: its life is zeroed, not spliced, as a field's own tick may have felled this foe mid-loop)
+  const plague = plagueGroundOf(e.def.id) && plagueGround({ id: e.def.id, x: e.x, y: e.y, damage: e.damage }, g.fields.filter((f) => f.plague));
+  if (plague) {
+    if ('renew' in plague) plague.renew.life = plague.renew.max;
+    else {
+      if (plague.drop) plague.drop.life = 0;
+      addField(g, { ...plague.lay, hostile: true, color: PLAGUE, dtype: 'shadow', plague: true, cause: `a ${e.def.name}'s plague` });
+    }
+    burst(g, e.x, e.y, PLAGUE, 8, 120);
+    g.vars['plagueGround'] = (g.vars['plagueGround'] ?? 0) + 1; // the play test reads it
   }
   if (e.elite) {
     g.elitesKilled++;
@@ -619,7 +633,7 @@ export function updateFields(g: Game, dt: number): void {
       if (f.hostile) {
         if (inside) {
           const before = p.hp;
-          damagePlayer(g, f.dps * GAME.fieldTick, true, null, `${DAMAGE_TYPES[f.dtype].name.toLowerCase()} on the ground`);
+          damagePlayer(g, f.dps * GAME.fieldTick, true, null, f.cause ?? `${DAMAGE_TYPES[f.dtype].name.toLowerCase()} on the ground`);
           if (f.apply && p.hp < before) applyStatusTo(p.statuses, f.apply); // #182: a shield, ward, block or dodge keeps the burn off too, as with a blow
         }
         for (const m of g.minions) if (dist2(f.x, f.y, m.x, m.y) <= f.r * f.r) damageMinion(g, m, f.dps * GAME.fieldTick);

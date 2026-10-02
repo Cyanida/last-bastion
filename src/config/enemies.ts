@@ -41,7 +41,8 @@ export type EnemyId =
   | 'plagueCart'
   | 'usurper'
   | 'royalFlame'
-  | 'barrowThrall';
+  | 'barrowThrall'
+  | 'blightHound';
 
 export type Behavior =
   | 'chaser'
@@ -335,6 +336,11 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   // #275: the Barrowvale's peasant, a villager the barrows gave back: the Peasant's body and blow, but where he falls he rises again
   // unless the champion tramples his corpse (RISING below)
   barrowThrall: { ...base, id: 'barrowThrall', name: 'Barrow Thrall', sprite: 'barrowThrall', behavior: 'chaser', hp: 22, damage: 8, speed: 72, radius: 12, xp: 1 },
+  // #276: the Barrowvale's wolf, sick with the barrow plague: where he dies the ground stays foul long after (config/damage.ts PLAGUE_GROUND)
+  blightHound: {
+    ...base, id: 'blightHound', name: 'Blight Hound', sprite: 'blightHound', behavior: 'lunger',
+    hp: 12, damage: 6, speed: 135, radius: 10, xp: 1, lungeRange: 130, lungeSpeed: 380, windup: 0.35, lungeTime: 0.4, recover: 0.6,
+  },
 };
 
 /**

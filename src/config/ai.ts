@@ -46,6 +46,7 @@ export const AI: Partial<Record<EnemyId, AiProfile>> = {
   siegeCamp: { reach: 'support', flank: 0, range: [0, 9999], special: { id: 'muster', cd: 12, range: 650 } }, // musters only when you come near
   plagueCart: { reach: 'support', flank: 0, range: [0, 9999] },
   royalFlame: { reach: 'support', flank: 0, range: [0, 9999] }, // v0.6: stands and burns (the Usurper's script makes it flare)
+  blightHound: { reach: 'melee', flank: 0.95, special: { id: 'lunge', cd: 2.2, range: 130, minRange: 30 }, retreatAfterSpecial: 0.7 }, // #276: hunts as the wolf does
 };
 
 /**

@@ -1543,6 +1543,25 @@ export const SPRITES = {
     '....kkkkDhhhhhhhkkkk....',
     '....kkkkkkkkkkkkkkkk....',
   ],
+  // #276: the Barrowvale's Blight Hound: a letter-grid stand-in until the rigged sheet loads
+  blightHound: [
+    '....................kk..kk..',
+    '....................Gk..Gk..',
+    'kk................kkLddddGkk',
+    'kk................kLddddddGk',
+    'kkkk....kkkkkkkkkkLdddEyddGk',
+    'kkkk....kLddddddddddddEEddGk',
+    '..kkkkkkLdddddddddddddddGGkk',
+    '..kkkkLddddddddddddddddGkkkk',
+    '....kLddddLLLLLLddddddGk....',
+    '....kdddddLLLLLLddddddGk....',
+    '....kdddddddddddddddddGk....',
+    '....kddddGddGdddddGGddGk....',
+    '....kdddGk..kdddGGkkddGk....',
+    '....kGdGkk..kGdGkkkkddGk....',
+    '....kkGk....kkGk..kkGGkk....',
+    '....kkkk....kkkk..kkkkkk....',
+  ],
 } satisfies Record<string, string[]>;
 
 export type SpriteId = keyof typeof SPRITES;
@@ -1552,7 +1571,7 @@ export const SPRITE_RES: Partial<Record<SpriteId, number>> = {
   paladin: 2, viking: 2, angel: 2, necromancer: 2, archer: 2,
   // the 15 regular foes and the three commanders (#138, part 2)
   peasant: 2, torchbearer: 2, wolf: 2, cinderHound: 2, crossbow: 2, knight: 2, ironKnight: 2, ironKnightBare: 2, cultist: 2, shieldBearer: 2, thornBearer: 2, priest: 2, cavalry: 2, engineer: 2,
-  plagueDoctor: 2, houndmaster: 2, mirrorKnight: 2, assassin: 2, shieldwall: 2, ironShieldwall: 2, boneCollector: 2,
+  plagueDoctor: 2, houndmaster: 2, mirrorKnight: 2, assassin: 2, shieldwall: 2, ironShieldwall: 2, boneCollector: 2, blightHound: 2, // #276
   bannerman: 2, drummer: 2, chaplain: 2, // the commanders
   // the siege pieces and the bosses (#138, part 3); the skeleton minion stays 1x on purpose
   ballista: 2, siegeTower: 2, siegeCamp: 2, plagueCart: 2,
