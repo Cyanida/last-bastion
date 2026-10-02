@@ -5,6 +5,8 @@ import type { Enemy, Game, Minion, Player } from '../core/types';
 import { fireProjectile } from '../entities/hazards';
 import { towerShieldOf } from '../logic/ironKing';
 import { turnToward } from '../logic/status';
+import { foeBy } from '../logic/foeSounds';
+import { sfx } from '../sim/view';
 import { hurtTarget } from './combat';
 import { spawnEnemy } from './spawning';
 
@@ -43,11 +45,13 @@ export function seek(e: Enemy, t: Target, speed: number, dt: number): void {
 export function touch(g: Game, e: Enemy, t: Target, mult = 1): void {
   if (e.attackTimer <= 0 && distTo(e, t) < e.r + t.r + 4) {
     e.attackTimer = e.def.attackCd;
+    if (!e.def.boss) sfx(g, 'swing', foeBy(e, 'attack')); // #285: his family's blow (a boss's are his own)
     hurtTarget(g, t, hitDamage(e) * mult, false, e);
   }
 }
 
 export function shootAt(g: Game, e: Enemy, angle: number): void {
+  if (!e.def.boss) sfx(g, 'shoot', foeBy(e, 'attack')); // #285: a crossbow's twang, a ballista's
   fireProjectile(g, e.x, e.y, angle, {
     damage: hitDamage(e),
     crit: false,

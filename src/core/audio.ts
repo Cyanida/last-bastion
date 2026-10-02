@@ -9,6 +9,8 @@ import { prefs } from './storage';
 import { classLayers, classSoundKind } from '../logic/classSounds';
 import type { ClassId } from '../config/classes';
 import { playLayers } from './classVoice';
+import { foeLayers, layersEnd } from '../logic/foeSounds';
+import { playFoeVoice } from './foeVoices';
 
 /**
  * Tiny WebAudio synth. Every sound is one oscillator or noise burst with a pitch slide. #282: and the mixer: each sound goes out on a bus
@@ -202,12 +204,13 @@ function steal(i: number, now: number): void {
  * (logic/voices.ts pickVoice: a boss cue or a warning keeps one, a hit in a crowd is dropped first), its pitch and volume vary a little,
  * and it pans by where it is on screen and quietens off it.
  */
-export function sfx(name: SfxName, cue?: { src: CueSource; x: number; y: number }): void {
+export function sfx(name: SfxName, cue?: { src: CueSource; x: number; y: number; voice?: string }): void {
   const bus = busOf(name);
   if (!ctx || !buses || !heard(mix, bus, muted)) return;
   const now = ctx.currentTime;
   const from = cue?.src ?? 'world';
-  const key = from === 'world' ? name : `${name}:${from}`;
+  const layers = cue?.voice ? foeLayers(cue.voice) : null; // #285: a foe family's own sound, at its cue's priority
+  const key = layers ? `${name}:${cue!.voice}` : from === 'world' ? name : `${name}:${from}`;
   if (tooSoon(lastPlayed[key], now)) return; // 200 hits per frame should not be 200 voices
   const prio = cuePriority(name, from);
   if (bus === 'effects') {
@@ -227,11 +230,12 @@ export function sfx(name: SfxName, cue?: { src: CueSource; x: number; y: number 
   lastPlayed[key] = now;
   played[bus]++;
   const s: { wave: Wave; f0: number; f1: number; dur: number; vol: number } = SOUNDS[name];
+  const dur = layers ? layersEnd(layers) : s.dur;
   const v = vary(Math.random(), Math.random());
   const place = cue && Number.isFinite(cue.x) ? placeCue(cue.x, cue.y, listener?.() ?? null) : null;
   const gain = ctx.createGain();
-  gain.gain.setValueAtTime(s.vol * v.volume * (place?.gain ?? 1), now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + s.dur);
+  gain.gain.setValueAtTime((layers ? 1 : s.vol) * v.volume * (place?.gain ?? 1), now);
+  if (!layers) gain.gain.exponentialRampToValueAtTime(0.001, now + s.dur); // a foe voice's layers each fade on their own
   if (place && Math.abs(place.pan) > 0.01) {
     const pan = ctx.createStereoPanner();
     pan.pan.value = place.pan;
@@ -252,7 +256,8 @@ export function sfx(name: SfxName, cue?: { src: CueSource; x: number; y: number 
     return;
   }
   let src: AudioScheduledSourceNode;
-  if (s.wave === 'noise') {
+  if (layers) src = playFoeVoice(ctx, noise!, gain, cue!.voice!, layers, now, v.rate);
+  else if (s.wave === 'noise') {
     const n = ctx.createBufferSource();
     n.buffer = noise;
     n.playbackRate.value = v.rate;
@@ -264,8 +269,10 @@ export function sfx(name: SfxName, cue?: { src: CueSource; x: number; y: number 
     o.frequency.exponentialRampToValueAtTime(s.f1 * v.rate, now + s.dur);
     src = o;
   }
-  src.connect(gain);
-  src.start(now);
-  src.stop(now + s.dur);
-  if (bus === 'effects') voices.push({ prio, start: now, ends: now + s.dur, node: src, gain });
+  if (!layers) {
+    src.connect(gain);
+    src.start(now);
+    src.stop(now + s.dur);
+  }
+  if (bus === 'effects') voices.push({ prio, start: now, ends: now + dur, node: src, gain });
 }

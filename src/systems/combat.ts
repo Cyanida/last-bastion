@@ -23,6 +23,7 @@ import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
 import { thornsOf, towerShieldOf } from '../logic/ironKing';
 import { barrowWard } from '../logic/barrowKing';
+import { foeBy, foeVoice } from '../logic/foeSounds';
 import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, thornsBite, throughPlates, throughResolve, throughTowerShield, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
@@ -71,7 +72,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   }
   g.corpses.push({ x: e.x, y: e.y, t: 0, rise: corpseRise({ id: e.def.id, risen: e.risen, side: e.side, maxHp: e.maxHp }) }); // #275: a barrow thrall's rises unless trampled
   burst(g, e.x, e.y, BLOOD, boss ? 60 : e.elite ? 20 : 8, boss ? 320 : 150);
-  sfx(g, boss ? 'boom' : 'kill', by(e));
+  sfx(g, boss ? 'boom' : 'kill', boss ? by(e) : foeBy(e, 'death')); // #285: each family falls its own way
 
   if (g.modifier === 'plague' && !boss) {
     const n = MODIFIERS.plague.n;
@@ -266,7 +267,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   damageNumber(g, e, amount, crit ? '#f2c94c' : source === 'relic' && relicContext.acting ? RELIC_COLOR : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');
   burst(g, e.x, e.y, BLOOD, crit ? 6 : 2);
   if (crit) shake(g, 4);
-  sfx(g, 'hit', { src: 'foe', at: e }); // #283: the player's blow on a foe (a boss's too): the first a crowd drops
+  sfx(g, 'hit', { src: 'foe', at: e, voice: foeVoice(e.def.id, 'hit') }); // #283: the player's blow on a foe (a boss's too): the first a crowd drops; #285: in its family's voice
   if (source === 'attack') {
     const leech = g.player.buff.lifesteal + g.player.mods.lifesteal;
     if (leech > 0) healPlayer(g, Math.min(dealt * leech, g.player.stats.hp * GAME.leechCapPerHit), false);

@@ -7886,6 +7886,62 @@ await check("Sound: each class's attack and ability plays its own sound (#284)",
   }
   const ok = seen.length === 5 && seen.every((x) => x.attack >= 1 && x.ability >= 1 && x.others.length === 0 && !x.errs);
   return { ok, detail: seen.map((x) => `${x.cls}: attack ×${x.attack}, ability ×${x.ability}${x.others.length ? `, others ${x.others.join('/')}` : ''}${x.errs ? ` (error: ${x.errs})` : ''}`).join('; ') };
+// #285: each enemy family sounds its own. Test mode -> the Barrowvale level 1; a click starts the sound. A mixed band closes round the
+// champion (cavalry, crossbowmen, a war priest, knights, peasants and wolves, which march here as barrow thralls and blight hounds) while
+// he fights them unhurt, played with pauses so the audio clock runs. Their attacks, his blows on them and their deaths go out in their
+// families' voices (hooves, the crossbow's twang, a clank on plate), the realm's kin through the Barrowvale's tint, and are heard.
+await check('Sound: each enemy family sounds its own: cavalry hooves, a crossbow\'s twang, plate struck, the Barrowvale\'s thralls their own way (#285)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  if (!(await p.evaluate(() => typeof window.__lb.foeVoices === 'function'))) return (await p.close(), { skip: true, detail: 'no enemy family sounds on this branch (before #285)' });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  await p.locator('#tm-class').selectOption('viking');
+  await p.locator('#tm-start').selectOption('barrowvale:1');
+  await p.evaluate(() => [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click());
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click(); // a click: the sound starts
+  const fight = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const before = lb.foeVoices();
+    const queued = {};
+    const real = lb.view.sfx; // the simulation's way to the speaker
+    lb.view.sfx = (n, c) => (c?.voice && (queued[c.voice] = (queued[c.voice] ?? 0) + 1), real(n, c));
+    g.spawnQueue.length = 0;
+    const band = ['cavalry', 'crossbow', 'crossbow', 'priest', 'knight', 'knight', 'peasant', 'peasant', 'peasant', 'wolf', 'wolf'];
+    const kinds = new Set();
+    for (let i = 0; i < 1800 && lb.state !== 'results'; i++) {
+      if (i % 200 === 0) {
+        g.enemies.length = 0; // a fresh band now and then, so each of them gets to strike and fall
+        band.forEach((id, j) => {
+          const a = (j / band.length) * Math.PI * 2, r = id === 'crossbow' || id === 'cavalry' ? 260 : 70;
+          const e = lb.spawn(id, g.player.x + Math.cos(a) * r, g.player.y + Math.sin(a) * r);
+          if (e) kinds.add(e.def.id);
+        });
+      }
+      g.player.invulnerable = true;
+      lb.run(1, false, false);
+      if (i % 6 === 5) await wait(0); // the audio clock moves on, so voices end and others start
+    }
+    lb.view.sfx = real;
+    const after = lb.foeVoices();
+    const heard = {};
+    for (const k of Object.keys(after)) if (after[k] - (before[k] ?? 0) > 0) heard[k] = after[k] - (before[k] ?? 0);
+    return { kinds: [...kinds], queued, heard, state: lb.state };
+  });
+  await p.close();
+  const heard = Object.keys(fight.heard);
+  const families = new Set(heard.map((k) => k.split(/[./]/)[0]));
+  const events = new Set(heard.map((k) => k.split('.')[1]));
+  const want = ['cavalry.attack', 'bow.attack'];
+  const ok = fight.kinds.includes('barrowThrall') && fight.kinds.includes('blightHound') && want.every((k) => fight.heard[k] > 0)
+    && heard.some((k) => k.startsWith('steel.')) && heard.some((k) => k.includes('/barrow.')) && families.size >= 4
+    && ['attack', 'hit', 'death'].every((e) => events.has(e)) && errs.length === 0;
+  return { ok, detail: `band: ${fight.kinds.join(', ')}; ${families.size} families heard (${[...families].join(', ')}); voices heard: ${heard.map((k) => `${k} ×${fight.heard[k]}`).join(', ') || 'none'}; queued ${Object.keys(fight.queued).length} voices${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 // ---------- #264: a strong build meets every phase of a crown boss: Settings -> Test mode -> "Start at" a relic realm's level 5 -> its last wave ----------

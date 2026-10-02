@@ -15,6 +15,7 @@ import { angleTo, chargeStart, chargeThrough, distTo, enraged, hitDamage, keepRa
 import { burst, floatText, ring, shake } from './effects';
 import { SPECIALS } from './specials';
 import { aggroDist2 } from '../logic/quests';
+import { foeBy } from '../logic/foeSounds';
 import { waypoint } from '../logic/regions';
 import { regionsOf } from './regions';
 import { markPhase } from './runlog';
@@ -193,6 +194,7 @@ function pulseAura(g: Game, e: Enemy, dt: number): void {
     }
   }
   if (healing) ring(g, e.x, e.y, aura.radius, '#6fdc6f', 0.5);
+  if (healing && !e.def.boss) sfx(g, 'swing', foeBy(e, 'attack')); // #285: a chaplain's chant (the other auras pulse too often to sound)
 }
 
 // ---------------------------------------------------------------- bosses: scripted, branching on e.phase
