@@ -1693,6 +1693,11 @@ await check('an error in a frame: the overlay, Continue, the run goes on', () =>
       lb.start('viking');
       await P.wait(200);
     }
+    // a run that opens on a pick or the quest board: answered first, so the crash lands in a frame of play
+    for (let i = 0; i < 4 && lb.state === 'choice'; i++) {
+      await P.click('#overlay [data-pick], #overlay [data-leave]');
+      await P.wait(150);
+    }
     const g = lb.game;
     g.player.invulnerable = true;
     let texts = g.texts, thrown = false;
