@@ -1601,7 +1601,42 @@ await check("boss themes: the Black Knight's theme takes over from the arena's, 
   }
 });
 
-// #290: themes for the Grand Inquisitor, the Dragon, the Warden and the Usurper. Through Settings and test mode at 1280x720 with the
+// ---------- v0.7.5 (#106): an error in a frame shows the error overlay, and the game goes on ----------
+await check('an error in a frame: the overlay, Continue, the run goes on', () =>
+  inPage(async () => {
+    const lb = window.__lb, P = window.__play;
+    if (!lb.game || lb.state !== 'playing') {
+      lb.start('viking');
+      await P.wait(200);
+    }
+    const g = lb.game;
+    g.player.invulnerable = true;
+    let texts = g.texts, thrown = false;
+    Object.defineProperty(g, 'texts', {
+      configurable: true,
+      get() {
+        if (thrown) return texts;
+        thrown = true;
+        throw new Error('play-test crash'); // once, in the middle of a real frame
+      },
+      set(v) {
+        texts = v;
+      },
+    });
+    await P.wait(400);
+    const crash = document.getElementById('crash');
+    const shown = { overlay: !!crash, text: crash?.textContent.includes('Something went wrong') && crash.querySelector('pre').textContent.includes('play-test crash'), state: lb.state };
+    if (!crash) return { ok: false, detail: `no overlay, state ${lb.state}` };
+    await P.click('#crash [data-continue]');
+    await P.click('[data-resume]');
+    const t0 = g.time;
+    await P.wait(400); // real frames, not lb.run: the loop itself must still be running
+    return { ok: shown.text && shown.state === 'paused' && !document.getElementById('crash') && lb.state === 'playing' && g.time > t0, detail: `overlay ${shown.overlay}, paused under it: ${shown.state}, run time +${(g.time - t0).toFixed(2)} s after Continue` };
+  }),
+);
+const expected = (m) => m.includes('play-test crash');
+
+// #290 (after the error check: on its own page it takes a while, and the shared page's run idles meanwhile): themes for the Grand Inquisitor, the Dragon, the Warden and the Usurper. Through Settings and test mode at 1280x720 with the
 // mouse: the jukebox lists all four (and the Heretic's and the Ash Wyrm's) and plays the Usurper's and the Inquisitor's; then a test run
 // in the Great Keep at Act I wave 10 plays the keep's theme until the Act's end boss comes, the Dragon's war drums take over (his theme,
 // or the Ash Wyrm's shifted one), build over his three phases to the full boss layer, and hand back to the keep's theme when he falls.
@@ -1682,41 +1717,6 @@ await check("boss themes: the Dragon's theme takes over from the arena's over hi
     await p.close();
   }
 });
-
-// ---------- v0.7.5 (#106): an error in a frame shows the error overlay, and the game goes on ----------
-await check('an error in a frame: the overlay, Continue, the run goes on', () =>
-  inPage(async () => {
-    const lb = window.__lb, P = window.__play;
-    if (!lb.game || lb.state !== 'playing') {
-      lb.start('viking');
-      await P.wait(200);
-    }
-    const g = lb.game;
-    g.player.invulnerable = true;
-    let texts = g.texts, thrown = false;
-    Object.defineProperty(g, 'texts', {
-      configurable: true,
-      get() {
-        if (thrown) return texts;
-        thrown = true;
-        throw new Error('play-test crash'); // once, in the middle of a real frame
-      },
-      set(v) {
-        texts = v;
-      },
-    });
-    await P.wait(400);
-    const crash = document.getElementById('crash');
-    const shown = { overlay: !!crash, text: crash?.textContent.includes('Something went wrong') && crash.querySelector('pre').textContent.includes('play-test crash'), state: lb.state };
-    if (!crash) return { ok: false, detail: `no overlay, state ${lb.state}` };
-    await P.click('#crash [data-continue]');
-    await P.click('[data-resume]');
-    const t0 = g.time;
-    await P.wait(400); // real frames, not lb.run: the loop itself must still be running
-    return { ok: shown.text && shown.state === 'paused' && !document.getElementById('crash') && lb.state === 'playing' && g.time > t0, detail: `overlay ${shown.overlay}, paused under it: ${shown.state}, run time +${(g.time - t0).toFixed(2)} s after Continue` };
-  }),
-);
-const expected = (m) => m.includes('play-test crash');
 
 // ---------- v0.7.5 (#106): the game starts with site data blocked ----------
 await check('starts with site data blocked: title, Settings, sound toggle', async () => {
