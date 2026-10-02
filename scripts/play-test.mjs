@@ -6999,6 +6999,150 @@ await check('Relics: Baptism of Fire is taken as the gold card once Flashpowder 
   }),
 );
 
+// ---------- #280: the Barrowvale's Grave class relics: each champion's own, in a test run fought through the real input (ability on Space,
+// the mouse on the horde for the Archer's aim) ----------
+await check("Relics: Ossuary Seal, Draugr's Mead, Last Rites and Wightbone Arrows each work for their own champion in a fight, test mode lists each for its class only, and their HUD tiles say what they do (#280)", async () => {
+  const cases = [
+    // the dead answer: count the skeletons each relic has standing, sampled every second (they last 8-10 s)
+    { classId: 'paladin', id: 'ossuarySeal', says: /When Divine Shield ends the dead answer/, level: '25', work: 'skeletons' },
+    { classId: 'viking', id: 'draugrMead', says: /rises as a draugr/, level: '25', work: 'skeletons' },
+    // the Angel stands at level 1, so the horde hurts her and the rites' heals land
+    { classId: 'angel', id: 'lastRites', says: /Heavenly Radiance lays the corpses/, work: 'healing' },
+    { classId: 'archer', id: 'wightboneArrows', says: /every corpse in its area bursts/, level: '25', work: 'damage', aim: true },
+  ];
+  const ids = cases.map((c) => c.id);
+  const out = [];
+  for (const c of cases) {
+    await inPage(() => location.reload());
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const start = await inPage(async ({ c, ids }) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), c.classId);
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave, as #230's check
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), c.level ?? '1');
+      const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
+      const own = document.querySelector(`#tm-relics select[data-relic="${c.id}"]`);
+      if (own) set(own, '1');
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land and are counted, the run just never ends
+      await wait(300);
+      return { listed, held: g.player.relics.held.includes(c.id), tip: document.querySelector(`#h-relics .relic[data-id="${c.id}"]`)?.dataset.tip ?? '' };
+    }, { c, ids });
+    // where the nearest foe stands on the screen, for the Archer's mouse (the Volley comes down under the cursor)
+    const nearestOnScreen = () => {
+      const lb = window.__lb, g = lb.game, p = g.player, cam = lb.camera();
+      const canvas = document.getElementById('game'), r = canvas.getBoundingClientRect();
+      let best = null;
+      for (const e of g.enemies) if (!e.dead && (!best || Math.hypot(e.x - p.x, e.y - p.y) < Math.hypot(best.x - p.x, best.y - p.y))) best = e;
+      if (!best) return null;
+      const k = r.width / canvas.width;
+      return [r.left + (best.x - cam.x) * cam.zoom * k, r.top + (best.y - cam.y) * cam.zoom * k];
+    };
+    await page.keyboard.down('ArrowRight');
+    await inPage(() => window.__lb.run(60, false, 'input'));
+    await page.keyboard.up('ArrowRight');
+    await page.keyboard.down('Space');
+    let most = 0;
+    const second = (id) => {
+      const lb = window.__lb;
+      lb.run(60, false, 'input');
+      if (!lb.game) throw new Error(`the run ended (${lb.state})`);
+      lb.game.player.deathless = true;
+      return lb.game.minions.filter((m) => m.relicBy === id && m.hp > 0).length;
+    };
+    for (let i = 0; i < 40; i++) {
+      if (c.aim) {
+        const at = await inPage(nearestOnScreen);
+        if (at) await page.mouse.move(at[0], at[1]);
+      }
+      most = Math.max(most, await inPage(second, c.id));
+    }
+    await page.keyboard.up('Space');
+    const s = await inPage((id) => window.__lb.game.player.relics.stats[id] ?? { damage: 0, healing: 0 }, c.id);
+    const worked = c.work === 'skeletons' ? most > 0 : s[c.work] > 0;
+    const ok = start.listed.length === 1 && start.listed[0] === c.id && start.held && c.says.test(start.tip) && worked;
+    out.push({ ok, text: `${c.classId}: lists ${start.listed.join('+') || 'none'}, held ${start.held}, tile ${c.says.test(start.tip) ? 'yes' : 'NO'}, in 40 s up to ${most} of its skeletons standing, ${s.damage.toFixed(1)} dmg, ${s.healing.toFixed(1)} healed` });
+  }
+  return { ok: out.every((o) => o.ok), detail: out.map((o) => o.text).join('; ') };
+});
+
+// ---------- #280: Barrow Feast, the Barrowvale's duo: a test run holding Hex Doll and Berserker Tooth takes the gold card at a relic
+// moment, then fights through the real input for 40 s, pacing left and right over the dead ----------
+await check('Relics: Barrow Feast is taken as the gold card once Hex Doll and Berserker Tooth are held, its tile says what it does, and walking over the dead devours them (#280)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const start = await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), 'viking');
+      set(document.getElementById('tm-act'), '2');
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), '25'); // strong enough to leave the dead round him
+      for (const id of ['hexDoll', 'berserkerTooth']) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
+      const lb = window.__lb;
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land (so there is something to heal), the run just never ends
+      await wait(300);
+      // a relic moment with the duo ready, as a boss's fall gives it; the gold card is picked on the real screen
+      g.player.relics.offers.push({ from: 'boss', options: ['butchersHook', 'guardiansAegis', 'stormPennant'], rerolls: 0, duo: 'barrowFeast' });
+      const find = () => [...document.querySelectorAll('[data-pick]')].find((b) => b.innerText.includes('Barrow Feast'));
+      let card = find();
+      for (let i = 0; i < 40 && !card; i++) {
+        lb.run(1, false, 'input');
+        await wait(50);
+        card = find();
+      }
+      const gold = !!card?.classList.contains('duo-card');
+      card?.click();
+      await wait(300);
+      const tile = document.querySelector('#h-relics .relic[data-duo="barrowFeast"]');
+      const tiles = [...document.querySelectorAll('#h-relics .relic[data-id]')].map((t) => t.dataset.id);
+      return { gold, formed: g.player.relics.duos.includes('barrowFeast'), tip: tile?.dataset.tip ?? '', joined: !tiles.includes('hexDoll') && !tiles.includes('berserkerTooth') };
+    });
+    // he paces through the horde, a second each way (arrow keys), and the corpses under his feet go: counted as they vanish beneath him
+    let eaten = 0;
+    for (let i = 0; i < 40; i++) {
+      const key = i % 2 ? 'ArrowLeft' : 'ArrowRight';
+      await page.keyboard.down(key);
+      eaten += await inPage(() => {
+        const lb = window.__lb;
+        let n = 0;
+        for (let f = 0; f < 60; f++) {
+          const g = lb.game, p = g.player;
+          const under = g.corpses.filter((c) => Math.hypot(c.x - p.x, c.y - p.y) <= p.r + 20);
+          lb.run(1, false, 'input');
+          n += under.filter((c) => !lb.game.corpses.includes(c)).length;
+        }
+        lb.game.player.deathless = true;
+        return n;
+      });
+      await page.keyboard.up(key);
+    }
+    const healed = await inPage(() => window.__lb.game.player.relics.stats.barrowFeast?.healing ?? 0);
+    const says = /devours it/.test(start.tip);
+    const ok = start.gold && start.formed && start.joined && says && eaten > 0;
+    return { ok, detail: `gold card ${start.gold}, formed ${start.formed}, one tile for its two relics ${start.joined}, tile says ${says ? 'yes' : 'NO'}; in 40 s he devoured ${eaten} corpses and healed ${healed.toFixed(1)} HP` };
+  }),
+);
+
 // ---------- #216: the Iron King: Settings -> Test mode -> "Start at" the Iron Hold's level 5 -> the opening pick -> its last wave ----------
 // The champion trades plain blows beside him (no ability, no bot moves, unhurt), so the fight goes the same way every run: phase 1 his
 // plate breaks blow by blow, his Decree lines land and his guard of Iron Knights comes; phase 2 he casts the plate off and raises the tower
