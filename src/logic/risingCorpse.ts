@@ -27,16 +27,17 @@ export const riseProgress = (c: Corpse) => (c.rise ? Math.min(1, c.t / c.rise.at
 /**
  * One tick over the corpses, after they aged (game.ts): a rising corpse the champion stands on is trampled (it stays a plain corpse, for
  * Raise Dead and the rest, and never rises), and one whose time has come leaves the ground and is returned, for the caller to raise.
- * `onTrample` hears each corpse trampled. Mutates `corpses`.
+ * `onTrample` hears each corpse trampled, and the kind it would have risen as. Mutates `corpses`.
  */
-export function stepRising(corpses: Corpse[], champ: { x: number; y: number; r: number }, onTrample?: (c: Corpse) => void): Corpse[] {
+export function stepRising(corpses: Corpse[], champ: { x: number; y: number; r: number }, onTrample?: (c: Corpse, id: EnemyId) => void): Corpse[] {
   const out: Corpse[] = [];
   for (let i = corpses.length - 1; i >= 0; i--) {
     const c = corpses[i];
     if (!c.rise) continue;
     if (tramples(c, champ.x, champ.y, champ.r)) {
+      const id = c.rise.id;
       c.rise = undefined;
-      onTrample?.(c);
+      onTrample?.(c, id); // #292: with the kind it was, for its own sound
     } else if (c.t >= c.rise.at) {
       out.push(c);
       corpses.splice(i, 1);

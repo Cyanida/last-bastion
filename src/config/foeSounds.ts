@@ -143,3 +143,23 @@ export const FOE_FAMILY: Partial<Record<EnemyId, { family: FoeFamily; realm?: Fo
   assassin: { family: 'shade' },
   boneCollector: { family: 'bone' },
 };
+
+/**
+ * #292: the Barrowvale's foes' own moments, past their family's attack, hit and death: a thrall's corpse climbing back up (a warning: it
+ * keeps a warning's voice priority), a corpse the champion stamps down, and a blight hound's plague ground fouling the earth where it fell
+ * (a new patch, not one renewed). Played as the voice `own.<moment>` (logic/foeSounds.ts foeOwnVoice), with no realm tint: they are the
+ * realm's own already. A moment no foe of a kind has (FOE_OWN) keeps its plain cue.
+ */
+export type FoeMoment = 'rise' | 'trample' | 'plague';
+export const FOE_OWN_SOUNDS: Record<FoeMoment, FoeLayer[]> = {
+  // earth shifting, then a hollow moan rising out of it
+  rise: [noise(0.18, 0.05, 350), { wave: 'sine', f0: 70, f1: 140, dur: 0.42, vol: 0.06, at: 0.05 }, { wave: 'triangle', f0: 140, f1: 210, dur: 0.32, vol: 0.03, at: 0.14 }],
+  // a boot in grave dirt, and a bone cracking under it
+  trample: [noise(0.08, 0.08, 260), { wave: 'square', f0: 1800, f1: 1200, dur: 0.03, vol: 0.025, at: 0.02 }],
+  // a wet hiss spreading, two bubbles bursting in it
+  plague: [noise(0.3, 0.05, 600), { wave: 'sine', f0: 180, f1: 90, dur: 0.3, vol: 0.04 }, { wave: 'sine', f0: 260, f1: 520, dur: 0.08, vol: 0.025, at: 0.1 }, { wave: 'sine', f0: 240, f1: 480, dur: 0.08, vol: 0.02, at: 0.21 }],
+};
+export const FOE_OWN: Partial<Record<EnemyId, FoeMoment[]>> = {
+  barrowThrall: ['rise', 'trample'], // #275
+  blightHound: ['plague'], // #276
+};

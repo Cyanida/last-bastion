@@ -220,4 +220,41 @@ export const COMPOSERS: Record<BossComposer, Composer> = {
     }
     return notes;
   },
+  /** #292: the Gravedigger's spade: it bites the earth and throws it, twice a bar from his second phase; a mourner sighs down the flat second over it, and in his last the earth rattles down into the grave after the bell. */
+  spade(t, _seed, bar, layer) {
+    const chord = chordAt(t, bar);
+    const v = 0.3 + layer * 0.1;
+    const digs = layer === 1 ? [0] : [0, 2];
+    const notes: NoteEvent[] = [];
+    for (const b of digs) notes.push(note('drum', b, 60, 0.15, v), note('drum', b + 1, 40, 0.4, v * 0.9)); // the spade's bite, the earth thrown
+    if (layer >= 2) {
+      const scale = inRange(t.mode.map((s) => (t.root + s) % 12), ...RANGES.choir);
+      const home = scale.findIndex((m) => m % 12 === t.root);
+      notes.push(note('choir', 2, scale[clampIndex(home + 1, scale)], 1, 0.4), note('choir', 3, scale[clampIndex(home, scale)], 1, 0.35)); // the flat second sighs home
+    }
+    if (layer === 3) {
+      notes.push(note('bell', 2, lowest(chord[2], 'bell'), 2, 0.4));
+      for (let k = 0; k < 4; k++) notes.push(note('drum', 3 + k / 4, 52, 0.15, 0.4 - k * 0.07)); // the earth falls back in
+    }
+    return notes;
+  },
+  /** #292: the Barrow King's dirge: the organ's bass walks down a lament, a bar a step, every phrase; his court keens over it from his second phase; his guard treads every beat and the crown tolls in his last. */
+  dirge(t, _seed, bar, layer) {
+    const chord = chordAt(t, bar);
+    const top = lowest(t.root, 'organ') + 12;
+    const lament = [0, -1, -4, -5]; // the tonic, the raised seventh, the flat sixth, the fifth: down to the grave
+    const notes: NoteEvent[] = [note('organ', 0, top + lament[bar % 4], t.meter, 0.4 + layer * 0.05)];
+    if (layer >= 2) {
+      const [voices, hi] = ladderOf(chord, 'choir', 0.8);
+      const scale = inRange(t.mode.map((s) => (t.root + s) % 12), ...RANGES.choir);
+      const from = voices[hi];
+      const down = scale[clampIndex(scale.indexOf(from) - 1, scale)];
+      notes.push(note('choir', 0, from, 1.5, 0.4 + layer * 0.08), note('choir', 1.5, down, 1.5, 0.35 + layer * 0.08)); // the keen
+    }
+    if (layer === 3) {
+      for (let b = 0; b < t.meter; b++) notes.push(note('drum', b, 41, 0.3, b === 0 ? 0.5 : 0.35)); // his guard's tread
+      if (bar % 2 === 0) notes.push(note('bell', 0, lowest(chord[0], 'bell'), 3, 0.5)); // the crown tolls
+    }
+    return notes;
+  },
 };

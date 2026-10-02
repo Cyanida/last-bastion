@@ -123,7 +123,8 @@ describe('boss themes: the takeover (#289)', () => {
     expect(musicTheme(moodOf(g).arena).name).toBe('The Frost Lich');
     const h = createGame('viking', 4, { arena: 'graveyard' });
     h.wave = 5;
-    spawnEnemy(h, 'gravedigger', 300, 300); // #290: the Inquisitor has his own now
+    const none = spawnEnemy(h, 'gravedigger', 300, 300); // #292: every boss has his own now: a stand-in with none
+    none.def = { ...none.def, id: 'nobody' as typeof none.def.id };
     expect(moodOf(h)).toEqual({ arena: 'graveyard', layer: 3, cue: null });
   });
 

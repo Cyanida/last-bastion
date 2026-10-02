@@ -8191,6 +8191,202 @@ await check('Sound: a boss arrives with his own signature, sounds his big moves 
   return { ok, detail: `${id || 'no boss'}: sent ${sent.length} boss cues (arrival ${arrive ? 'first' : 'NOT first'}, ${moves} big moves); phases began at ${fight.phaseAt.map((x) => `${x.phase}: ${x.t} s`).join(', ') || 'none'}, their cues at ${fight.phaseAt.map((x) => sentAt(`boss:${id}:phase${x.phase}`)?.t ?? 'none').join(', ')}; given a voice: ${Object.entries(fight.heard).map(([n, c]) => `${n.split(':')[2]} ×${c}`).join(', ') || 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// #292: the Barrowvale's bosses their own music and sounds. Through Settings and test mode at 1280x720 with the mouse: the jukebox lists
+// the Gravedigger's and the Barrow King's themes and plays the Gravedigger's; then "Start at" the Barrowvale's level 5 plays the
+// Barrowvale's theme until the Barrow King comes on its last wave: his dirge takes over (its base layer in his first phase), his signature
+// sounds as he comes, his dirge builds with each of his three phases while a phase cue marks each, his Reap sounds its own, and the
+// Barrowvale's theme comes back when he falls. Played with pauses so the audio clock runs.
+await check("Music and sound: the jukebox plays the Gravedigger's theme; the Barrow King's dirge takes over the Barrowvale's, builds with his phases, his signature, Reap and phase cues heard, and hands back when he falls (#292)", async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  try {
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    if (!(await p.evaluate(() => typeof window.__lb.bossCues === 'function'))) return { skip: true, detail: 'no boss sounds on this branch (before #286)' };
+    const music = () => p.evaluate(() => window.__lb.music());
+    const hear = (arena, layer = null, timeout = 15000) => p.waitForFunction(([a, l]) => {
+      const m = window.__lb.music();
+      return m.playing === 'run' && m.arena === a && (l === null || m.layer === l);
+    }, [arena, layer], { timeout }).then(() => true, () => false);
+    await p.locator('[data-go="settings"]').click();
+    await p.locator('.settings [data-act="test"]').click();
+    if (!(await p.locator('#tm-start option[value="barrowvale:5"]').count())) return { skip: true, detail: 'no Barrowvale level 5 start in this build' };
+    // the jukebox: both Barrowvale bosses' themes are on its list, and the Gravedigger's plays
+    const listed = await p.evaluate(() => [...document.querySelectorAll('#jb-arena option')].filter((o) => o.value.startsWith('boss:')).map((o) => o.textContent.trim()));
+    const both = ['The Gravedigger', 'The Barrow King'].every((n) => listed.includes(`Boss · ${n}`));
+    await p.locator('#jb-arena').selectOption('boss:gravedigger');
+    await p.locator('.testmode [data-play]').click();
+    const jukebox = await hear('boss:gravedigger');
+    await p.locator('.testmode [data-stop]').click();
+    // a test run: the Barrowvale's level 5, straight on to its last wave, the Barrow King's
+    await p.locator('#tm-class').selectOption('paladin');
+    await p.locator('#tm-start').selectOption('barrowvale:5');
+    await p.locator('.testmode [data-start]').click();
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click(); // a click: the sound starts
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 });
+    await p.evaluate(() => (window.__lb.game.player.invulnerable = true));
+    const before = await hear('barrowvale');
+    const cues0 = await p.evaluate(() => window.__lb.bossCues());
+    const met = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1;
+      g.breather = 0.01;
+      const boss = () => g.enemies.find((e) => e.def.boss && !e.side && !e.dead);
+      for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) {
+        g.player.invulnerable = true;
+        lb.run(1, false, true);
+        if (i % 8 === 7) await wait(0);
+      }
+      const b = boss();
+      window.__barrowBoss = b;
+      for (let i = 0; i < 4; i++) (lb.run(1, false, true), await wait(0)); // his signature goes out and is given a voice
+      return b ? { id: b.def.id, phase: b.phase } : null;
+    });
+    if (!met) return { ok: false, detail: 'no boss reached' };
+    const takeover = await hear('boss:barrowKing', 1);
+    // his phases come on a clock: play on to each, unhurt, the audio clock running
+    const toPhase = (n) => p.evaluate(async (n) => {
+      const lb = window.__lb, b = window.__barrowBoss, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 60 * 40 && b.phase < n && !b.dead; i++) {
+        lb.game.player.invulnerable = true;
+        lb.run(1, false, true);
+        if (i % 8 === 7) await wait(0);
+      }
+      for (let i = 0; i < 4; i++) (lb.run(1, false, true), await wait(0));
+      return b.phase;
+    }, n);
+    const phase2 = await toPhase(2);
+    const layer2 = await hear('boss:barrowKing', 2);
+    const phase3 = await toPhase(3);
+    const layer3 = await hear('boss:barrowKing', 3);
+    // he falls: the Barrowvale's theme comes back
+    const fell = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game, b = window.__barrowBoss, pl = g.player, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      g.baseMods.damage *= 1e4;
+      for (let i = 0; i < 60 * 30 && g.enemies.includes(b) && !b.dead && lb.game === g; i++) {
+        pl.invulnerable = true;
+        if (lb.state === 'playing') Object.assign(pl, { x: b.x - b.r - 16, y: b.y });
+        lb.run(1, false, true);
+        if (i % 8 === 7) await wait(0);
+      }
+      g.baseMods.damage /= 1e4;
+      return b.dead || !g.enemies.includes(b);
+    });
+    const back = fell && (await hear('barrowvale'));
+    const s3 = await music();
+    const cues1 = await p.evaluate(() => window.__lb.bossCues());
+    const heard = (n) => (cues1[`boss:barrowKing:${n}`] ?? 0) - (cues0[`boss:barrowKing:${n}`] ?? 0);
+    const voiced = heard('arrive') === 1 && heard('phase2') === 1 && heard('phase3') === 1 && heard('move') >= 1;
+    const ok = both && jukebox && before && met.id === 'barrowKing' && takeover && phase2 === 2 && layer2 && phase3 === 3 && layer3 && voiced && back && s3.peak <= s3.budget && !errs.length;
+    return { ok, detail: `jukebox lists both ${both} (${listed.length} boss themes), the Gravedigger's plays ${jukebox}; the Barrowvale's first ${before}; ${met.id} -> his dirge ${takeover}; phase ${phase2} -> layer 2 ${layer2}; phase ${phase3} -> layer 3 ${layer3}; heard: arrive ×${heard('arrive')}, Reap ×${heard('move')}, phase2 ×${heard('phase2')}, phase3 ×${heard('phase3')}; falls ${fell} -> ${s3.arena} ${back}; peak ${s3.peak}/${s3.budget} voices${errs.length ? `, errors: ${errs[0]}` : ''}` };
+  } finally {
+    await p.close();
+  }
+});
+
+// #292: the Barrowvale's new foes their own moments. Test mode -> the Barrowvale level 1; a click starts the sound. A peasant brought in
+// the way a wave brings one marches as a Barrow Thrall; the champion's own blows fell him and, standing off the corpse, it rises with the
+// thrall's moan. A second one felled, D (a real key) walks the champion over his corpse: it is stamped down with its own crack. A wolf
+// marches as a Blight Hound; felled, his plague ground fouls the earth with its own hiss. Each of them is given a voice.
+await check("Sound: a Barrow Thrall's corpse moans as it rises and cracks when trampled with D; a Blight Hound's plague ground hisses as it fouls the earth (#292)", async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  try {
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    if (!(await p.evaluate(() => typeof window.__lb.foeVoices === 'function'))) return { skip: true, detail: 'no enemy family sounds on this branch (before #285)' };
+    await p.evaluate(() => (window.__lb.save.cards = [...window.__lb.cardIds])); // every flash card seen: none opens over the fight
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    await p.locator('#tm-class').selectOption('viking');
+    await p.locator('#tm-start').selectOption('barrowvale:1');
+    await p.evaluate(() => [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click());
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click(); // a click: the sound starts
+    for (let i = 0; i < 4; i++) {
+      // the run's opening screens (a quest board, another pick) answered with the mouse, so the fight is in play
+      await p.waitForTimeout(300);
+      if ((await p.evaluate(() => window.__lb.state)) !== 'choice') break;
+      await p.locator('#overlay [data-pick], #overlay [data-leave]').first().click();
+    }
+    await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    // the known state: the wave held off, every other foe stunned and far away; one foe held beside the champion until his blows fell it.
+    // `mode` false stands still, 'input' reads the keys held; the audio clock runs between steps
+    await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, pl = g.player, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      g.spawnQueue.length = 0;
+      window.__own0 = lb.foeVoices();
+      const hold = (keep) => { for (const e of g.enemies) if (!keep.includes(e)) Object.assign(e, { x: pl.x + 700, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 }; };
+      window.__fell = async (b) => {
+        for (let i = 0; i < 900 && !b.dead && lb.game === g && lb.state === 'playing'; i++) {
+          pl.invulnerable = true;
+          hold([b]);
+          Object.assign(b, { x: pl.x + 36, y: pl.y });
+          b.statuses.stun = { stacks: 1, time: 5, power: 0 };
+          lb.run(1, false, false);
+          if (i % 8 === 7) await wait(0);
+        }
+        return { id: b.def.id, dead: b.dead, x: b.x, y: b.y };
+      };
+      window.__barrowPlay = async (secs, mode, until) => {
+        for (let i = 0; i < secs * 60 && lb.game === g && lb.state === 'playing' && !until?.(); i++) {
+          pl.invulnerable = true;
+          hold([]);
+          lb.run(1, false, mode);
+          if (i % 8 === 7) await wait(0);
+        }
+        for (let i = 0; i < 4; i++) (lb.run(1, false, false), await wait(0));
+      };
+    });
+    // a thrall felled, the champion standing off his corpse: it rises
+    const rose = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game, f = await window.__fell(lb.spawn('peasant', g.player.x + 36, g.player.y));
+      const risen0 = g.vars.corpsesRisen ?? 0;
+      await window.__barrowPlay(6, false, () => (g.vars.corpsesRisen ?? 0) > risen0);
+      return { ...f, rose: (g.vars.corpsesRisen ?? 0) - risen0 };
+    });
+    // a second thrall felled; D walks the champion over his corpse
+    const fell2 = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game;
+      for (const e of g.enemies) if (e.risen) e.dead = true; // the risen one out of the way
+      return window.__fell(lb.spawn('peasant', g.player.x + 36, g.player.y));
+    });
+    await p.keyboard.down('KeyD');
+    const trampled = await p.evaluate(async () => {
+      const g = window.__lb.game, t0 = g.vars.corpsesTrampled ?? 0;
+      await window.__barrowPlay(0.6, 'input', () => (g.vars.corpsesTrampled ?? 0) > t0);
+      return (g.vars.corpsesTrampled ?? 0) - t0;
+    });
+    await p.keyboard.up('KeyD');
+    // a wolf marches as a blight hound; felled, he fouls the ground
+    const hound = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game, laid0 = g.vars.plagueGround ?? 0;
+      g.player.x -= 200; // off the trampled corpse's patch of ground
+      const f = await window.__fell(lb.spawn('wolf', g.player.x + 36, g.player.y));
+      await window.__barrowPlay(0.2, false);
+      return { ...f, laid: (g.vars.plagueGround ?? 0) - laid0 };
+    });
+    const heard = await p.evaluate(() => {
+      const a = window.__lb.foeVoices(), b = window.__own0, out = {};
+      for (const k of Object.keys(a)) if (a[k] - (b[k] ?? 0) > 0) out[k] = a[k] - (b[k] ?? 0);
+      return out;
+    });
+    const own = (k) => heard[`own.${k}`] ?? 0;
+    const ok = rose.id === 'barrowThrall' && rose.dead && rose.rose === 1 && own('rise') >= 1 && fell2.dead && trampled >= 1 && own('trample') >= 1
+      && hound.id === 'blightHound' && hound.dead && hound.laid === 1 && own('plague') >= 1 && errs.length === 0;
+    return { ok, detail: `${rose.id} felled ${rose.dead}, rose ×${rose.rose}: moan ×${own('rise')}; second felled ${fell2.dead}, trampled with D ×${trampled}: crack ×${own('trample')}; ${hound.id} felled ${hound.dead}, plague ground laid ×${hound.laid}: hiss ×${own('plague')}; voices heard: ${Object.entries(heard).map(([k, n]) => `${k} ×${n}`).join(', ') || 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  } finally {
+    await p.close();
+  }
+});
+
 // #287: relic families and the UI sound their own. With the mouse at 1280x720: Settings is a plain click (the tap), a hover over its
 // back button hovers softly and the back button goes back (no tap); Start test run confirms; the level's opening relic card, clicked,
 // picks on the UI bus and its family's own sound follows from the fight. A Brimstone Oil offered at a lair, clicked, sounds Flame's

@@ -5,7 +5,7 @@ import type { EnemyId } from './enemies';
  * one his warning marks) and a cue as each phase begins. A sound is a few tones, each one oscillator or noise burst with a pitch slide,
  * starting `at` seconds in. The phase cue rises by `phaseRise` per phase past the second, so the third phase sounds worse than the second.
  * priority: each cue's weight in the voice limit (config/voices.ts), before the boss source's own; an arrival or a phase cue outranks a
- * warning, so in a crowd they are the last to go. Not yet: the Barrowvale's Gravedigger and Barrow King (a later issue): they warn as before.
+ * warning, so in a crowd they are the last to go. #292: and the Barrowvale's Gravedigger and Barrow King.
  */
 export type ToneWave = OscillatorType | 'noise';
 export interface Tone {
@@ -100,6 +100,18 @@ export const BOSS_SOUNDS = {
     arrive: [t('triangle', 233, 232, 1, 0.12), t('sine', 247, 246, 1, 0.08), t('triangle', 233, 232, 0.8, 0.08, 0.6)],
     move: [noise(0.2, 0.1), t('sine', 300, 180, 0.25, 0.08, 0.05)],
     phase: [t('triangle', 175, 165, 1.1, 0.14), t('triangle', 185, 175, 1.1, 0.08)],
+  },
+  // #292: a spade scraping stone, then two thuds of earth; his spade swung; a new phase a cracked grave bell over the earth falling
+  gravedigger: {
+    arrive: [noise(0.3, 0.08), t('square', 220, 180, 0.3, 0.05), t('sine', 70, 50, 0.25, 0.14, 0.45), t('sine', 70, 50, 0.25, 0.13, 0.75)],
+    move: [t('sawtooth', 500, 160, 0.25, 0.08), noise(0.15, 0.1, 0.1)],
+    phase: [t('triangle', 147, 145, 1.1, 0.12), t('triangle', 156, 154, 1.1, 0.06), t('sine', 70, 52, 0.8, 0.14, 0.05)],
+  },
+  // #292: a hollow horn from under the barrow over the bell; his Reap a swept crescent; a new phase his dead moan up out of the ground
+  barrowKing: {
+    arrive: [t('sawtooth', 73, 65, 1.1, 0.1), t('sine', 110, 98, 1.1, 0.08, 0.1), t('triangle', 262, 260, 0.9, 0.07, 0.4)],
+    move: [noise(0.35, 0.12), t('sawtooth', 600, 120, 0.35, 0.08)],
+    phase: [t('sine', 98, 196, 0.8, 0.12), t('sawtooth', 65, 130, 0.8, 0.08), noise(0.5, 0.07, 0.2)],
   },
 } satisfies Partial<Record<EnemyId, BossSoundSet>>;
 export type BossSoundId = keyof typeof BOSS_SOUNDS;
