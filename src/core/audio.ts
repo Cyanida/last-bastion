@@ -6,6 +6,8 @@ import { cuePriority, pickVoice, placeCue, tooSoon, vary, type Listener, type Vo
 import type { ArenaId } from '../config/arenas';
 import { bedToLayer, startBed, stopBed, type BedVoice } from './ambience';
 import { prefs } from './storage';
+import type { Tone } from '../config/bossSounds';
+import { bossCuePriority, bossTones, isBossCue, tonesLength, type BossCueName } from '../logic/bossSounds';
 
 /**
  * Tiny WebAudio synth. Every sound is one oscillator or noise burst with a pitch slide. #282: and the mixer: each sound goes out on a bus
@@ -30,11 +32,12 @@ const SOUNDS = {
   thorns: { wave: 'sawtooth', f0: 700, f1: 260, dur: 0.08, vol: 0.06 }, // #214: a thorn bearer's spikes bite back
   tap: { wave: 'triangle', f0: 540, f1: 400, dur: 0.04, vol: 0.08, bus: 'ui' }, // #282: a menu button pressed
 } satisfies Record<string, { wave: Wave; f0: number; f1: number; dur: number; vol: number; bus?: 'ui' }>;
-export type SfxName = keyof typeof SOUNDS;
+export type SfxName = keyof typeof SOUNDS | BossCueName; // #286: and each boss's own (config/bossSounds.ts)
 /** v0.7.1: the music ducks under these for a moment. #282: the ambience too. */
 const HEAVY: SfxName[] = ['boom', 'slam', 'ability', 'levelup', 'wave'];
 /** #282: the bus a sound goes out on: the effects unless it says otherwise. */
 export const busOf = (name: SfxName): 'effects' | 'ui' => {
+  if (isBossCue(name)) return 'effects';
   const s = SOUNDS[name];
   return 'bus' in s ? s.bus : 'effects';
 };
@@ -165,11 +168,13 @@ export function mixerStats() {
  * #283: the effect voices playing (the UI's taps are not limited), where the player looks (main.ts tells how to ask; asked only when a
  * placed cue plays, so it costs nothing per frame), and what the voice limit did, for the play test.
  */
-const voices: (Voice & { node: AudioScheduledSourceNode; gain: GainNode })[] = [];
+const voices: (Voice & { nodes: AudioScheduledSourceNode[]; gain: GainNode })[] = [];
 let listener: (() => Listener | null) | null = null;
 export const listenFrom = (fn: () => Listener | null): void => void (listener = fn);
 const cues = { played: 0, dropped: 0, stolen: 0, panned: 0, faded: 0, boss: 0, bossDropped: 0, crowded: 0, bossCrowded: 0 };
 export const voiceStats = () => ({ ...cues, max: VOICES.max, live: ctx ? voices.filter((v) => v.ends > ctx!.currentTime).length : 0 });
+const bossHeard: Record<string, number> = {}; // #286: each boss cue that got a voice, by name, for the play test
+export const bossCueStats = () => ({ ...bossHeard });
 
 /** A cue the voice limit took the place of: faded out quickly rather than cut, which would click. */
 function steal(i: number, now: number): void {
@@ -178,10 +183,12 @@ function steal(i: number, now: number): void {
   g.cancelScheduledValues(now);
   g.setValueAtTime(g.value, now);
   g.linearRampToValueAtTime(0, now + VOICES.stealFade);
-  try {
-    v.node.stop(now + VOICES.stealFade);
-  } catch {
-    // already stopped: nothing to cut
+  for (const node of v.nodes) {
+    try {
+      node.stop(now + VOICES.stealFade);
+    } catch {
+      // already stopped (or not started yet): nothing to cut
+    }
   }
 }
 
@@ -197,7 +204,7 @@ export function sfx(name: SfxName, cue?: { src: CueSource; x: number; y: number 
   const from = cue?.src ?? 'world';
   const key = from === 'world' ? name : `${name}:${from}`;
   if (tooSoon(lastPlayed[key], now)) return; // 200 hits per frame should not be 200 voices
-  const prio = cuePriority(name, from);
+  const prio = isBossCue(name) ? bossCuePriority(name) : cuePriority(name, from);
   if (bus === 'effects') {
     for (let i = voices.length - 1; i >= 0; i--) if (voices[i].ends <= now) voices.splice(i, 1);
     const crowded = voices.length >= VOICES.max;
@@ -214,12 +221,13 @@ export function sfx(name: SfxName, cue?: { src: CueSource; x: number; y: number 
   }
   lastPlayed[key] = now;
   played[bus]++;
-  const s: { wave: Wave; f0: number; f1: number; dur: number; vol: number } = SOUNDS[name];
+  // #286: a boss's sound is a few tones; every other sound is one
+  const tones: readonly Tone[] = isBossCue(name) ? bossTones(name) : [SOUNDS[name]];
+  if (isBossCue(name)) bossHeard[name] = (bossHeard[name] ?? 0) + 1;
   const v = vary(Math.random(), Math.random());
   const place = cue && Number.isFinite(cue.x) ? placeCue(cue.x, cue.y, listener?.() ?? null) : null;
   const gain = ctx.createGain();
-  gain.gain.setValueAtTime(s.vol * v.volume * (place?.gain ?? 1), now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + s.dur);
+  gain.gain.value = v.volume * (place?.gain ?? 1);
   if (place && Math.abs(place.pan) > 0.01) {
     const pan = ctx.createStereoPanner();
     pan.pan.value = place.pan;
@@ -227,22 +235,32 @@ export function sfx(name: SfxName, cue?: { src: CueSource; x: number; y: number 
     cues.panned++;
   } else gain.connect(buses[bus]);
   if (place && place.gain < 1) cues.faded++;
-  if (HEAVY.includes(name)) duck(now);
+  if (HEAVY.includes(name) || (isBossCue(name) && !name.endsWith(':move'))) duck(now);
+  const nodes = tones.map((s) => tone(ctx!, s, now + (s.at ?? 0), v.rate, gain));
+  if (bus === 'effects') voices.push({ prio, start: now, ends: now + tonesLength(tones), nodes, gain });
+}
+
+/** One tone of a sound: an oscillator or a noise burst with a pitch slide, its own envelope, into the cue's gain. */
+function tone(c: AudioContext, s: Tone, start: number, rate: number, out: GainNode): AudioScheduledSourceNode {
+  const env = c.createGain();
+  env.gain.setValueAtTime(s.vol, start);
+  env.gain.exponentialRampToValueAtTime(0.001, start + s.dur);
+  env.connect(out);
   let src: AudioScheduledSourceNode;
   if (s.wave === 'noise') {
-    const n = ctx.createBufferSource();
+    const n = c.createBufferSource();
     n.buffer = noise;
-    n.playbackRate.value = v.rate;
+    n.playbackRate.value = rate;
     src = n;
   } else {
-    const o = ctx.createOscillator();
+    const o = c.createOscillator();
     o.type = s.wave;
-    o.frequency.setValueAtTime(s.f0 * v.rate, now);
-    o.frequency.exponentialRampToValueAtTime(s.f1 * v.rate, now + s.dur);
+    o.frequency.setValueAtTime(s.f0 * rate, start);
+    o.frequency.exponentialRampToValueAtTime(s.f1 * rate, start + s.dur);
     src = o;
   }
-  src.connect(gain);
-  src.start(now);
-  src.stop(now + s.dur);
-  if (bus === 'effects') voices.push({ prio, start: now, ends: now + s.dur, node: src, gain });
+  src.connect(env);
+  src.start(start);
+  src.stop(start + s.dur);
+  return src;
 }
