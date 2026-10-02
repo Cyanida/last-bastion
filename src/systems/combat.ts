@@ -14,6 +14,7 @@ import { angleDiff, compact, dist2, TAU } from '../core/math';
 import type { Body, DamageSource, Enemy, Game, Minion, Player, Projectile, Status } from '../core/types';
 import { addField, addZone, fireProjectile, recycleProjectile } from '../entities/hazards';
 import { deathBurst, deathBurstOf } from '../logic/deathBurst';
+import { corpseRise, stepRising } from '../logic/risingCorpse';
 import { goldDrop } from '../logic/economy';
 import { onSlab } from '../logic/presses';
 import { inRects } from '../logic/regions';
@@ -27,6 +28,7 @@ import { spawnEnemy } from './spawning';
 
 const BLOOD = '#8e1b1b';
 const FIRE = '#e07b28';
+const SOUL = '#7ec8d8'; // #275: the cold light of a rising corpse
 const near: Enemy[] = []; // scratch for the loops in this file
 const SEEK_TURN = 6; // v0.6: radians a second a seeking bolt can turn
 const nearest: Enemy[] = []; // nearestEnemy's own scratch: it may be called from inside those loops
@@ -63,7 +65,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
     g.commandersKilled++;
     g.pickups.push({ x: e.x - 6, y: e.y + 8, value: Math.round((e.def.bonusGold ?? 0) * goldMult(g)), kind: 'gold' });
   }
-  g.corpses.push({ x: e.x, y: e.y, t: 0 });
+  g.corpses.push({ x: e.x, y: e.y, t: 0, rise: corpseRise({ id: e.def.id, risen: e.risen, side: e.side, maxHp: e.maxHp }) }); // #275: a barrow thrall's rises unless trampled
   burst(g, e.x, e.y, BLOOD, boss ? 60 : e.elite ? 20 : 8, boss ? 320 : 150);
   sfx(g, boss ? 'boom' : 'kill');
 
@@ -101,6 +103,28 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
     g.banner = { text: `${e.def.name} has fallen`, t: 2.5 };
   }
   emit(g, 'onKill', { enemy: e, source });
+}
+
+/**
+ * #275: after the corpses aged (game.ts): the champion tramples a rising corpse he walks over, and one whose time has come rises
+ * where it lay, as its kind with its share of the HP it fell with (logic/risingCorpse.ts), and stays down when it falls again.
+ */
+export function updateRisingCorpses(g: Game): void {
+  const p = g.player;
+  const risen = stepRising(g.corpses, p, (c) => {
+    burst(g, c.x, c.y, '#6b5843', 8, 90); // grave dirt kicked over it
+    g.vars['corpsesTrampled'] = (g.vars['corpsesTrampled'] ?? 0) + 1; // the play test reads it
+  });
+  for (const c of risen) {
+    const e = spawnEnemy(g, c.rise!.id, c.x, c.y);
+    e.maxHp = e.hp = c.rise!.hp; // half the HP he fell with, not the wave's HP now
+    e.risen = true;
+    e.side = c.rise!.side;
+    burst(g, c.x, c.y, SOUL, 12, 120);
+    ring(g, c.x, c.y, 26, SOUL, 0.4);
+    sfx(g, 'warn');
+    g.vars['corpsesRisen'] = (g.vars['corpsesRisen'] ?? 0) + 1; // the play test reads it
+  }
 }
 
 /** Puts an attack's debuffs on an enemy. The v0.2 slow / mark payloads map onto Chilled and Cursed stacks. */

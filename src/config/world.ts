@@ -116,6 +116,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
   barrowvale: {
     name: 'The Barrowvale', ring: 2, opens: { crowns: 1 }, arena: 'graveyard', family: 'grave', release: '0.13.0', built: false, // the Drowned Fen comes later as a second arena
     teaches: 'Corpses that rise unless you trample them, plague ground that lasts',
+    foes: { peasant: 'barrowThrall' }, // #275: barrow thralls
     levels: relicRealmLevels('grave', 'lich', 'gravedigger', 'barrowKing', 'abbot'), crown: RELIC_CROWN, // Decided: the Plague Abbot is its level-1 pool boss
   },
   cinderlands: {

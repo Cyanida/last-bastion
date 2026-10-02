@@ -40,7 +40,8 @@ export type EnemyId =
   | 'siegeCamp'
   | 'plagueCart'
   | 'usurper'
-  | 'royalFlame';
+  | 'royalFlame'
+  | 'barrowThrall';
 
 export type Behavior =
   | 'chaser'
@@ -331,4 +332,19 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     specialCd: 4.5, windup: 1.2, specialMult: 1.4, flasks: 3, zoneRadius: 70, poolLife: 6, poolDps: 14,
     p2RingFlasks: 7, summon: 'priest', summonCount: 2,
   },
+  // #275: the Barrowvale's peasant, a villager the barrows gave back: the Peasant's body and blow, but where he falls he rises again
+  // unless the champion tramples his corpse (RISING below)
+  barrowThrall: { ...base, id: 'barrowThrall', name: 'Barrow Thrall', sprite: 'barrowThrall', behavior: 'chaser', hp: 22, damage: 8, speed: 72, radius: 12, xp: 1 },
+};
+
+/**
+ * #275: foes whose corpses rise again (the Barrowvale's Barrow Thralls). Where one falls its corpse lies marked; `delay` seconds later it
+ * rises where it lay with `hp` x its HP (its blow as it was), unless the champion walks over it first: within `trample` px of his edge.
+ * A risen foe stays down when it falls again, and a corpse taken by anything else (Raise Dead, a bone collector) never rises
+ * (logic/risingCorpse.ts).
+ */
+export const RISING: Partial<Record<EnemyId, { delay: number; trample: number; hp: number }>> = {
+  // Decided: the peasant, the realm's crowd from wave 1 on every tier, so the lesson is on every level; 4 s of a corpse's 10 lets a
+  // champion turn back for it but not for a whole crowd, and half his HP (11 before scaling) once keeps a levy from doubling
+  barrowThrall: { delay: 4, trample: 10, hp: 0.5 },
 };
