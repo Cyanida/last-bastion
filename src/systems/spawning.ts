@@ -8,7 +8,7 @@ import { sfx } from '../sim/view';
 import { emit } from '../core/events';
 import type { Enemy, Game } from '../core/types';
 import { createEnemy } from '../entities/actors';
-import { actName, bossDef, bossForWave, caravanSellsRelic, isActEnd, themeFor } from '../logic/acts';
+import { placeName, bossDef, bossForWave, caravanSellsRelic, isActEnd, themeFor } from '../logic/acts';
 import { curseValue } from '../logic/curses';
 import { enemyXpMult, waveClearXp } from '../logic/formulas';
 import { gainXp } from './leveling';
@@ -24,7 +24,7 @@ import { actTheme, turnAct } from './acts';
 import { killEnemy } from './combat';
 import { createSquad } from './squads';
 import { REALMS, WORLD } from '../config/world';
-import { bossWaveIn, featuredSquads, levelBoss, levelFields, levelWaves, ownWaves, realmFoe } from '../logic/world';
+import { bossWaveIn, endBossStep, featuredSquads, levelBoss, levelFields, levelWaves, ownWaves, realmFoe } from '../logic/world';
 import { crownHpFloor, elitePhases, isCrownFight, isEliteFight } from '../logic/crownBoss';
 
 const MIN_SPAWN_DIST = 380;
@@ -34,9 +34,9 @@ function edgePoint(g: Game): { x: number; y: number } {
   return spawnPoint(g.openFloors, g.rng, g.player.x, g.player.y, MIN_SPAWN_DIST);
 }
 
-export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = []): Enemy {
+export function spawnEnemy(g: Game, id: EnemyId, x?: number, y?: number, affixes: AffixId[] = [], plain = false): Enemy {
   const lw = g.level ? levelWaves(g.level.realm, g.level.level) : null;
-  id = realmFoe(g.level?.realm, id); // #212: in a realm's levels its variants march in place of the plain foe (the Iron Hold's knights)
+  if (!plain) id = realmFoe(g.level?.realm, id); // #212: in a realm's levels its variants march in place of the plain foe (the Iron Hold's knights). #277: `plain` keeps a boss's own call as it is
   const at = x === undefined || y === undefined ? edgePoint(g) : { x, y };
   if (affixes.length && affixes.length < g.oath.n.affixes) {
     // v0.6 Oath (Thrice-Marked): every elite is topped up to three affixes, never the same one twice
@@ -93,6 +93,18 @@ function eliteBoss(g: Game, e: Enemy): void {
   e.maxHp = e.hp = Math.round(e.hp * WORLD.eliteBoss.hp);
   e.damage *= WORLD.eliteBoss.damage;
   g.banner = { text: `${e.def.name} · one phase more`, t: 3 };
+}
+
+/** #293: a level's end boss on its own step where the realm has one (WORLD.endBossStep): its HP, its blows and the ground it fouls. */
+function stepBoss(g: Game, e: Enemy): void {
+  const lv = g.level;
+  if (!lv || g.wave !== lv.last) return;
+  if (bossDef(g.bossesSeen[g.bossesSeen.length - 1] ?? '').from !== e.def.id) return;
+  const s = endBossStep(lv.realm, lv.level);
+  if (s.hp === 1 && s.damage === 1) return;
+  e.maxHp = e.hp = Math.round(e.hp * s.hp);
+  e.damage *= s.damage;
+  if (e.def.poolDps) e.def = { ...e.def, poolDps: e.def.poolDps * s.damage };
 }
 
 /** A squad arrives together, already in formation, facing the player. `at`: where (the v0.5 ambush), else an edge of the map. */
@@ -156,7 +168,7 @@ function startWave(g: Game): void {
   g.spawnTimer = 0;
   g.waveT = 0;
   if (g.wave === ACTS.length) g.wave10Time = g.time;
-  const title = g.wave === 1 ? `${actName(1)} — ${themeFor(1, g.seed).name}` : plan.boss ? `Wave ${g.wave} — Boss` : `Wave ${g.wave}`;
+  const title = g.wave === 1 ? `${placeName(1, g.level)} — ${themeFor(1, g.seed).name}` : plan.boss ? `Wave ${g.wave} — Boss` : `Wave ${g.wave}`;
   g.banner = { text: plan.modifier ? `${title} · ${MODIFIERS[plan.modifier].name}` : title, t: plan.modifier ? 3 : 2 };
   sfx(g, 'wave');
   emit(g, 'onWaveStart', { wave: g.wave });
@@ -210,6 +222,7 @@ export function updateSpawning(g: Game, dt: number): void {
           dressBoss(g, e);
           crownBoss(g, e);
           eliteBoss(g, e);
+          stepBoss(g, e);
         }
         g.spawnTimer += g.spawnInterval;
       } else {

@@ -1,8 +1,11 @@
 // v0.10 (#202): the crown boss rules (docs/road-to-the-crown.md rule 3) and the Warden's third phase as the Marches' crown boss
-import { INQUISITOR, WARDEN } from '../config/bosses';
+import { INQUISITOR, LICH, WARDEN } from '../config/bosses';
 import { ENEMY_STATUS } from '../config/damage';
+import { ENEMIES } from '../config/enemies';
 import { WORLD, type EndBoss } from '../config/world';
 import { TAU } from '../core/math';
+import type { Corpse } from '../core/types';
+import { corpseRise } from './risingCorpse';
 import type { StatusApply } from './status';
 
 /** A level's end boss is its realm's crown boss. */
@@ -10,13 +13,14 @@ export const isCrownFight = (end: EndBoss | undefined): boolean => !!end?.crown;
 
 /**
  * What a crown boss's HP holds at, so no blow carries it through a phase (phases split the HP bar evenly, systems/enemyAI): while its phase
- * has not run WORLD.crownBoss.minPhaseSeconds, just above that phase's own threshold; after it, just above the next one, so a burst still
- * lands in the next phase and starts its clock. The last threshold is death: held at 1 HP. 0 = no hold (its last phase, run its time).
+ * has not run WORLD.crownBoss.minPhaseSeconds, just above that phase's own threshold (the last phase's is death: held at 1 HP). After it, on
+ * the threshold itself (#264): a burst ends the phase and no more, so the next phase begins at the top of its own share of the bar and is
+ * fought through, not stood out at its floor. 0 = no hold (its last phase, run its time).
  */
 export function crownHpFloor(maxHp: number, phase: number, phases: number, elapsed: number, min = WORLD.crownBoss.minPhaseSeconds): number {
-  const hold = elapsed < min ? phase : phase + 1; // the threshold it may not pass yet
-  if (hold > phases) return 0;
-  return hold === phases ? 1 : Math.floor(maxHp * (1 - hold / phases)) + 1;
+  if (phase >= phases) return elapsed < min ? 1 : 0;
+  const threshold = Math.floor(maxHp * (1 - phase / phases)); // on it, enterPhase (hp <= its share) moves the phase on
+  return elapsed < min ? threshold + 1 : threshold;
 }
 
 /** #219: a level's end boss comes as an elite (rule 3: a relic realm's level 4, its first boss again). */
@@ -46,6 +50,31 @@ export function pyreField(phase: number, scale: number): { life: number; dps: nu
   const b = ENEMY_STATUS.torchbearer!;
   return { life: INQUISITOR.pyre.life, dps: INQUISITOR.pyre.dps * scale, apply: { ...b, power: (b.power ?? 0) * scale } };
 }
+
+/**
+ * #281: the Lich's Barrow Call, the elite's extra phase after his two (the Barrowvale's level 4): graves open round him. A plain Lich
+ * never gets there: he has two phases.
+ */
+export const lichCalls = (phase: number): boolean => phase >= LICH.callFrom;
+
+/**
+ * Where one Barrow Call of the Lich at (x, y) opens its graves: LICH.graves of them evenly round him at LICH.ring px, turned by `turn`
+ * (radians), fewer when `waiting` corpses on the field already wait to rise (up to LICH.maxRising in all), none before the call's phase.
+ */
+export function barrowCall(phase: number, x: number, y: number, turn: number, waiting: number): { x: number; y: number }[] {
+  if (!lichCalls(phase)) return [];
+  const n = Math.max(0, Math.min(LICH.graves, LICH.maxRising - waiting));
+  return Array.from({ length: n }, (_, i) => {
+    const a = turn + (i / LICH.graves) * TAU;
+    return { x: x + Math.cos(a) * LICH.ring, y: y + Math.sin(a) * LICH.ring };
+  });
+}
+
+/**
+ * What one of his graves rises as: a Barrow Thrall's corpse (logic/risingCorpse.ts), as if a thrall of this wave had fallen there:
+ * `hpScale` is the wave's and the difficulty's enemy HP, so it rises on RISING's delay with its share of that thrall's HP.
+ */
+export const lichGraveRise = (hpScale: number): Corpse['rise'] => corpseRise({ id: 'barrowThrall', side: false, maxHp: ENEMIES.barrowThrall.hp * hpScale });
 
 /** One of the Warden's seals: its outer ring's gaps and what comes with it. `n` counts his seals so far (0-based). */
 export interface WardenMove {

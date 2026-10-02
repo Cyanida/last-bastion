@@ -227,8 +227,8 @@
 .kit-close {
   display: inline-grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 40px; /* #272: every back and close button at least 40x40 */
+  height: 40px;
   padding: 0;
   cursor: pointer;
   background: radial-gradient(circle at 40% 35%, #6d4629, var(--kit-wood) 55%, var(--kit-wood-dark));
@@ -838,10 +838,10 @@
 /* #239: the ⓘ beside a part of a screen, and the parchment popup it opens (kit.infoButton / kit.wireInfo) */
 .kit-info { display: inline-grid; place-items: center; width: 24px; height: 24px; min-height: 0; padding: 0; flex: none; font: italic 900 15px/1 Georgia, serif; color: #2a1a06; background: radial-gradient(circle at 35% 30%, #f6d97a, #c9962c); border: 2px solid #5a3b0e; border-radius: 50%; box-shadow: 0 2px 3px rgba(0, 0, 0, 0.5); cursor: pointer; }
 .kit-info[aria-expanded="true"] { outline: 2px solid var(--kit-brass-light); outline-offset: 2px; }
-.kit-info-pop { position: fixed; z-index: 50; width: min(340px, calc(90 * var(--vw))); padding: 10px 40px 10px 14px; color: var(--kit-ink); background: linear-gradient(#f3e3bf, #e2cb98); border: 2px solid var(--kit-brass-dark); border-radius: 10px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6); }
+.kit-info-pop { position: fixed; z-index: 50; width: min(340px, calc(90 * var(--vw))); min-height: 56px; padding: 10px 54px 10px 14px; color: var(--kit-ink); background: linear-gradient(#f3e3bf, #e2cb98); border: 2px solid var(--kit-brass-dark); border-radius: 10px; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6); }
 .kit-info-pop[hidden] { display: none; }
 .kit-info-pop p { margin: 0; font-size: 15px; line-height: 1.35; }
-.kit-info-pop .kit-close { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; }
+.kit-info-pop .kit-close { position: absolute; top: 6px; right: 6px; } /* #272: the full 40x40 close button */
 /* #240: a tour over a screen (kit.tour): a ring around the part a step names, the rest dimmed by the ring's own shadow, and the step's
    sentence on parchment beside it with Skip and Next */
 .kit-tour { position: fixed; inset: 0; z-index: 60; }

@@ -13,6 +13,8 @@
  * their plates, Iron Shieldwalls, Thorn Bearers) among the others, under its forge presses (marked slabs and rams) and the Keep's braziers.
  * v0.12 (#232) adds the Ember Forge: a Cinderlands level (level 3, wave 20) in its own arena, 250 foes, the realm's own among them
  * (Torchbearers, and Cinder Hounds that burst into fire where they fall), over its lava channels, with its fire spreading over the floor.
+ * v0.13 (#273) adds the Forsaken Graveyard as the Barrowvale's arena: a Barrowvale level (level 3, wave 20), 250 foes among its crypts,
+ * headstones, broken chapel and grave mounds, with its grasping hands bursting from the earth.
  * v0.7.1: the run music plays through every scenario (Chromium may start audio without a gesture here), and before them a quick check
  * that it plays in every arena: each arena's theme gets notes queued on a running AudioContext. Any console error fails the test.
  * Fails when the 95th-percentile frame time exceeds PERF_BUDGET_MS (default 20 ms, the desktop target: one frame at
@@ -24,7 +26,7 @@ import { spawnTree, killTree, waitForServer } from './lib/process-tree.mjs';
 
 const BUDGET = Number(process.env.PERF_BUDGET_MS ?? 20);
 const PORT = Number(process.env.PERF_PORT ?? 4179);
-const SCENARIOS = ['fog', 'bloodMoon', 'usurper', 'fortress', 'emberForge'];
+const SCENARIOS = ['fog', 'bloodMoon', 'usurper', 'fortress', 'emberForge', 'graveyard'];
 const ARENAS = ['courtyard', 'graveyard', 'keep', 'bastion'];
 const FRAMES = 300;
 
@@ -100,11 +102,13 @@ for (const modifier of SCENARIOS) {
     const fortress = modifier === 'fortress';
     lb.save.cards?.push(...(lb.cardIds ?? [])); // v0.8 (#124): every flash card seen, or one would pause the fight mid-measurement
     const forge = modifier === 'emberForge';
+    const yard = modifier === 'graveyard';
     if (fortress) lb.start('viking', { tier: 1, level: { realm: 'ironHold', level: 3 } }); // #220: the Great Keep as the Iron Hold plays it
     else if (forge) lb.start('viking', { tier: 1, level: { realm: 'cinderlands', level: 3 } }); // #232: the Ember Forge as the Cinderlands play it
+    else if (yard) lb.start('viking', { tier: 1, level: { realm: 'barrowvale', level: 3 } }); // #273: the Forsaken Graveyard as the Barrowvale plays it
     else lb.start('viking');
     const g = lb.game;
-    if (fortress || forge) g.player.relics.offers.length = 0; // no opening pick: its screen would wait for a choice
+    if (fortress || forge || yard) g.player.relics.offers.length = 0; // no opening pick: its screen would wait for a choice
     g.player.invulnerable = true;
     g.player.stats.hp = 1e6;
     g.player.hp = 1e6;
@@ -132,7 +136,7 @@ for (const modifier of SCENARIOS) {
       g.vars['usurper.phase'] = 3;
       u.maxHp = u.hp = 1e9; // and he must not fall while it is measured
     }
-    if (!final && !fortress && !forge) g.modifier = modifier;
+    if (!final && !fortress && !forge && !yard) g.modifier = modifier;
     // the fortress: half the horde is the realm's own (a knight, a shieldwall and a shield bearer march as its variants there)
     // the Ember Forge: two in three are the realm's own (a peasant marches as a Torchbearer there, a wolf hunts as a Cinder Hound)
     const kinds = fortress ? ['knight', 'shieldwall', 'shieldBearer', 'peasant', 'crossbow', 'knight'] : forge ? ['peasant', 'wolf', 'crossbow', 'peasant', 'wolf', 'knight'] : ['peasant', 'wolf', 'crossbow', 'knight', 'shieldBearer', 'cultist'];
@@ -142,12 +146,17 @@ for (const modifier of SCENARIOS) {
       g.spawnInterval = 0.01;
     };
     topUp();
+    // #292: the graveyard's fight is the Gravedigger's: his theme plays over it, his graves and cues in the frames (he must not fall)
+    const digger = yard && lb.spawn('gravedigger', g.player.x + 320, g.player.y);
+    if (digger) digger.maxHp = digger.hp = 1e9;
     lb.run(180, true, true); // the fight is on: particles, numbers, procs, and the sprite caches are warm
     window.__slabs = 0; // the fortress: the most slabs a forge press marked at once while it was measured
     // the fortress: a press is never more than a second off (its own clock runs 8 s, longer than the measurement), so its slabs and rams are always in the frames
     window.__flames = 0; // the Ember Forge: the most slabs the spreading fire held at once while it was measured
     // the Ember Forge: the fire catches at the lava's bank every 2 s at most (its own clock runs 10 s, longer than the measurement), so tongues of it are always creeping over the floor in the frames
-    window.__topUp = setInterval(() => lb.state === 'playing' && (final || fortress || forge || (g.modifier = modifier), fortress && g.pressT > 1 && (g.pressT = 1), forge && g.fireT > 2 && (g.fireT = 2), (window.__slabs = Math.max(window.__slabs, g.zones.filter((z) => z.slab).length)), (window.__flames = Math.max(window.__flames, g.flames.length)), topUp()), 500);
+    window.__hands = 0; // the graveyard: the most grasping hands marked at once while it was measured
+    // the graveyard: its hands come every 7 s, longer than the measurement, so their clock is kept under 2 s and hands are always in the frames
+    window.__topUp = setInterval(() => lb.state === 'playing' && (final || fortress || forge || yard || (g.modifier = modifier), fortress && g.pressT > 1 && (g.pressT = 1), forge && g.fireT > 2 && (g.fireT = 2), yard && g.hazardT > 2 && (g.hazardT = 2), (window.__hands = Math.max(window.__hands, g.zones.filter((z) => z.art === 'hands').length)), (window.__slabs = Math.max(window.__slabs, g.zones.filter((z) => z.slab).length)), (window.__flames = Math.max(window.__flames, g.flames.length)), topUp()), 500);
     lb.setPerf(true); // section timers and draw counts, like the overlay
     lb.resetPerf();
   }, modifier);
@@ -159,8 +168,8 @@ for (const modifier of SCENARIOS) {
     const music = lb.music();
     const g = lb.game;
     const sections = Object.entries(lb.perf.sections).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(', ');
-    const own = ['ironKnight', 'ironShieldwall', 'thornBearer', 'torchbearer', 'cinderHound'];
-    const out = { ...s, arena: g.arena.id, realm: g.level?.realm ?? null, hazard: !!g.pressT || window.__slabs > 0, slabs: window.__slabs, flames: window.__flames, realmFoes: g.enemies.filter((e) => own.includes(e.def.id)).length, state: lb.state, lastUpdate: lb.perf.updateMs, lastRender: lb.perf.renderMs, enemies: g.enemies.length, draws: lb.perf.counts.draws, particles: g.particles.length, texts: g.texts.length, detail: lb.quality.detail, sections, music };
+    const own = ['ironKnight', 'ironShieldwall', 'thornBearer', 'torchbearer', 'cinderHound', 'barrowThrall', 'blightHound'];
+    const out = { ...s, arena: g.arena.id, realm: g.level?.realm ?? null, hazard: !!g.pressT || window.__slabs > 0, slabs: window.__slabs, flames: window.__flames, hands: window.__hands, realmFoes: g.enemies.filter((e) => own.includes(e.def.id)).length, state: lb.state, lastUpdate: lb.perf.updateMs, lastRender: lb.perf.renderMs, enemies: g.enemies.length, draws: lb.perf.counts.draws, particles: g.particles.length, texts: g.texts.length, detail: lb.quality.detail, sections, music };
     window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
     document.querySelector('[data-quit]')?.click();
     document.querySelector('[data-menu]')?.click();
@@ -184,18 +193,22 @@ for (const m of music) {
   failed ||= !ok;
   console.log(`${ok ? 'PASS' : 'FAIL'}  frame dip  6 s at 2 fps · ${dip.playing ?? 'silent'} · ${dip.queued} notes queued · ${dip.late} bars late`);
 }
-console.log(`\nperf test · wave 20 · 250 enemies (the Usurper: wave 40, 150; the fortress: an Iron Hold level in the Great Keep; the Ember Forge: a Cinderlands level) · ${FRAMES} live frames · budget p95 <= ${BUDGET} ms\n`);
+console.log(`\nperf test · wave 20 · 250 enemies (the Usurper: wave 40, 150; the fortress: an Iron Hold level in the Great Keep; the Ember Forge: a Cinderlands level; the graveyard: a Barrowvale level) · ${FRAMES} live frames · budget p95 <= ${BUDGET} ms\n`);
 for (const r of results) {
   // #220: the fortress scene must be the fortress: the Iron Hold in the Great Keep, its own foes in the horde and a press seen marking slabs
+  // #273: and the graveyard scene the Barrowvale in the Forsaken Graveyard, a full horde and its grasping hands seen bursting up; #292: its own
+  // foes in the horde (rising and fouling the ground in their own sounds) and the Gravedigger's theme playing over the fight
   // #232: and the Ember Forge scene the Ember Forge: the Cinderlands in their own arena, their own foes in the horde and the fire seen spreading over the floor
   const scene = r.modifier === 'fortress' ? r.arena === 'keep' && r.realm === 'ironHold' && r.realmFoes >= 50 && r.slabs >= 3 && r.state === 'playing'
-    : r.modifier === 'emberForge' ? r.arena === 'emberForge' && r.realm === 'cinderlands' && r.realmFoes >= 50 && r.flames >= 3 && r.state === 'playing' : true;
+    : r.modifier === 'emberForge' ? r.arena === 'emberForge' && r.realm === 'cinderlands' && r.realmFoes >= 50 && r.flames >= 3 && r.state === 'playing'
+    : r.modifier === 'graveyard' ? r.arena === 'graveyard' && r.realm === 'barrowvale' && r.hands >= 3 && r.enemies >= 200 && r.realmFoes >= 50 && r.music.arena === 'boss:gravedigger' && r.state === 'playing' : true;
   const ok = r.p95 <= BUDGET && scene;
   failed ||= !ok;
   const f = (n) => n.toFixed(1).padStart(6);
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${r.modifier.padEnd(10)} frame avg ${f(r.avg)}  p95 ${f(r.p95)}  max ${f(r.max)}  | update ${r.update.toFixed(2)} (last ${r.lastUpdate.toFixed(2)})  render ${r.render.toFixed(2)} (last ${r.lastRender.toFixed(2)})  | enemies ${r.enemies}  draws ${r.draws}  particles ${r.particles}  texts ${r.texts}  detail ${r.detail.toFixed(2)}`);
   console.log(`      heaviest sections (last frame): ${r.sections}  · state ${r.state}  · music ${r.music.playing ?? 'silent'} layer ${r.music.layer}, ${r.music.voices} voices`);
   if (r.modifier === 'fortress') console.log(`      ${scene ? 'the fortress' : 'NOT the fortress'}: ${r.realm ?? 'no realm'} in the ${r.arena} · ${r.realmFoes} Iron Hold foes of ${r.enemies} · forge presses marked up to ${r.slabs} slabs at once`);
+  if (r.modifier === 'graveyard') console.log(`      ${scene ? 'the Forsaken Graveyard' : 'NOT the Forsaken Graveyard'}: ${r.realm ?? 'no realm'} in the ${r.arena} · ${r.enemies} foes, ${r.realmFoes} the Barrowvale's own · up to ${r.hands} grasping hands marked at once · music ${r.music.arena}`);
   if (r.modifier === 'emberForge') console.log(`      ${scene ? 'the Ember Forge' : 'NOT the Ember Forge'}: ${r.realm ?? 'no realm'} in the ${r.arena} · ${r.realmFoes} Cinderlands foes of ${r.enemies} · the spreading fire held up to ${r.flames} slabs at once`);
 }
 for (const e of errors) console.log(`FAIL  console error: ${e}`);

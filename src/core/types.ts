@@ -1,4 +1,4 @@
-import type { SfxName } from './audio';
+import type { Cue } from '../sim/view';
 import type { OathStack } from '../logic/oaths';
 import type { LevelUpOption } from '../logic/upgrades';
 import type { AbilityUpgradeId } from '../config/abilityUpgrades';
@@ -177,6 +177,7 @@ export interface Player extends Body {
   deathless: boolean; // HP cannot drop below 1
   absorbed: number; // damage soaked by Divine Shield this cast
   chillT: number; // slowed by a Frost Aura elite
+  heldT: number; // #274: seconds the Barrowvale's grasping hands still hold him: he cannot walk (logic/graspingHands.ts)
   still: number; // seconds without moving
   statuses: StatusMap; // v0.3: burn, bleed, poison, chill, curse from enemies
   dots: Partial<Record<DamageType, number>>; // damage-over-time waiting for the next tick
@@ -247,6 +248,7 @@ export interface Enemy extends Body {
   phaseAt: number; // #202: when its current phase began (g.time)
   secondWind: number; // v0.6 Oath: a boss rises once more from the brink with this fraction of its HP; 0 = none (or spent)
   side: boolean; // v0.5: side content (a lair, a quest target, an event): not counted for clearing the wave
+  risen?: boolean; // #275: it rose from its corpse once already, and stays down when it falls again
   waypoint: { x: number; y: number } | null; // v0.5: the gate to walk to when the player is on another floor (logic/regions waypoint)
   statuses: StatusMap;
   dots: Partial<Record<DamageType, number>>;
@@ -268,7 +270,11 @@ export interface Enemy extends Body {
   charged: boolean;
   telegraph: Telegraph | null;
   dead: boolean;
+  graves?: Grave[]; // #277: the Gravedigger's open graves (logic/gravedigger.ts)
 }
+
+/** #277: an open grave the Gravedigger dug: `t` s since the dirt landed (below 0: still in the air); it rises unless trampled. */
+export interface Grave { x: number; y: number; t: number }
 
 /** A group that spawns together, marches in formation and shares a target until it engages. */
 export interface Squad {
@@ -355,6 +361,7 @@ export interface Zone extends Body {
   source: DamageSource; // a friendly zone's damage: 'ability', or 'hazard' for the arena's own (braziers, the gatehouse)
   art?: 'hands' | 'fire' | 'press'; // #159: an arena hazard's telegraph shows its rigged prop rising in the circle (#211: a press's ram lowering)
   slab?: number; // #211: a square zone, a marked flagstone slab this many px wide (logic/presses.ts onSlab); r is half of it
+  hold?: number; // #274: a marked grave: the hands that rise from it hold the champion they catch this many seconds (config/arenas.ts GRAVE_HANDS)
 }
 
 /** Lasting area: fire, poison, consecrated ground. Ticks every GAME.fieldTick seconds. */
@@ -372,6 +379,8 @@ export interface Field extends Body {
   dtype: DamageType;
   apply: StatusApply | null; // put on whoever stands in it, every tick
   by?: RelicKey; // v0.7: laid by this relic or duo (its damage is credited to it)
+  plague?: boolean; // #276: a fallen foe's lasting plague ground (logic/plagueGround.ts): renewed, and held to its own cap
+  cause?: string; // #276: a hostile field's name in the run log's cause of death
 }
 
 export interface Pickup {
@@ -446,6 +455,8 @@ export interface Corpse {
   y: number;
   t: number;
   walked?: boolean; // Charnel: walked over already
+  stomped?: boolean; // #279: Barrow Boots stomped it already
+  rise?: { id: EnemyId; at: number; side: boolean; hp: number }; // #275: it rises as `id` with `hp` when its t reaches `at`, unless trampled first (logic/risingCorpse.ts)
 }
 
 export interface Particle {
@@ -495,7 +506,7 @@ export interface Game {
   corpses: Corpse[];
   particles: Particle[];
   texts: FloatText[];
-  out: SfxName[]; // v0.8 (#114): this tick's sound cues; the view plays and empties them (sim/view.ts playCues). Not hashed
+  out: Cue[]; // v0.8 (#114): this tick's sound cues (#283: with their source and place); the view plays and empties them (sim/view.ts playCues). Not hashed
   effects: Effect[];
   hash: SpatialHash<Enemy>;
   rng: SeededRng;

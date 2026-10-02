@@ -12,7 +12,7 @@
  * The routine and CI run it on every pull request. A change a player sees gets its own check added here (see AGENTS.md).
  * Not covered: a gamepad beyond the press that answers a screen, and how it feels.
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { spawnTree, killTree, waitForServer } from './lib/process-tree.mjs';
 
@@ -339,12 +339,165 @@ await check('Settings and results: the UI kit, their controls work, all in the w
     await press('[data-menu]');
     const select = await p.evaluate(() => !!document.querySelector('.kit-title [data-go="daily"]') && !document.querySelector('.kit-screen.results')); // #204: a trial goes home
     await p.close();
-    const ok = set.frame && set.ribbon === 'Settings' && set.choices && set.switches >= 3 && set.sliders === 2 && fitsSet && large &&
+    const ok = set.frame && set.ribbon === 'Settings' && set.choices && set.switches >= 3 && set.sliders === 5 && fitsSet && large &&
       soundBefore === 'On' && soundAfter === 'Off' && !checked && fxBefore !== fxAfter && title > 0 &&
       res.ribbon === 'The run ends' && res.main && res.menu && res.icon && res.seed && fitsRes && select && errs.length === 0;
     seen.push({ ok, detail: `${w}x${h}: settings ${set.frame}/${set.ribbon}, choices ${set.choices}, ${set.switches} switches, ${set.sliders} sliders, fits ${fitsSet}, Large ${large}, sound ${soundBefore}->${soundAfter}, effects ${fxBefore}->${fxAfter}, back ${title > 0}; results "${res.ribbon}", gold main ${res.main}, wood ${res.menu}, icon ${res.icon}, fits ${fitsRes}, home ${select}${errs.length ? `, errors: ${errs[0]}` : ''}` });
   }
   return { ok: seen.every((x) => x.ok), detail: seen.map((x) => x.detail).join(' | ') };
+});
+
+// #282: the sound mixer, played through Settings at 1280x720 and by touch at 844x390: a player with the old Music "High" and Effects
+// "Low" finds them migrated onto the Music and Effects sliders beside Master, Interface and Ambience; the keyboard and a tap move a
+// slider, its bus follows and the mix is kept over a reload. In a run on PC the wind blows on the ambience bus, a big blow ducks the
+// music, the wind stops on pause and comes back on Resume, and Sound off (M) stops it; on the phone Ambience is tapped to Off first,
+// and no wind starts. The Settings frame still fits the window.
+await check('sound mixer: five volume sliders in Settings move their buses, are kept, migrate the old levels; wind and ducking in a run (#282)', async () => {
+  const seen = [];
+  for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+    await p.addInitScript(() => {
+      if (localStorage.getItem('lastbastion.mixer') === null && !sessionStorage.getItem('seeded')) {
+        localStorage.setItem('lastbastion.music', 'high'); // a player from before the mixer
+        localStorage.setItem('lastbastion.effects', 'low');
+        sessionStorage.setItem('seeded', '1');
+      }
+    });
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    const labels = () => p.evaluate(() => Object.fromEntries([...document.querySelectorAll('.settings .kit-slider input[type=range]')].map((i) => [i.dataset.set, i.closest('label').querySelector('[data-level]').textContent.trim()])));
+    await press('[data-go="settings"]');
+    const migrated = await labels();
+    const fits = await p.evaluate(() => {
+      const f = document.querySelector('.kit-screen.settings').getBoundingClientRect();
+      const back = document.querySelector('.settings [data-act="back"]').getBoundingClientRect();
+      return f.top >= 0 && f.left >= 0 && f.bottom <= innerHeight && f.right <= innerWidth && back.top >= 0 && back.right <= innerWidth;
+    });
+    // the keyboard on the Master slider, one step down
+    await p.locator('[data-set="master"]').focus();
+    await p.keyboard.press('ArrowLeft');
+    // the bus glides to its new gain on the audio clock, which headless Chromium runs slower than the wall clock
+    const settle = (fn) => p.waitForFunction(fn, null, { timeout: 8000 }).then(() => true, () => false);
+    await settle(() => window.__lb.mixer().gains.master < 0.96);
+    const master = await p.evaluate(() => ({ label: document.querySelector('.kit-slider:has([data-set="master"]) [data-level]').textContent.trim(), ...window.__lb.mixer() }));
+    // the Interface slider all the way down by keyboard (End/Home), then a tap or click on the Music slider's left end
+    await p.locator('[data-set="ui"]').focus();
+    // the Interface bus: a button pressed taps on it, until its slider goes to Off
+    const taps = () => p.evaluate(() => window.__lb.mixer().played.ui);
+    const tap0 = await taps();
+    await press('[data-text-size="normal"]');
+    const tapOn = (await taps()) - tap0;
+    await p.locator('[data-set="ui"]').focus();
+    await p.keyboard.press('Home');
+    await p.waitForTimeout(100);
+    const tap1 = await taps();
+    await press('[data-text-size="normal"]');
+    await p.waitForTimeout(100);
+    const tapOff = (await taps()) - tap1;
+    const music = p.locator('[data-set="music"]');
+    await music.scrollIntoViewIfNeeded();
+    const box = await music.boundingBox();
+    const at = { x: box.x + 2, y: box.y + box.height / 2 };
+    if (touch) await p.touchscreen.tap(at.x, at.y);
+    else await p.mouse.click(at.x, at.y);
+    await settle(() => window.__lb.mixer().gains.music < 0.05); // the music stops at Off, and its bus stops moving there
+    const moved = { ...(await labels()), ...(await p.evaluate(() => window.__lb.mixer())) };
+    // kept over a reload
+    await p.reload();
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await press('[data-go="settings"]');
+    const kept = await labels();
+    // set the music back up so the run has some to duck; on the phone, Ambience tapped to Off
+    await p.locator('[data-set="music"]').focus();
+    await p.keyboard.press('End');
+    await p.waitForTimeout(100);
+    if (touch) {
+      await p.locator('[data-set="ambience"]').scrollIntoViewIfNeeded(); // the parchment scrolls on a phone
+      const amb = await p.locator('[data-set="ambience"]').boundingBox();
+      await p.touchscreen.tap(amb.x + 2, amb.y + amb.height / 2);
+      await p.waitForTimeout(100);
+    }
+    const ambLabel = (await labels()).ambience;
+    await press('.settings [data-act="back"]');
+    // a run: the wind blows, a big blow ducks music and wind, a pause stops the wind
+    await beginDaily(p);
+    await p.waitForFunction(() => window.__lb.state !== 'menu');
+    await p.evaluate(() => {
+      const lb = window.__lb;
+      for (let i = 0; i < 400 && !(i > 60 && lb.state === 'playing'); i++) lb.run(1, false, true);
+    });
+    const windy = await p.waitForFunction(() => window.__lb.mixer().ambience, null, { timeout: touch ? 1500 : 4000 }).then(() => true, () => false);
+    const ducked = await p.evaluate(() => {
+      window.__lb.view.sfx('boom'); // the simulation's way to the speaker, as a boss's blow goes
+      return new Promise((r) => setTimeout(() => r(window.__lb.mixer().ducked), 60));
+    });
+    await p.keyboard.press('Escape');
+    const calm = await p.waitForFunction(() => !window.__lb.mixer().ambience, null, { timeout: 4000 }).then(() => true, () => false);
+    await press('[data-resume]');
+    const back = await p.waitForFunction(() => window.__lb.state === 'playing' && window.__lb.mixer().ambience, null, { timeout: touch ? 1000 : 4000 }).then(() => true, () => false);
+    await p.keyboard.press('m'); // Sound off
+    const muted = await p.waitForFunction(() => window.__lb.mixer().muted && !window.__lb.mixer().ambience, null, { timeout: 4000 }).then(() => true, () => false);
+    await p.close();
+    const ok = migrated.music === '100%' && migrated.effects === '35%' && migrated.master === '100%' && migrated.ui === '70%' && migrated.ambience === '50%' && fits &&
+      master.label === '95%' && master.mix.master === 95 && Math.abs(master.gains.master - 0.95) < 0.02 &&
+      moved.ui === 'Off' && moved.mix.ui === 0 && tapOn > 0 && tapOff === 0 && moved.mix.music <= 10 && moved.gains.music < 0.08 &&
+      kept.master === '95%' && kept.ui === 'Off' && kept.music === moved.music && ducked && calm && muted &&
+      (touch ? ambLabel === 'Off' && !windy && !back : ambLabel === '50%' && windy && back) && errs.length === 0;
+    seen.push({ ok, detail: `${w}x${h}: migrated ${JSON.stringify(migrated)}, fits ${fits}; master key -> ${master.label} (gain ${master.gains?.master.toFixed(2)}); button taps ${tapOn}, ui -> ${moved.ui}, then taps ${tapOff}, music ${touch ? 'tap' : 'click'} -> ${moved.music} (gain ${moved.gains?.music.toFixed(2)}); after reload ${JSON.stringify(kept)}; run with Ambience ${ambLabel}: wind ${windy}, ducked ${ducked}, paused calm ${calm}, resumed wind ${back}, M stops it ${muted}${errs.length ? `, errors: ${errs[0]}` : ''}` });
+  }
+  return { ok: seen.every((x) => x.ok), detail: seen.map((x) => x.detail).join(' | ') };
+});
+
+// #288: every arena has its own ambience: Settings -> Test mode -> each arena in turn -> Start test run, at 1280x720 with the mouse. The
+// ambience bus plays that arena's own bed (the courtyard's wind, the graveyard's crows, the keep's echo, the Ember Forge's fire, the
+// Bastion's walls), and in the graveyard, when the boss comes, the bed steps back under the fight.
+await check('arena ambience: each arena plays its own bed on the ambience bus, and it steps back under a boss fight (#288)', async () => {
+  const seen = [];
+  let early = 0, boss = 0, bossUp = false;
+  for (const arena of ['courtyard', 'graveyard', 'keep', 'emberForge', 'bastion']) {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    if (!(await p.locator(`#tm-arena option[value="${arena}"]`).count())) {
+      await p.close();
+      continue; // an arena not built in this build
+    }
+    await p.locator('#tm-arena').selectOption(arena);
+    await p.getByRole('button', { name: /start test run/i }).click();
+    await p.waitForFunction(() => window.__lb.state === 'playing' || window.__lb.state === 'choice', null, { timeout: 5000 });
+    const bed = await p.waitForFunction((a) => window.__lb.mixer().ambience === a, arena, { timeout: 4000 }).then(() => arena, async () => String(await p.evaluate(() => window.__lb.mixer().ambience)));
+    if (arena === 'graveyard') {
+      // the bed fades in to its level before the boss (a breather or a plain fight), then a boss wave comes and it steps back
+      await p.waitForFunction(() => window.__lb.mixer().bedLevel > 0.25, null, { timeout: 8000 }).catch(() => {});
+      early = await p.evaluate(() => window.__lb.mixer().bedLevel);
+      bossUp = await p.evaluate(() => {
+        const lb = window.__lb, g = lb.game;
+        g.player.invulnerable = true;
+        g.enemies.length = 0;
+        g.spawnQueue.length = 0;
+        g.wave = g.wavesCleared = Math.ceil((g.wave + 1) / 5) * 5 - 1; // the next wave is a boss's (every 5th)
+        g.breather = 0.01;
+        let k = null;
+        for (let i = 0; i < 6000 && !k && lb.state !== 'results'; i++) (lb.run(1, false, false), (k = g.enemies.find((e) => e.def.boss) ?? null));
+        if (k) k.hpFloor = k.maxHp; // he stays while the bed is heard
+        return !!k;
+      });
+      await p.waitForFunction((e) => window.__lb.mixer().bedLevel < e * 0.7, early, { timeout: 8000 }).catch(() => {});
+      boss = await p.evaluate(() => window.__lb.mixer().bedLevel);
+    }
+    seen.push({ arena, bed, errs: errs.length ? errs[0] : '' });
+    await p.close();
+  }
+  const ok = seen.length >= 4 && seen.every((x) => x.bed === x.arena && !x.errs) && bossUp && early > 0.25 && boss < early * 0.7;
+  return { ok, detail: `${seen.map((x) => `${x.arena} -> ${x.bed}${x.errs ? ` (error: ${x.errs})` : ''}`).join(', ')}; graveyard bed ${early.toFixed(2)}, boss ${bossUp} -> ${boss.toFixed(2)}` };
 });
 
 // #187: the compendium, the glossary and the flash cards in the kit, played at 1280x720 with the mouse and in phone landscape by touch:
@@ -869,7 +1022,7 @@ await check('relic offer: a short line and tier chips, the ⓘ opens its compend
   return { ok, detail: `cards ${setup.map((c) => `"${c.p}" (${c.p.length}, ${c.chips} chips${c.info ? ', ⓘ' : ''}${c.long ? ', LONG' : ''}${c.fits ? '' : ', DOES NOT FIT'})`).join('; ')}; ⓘ page ${opened.page} (${opened.tiers} tier lines: "${opened.text}"), still picking ${opened.state}/${opened.offers}; Esc closed ${!closed.page}; smallest font card ${cardFont.min}px (${cardFont.at}), page ${pageFont.min}px` };
 });
 
-await check('relic offer: hovering a card opens a short tooltip beside or above it, never over the card or the Reroll / Skip buttons (#251)', async () => {
+await check('relic offer: hovering a card opens a short tooltip beside or above it, never over the card, the Reroll / Skip buttons, the screen title or its first line, at 1280x720 and 1920x1080 (#251, #261)', async () => {
   const ready = await inPage(() => {
     const P = window.__play, rel = window.__lb.game.player.relics;
     rel.offers.push({ from: 'lair', options: ['heartOfTheHold', 'reprisalCuirass', 'thunderDrum', 'guardiansAegis'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 1, duo: null });
@@ -877,6 +1030,8 @@ await check('relic offer: hovering a card opens a short tooltip beside or above 
   });
   if (!ready) return { ok: false, detail: 'no relic offer' };
   const seen = [];
+  for (const [w, h] of [[1280, 720], [1920, 1080], [1280, 720]]) {
+  await page.setViewportSize({ width: w, height: h });
   for (const n of [0, 1, 2]) {
     await page.mouse.move(2, 2);
     await page.locator(`[data-pick="${n}"] h2`).hover();
@@ -891,13 +1046,15 @@ await check('relic offer: hovering a card opens a short tooltip beside or above 
       const over = others.filter((el) => hit(t, box(el)) && el === card).length;
       const btns = [...document.querySelectorAll('[data-reroll], [data-skip]')].filter((el) => hit(t, box(el))).length;
       const own = [...card.querySelectorAll('h2, p, .tier-chips, .tag')].filter((el) => hit(t, box(el))).length;
-      return { shown: true, h: Math.round(t.b - t.t), over, btns, own, inside: t.l >= 0 && t.t >= 0 && t.r <= innerWidth && t.b <= innerHeight, vw: innerWidth };
+      const head = [...document.querySelectorAll('.levelup .kit-head, .levelup .sub')].filter((el) => hit(t, box(el))).length;
+      return { shown: true, head, h: Math.round(t.b - t.t), over, btns, own, inside: t.l >= 0 && t.t >= 0 && t.r <= innerWidth && t.b <= innerHeight, vw: innerWidth };
     }, n));
+  }
   }
   await page.mouse.move(2, 2);
   await inPage(() => window.__play.click('[data-skip]'));
-  const ok = seen.every((x) => x.shown && x.over === 0 && x.btns === 0 && x.own === 0 && x.inside && x.h <= 250);
-  return { ok, detail: seen.map((x, i) => x.shown ? `card ${i + 1}: tooltip ${x.h}px tall at ${x.vw}px wide, over the card ${x.over}, over buttons ${x.btns}, over its text ${x.own}, ${x.inside ? 'on screen' : 'OFF SCREEN'}` : `card ${i + 1}: no tooltip`).join('; ') };
+  const ok = seen.every((x) => x.shown && x.over === 0 && x.btns === 0 && x.own === 0 && x.head === 0 && x.inside && x.h <= 250);
+  return { ok, detail: seen.map((x, i) => x.shown ? `card ${i + 1}: tooltip ${x.h}px tall at ${x.vw}px wide, over the card ${x.over}, over buttons ${x.btns}, over its text ${x.own}, over title/first line ${x.head}, ${x.inside ? 'on screen' : 'OFF SCREEN'}` : `card ${i + 1}: no tooltip`).join('; ') };
 });
 
 await check('relic offer: take a relic', () =>
@@ -1342,10 +1499,11 @@ await check('sound cues: played and emptied, a relic pick is heard', () =>
     const drained = g.out.length === 0;
     rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant', 'thunderDrum'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 0, duo: null }); // one already held is taken silently
     if (!P.toChoice()) return { ok: false, detail: 'no relic offer' };
-    const before = P.sounds.levelup ?? 0;
+    const picks = () => Object.entries(P.sounds).reduce((n, [k, v]) => (k === 'levelup' || k.startsWith('relic.') ? n + v : n), 0); // #287: its family's own sound (levelup before it)
+    const before = picks();
     await P.click('[data-pick="0"]'); // no step runs in between: the next frame plays it
-    const heard = (P.sounds.levelup ?? 0) - before;
-    return { ok: drained && heard >= 1 && g.out.length === 0, detail: `queue after steps ${drained ? 'empty' : 'NOT empty'}, pick played levelup ×${heard}, queue now ${g.out.length}` };
+    const heard = picks() - before;
+    return { ok: drained && heard >= 1 && g.out.length === 0, detail: `queue after steps ${drained ? 'empty' : 'NOT empty'}, pick played its sound ×${heard}, queue now ${g.out.length}` };
   }),
 );
 
@@ -1367,6 +1525,166 @@ await check('boss pool: the next boss is not one already met this run', async ()
   return { ok, detail: `wave ${r.wave}: ${r.name}; met ${r.seen.join(', ')}; HUD "${r.hud}"` };
 });
 
+// #289: a boss's own theme takes over from the arena's music. Through Settings and test mode at 1280x720 with the mouse: the jukebox lists
+// the boss themes and plays the Lich's; then a test run in the Castle Courtyard at Act I wave 5 plays the courtyard's theme until the
+// Black Knight comes, his grim march takes over (its base layer in his first phase), builds to the full boss layer in his second with
+// the phase stinger over it, and hands back to the courtyard's theme when he falls.
+await check("boss themes: the Black Knight's theme takes over from the arena's, builds with his phase and hands back when he falls (#289)", async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  try {
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const music = () => p.evaluate(() => window.__lb.music());
+    const hear = (arena, layer = null, timeout = 15000) => p.waitForFunction(([a, l]) => {
+      const m = window.__lb.music();
+      return m.playing === 'run' && m.arena === a && (l === null || m.layer === l);
+    }, [arena, layer], { timeout }).then(() => true, () => false);
+    await p.locator('[data-go="settings"]').click();
+    await p.locator('.settings [data-act="test"]').click();
+    // the jukebox: the boss themes are on its list, and the Lich's plays
+    const listed = await p.evaluate(() => [...document.querySelectorAll('#jb-arena option')].filter((o) => o.value.startsWith('boss:')).map((o) => o.textContent.trim()));
+    await p.locator('#jb-arena').selectOption('boss:lich');
+    await p.locator('.testmode [data-play]').click();
+    const jukebox = await hear('boss:lich');
+    await p.locator('.testmode [data-stop]').click();
+    // a test run: the courtyard at Act I wave 5, the Black Knight's wave
+    await p.locator('#tm-class').selectOption('viking');
+    await p.locator('#tm-arena').selectOption('courtyard');
+    await p.locator('#tm-act').fill('1');
+    await p.locator('#tm-wave').fill('5');
+    await p.locator('.testmode [data-start]').click();
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 });
+    await p.evaluate(() => (window.__lb.game.player.invulnerable = true));
+    const before = await hear('courtyard');
+    const met = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      const boss = () => g.enemies.find((e) => e.def.boss && !e.side && !e.dead);
+      for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) lb.run(1, false, true); // the bot plays on to him, answering any screen
+      const b = boss();
+      window.__bossTheme = b;
+      return b ? { name: b.def.name, phase: b.phase, key: g.bossesSeen.at(-1) } : null;
+    });
+    if (!met) return { ok: false, detail: 'no boss reached' };
+    const takeover = await hear('boss:blackKnight', 1);
+    const hud = await p.evaluate(() => document.getElementById('h-boss-name')?.textContent ?? '');
+    const s1 = await music();
+    // his second phase: below half his HP
+    const phase = await p.evaluate(() => {
+      const lb = window.__lb, b = window.__bossTheme;
+      b.hp = b.maxHp * 0.4;
+      for (let i = 0; i < 30 && b.phase < 2; i++) lb.run(1, false, true);
+      return b.phase;
+    });
+    const built = await hear('boss:blackKnight', 3);
+    await p.waitForTimeout(300);
+    const s2 = await music();
+    // he falls: the courtyard's theme comes back
+    const fell = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, b = window.__bossTheme, pl = g.player;
+      g.baseMods.damage *= 1e4;
+      for (let i = 0; i < 60 * 30 && g.enemies.includes(b) && !b.dead && lb.game === g; i++) {
+        if (lb.state === 'playing') Object.assign(pl, { x: b.x - b.r - 30, y: b.y });
+        lb.run(1, false, true);
+      }
+      g.baseMods.damage /= 1e4;
+      return b.dead || !g.enemies.includes(b);
+    });
+    const back = fell && (await hear('courtyard'));
+    const s3 = await music();
+    const ok = listed.length >= 8 && listed.includes('Boss · The Plague Abbot') && listed.includes('Boss · The Frost Lich') && jukebox && before && met.name === 'The Black Knight' && takeover &&
+      hud.includes('The Black Knight') && phase === 2 && built && s2.stingers > s1.stingers && back && s3.peak <= s3.budget && !errs.length;
+    return { ok, detail: `jukebox lists ${listed.length} boss themes, the Lich's plays ${jukebox}; courtyard first ${before}; ${met.name} (${met.key}) -> his theme ${takeover} (layer ${s1.layer}), HUD "${hud}"; phase ${phase} -> layer 3 ${built}, stingers ${s1.stingers} -> ${s2.stingers}; falls ${fell} -> ${s3.arena} ${back}; peak ${s3.peak}/${s3.budget} voices${errs.length ? `, errors: ${errs[0]}` : ''}` };
+  } finally {
+    await p.close();
+  }
+});
+
+// #291: the realm bosses' themes. Through Settings and test mode at 1280x720 with the mouse: the jukebox lists the Forgemaster's, the Iron
+// King's, the Ember Queen's and the Cinder Colossus's themes and plays the Ember Queen's; then "Start at" the Iron Hold's level 5 plays the
+// Iron Hold's theme until the Iron King comes on its last wave, his crown takes over (its base layer in his first phase), builds with each
+// of his three phases to the full boss layer, and hands back to the Iron Hold's theme when he falls.
+await check("realm boss themes: the Iron King's theme takes over from the Iron Hold's, builds with his phases and hands back when he falls (#291)", async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  try {
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const music = () => p.evaluate(() => window.__lb.music());
+    const hear = (arena, layer = null, timeout = 15000) => p.waitForFunction(([a, l]) => {
+      const m = window.__lb.music();
+      return m.playing === 'run' && m.arena === a && (l === null || m.layer === l);
+    }, [arena, layer], { timeout }).then(() => true, () => false);
+    await p.locator('[data-go="settings"]').click();
+    await p.locator('.settings [data-act="test"]').click();
+    if (!(await p.locator('#tm-start option[value="ironHold:5"]').count())) return { skip: true, detail: 'no realm-level start in this build' };
+    // the jukebox: the four realm bosses' themes are on its list, and the Ember Queen's plays
+    const listed = await p.evaluate(() => [...document.querySelectorAll('#jb-arena option')].filter((o) => o.value.startsWith('boss:')).map((o) => o.textContent.trim()));
+    const four = ['The Forgemaster', 'The Iron King', 'The Ember Queen', 'The Cinder Colossus'].every((n) => listed.includes(`Boss · ${n}`));
+    await p.locator('#jb-arena').selectOption('boss:emberQueen');
+    await p.locator('.testmode [data-play]').click();
+    const jukebox = await hear('boss:emberQueen');
+    await p.locator('.testmode [data-stop]').click();
+    // a test run: the Iron Hold's level 5, straight on to its last wave, the Iron King's
+    await p.locator('#tm-class').selectOption('paladin');
+    await p.locator('#tm-arena').selectOption('keep');
+    await p.locator('#tm-start').selectOption('ironHold:5');
+    await p.locator('.testmode [data-start]').click();
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click();
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 });
+    await p.evaluate(() => (window.__lb.game.player.invulnerable = true));
+    const before = await hear('ironHold');
+    const met = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1;
+      g.breather = 0.01;
+      const boss = () => g.enemies.find((e) => e.def.boss && !e.side && !e.dead);
+      for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) (g.player.invulnerable = true), lb.run(1, false, true);
+      const b = boss();
+      window.__realmBoss = b;
+      return b ? { id: b.def.id, phase: b.phase } : null;
+    });
+    if (!met) return { ok: false, detail: 'no boss reached' };
+    const takeover = await hear('boss:ironKing', 1);
+    const s1 = await music();
+    // his phases come on a clock (12 s each): play on to each
+    const toPhase = (n) => p.evaluate((n) => {
+      const lb = window.__lb, b = window.__realmBoss;
+      for (let i = 0; i < 60 * 40 && b.phase < n && !b.dead; i++) (lb.game.player.invulnerable = true), lb.run(1, false, true);
+      return b.phase;
+    }, n);
+    const phase2 = await toPhase(2);
+    const layer2 = await hear('boss:ironKing', 2);
+    const phase3 = await toPhase(3);
+    const layer3 = await hear('boss:ironKing', 3);
+    // he falls: the Iron Hold's theme comes back
+    const fell = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, b = window.__realmBoss, pl = g.player;
+      g.baseMods.damage *= 1e4;
+      for (let i = 0; i < 60 * 30 && g.enemies.includes(b) && !b.dead && lb.game === g; i++) {
+        pl.invulnerable = true; // his thorns would answer every blow
+        if (lb.state === 'playing') Object.assign(pl, { x: b.x - b.r - 16, y: b.y }); // a step off his front edge, as the Iron King's own check stands
+        lb.run(1, false, true);
+      }
+      g.baseMods.damage /= 1e4;
+      return b.dead || !g.enemies.includes(b);
+    });
+    const back = fell && (await hear('ironHold'));
+    const s3 = await music();
+    const ok = four && jukebox && before && met.id === 'ironKing' && takeover && phase2 === 2 && layer2 && phase3 === 3 && layer3 && back && s3.peak <= s3.budget && !errs.length;
+    return { ok, detail: `jukebox lists the four ${four} (${listed.length} boss themes), the Ember Queen's plays ${jukebox}; Iron Hold first ${before}; ${met.id} -> his theme ${takeover} (layer ${s1.layer}); phase ${phase2} -> layer 2 ${layer2}; phase ${phase3} -> layer 3 ${layer3}; falls ${fell} -> ${s3.arena} ${back}; peak ${s3.peak}/${s3.budget} voices${errs.length ? `, errors: ${errs[0]}` : ''}` };
+  } finally {
+    await p.close();
+  }
+});
+
 // ---------- v0.7.5 (#106): an error in a frame shows the error overlay, and the game goes on ----------
 await check('an error in a frame: the overlay, Continue, the run goes on', () =>
   inPage(async () => {
@@ -1374,6 +1692,11 @@ await check('an error in a frame: the overlay, Continue, the run goes on', () =>
     if (!lb.game || lb.state !== 'playing') {
       lb.start('viking');
       await P.wait(200);
+    }
+    // a run that opens on a pick or the quest board: answered first, so the crash lands in a frame of play
+    for (let i = 0; i < 4 && lb.state === 'choice'; i++) {
+      await P.click('#overlay [data-pick], #overlay [data-leave]');
+      await P.wait(150);
     }
     const g = lb.game;
     g.player.invulnerable = true;
@@ -1401,6 +1724,88 @@ await check('an error in a frame: the overlay, Continue, the run goes on', () =>
   }),
 );
 const expected = (m) => m.includes('play-test crash');
+
+// #290 (after the error check: on its own page it takes a while, and the shared page's run idles meanwhile): themes for the Grand Inquisitor, the Dragon, the Warden and the Usurper. Through Settings and test mode at 1280x720 with the
+// mouse: the jukebox lists all four (and the Heretic's and the Ash Wyrm's) and plays the Usurper's and the Inquisitor's; then a test run
+// in the Great Keep at Act I wave 10 plays the keep's theme until the Act's end boss comes, the Dragon's war drums take over (his theme,
+// or the Ash Wyrm's shifted one), build over his three phases to the full boss layer, and hand back to the keep's theme when he falls.
+await check("boss themes: the Dragon's theme takes over from the arena's over his three phases; the jukebox plays the Usurper's and the Inquisitor's (#290)", async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  try {
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const music = () => p.evaluate(() => window.__lb.music());
+    const hear = (arena, layer = null, timeout = 15000) => p.waitForFunction(([a, l]) => {
+      const m = window.__lb.music();
+      return m.playing === 'run' && m.arena === a && (l === null || m.layer === l);
+    }, [arena, layer], { timeout }).then(() => true, () => false);
+    await p.locator('[data-go="settings"]').click();
+    await p.locator('.settings [data-act="test"]').click();
+    // the jukebox: the four themes are on its list, and the Usurper's and the Inquisitor's play
+    const listed = await p.evaluate(() => [...document.querySelectorAll('#jb-arena option')].filter((o) => o.value.startsWith('boss:')).map((o) => o.textContent.trim()));
+    const want = ['The Grand Inquisitor', 'The Heretic', 'The Dragon', 'The Ash Wyrm', 'The Warden', 'The Usurper'].map((n) => `Boss · ${n}`);
+    const jukebox = [];
+    for (const id of ['usurper', 'inquisitor']) {
+      await p.locator('#jb-arena').selectOption(`boss:${id}`);
+      await p.locator('.testmode [data-play]').click();
+      jukebox.push(await hear(`boss:${id}`));
+    }
+    await p.locator('.testmode [data-stop]').click();
+    // a test run: the keep at Act I wave 10, the Act's end
+    await p.locator('#tm-class').selectOption('viking');
+    await p.locator('#tm-arena').selectOption('keep');
+    await p.locator('#tm-act').fill('1');
+    await p.locator('#tm-wave').fill('10');
+    await p.locator('.testmode [data-start]').click();
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 });
+    await p.evaluate(() => (window.__lb.game.player.invulnerable = true));
+    const before = await hear('keep');
+    const met = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      const boss = () => g.enemies.find((e) => e.def.boss && !e.side && !e.dead);
+      for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) lb.run(1, false, true); // the bot plays on to him, answering any screen
+      const b = boss();
+      window.__bossTheme290 = b;
+      return b ? { id: b.def.id, name: b.def.name, phase: b.phase, key: g.bossesSeen.at(-1) } : null;
+    });
+    if (!met) return { ok: false, detail: 'no boss reached' };
+    const theme = `boss:${met.key === 'ashWyrm' ? 'ashWyrm' : met.id}`;
+    const takeover = await hear(theme, 1);
+    const s1 = await music();
+    // his second phase, then his third: his HP down past each threshold
+    const phases = [];
+    for (const [hp, layer] of [[0.55, 2], [0.2, 3]]) {
+      const ph = await p.evaluate((hp) => {
+        const lb = window.__lb, b = window.__bossTheme290, to = b.phase + 1;
+        b.hp = Math.min(b.hp, b.maxHp * hp);
+        for (let i = 0; i < 60 * 5 && b.phase < to && !b.dead; i++) lb.run(1, false, true);
+        return b.phase;
+      }, hp);
+      phases.push([ph, await hear(theme, layer)]);
+    }
+    // he falls: the keep's theme comes back
+    const fell = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, b = window.__bossTheme290, pl = g.player;
+      g.baseMods.damage *= 1e4;
+      for (let i = 0; i < 60 * 30 && g.enemies.includes(b) && !b.dead && lb.game === g; i++) {
+        if (lb.state === 'playing') Object.assign(pl, { x: b.x - b.r - 30, y: b.y });
+        lb.run(1, false, true);
+      }
+      g.baseMods.damage /= 1e4;
+      return b.dead || !g.enemies.includes(b);
+    });
+    const back = fell && (await hear('keep', null, 20000));
+    const s3 = await music();
+    const ok = want.every((n) => listed.includes(n)) && jukebox.every(Boolean) && before && met.id === 'dragon' && takeover && s1.layer === 1 &&
+      phases.map(([ph]) => ph).join() === '2,3' && phases.every(([, h]) => h) && back && s3.peak <= s3.budget && !errs.length;
+    return { ok, detail: `jukebox lists ${want.filter((n) => listed.includes(n)).length}/${want.length} of the new themes (${listed.length} in all), the Usurper's and the Inquisitor's play ${jukebox}; keep first ${before}; ${met.name} (${met.key}) -> ${theme} ${takeover} (layer ${s1.layer}); phases ${phases.map(([ph, h]) => `${ph}:${h}`).join(' ')}; falls ${fell} -> ${s3.arena} ${back}; peak ${s3.peak}/${s3.budget} voices${errs.length ? `, errors: ${errs[0]}` : ''}` };
+  } finally {
+    await p.close();
+  }
+});
 
 // ---------- v0.7.5 (#106): the game starts with site data blocked ----------
 await check('starts with site data blocked: title, Settings, sound toggle', async () => {
@@ -1701,9 +2106,9 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 }
 
 // ---------- #250: Squire measured: map -> the Iron Hold -> Squire; every flag's panel shows the Enemy HP its level plays at on Squire,
-// eased the more the later the level (197, 141, 127, 122, 109%, were 231, 173, 164, 166, 156%), FIGHT on level 1 plays at the HP its panel
+// eased the more the later the level (197, 141, 123, 115, 96%, were 231, 173, 164, 166, 156%; #263: levels 3-5 eased for the crown cap), FIGHT on level 1 plays at the HP its panel
 // showed, and Knight's panels are as they were (335 ... 225%) ----------
-const SQUIRE_IRON_HP = [197, 141, 127, 122, 109]; // levels 1-5 on Squire, as tests/v12-squire-balance.test.ts pins them
+const SQUIRE_IRON_HP = [197, 141, 123, 115, 96]; // levels 1-5 on Squire, as tests/v12-squire-balance.test.ts pins them (#263: 3-5 eased for the crown cap, were 127, 122, 109)
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   await check(`balance: the Iron Hold's road on Squire shows Enemy HP ${SQUIRE_IRON_HP.join(', ')}% for levels 1-5, Knight's still 335-225%, and FIGHT plays level 1 on Squire at ${SQUIRE_IRON_HP[0]}%, ${touch ? 'tap' : 'click'} at ${w}x${h} (#250)`, async () => {
     const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
@@ -1744,11 +2149,55 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #263: the Cinderlands' crown on Squire at the champion level cap: map -> the Cinderlands -> Squire; levels 3-5's panels show
+// Squire's Enemy HP eased for each champion level the crown cap holds a champion under (197, 132, 123, 110, 85%, were 127, 122, 97% at 3-5; #262: 2 and 4 take Knight's eased step),
+// and an Archer's realm run standing at level 5 on Squire (Continue from level 5) plays the crown at its panel's HP, at level 10, the cap ----------
+const SQUIRE_CINDER_HP = [197, 132, 123, 110, 85]; // levels 1-5 on Squire, as tests/v12-squire-balance.test.ts has them (#263's cap ease with #262's Knight step)
+for (const [w, h] of [[1280, 720], [1920, 1080]]) {
+  await check(`balance: the Cinderlands' road on Squire shows Enemy HP ${SQUIRE_CINDER_HP.join(', ')}% for levels 1-5, and an Archer at the level cap continues his realm run into the crown at ${SQUIRE_CINDER_HP[4]}%, click at ${w}x${h} (#263)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate((run) => {
+      const lb = window.__lb;
+      const world = { marches: [7], cinderlands: [4] }; // the Marches crowned, the Cinderlands' first four levels cleared on Squire
+      lb.save.champions = { archer: { name: 'Wren', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: { cinderlands: run } } };
+      lb.save.cards = [...lb.cardIds]; // every flash card seen: none stops the fight
+    }, runAt(5, 0));
+    const press = (sel) => p.locator(sel).first().click();
+    await press('[data-go="start"]'); // the champion select: the Archer's tile picks him for the road (no run starts), then back to the title
+    await press('[data-class="archer"]');
+    await p.locator('[data-back]').first().scrollIntoViewIfNeeded();
+    await press('[data-back]');
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-cinderlands');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('.rr-tier[data-tier="0"]');
+    await p.waitForTimeout(100);
+    const shown = [];
+    for (let l = 1; l <= 5; l++) {
+      await press(`.rr-flag.l-${l}`);
+      await p.waitForTimeout(100);
+      shown.push((await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ').match(/Enemy HP\s*(\d+)%/)?.[1] ?? '?');
+    }
+    const go = (await p.locator('[data-fight]').first().textContent()).trim(); // level 5's flag stands selected
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100), champion: g.player.level, cls: g.player.cls.id } : null; });
+    await p.close();
+    const ok = shown.join() === SQUIRE_CINDER_HP.join() && go === 'Continue from level 5'
+      && run?.realm === 'cinderlands' && run.level === 5 && run.tier === 0 && run.hp === SQUIRE_CINDER_HP[4] && run.cls === 'archer' && errs.length === 0;
+    return { ok, detail: `Squire panels Enemy HP ${shown.map((x) => `${x}%`).join(', ')}; "${go}"; run: ${run ? `${run.cls} in ${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%, champion level ${run.champion}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 // ---------- #232: the Cinderlands' balance pass, as a player meets it: map -> the Cinderlands -> Knight; every flag's panel shows the Enemy
 // HP its level plays at (its own level steps: the crown level eased), level 4 names its Elite boss, and FIGHT on level 1 plays at the HP
 // its panel showed. Then a realm run standing at level 4: Continue from level 4, its last wave brings the Grand Inquisitor as an elite
 // on 1.4 times the HP, and in his Auto-da-fé his pyres leave fire that burns 2.5 s at 8 a second (as a foe's blow scales): the numbers the sim measured him on ----------
-const CINDER_HP = [335, 251, 237, 240, 200]; // levels 1-5 on Knight, as tests/v12-cinderlands-balance.test.ts pins them
+const CINDER_HP = [335, 235, 237, 230, 200]; // levels 1-5 on Knight, as tests/v13-cinderlands-knight.test.ts pins them (#262: levels 2 and 4 eased, were 251 and 240)
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   await check(`balance: the Cinderlands' road on Knight shows Enemy HP ${CINDER_HP.slice(0, 4).join(', ')} and ${CINDER_HP[4]}% for levels 1-5, level 4 an Elite boss, and FIGHT plays level 1 at ${CINDER_HP[0]}%; from level 4 the elite Grand Inquisitor has 1.4 times the HP and his Auto-da-fé's pyres burn 2.5 s at 8 a second, ${touch ? 'tap' : 'click'} at ${w}x${h} (#232)`, async () => {
     const errs = [];
@@ -1826,19 +2275,126 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
-// ---------- #258: a realm that isn't built yet says so on its road, and the champion screen's PLAY prefers a built realm ----------
-// A champion with the Marches, the Iron Hold and the Cinderlands crowned: PLAY points at a built realm (the Cinderlands, replayed), not the
-// Barrowvale; the map opens the Barrowvale (still playable: its FIGHT is on) and its road says its foes, bosses and relics come later; the
-// Cinderlands' road says nothing of the kind.
+// ---------- #293: the Barrowvale's balance pass, as a player meets it: map -> the Barrowvale -> Knight; every flag's panel shows the Enemy
+// HP its level plays at (its own level steps: level 1 at the floor, the crown level eased) and level 1 names the Plague Abbot; FIGHT on
+// level 1 plays at the HP its panel showed. In that run the grasping hands rise for 7 and hold 1 s (as a foe's blow scales), and its last
+// wave brings the Plague Abbot on the realm's step: 0.85 of his HP, his plague pools at 0.7 (9.8 a second, as a foe's blow scales) ----------
+const BARROW_HP = [314, 251, 229, 230, 200]; // levels 1-5 on Knight, as tests/v13-barrowvale-balance.test.ts pins them
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
-  await check(`unbuilt realm: the Barrowvale's road says its own foes, bosses and relics come later and stays playable, the Cinderlands' road says nothing, and PLAY on the champion screen points at a built realm, ${touch ? 'tap' : 'click'} at ${w}x${h} (#258)`, async () => {
+  await check(`balance: the Barrowvale's road on Knight shows Enemy HP ${BARROW_HP.slice(0, 4).join(', ')} and ${BARROW_HP[4]}% for levels 1-5, level 1 the Plague Abbot, and FIGHT plays level 1 at ${BARROW_HP[0]}%: its hands rise for 7 and hold 1 s, and the Abbot comes on 0.85 of his HP with pools at 0.7, ${touch ? 'tap' : 'click'} at ${w}x${h} (#293)`, async () => {
     const errs = [];
     const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
     p.on('pageerror', (e) => errs.push(e.message));
     await p.goto(`http://localhost:${PORT}/?debug`);
     await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
     await p.evaluate(() => {
-      const lb = window.__lb, world = { marches: [7], ironHold: [5], cinderlands: [5] };
+      const lb = window.__lb, world = { marches: [7], barrowvale: [0, 4] }; // the Marches crowned, the Barrowvale's first four levels cleared on Knight
+      lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: {} } };
+      lb.save.cards = [...lb.cardIds]; // every flash card seen: none stops the fight
+    });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-barrowvale');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('.rr-tier[data-tier="1"]');
+    await p.waitForTimeout(100);
+    const shown = [];
+    for (let l = 1; l <= 5; l++) {
+      await press(`.rr-flag.l-${l}`);
+      await p.waitForTimeout(100);
+      const text = (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ');
+      shown.push({ hp: text.match(/Enemy HP\s*(\d+)%/)?.[1] ?? '?', abbot: /Plague Abbot/.test(text) });
+    }
+    await press('.rr-flag.l-1');
+    await p.waitForTimeout(100);
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      if (!g?.level) return null;
+      const pl = g.player;
+      const out = { realm: g.level.realm, level: g.level.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100), hands: 0, handsHold: 0, name: null, bossHp: 0, poolDef: 0, pool: 0 };
+      // the bot plays, unhurt, until the graves are first marked: their hands' blow and hold
+      for (let i = 0; i < 40000 && !g.zones.some((z) => z.hostile && z.hold) && lb.game === g && lb.state !== 'results'; i++) { pl.invulnerable = true; pl.hp = pl.stats.hp; lb.run(1, false, true); }
+      const grave = g.zones.find((z) => z.hostile && z.hold);
+      if (grave) (out.hands = grave.damage / (g.waveDmgMult * g.tier.enemyDmg)), (out.handsHold = grave.hold);
+      // then on to the level's last wave and its end boss
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1;
+      g.breather = 0.01;
+      let boss = null;
+      for (let i = 0; i < 4000 && !boss; i++) (pl.invulnerable = true), lb.run(1, false, true), (boss = g.enemies.find((e) => e.def.boss && !e.side) ?? null);
+      if (!boss) return out;
+      const def = lb.enemyDef(boss.def.id), scale = g.waveDmgMult * g.tier.enemyDmg;
+      Object.assign(out, { name: boss.def.name, bossHp: boss.maxHp / (def.hp * g.waveHpMult * g.tier.enemyHp), poolDef: boss.def.poolDps / def.poolDps });
+      // he lobs his flasks; a pool they leave burns at his step
+      for (let i = 0; i < 1800 && !out.pool; i++) {
+        boss.hp = Math.max(boss.hp, boss.maxHp * 0.6);
+        pl.invulnerable = true;
+        lb.run(1, false, true);
+        const pool = g.fields.find((f) => f.hostile && f.max === def.poolLife && Math.abs(f.dps / scale - def.poolDps * 0.7) < 0.01);
+        if (pool) out.pool = pool.dps / scale;
+      }
+      return out;
+    });
+    await p.close();
+    const ok = shown.map((s) => s.hp).join() === BARROW_HP.join() && shown[0].abbot
+      && run?.realm === 'barrowvale' && run.level === 1 && run.tier === 1 && run.hp === BARROW_HP[0]
+      && Math.abs(run.hands - 7) < 0.01 && run.handsHold === 1
+      && run.name === 'The Plague Abbot' && Math.abs(run.bossHp - 0.85) < 0.01 && Math.abs(run.poolDef - 0.7) < 0.001 && Math.abs(run.pool - 9.8) < 0.01 && errs.length === 0;
+    return { ok, detail: `panels Enemy HP ${shown.map((s) => `${s.hp}%`).join(', ')}${shown[0].abbot ? ', level 1 the Plague Abbot' : ', level 1 NOT the Abbot'}; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%; hands ${run.hands.toFixed(2)} held ${run.handsHold} s; ${run.name ?? 'NO boss'} on HP x${run.bossHp.toFixed(3)}, pools x${run.poolDef.toFixed(2)}, a pool at ${run.pool.toFixed(2)} a second` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #262: the Cinderlands on Knight for a champion with only the Marches crown, as the v0.12.0 playtest brought one: map -> the
+// Cinderlands -> Knight -> level 2, after level 1's first clear, with the Knight realm run standing at level 2 (#237: only a run's checkpoint
+// can be fought past level 1). Its panel shows the eased Enemy HP, and "Continue from level 2" plays level 2 at that HP with the champion
+// at level 9, the level its XP gives (the Marches crowned: 8) ----------
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`balance: with only the Marches crown and the Cinderlands' level 1 cleared, level 2 on Knight shows Enemy HP ${CINDER_HP[1]}% (was 251%) and a realm run continues into it at that HP at champion level 9, ${touch ? 'tap' : 'click'} at ${w}x${h} (#262)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate((run) => {
+      const lb = window.__lb, world = { marches: [7], cinderlands: [0, 1] };
+      lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: { cinderlands: run } } };
+      lb.save.cards = [...lb.cardIds]; // every flash card seen: none stops the fight
+    }, runAt(2, 1));
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-cinderlands');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('.rr-tier[data-tier="1"]');
+    await p.waitForTimeout(100);
+    await press('.rr-flag.l-2');
+    await p.waitForTimeout(100);
+    const shown = (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ').match(/Enemy HP\s*(\d+)%/)?.[1];
+    const go = (await p.locator('[data-fight]').first().textContent()).trim();
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => { const g = window.__lb.game; return g ? { realm: g.level?.realm, level: g.level?.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100), champion: g.player.level } : null; });
+    await p.close();
+    const ok = shown === String(CINDER_HP[1]) && go === 'Continue from level 2' && run?.realm === 'cinderlands' && run.level === 2 && run.tier === 1 && run.hp === CINDER_HP[1] && run.champion === 9 && errs.length === 0;
+    return { ok, detail: `level 2 panel Enemy HP ${shown ?? '?'}%; "${go}"; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%, champion level ${run.champion}` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
+// ---------- #258: a realm that isn't built yet says so on its road, and the champion screen's PLAY prefers a built realm ----------
+// A champion with the Marches and the ring-2 realms crowned: PLAY points at a built realm (the Cinderlands, replayed), not the Frozen
+// Pass; the map opens the Frozen Pass (still playable: its FIGHT is on) and its road says its foes, bosses and relics come later; the
+// Barrowvale's road says nothing of the kind (#281: it is built; it was this check's unbuilt realm before).
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`unbuilt realm: the Frozen Pass's road says its own foes, bosses and relics come later and stays playable, the Barrowvale's road says nothing (#281), and PLAY on the champion screen points at a built realm, ${touch ? 'tap' : 'click'} at ${w}x${h} (#258)`, async () => {
+    const errs = [];
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate(() => {
+      const lb = window.__lb, world = { marches: [7], ironHold: [5], barrowvale: [5], cinderlands: [5] };
       lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: {} } };
       lb.save.cards = [...lb.cardIds];
     });
@@ -1850,8 +2406,8 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await press('[data-back]'); // back to the title
     await p.locator('[data-go="map"]').first().waitFor({ timeout: 3000 });
     await press('[data-go="map"]');
-    await p.locator('.wm-realm.r-barrowvale').waitFor({ timeout: 3000 });
-    await press('.wm-realm.r-barrowvale');
+    await p.locator('.wm-realm.r-frozenPass').waitFor({ timeout: 3000 });
+    await press('.wm-realm.r-frozenPass');
     await p.locator('.rr-panel').waitFor({ timeout: 3000 });
     const road = async () => ({
       text: (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' '),
@@ -1859,16 +2415,16 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       fight: await p.locator('[data-fight]').first().isEnabled(),
       seen: await p.evaluate(() => { const r = document.querySelector('.rr-unbuilt')?.getBoundingClientRect(); return !!r && r.top >= 0 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1; }),
     });
-    const vale = await road();
+    const frost = await road();
     if (!touch && process.env.LB_SHOT) await p.screenshot({ path: process.env.LB_SHOT });
     await p.keyboard.press('Escape'); // back to the map
-    await p.locator('.wm-realm.r-cinderlands').waitFor({ timeout: 3000 });
-    await press('.wm-realm.r-cinderlands');
+    await p.locator('.wm-realm.r-barrowvale').waitFor({ timeout: 3000 });
+    await press('.wm-realm.r-barrowvale');
     await p.locator('.rr-panel').waitFor({ timeout: 3000 });
-    const cinder = await road();
+    const vale = await road();
     await p.close();
-    const ok = /The Cinderlands · Level 1/.test(next) && /later version/.test(vale.notice) && vale.seen && vale.fight && !cinder.notice && errs.length === 0;
-    return { ok, detail: `PLAY "${next}"; Barrowvale road: "${vale.notice}"${vale.seen ? '' : ' (off screen)'}, FIGHT ${vale.fight ? 'on' : 'off'}; Cinderlands road: ${cinder.notice ? `"${cinder.notice}"` : 'no notice'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    const ok = /The Cinderlands · Level 1/.test(next) && /later version/.test(frost.notice) && frost.seen && frost.fight && !vale.notice && errs.length === 0;
+    return { ok, detail: `PLAY "${next}"; Frozen Pass road: "${frost.notice}"${frost.seen ? '' : ' (off screen)'}, FIGHT ${frost.fight ? 'on' : 'off'}; Barrowvale road: ${vale.notice ? `"${vale.notice}"` : 'no notice'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
@@ -2248,6 +2804,33 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     const back = await look();
     want(two.points === '1' && two.strength.n === '1' && two.strength.minus && two.vitality.n === '1' && two.vitality.total !== '' && two.options.every((o) => !o.on), `two points in: ${JSON.stringify({ points: two.points, strength: two.strength, vitality: two.vitality, options: two.options.map((o) => o.on) })}`);
     want(back.points === '2' && back.vitality.n === '0' && !back.vitality.minus && back.vitality.total === '' && back.strength.n === '1' && back.options.every((o) => o.on), `the minus: ${JSON.stringify({ points: back.points, vitality: back.vitality, options: back.options.map((o) => o.on) })}`);
+    // #266: after pressing +, hovering a stat's name shows its tip, and the tip never covers the points line (1280x720 and 1920x1080)
+    const tipClear = async () => {
+      const out = [];
+      for (const stat of ['strength', 'vitality']) {
+        await press(`[data-stat-add="${stat}"]`);
+        await p.hover(`.bp-stat[data-stat="${stat}"] .bp-name`);
+        await p.waitForTimeout(150);
+        out.push(await p.evaluate((st) => {
+          const tip = document.querySelector('#tooltip'), line = document.querySelector('.level-cleared .cs-level');
+          if (!tip || getComputedStyle(tip).display === 'none' || !line) return `${st}: no tip`;
+          const a = tip.getBoundingClientRect(), b = line.getBoundingClientRect();
+          return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top ? `${st}: tip covers the points line` : '';
+        }, stat));
+        await press(`[data-stat-take="${stat}"]`);
+      }
+      return out.filter(Boolean).join(', ');
+    };
+    const size0 = p.viewportSize();
+    const tipBad = [];
+    for (const [w, h] of [[1280, 720], [1920, 1080]]) {
+      await p.setViewportSize({ width: w, height: h });
+      await p.waitForTimeout(200);
+      const r = await tipClear();
+      if (r) tipBad.push(`${w}x${h} ${r}`);
+    }
+    if (size0) await p.setViewportSize(size0);
+    want(tipBad.length === 0, `a stat's tip after +: ${tipBad.join('; ') || 'clear of the points line at 1280x720 and 1920x1080'}`);
     // the ability's first upgrade for the two points left
     const pick = back.options[1];
     await press(`[data-buy-ability="${pick?.id}"]`);
@@ -4687,6 +5270,231 @@ await check('Champion sheets: each class loads its sheet, attacks and casts its 
   return { ok: out.every(([, ok]) => ok), detail: out.map(([c, , s]) => `${c}: ${s}`).join('; ') };
 });
 
+// ---------- #245: the Paladin redrawn as a holy warrior: silver-white plate, gold, a blue cape and no red; his blade blazes on the cast; in a
+// run a blow plays his shield block, Space his cast and E his Challenge, and on the field he still shows plate, gold and blue ----------
+await check('Paladin look: silver-white plate, gold and blue, no red; the blade blazes on the cast; a blow is a block in play (#245)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('paladin'));
+  const kinds = `({
+    plate: (r, g, b) => r >= 190 && b >= r + 5 && g >= r,
+    gold: (r, g, b) => r > 180 && g > 110 && b < 90,
+    blue: (r, g, b) => b > 130 && b > r + 60,
+    red: (r, g, b) => r > 120 && g < 70 && b < 70,
+    blaze: (r, g, b) => r >= 250 && g >= 235 && b >= 170 && b <= 245,
+  })`;
+  // the test-mode gallery: his idle in his new colours, his cast row at its brightest against his idle
+  const gallery = await inPage(async (kinds) => {
+    const K = eval(kinds), wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const count = (anim) => {
+      const c = document.querySelector(`[data-sheet="paladin"][data-anim="${anim}"]`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+      return n;
+    };
+    const idle = count('idle');
+    let blaze = 0;
+    const hurt = new Set();
+    for (let i = 0; i < 25; i++) {
+      blaze = Math.max(blaze, count('cast').blaze);
+      hurt.add(document.querySelector('[data-sheet="paladin"][data-anim="hurt"]').dataset.frame);
+      await wait(60);
+    }
+    document.querySelector('.testmode [data-back]').click();
+    await wait(100);
+    document.querySelector('[data-act="back"]').click();
+    await wait(100);
+    return { idle, blaze, hurt: hurt.size };
+  }, kinds);
+  // a Paladin run in test mode: a foe at his side strikes him, then Space and E, played through the keys
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'paladin');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '5'); // Challenge, his utility, unlocks at level 3
+    window.__startTest();
+  });
+  const seen = new Set(), hurtFrames = new Set();
+  const sample = async (ms) => {
+    for (let t = 0; t < ms; t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+      seen.add(a.anim);
+      if (a.anim === 'hurt') hurtFrames.add(a.frame);
+    }
+  };
+  for (let i = 0; i < 16 && !seen.has('hurt'); i++) {
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 }); // one foe at his side, tough enough to keep striking
+      Object.assign(p, { hp: p.stats.hp, invulnerable: false });
+    });
+    await sample(250);
+  }
+  await sample(400); // the block plays through
+  // on the field, at game size: the pixels where he stands show his plate, gold and blue
+  const field = await inPage((kinds) => {
+    const K = eval(kinds), lb = window.__lb, p = lb.game.player, cam = lb.camera();
+    lb.draw();
+    const c = document.getElementById('game').getContext('2d');
+    const x = Math.round((p.x - 30 - Math.round(cam.x)) * cam.zoom), y = Math.round((p.y - 60 - Math.round(cam.y)) * cam.zoom);
+    const d = c.getImageData(x, y, Math.round(60 * cam.zoom), Math.round(66 * cam.zoom)).data;
+    const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+    for (let i = 0; i < d.length; i += 4) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+    return n;
+  }, kinds);
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('Space');
+  await sample(150);
+  await page.keyboard.up('Space');
+  await sample(600);
+  await inPage(() => Object.assign(window.__lb.game.player, { utilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('KeyE');
+  await sample(150);
+  await page.keyboard.up('KeyE');
+  await sample(400);
+  const { idle } = gallery;
+  const ok = idle.plate >= 60 && idle.gold >= 60 && idle.blue >= 60 && idle.red === 0 && gallery.blaze >= 3 * Math.max(1, idle.blaze) && gallery.hurt === 3
+    && seen.has('hurt') && hurtFrames.size >= 1 && seen.has('cast') && seen.has('skill') && field.plate >= 20 && field.gold >= 20 && field.blue >= 20;
+  return { ok, detail: `gallery idle ${JSON.stringify(idle)}, cast blaze ${gallery.blaze}, hurt frames ${gallery.hurt}; in play ${[...seen].join('/')} (hurt frames ${[...hurtFrames].join(',')}); on the field ${JSON.stringify(field)}` };
+});
+
+// ---------- #269: the Necromancer redrawn as a bone priest: black, bone, pale grey skin and a sickly green, no purple; Raise Dead lights a
+// circle of green at his feet; in a run a blow plays his ward, Space his Raise Dead and E his Corpse Explosion, and on the field he shows bone and green ----------
+await check('Necromancer look: black, bone, pale skin and green, no purple; Raise Dead glows at his feet; a blow is a ward in play (#269)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('necromancer'));
+  const kinds = `({
+    green: (r, g, b) => g > 120 && g > r + 60 && g > b + 15,
+    bone: (r, g, b) => r > 150 && g > 135 && b > 95 && r >= g && r - b >= 25 && r - b <= 70,
+    pale: (r, g, b) => r > 100 && g > r + 4 && g > b + 3 && Math.abs(r - b) < 8,
+    purple: (r, g, b) => b > g + 40 && r > g + 20,
+  })`;
+  // the test-mode gallery: his idle in his new colours, his cast row at its greenest against his idle, his hurt's three frames
+  const gallery = await inPage(async (kinds) => {
+    const K = eval(kinds), wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const count = (anim) => {
+      const c = document.querySelector(`[data-sheet="necromancer"][data-anim="${anim}"]`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+      return n;
+    };
+    const idle = count('idle');
+    let glow = 0, purple = idle.purple;
+    const hurt = new Set();
+    for (let i = 0; i < 25; i++) {
+      const cast = count('cast');
+      glow = Math.max(glow, cast.green);
+      purple += cast.purple + count('death').purple + count('skill').purple;
+      hurt.add(document.querySelector('[data-sheet="necromancer"][data-anim="hurt"]').dataset.frame);
+      await wait(60);
+    }
+    document.querySelector('.testmode [data-back]').click();
+    await wait(100);
+    document.querySelector('[data-act="back"]').click();
+    await wait(100);
+    return { idle, glow, purple, hurt: hurt.size };
+  }, kinds);
+  // a Necromancer run in test mode: a foe at his side strikes him, then Space and E, played through the keys
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'necromancer');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '5'); // Corpse Explosion, his utility, unlocks at level 3
+    window.__startTest();
+  });
+  const seen = new Set(), hurtFrames = new Set();
+  const sample = async (ms) => {
+    for (let t = 0; t < ms; t += 50) {
+      const a = await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+      seen.add(a.anim);
+      if (a.anim === 'hurt') hurtFrames.add(a.frame);
+    }
+  };
+  for (let i = 0; i < 16 && !seen.has('hurt'); i++) {
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 }); // one foe at his side, tough enough to keep striking
+      Object.assign(p, { hp: p.stats.hp, invulnerable: false });
+    });
+    await sample(250);
+  }
+  await sample(300); // the ward plays through
+  // on the field, at game size: the pixels where he stands show his bone and his green. Out of reach of the foe first, so no hit's
+  // white flash covers him, and the best of a few draws
+  await inPage(() => {
+    const g = window.__lb.game, p = g.player;
+    for (const x of g.enemies) if (!x.dead) Object.assign(x, { x: p.x + 2000, y: p.y });
+    p.invulnerable = true;
+  });
+  await sample(300);
+  let field = null;
+  for (let i = 0; i < 4; i++) {
+    const n = await inPage((kinds) => {
+      const K = eval(kinds), lb = window.__lb, p = lb.game.player, cam = lb.camera();
+      lb.draw();
+      const c = document.getElementById('game').getContext('2d');
+      const x = Math.round((p.x - 30 - Math.round(cam.x)) * cam.zoom), y = Math.round((p.y - 60 - Math.round(cam.y)) * cam.zoom);
+      const d = c.getImageData(x, y, Math.round(60 * cam.zoom), Math.round(66 * cam.zoom)).data;
+      const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+      for (let i = 0; i < d.length; i += 4) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+      return n;
+    }, kinds);
+    if (!field || n.bone + n.green > field.bone + field.green) field = n;
+    await sample(100);
+  }
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('Space');
+  await sample(150);
+  await page.keyboard.up('Space');
+  await sample(800);
+  // Corpse Explosion needs the dead: a few corpses beside him
+  await inPage(() => {
+    const g = window.__lb.game, p = g.player;
+    for (let i = 0; i < 3; i++) g.corpses.push({ x: p.x + 40 + i * 12, y: p.y + 6, t: 0 });
+    Object.assign(p, { utilityCd: 0, hp: p.stats.hp });
+  });
+  await page.keyboard.down('KeyE');
+  await sample(150);
+  await page.keyboard.up('KeyE');
+  await sample(500);
+  const { idle } = gallery;
+  // sampled a step at a time under load, a short animation may show only one of its frames: one sampled hurt frame is enough in play
+  const ok = idle.green >= 10 && idle.bone >= 60 && idle.pale >= 20 && gallery.purple === 0 && gallery.glow >= 2 * Math.max(1, idle.green) && gallery.hurt === 3
+    && seen.has('hurt') && hurtFrames.size >= 1 && seen.has('cast') && seen.has('skill') && field.bone >= 15 && field.green >= 4;
+  return { ok, detail: `gallery idle ${JSON.stringify(idle)}, cast glow ${gallery.glow}, purple ${gallery.purple}, hurt frames ${gallery.hurt}; in play ${[...seen].join('/')} (hurt frames ${[...hurtFrames].join(',')}); on the field ${JSON.stringify(field)}` };
+});
+
 // ---------- #156: at the attack-speed cap the Viking swings a short swing that keeps up, and E plays his Leap, not a walk ----------
 await check('Fast attacks and Leap: the swing keeps up at the cap, E leaps without running legs (#156)', async () => {
   await inPage(() => location.reload());
@@ -4733,6 +5541,230 @@ await check('Fast attacks and Leap: the swing keeps up at the cap, E leaps witho
   for (let i = 0; i < 4; i++) leap.push(await frame());
   const ok = attacking.length >= swing.length * 0.8 && windUp === 0 && leap.some((f) => f.anim === 'skill') && !leap.some((f) => f.anim === 'walk');
   return { ok, detail: `at the cap ${attacking.length}/${swing.length} frames attacking, ${windUp} wind-up; E: ${leap.map((f) => `${f.anim}${f.frame}`).join(' ')}` };
+});
+
+// ---------- #247: the Viking is a raider: grey-teal wool and a Dane axe, no ginger beard; his rage roars, his hurt shrugs off the blow ----------
+await check('Viking raider: the gallery shows his teal wool and no ginger beard; Space plays the war cry and the drop back, a blow plays his hurt to the straightening up (#247)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('viking'));
+  const look = await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(200);
+    // the idle cell in the gallery, counted by colour: the teal ramp (his coat, tunic, trousers) against the old ginger beard's ramp
+    const c = document.querySelector('[data-sheet="viking"][data-anim="idle"]');
+    const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const hex = (i) => '#' + [px[i], px[i + 1], px[i + 2]].map((v) => v.toString(16).padStart(2, '0')).join('');
+    const teal = new Set(['#303d3d', '#475756', '#61726f', '#7e8f8b', '#9dada8']), ginger = new Set(['#7a3a12', '#a85a1c', '#cf7f2e', '#e8a54c']);
+    let t = 0, g = 0;
+    for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 0) (teal.has(hex(i)) && t++, ginger.has(hex(i)) && g++);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'viking');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    window.__startTest().player.invulnerable = true;
+    return { teal: t, ginger: g, cell: `${c.width / 2}×${c.height / 2}` };
+  });
+  const frame = () => inPage(() => (window.__lb.run(1, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+  // one foe in reach, the rest far away; once the wave has spawned
+  const pin = () => inPage(() => {
+    const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+    for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+    if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 });
+    return !!e;
+  });
+  for (let i = 0; i < 40 && !(await pin()); i++) await inPage(() => window.__lb.run(10, false, 'input'));
+  // Berserker Rage on Space: the hunch, the war cry with the axe raised (frame 3, held longest) and the drop back into the hold
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, attackTimer: 1e6 })); // no swing in the way of the cast
+  await page.keyboard.down('Space');
+  const cast = [await frame()];
+  await page.keyboard.up('Space');
+  for (let i = 0; i < 60; i++) cast.push(await frame());
+  const castFrames = new Set(cast.filter((f) => f.anim === 'cast').map((f) => f.frame));
+  // a foe's blow: he hunches into it and straightens up, three frames, with no swing of his own to hide it
+  await inPage(() => Object.assign(window.__lb.game.player, { invulnerable: false, attackTimer: 1e6 }));
+  const hurt = [];
+  for (let i = 0; i < 400 && !(hurt.some((f) => f.anim === 'hurt' && f.frame === 2)); i++) {
+    await pin();
+    await inPage(() => { const p = window.__lb.game.player; p.hp = Math.max(p.hp, p.stats.hp * 0.9); p.attackTimer = Math.max(p.attackTimer, 100); });
+    hurt.push(await frame());
+  }
+  await inPage(() => (window.__lb.game.player.invulnerable = true));
+  const hurtFrames = new Set(hurt.filter((f) => f.anim === 'hurt').map((f) => f.frame));
+  // sampled a step at a time, the short first frames can slip between samples: the roar (3) and the drop back (4) exist only in the
+  // new five-frame cast, the straightening up (2) only in the new three-frame hurt
+  const ok = look.teal > 200 && look.ginger === 0 && castFrames.has(3) && castFrames.has(4) && hurtFrames.has(2);
+  return { ok, detail: `gallery idle ${look.cell}: ${look.teal} teal px, ${look.ginger} ginger px; cast frames ${[...castFrames].sort().join(',')}; hurt frames ${[...hurtFrames].sort().join(',')} after ${hurt.length} steps` };
+});
+
+// ---------- #268: the Angel is a fighting angel: great pearl wings, white linen and gold, a scepter-staff; she hovers; her death ascends to
+// nothing; in a run a blow plays her parry, Space her Heavenly Radiance and E her Blink, and on the field her wings show ----------
+await check('Angel look: pearl wings, linen and gold in the gallery, her death ends empty; in play a blow parries, Space radiates, E blinks (#268)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('angel'));
+  const kinds = `({
+    pearl: (r, g, b) => b >= 150 && b - r >= 12 && b - r <= 45 && g >= r && b > g,
+    linen: (r, g, b) => r >= 180 && r - b >= 15 && r - b <= 50 && g < r && g > b,
+  })`;
+  // the test-mode gallery: her idle cell in her new colours; her death plays to an empty last frame
+  const gallery = await inPage(async (kinds) => {
+    const K = eval(kinds), wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(200);
+    const count = (anim) => {
+      const c = document.querySelector(`[data-sheet="angel"][data-anim="${anim}"]`), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      const n = Object.fromEntries([...Object.keys(K), 'any'].map((k) => [k, 0]));
+      for (let i = 0; i < d.length; i += 4) if (d[i + 3] > 200) { n.any++; for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++; }
+      return n;
+    };
+    const idle = count('idle'), cell = document.querySelector('[data-sheet="angel"][data-anim="idle"]');
+    const death = document.querySelector('[data-sheet="angel"][data-anim="death"]');
+    let emptyEnd = false;
+    for (let i = 0; i < 40 && !emptyEnd; i++) {
+      await wait(50);
+      if (death.dataset.frame === '9') emptyEnd = count('death').any === 0;
+    }
+    document.querySelector('.testmode [data-back]').click();
+    await wait(100);
+    document.querySelector('[data-act="back"]').click();
+    await wait(100);
+    return { idle, emptyEnd, cell: `${cell.width / 2}×${cell.height / 2}` };
+  }, kinds);
+  // an Angel run in test mode: a foe at her side strikes her, then Space and E, played through the keys
+  await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(60);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'angel');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '5'); // Blink, her utility, unlocks at level 3
+    window.__startTest();
+  });
+  const seen = new Set();
+  const sample = async (ms) => {
+    for (let t = 0; t < ms; t += 50) seen.add((await inPage(() => (window.__lb.run(3, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))))).anim);
+  };
+  for (let i = 0; i < 16 && !seen.has('hurt'); i++) {
+    await inPage(() => {
+      const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+      for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+      if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 }); // one foe at her side, tough enough to keep striking
+      Object.assign(p, { hp: p.stats.hp, invulnerable: false });
+    });
+    await sample(250); // one sampled parry frame is enough: 50 ms samples can miss the short ones
+  }
+  // on the field, at game size: the pixels where she hovers show her pearl wings and her linen (the foe sent away and the hit's white
+  // flash over first)
+  const field = await inPage((kinds) => {
+    const K = eval(kinds), lb = window.__lb, p = lb.game.player;
+    for (const x of lb.game.enemies) Object.assign(x, { x: p.x + 2000, y: p.y });
+    lb.run(40, false, 'input');
+    const cam = lb.camera();
+    lb.draw();
+    const c = document.getElementById('game').getContext('2d');
+    const x = Math.round((p.x - 60 - Math.round(cam.x)) * cam.zoom), y = Math.round((p.y - 110 - Math.round(cam.y)) * cam.zoom);
+    const d = c.getImageData(x, y, Math.round(120 * cam.zoom), Math.round(120 * cam.zoom)).data;
+    const n = Object.fromEntries(Object.keys(K).map((k) => [k, 0]));
+    for (let i = 0; i < d.length; i += 4) for (const k in K) if (K[k](d[i], d[i + 1], d[i + 2])) n[k]++;
+    return n;
+  }, kinds);
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('Space');
+  await sample(150);
+  await page.keyboard.up('Space');
+  await sample(600);
+  await inPage(() => Object.assign(window.__lb.game.player, { utilityCd: 0, hp: window.__lb.game.player.stats.hp }));
+  await page.keyboard.down('KeyE');
+  await sample(150);
+  await page.keyboard.up('KeyE');
+  await sample(400);
+  const { idle } = gallery;
+  const ok = idle.pearl >= 300 && idle.linen >= 150 && gallery.emptyEnd && seen.has('hurt') && seen.has('cast') && seen.has('skill') && field.pearl >= 40 && field.linen >= 8;
+  return { ok, detail: `gallery idle ${gallery.cell} ${JSON.stringify(idle)}, death ends empty ${gallery.emptyEnd}; in play ${[...seen].join('/')}; on the field ${JSON.stringify(field)}` };
+});
+
+// ---------- #270: the Archer is a hooded ranger: a grey-green hood and cloak, no steel kettle hat; Space looses the volley into the sky,
+// E plays the end of his roll and a blow plays his bow block ----------
+await check('Archer ranger: the gallery shows his sage hood and cloak and no kettle hat; Space looses the volley, E rolls, a blow plays his hurt (#270)', async () => {
+  await inPage(() => location.reload());
+  await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('archer'));
+  const look = await inPage(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+    await wait(150);
+    document.querySelector('[data-act="test"]').click();
+    await wait(200);
+    // the idle cell in the gallery, counted by colour: the sage ramp (his hood, cowl and cloak) against the old kettle hat's steel
+    const c = document.querySelector('[data-sheet="archer"][data-anim="idle"]');
+    const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    const hex = (i) => '#' + [px[i], px[i + 1], px[i + 2]].map((v) => v.toString(16).padStart(2, '0')).join('');
+    const sage = new Set(['#3e4b3f', '#58685a', '#768778', '#98a895']), steel = new Set(['#6c768a', '#96a1b2', '#c7ced6']);
+    let s = 0, k = 0;
+    for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 0) (sage.has(hex(i)) && s++, steel.has(hex(i)) && k++);
+    const set = (id, v) => {
+      const el = document.getElementById(id);
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    set('tm-class', 'archer');
+    set('tm-act', '1');
+    set('tm-wave', '1');
+    set('tm-level', '5'); // Dodge Roll, his utility, unlocks at level 3
+    window.__startTest().player.invulnerable = true;
+    return { sage: s, steel: k, cell: `${c.width / 2}×${c.height / 2}` };
+  });
+  const frame = () => inPage(() => (window.__lb.run(1, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
+  // one foe at his side, the rest far away; once the wave has spawned
+  const pin = () => inPage(() => {
+    const g = window.__lb.game, p = g.player, [e, ...rest] = g.enemies.filter((x) => !x.dead);
+    for (const x of rest) Object.assign(x, { x: p.x + 2000, y: p.y });
+    if (e) Object.assign(e, { x: p.x + 30, y: p.y, hp: 1e6, maxHp: 1e6 });
+    return !!e;
+  });
+  for (let i = 0; i < 40 && !(await pin()); i++) await inPage(() => window.__lb.run(10, false, 'input'));
+  // Arrow Volley on Space: drawn with three arrows, loosed into the sky (frame 3, held longest), lowered
+  await inPage(() => Object.assign(window.__lb.game.player, { abilityCd: 0, attackTimer: 1e6 })); // no shot in the way of the cast
+  await page.keyboard.down('Space');
+  const cast = [await frame()];
+  await page.keyboard.up('Space');
+  for (let i = 0; i < 60; i++) cast.push(await frame());
+  const castFrames = new Set(cast.filter((f) => f.anim === 'cast').map((f) => f.frame));
+  // Dodge Roll on E: the end of the roll plays (a short row: one sampled frame is enough)
+  await inPage(() => Object.assign(window.__lb.game.player, { utilityCd: 0, attackTimer: 1e6 }));
+  await page.keyboard.down('KeyE');
+  const roll = [await frame()];
+  await page.keyboard.up('KeyE');
+  for (let i = 0; i < 30; i++) roll.push(await frame());
+  // a foe's blow: his hurt, the bow snapped up to catch it, with no shot of his own to hide it (one sampled frame is enough)
+  await inPage(() => Object.assign(window.__lb.game.player, { invulnerable: false, attackTimer: 1e6 }));
+  const hurt = [];
+  for (let i = 0; i < 400 && !hurt.some((f) => f.anim === 'hurt'); i++) {
+    await pin();
+    await inPage(() => { const p = window.__lb.game.player; p.hp = Math.max(p.hp, p.stats.hp * 0.9); p.attackTimer = Math.max(p.attackTimer, 100); });
+    hurt.push(await frame());
+  }
+  await inPage(() => (window.__lb.game.player.invulnerable = true));
+  const ok = look.sage > 200 && look.steel < 10 && castFrames.has(3) && roll.some((f) => f.anim === 'skill') && hurt.some((f) => f.anim === 'hurt');
+  return { ok, detail: `gallery idle ${look.cell}: ${look.sage} sage px, ${look.steel} steel px; cast frames ${[...castFrames].sort().join(',')}; E: ${roll.filter((f) => f.anim === 'skill').length} roll frames; hurt after ${hurt.length} steps` };
 });
 
 // ---------- #156: the Viking's swing leaves a tapered trail, not a flat wedge; the walk keeps pace with the ground at 1.5x and under a heavy slow ----------
@@ -6157,6 +7189,7 @@ await check('Forgemaster: test mode starts the Iron Hold level 3; its last wave 
       // few steps off, out of reach of his blows but inside his, so he keeps swinging and pressing
       const shown = f && out.hammer[f.phase - 1] > 0 && (f.phase === 1 || out.presses[f.phase - 1] > 0);
       if (f && !f.dead) (g.player.x = f.x - f.r - (shown ? 16 : 220)), (g.player.y = f.y);
+      if (f && !f.dead && !shown && f.phase === 3) f.hp = Math.max(f.hp, f.maxHp * 0.05); // #263: on Squire's eased level 3 he could fall before his last phase pressed
       lb.run(1, false, false);
       f ??= g.enemies.find((e) => e.def.boss) ?? null;
       if (!f) continue;
@@ -6324,6 +7357,59 @@ await check('Relics: Flashpowder, Pitch Pot and Crown of Cinders each do their w
   }),
 );
 
+// ---------- #279: the Barrowvale's Grave relics: a test run holding all four, fought through the real input for 30 s, the champion
+// pacing left and right through the horde so she walks over the corpses ----------
+await check("Relics: Barrow Boots, Plague Censer, Sexton's Bell and Crown of Antlers each do their work in a fight, and their HUD tiles say what they do (#279)", () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const ids = ['barrowBoots', 'plagueCenser', 'sextonsBell', 'crownOfAntlers'];
+    const start = await inPage(async (ids) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), 'paladin');
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave and a level-1 champion, as #217's check
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), '1');
+      const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
+      for (const id of listed) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land and are counted, the run just never ends
+      await wait(300);
+      const tip = (id) => document.querySelector(`#h-relics .relic[data-id="${id}"]`)?.dataset.tip ?? '';
+      return { listed: listed.length, held: g.player.relics.held.filter((id) => ids.includes(id)).length, tips: ids.map(tip) };
+    }, ids);
+    // 30 s: a second each way (arrow keys), over and over, through the horde and the dead it leaves
+    let patches = 0, bell = 0, guards = 0;
+    for (let i = 0; i < 30; i++) {
+      const key = i % 2 ? 'ArrowLeft' : 'ArrowRight';
+      await page.keyboard.down(key);
+      const seen = await inPage(() => {
+        window.__lb.run(60, false, 'input');
+        const g = window.__lb.game;
+        return { patches: g.fields.filter((f) => f.by === 'plagueCenser').length, bell: g.minions.filter((m) => m.relicBy === 'sextonsBell').length, guards: g.minions.filter((m) => m.relicBy === 'crownOfAntlers').length };
+      });
+      await page.keyboard.up(key);
+      patches = Math.max(patches, seen.patches), bell = Math.max(bell, seen.bell), guards = Math.max(guards, seen.guards);
+    }
+    const fight = await inPage((ids) => {
+      const s = (id) => window.__lb.game.player.relics.stats[id] ?? { damage: 0, prevented: 0 };
+      return { boots: s(ids[0]).damage, censer: s(ids[1]).damage, crown: s(ids[3]).prevented, stomped: window.__lb.game.corpses.filter((c) => c.stomped).length };
+    }, ids);
+    const said = [/stomps/.test(start.tips[0]), /plague ground/.test(start.tips[1]), /bell tolls/.test(start.tips[2]), /barrow guard/.test(start.tips[3])];
+    const ok = start.listed === 4 && start.held === 4 && said.every(Boolean) && fight.boots > 0 && fight.censer > 0 && patches > 0 && bell > 0 && fight.crown > 0;
+    const r = (v) => Math.round(v);
+    return { ok, detail: `test mode lists ${start.listed}/4, held ${start.held}; tiles say ${said.map((x) => (x ? 'yes' : 'NO')).join('/')}; stomps ${r(fight.boots)} dmg, plague ground ${r(fight.censer)} dmg (up to ${patches} patches), the bell raised up to ${bell} skeletons at once, the crown's guard (up to ${guards} of its own) took ${r(fight.crown)} off hits` };
+  }),
+);
+
 // ---------- #230: the Cinderlands' Flame class relics: each champion's own, in a test run fought through the real input (ability on Space) ----------
 await check("Relics: Surtr's Brand and Bonefire each work for their own champion in a fight, test mode lists each for its class only, and their HUD tiles say what they do (#230)", async () => {
   const cases = [
@@ -6436,6 +7522,150 @@ await check('Relics: Baptism of Fire is taken as the gold card once Flashpowder 
     const says = /flare heals you/.test(start.tip);
     const ok = start.gold && start.formed && start.joined && says && fight.healed > 0 && fight.flares > 0;
     return { ok, detail: `gold card ${start.gold}, formed ${start.formed}, one tile for its two relics ${start.joined}, tile says ${says ? 'yes' : 'NO'}; in 30 s its flares dealt ${Math.round(fight.flares)} and healed ${fight.healed.toFixed(1)} HP` };
+  }),
+);
+
+// ---------- #280: the Barrowvale's Grave class relics: each champion's own, in a test run fought through the real input (ability on Space,
+// the mouse on the horde for the Archer's aim) ----------
+await check("Relics: Ossuary Seal, Draugr's Mead, Last Rites and Wightbone Arrows each work for their own champion in a fight, test mode lists each for its class only, and their HUD tiles say what they do (#280)", async () => {
+  const cases = [
+    // the dead answer: count the skeletons each relic has standing, sampled every second (they last 8-10 s)
+    { classId: 'paladin', id: 'ossuarySeal', says: /When Divine Shield ends the dead answer/, level: '25', work: 'skeletons' },
+    { classId: 'viking', id: 'draugrMead', says: /rises as a draugr/, level: '25', work: 'skeletons' },
+    // the Angel stands at level 1, so the horde hurts her and the rites' heals land
+    { classId: 'angel', id: 'lastRites', says: /Heavenly Radiance lays the corpses/, work: 'healing' },
+    { classId: 'archer', id: 'wightboneArrows', says: /every corpse in its area bursts/, level: '25', work: 'damage', aim: true },
+  ];
+  const ids = cases.map((c) => c.id);
+  const out = [];
+  for (const c of cases) {
+    await inPage(() => location.reload());
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const start = await inPage(async ({ c, ids }) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), c.classId);
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave, as #230's check
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), c.level ?? '1');
+      const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
+      const own = document.querySelector(`#tm-relics select[data-relic="${c.id}"]`);
+      if (own) set(own, '1');
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land and are counted, the run just never ends
+      await wait(300);
+      return { listed, held: g.player.relics.held.includes(c.id), tip: document.querySelector(`#h-relics .relic[data-id="${c.id}"]`)?.dataset.tip ?? '' };
+    }, { c, ids });
+    // where the nearest foe stands on the screen, for the Archer's mouse (the Volley comes down under the cursor)
+    const nearestOnScreen = () => {
+      const lb = window.__lb, g = lb.game, p = g.player, cam = lb.camera();
+      const canvas = document.getElementById('game'), r = canvas.getBoundingClientRect();
+      let best = null;
+      for (const e of g.enemies) if (!e.dead && (!best || Math.hypot(e.x - p.x, e.y - p.y) < Math.hypot(best.x - p.x, best.y - p.y))) best = e;
+      if (!best) return null;
+      const k = r.width / canvas.width;
+      return [r.left + (best.x - cam.x) * cam.zoom * k, r.top + (best.y - cam.y) * cam.zoom * k];
+    };
+    await page.keyboard.down('ArrowRight');
+    await inPage(() => window.__lb.run(60, false, 'input'));
+    await page.keyboard.up('ArrowRight');
+    await page.keyboard.down('Space');
+    let most = 0;
+    const second = (id) => {
+      const lb = window.__lb;
+      lb.run(60, false, 'input');
+      if (!lb.game) throw new Error(`the run ended (${lb.state})`);
+      lb.game.player.deathless = true;
+      return lb.game.minions.filter((m) => m.relicBy === id && m.hp > 0).length;
+    };
+    for (let i = 0; i < 40; i++) {
+      if (c.aim) {
+        const at = await inPage(nearestOnScreen);
+        if (at) await page.mouse.move(at[0], at[1]);
+      }
+      most = Math.max(most, await inPage(second, c.id));
+    }
+    await page.keyboard.up('Space');
+    const s = await inPage((id) => window.__lb.game.player.relics.stats[id] ?? { damage: 0, healing: 0 }, c.id);
+    const worked = c.work === 'skeletons' ? most > 0 : s[c.work] > 0;
+    const ok = start.listed.length === 1 && start.listed[0] === c.id && start.held && c.says.test(start.tip) && worked;
+    out.push({ ok, text: `${c.classId}: lists ${start.listed.join('+') || 'none'}, held ${start.held}, tile ${c.says.test(start.tip) ? 'yes' : 'NO'}, in 40 s up to ${most} of its skeletons standing, ${s.damage.toFixed(1)} dmg, ${s.healing.toFixed(1)} healed` });
+  }
+  return { ok: out.every((o) => o.ok), detail: out.map((o) => o.text).join('; ') };
+});
+
+// ---------- #280: Barrow Feast, the Barrowvale's duo: a test run holding Hex Doll and Berserker Tooth takes the gold card at a relic
+// moment, then fights through the real input for 40 s, pacing left and right over the dead ----------
+await check('Relics: Barrow Feast is taken as the gold card once Hex Doll and Berserker Tooth are held, its tile says what it does, and walking over the dead devours them (#280)', () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const start = await inPage(async () => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), 'viking');
+      set(document.getElementById('tm-act'), '2');
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), '25'); // strong enough to leave the dead round him
+      for (const id of ['hexDoll', 'berserkerTooth']) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
+      const lb = window.__lb;
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land (so there is something to heal), the run just never ends
+      await wait(300);
+      // a relic moment with the duo ready, as a boss's fall gives it; the gold card is picked on the real screen
+      g.player.relics.offers.push({ from: 'boss', options: ['butchersHook', 'guardiansAegis', 'stormPennant'], rerolls: 0, duo: 'barrowFeast' });
+      const find = () => [...document.querySelectorAll('[data-pick]')].find((b) => b.innerText.includes('Barrow Feast'));
+      let card = find();
+      for (let i = 0; i < 40 && !card; i++) {
+        lb.run(1, false, 'input');
+        await wait(50);
+        card = find();
+      }
+      const gold = !!card?.classList.contains('duo-card');
+      card?.click();
+      await wait(300);
+      const tile = document.querySelector('#h-relics .relic[data-duo="barrowFeast"]');
+      const tiles = [...document.querySelectorAll('#h-relics .relic[data-id]')].map((t) => t.dataset.id);
+      return { gold, formed: g.player.relics.duos.includes('barrowFeast'), tip: tile?.dataset.tip ?? '', joined: !tiles.includes('hexDoll') && !tiles.includes('berserkerTooth') };
+    });
+    // he paces through the horde, a second each way (arrow keys), and the corpses under his feet go: counted as they vanish beneath him
+    let eaten = 0;
+    for (let i = 0; i < 40; i++) {
+      const key = i % 2 ? 'ArrowLeft' : 'ArrowRight';
+      await page.keyboard.down(key);
+      eaten += await inPage(() => {
+        const lb = window.__lb;
+        let n = 0;
+        for (let f = 0; f < 60; f++) {
+          const g = lb.game, p = g.player;
+          const under = g.corpses.filter((c) => Math.hypot(c.x - p.x, c.y - p.y) <= p.r + 20);
+          lb.run(1, false, 'input');
+          n += under.filter((c) => !lb.game.corpses.includes(c)).length;
+        }
+        lb.game.player.deathless = true;
+        return n;
+      });
+      await page.keyboard.up(key);
+    }
+    const healed = await inPage(() => window.__lb.game.player.relics.stats.barrowFeast?.healing ?? 0);
+    const says = /devours it/.test(start.tip);
+    const ok = start.gold && start.formed && start.joined && says && eaten > 0;
+    return { ok, detail: `gold card ${start.gold}, formed ${start.formed}, one tile for its two relics ${start.joined}, tile says ${says ? 'yes' : 'NO'}; in 40 s he devoured ${eaten} corpses and healed ${healed.toFixed(1)} HP` };
   }),
 );
 
@@ -6689,6 +7919,714 @@ await check('Cinder Colossus: test mode starts the Cinderlands level 5; its crow
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; phases at ${fight.phases.join(', ')} s; burn stacks ${fight.burn.join('/')} (one falls every ${fight.decay} s), slam zones ${fight.slam.join('/')}, fire patches ${fight.patches.join('/')}, bursts ${fight.bursts.join('/')} by phase; brood ${fight.brood}; ${fight.fell ? 'CHAMPION FELL; ' : ''}${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #278: the Barrow King: Settings -> Test mode -> "Start at" the Barrowvale's level 5 -> the opening pick -> its last wave ----------
+// The champion trades plain blows beside him (unhurt, no ability, no bot moves), so the fight goes the same way every run: phase 1 every
+// Reap opens two graves round the champion; after each Reap he steps onto the one above him (TRAMPLED) and leaves the other, whose dead
+// climbs out; phase 2 no more graves, and every other Reap leaves plague ground that lasts 14 s; phase 3 graves open at his feet, his risen
+// stand round him and turn blows (GUARDED). (A phase-1 grave left open may still rise early in phase 2.) Each phase holds its 12 s as a crown boss's does, and his fall clears the level.
+await check('Barrow King: test mode starts the Barrowvale level 5; its crown boss: graves that rise unless trampled, then lasting plague, then his guard, each phase 12 s, level cleared (#278)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="barrowvale:5"]').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption('graveyard');
+  await p.locator('#tm-start').selectOption('barrowvale:5');
+  await p.evaluate(() => {
+    // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 40, the level's last
+    g.breather = 0.01;
+    const out = { wave: 0, id: '', crown: false, banner: '', phases: [], banners: [], reaps: [0, 0, 0], trampled: [0, 0, 0], risen: [0, 0, 0], plagues: [0, 0, 0], plagueLife: 0, guarded: 0, guards: 0, dead: false };
+    const seen = new WeakSet();
+    let k = null, grave = null, tr = 0, ri = 0, pl = 0;
+    for (let i = 0; i < 120000 && lb.state !== 'results' && !(k?.dead && g.level.cleared); i++) {
+      g.player.invulnerable = true;
+      if (k && !k.dead) {
+        if (grave) (g.player.x = grave.x), (g.player.y = grave.y); // on to the grave above him: trample it
+        else (g.player.x = k.x - (k.r + 16)), (g.player.y = k.y); // a step off his edge
+      }
+      lb.run(1, false, false);
+      k ??= g.enemies.find((e) => e.def.boss) ?? null;
+      if (!k) continue;
+      if (!out.id) (out.id = k.def.id), (out.wave = g.wave), (out.crown = k.crown), (out.banner = g.banner?.text ?? '');
+      if (k.phase > out.phases.length + 1) out.phases.push(+g.time.toFixed(1)), out.banners.push(g.banner?.text ?? '');
+      const ph = k.phase - 1;
+      const reap = g.zones.filter((z) => z.owner === k && !seen.has(z));
+      for (const z of reap) seen.add(z);
+      if (reap.length) {
+        out.reaps[ph]++;
+        if (k.phase === 1) grave = { x: g.player.x, y: g.player.y - 120 }; // his graves open 120 px round the champion, the first straight above him
+      }
+      const t2 = g.vars['barrow.trampled'] ?? 0, r2 = g.vars['barrow.risen'] ?? 0, p2 = g.vars['barrow.plagues'] ?? 0;
+      if (t2 > tr) grave = null;
+      out.trampled[ph] += t2 - tr;
+      out.risen[ph] += r2 - ri;
+      out.plagues[ph] += p2 - pl;
+      (tr = t2), (ri = r2), (pl = p2);
+      for (const f of g.fields) if (f.hostile && f.color === '#6f8f4e') out.plagueLife = Math.max(out.plagueLife, f.max ?? f.life);
+      if (k.phase === 3) out.guards = Math.max(out.guards, g.vars['barrow.guards'] ?? 0);
+      if (g.texts.some((t) => t.text === 'GUARDED')) out.guarded++;
+      if (k.dead) out.dead = true;
+    }
+    return { ...out, cleared: !!g.level?.cleared, test: g.vars.test };
+  });
+  await p.close();
+  const long = fight.phases.length === 2 && fight.phases[1] - fight.phases[0] >= 12;
+  const ok = fight.test === 1 && fight.wave === 40 && fight.id === 'barrowKing' && fight.crown && fight.banner === 'The Barrow King · Crown boss'
+    && fight.banners[0] === 'The Barrow King spreads the plague' && fight.banners[1] === 'The Barrow King calls his guard'
+    && fight.trampled[0] >= 1 && fight.risen[0] >= 1 && fight.trampled[1] === 0 && fight.plagues[0] === 0 && fight.plagues[1] >= 1
+    && fight.plagueLife >= 14 && fight.risen[2] >= 1 && fight.guards >= 1 && fight.guarded > 0 && long && fight.dead && fight.cleared && errs.length === 0;
+  return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; phases at ${fight.phases.join(', ')} s ("${fight.banners.join('", "')}"); reaps ${fight.reaps.join('/')}, graves trampled ${fight.trampled.join('/')}, dead risen ${fight.risen.join('/')}, plague Reaps ${fight.plagues.join('/')} by phase; plague lasts ${fight.plagueLife} s; guards up to ${fight.guards}, GUARDED ticks ${fight.guarded}; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// #283: a voice limit with priorities, small variations and stereo by position. Test mode -> the Barrowvale level 5 -> its last wave,
+// the Barrow King's; a crowd of forty foes closes round the champion while he stands at the King's side, played with pauses so the
+// audio clock runs. The effect voices fill up: hits in the crowd are dropped, never a boss cue, and the King's cues play while the
+// voices are full; cues off to one side pan, and a cue past the edge of the screen is quieter.
+await check('Sound: a boss cue plays in a crowded fight; the voice limit drops the crowd’s hits first, and cues pan by position (#283)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  if (!(await p.evaluate(() => typeof window.__lb.voices === 'function'))) return (await p.close(), { skip: true, detail: 'no voice limit on this branch (before #283)' });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  await p.locator('#tm-class').selectOption('viking');
+  await p.locator('#tm-arena').selectOption('graveyard');
+  await p.locator('#tm-start').selectOption('barrowvale:5');
+  await p.evaluate(() => {
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click(); // a click: the sound starts
+  const fight = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to the level's last wave: the King's
+    g.breather = 0.01;
+    let k = null;
+    for (let i = 0; i < 6000 && !k && lb.state !== 'results'; i++) {
+      g.player.invulnerable = true;
+      lb.run(1, false, false);
+      k = g.enemies.find((e) => e.def.boss && !e.dead) ?? null;
+    }
+    if (!k) return { found: false };
+    const before = lb.voices();
+    const out = { found: true, id: k.def.id, crowd: 0, peak: 0, ticks: 0, seconds: 0 };
+    const t0 = performance.now();
+    for (let i = 0; i < 2400 && !k.dead && lb.state !== 'results'; i++) {
+      if (i % 120 === 0) {
+        // the crowd: forty foes in a ring round the champion, topped up as they fall
+        const live = g.enemies.filter((e) => !e.dead && !e.def.boss).length;
+        for (let j = live; j < 40; j++) {
+          const a = (j / 40) * Math.PI * 2, r = 60 + (j % 3) * 30;
+          lb.spawn('peasant', g.player.x + Math.cos(a) * r, g.player.y + Math.sin(a) * r);
+        }
+        out.crowd = Math.max(out.crowd, g.enemies.filter((e) => !e.dead).length);
+      }
+      g.player.invulnerable = true;
+      (g.player.x = k.x - (k.r + 16)), (g.player.y = k.y); // at the King's side, his blows and warnings close by
+      lb.run(1, false, false);
+      out.ticks++;
+      out.peak = Math.max(out.peak, lb.voices().live);
+      if (i % 8 === 7) await wait(0); // the audio clock moves on, so voices end and others start (about real time: headless steps slower)
+    }
+    out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
+    const after = lb.voices();
+    for (const key of ['played', 'dropped', 'stolen', 'panned', 'faded', 'boss', 'bossDropped', 'crowded', 'bossCrowded']) out[key] = after[key] - before[key];
+    out.max = after.max;
+    return out;
+  });
+  // a cue past the screen's edge, as a foe falls far off to the right: it pans right and is quieter
+  const far = await p.evaluate(async () => {
+    const lb = window.__lb, before = lb.voices(), cam = lb.camera();
+    if (!cam) return null;
+    await new Promise((r) => setTimeout(r, 600)); // a moment, so the crowd's voices end
+    lb.view.sfx('kill', { name: 'kill', src: 'foe', x: cam.x + 1280 / cam.zoom + 300, y: cam.y + 360 / cam.zoom }); // the simulation's way to the speaker
+    const after = lb.voices();
+    return { faded: after.faded - before.faded, panned: after.panned - before.panned };
+  });
+  await p.close();
+  const ok = fight.found && fight.id === 'barrowKing' && fight.crowd >= 30 && fight.peak === fight.max && fight.boss >= 1 && fight.bossCrowded >= 1 && fight.bossDropped === 0
+    && fight.dropped >= 1 && fight.panned >= 1 && far && far.faded >= 1 && far.panned >= 1 && errs.length === 0;
+  return { ok, detail: fight.found ? `${fight.id}: ${fight.ticks} ticks in ${fight.seconds} s with up to ${fight.crowd} foes; voices up to ${fight.peak}/${fight.max}; ${fight.played} effects played, ${fight.dropped} dropped, ${fight.stolen} taken over, ${fight.crowded} cues met full voices; boss cues ${fight.boss} played (${fight.bossCrowded} while full), ${fight.bossDropped} dropped; ${fight.panned} panned, ${fight.faded} quieter off screen; a fall past the edge: ${far ? `${far.panned ? 'panned' : 'NOT panned'}, ${far.faded ? 'quieter' : 'NOT quieter'}` : 'not played'}${errs.length ? `; errors: ${errs[0]}` : ''}` : 'no boss on the last wave' };
+});
+
+// #284: each class's attack and ability sounds its own. For each champion: Settings -> Test mode -> the champion -> Start test run, at
+// 1280x720 with the mouse; a foe stands in reach, so the champion's attack plays, and Space casts his ability. The effects bus plays
+// that class's own attack and ability sounds (core/audio.ts classSoundStats), and no other class's.
+await check("Sound: each class's attack and ability plays its own sound (#284)", async () => {
+  const seen = [];
+  for (const cls of ['paladin', 'viking', 'angel', 'necromancer', 'archer']) {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    if (!(await p.evaluate(() => typeof window.__lb.classSounds === 'function'))) return (await p.close(), { skip: true, detail: 'no class sounds on this branch (before #284)' });
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    await p.locator('#tm-class').selectOption(cls);
+    await p.getByRole('button', { name: /start test run/i }).click(); // a click: the sound starts
+    await p.waitForFunction(() => window.__lb.state === 'playing' || window.__lb.state === 'choice', null, { timeout: 5000 });
+    for (let i = 0; i < 4 && (await p.evaluate(() => window.__lb.state === 'choice')); i++) {
+      const pick = p.locator('#overlay [data-pick], #overlay [data-leave]').first();
+      await pick.click(); // an opening pick or a board, answered with the mouse
+      await p.waitForTimeout(150);
+    }
+    // a foe in reach: the auto-attack swings or shoots at him
+    const attacked = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.player.invulnerable = true;
+      for (let i = 0; i < 40; i++) {
+        if (!g.enemies.some((e) => !e.dead)) lb.spawn('peasant', g.player.x + 40, g.player.y);
+        g.player.invulnerable = true;
+        lb.run(1, false, 'input');
+        if (i % 8 === 7) await wait(20);
+      }
+      for (let i = 0; i < 1200 && g.player.abilityTime > 0; i++) lb.run(1, false, 'input'); // an ability still running must end first
+      Object.assign(g.player, { abilityCd: 0 });
+      if (!g.enemies.some((e) => !e.dead)) lb.spawn('peasant', g.player.x + 40, g.player.y); // a cast that wants a foe has one
+      return lb.classSounds();
+    });
+    await p.keyboard.down('Space');
+    await p.evaluate(() => window.__lb.run(2, false, 'input'));
+    await p.keyboard.up('Space');
+    const after = await p.evaluate(() => window.__lb.classSounds());
+    const others = Object.keys(after).filter((k) => !k.startsWith(`${cls}:`));
+    seen.push({ cls, attack: attacked[`${cls}:attack`] ?? 0, ability: (after[`${cls}:ability`] ?? 0) - (attacked[`${cls}:ability`] ?? 0), others, errs: errs[0] ?? '' });
+    await p.close();
+  }
+  const ok = seen.length === 5 && seen.every((x) => x.attack >= 1 && x.ability >= 1 && x.others.length === 0 && !x.errs);
+  return { ok, detail: seen.map((x) => `${x.cls}: attack ×${x.attack}, ability ×${x.ability}${x.others.length ? `, others ${x.others.join('/')}` : ''}${x.errs ? ` (error: ${x.errs})` : ''}`).join('; ') };
+});
+
+// #285: each enemy family sounds its own. Test mode -> the Barrowvale level 1; a click starts the sound. A mixed band closes round the
+// champion (cavalry, crossbowmen, a war priest, knights, peasants and wolves, which march here as barrow thralls and blight hounds) while
+// he fights them unhurt, played with pauses so the audio clock runs. Their attacks, his blows on them and their deaths go out in their
+// families' voices (hooves, the crossbow's twang, a clank on plate), the realm's kin through the Barrowvale's tint, and are heard.
+await check('Sound: each enemy family sounds its own: cavalry hooves, a crossbow\'s twang, plate struck, the Barrowvale\'s thralls their own way (#285)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  if (!(await p.evaluate(() => typeof window.__lb.foeVoices === 'function'))) return (await p.close(), { skip: true, detail: 'no enemy family sounds on this branch (before #285)' });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  await p.locator('#tm-class').selectOption('viking');
+  await p.locator('#tm-start').selectOption('barrowvale:1');
+  await p.evaluate(() => [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click());
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click(); // a click: the sound starts
+  const fight = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const before = lb.foeVoices();
+    const queued = {};
+    const real = lb.view.sfx; // the simulation's way to the speaker
+    lb.view.sfx = (n, c) => (c?.voice && (queued[c.voice] = (queued[c.voice] ?? 0) + 1), real(n, c));
+    g.spawnQueue.length = 0;
+    const band = ['cavalry', 'crossbow', 'crossbow', 'priest', 'knight', 'knight', 'peasant', 'peasant', 'peasant', 'wolf', 'wolf'];
+    const kinds = new Set();
+    for (let i = 0; i < 1800 && lb.state !== 'results'; i++) {
+      if (i % 200 === 0) {
+        g.enemies.length = 0; // a fresh band now and then, so each of them gets to strike and fall
+        band.forEach((id, j) => {
+          const a = (j / band.length) * Math.PI * 2, r = id === 'crossbow' || id === 'cavalry' ? 260 : 70;
+          const e = lb.spawn(id, g.player.x + Math.cos(a) * r, g.player.y + Math.sin(a) * r);
+          if (e) kinds.add(e.def.id);
+        });
+      }
+      g.player.invulnerable = true;
+      lb.run(1, false, false);
+      if (i % 6 === 5) await wait(0); // the audio clock moves on, so voices end and others start
+    }
+    lb.view.sfx = real;
+    const after = lb.foeVoices();
+    const heard = {};
+    for (const k of Object.keys(after)) if (after[k] - (before[k] ?? 0) > 0) heard[k] = after[k] - (before[k] ?? 0);
+    return { kinds: [...kinds], queued, heard, state: lb.state };
+  });
+  await p.close();
+  const heard = Object.keys(fight.heard);
+  const families = new Set(heard.map((k) => k.split(/[./]/)[0]));
+  const events = new Set(heard.map((k) => k.split('.')[1]));
+  const want = ['cavalry.attack', 'bow.attack'];
+  const ok = fight.kinds.includes('barrowThrall') && fight.kinds.includes('blightHound') && want.every((k) => fight.heard[k] > 0)
+    && heard.some((k) => k.startsWith('steel.')) && heard.some((k) => k.includes('/barrow.')) && families.size >= 4
+    && ['attack', 'hit', 'death'].every((e) => events.has(e)) && errs.length === 0;
+  return { ok, detail: `band: ${fight.kinds.join(', ')}; ${families.size} families heard (${[...families].join(', ')}); voices heard: ${heard.map((k) => `${k} ×${fight.heard[k]}`).join(', ') || 'none'}; queued ${Object.keys(fight.queued).length} voices${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// #286: every boss his own sounds. Test mode -> the Iron Hold level 5 -> its last wave, the Iron King's. A strong paladin stands behind
+// him, played with pauses so the audio clock runs: his signature sounds as he comes, his big-move sound with his warnings, and a phase
+// cue the very step each of his phases begins, each of them given a voice (they outrank the fight's other cues).
+await check('Sound: a boss arrives with his own signature, sounds his big moves and marks each phase with its own cue (#286)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  if (!(await p.evaluate(() => typeof window.__lb.bossCues === 'function'))) return (await p.close(), { skip: true, detail: 'no boss sounds on this branch (before #286)' });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption('keep');
+  await p.locator('#tm-start').selectOption('ironHold:5');
+  await p.evaluate(() => {
+    const now = Date.now; // test mode seeds from the clock: a fixed seed, the same fight every time
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click(); // a click: the sound starts
+  const fight = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const before = lb.bossCues();
+    const sent = []; // what the simulation sent to the speaker, in order, with the King's phase at that step
+    const speak = lb.view.sfx;
+    let k = null;
+    lb.view.sfx = (name, cue) => (String(name).startsWith('boss:') && sent.push({ name, phase: k?.phase ?? 0, began: +(k?.phaseAt ?? -1).toFixed(2), t: +g.time.toFixed(2) }), speak(name, cue));
+    g.player.stats.str *= 40;
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to the level's last wave: the King's
+    g.breather = 0.01;
+    const phaseAt = [];
+    try {
+      for (let i = 0; i < 90000 && lb.state !== 'results' && !k?.dead; i++) {
+        g.player.invulnerable = true;
+        if (k && !k.dead) {
+          g.player.x = k.x + Math.cos(k.angle + Math.PI) * (k.r + 16); // a step behind him: round his tower shield
+          g.player.y = k.y + Math.sin(k.angle + Math.PI) * (k.r + 16);
+        }
+        lb.run(1, false, false);
+        k ??= g.enemies.find((e) => e.def.boss) ?? null;
+        if (k && k.phase > phaseAt.length + 1) phaseAt.push({ phase: k.phase, t: +g.time.toFixed(2) });
+        if (i % 8 === 7) await wait(0); // the audio clock moves on
+      }
+    } finally {
+      lb.view.sfx = speak;
+    }
+    const after = lb.bossCues(), heard = {};
+    for (const [name, n] of Object.entries(after)) if (n - (before[name] ?? 0) > 0) heard[name] = n - (before[name] ?? 0);
+    return { id: k?.def.id ?? '', dead: !!k?.dead, sent, heard, phaseAt };
+  });
+  await p.close();
+  const id = fight.id, sent = fight.sent.map((c) => c.name);
+  const sentAt = (name) => fight.sent.find((c) => c.name === name);
+  const arrive = sent[0] === `boss:${id}:arrive` && sent.filter((n) => n.endsWith(':arrive')).length === 1;
+  // each phase cue sent once, while the King was in that phase, on the very step it began (lb.run may take several steps per frame)
+  const phases = fight.phaseAt.length === 2 && fight.phaseAt.every((x) => {
+    const c = sentAt(`boss:${id}:phase${x.phase}`);
+    return c && c.phase === x.phase && c.t === c.began && sent.filter((n) => n === c.name).length === 1;
+  });
+  const moves = sent.filter((n) => n === `boss:${id}:move`).length;
+  const voiced = [`boss:${id}:arrive`, `boss:${id}:phase2`, `boss:${id}:phase3`].every((n) => fight.heard[n] === 1) && (fight.heard[`boss:${id}:move`] ?? 0) >= 1;
+  const ok = id === 'ironKing' && fight.dead && arrive && phases && moves >= 1 && voiced && errs.length === 0;
+  return { ok, detail: `${id || 'no boss'}: sent ${sent.length} boss cues (arrival ${arrive ? 'first' : 'NOT first'}, ${moves} big moves); phases began at ${fight.phaseAt.map((x) => `${x.phase}: ${x.t} s`).join(', ') || 'none'}, their cues at ${fight.phaseAt.map((x) => sentAt(`boss:${id}:phase${x.phase}`)?.t ?? 'none').join(', ')}; given a voice: ${Object.entries(fight.heard).map(([n, c]) => `${n.split(':')[2]} ×${c}`).join(', ') || 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// #292: the Barrowvale's bosses their own music and sounds. Through Settings and test mode at 1280x720 with the mouse: the jukebox lists
+// the Gravedigger's and the Barrow King's themes and plays the Gravedigger's; then "Start at" the Barrowvale's level 5 plays the
+// Barrowvale's theme until the Barrow King comes on its last wave: his dirge takes over (its base layer in his first phase), his signature
+// sounds as he comes, his dirge builds with each of his three phases while a phase cue marks each, his Reap sounds its own, and the
+// Barrowvale's theme comes back when he falls. Played with pauses so the audio clock runs.
+await check("Music and sound: the jukebox plays the Gravedigger's theme; the Barrow King's dirge takes over the Barrowvale's, builds with his phases, his signature, Reap and phase cues heard, and hands back when he falls (#292)", async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  try {
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    if (!(await p.evaluate(() => typeof window.__lb.bossCues === 'function'))) return { skip: true, detail: 'no boss sounds on this branch (before #286)' };
+    const music = () => p.evaluate(() => window.__lb.music());
+    const hear = (arena, layer = null, timeout = 15000) => p.waitForFunction(([a, l]) => {
+      const m = window.__lb.music();
+      return m.playing === 'run' && m.arena === a && (l === null || m.layer === l);
+    }, [arena, layer], { timeout }).then(() => true, () => false);
+    await p.locator('[data-go="settings"]').click();
+    await p.locator('.settings [data-act="test"]').click();
+    if (!(await p.locator('#tm-start option[value="barrowvale:5"]').count())) return { skip: true, detail: 'no Barrowvale level 5 start in this build' };
+    // the jukebox: both Barrowvale bosses' themes are on its list, and the Gravedigger's plays
+    const listed = await p.evaluate(() => [...document.querySelectorAll('#jb-arena option')].filter((o) => o.value.startsWith('boss:')).map((o) => o.textContent.trim()));
+    const both = ['The Gravedigger', 'The Barrow King'].every((n) => listed.includes(`Boss · ${n}`));
+    await p.locator('#jb-arena').selectOption('boss:gravedigger');
+    await p.locator('.testmode [data-play]').click();
+    const jukebox = await hear('boss:gravedigger');
+    await p.locator('.testmode [data-stop]').click();
+    // a test run: the Barrowvale's level 5, straight on to its last wave, the Barrow King's
+    await p.locator('#tm-class').selectOption('paladin');
+    await p.locator('#tm-start').selectOption('barrowvale:5');
+    await p.locator('.testmode [data-start]').click();
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click(); // a click: the sound starts
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 });
+    await p.evaluate(() => (window.__lb.game.player.invulnerable = true));
+    const before = await hear('barrowvale');
+    const cues0 = await p.evaluate(() => window.__lb.bossCues());
+    const met = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1;
+      g.breather = 0.01;
+      const boss = () => g.enemies.find((e) => e.def.boss && !e.side && !e.dead);
+      for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) {
+        g.player.invulnerable = true;
+        lb.run(1, false, true);
+        if (i % 8 === 7) await wait(0);
+      }
+      const b = boss();
+      window.__barrowBoss = b;
+      for (let i = 0; i < 4; i++) (lb.run(1, false, true), await wait(0)); // his signature goes out and is given a voice
+      return b ? { id: b.def.id, phase: b.phase } : null;
+    });
+    if (!met) return { ok: false, detail: 'no boss reached' };
+    const takeover = await hear('boss:barrowKing', 1);
+    // his phases come on a clock: play on to each, unhurt, the audio clock running
+    const toPhase = (n) => p.evaluate(async (n) => {
+      const lb = window.__lb, b = window.__barrowBoss, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let i = 0; i < 60 * 40 && b.phase < n && !b.dead; i++) {
+        lb.game.player.invulnerable = true;
+        lb.run(1, false, true);
+        if (i % 8 === 7) await wait(0);
+      }
+      for (let i = 0; i < 4; i++) (lb.run(1, false, true), await wait(0));
+      return b.phase;
+    }, n);
+    const phase2 = await toPhase(2);
+    const layer2 = await hear('boss:barrowKing', 2);
+    const phase3 = await toPhase(3);
+    const layer3 = await hear('boss:barrowKing', 3);
+    // he falls: the Barrowvale's theme comes back
+    const fell = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game, b = window.__barrowBoss, pl = g.player, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      g.baseMods.damage *= 1e4;
+      for (let i = 0; i < 60 * 30 && g.enemies.includes(b) && !b.dead && lb.game === g; i++) {
+        pl.invulnerable = true;
+        if (lb.state === 'playing') Object.assign(pl, { x: b.x - b.r - 16, y: b.y });
+        lb.run(1, false, true);
+        if (i % 8 === 7) await wait(0);
+      }
+      g.baseMods.damage /= 1e4;
+      return b.dead || !g.enemies.includes(b);
+    });
+    const back = fell && (await hear('barrowvale'));
+    const s3 = await music();
+    const cues1 = await p.evaluate(() => window.__lb.bossCues());
+    const heard = (n) => (cues1[`boss:barrowKing:${n}`] ?? 0) - (cues0[`boss:barrowKing:${n}`] ?? 0);
+    const voiced = heard('arrive') === 1 && heard('phase2') === 1 && heard('phase3') === 1 && heard('move') >= 1;
+    const ok = both && jukebox && before && met.id === 'barrowKing' && takeover && phase2 === 2 && layer2 && phase3 === 3 && layer3 && voiced && back && s3.peak <= s3.budget && !errs.length;
+    return { ok, detail: `jukebox lists both ${both} (${listed.length} boss themes), the Gravedigger's plays ${jukebox}; the Barrowvale's first ${before}; ${met.id} -> his dirge ${takeover}; phase ${phase2} -> layer 2 ${layer2}; phase ${phase3} -> layer 3 ${layer3}; heard: arrive ×${heard('arrive')}, Reap ×${heard('move')}, phase2 ×${heard('phase2')}, phase3 ×${heard('phase3')}; falls ${fell} -> ${s3.arena} ${back}; peak ${s3.peak}/${s3.budget} voices${errs.length ? `, errors: ${errs[0]}` : ''}` };
+  } finally {
+    await p.close();
+  }
+});
+
+// #292: the Barrowvale's new foes their own moments. Test mode -> the Barrowvale level 1; a click starts the sound. A peasant brought in
+// the way a wave brings one marches as a Barrow Thrall; the champion's own blows fell him and, standing off the corpse, it rises with the
+// thrall's moan. A second one felled, D (a real key) walks the champion over his corpse: it is stamped down with its own crack. A wolf
+// marches as a Blight Hound; felled, his plague ground fouls the earth with its own hiss. Each of them is given a voice.
+await check("Sound: a Barrow Thrall's corpse moans as it rises and cracks when trampled with D; a Blight Hound's plague ground hisses as it fouls the earth (#292)", async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  try {
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    if (!(await p.evaluate(() => typeof window.__lb.foeVoices === 'function'))) return { skip: true, detail: 'no enemy family sounds on this branch (before #285)' };
+    await p.evaluate(() => (window.__lb.save.cards = [...window.__lb.cardIds])); // every flash card seen: none opens over the fight
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    await p.locator('#tm-class').selectOption('viking');
+    await p.locator('#tm-start').selectOption('barrowvale:1');
+    await p.evaluate(() => [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click());
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click(); // a click: the sound starts
+    for (let i = 0; i < 4; i++) {
+      // the run's opening screens (a quest board, another pick) answered with the mouse, so the fight is in play
+      await p.waitForTimeout(300);
+      if ((await p.evaluate(() => window.__lb.state)) !== 'choice') break;
+      await p.locator('#overlay [data-pick], #overlay [data-leave]').first().click();
+    }
+    await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    // the known state: the wave held off, every other foe stunned and far away; one foe held beside the champion until his blows fell it.
+    // `mode` false stands still, 'input' reads the keys held; the audio clock runs between steps
+    await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, pl = g.player, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      g.spawnQueue.length = 0;
+      window.__own0 = lb.foeVoices();
+      const hold = (keep) => { for (const e of g.enemies) if (!keep.includes(e)) Object.assign(e, { x: pl.x + 700, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 }; };
+      window.__fell = async (b) => {
+        for (let i = 0; i < 900 && !b.dead && lb.game === g && lb.state === 'playing'; i++) {
+          pl.invulnerable = true;
+          hold([b]);
+          Object.assign(b, { x: pl.x + 36, y: pl.y });
+          b.statuses.stun = { stacks: 1, time: 5, power: 0 };
+          lb.run(1, false, false);
+          if (i % 8 === 7) await wait(0);
+        }
+        return { id: b.def.id, dead: b.dead, x: b.x, y: b.y };
+      };
+      window.__barrowPlay = async (secs, mode, until) => {
+        for (let i = 0; i < secs * 60 && lb.game === g && lb.state === 'playing' && !until?.(); i++) {
+          pl.invulnerable = true;
+          hold([]);
+          lb.run(1, false, mode);
+          if (i % 8 === 7) await wait(0);
+        }
+        for (let i = 0; i < 4; i++) (lb.run(1, false, false), await wait(0));
+      };
+    });
+    // a thrall felled, the champion standing off his corpse: it rises
+    const rose = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game, f = await window.__fell(lb.spawn('peasant', g.player.x + 36, g.player.y));
+      const risen0 = g.vars.corpsesRisen ?? 0;
+      await window.__barrowPlay(6, false, () => (g.vars.corpsesRisen ?? 0) > risen0);
+      return { ...f, rose: (g.vars.corpsesRisen ?? 0) - risen0 };
+    });
+    // a second thrall felled; D walks the champion over his corpse
+    const fell2 = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game;
+      for (const e of g.enemies) if (e.risen) e.dead = true; // the risen one out of the way
+      return window.__fell(lb.spawn('peasant', g.player.x + 36, g.player.y));
+    });
+    await p.keyboard.down('KeyD');
+    const trampled = await p.evaluate(async () => {
+      const g = window.__lb.game, t0 = g.vars.corpsesTrampled ?? 0;
+      await window.__barrowPlay(0.6, 'input', () => (g.vars.corpsesTrampled ?? 0) > t0);
+      return (g.vars.corpsesTrampled ?? 0) - t0;
+    });
+    await p.keyboard.up('KeyD');
+    // a wolf marches as a blight hound; felled, he fouls the ground
+    const hound = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game, laid0 = g.vars.plagueGround ?? 0;
+      g.player.x -= 200; // off the trampled corpse's patch of ground
+      const f = await window.__fell(lb.spawn('wolf', g.player.x + 36, g.player.y));
+      await window.__barrowPlay(0.2, false);
+      return { ...f, laid: (g.vars.plagueGround ?? 0) - laid0 };
+    });
+    const heard = await p.evaluate(() => {
+      const a = window.__lb.foeVoices(), b = window.__own0, out = {};
+      for (const k of Object.keys(a)) if (a[k] - (b[k] ?? 0) > 0) out[k] = a[k] - (b[k] ?? 0);
+      return out;
+    });
+    const own = (k) => heard[`own.${k}`] ?? 0;
+    const ok = rose.id === 'barrowThrall' && rose.dead && rose.rose === 1 && own('rise') >= 1 && fell2.dead && trampled >= 1 && own('trample') >= 1
+      && hound.id === 'blightHound' && hound.dead && hound.laid === 1 && own('plague') >= 1 && errs.length === 0;
+    return { ok, detail: `${rose.id} felled ${rose.dead}, rose ×${rose.rose}: moan ×${own('rise')}; second felled ${fell2.dead}, trampled with D ×${trampled}: crack ×${own('trample')}; ${hound.id} felled ${hound.dead}, plague ground laid ×${hound.laid}: hiss ×${own('plague')}; voices heard: ${Object.entries(heard).map(([k, n]) => `${k} ×${n}`).join(', ') || 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  } finally {
+    await p.close();
+  }
+});
+
+// #287: relic families and the UI sound their own. With the mouse at 1280x720: Settings is a plain click (the tap), a hover over its
+// back button hovers softly and the back button goes back (no tap); Start test run confirms; the level's opening relic card, clicked,
+// picks on the UI bus and its family's own sound follows from the fight. A Brimstone Oil offered at a lair, clicked, sounds Flame's
+// pickup, and in a crowd its burns flare Flame's own proc sound as its icon flashes.
+await check('Sound: relic families sound their own when taken and at work; the menus hover, click, go back, confirm and pick (#287)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  p.setDefaultTimeout(8000);
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  if (!(await p.evaluate(() => typeof window.__lb.sounds === 'function'))) return (await p.close(), { skip: true, detail: 'no relic or UI sounds on this branch (before #287)' });
+  const heard = () => p.evaluate(() => window.__lb.sounds());
+  const delta = (a, b) => Object.fromEntries(Object.keys(b).filter((k) => (b[k] ?? 0) !== (a[k] ?? 0)).map((k) => [k, b[k] - (a[k] ?? 0)]));
+  const steps = {};
+  let stage = 'start';
+  let opening, took, offered, fight; // what the run did, read after the page is closed
+  let at = await heard();
+  const mark = async (name) => {
+    await p.waitForTimeout(80);
+    const now = await heard();
+    steps[name] = delta(at, now);
+    stage = `after ${name}`;
+    at = now;
+  };
+  try {
+  await p.getByRole('button', { name: 'Settings', exact: true }).click(); // the first gesture starts the sound, and taps
+  await mark('settings');
+  const back = p.locator('.settings [data-act="back"]');
+  await p.mouse.move(2, 2);
+  await back.hover();
+  await mark('hover');
+  await back.click();
+  await mark('back');
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  await p.locator('#tm-class').selectOption('viking');
+  await p.locator('#tm-start').selectOption('barrowvale:1');
+  at = await heard();
+  await p.locator('[data-start]').click(); // Start test run: gold, a confirm
+  await mark('start');
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  opening = await p.evaluate(() => {
+    const card = document.querySelector('[data-pick="0"]');
+    return { relic: card.classList.contains('relic-card'), fam: card.querySelector('.fam')?.textContent.trim() ?? '', held: [...window.__lb.game.player.relics.held] };
+  });
+  await p.locator('[data-pick="0"] h2').click();
+  await p.evaluate(() => new Promise((r) => setTimeout(r, 300))); // the fight steps on and plays the pickup's cue
+  await mark('pick');
+  took = await p.evaluate((before) => window.__lb.game.player.relics.held.filter((id) => !before.includes(id)), opening.held);
+  const boards = await intoFight(p, (sel) => p.locator(sel).first().click()); // an Act's quest board may come first
+  stage = `into the fight (${boards.join(', ') || 'no board'})`;
+  // a lair offers Brimstone Oil (Flame): clicked through the pick screen like any relic
+  offered = await p.evaluate(() => {
+    const lb = window.__lb, rel = lb.game.player.relics;
+    if (rel.held.includes('brimstoneOil')) return 'held';
+    rel.offers.push({ from: 'lair', options: ['brimstoneOil', 'guardiansAegis', 'thunderDrum'].filter((id) => !rel.held.includes(id)), rerolls: 0, duo: null });
+    for (let i = 0; i < 20 && lb.state === 'playing'; i++) lb.run(1, false, false);
+    return lb.state === 'choice' && document.querySelector('.relic-card [data-info="brimstoneOil"]') ? 'choice' : `no offer (${lb.state})`;
+  });
+  if (offered === 'choice') {
+    at = await heard();
+    await p.locator('.relic-card[data-pick="0"] h2').click();
+    await p.evaluate(() => new Promise((r) => setTimeout(r, 300)));
+    await mark('brimstone');
+  }
+  // a crowd round the champion: his blows burn, and each flash of Brimstone Oil's icon flares Flame's proc
+  fight = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const before = lb.sounds()['proc.flame'] ?? 0;
+    let flashes = 0, ticks = 0;
+    for (let i = 0; i < 1800 && (lb.sounds()['proc.flame'] ?? 0) - before < 2 && lb.state !== 'results'; i++) {
+      if (lb.state === 'choice') break;
+      if (i % 60 === 0) {
+        const live = g.enemies.filter((e) => !e.dead).length;
+        for (let j = live; j < 12; j++) {
+          const a = (j / 12) * Math.PI * 2;
+          lb.spawn('peasant', g.player.x + Math.cos(a) * 50, g.player.y + Math.sin(a) * 50);
+        }
+      }
+      g.player.invulnerable = true;
+      const t = g.vars['flash.brimstoneOil'];
+      lb.run(1, false, false);
+      if (g.vars['flash.brimstoneOil'] !== t) flashes++;
+      ticks++;
+      if (i % 8 === 7) await wait(0);
+    }
+    return { procs: (lb.sounds()['proc.flame'] ?? 0) - before, flashes, ticks, held: g.player.relics.held.includes('brimstoneOil'), state: lb.state };
+  });
+  } catch (e) {
+    await p.close();
+    return { ok: false, detail: `${stage}: ${String(e.message ?? e).split('\n')[0]}; heard ${JSON.stringify(steps)}` };
+  }
+  await p.close();
+  const s = steps;
+  const openFam = Object.keys(s.pick ?? {}).find((k) => k.startsWith('relic.') && opening.fam.toLowerCase().includes(k.slice(6))) ?? ''; // the card's family, sounded
+  const ok = s.settings?.tap === 1 && s.hover?.['ui.hover'] >= 1 && !s.hover?.tap && s.back?.['ui.back'] === 1 && !s.back?.tap && s.start?.['ui.confirm'] === 1 && !s.start?.tap
+    && opening.relic && took.length === 1 && s.pick?.['ui.pick'] === 1 && !s.pick?.tap && (s.pick?.[openFam] ?? 0) >= 1 && !s.pick?.levelup
+    && (offered === 'held' || (s.brimstone?.['ui.pick'] === 1 && s.brimstone?.['relic.flame'] >= 1)) && fight.held && fight.procs >= 1 && fight.procs <= fight.flashes && errs.length === 0;
+  const show = (k) => JSON.stringify(s[k] ?? {});
+  return { ok, detail: `Settings ${show('settings')}; hover ${show('hover')}; back ${show('back')}; Start test run ${show('start')}; opening pick (${opening.relic ? `relic card, ${opening.fam}` : 'NOT a relic card'}, took ${took.join(',') || 'none'}) ${show('pick')}; Brimstone Oil ${offered === 'choice' ? show('brimstone') : offered}; fight: ${fight.procs} Flame procs heard for ${fight.flashes} flashes in ${fight.ticks} ticks${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #264: a strong build meets every phase of a crown boss: Settings -> Test mode -> "Start at" a relic realm's level 5 -> its last wave ----------
+// The champion strikes forty times his strength from behind the crown boss (unhurt, no ability, no bot moves), so only the crown's hold keeps
+// him up. Each phase holds its 12 s (UNBROKEN shows the hold), and once its time is run a blow ends the phase and no more: the next phase
+// begins at the top of its own share of the bar (two thirds, then one third), not at its floor. The Cinder Colossus and the Iron King alike.
+for (const [realm, id, arena] of [['cinderlands', 'cinderColossus', 'emberForge'], ['ironHold', 'ironKing', 'keep']]) {
+  await check(`Crown boss: a strong build meets each of the ${id === 'ironKing' ? 'Iron King' : 'Cinder Colossus'}'s phases at the top of its share of the bar, each held 12 s (#264)`, async () => {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    if (!(await p.locator(`#tm-start option[value="${realm}:5"]`).count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+    await p.locator('#tm-class').selectOption('paladin');
+    await p.locator('#tm-arena').selectOption((await p.locator(`#tm-arena option[value="${arena}"]`).count()) ? arena : 'keep');
+    await p.locator('#tm-start').selectOption(`${realm}:5`);
+    await p.evaluate(() => {
+      // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+      const now = Date.now;
+      Date.now = () => 2654435761;
+      try {
+        [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+      } finally {
+        Date.now = now;
+      }
+    });
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click();
+    const fight = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.player.stats.str *= 40;
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1; // straight on to wave 40, the level's last
+      g.breather = 0.01;
+      const out = { id: '', crown: false, born: -1, phases: [], shares: [], unbroken: [0, 0, 0], end: -1 };
+      let k = null;
+      for (let i = 0; i < 90000 && lb.state !== 'results' && !(k?.dead && g.level.cleared); i++) {
+        g.player.invulnerable = true;
+        if (k && !k.dead) {
+          g.player.x = k.x + Math.cos(k.angle + Math.PI) * (k.r + 16); // a step behind him: round the Iron King's tower shield
+          g.player.y = k.y + Math.sin(k.angle + Math.PI) * (k.r + 16);
+        }
+        lb.run(1, false, false);
+        k ??= g.enemies.find((e) => e.def.boss) ?? null;
+        if (!k) continue;
+        if (out.born < 0) (out.born = g.time), (out.id = k.def.id), (out.crown = k.crown);
+        const at = +(g.time - out.born).toFixed(2);
+        if (k.phase > out.phases.length + 1) out.phases.push(at), out.shares.push(+(k.hp / k.maxHp).toFixed(3));
+        if (g.texts.some((t) => t.text === 'UNBROKEN')) out.unbroken[k.phase - 1]++;
+        if (k.dead && out.end < 0) out.end = at;
+      }
+      return { ...out, cleared: !!g.level?.cleared };
+    });
+    await p.close();
+    const [p2, p3] = fight.phases, [s2, s3] = fight.shares, min = 11.9;
+    const held = p2 >= min && p3 - p2 >= min && fight.end - p3 >= min && fight.end < 3 * 12 + 6; // each phase its 12 s, and the strong build no longer
+    const whole = s2 >= 2 / 3 - 0.05 && s3 >= 1 / 3 - 0.05; // before #264 a burst left phase 2 at a third and phase 3 at 1 HP
+    const ok = fight.id === id && fight.crown && fight.phases.length === 2 && held && whole && fight.unbroken.every((n) => n > 0) && fight.cleared && errs.length === 0;
+    return { ok, detail: `${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''}: phase 2 at ${p2} s on ${Math.round(s2 * 100)}% HP, phase 3 at ${p3} s on ${Math.round(s3 * 100)}%, fell at ${fight.end} s; UNBROKEN ticks ${fight.unbroken.join('/')} by phase; level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 // ---------- #236: no boss ends two levels of a realm: Settings -> Test mode -> "Start at" a Marches level -> the opening pick -> its last wave ----------
 // Level 1 ends on the Black Knight (Act I's opener); level 5 used to draw him again. Now it ends on another boss, the same one on any seed.
 await check('Bosses: the Marches level 1 ends on the Black Knight; level 5 ends on another boss, the same on every seed (#236)', async () => {
@@ -6793,9 +8731,84 @@ await check('longer levels: the Marches level 1 is waves 1–6 with its one boss
   await opening();
   const two = await playOut();
   await p.close();
-  want(two.level === 2 && two.first === 7 && two.last === 12 && two.cleared && two.wave === 12 && two.state === 'results' && two.bossWaves.join() === '12' && !two.shop && two.acts.join() === '1,2' && /^Act II/.test(two.banners[0] ?? ''), `level 2 ${JSON.stringify(two)}`);
+  want(two.level === 2 && two.first === 7 && two.last === 12 && two.cleared && two.wave === 12 && two.state === 'results' && two.bossWaves.join() === '12' && !two.shop && two.acts.join() === '1,2' && /^Level 2 of 7/.test(two.banners[0] ?? ''), `level 2 ${JSON.stringify(two)}`);
   want(errs.length === 0, `errors: ${errs[0]}`);
   return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `panel "Waves 1–6"; level 1: waves ${one.first}-${one.wave}, boss on wave ${one.bossWaves.join()}, ${one.minutes} min; "${onward}"; level 2: waves ${two.first}-${two.wave}, boss on wave ${two.bossWaves.join()}, Act ${two.acts.join(' -> ')} ("${two.banners[0]}"), no Merchant, no fork, ${two.minutes} min` };
+});
+
+// ---------- #265: a realm run speaks of levels, not Acts ----------
+// A Marches run through the real screens: the HUD plate, the quest board's heading and the wave banner say "Level 1 of 7", never an Act; a fall
+// ends on the results, whose Reached line says the level too. A plain run (test mode's Act and wave) keeps its Acts on the same plate.
+await check('realm run: the HUD, the quest board, the banner and the results say "Level 1 of 7", never an Act; a plain run keeps its Acts (#265)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => (window.__lb.save.cards = [...window.__lb.cardIds])); // every flash card seen: none stops the fight before the plate is read
+  const press = (sel) => p.locator(sel).first().click();
+  const bad = [];
+  const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
+  await press('[data-go="start"]');
+  await press('[data-class="viking"]');
+  await press('[data-start]');
+  await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+  await skipTour(p);
+  await press('.kit-tab[data-tab="map"]');
+  await p.locator('.wm-map').waitFor({ timeout: 3000 });
+  await press('.wm-realm.r-marches');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await press('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
+  await press('[data-pick="0"]');
+  // the quest board of the level's first Act comes before the fight: its heading names the level
+  const heads = await intoFight(p, press);
+  want(/Level 1 of 7/.test(heads[0] ?? '') && !/Act/.test(heads[0] ?? ''), `the quest board's heading: ${JSON.stringify(heads)}`);
+  // the fight runs in real time: the plate and the banners are read as they are drawn
+  const seen = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game;
+    g.player.invulnerable = true;
+    const texts = new Set();
+    let hud = '';
+    // up to 40 s: under load the wave's countdown can outlast 20 s; the run's game is read afresh each time
+    for (let i = 0; i < 800 && lb.game && !/Wave \d/.test(hud); i++) {
+      await new Promise((r) => setTimeout(r, 50));
+      if (lb.game.banner?.text) texts.add(lb.game.banner.text);
+      hud = document.getElementById('h-wave')?.textContent ?? '';
+    }
+    return { hud, banners: [...texts] };
+  });
+  want(/^Level 1 of 7 · Wave \d+$/.test(seen.hud), `HUD plate "${seen.hud}"`);
+  want(seen.banners.every((b) => !/Act/.test(b)), `a banner names an Act: ${JSON.stringify(seen.banners)}`);
+  const fell = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    g.player.invulnerable = false;
+    for (let i = 0; i < 80000 && lb.game === g && lb.state !== 'results'; i++) {
+      if (lb.state === 'playing') g.player.hp = Math.min(g.player.hp, 1);
+      lb.run(1, false, false);
+    }
+    return { state: lb.state };
+  });
+  await p.locator('.results [data-menu]').waitFor({ timeout: 3000 });
+  const reached = await p.evaluate(() => [...document.querySelectorAll('.results .stats > div')].map((d) => [d.children[0]?.textContent ?? '', d.children[1]?.textContent ?? '']).find(([k]) => k === 'Reached')?.[1] ?? '');
+  want(/^Level 1 of 7 · wave \d+$/.test(reached), `results Reached "${reached}" after the fall (${fell.state})`);
+  await p.close();
+  // a plain run keeps its Acts
+  const q = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  q.on('pageerror', (e) => errs.push(e.message));
+  await q.goto(`http://localhost:${PORT}/?debug`);
+  await q.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await beginDaily(q); // the Daily Trial is a plain run: Acts
+  await intoFight(q, (sel) => q.locator(sel).first().click());
+  const plain = await q.evaluate(async () => {
+    window.__lb.game.player.invulnerable = true;
+    for (let i = 0; i < 400 && !/Wave \d/.test(document.getElementById('h-wave')?.textContent ?? ''); i++) await new Promise((r) => setTimeout(r, 50));
+    return document.getElementById('h-wave')?.textContent ?? '';
+  });
+  await q.close();
+  want(/^Act I · Wave \d+$/.test(plain), `a plain run's HUD plate "${plain}"`);
+  want(errs.length === 0, `errors: ${errs[0]}`);
+  return { ok: bad.length === 0, detail: bad.length ? bad.join('; ') : `HUD "${seen.hud}", banners ${JSON.stringify(seen.banners)}, results "${reached}", plain run "${plain}"` };
 });
 
 // ---------- #219: the Iron Hold's five levels, their rewards, its crown and its theme, as one realm run ----------
@@ -6809,7 +8822,10 @@ await check('longer levels: the Marches level 1 is waves 1–6 with its one boss
 // legendaries (key 2), and its level-cleared screen has no Continue: the run is over. The Champion and Legend crowns are fought from the
 // same level-5 checkpoint put back on their tier (the one save shortcut): the Champion crown gives the other legendary on one card (a
 // click), the Legend crown the title and the palette, named on the level-cleared screen.
-/** A relic realm's run, played through its real screens (#219's recipe; #231 plays the Cinderlands on it). `R`: what the realm names. */
+/**
+ * A relic realm's run, played through its real screens (#219's recipe; #231 plays the Cinderlands on it, #281 the Barrowvale). `R`: what
+ * the realm names; `R.opener`: the level-1 boss it names (else a pool boss not its own); `R.raises`: the elite's extra phase opens graves.
+ */
 const realmRun = (R) => async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const errs = [];
@@ -6852,7 +8868,7 @@ const realmRun = (R) => async () => {
         if (b && g.banner) banners.add(g.banner.text);
         if (b) boss = { name: b.def.name, phases: b.def.phases ?? 2, crown: !!b.crown, phase: Math.max(boss?.phase ?? 0, b.phase), banners: [...banners], hp: boss?.hp ?? b.maxHp / (lb.enemyDef(b.def.id).hp * g.waveHpMult * g.tier.enemyHp) }; // `hp`: his HP over a plain one's at this wave (#220)
       }
-      return { held, boss, str: s.str, level: g.level?.level, first: g.startWave, tier: g.tierIndex, cleared: !!g.level?.cleared, wave: g.wave, state: lb.state };
+      return { held, boss, str: s.str, level: g.level?.level, first: g.startWave, tier: g.tierIndex, cleared: !!g.level?.cleared, wave: g.wave, state: lb.state, graves: g.vars['elite.graves'] ?? 0 };
     }, strong);
     strong = out.str;
     return { ...out, seen };
@@ -6888,13 +8904,13 @@ const realmRun = (R) => async () => {
     want(open, `${R.name} is shut on the map`);
     await press(`.wm-realm.r-${R.id}`);
     const r1 = await road(1);
-    want(r1.name === `${R.name} · Level 1` && /Keep a locked relic/.test(r1.text) && /Waves\s*1–8/.test(r1.text) && r1.go === 'Fight!', `road ${JSON.stringify(r1)}`);
+    want(r1.name === `${R.name} · Level 1` && /Keep a locked relic/.test(r1.text) && /Waves\s*1–8/.test(r1.text) && !/later version/.test(r1.text) && r1.go === 'Fight!', `road ${JSON.stringify(r1)}`);
     // level 1, playing its own theme: a pool boss, then 1 of 2 locked rares of its family
     const taken = [];
     await press('[data-fight]');
     const one = await fight(() => p.waitForFunction((theme) => window.__lb.music?.().arena === theme, R.theme, { timeout: 10000 }).then(() => R.theme, () => p.evaluate(() => String(window.__lb.music?.().arena))));
     want(one.seen === R.theme, `theme ${one.seen}`);
-    want(!!one.boss && !R.own.test(one.boss.name), `level 1 boss ${JSON.stringify(one.boss)}`);
+    want(!!one.boss && (R.opener ? one.boss.name.includes(R.opener) : !R.own.test(one.boss.name)), `level 1 boss ${JSON.stringify(one.boss)}`);
     const keep1 = await keepLocked(1, one, taken);
     want(keep1.cards.length === 2, `level 1 shows ${keep1.cards.length} rares`);
     const c1 = await clearedScreen();
@@ -6926,13 +8942,13 @@ const realmRun = (R) => async () => {
     // level 4: the first boss as an elite, a phase more, which it announces; a third rare
     await press('.level-cleared [data-retry]');
     const four = await fight();
-    want(four.boss?.name === `${R.first}, Elite` && four.boss.phases === R.phases + 1 && four.boss.phase === R.phases + 1 && !four.boss.crown && four.boss.banners.includes(R.elite) && Math.abs(four.boss.hp - 1.4) < 0.02, `level 4 boss ${JSON.stringify(four.boss)}`); // #220: an elite has 1.4 times the HP
+    want(four.boss?.name === `${R.first}, Elite` && four.boss.phases === R.phases + 1 && four.boss.phase === R.phases + 1 && !four.boss.crown && four.boss.banners.includes(R.elite) && Math.abs(four.boss.hp - 1.4) < 0.02 && (!R.raises || four.graves > 0), `level 4 boss ${JSON.stringify(four.boss)}, graves ${four.graves}`); // #220: an elite has 1.4 times the HP
     const keep4 = await keepLocked(4, four, taken);
     const c4 = await clearedScreen();
     const after4 = await champ();
     const checkpoint5 = after4.runs[R.id]; // the run as it stands before level 5
     want(c4.next === 'Continue to level 5' && after4.inventory.length === 4 && checkpoint5?.level === 5, `after level 4 "${c4.next}" ${JSON.stringify({ inv: after4.inventory, run: checkpoint5?.level })}`);
-    log.push(`L4 ${four.boss?.name} (${four.boss?.phases} phases, "${R.elite}") on wave ${four.wave}, kept ${keep4.cards[0]?.name}`);
+    log.push(`L4 ${four.boss?.name} (${four.boss?.phases} phases, "${R.elite}"${R.raises ? `, ${four.graves} graves` : ''}) on wave ${four.wave}, kept ${keep4.cards[0]?.name}`);
     // level 5 on Knight: the crown boss, the pick of the family's two legendaries, and the run is over
     await press('.level-cleared [data-retry]');
     const five = await fight();
@@ -7003,6 +9019,19 @@ await check('Cinderlands: the map opens it with the Marches crown, its road and 
   id: 'cinderlands', name: 'The Cinderlands', family: 'Flame', theme: 'cinderlands', own: /Inquisitor|Ember Queen|Cinder Colossus|Heretic/,
   first: 'The Grand Inquisitor', phases: 2, elite: 'The Inquisitor’s auto-da-fé', third: 'Ember Queen', crown: 'Cinder Colossus',
   classRelic: ['radiantBrand', 'Radiant Brand'], legendaries: ['dragonsTongue', 'crownOfCinders'], title: 'Cinderborn', palette: [7, 'Cinder colours'],
+}));
+
+// ---------- #281: the Barrowvale's five levels, their rewards, its crown and its theme, as one realm run ----------
+// The Iron Hold's run above, in the Barrowvale, now built (its road has no stand-in notice): the map opens it with the Marches crown, its
+// levels play the Barrowvale's own theme (not the Forsaken Graveyard's), level 1 ends on the Plague Abbot, levels 1, 2 and 4 keep a
+// locked Grave rare, level 2 ends on the Lich (2 phases, wave 16), level 3 on the Gravedigger and banks the Paladin's Grave class relic
+// (Ossuary Seal), level 4 on the Lich as an elite (3 phases: his third is announced as the Barrow Call and opens graves round him),
+// level 5 on the Barrow King as crown boss with the Knight crown's pick of Soul Lantern and Crown of Antlers; the Champion crown gives
+// the other, the Legend crown the title Gravewarden and the Barrow colours.
+await check('Barrowvale: the map opens it with the Marches crown, built, with its road and theme; one realm run on Knight: level 1 ends on the Plague Abbot, levels 1, 2 and 4 keep a locked Grave rare, level 3 the class relic, level 4 the Lich as an elite whose Barrow Call opens graves, the Knight crown picks a legendary and ends the run; the Champion crown gives the other, the Legend crown a title and a palette (#281)', realmRun({
+  id: 'barrowvale', name: 'The Barrowvale', family: 'Grave', theme: 'barrowvale', own: /Lich|Gravedigger|Barrow King/, opener: 'Plague Abbot',
+  first: 'The Lich', phases: 2, elite: 'The Lich’s barrow call', raises: true, third: 'Gravedigger', crown: 'Barrow King',
+  classRelic: ['ossuarySeal', 'Ossuary Seal'], legendaries: ['soulLantern', 'crownOfAntlers'], title: 'Gravewarden', palette: [8, 'Barrow colours'],
 }));
 
 // ---------- #248: the ability bar's upgrade chips, key badge and the utility's name never cover one another ----------
@@ -7261,6 +9290,706 @@ await check('Iron Hold: a level 1 clear by a champion who owns every Steel rare 
   await p.close();
   return { ok, detail: ok ? got.sub : `${JSON.stringify(got)} ${errs.join('|')}` };
 });
+
+// ---------- #277: the Gravedigger: Settings -> Test mode -> "Start at" the Barrowvale's level 3 -> the opening pick -> its last wave ----------
+// The champion trades plain blows beside him (no ability, no bot moves, unhurt), so the fight goes the same way every run. Until a phase
+// has shown its blows (his Digging and his spade; from phase 2 his Rot; in phase 1 a grave left to rise and one trampled; in phase 3 a risen
+// grave's rot) he waits well off, out of his own reach but inside the Gravedigger's, so the graves dug round him are left behind to rise.
+// Once a grave has risen he walks onto the next open one to trample it. Each new phase calls the open graves up.
+await check('Gravedigger: test mode starts the Barrowvale level 3; its last wave is his; Digging, spade, Rot that lasts, graves that rise unless trampled, his dead called up each phase, level cleared (#277)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  if (!(await p.locator('#tm-start option[value="barrowvale:3"]').count())) return (await p.close(), { skip: true, detail: 'no realm-level start in this build' });
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption('graveyard'); // the Barrowvale's own arena
+  await p.locator('#tm-start').selectOption('barrowvale:3');
+  await p.evaluate(() => {
+    // Start test run, on __startTest's fixed seed (test mode seeds from the clock), so the fight is the same every time
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  const fight = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    const out = { arena: g.arena.id, wave: 0, id: '', name: '', dig: [0, 0, 0], spade: [0, 0, 0], rot: [0, 0, 0], rotLife: 0, risen: [0, 0, 0], trampled: [0, 0, 0], spill: [0, 0, 0], plain: true, odd: '', phases: [], called: [], dead: false };
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to the level's last wave
+    g.breather = 0.01;
+    pl.invulnerable = true;
+    let q = null;
+    for (let i = 0; i < 4000 && !q; i++) (lb.run(1, false, false), (q = g.enemies.find((e) => e.def.boss) ?? null));
+    if (!q) return out;
+    out.id = q.def.id;
+    out.name = q.def.name;
+    out.wave = g.wave;
+    const seen = new WeakSet();
+    for (let i = 0; i < 60000 && lb.state !== 'results' && !(q.dead && g.level.cleared); i++) {
+      pl.invulnerable = true;
+      const k = q.phase - 1;
+      const shown = out.dig[k] > 0 && out.spade[k] > 0 && (q.phase === 1 ? out.risen[0] > 0 && out.trampled[0] > 0 : out.rot[k] > 0) && (q.phase < 3 || out.spill[2] > 0);
+      const open = (q.graves ?? []).find((gr) => gr.t >= 0);
+      const trample = q.phase === 1 && out.risen[0] > 0 && out.trampled[0] === 0 && open;
+      if (!q.dead) {
+        if (trample) (pl.x = open.x), (pl.y = open.y); // he walks onto an open grave
+        else (pl.x = q.x - q.r - (shown ? 16 : 450)), (pl.y = q.y);
+        q.hpFloor = shown ? 0 : q.hp; // while he waits nothing of his moves the fight on
+      }
+      const before = [...(q.graves ?? [])];
+      const was = new Set(g.enemies);
+      const px = pl.x, py = pl.y;
+      lb.run(1, false, false);
+      if (q.phase > out.phases.length + 1) out.phases.push(+g.time.toFixed(1)), out.called.push(g.banner?.text ?? '');
+      const ph = q.phase - 1;
+      for (const gr of before) {
+        if ((q.graves ?? []).includes(gr) || gr.t < 0) continue;
+        // where he stood, or where the tick moved him to (pushed off the boss) before the graves were tended
+        if (Math.min(Math.hypot(gr.x - px, gr.y - py), Math.hypot(gr.x - pl.x, gr.y - pl.y)) <= 24 + pl.r) out.trampled[ph]++;
+        else {
+          out.risen[ph]++;
+          const up = g.enemies.find((e) => e !== q && Math.hypot(e.x - gr.x, e.y - gr.y) < 20);
+          // what climbs out is a plain villager (not on the tick he falls: the field surrenders then, his dead with it, systems/victory.ts)
+          if (!q.dead && (!up || up.def.id !== 'peasant')) (out.plain = false), (out.odd ||= up ? up.def.id : `nothing at ${Math.round(gr.x)},${Math.round(gr.y)} (t ${gr.t.toFixed(2)}, ${g.time.toFixed(1)} s; new: ${g.enemies.filter((e) => !was.has(e)).map((e) => `${e.def.id}${e.dead ? '†' : ''} ${Math.round(Math.hypot(e.x - gr.x, e.y - gr.y))}px`).join(' ') || 'none'}; you ${Math.round(Math.hypot(pl.x - gr.x, pl.y - gr.y))}px)`);
+        }
+      }
+      const mine = g.zones.filter((z) => z.owner === q && !seen.has(z)); // the zones one blow set this tick
+      for (const z of mine) seen.add(z);
+      out.dig[ph] = Math.max(out.dig[ph], mine.filter((z) => z.color === '#8a6a42').length);
+      out.spade[ph] = Math.max(out.spade[ph], mine.filter((z) => z.color === '#c4bba4').length);
+      out.rot[ph] = Math.max(out.rot[ph], mine.filter((z) => z.color === '#6f8f4e').length);
+      const rot = g.fields.filter((f) => f.hostile && f.apply?.id === 'poison');
+      out.rotLife = Math.max(out.rotLife, ...rot.map((f) => f.max));
+      out.spill[ph] = Math.max(out.spill[ph], rot.filter((f) => f.r === 40).length);
+      if (q.dead) out.dead = true;
+    }
+    return { ...out, cleared: !!g.level?.cleared, test: g.vars.test };
+  });
+  await p.close();
+  const ok = fight.test === 1 && fight.arena === 'graveyard' && fight.id === 'gravedigger' && fight.name === 'The Gravedigger' && fight.phases.length === 2
+    && fight.dig.join() === '2,3,4' && fight.spade.every((n) => n === 3) && fight.rot[0] === 0 && fight.rot[1] === 6 && fight.rot[2] === 6 && fight.rotLife >= 14
+    && fight.risen[0] > 0 && fight.trampled[0] > 0 && fight.spill[0] === 0 && fight.spill[1] === 0 && fight.spill[2] > 0 && fight.plain
+    && fight.called.every((t) => t === 'The Gravedigger calls up his dead') && fight.dead && fight.cleared && errs.length === 0;
+  return { ok, detail: `wave ${fight.wave} in ${fight.arena}: ${fight.name || 'no boss'}; phases at ${fight.phases.join(', ')} s ("${fight.called.join('", "')}"); dig ${fight.dig.join('/')}, spade ${fight.spade.join('/')}, rot ${fight.rot.join('/')} zones by phase, rot lasts ${fight.rotLife} s; graves risen ${fight.risen.join('/')}, trampled ${fight.trampled.join('/')}, risen rot ${fight.spill.join('/')}${fight.plain ? '' : ` (risen: ${fight.odd})`}${fight.test === 1 ? '' : ', not a test run'}; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #276: the Barrowvale's blight hounds: map -> the Barrowvale -> level 2 -> FIGHT; a wolf brought in as a wave brings him
+// hunts as the Blight Hound with his own flash card, "Got it" closes it. The champion's own blows fell him beside him: plague ground
+// stays where he fell and hurts the champion standing in it; A (a real key) walks him off it, where it costs nothing, and the ground
+// is still there long after a Plague wave's pools would have gone, then fades. Four more felled in a heap foul one patch ----------
+await check('Barrowvale: a wolf hunts as the Blight Hound, his flash card shows, he leaves plague ground where the champion fells him that hurts while he stands in it, A walks him off it, and it lasts far longer than other ground (#276)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], barrowvale: [1] }), world: { marches: [7], barrowvale: [1] }, signature: true, lastBastion: false, runs: { barrowvale: run } });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Barrowvale level 1 cleared, its realm run at level 2
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'blightHound'); // every other card already seen, so his is the one that shows
+  }, runAt(2));
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-barrowvale');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // a wolf comes in the way a wave brings one, in sight: the realm turns him into its own kind and his card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    g.player.invulnerable = true; // until the measurement starts
+    const b = lb.spawn('wolf', g.player.x + 160, g.player.y);
+    window.__hound = b;
+    for (let i = 0; i < 600 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    return { kind: b?.def.id, sprite: b?.def.sprite, id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g.level?.realm };
+  });
+  if (card.id) await p.click('[data-leave]');
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 3000 }).catch(() => {});
+  // the known state: full HP, open to harm, the hound held beside the champion, every other foe stunned and held far off; the
+  // champion's own attack fells him. `mode` false stands still, 'input' reads the keys held
+  await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    const mine = () => g.fields.filter((f) => f.plague && f.life > 0 && /Blight Hound/.test(f.cause ?? ''));
+    window.__plague = mine;
+    const hold = () => {
+      g.hazardT = 99; // the graveyard's grasping hands held off: only the plague ground may hurt him here
+      for (const e of g.enemies) if (!e.dead) Object.assign(e, { x: pl.x + 700, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 };
+    };
+    window.__fell = (b, dx = 30) => {
+      pl.invulnerable = false;
+      pl.hp = pl.stats.hp;
+      Object.assign(b, { x: pl.x + dx, y: pl.y });
+      const before = g.vars.plagueGround ?? 0;
+      for (let i = 0; i < 900 && !b.dead && !g.over && lb.game === g && lb.state === 'playing'; i++) {
+        for (const e of g.enemies) {
+          if (e !== b) Object.assign(e, { x: pl.x + 700, y: pl.y });
+          e.statuses.stun = { stacks: 1, time: 5, power: 0 };
+        }
+        g.hazardT = 99;
+        lb.run(1, false, false);
+      }
+      const f = mine()[0];
+      return { dead: b.dead, laid: (g.vars.plagueGround ?? 0) - before, patches: mine().length, patch: f ? { r: f.r, life: f.life, dtype: f.dtype, at: Math.hypot(f.x - b.x, f.y - b.y), inside: Math.hypot(f.x - pl.x, f.y - pl.y) <= f.r } : null };
+    };
+    // `secs` of play: the HP lost, whether the champion ended on the ground, and the patch's life left
+    window.__stand = (secs, mode) => {
+      const hp = pl.hp, f = mine()[0];
+      for (let i = 0; i < secs * 60 && !g.over && lb.game === g && lb.state === 'playing'; i++) {
+        hold();
+        lb.run(1, false, mode);
+      }
+      return { lost: hp - pl.hp, on: !!f && Math.hypot(f.x - pl.x, f.y - pl.y) <= f.r, life: f ? f.life : 0, standing: mine().length, alive: !g.over, max: pl.stats.hp };
+    };
+  });
+  const fell = await p.evaluate(() => ({ closed: !document.querySelector('[data-card]') && window.__lb.state === 'playing', ...window.__fell(window.__hound) }));
+  const stay = await p.evaluate(() => window.__stand(1, false)); // a second in the plague
+  await p.keyboard.down('KeyA');
+  const walk = await p.evaluate(() => window.__stand(1.2, 'input')); // A walks him off it
+  await p.keyboard.up('KeyA');
+  const off = await p.evaluate(() => window.__stand(4, 'input')); // off it, standing: over 6 s since it was laid, past a Plague pool's 4
+  const fade = await p.evaluate(() => window.__stand(8, 'input')); // and gone by its 12
+  // four more felled in a heap at his feet: one patch, renewed
+  const heap = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    const out = [];
+    for (let i = 0; i < 4; i++) out.push(window.__fell(lb.spawn('wolf', g.player.x, g.player.y), 30 + i * 4));
+    return { dead: out.every((o) => o.dead), laid: out.reduce((n, o) => n + o.laid, 0), patches: window.__plague().length, life: window.__plague()[0]?.life ?? 0, alive: !g.over };
+  });
+  await p.close();
+  const ok = card.realm === 'barrowvale' && card.kind === 'blightHound' && card.sprite === 'blightHound' && card.id === 'blightHound' && card.title === 'Blight Hound' && /plague ground/.test(card.text ?? '')
+    && fell.closed && fell.dead && fell.laid === 1 && fell.patches === 1 && fell.patch.dtype === 'shadow' && fell.patch.at < 1 && fell.patch.inside && fell.patch.life >= 10
+    && stay.on && stay.lost > 0 && stay.lost < stay.max * 0.25 && stay.alive
+    && !walk.on && off.lost <= 0 && !off.on && off.standing === 1 && off.life > 4 && fade.standing === 0 && fade.alive
+    && heap.dead && heap.laid === 4 && heap.patches === 1 && heap.life > 10 && heap.alive && errs.length === 0;
+  return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${fell.closed}; ${fell.dead ? 'felled' : 'NOT felled'}, ${fell.laid} laid, patch ${fell.patch ? `r ${fell.patch.r} ${fell.patch.dtype} ${fell.patch.life.toFixed(1)} s ${fell.patch.inside ? 'round the champion' : 'NOT round him'}` : 'NONE'}; stood in it 1 s: ${stay.lost.toFixed(1)} HP of ${stay.max}; A: ${walk.on ? 'STILL on it' : 'off it'}; 4 s off it: ${off.lost.toFixed(1)} HP, ${off.standing} standing with ${off.life.toFixed(1)} s left; 8 s on: ${fade.standing} standing; a heap of 4: ${heap.laid} laid, ${heap.patches} patch with ${heap.life.toFixed(1)} s${heap.alive && fade.alive ? '' : ', champion fell'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #275: the Barrowvale's barrow thralls: map -> the Barrowvale -> level 2 -> FIGHT; a peasant brought in as a wave brings him
+// marches as the Barrow Thrall with his own flash card, "Got it" closes it. The champion's own blows fell him beside him: his corpse lies
+// soul-lit and, with the champion standing off it, rises where it lay with half his HP; felled again he stays down. A second one felled,
+// D (a real key) walks the champion over the corpse: it is trampled and never rises ----------
+await check('Barrowvale: a peasant marches as the Barrow Thrall, his flash card shows, his corpse rises again with half his HP unless the champion walks over it with D, and a risen one stays down (#275)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate((run) => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], barrowvale: [1] }), world: { marches: [7], barrowvale: [1] }, signature: true, lastBastion: false, runs: { barrowvale: run } });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Barrowvale level 1 cleared, its realm run at level 2
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'barrowThrall'); // every other card already seen, so his is the one that shows
+  }, runAt(2));
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-barrowvale');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-2');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state === 'playing' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // a peasant comes in the way a wave brings one, in sight: the realm turns him into its own kind and his card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game;
+    g.player.invulnerable = true;
+    const b = lb.spawn('peasant', g.player.x + 160, g.player.y);
+    window.__thrall = b;
+    for (let i = 0; i < 600 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) lb.run(1, false, false);
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    return { kind: b?.def.id, sprite: b?.def.sprite, id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, realm: g.level?.realm };
+  });
+  if (card.id) await p.click('[data-leave]');
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 3000 }).catch(() => {});
+  // the known state: every other foe stunned and held far off, the thrall held beside the champion until his own attack fells him.
+  // `mode` false stands still off the corpse, 'input' reads the keys held
+  await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    pl.invulnerable = true; // this check is about the corpse, not the blows
+    const hold = (keep) => { for (const e of g.enemies) if (!keep.includes(e)) Object.assign(e, { x: pl.x + 700, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 }; };
+    window.__fell = (b) => {
+      for (let i = 0; i < 900 && !b.dead && lb.game === g && lb.state === 'playing'; i++) {
+        hold([b]);
+        Object.assign(b, { x: pl.x + 36, y: pl.y });
+        b.statuses.stun = { stacks: 1, time: 5, power: 0 };
+        lb.run(1, false, false);
+      }
+      const c = g.corpses.find((k) => k.rise && Math.hypot(k.x - b.x, k.y - b.y) < 1);
+      return { dead: b.dead, x: b.x, y: b.y, maxHp: b.maxHp, corpse: !!c, at: c?.rise.at };
+    };
+    // ticks until the corpse at (x, y) rises or `secs` pass; reports the thrall that rose there
+    window.__wait = (x, y, secs, mode) => {
+      const c = g.corpses.find((k) => k.rise && Math.hypot(k.x - x, k.y - y) < 1);
+      const trampled0 = g.vars.corpsesTrampled ?? 0;
+      let up = null, ticks = 0, onIt = false;
+      for (; ticks < secs * 60 && lb.game === g && lb.state === 'playing'; ticks++) {
+        hold(up ? [up] : []);
+        lb.run(1, false, mode);
+        if (Math.hypot(pl.x - x, pl.y - y) <= pl.r + 10) onIt = true;
+        up = up ?? g.enemies.find((e) => e.risen && !e.dead && Math.hypot(e.x - x, e.y - y) < 1) ?? null;
+        if (up && mode === false) break;
+      }
+      return { secs: ticks / 60, rose: !!up, kind: up?.def.id, hp: up?.hp, maxHp: up?.maxHp, rise: c ? (c.rise ? 'still rising' : 'trampled') : 'gone', trampled: (g.vars.corpsesTrampled ?? 0) - trampled0, onIt };
+    };
+  });
+  // one evaluate: the game keeps running between them, and the champion's blows would find the risen thrall first
+  const { first, again } = await p.evaluate(() => {
+    const f = window.__fell(window.__thrall);
+    const first = { closed: !document.querySelector('[data-card]') && window.__lb.state === 'playing', fell: f, wait: window.__wait(f.x, f.y, 6, false) };
+    // the risen one, felled again, stays down
+    const up = window.__lb.game.enemies.find((e) => e.risen && !e.dead);
+    if (!up) return { first, again: { found: false } };
+    const f2 = window.__fell(up);
+    const w = window.__wait(f2.x, f2.y, 5, false);
+    return { first, again: { found: true, dead: f2.dead, marked: f2.corpse, rose: w.rose } };
+  });
+  // a second thrall felled the same way; this time D walks the champion over his corpse and on
+  await p.keyboard.down('KeyD');
+  const { fell2, walk } = await p.evaluate(() => {
+    const lb = window.__lb, f = window.__fell(lb.spawn('peasant', lb.game.player.x + 36, lb.game.player.y));
+    return { fell2: f, walk: window.__wait(f.x, f.y, 0.6, 'input') };
+  });
+  await p.keyboard.up('KeyD');
+  const after = await p.evaluate(({ x, y }) => window.__wait(x, y, 5, false), fell2);
+  await p.close();
+  const half = (w, f) => w.maxHp === Math.max(1, Math.round(f.maxHp * 0.5)) && w.hp === w.maxHp;
+  const ok = card.realm === 'barrowvale' && card.kind === 'barrowThrall' && card.sprite === 'barrowThrall' && card.id === 'barrowThrall' && card.title === 'Barrow Thrall' && /Rises again/.test(card.text ?? '')
+    && first.closed && first.fell.dead && first.fell.corpse && first.wait.rose && first.wait.kind === 'barrowThrall' && half(first.wait, first.fell) && Math.abs(first.wait.secs - first.fell.at) < 0.1
+    && again.found && again.dead && !again.marked && !again.rose
+    && fell2.dead && fell2.corpse && walk.onIt && walk.trampled === 1 && walk.rise === 'trampled' && !walk.rose && !after.rose && after.secs >= 4.9 && errs.length === 0;
+  return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${first.closed}; stood off: ${first.fell.dead ? 'felled' : 'NOT felled'}, corpse ${first.fell.corpse ? 'marked' : 'NOT marked'}, ${first.wait.rose ? `rose as ${first.wait.kind} after ${first.wait.secs.toFixed(2)} s with ${first.wait.hp}/${first.wait.maxHp} HP (was ${first.fell.maxHp})` : 'NEVER rose'}; felled again: ${again.found ? (again.rose ? 'ROSE AGAIN' : again.marked ? 'corpse MARKED' : 'stayed down') : 'NO risen thrall'}; walked over with D: ${walk.onIt ? 'on it' : 'NEVER on it'}, ${walk.trampled} trampled, corpse ${walk.rise}, ${after.rose ? 'ROSE' : `stayed down ${after.secs.toFixed(1)} s`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #274: the Barrowvale's grasping hands: map -> the Barrowvale -> level 1 -> FIGHT. The bot plays until graves are first marked
+// round the champion (a warning sound, the graves drawn, one under him): the hands' flash card opens and "Got it" closes it. At the next
+// marking he stands still: the hands rise, hurt him and hold him, so D (a real key) does not move him until they let go, then it does. At
+// the marking after, he walks off his grave with a key, away from the others, and the hands miss him ----------
+await check('Barrowvale: graves are marked round you with a flash card; stand on one and the hands rise, hurt you and hold you so D does not move you until they let go; walk off and they miss (#274)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], barrowvale: [2] }), world: { marches: [7], barrowvale: [2] }, signature: true, lastBastion: false, runs: {} });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)]));
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'graspingHands'); // every other card already seen, so the hands' is the one that shows
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-barrowvale');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-1');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // the bot plays (the real choice screens answered), unhurt, until the graves are first marked and their card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    const sounds = (window.__hands = { warn: 0 });
+    const real = lb.view.sfx;
+    lb.view.sfx = (n) => ((n in sounds && sounds[n]++), real(n));
+    for (let i = 0; i < 40000 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) { pl.invulnerable = true; pl.hp = pl.stats.hp; lb.run(1, false, true); }
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    const graves = g.zones.filter((z) => z.hostile && z.hold);
+    const mine = graves.find((z) => Math.hypot(z.x - pl.x, z.y - pl.y) < z.r);
+    // the grave under him is drawn: a 3x3 grid over it and its headstone, with the graves and without them
+    let drawn = 0;
+    if (mine) {
+      g.shake = 0;
+      const cv = document.getElementById('game').getContext('2d'), cam = lb.camera();
+      const px = (wx, wy) => [...cv.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data].join();
+      const grid = [-1, 0, 1].flatMap((i) => [-1, 0, 1].map((j) => [mine.x + (i * mine.r) / 2, mine.y + (j * mine.r) / 2 - 20]));
+      lb.draw();
+      const on = grid.map(([x, y]) => px(x, y));
+      const keep = g.zones;
+      g.zones = g.zones.filter((z) => !z.hold && z.source !== 'hazard');
+      lb.draw();
+      const off = grid.map(([x, y]) => px(x, y));
+      g.zones = keep;
+      lb.draw();
+      drawn = on.filter((v, i) => v !== off[i]).length;
+    }
+    return { realm: g.level?.realm, level: g.level?.level, arena: g.arena.id, id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, graves: graves.length, mine: !!mine, warned: sounds.warn > 0, drawn };
+  });
+  if (card.id) await p.click('[data-leave]');
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 3000 }).catch(() => {});
+  const closed = await p.evaluate(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing');
+  // the rest in one call, so no real frame runs between its halves
+  const { still, walk } = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    const graves = () => g.zones.filter((z) => z.hostile && z.hold);
+    const under = () => graves().find((z) => Math.hypot(z.x - pl.x, z.y - pl.y) < z.r);
+    const quiet = () => { g.fields = g.fields.filter((f) => !f.hostile); for (const e of g.enemies) Object.assign(e, { x: pl.x + 3000, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 }; };
+    // the marking up now is let go by unhurt; the bot plays on, unhurt, to the next one that opens a grave under him
+    const next = () => {
+      for (let i = 0; i < 1200 && graves().length; i++) { pl.invulnerable = true; lb.run(1, false, true); }
+      for (let i = 0; i < 40000 && !under() && lb.game === g && lb.state !== 'results'; i++) { pl.invulnerable = true; pl.hp = pl.stats.hp; lb.run(1, false, true); }
+      pl.invulnerable = false;
+      pl.hp = pl.stats.hp;
+      pl.heldT = 0;
+      quiet();
+      return under();
+    };
+    const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code }));
+    let still = { found: false };
+    if (next()) {
+      // hands off the keys: he stands on his grave until the hands rise
+      const hp0 = pl.hp;
+      let ticks = 0;
+      for (; ticks < 600 && graves().length; ticks++) { quiet(); lb.run(1, false, 'input'); }
+      const hurt = hp0 - pl.hp, held = pl.heldT;
+      // held: D does not walk him; once they let go it does
+      key('keydown', 'KeyD');
+      const x0 = pl.x;
+      for (let i = 0; i < 30; i++) { quiet(); lb.run(1, false, 'input'); }
+      const heldMoved = Math.abs(pl.x - x0), stillHeld = pl.heldT > 0;
+      for (let i = 0; i < 600 && pl.heldT > 0; i++) { quiet(); lb.run(1, false, 'input'); }
+      const x1 = pl.x;
+      for (let i = 0; i < 30; i++) { quiet(); lb.run(1, false, 'input'); }
+      key('keyup', 'KeyD');
+      still = { found: true, ticks, hurt, held, heldMoved, stillHeld, freeMoved: Math.abs(pl.x - x1) };
+    }
+    let walk = { found: false };
+    if (still.found && next()) {
+      // the key whose walk ends farthest from every grave (his own included) and inside the map
+      const all = graves(), b = g.bounds, reach = pl.stats.moveSpd * pl.mods.moveSpd * all[0].delay;
+      const dirs = { KeyW: [0, -1], KeyS: [0, 1], KeyA: [-1, 0], KeyD: [1, 0] };
+      const score = ([dx, dy]) => {
+        const x = pl.x + dx * reach * 0.8, y = pl.y + dy * reach * 0.8;
+        if (x < b.x + 60 || x > b.x + b.w - 60 || y < b.y + 60 || y > b.y + b.h - 60) return -1;
+        return Math.min(...all.map((z) => Math.hypot(z.x - x, z.y - y) - z.r));
+      };
+      const code = Object.keys(dirs).sort((a, c) => score(dirs[c]) - score(dirs[a]))[0];
+      const hp0 = pl.hp;
+      key('keydown', code);
+      for (let i = 0; i < 600 && graves().length; i++) { quiet(); lb.run(1, false, 'input'); }
+      key('keyup', code);
+      walk = { found: true, code, hurt: hp0 - pl.hp, held: pl.heldT > 0, onIt: !!under() };
+    }
+    return { still, walk };
+  });
+  await p.close();
+  const ok = card.realm === 'barrowvale' && card.level === 1 && card.arena === 'graveyard' && card.id === 'graspingHands' && card.title === 'Grasping hands' && /hold you/.test(card.text ?? '')
+    && card.graves >= 2 && card.mine && card.warned && card.drawn >= 3 && closed
+    && still.found && still.hurt > 0 && still.held > 0.9 && still.stillHeld && still.heldMoved < 1 && still.freeMoved > 20
+    && walk.found && !walk.held && walk.hurt < still.hurt / 2 && errs.length === 0;
+  return { ok, detail: `run ${card.realm} level ${card.level} in the ${card.arena}: ${card.graves} graves marked${card.warned ? ' with a warning' : ''}, ${card.mine ? 'one under him' : 'NONE under him'}, drawn on ${card.drawn}/9 points; card ${card.id ?? 'NONE'} "${card.title ?? ''}", closed ${closed}; standing still: ${still.found ? `hurt ${Math.round(still.hurt)}, held ${(+still.held).toFixed(2)} s, D while held moved ${still.heldMoved.toFixed(1)} px${still.stillHeld ? '' : ' (LET GO already)'}, D after moved ${still.freeMoved.toFixed(1)} px` : 'NO grave under him'}; walked off (${walk.code ?? 'no key'}): ${walk.found ? `${walk.held ? 'HELD' : 'not held'}, hurt ${+walk.hurt.toFixed(2)}` : 'NO next marking'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #273: the Forsaken Graveyard: Settings -> Test mode -> "Start at" the Barrowvale's level 2 -> the opening pick -> an open wing ----------
+// The level plays in the Forsaken Graveyard (the HUD names it), its wings are the crypts, the sexton's yard, the broken chapel and the old
+// barrows, and by level 2's start one of them is open. Walked into with the keyboard, the place names its feature ("Grave gas", not
+// "Vents"), and its floor holds its own rigged furniture (crypts, headstones, the chapel's broken columns, dead trees), pixel for pixel from the atlas.
+await check('Forsaken Graveyard: a Barrowvale level plays in it; its wings are the crypts, the sexton\'s yard, the broken chapel and the old barrows, one walked into, furnished (#273)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.waitForFunction(() => window.__lb.props(), null, { timeout: 5000 }).catch(() => {});
+  await p.evaluate(() => (window.__lb.save.cards = [...window.__lb.cardIds])); // every flash card seen: nothing stops the walk
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  await p.locator('#tm-class').selectOption('viking');
+  await p.locator('#tm-start').selectOption('barrowvale:2');
+  await p.getByRole('button', { name: /start test run/i }).click();
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  await p.waitForFunction(() => window.__lb.state === 'playing', null, { timeout: 5000 }).catch(() => {});
+  const seen = await p.evaluate(() => {
+    const g = window.__lb.game;
+    g.player.invulnerable = true;
+    return { arena: g.arena.id, realm: g.level?.realm, level: g.level?.level, hud: document.body.innerText.includes('Forsaken Graveyard'),
+      open: g.arena.regions.filter((r) => r.id !== 'core' && g.regionOpen[r.id]).map((r) => r.id),
+      names: g.arena.regions.filter((r) => r.id !== 'core' && r.id !== 'vault').map((r) => r.name) };
+  });
+  const wing = seen.open[0];
+  // stand in the open wing's gate, on the core's side, and walk in with the key that points into the wing
+  const key = { north: 'KeyW', south: 'KeyS', east: 'KeyD', west: 'KeyA' }[wing];
+  let walked = null;
+  if (key) {
+    await p.evaluate((wing) => {
+      const g = window.__lb.game, r = g.arena.regions.find((q) => q.id === wing), core = g.arena.regions.find((q) => q.id === 'core').floor;
+      const gx = r.gate.x + r.gate.w / 2, gy = r.gate.y + r.gate.h / 2;
+      Object.assign(g.player, { x: wing === 'east' ? core.x + core.w - 30 : wing === 'west' ? core.x + 30 : gx, y: wing === 'south' ? core.y + core.h - 30 : wing === 'north' ? core.y + 30 : gy });
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.texts.length = 0;
+      window.__lb.run(1, false, 'input');
+    }, wing);
+    await p.keyboard.down(key);
+    for (let i = 0; i < 12 && !walked?.seen; i++) {
+      walked = await p.evaluate((wing) => {
+        const lb = window.__lb, g = lb.game;
+        g.enemies.length = 0;
+        g.spawnQueue.length = 0;
+        lb.run(10, false, 'input');
+        return { seen: g.regionSeen.includes(wing), texts: g.texts.map((t) => t.text) };
+      }, wing);
+    }
+    await p.keyboard.up(key);
+  }
+  // the wing's furniture, read back from the baked ground against the atlas: a solid pixel in each prop's anchor column, from props.json
+  const atlasMap = JSON.parse(readFileSync(new URL('../src/render/props.json', import.meta.url), 'utf8'));
+  const props = wing ? await p.evaluate(async ([wing, meta]) => {
+    const lb = window.__lb, g = lb.game, r = g.arena.regions.find((q) => q.id === wing);
+    const img = new Image();
+    img.src = 'sprites/props.png';
+    await img.decode();
+    const atlas = document.createElement('canvas');
+    [atlas.width, atlas.height] = [img.width, img.height];
+    atlas.getContext('2d').drawImage(img, 0, 0);
+    const a = atlas.getContext('2d'), ground = lb.arenaCanvas(g.arena.id).getContext('2d');
+    const inWing = g.arena.obstacles.filter((o) => o.x >= r.floor.x && o.x <= r.floor.x + r.floor.w && o.y >= r.floor.y && o.y <= r.floor.y + r.floor.h);
+    const drawn = inWing.filter((o) => {
+      const m = meta?.[o.kind];
+      if (!m || m.r !== o.r) return false; // drawn at its own size: pixel for pixel
+      const col = m.x + m.anchor[0];
+      const solid = [...Array(m.h).keys()].filter((y) => a.getImageData(col, m.y + y, 1, 1).data[3] === 255);
+      const sy = solid[Math.floor(solid.length / 2)];
+      if (sy === undefined) return false;
+      const want = a.getImageData(col, m.y + sy, 1, 1).data;
+      const got = ground.getImageData(Math.round(o.x), Math.round(o.y) - m.anchor[1] + sy, 1, 1).data;
+      return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
+    }).length;
+    return { kinds: [...new Set(inWing.map((o) => o.kind))], count: inWing.length, drawn, name: r.name, meta: !!meta };
+  }, [wing, atlasMap]) : null;
+  await p.close();
+  const want = { north: ['the crypts', 'Grave gas', 'crypt'], east: ['the sexton’s yard', 'Strongbox', 'tomb'], south: ['the broken chapel', 'Shrine', 'ruin'], west: ['the old barrows', 'Lair', 'tree'] }[wing] ?? [];
+  const ok = seen.arena === 'graveyard' && seen.realm === 'barrowvale' && seen.level === 2 && seen.hud && seen.open.length === 1
+    && seen.names.join() === 'the crypts,the sexton’s yard,the broken chapel,the old barrows'
+    && walked?.seen === true && walked.texts.some((t) => t.includes(want[1]))
+    && props?.name === want[0] && props.kinds.join() === want[2] && props.count === 4 && props.drawn === 4 && errs.length === 0;
+  return { ok, detail: `${seen.realm} level ${seen.level} in ${seen.arena} (HUD ${seen.hud ? 'names it' : 'NO'}); ${seen.open.join('/') || 'no wing'} open (${props?.name}); walked in ${walked?.seen ? 'yes' : 'NO'}, it says "${walked?.texts.find((t) => t.includes(want[1])) ?? walked?.texts.join(' | ') ?? ''}"; furniture ${props?.kinds.join('/')} x${props?.count}, ${props?.drawn} drawn from the atlas${props?.meta ? '' : ' (no atlas map)'}; wings: ${seen.names.join(', ')}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
+// ---------- #272: no text cut off and every back arrow fully in the window, on every screen, at 1280x720 and 1920x1080 ----------
+// Walks every screen with the mouse, the way a player reaches it: the title, Settings and its save data and test mode, What's new, the
+// Chronicle, the Daily Trial, the world map and a realm's road, class select, the champion screen's every tab and its talent tree, the
+// Keep, a building's panel and every Keep sub-screen; then a Daily Trial run: the quest board, a level-up, the two upgrade screens,
+// the shrine, the Merchant, the route fork, the pause menu and its talents, treasures and glossary, and the results. On each it lists
+// every piece of text that runs past its own box (or a box that clips it, or the window) and every back or close button that is not a
+// full 40x40 at least 12 px inside the window. UI_FIT_SKIP names any screen still known to fail (none).
+const UI_FIT_SKIP = [];
+for (const [w, h] of [[1280, 720], [1920, 1080]]) {
+  await check(`every screen: no text cut off, every back/close button 40x40 and 12 px inside the window, at ${w}x${h} (#272)`, async () => {
+    const p = await browser.newPage({ viewport: { width: w, height: h } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    const title = async () => {
+      await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+      await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+      await p.evaluate(() => {
+        const lb = window.__lb, three = ['brimstoneOil', 'emberheart', 'frostBrand'];
+        lb.save.champions = { paladin: { name: 'Hild', inventory: three, loadouts: { marches: three.slice(0, 2) }, ...lb.build.grown({ marches: [3] }), world: { marches: [3] }, signature: false, lastBastion: false, runs: {} } };
+        lb.save.wins = { ...lb.save.wins, paladin: 12 };
+        lb.save.classes.paladin.xp = 1e9;
+        lb.save.daily['2000-01-01'] ??= 1; // the Daily Trial open
+      });
+      // the title again, with the seeded save
+      await p.locator('[data-go="settings"]').click();
+      await p.locator('.settings [data-act="back"]').click();
+      await p.waitForTimeout(100);
+    };
+    const press = async (sel) => {
+      await p.locator(sel).first().click({ timeout: 4000 });
+      await p.waitForTimeout(150);
+    };
+    const fit = (screen) => p.evaluate(([screen, M]) => {
+      const W = innerWidth, H = innerHeight, out = [];
+      const name = (s) => s.trim().replace(/\s+/g, ' ').slice(0, 30);
+      const style = (e) => getComputedStyle(e);
+      const walk = document.createTreeWalker(document.getElementById('overlay'), NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        const e = n.parentElement;
+        if (!n.textContent.trim() || !e.getClientRects().length || e.closest('[hidden], .hidden, .kit-tour') || style(e).visibility === 'hidden' || +style(e).opacity === 0) continue;
+        const words = document.createRange();
+        words.selectNodeContents(n);
+        const rects = [...words.getClientRects()].filter((r) => r.width > 0.5);
+        if (!rects.length) continue;
+        let xOk = true, yOk = true, scrolledY = false;
+        // its own element and button, then every box that clips it, up to the window; a scrolling box may hold it out of sight
+        const own = e.closest('button, .kit-btn, .kit-pill, .kit-ribbon, .keep-plate, .relic-info');
+        for (let a = e; a && a !== document.body; a = a.parentElement) {
+          const cs = style(a), o = a.getBoundingClientRect();
+          const clipX = a === own || a === e || cs.overflowX !== 'visible', clipY = a === own || cs.overflowY !== 'visible';
+          const scrollX = /auto|scroll/.test(cs.overflowX), scrollY = /auto|scroll/.test(cs.overflowY);
+          for (const r of rects) {
+            if (clipX && !scrollX && (r.left < o.left - 1.5 || r.right > o.right + 1.5)) xOk = false;
+            if (clipY && !scrollY && !scrolledY && (r.top < o.top - 2 || r.bottom > o.bottom + 2)) yOk = false;
+          }
+          if (scrollY) scrolledY = true;
+        }
+        for (const r of rects) {
+          if (r.left < -0.5 || r.right > W + 0.5) xOk = false;
+          if (!scrolledY && (r.top < -0.5 || r.bottom > H + 0.5)) yOk = false;
+        }
+        if (!xOk || !yOk) out.push(`${screen}: "${name(n.textContent)}" cut off`);
+      }
+      for (const b of document.querySelectorAll('#overlay .kit-close[aria-label="Back"], #overlay .kit-close[aria-label="Close"], #overlay [data-back], #overlay [data-act="back"]')) {
+        if (!b.getClientRects().length || b.closest('[hidden], .hidden') || style(b).visibility === 'hidden') continue;
+        const r = b.getBoundingClientRect();
+        if (r.width < 40 || r.height < 40 || r.left < M || r.top < M || r.right > W - M || r.bottom > H - M) {
+          out.push(`${screen}: ${b.getAttribute('aria-label') ?? name(b.textContent)} button at ${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+        }
+      }
+      return out;
+    }, [screen, 12]);
+    const seen = [], bad = [], missed = [];
+    const at = async (screen) => {
+      await p.waitForTimeout(120);
+      seen.push(screen);
+      bad.push(...(await fit(screen)));
+      if (process.env.UI_FIT_SHOTS) await p.screenshot({ path: `${process.env.UI_FIT_SHOTS}/${w}x${h}-${screen.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.png` });
+    };
+    const visit = async (screen, go) => {
+      try {
+        await go();
+      } catch (e) {
+        missed.push(`${screen} (${String(e.message ?? e).split('\n')[0].slice(0, 60)})`);
+      }
+    };
+    await title();
+    await at('title');
+    await visit('Settings', async () => {
+      await press('[data-go="settings"]');
+      await at('Settings');
+      await press('.settings [data-act="save"]');
+      await at('save data');
+      await press('#overlay [data-act="back"]');
+      await press('.settings [data-act="test"]');
+      await at('test mode');
+    });
+    await title();
+    await visit("What's new", async () => {
+      if (!(await p.locator('[data-go="whatsNew"]').count())) return;
+      await press('[data-go="whatsNew"]');
+      await at("What's new");
+    });
+    await title();
+    await visit('Chronicle', async () => {
+      await press('[data-go="chronicle"]');
+      await at('Chronicle');
+    });
+    await title();
+    await visit('Daily Trial', async () => {
+      await press('[data-go="daily"]');
+      await at('Daily Trial');
+    });
+    await title();
+    await visit('world map and road', async () => {
+      await press('[data-go="map"]');
+      await at('world map');
+      await press('.wm-realm.r-marches');
+      await at('realm road');
+      // a level fought from the road: its opening relic pick, then the level cleared (as if its boss fell) and what follows it
+      await press('[data-fight]');
+      await p.waitForFunction(() => window.__lb.state === 'choice' && !!document.querySelector('[data-pick]'), null, { timeout: 5000 });
+      await at('opening relic pick');
+      await p.evaluate(() => { window.__lb.game.level.cleared = true; });
+      await press('#overlay [data-pick]');
+      for (let i = 0; i < 4; i++) {
+        await p.waitForFunction(() => window.__lb.state !== 'playing', null, { timeout: 5000 });
+        const head = await p.evaluate(() => document.querySelector('#overlay .kit-head, #overlay h1')?.textContent.trim().replace(/\s+/g, ' ').slice(0, 24) ?? '');
+        await at(`after the level: ${head || '?'}`);
+        if (await p.locator('.level-cleared, .kit-screen.results').count()) break;
+        await press('#overlay [data-pick], #overlay [data-leave]');
+      }
+    });
+    await title();
+    await visit('class select', async () => {
+      await press('[data-go="start"]');
+      await at('class select');
+    });
+    await title();
+    await visit('champion', async () => {
+      await press('[data-go="champion"]');
+      await p.locator('.champion-screen').waitFor({ timeout: 3000 });
+      await skipTour(p);
+      for (const tab of await p.locator('[data-cs]').evaluateAll((els) => els.map((e) => e.dataset.cs))) {
+        await press(`[data-cs="${tab}"]`);
+        await at(`champion ${tab} tab`);
+      }
+      await press('[data-cs="loadout"]');
+      await press('#overlay .kit-info[data-info]');
+      await at("an ⓘ's popup");
+      await press('.kit-info-pop .kit-close');
+      await press('[data-cs="talents"]');
+      await press('[data-spend-talents]');
+      await at('talent tree');
+    });
+    await title();
+    await visit('the Keep', async () => {
+      await press('[data-go="keep"]');
+      await at('the Keep');
+      await press('.keep-bld');
+      await at("a building's panel");
+      await press('[data-close-building]');
+      for (const sub of ['compendium', 'treasures', 'chronicle', 'history', 'glossary', 'mastery']) {
+        await press(`#overlay [data-${sub}]`);
+        await at(`Keep ${sub}`);
+        await press('#overlay [data-back], #overlay [data-act="back"]');
+      }
+    });
+    await title();
+    await visit('a Daily Trial run', async () => {
+      await press('[data-go="daily"]');
+      await press('.kit-screen.daily [data-start]');
+      await p.waitForFunction(() => window.__lb.state === 'choice', null, { timeout: 5000 });
+      await at('quest board');
+      await press('#overlay [data-leave]');
+      // each run screen brought up through the game's own queue, then answered with its first option
+      for (const screen of ['level-up', 'ability upgrade', 'utility upgrade', 'shrine', 'Merchant', 'route fork']) {
+        const up = await p.evaluate((screen) => {
+          const lb = window.__lb, g = lb.game;
+          if (screen === 'level-up') g.pendingLevelUps++;
+          else if (screen === 'ability upgrade') g.pendingAbilityTiers.push(0);
+          else if (screen === 'utility upgrade') g.pendingUtilityTiers.push(0);
+          else if (screen === 'shrine') g.pendingShrine = ['valor', 'mending', 'swiftness'];
+          else if (screen === 'Merchant') {
+            g.gold = 600;
+            g.pendingMerchant = true;
+          }
+          for (let i = 0; i < 300 && lb.state === 'playing'; i++) lb.run(1, false, true);
+          return lb.state === 'choice';
+        }, screen);
+        if (!up) throw new Error(`no ${screen}`);
+        await at(screen);
+        await press('#overlay [data-pick], #overlay [data-leave]');
+      }
+      await p.evaluate(() => { for (let i = 0; i < 400 && window.__lb.state !== 'playing'; i++) window.__lb.run(1, false, true); });
+      await p.keyboard.press('Escape');
+      await p.locator('[data-quit]').waitFor({ timeout: 3000 });
+      await at('pause');
+      for (const sub of ['talents', 'treasures', 'glossary']) {
+        await press(`#overlay [data-${sub}]`);
+        await at(`pause ${sub}`);
+        await press('#overlay [data-back], #overlay [data-act="back"]');
+      }
+      await press('[data-quit]');
+      await p.locator('.kit-screen.results').waitFor({ timeout: 3000 });
+      await at('results');
+    });
+    await p.close();
+    const skipped = (s) => UI_FIT_SKIP.some((k) => s.startsWith(`${k}:`));
+    const left = [...new Set(bad)].filter((s) => !skipped(s));
+    if (process.env.UI_FIT_LOG) writeFileSync(`${process.env.UI_FIT_LOG}-${w}.txt`, [...seen, '', ...left, '', ...missed].join('\n'));
+    const ok = left.length === 0 && missed.length === 0 && seen.length >= 30 && errs.length === 0;
+    return { ok, detail: `${seen.length} screens; cut off or off screen: ${left.slice(0, 12).join(' | ') || 'none'}${left.length > 12 ? ` (+${left.length - 12})` : ''}${missed.length ? `; not reached: ${missed.join(', ')}` : ''}${UI_FIT_SKIP.length ? `; skipped: ${UI_FIT_SKIP.join(', ')}` : ''}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
 
 await check('no console errors', async () => {
   const real = errors.filter((m) => !expected(m)); // the error-overlay check throws one on purpose

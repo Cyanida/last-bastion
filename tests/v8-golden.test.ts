@@ -51,6 +51,14 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #230 (v0.12): the Flame class relics of the Viking and the Necromancer join their pools and Baptism of Fire
  * (Flashpowder + Blessed Water) joins the duos, so viking:5 and both Necromancer runs draw different relics on purpose; every seed still
  * reaches the first Act boss.
+ * Re-recorded for #273 (v0.13): the Forsaken Graveyard's wings are places with fixed features (the crypts' grave gas, the sexton's
+ * strongbox, the broken chapel's shrine, the old barrows' lair) and two crypts stand in its core, so the eight runs that reach the
+ * graveyard meet different wings on purpose; every seed still reaches the first Act boss.
+ * Re-recorded for #279 (v0.13): Barrow Boots (a starter common), Plague Censer, Sexton's Bell and Crown of Antlers join every class's
+ * pool and Soul Lantern leaves the open pool for the Barrowvale's crown, so six runs draw different relics on purpose (both Necromancer
+ * runs, both plain Archer runs, paladin:7 meta and the curse run).
+ * Re-recorded for the merge of #279 and #280 on release/0.13.0: the Grave class relics of #280 join the pools next to #279's four, so
+ * paladin:9, angel:1234 and both plain Archer runs draw different relics on purpose.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -87,20 +95,20 @@ function golden({ cls, seed, opts = {}, variant = 0 }: GoldenRun): string {
 
 // v0.8 #99 + #100 + #101: re-recorded on release/0.8.0 because boss draws, boss relic families and the Squire enemy roster changed on purpose
 const GOLDEN: Record<string, string> = {
-  'paladin:9': 'wave 14 kills 554 level 15 gold 1658 relics 4 hash 20c5e54b',
-  'paladin:98765': 'wave 16 kills 644 level 17 gold 2703 relics 6 hash d731100d',
-  'viking:98765': 'wave 18 kills 811 level 18 gold 3433 relics 7 hash ea110cf7',
+  'paladin:9': 'wave 14 kills 589 level 16 gold 2033 relics 5 hash e9afb52e',
+  'paladin:98765': 'wave 16 kills 678 level 17 gold 2527 relics 6 hash 78d645b4',
+  'viking:98765': 'wave 18 kills 779 level 18 gold 3243 relics 6 hash faeda437',
   'viking:5': 'wave 9 kills 268 level 11 gold 807 relics 4 hash 4a712663',
-  'angel:1234': 'wave 21 kills 969 level 20 gold 4625 relics 8 hash 4e2b1230',
-  'angel:98765': 'wave 17 kills 725 level 18 gold 3609 relics 7 hash a9273f62',
-  'necromancer:1234': 'wave 11 kills 360 level 13 gold 1383 relics 5 hash 5bf60068',
-  'necromancer:5': 'wave 19 kills 737 level 19 gold 3511 relics 7 hash 7bb5572f',
-  'archer:2027': 'wave 9 kills 289 level 10 gold 889 relics 3 hash e3214744',
-  'archer:5': 'wave 20 kills 868 level 19 gold 3973 relics 9 hash 876daba2',
-  'paladin:7 meta': 'wave 14 kills 533 level 17 gold 1978 relics 7 hash e8557a92',
-  'viking:98765 curse': 'wave 17 kills 744 level 17 gold 4727 relics 7 hash aa1a88df',
-  'angel:98765 oath 3': 'wave 17 kills 756 level 18 gold 4354 relics 7 hash 12a47c96',
-  'archer:13 variant 1': 'wave 20 kills 997 level 20 gold 4201 relics 7 hash e428caa0',
+  'angel:1234': 'wave 21 kills 939 level 20 gold 4562 relics 8 hash a1a73f56',
+  'angel:98765': 'wave 18 kills 755 level 19 gold 3667 relics 6 hash f349e96a',
+  'necromancer:1234': 'wave 9 kills 276 level 10 gold 756 relics 3 hash 313513f3',
+  'necromancer:5': 'wave 19 kills 729 level 19 gold 3596 relics 8 hash f90e02a',
+  'archer:2027': 'wave 22 kills 1066 level 20 gold 4662 relics 9 hash bb04a8f9',
+  'archer:5': 'wave 21 kills 911 level 20 gold 4657 relics 9 hash 4a7142ac',
+  'paladin:7 meta': 'wave 15 kills 607 level 18 gold 2358 relics 8 hash 136dfffa',
+  'viking:98765 curse': 'wave 18 kills 775 level 18 gold 4848 relics 6 hash 4a2ba47e',
+  'angel:98765 oath 3': 'wave 17 kills 760 level 18 gold 4177 relics 6 hash 6321eee7',
+  'archer:13 variant 1': 'wave 21 kills 998 level 20 gold 4389 relics 7 hash f9dde4b9',
 };
 
 describe('v0.8 golden runs', () => {

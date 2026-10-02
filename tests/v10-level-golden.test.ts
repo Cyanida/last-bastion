@@ -10,6 +10,7 @@ import { simulateLevel, simulateRealm, type LevelRun } from '../src/sim/levels';
  * all stay put unless a change means them to move. v0.11 (#220): the Iron Hold's level 1 too, and a realm run of its first two levels
  * (simulateRealm: level 2 goes on from level 1's checkpoint with what the run carries and the champion level its clear banked).
  * v0.12 (#232): the Cinderlands' level 1 and a realm run of its first two levels, as the Iron Hold's.
+ * v0.13 (#293): the Barrowvale's level 1 and a realm run of its first two levels, as the Iron Hold's.
  * Update GOLDEN only in a commit that says why (a balance change, never a refactor), as tests/v8-golden.test.ts.
  */
 
@@ -27,6 +28,9 @@ const RUNS: Record<string, GoldenLevel> = {
   'cinderlands 1 viking:1': { cls: 'viking', seed: 1, level: 1, realm: 'cinderlands' },
   'cinderlands 1 archer:3 variant 1': { cls: 'archer', seed: 3, level: 1, variant: 1, realm: 'cinderlands' },
   'cinderlands run 1-2 paladin:5': { cls: 'paladin', seed: 5, level: 2, realm: 'cinderlands', run: true },
+  'barrowvale 1 viking:1': { cls: 'viking', seed: 1, level: 1, realm: 'barrowvale' },
+  'barrowvale 1 archer:3 variant 1': { cls: 'archer', seed: 3, level: 1, variant: 1, realm: 'barrowvale' },
+  'barrowvale run 1-2 paladin:5': { cls: 'paladin', seed: 5, level: 2, realm: 'barrowvale', run: true },
 };
 const SECONDS = 900; // a level (4-10 minutes, #243) fits with room to spare; a stuck run still ends
 
@@ -69,19 +73,30 @@ function golden({ cls, seed, level, variant = 0, realm = 'marches', run }: Golde
 // 9-16) meets them, at REALMS.ironHold.fieldsWeight (its waves changed on purpose; this seed now falls in its last wave); the Marches' runs and the Iron Hold's level 1 (before the squad's wave 9) are unchanged
 // re-recorded for #259: a level whose road features the Iron Shieldwall brings a squad of them for sure (logic/world featuredSquads), so the
 // realm run's level 2 gets one on a wave from 9-11 (its waves changed on purpose; this seed now clears it); every other run is unchanged
+// re-recorded for #262 (v0.13): the Cinderlands' level 2 eases on Knight and brings fewer foes (levelStep.own, levelWaves.own), so the
+// realm run's level 2 changed on purpose (it still clears, on 490 kills, was 540); every other run is unchanged
+// re-recorded for #279 (v0.13): Barrow Boots joins the starter commons and Soul Lantern leaves the open pool, so the three Marches
+// level 7 runs (the Grave level) and the realm run's level 2 draw different relics on purpose; every other run is unchanged
+// re-recorded for the merge of #279 and #280 on release/0.13.0: with both sets of Grave relics in the pools, the three Marches level 7 runs
+// draw different relics on purpose
+// #293 (v0.13): new, the Barrowvale's level 1 and a realm run of its levels 1-2, recorded on its balance pass (its own level steps,
+// its grasping hands at 7 and 1 s, the Plague Abbot on its step; gameplay changed on purpose). No other run moved
 const GOLDEN: Record<string, string> = {
   'marches 1 paladin:1': 'cleared wave 6 kills 215 level 1 loadout - relics 2 hash de859cbc',
   'marches 1 archer:2': 'cleared wave 6 kills 222 level 1 loadout - relics 3 hash 67f5b3b3',
   'marches 1 angel:4 variant 1': 'cleared wave 6 kills 230 level 1 loadout - relics 4 hash e3620c13',
-  'marches 7 paladin:1': 'fell wave 35 kills 55 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 4bad0f52',
-  'marches 7 angel:1': 'fell wave 35 kills 54 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash c02ce2',
-  'marches 7 viking:2 variant 1': 'fell wave 35 kills 92 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash bb177c82',
+  'marches 7 paladin:1': 'fell wave 35 kills 62 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 56cb41f0',
+  'marches 7 angel:1': 'fell wave 35 kills 79 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 86ded004',
+  'marches 7 viking:2 variant 1': 'fell wave 35 kills 110 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 327cca8d',
   'iron hold 1 viking:1': 'cleared wave 8 kills 350 level 8 loadout jarlsTorc+anvilHeart+salamanderScale relics 6 hash 362abe41',
   'iron hold 1 archer:3 variant 1': 'fell wave 3 kills 120 level 8 loadout eagleFletching+anvilHeart+salamanderScale relics 5 hash ef72703d',
   'iron hold run 1-2 paladin:5': 'cleared wave 8 kills 363 level 8 loadout oathkeepersSeal+anvilHeart+salamanderScale relics 6 hash 165cac3b / cleared wave 16 kills 505 level 9 loadout - relics 3 hash 66558620',
   'cinderlands 1 viking:1': 'cleared wave 8 kills 356 level 8 loadout jarlsTorc+salamanderScale+anvilHeart relics 6 hash cdefd7c1',
   'cinderlands 1 archer:3 variant 1': 'fell wave 5 kills 222 level 8 loadout eagleFletching+salamanderScale+anvilHeart relics 5 hash b459822e',
-  'cinderlands run 1-2 paladin:5': 'cleared wave 8 kills 371 level 8 loadout oathkeepersSeal+salamanderScale+anvilHeart relics 7 hash 953f535e / cleared wave 16 kills 540 level 9 loadout - relics 3 hash eb4a7466',
+  'cinderlands run 1-2 paladin:5': 'cleared wave 8 kills 371 level 8 loadout oathkeepersSeal+salamanderScale+anvilHeart relics 7 hash 953f535e / cleared wave 16 kills 492 level 9 loadout - relics 3 hash 4a8fc0f7',
+  'barrowvale 1 viking:1': 'fell wave 7 kills 480 level 8 loadout jarlsTorc+hexDoll+anvilHeart relics 4 hash 54f86d0',
+  'barrowvale 1 archer:3 variant 1': 'cleared wave 8 kills 596 level 8 loadout eagleFletching+hexDoll+anvilHeart relics 6 hash d1af76ac',
+  'barrowvale run 1-2 paladin:5': 'cleared wave 8 kills 501 level 8 loadout oathkeepersSeal+hexDoll+anvilHeart relics 5 hash 6cf0bf2d / fell wave 16 kills 626 level 9 loadout - relics 3 hash 19a5d459',
 };
 
 describe('v0.10 golden level runs (#207)', () => {

@@ -46,6 +46,8 @@ export const BOSSES: Record<string, BossDef> = {
   ironKing: { from: 'ironKing', slot: 'realm', weight: 0 }, // #216: the Iron Hold's crown boss
   emberQueen: { from: 'emberQueen', slot: 'realm', weight: 0 }, // #227: the Cinderlands' level-3 boss
   cinderColossus: { from: 'cinderColossus', slot: 'realm', weight: 0 }, // #228: the Cinderlands' crown boss
+  barrowKing: { from: 'barrowKing', slot: 'realm', weight: 0 }, // #278: the Barrowvale's crown boss
+  gravedigger: { from: 'gravedigger', slot: 'realm', weight: 0 }, // #277: the Barrowvale's level-3 boss
 };
 export type BossKey = string;
 
@@ -98,6 +100,19 @@ export const WARDEN = {
 export const INQUISITOR = {
   pyreFrom: 3, // the phase his pyres stay alight from: only the elite gets there (a plain Inquisitor has two)
   pyre: { life: 2.5, dps: 8 }, // the burning ground a pyre leaves, as wide as the pyre (they stand closer than that, so a line is a wall): seconds, and fire a second before scaling
+};
+
+/**
+ * #281: the Lich as the Barrowvale's elite (its level 4; his script is systems/enemyAI.ts, logic/crownBoss.ts). His extra phase, after
+ * his two, is the Barrow Call: as it begins and with every volley of hexes, graves open round his feet, each a Barrow Thrall's corpse
+ * that rises as one (config/enemies.ts RISING: its delay and its half HP) unless you walk over it first. He keeps his distance, so the
+ * lesson is the realm's: go in and trample them, or fight his hexes with his dead about you. No more hexes or bolts than his second phase.
+ */
+export const LICH = {
+  callFrom: 3, // the phase he calls the dead from: only the elite gets there (a plain Lich has two)
+  graves: 3, // graves a call opens, evenly round him
+  ring: 80, // px from his centre: outside his body, inside his bolts' reach
+  maxRising: 9, // a call opens no grave while this many corpses on the field still wait to rise (three calls' worth)
 };
 
 /**
@@ -168,4 +183,43 @@ export const CINDER_COLOSSUS = {
   burstFrom: 3, // from this phase a foe that falls in his heat bursts
   burst: { reach: 380, radius: 66, delay: 0.7, damage: 0.6 }, // his heat's reach (from his centre); a marked blast where the foe fell, `delay` s later
   broodEvery: 3, // phase 3: his brood (his def's summon x summonCount) on every 3rd blow, the first included
+};
+
+/**
+ * #278: the Barrow King, the Barrowvale's crown boss (logic/barrowKing.ts, systems/bosses.ts). A phase for each lesson, each held at least
+ * WORLD.crownBoss.minPhaseSeconds: phase 1 the dead rise unless trampled (every blow opens graves round you; walk over one before it
+ * rises, or one of his barrow guard climbs out); phase 2 plague ground that lasts (every other blow his Reap leaves the ground plagued
+ * long after it lands); phase 3 his own: his risen guard him (graves open round him, and while any of his risen stand near him a blow
+ * does him less: kill them, or trample their graves at his feet). Every blow is his Reap: a crescent of marked zones swept at you.
+ */
+export const BARROW_KING = {
+  lessons: ['rise', 'plague', 'guard'] as const, // what each phase teaches
+  specialCd: [5, 4.6, 4.2], // by phase; his def's specialCd is the first blow
+  reach: 640, // he strikes only this close
+  reap: { rows: 2, zones: 4, arc: 1.7, near: 50, step: 78, first: 1, damage: 1 }, // `rows` rows of crescent (the far one a zone longer) over `arc` rad, the near `near` past his edge, `step` apart (radius: his def's zoneRadius), landing after `first` s; x his special damage
+  graves: { count: 2, dist: 120, radius: 22, rise: 3.2, max: 6 }, // phase 1: `count` graves `dist` round you; a grave not trampled in `rise` s lets one of his risen (his def's summon) out; at most `max` risen standing
+  plagueFrom: 2, // from this phase his Reap can leave plague ground, and no more graves open round you
+  plague: { every: 2, life: 14, poison: 3 }, // every `every`-th blow (the first of the phase included): the Reap's zones stay plagued `life` s (his def's poolDps), with poison `poison` x the wave's damage on whoever stands in it
+  guardFrom: 3, // from this phase his risen guard him
+  guard: { every: 2, count: 2, dist: 90, reach: 320, reduction: 0.6 }, // every `every`-th blow `count` graves `dist` round him; while one of his risen stands within `reach` of him, a blow does `reduction` less
+};
+
+/**
+ * #277: the Gravedigger, the Barrowvale's level-3 boss (logic/gravedigger.ts, systems/bosses.ts). Three phases like the Forgemaster and the
+ * Ember Queen, no minimum phase time. He teaches the realm's two lessons with his own tools. His Digging flings grave-dirt at marked spots
+ * round you (one on you); each leaves an open grave where it lands, and a grave the champion has not walked over within `rise` s climbs
+ * out as a foe (`risen`, at `risenHp` of its HP): trample them. His other blows are his spade in a marked arc in front of him. From phase 2
+ * every third blow is his Rot: a marked line of plague ground from him towards you that lasts (his def's poolLife, poolDps; the poison of
+ * config/damage.ts ENEMY_STATUS). At each new phase every open grave rises at once, and from phase 3 a grave that rises leaves rot there.
+ */
+export const GRAVEDIGGER = {
+  specialCd: [4.4, 4, 3.6], // by phase; his def's specialCd is the first blow
+  reach: 640, // he strikes only this close
+  spade: { zones: 3, arc: 1.3, reach: 40, radius: 38, damage: 1 }, // `zones` in an `arc` (rad) `reach` past his edge, landing after his def's windup; x his special damage
+  dig: { count: [2, 3, 4], spread: 140, radius: 40, first: 0.9, gap: 0.25, damage: 0.7 }, // count by phase: the first on you, the rest on a ring `spread` round you, landing `gap` s apart; x his special damage
+  grave: { radius: 24, rise: [5, 4.5, 4], max: 8 }, // an open grave: trampled when the champion steps on it; rises after `rise` s by phase; at most `max` open at once
+  risen: 'peasant' as const, // what climbs out: the base game's villager (the realm's own foes are its waves', not his)
+  risenHp: 0.6,
+  rot: { from: 2, zones: 6, step: 52, radius: 36, delay: 0.9, gap: 0.08, damage: 0.5 }, // every 3rd blow from phase `from`: `zones` marks `step` apart from his edge towards you, landing outward; x his special damage, then plague ground (his def's poolLife, poolDps)
+  spill: { from: 3, radius: 40 }, // from this phase a grave that rises leaves plague ground this wide
 };

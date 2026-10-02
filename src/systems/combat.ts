@@ -8,17 +8,22 @@ import { GOLD } from '../config/economy';
 import { GAME, RENDER, SKILL } from '../config/game';
 import { ROUTES } from '../config/routes';
 import { MODIFIERS } from '../config/waves';
-import { sfx } from '../sim/view';
+import { by, sfx } from '../sim/view';
 import { emit } from '../core/events';
 import { angleDiff, compact, dist2, TAU } from '../core/math';
 import type { Body, DamageSource, Enemy, Game, Minion, Player, Projectile, Status } from '../core/types';
 import { addField, addZone, fireProjectile, recycleProjectile } from '../entities/hazards';
 import { deathBurst, deathBurstOf } from '../logic/deathBurst';
+import { plagueGround, plagueGroundOf } from '../logic/plagueGround';
+import { corpseRise, stepRising } from '../logic/risingCorpse';
 import { goldDrop } from '../logic/economy';
+import { heldFor } from '../logic/graspingHands';
 import { onSlab } from '../logic/presses';
 import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
 import { thornsOf, towerShieldOf } from '../logic/ironKing';
+import { barrowWard } from '../logic/barrowKing';
+import { foeBy, foeOwnVoice, foeVoice } from '../logic/foeSounds';
 import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, thornsBite, throughPlates, throughResolve, throughTowerShield, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
@@ -27,6 +32,8 @@ import { spawnEnemy } from './spawning';
 
 const BLOOD = '#8e1b1b';
 const FIRE = '#e07b28';
+const PLAGUE = '#8fa33a'; // #276: a fallen foe's lasting plague ground, yellower than a Plague wave's pools
+const SOUL = '#7ec8d8'; // #275: the cold light of a rising corpse
 const near: Enemy[] = []; // scratch for the loops in this file
 const SEEK_TURN = 6; // v0.6: radians a second a seeking bolt can turn
 const nearest: Enemy[] = []; // nearestEnemy's own scratch: it may be called from inside those loops
@@ -63,9 +70,9 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
     g.commandersKilled++;
     g.pickups.push({ x: e.x - 6, y: e.y + 8, value: Math.round((e.def.bonusGold ?? 0) * goldMult(g)), kind: 'gold' });
   }
-  g.corpses.push({ x: e.x, y: e.y, t: 0 });
+  g.corpses.push({ x: e.x, y: e.y, t: 0, rise: corpseRise({ id: e.def.id, risen: e.risen, side: e.side, maxHp: e.maxHp }) }); // #275: a barrow thrall's rises unless trampled
   burst(g, e.x, e.y, BLOOD, boss ? 60 : e.elite ? 20 : 8, boss ? 320 : 150);
-  sfx(g, boss ? 'boom' : 'kill');
+  sfx(g, boss ? 'boom' : 'kill', boss ? by(e) : foeBy(e, 'death')); // #285: each family falls its own way
 
   if (g.modifier === 'plague' && !boss) {
     const n = MODIFIERS.plague.n;
@@ -77,6 +84,19 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
     addZone(g, { ...blast, hostile: true, color: FIRE, dtype: 'fire', art: 'fire', cause: `a ${e.def.name}'s burst` });
     burst(g, e.x, e.y, FIRE, 10, 160);
     g.vars['deathBursts'] = (g.vars['deathBursts'] ?? 0) + 1; // the play test reads it
+  }
+  // #276: a plague-sick foe fouls the ground where it fell, for long: renewing a patch standing there, or laying one (the oldest of a
+  // full cap goes: its life is zeroed, not spliced, as a field's own tick may have felled this foe mid-loop)
+  const plague = plagueGroundOf(e.def.id) && plagueGround({ id: e.def.id, x: e.x, y: e.y, damage: e.damage }, g.fields.filter((f) => f.plague));
+  if (plague) {
+    if ('renew' in plague) plague.renew.life = plague.renew.max;
+    else {
+      if (plague.drop) plague.drop.life = 0;
+      addField(g, { ...plague.lay, hostile: true, color: PLAGUE, dtype: 'shadow', plague: true, cause: `a ${e.def.name}'s plague` });
+      sfx(g, 'warn', { src: 'foe', at: e, voice: foeOwnVoice(e.def.id, 'plague') }); // #292: new ground fouled: a warning, in its own hiss
+    }
+    burst(g, e.x, e.y, PLAGUE, 8, 120);
+    g.vars['plagueGround'] = (g.vars['plagueGround'] ?? 0) + 1; // the play test reads it
   }
   if (e.elite) {
     g.elitesKilled++;
@@ -101,6 +121,29 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
     g.banner = { text: `${e.def.name} has fallen`, t: 2.5 };
   }
   emit(g, 'onKill', { enemy: e, source });
+}
+
+/**
+ * #275: after the corpses aged (game.ts): the champion tramples a rising corpse he walks over, and one whose time has come rises
+ * where it lay, as its kind with its share of the HP it fell with (logic/risingCorpse.ts), and stays down when it falls again.
+ */
+export function updateRisingCorpses(g: Game): void {
+  const p = g.player;
+  const risen = stepRising(g.corpses, p, (c, id) => {
+    burst(g, c.x, c.y, '#6b5843', 8, 90); // grave dirt kicked over it
+    sfx(g, 'kill', { src: 'player', at: c, voice: foeOwnVoice(id, 'trample') }); // #292: stamped down, by the champion's foot
+    g.vars['corpsesTrampled'] = (g.vars['corpsesTrampled'] ?? 0) + 1; // the play test reads it
+  });
+  for (const c of risen) {
+    const e = spawnEnemy(g, c.rise!.id, c.x, c.y);
+    e.maxHp = e.hp = c.rise!.hp; // half the HP he fell with, not the wave's HP now
+    e.risen = true;
+    e.side = c.rise!.side;
+    burst(g, c.x, c.y, SOUL, 12, 120);
+    ring(g, c.x, c.y, 26, SOUL, 0.4);
+    sfx(g, 'warn', { src: 'foe', at: c, voice: foeOwnVoice(c.rise!.id, 'rise') }); // #292: a warning still, in the thrall's own moan
+    g.vars['corpsesRisen'] = (g.vars['corpsesRisen'] ?? 0) + 1; // the play test reads it
+  }
 }
 
 /** Puts an attack's debuffs on an enemy. The v0.2 slow / mark payloads map onto Chilled and Cursed stacks. */
@@ -155,7 +198,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   if (plates && e.armorHp > 0) {
     // #212: iron plates count hits: each one breaks a plate (a status tick slips under them), and until they are gone every hit is dulled
     const hit = throughPlates(amount, e.armorHp, e.maxHp, plates, !tick);
-    if (hit.plates < e.armorHp) sfx(g, 'clang');
+    if (hit.plates < e.armorHp) sfx(g, 'clang', { src: 'foe', at: e });
     amount = hit.dealt;
     e.armorHp = hit.plates;
     if (hit.broke) breakPlates(g, e);
@@ -189,6 +232,12 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
     if (hit.blocked) shieldBlock(g, e);
     amount = hit.dealt;
   }
+  if (e.def.id === 'barrowKing') {
+    // #278: his guard phase: while one of his risen stands near him (systems/bosses.ts counts them), a blow does him less
+    const ward = barrowWard(e.phase, g.vars['barrow.guards'] ?? 0);
+    if (ward < 1 && e.flash <= 0) floatText(g, e.x, e.y - e.r - 20, 'GUARDED', '#9fb8a8', 14);
+    amount *= ward;
+  }
   if (e.def.boss) {
     // v0.7.5 (#95): a boss's resolve: a burst past its allowance does a fraction, so one ability cannot end the fight (status ticks included)
     const r = throughResolve(amount, e.maxHp, e.resolve, e.resolveT, g.time);
@@ -220,7 +269,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   damageNumber(g, e, amount, crit ? '#f2c94c' : source === 'relic' && relicContext.acting ? RELIC_COLOR : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');
   burst(g, e.x, e.y, BLOOD, crit ? 6 : 2);
   if (crit) shake(g, 4);
-  sfx(g, 'hit');
+  sfx(g, 'hit', { src: 'foe', at: e, voice: foeVoice(e.def.id, 'hit') }); // #283: the player's blow on a foe (a boss's too): the first a crowd drops; #285: in its family's voice
   if (source === 'attack') {
     const leech = g.player.buff.lifesteal + g.player.mods.lifesteal;
     if (leech > 0) healPlayer(g, Math.min(dealt * leech, g.player.stats.hp * GAME.leechCapPerHit), false);
@@ -234,7 +283,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
 function shieldBlock(g: Game, e: Enemy): void {
   if (e.flash <= 0) floatText(g, e.x, e.y - e.r - 20, 'BLOCKED', '#c7ced6', 14);
   burst(g, e.x + Math.cos(e.angle) * e.r, e.y + Math.sin(e.angle) * e.r - 6, '#e5b545', 5, 120);
-  sfx(g, 'block');
+  sfx(g, 'block', { src: 'foe', at: e });
 }
 
 /** #214: a thorn bearer's spikes bite back at the champion for a blow he struck up close (logic/status thornsBite). */
@@ -250,7 +299,7 @@ function thornsBack(g: Game, e: Enemy, blow: number, source: DamageSource, tick:
   g.vars['thorns.taken'] = (g.vars['thorns.taken'] ?? 0) + Math.max(0, before - p.hp);
   floatText(g, e.x, e.y - e.r - 14, 'THORNS', '#c7ced6', 13);
   burst(g, (e.x + p.x) / 2, (e.y + p.y) / 2, '#96a1b2', 6, 180);
-  sfx(g, 'thorns');
+  sfx(g, 'thorns', by(e));
 }
 
 /** #212: the last plate falls: he stands in his mail from now on (his bare sprite), and takes full damage. */
@@ -296,7 +345,7 @@ function revive(g: Game): boolean {
   burst(g, p.x, p.y, '#f2e6a0', 50, 360);
   floatText(g, p.x, p.y - 44, 'REVIVED', '#f2e6a0', 20);
   shake(g, 16);
-  sfx(g, 'levelup');
+  sfx(g, 'levelup', { src: 'player' });
   return true;
 }
 
@@ -337,7 +386,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
   g.bossHit = true;
   floatText(g, p.x, p.y - 34, `-${Math.round(taken)}`, '#c23a2e', 15);
   shake(g, Math.min(14, 4 + taken * 0.3));
-  sfx(g, 'hurt');
+  sfx(g, 'hurt', { src: 'player', at: p });
   if (p.hp <= 0) {
     if (p.deathless) p.hp = 1;
     else if (!revive(g) && !lastStand(g)) {
@@ -404,7 +453,7 @@ export function updatePlayerAttack(g: Game, dt: number): void {
   if (atk.kind === 'melee') {
     const arc = p.buff.fullCircle ? TAU : atk.arc;
     swingArc(g, p.x, p.y, range, p.facing, arc, atk.color);
-    sfx(g, 'swing');
+    sfx(g, 'swing', { src: 'player', at: p });
     for (const e of g.hash.query(p.x, p.y, range, near)) {
       const a = Math.atan2(e.y - p.y, e.x - p.x);
       if (e.dead || angleDiff(a, p.facing) > arc / 2) continue;
@@ -430,7 +479,7 @@ export function updatePlayerAttack(g: Game, dt: number): void {
         dtype: atk.type,
       });
     }
-    sfx(g, 'shoot');
+    sfx(g, 'shoot', { src: 'player', at: p });
   }
 }
 
@@ -531,7 +580,7 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
       wearArmor(g, e, pr.damage * ARMOR_WEAR.block); // v0.7.3 (#59): a blocked shot wears the shield down
       floatText(g, e.x, e.y - e.r - 8, 'blocked', '#9a9aa0', 11);
       burst(g, pr.x, pr.y, '#c9a227', 4, 90);
-      if (TOWER_SHIELDS[e.def.id]) sfx(g, 'block'); // #213: the iron shield rings
+      if (TOWER_SHIELDS[e.def.id]) sfx(g, 'block', { src: 'foe', at: e }); // #213: the iron shield rings
       return false;
     }
     const v = Math.hypot(pr.vx, pr.vy) || 1;
@@ -560,12 +609,16 @@ export function updateZones(g: Game, dt: number): void {
     if (z.killsOwner && z.owner) killEnemy(g, z.owner, 'hazard');
     if (z.hostile) {
       if (z.delay >= SKILL.perfect.minDelay) zoneStruck(g, z.lastIn, inside);
-      if (inside) hurtTarget(g, g.player, z.damage, true, z.owner, z.cause);
+      if (inside) {
+        const before = g.player.hp;
+        hurtTarget(g, g.player, z.damage, true, z.owner, z.cause);
+        if (z.hold) g.player.heldT = heldFor(g.player.heldT, z.hold, g.player.hp < before); // #274: a grave's hands hold him, unless a dodge, shield or block kept the blow off
+      }
       for (const m of g.minions) if (on(m)) hurtTarget(g, m, z.damage, true, z.owner);
       ring(g, z.x, z.y, z.r, z.color);
       burst(g, z.x, z.y, z.color, 18, 240);
       shake(g, 8);
-      sfx(g, z.slab ? 'slam' : 'boom'); // #211: iron on stone
+      sfx(g, z.slab ? 'slam' : 'boom', { src: z.owner?.def.boss ? 'boss' : z.hostile ? 'foe' : 'player', at: z }); // #211: iron on stone
     } else {
       let hits = 0;
       for (const e of g.hash.query(z.x, z.y, z.slab ? z.r * Math.SQRT2 : z.r, near)) {
@@ -595,7 +648,7 @@ export function updateFields(g: Game, dt: number): void {
       if (f.hostile) {
         if (inside) {
           const before = p.hp;
-          damagePlayer(g, f.dps * GAME.fieldTick, true, null, `${DAMAGE_TYPES[f.dtype].name.toLowerCase()} on the ground`);
+          damagePlayer(g, f.dps * GAME.fieldTick, true, null, f.cause ?? `${DAMAGE_TYPES[f.dtype].name.toLowerCase()} on the ground`);
           if (f.apply && p.hp < before) applyStatusTo(p.statuses, f.apply); // #182: a shield, ward, block or dodge keeps the burn off too, as with a blow
         }
         for (const m of g.minions) if (dist2(f.x, f.y, m.x, m.y) <= f.r * f.r) damageMinion(g, m, f.dps * GAME.fieldTick);

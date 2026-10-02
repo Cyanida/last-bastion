@@ -29,9 +29,10 @@ import type { RunSummary } from './logic/save';
 import type { TreasureRecord } from './logic/treasures';
 import { abilityPassives, updateAbility } from './systems/abilities';
 import { updateArena } from './systems/arena';
-import { healPlayer, updateFields, updatePlayerAttack, updateProjectiles, updateZones } from './systems/combat';
+import { healPlayer, updateFields, updatePlayerAttack, updateProjectiles, updateRisingCorpses, updateZones } from './systems/combat';
 import { updateEffects } from './systems/effects';
 import { updateEnemies } from './systems/enemyAI';
+import { updateBossSounds } from './systems/bossSounds';
 import { updateMinions } from './systems/minions';
 import { updateEnemyPhysics, updatePickups, updatePlayerMovement } from './systems/movement';
 import { addRelic, offerRelics, updateRelics } from './systems/relics';
@@ -350,6 +351,7 @@ export function updateGame(g: Game, dt: number): void {
   p.flash -= dt;
   p.invulnT -= dt;
   p.chillT -= dt;
+  p.heldT -= dt; // #274: a grave's hands let go
   p.mods = { ...g.baseMods }; // rebuilt every tick: meta + tradeoffs, then relics, then passive ability upgrades
   updateRelics(g, dt);
   talentPassives(g);
@@ -372,6 +374,7 @@ export function updateGame(g: Game, dt: number): void {
   end('statuses', _t);
   _t = begin();
   updateEnemies(g, dt);
+  updateBossSounds(g); // #286: reads this step's phases and warnings
   end('enemyAI', _t);
   _t = begin();
   updateEnemyPhysics(g, dt);
@@ -403,6 +406,7 @@ export function updateGame(g: Game, dt: number): void {
   updateRunLog(g, dt); // after cleanup: it counts who is still alive
   compact(g.barriers, (b) => (b.life -= dt) > 0);
   for (const c of g.corpses) c.t += dt;
+  updateRisingCorpses(g); // #275: the Barrowvale's dead rise unless trampled
   compact(g.corpses, (c) => c.t < GAME.corpseLifetime * g.arena.corpseLifeMult * (g.vars['corpse.mult'] ?? 1)); // v0.7: Grave's Charnel
   _t = begin();
   updateSpawning(g, dt); // after cleanup so "no enemies left" is accurate

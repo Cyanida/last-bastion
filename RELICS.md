@@ -504,6 +504,99 @@ the stacks are full without it, and a burn's ticks go to the relic that fed it l
 The sim's bot takes its taste in families from a class's class relics (`sim/levels.ts` `tasteOf`), so the Viking and the Necromancer now
 lean toward Flame in its loadouts too; the Viking's golden Marches level 7 run slots Salamander Scale first for it and clears the level.
 
+## C6 · The Barrowvale's Grave relics (v0.13, [#279](https://github.com/Cyanida/last-bastion/issues/279))
+
+Four of the Barrowvale's eight new Grave relics (docs/road-to-the-crown.md, "The Barrowvale" and v0.13.0 item 4): a common, two rares and
+the family's second legendary. The Barrowvale teaches corpses that rise unless you trample them and plague ground that lasts; each relic
+takes one of those for the player: a trample that hurts (Barrow Boots), plague ground of your own (Plague Censer), the dead rising for you
+and not against you (Sexton's Bell), and the Barrow King's own guard (Crown of Antlers). Numbers in `config/relics.ts` (the four entries
+after Deathmask), behaviour in `systems/relicFamilies/grave.ts`, the pure rules (which corpses are stomped, when the censer lays, which
+corpses the bell raises, what the guard takes off) in `logic/graveRelics.ts`. The class relics and the new duo are #280.
+
+| Relic | Rarity | Effect (I → II) | Awakened (III) |
+|---|---|---|---|
+| 👢 Barrow Boots | common | Walking over a corpse stomps it once: 30 → 38 shadow damage (grows with level) to every enemy within 85 px | **Grave Stomp**: a stomp curses what it hits (1 stack) |
+| 🧪 Plague Censer | rare | Every 4 → 3 kills, plague ground spreads where the last enemy fell, for 8 s: 10 → 13 shadow damage per second (grows with level), and it poisons (up to 3 → 4 patches) | **Blight Bloom**: an enemy that dies in your plague ground leaves plague ground of its own |
+| 🛎️ Sexton's Bell | rare | Every 6 → 4.5 s the bell tolls: up to 3 → 4 corpses within 180 px rise as skeleton allies (60 HP, 16 damage) for 10 s, a corpse about to rise against you first | **Death Toll**: each toll curses every enemy within its reach (2 stacks) |
+| 🦌 Crown of Antlers | legendary | Your skeletons are your barrow guard: you take 5% → 7% less damage for each within 200 px (up to 3). Kills have an 8% → 12% chance to raise a guard (60 HP, 10 damage, 12 s; up to 3 → 4) | **Court of Bones**: while 3+ guards stand near you, you mend 1% of your max HP every second |
+
+- **Where they are found.** Barrow Boots is a common, so it joins the starter pool: every run finds it from the start. The rares and the
+  legendary are in the Barrowvale's pool (the realm's whole family) and, once kept, in the champion's inventory; the runs without a
+  champion (the Daily Trial, the sims) find all four. The Marches' Grave level offers its rares in order, so a champion who owns Hex Doll and
+  Grave Pact is offered Plague Censer and Sexton's Bell there.
+- **Soul Lantern moves to the Barrowvale's crown** (docs/road-to-the-crown.md, section 8): it leaves `RELIC_POOL.open`, so a champion's run
+  finds it only in the Barrowvale or once it is in the inventory. Crown of Antlers is the second Grave legendary, so the Knight crown ("pick
+  1 of 2 Grave legendaries") offers the two, and the Champion crown gives the one not picked. Phoenix Feather and Stormcaller's Horn stay
+  open until their realms ship.
+- **Slot rules.** Crown of Antlers takes 2 slots and is the loadout's one legendary; all four count toward the 4 Grave relics a loadout may
+  hold.
+- **Decided: a corpse is stomped once**, then stays a corpse (for Raise Dead, the Spade, Charnel and the bell), and the stomp counts any
+  corpse, not only a rising one, so the boots work in every arena; a rising corpse the boots stomp is trampled as before.
+  **Decided: the bell waits for a corpse**: with none in reach its clock stays ready and it tolls on the next one, so a toll never comes up
+  empty; a thrall's rising corpse it raises is gone, so it never rises against you. **Decided: the guard is every skeleton of yours**
+  (Raise Dead's, the relics', the sets'), not only the crown's, but never a quest's or an evolution's unit; the cut stops at 3 guards, so a
+  full Necromancer army counts no more than three.
+
+**Measured.** `npm run sim -- relics 3 hold=<id>` (every run holds the named relic from the start; maxed saves, 15 runs each). Share from
+wave 21 on, target 3-35%:
+
+| Relic | Runs held at wave 20 | Share | Won | Power index |
+|---|---|---|---|---|
+| 🦌 Crown of Antlers | 14 | 8.2% | 14 | 1.65 |
+| 🛎️ Sexton's Bell | 14 | 4.8% | 12 | 1.81 |
+| 🧪 Plague Censer | 14 | 3.7% | 13 | 1.70 |
+| 👢 Barrow Boots | 13 | 3.6% | 12 | 1.93 |
+
+All four sit inside the band. The first numbers read under it: Barrow Boots 1.5% (16 → 20 damage in 70 px, a corpse within 16 px of your
+edge), Sexton's Bell 1.7% (every 8 → 6 s, 2 → 3 skeletons of 40 HP and 8 damage for 8 s) and Plague Censer 3.2% (7 → 9 damage per
+second in 55 px), so the boots stomp harder and wider, the bell tolls more often for more and stronger skeletons, and the censer's ground
+hurts more. Crown of Antlers' share counts only the damage its guard takes off, not its own guards' hits. The power index read under its
+1.8-2.2 band in the Crown's and the censer's runs (1.65 and 1.70): holding a Grave relic from the start turns the family-following bot
+toward Grave, the family whose skeletons and curses it credits least. The realm's balance pass (v0.13.0 item 5) measures the Barrowvale
+as a whole.
+
+## C7 · The Barrowvale's Grave class relics and duo (v0.13, [#280](https://github.com/Cyanida/last-bastion/issues/280))
+
+Four of the Barrowvale's eight new Grave relics: class relics for the four champions who had none in Grave (the Necromancer has Bone Chime),
+and the realm's duo. Numbers in `config/relics.ts` (after Bone Chime, and the last duo), behaviour in `systems/relicFamilies/grave.ts` and
+the duo in `systems/relicFamilies/duos.ts`, the pure rules (how many of the dead answer, which corpses, the bone burst, what a champion walks
+over) in `logic/relics.ts`.
+
+| Relic | Rarity | Effect (I → II) | Awakened (III) |
+|---|---|---|---|
+| ☠️ Ossuary Seal *(Paladin)* | rare | When Divine Shield ends the dead answer: up to 1 + Faith/5 → Faith/4 corpses within 220 px rise as skeletons for 10 s (60 HP, 16 damage, grows with level) | **Sworn Dead**: while the shield holds, every enemy that strikes it is cursed (2 stacks) |
+| 🍺 Draugr's Mead *(Viking)* | rare | Every enemy you strike down during Berserker Rage rises as a draugr, a skeleton that fights for 10 s (up to 2 + Rage/5 → Rage/4 at once; 60 HP, 20 damage, grows with level) | **Einherjar**: when Rage ends your draugr howl, 30 shadow damage (grows with level) to every enemy within 80 px of each |
+| 🕊️ Last Rites *(Angel)* | rare | Heavenly Radiance lays the corpses within its radius to rest (up to 4 + Grace/4 → Grace/3), and none of them rises again: each heals you 3% → 4% of your max HP | **Psychopomp**: every corpse laid to rest curses the enemies within 90 px of it (2 stacks) |
+| 🩻 Wightbone Arrows *(Archer)* | rare | Arrow Volley calls on the dead under it: every corpse in its area bursts in bone and shadow, 20 → 28 damage (grows with level, +3% per Focus) to every enemy within 70 px | **Barrow Wights**: enemies your signature ability kills rise as skeletons for 10 s (up to 3) |
+| 🍖 Barrow Feast *(duo)* | Grave + Blood | Hex Doll + Berserker Tooth: walking over a corpse devours it (it never rises): it heals you 1.5% of your max HP and curses every enemy within 100 px (1 stack) | (the duo's tier awakens both sources) |
+
+- **Each champion's lesson.** The Barrowvale teaches corpses that rise unless you trample them. Grave's relics raise skeletons, curse or
+  feed on corpses; these four take the corpses each champion leaves in his own way, through his ability. The Paladin's shield is a stand,
+  so the dead stand with him when it drops. The Viking's Rage is a slaughter, so its kills get up and fight on beside him. The Angel's
+  Radiance is the last rite: it lays the dead round her to rest, a heal for each, and a Barrow Thrall's corpse laid to rest never rises.
+  The Archer's Volley falls where the dead lie, so the corpses under it burst. Each counts its dead with the secondary stat (1 + Faith/5,
+  2 + Rage/5, 4 + Grace/4, Focus in the burst's damage).
+- **Where they are found.** A class relic is in the Barrowvale's pool only for its class; level 3 unlocks it, and once kept it is in the
+  champion's inventory. It counts toward the 2 class relics and the Grave relics a loadout may hold. Every champion now has a Grave class
+  relic.
+- **Decided: the corpse relics take the corpses they use** (Ossuary Seal, Last Rites and Wightbone Arrows; Barrow Feast too): a corpse
+  raised, laid to rest or burst is gone, so Raise Dead, Gravedigger's Spade and a second relic cannot use it again, and a rising one never
+  rises. Draugr's Mead raises from the kill itself and leaves the corpse.
+- **Decided: Draugr's Mead raises only from attack kills during Rage**, never a boss, so the draugr are the Viking's blows and not the
+  relics' bursts; the cap (2 + Rage/5 at once) keeps a crowd from flooding the arena.
+- **Decided: Barrow Feast pairs Grave with Blood.** Grave sat in 3 recipes, so the Barrowvale's duo is Grave's; Flame is at the 5 that
+  C5 set as the most, and Blood (at 4, with no Grave duo yet) is the partner: it feeds on the dead. Hex Doll and Berserker Tooth were the
+  two free sources (neither in a recipe) and both are open to every class; the duo is the realm's lesson made a habit, trample the dead.
+  The new Grave relics of #279 are left to the realms' later duos.
+
+**Measured (a first look, not a full pass).** `npx vite-node scripts/relic-report.ts run <class> 3 <out> hold=<id>` for each relic's class and
+`hold=hexDoll,berserkerTooth` for the duo (Viking), maxed saves, 15 runs. Share from wave 21 on, target 3-35%. First numbers: Ossuary Seal 3.3%,
+Wightbone Arrows 3.3%, Draugr's Mead 1.1%, Last Rites 0.4%, Barrow Feast 34.1%. So the seal's skeletons hit 12 -> 16, the draugr went to 60 HP,
+20 damage and 10 s, Last Rites to 4 + Grace/4 corpses and 3% -> 4% a corpse, and the feast's heal 2% -> 1.5%; then: Ossuary Seal 4.0%,
+Barrow Feast 26.8%, Draugr's Mead 2.0%, Last Rites 0.3%. Wightbone Arrows stays at 20 -> 28 (26 put the Archer's golden seed 2027 down before
+the first Act boss). **Open:** Draugr's Mead and Last Rites still read under 3% on 3 runs each; Last Rites' share is healing against the
+Angel's own Radiance heals, so it needs a larger sample (or a share measured on what it stops rising) before its numbers move again.
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
@@ -617,7 +710,7 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Seraph's Halo *(Angel)* | rare | Heavenly Radiance also fires 4 + Grace × 0.8 → 6 + Grace light bolts | **Choir of Light**: the bolts heal you for 1% max HP each when they hit | Angel |
 | Hallowed Bones *(Necromancer)* | rare | Skeletons you raise carry a ward of 20% → 30% of their HP, and a skeleton that expires heals you 1% max HP (+0.1% per Soul Power) | **Sanctified Legion**: skeletons' hits heal you for 0.5% of the damage | Necromancer |
 
-#### 💀 Grave (5 + 1 class)
+#### 💀 Grave (9 + 5 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -626,7 +719,15 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Grave Pact | rare | Your ability blesses your minions for 7 → 10 s (+30% damage, they mend); with no minions it raises one skeleton for that long | **Unholy Pact**: blessed minions' hits curse | Necromancer, any |
 | Gravedigger's Spade | common | +3% → 4% damage for every corpse within 150 px (max 5) | **Exhume**: every 20 s the oldest corpse near you rises as a skeleton | any |
 | Deathmask | common | Cursed enemies deal 15% → 20% less damage | **Mark of the Grave**: a cursed enemy you kill leaves a corpse that bursts in shadow after 1 s | any |
+| Barrow Boots *(v0.13)* | common | Walking over a corpse stomps it once: 30 → 38 shadow damage (grows with level) to every enemy within 85 px | **Grave Stomp**: a stomp curses what it hits | any |
+| Plague Censer *(v0.13)* | rare | Every 4 → 3 kills, plague ground spreads where the last enemy fell, for 8 s: 10 → 13 shadow damage per second (grows with level), and it poisons (up to 3 → 4 patches) | **Blight Bloom**: an enemy that dies in your plague ground leaves plague ground of its own | any |
+| Sexton's Bell *(v0.13)* | rare | Every 6 → 4.5 s up to 3 → 4 corpses within 180 px rise as skeleton allies for 10 s, a corpse about to rise against you first | **Death Toll**: each toll curses every enemy within its reach | Necromancer, any |
+| Crown of Antlers *(v0.13)* | legendary | You take 5% → 7% less damage for each of your skeletons within 200 px (up to 3); kills have an 8% → 12% chance to raise a guard (up to 3 → 4) | **Court of Bones**: while 3+ guards stand near you, you mend 1% of your max HP every second | any |
 | Bone Chime *(Necromancer)* | rare | Minions inherit 50% → 70% of your attack speed, plus 2% → 3% per Soul Power | **Death Knell**: every 20th minion hit tolls the chime: a shadow burst around that minion | Necromancer |
+| Ossuary Seal *(Paladin, v0.13)* | rare | When Divine Shield ends, up to 1 + Faith/5 → Faith/4 corpses within 220 px rise as skeletons for 10 s | **Sworn Dead**: while the shield holds, every enemy that strikes it is cursed (2 stacks) | Paladin |
+| Draugr's Mead *(Viking, v0.13)* | rare | Every enemy you strike down during Berserker Rage rises as a draugr for 10 s (up to 2 + Rage/5 → Rage/4 at once) | **Einherjar**: when Rage ends every draugr howls, 30 shadow damage within 80 px | Viking |
+| Last Rites *(Angel, v0.13)* | rare | Heavenly Radiance lays the corpses within its radius to rest (up to 4 + Grace/4 → Grace/3), each healing 3% → 4% max HP | **Psychopomp**: each corpse laid to rest curses the enemies within 90 px (2 stacks) | Angel |
+| Wightbone Arrows *(Archer, v0.13)* | rare | Every corpse in Arrow Volley's area bursts, 20 → 28 damage within 70 px (+3% per Focus) | **Barrow Wights**: enemies your ability kills rise as skeletons for 10 s (up to 3) | Archer |
 
 #### 🛡️ Steel (9 + 5 class)
 
@@ -647,7 +748,7 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Legion Plate *(Necromancer, v0.11)* | rare | Every 6th → 4th minion hit gives you an armor stack; minion hits deal 3% → 4% more per armor stack you hold | **Iron Legion**: skeletons you raise wear plate, 50% more HP | Necromancer |
 | Bodkin Points *(Archer, v0.11)* | rare | Every 3rd arrow hit is a bodkin: 40% → 60% of the hit again, +2% per Focus, that no shield turns, and an armor stack | **Armor-Piercer**: at full armor stacks every arrow hit is a bodkin | Archer |
 
-### Duo relics (14)
+### Duo relics (15)
 
 Hold both source relics and a duo can be offered (a gold fourth card, it takes the moment's pick). A duo combines its two source relics into
 one relic with both their effects and its own, attuning as one up to tier III; the families keep the two relics' counts (v0.7.5, #96). Each
@@ -669,6 +770,7 @@ source relic can feed only one formed duo.
 | **Consecration** | Holy + Steel | Rally Banner + Thorn Mail | Ward you gain also gives an armor stack, and a block heals 2% max HP |
 | **Iron Tithe** *(v0.11)* | Steel + Blood | Reprisal Cuirass + Vampire Fang | A reprisal opens 3 bleed stacks on its target (10% of it per second each) and heals you 3% of its damage |
 | **Baptism of Fire** *(v0.12)* | Flame + Holy | Flashpowder + Blessed Water | A flare heals you 1% of your max HP for every enemy it catches (up to 4) |
+| **Barrow Feast** *(v0.13)* | Grave + Blood | Hex Doll + Berserker Tooth | Walking over a corpse devours it: it heals you 1.5% of your max HP and curses every enemy within 100 px |
 
 ### Rules check
 
@@ -683,7 +785,7 @@ source relic can feed only one formed duo.
 | A 6-set without 6 straight pieces is adjusted | Outside its preferred families a class needs a duo piece for the 6; such a 6-set works at 125% strength (rarity is strength) | ✔ |
 | Set bonuses scale with the secondary stat where it fits | Stoked, Pyre, Arc, Shatter, Blessed, Undying Host, Bulwark scale with S; the rest are rules, not numbers | ✔ |
 | At least 12 duos, each from two specific relics of two different families | 12 duos, 24 distinct source relics, all findable by every class | ✔ |
-| No family in more than 4 duo recipes, every family in at least 2 | Flame 4, Frost 4, Storm 4, Blood 3, Holy 3, Grave 3, Steel 3 (with the realms' duos: Blood 4 and Steel 4 since Iron Tithe, Holy 4 and Flame 5 since Baptism of Fire; the most is 5 from v0.12 on, C5) | ✔ |
+| No family in more than 4 duo recipes, every family in at least 2 | Flame 4, Frost 4, Storm 4, Blood 3, Holy 3, Grave 3, Steel 3 (with the realms' duos: Blood 4 and Steel 4 since Iron Tithe, Holy 4 and Flame 5 since Baptism of Fire; the most is 5 from v0.12 on, C5; Grave 4 and Blood 5 since Barrow Feast, C7) | ✔ |
 | Each relic feeds at most one formed duo | Every source relic appears in exactly one recipe | ✔ |
 
 ### What leaves, what stays

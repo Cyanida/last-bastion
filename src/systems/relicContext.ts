@@ -1,6 +1,8 @@
 import { ATTUNEMENT, keyColor, keyIcon, type RelicKey } from '../config/relics';
 import type { Game, Player } from '../core/types';
 import { addWork } from '../logic/relics';
+import { procCue } from '../logic/relicSounds';
+import { sfx } from '../sim/view';
 import { cosmetic, floatText } from './effects';
 
 /**
@@ -26,4 +28,5 @@ export function flash(g: Game, p: Player, id: RelicKey): void {
   if (g.time - (g.vars[key] ?? -99) < RELIC_FLASH) return;
   g.vars[key] = g.time;
   floatText(g, p.x + (cosmetic() - 0.5) * 30, p.y - p.r - 34, keyIcon(id), keyColor(id), 15);
+  sfx(g, procCue(id), { src: 'player', at: p }); // #287: and it sounds its family, as often as its icon flashes
 }

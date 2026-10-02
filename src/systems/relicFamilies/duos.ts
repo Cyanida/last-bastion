@@ -1,6 +1,7 @@
 import { DUOS, FAMILIES, relicN, type DuoId } from '../../config/relics';
-import { damageEnemy } from '../combat';
-import { ring } from '../effects';
+import { burst, ring } from '../effects';
+import { devoured } from '../../logic/relics';
+import { applyStatus, damageEnemy } from '../combat';
 import { addBleed, addBurn, addChill, attackHit, chainFrom, gainWard, isBleeding, isCursed, isFrozen, nova, raiseSkeleton, relicDamage, relicHeal, skeletonsBy, tierOf, type RelicHooks } from '../relicCore';
 import { freeze } from './frost';
 
@@ -114,6 +115,21 @@ export const DUO_HOOKS: Partial<Record<DuoId, RelicHooks>> = {
   consecration: {
     onBlock(g, _ev, p) {
       relicHeal(g, p, p.stats.hp * n('consecration').heal);
+    },
+  },
+
+  // v0.13 (#280): the Barrowvale's duo: walk over the dead and feed on them, so they never rise
+  barrowFeast: {
+    tick(g, _dt, p) {
+      const d = n('barrowFeast');
+      const eaten = devoured(g.corpses, p.x, p.y, p.r, d.reach);
+      if (!eaten.length) return;
+      for (const c of eaten) g.corpses.splice(g.corpses.indexOf(c), 1);
+      relicHeal(g, p, p.stats.hp * d.heal * eaten.length, true);
+      for (const c of eaten) {
+        burst(g, c.x, c.y, FAMILIES.grave.color, 8, 120);
+        for (const e of g.hash.query(c.x, c.y, d.radius, [])) if (!e.dead) applyStatus(e, { apply: [{ id: 'curse', stacks: d.stacks }] }, g);
+      }
     },
   },
 };

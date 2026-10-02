@@ -1,5 +1,5 @@
 import { FLAGSTONE, type ArenaDef, type Obstacle } from '../config/arenas';
-import { WING_IDS, type FeatureKind, type Rect } from '../config/regions';
+import { WING_IDS, type FeatureKind, type Rect, type WingDef } from '../config/regions';
 import { mulberry32 } from '../core/math';
 import type { Rng } from '../core/types';
 
@@ -118,7 +118,11 @@ function tiles(ctx: Ctx, def: ArenaDef, rng: Rng): void {
  * #210: a named wing's floor over the arena's tiles, in the rig's ramps: oak boards (bark) in the armory and the barracks, soot and
  * embers round the forge's fires, a red runner with gold edges from the chapel's gate to its altar.
  */
-function wingFloor(ctx: Ctx, f: Rect, kind: 'soot' | 'plank' | 'runner', rng: Rng, toward: 'x' | 'y'): void {
+function wingFloor(ctx: Ctx, f: Rect, kind: WingDef['floor'], rng: Rng, toward: 'x' | 'y'): void {
+  if (kind === 'nave' || kind === 'grave') {
+    graveFloor(ctx, f, kind, rng);
+    return;
+  }
   if (kind === 'plank') {
     const boards = ['#483325', '#5d4431', '#523b2b', '#755940'];
     const across = toward === 'y'; // boards run from the gate inwards
@@ -156,6 +160,59 @@ function wingFloor(ctx: Ctx, f: Rect, kind: 'soot' | 'plank' | 'runner', rng: Rn
     ctx.fillRect(x, y, w, h);
     ctx.fillStyle = '#4f0f1c';
     for (let a = 40; a < (toward === 'y' ? h : w); a += 70) toward === 'y' ? ctx.fillRect(x + 12, y + a, w - 24, 3) : ctx.fillRect(x + a, y + 12, 3, h - 24);
+  }
+}
+
+/**
+ * #273: the Forsaken Graveyard's wing floors, in the rig's stone, moss and bark ramps. A nave (the crypts, the broken chapel): sunken
+ * flagstones gone green at the edges, some lifted out so the earth shows, weeds in the joints. Graves (the sexton's yard, the barrows):
+ * rows of long mounds of turned earth, lit on their top, each with a little stone at its head.
+ */
+/** #273: a long, rounded heap of earth: darker at its rim, a lit crest along its length, its ends rounded off. */
+function mound(ctx: Ctx, x: number, y: number, w: number, h: number, base: string): void {
+  ctx.fillStyle = shade(base, -0.3);
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = base;
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2 - 1, y + h / 2 - 1, w / 2 - 3, h / 2 - 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = shade(base, 0.15);
+  ctx.fillRect(Math.round(x + w / 2 - 5), Math.round(y + 8), 4, Math.round(h - 16)); // the crest, lit from the left
+}
+
+function graveFloor(ctx: Ctx, f: Rect, kind: 'nave' | 'grave', rng: Rng): void {
+  if (kind === 'nave') {
+    const cell = 64, slabs = ['#3f3e46', '#46454e', '#4a4950', '#43424a'];
+    for (let y = f.y; y < f.y + f.h; y += cell) {
+      for (let x = f.x; x < f.x + f.w; x += cell) {
+        if (rng() < 0.14) continue; // a lifted slab: the earth shows through
+        const sw = Math.min(cell, f.x + f.w - x), sh = Math.min(cell, f.y + f.h - y);
+        stone(ctx, x + 2, y + 2, sw - 4, sh - 4, slabs[Math.floor(rng() * slabs.length)], rng, 3, 0.6);
+        ctx.fillStyle = '#434f38'; // moss creeping in from a joint
+        for (let i = 0, n = Math.floor(rng() * 3); i < n; i++) ctx.fillRect(Math.round(x + 2 + rng() * (sw - 8)), y + (rng() < 0.5 ? 2 : sh - 5), 4 + Math.round(rng() * 6), 2);
+        if (rng() < 0.3) {
+          ctx.fillStyle = '#1b1a20'; // a crack across the slab
+          let px = x + 8 + rng() * (sw - 20), py = y + 6;
+          for (let i = 0; i < 16 && py < y + sh - 6; i++, py += 3, px += Math.round(rng() * 4 - 2)) ctx.fillRect(Math.round(px), py, 1, 3);
+        }
+      }
+    }
+    return;
+  }
+  const mw = 30, ml = 58, gapX = 80, gapY = 110;
+  for (let y = f.y + 40; y + ml < f.y + f.h - 20; y += gapY) {
+    for (let x = f.x + 30 + ((y / gapY) % 2) * 20; x + mw < f.x + f.w - 20; x += gapX) {
+      if (rng() < 0.18) continue; // an empty plot
+      const jx = Math.round(x + rng() * 8), jy = Math.round(y + rng() * 10);
+      ctx.fillStyle = 'rgba(8,8,16,0.3)'; // its shadow, down and right
+      ctx.fillRect(jx + 3, jy + 6, mw, ml);
+      mound(ctx, jx, jy + 8, mw, ml - 8, rng() < 0.3 ? '#3e3226' : '#33291f'); // the mound of turned earth
+      ctx.fillStyle = '#231812';
+      for (let i = 0; i < 4; i++) ctx.fillRect(Math.round(jx + 5 + rng() * (mw - 12)), Math.round(jy + 14 + rng() * (ml - 26)), 3, 2); // clods
+      stone(ctx, jx + mw / 2 - 7, jy, 14, 13, '#605e64', rng, 2); // the stone at its head
+    }
   }
 }
 

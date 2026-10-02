@@ -20,7 +20,10 @@ import { SKILL } from '../config/game';
 import { lineAngle } from '../logic/telegraph';
 import { typeMultiplier } from '../logic/status';
 import { thornsOf, towerShieldOf } from '../logic/ironKing';
-import { CINDER_COLOSSUS } from '../config/bosses';
+import { riseProgress } from '../logic/risingCorpse';
+import { BARROW_KING, CINDER_COLOSSUS, GRAVEDIGGER } from '../config/bosses';
+import { riseTime } from '../logic/gravedigger';
+import { kingGraves } from '../logic/barrowKing';
 import { uiScale } from '../ui/tooltip';
 
 export interface View {
@@ -244,6 +247,39 @@ function disc(ctx: Ctx, x: number, y: number, r: number): void {
 }
 
 /**
+ * #277: the Gravedigger's open graves: a dark pit in a ring of turned earth, and as its time runs out a pale hand claws up out of it and
+ * the rim pulses, so you see which one to trample first.
+ */
+function drawGraves(ctx: Ctx, graves: NonNullable<Enemy['graves']>, rise: number, time: number, visible: (x: number, y: number, r: number) => boolean): void {
+  const r = GRAVEDIGGER.grave.radius;
+  for (const gr of graves) {
+    if (gr.t < 0 || !visible(gr.x, gr.y, r)) continue;
+    const k = clamp(gr.t / rise, 0, 1);
+    ctx.fillStyle = '#5a3d25';
+    ctx.beginPath();
+    ctx.ellipse(gr.x, gr.y, r, r * 0.62, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#120d0a';
+    ctx.beginPath();
+    ctx.ellipse(gr.x, gr.y + 1, r * 0.62, r * 0.36, 0, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 0.45 + 0.4 * k * (0.5 + 0.5 * Math.sin(time * (4 + 8 * k)));
+    ctx.strokeStyle = '#c6d6b4';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(gr.x, gr.y, r + 2, r * 0.62 + 2, 0, 0, TAU);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    if (k > 0.4) {
+      const h = (k - 0.4) / 0.6 * 12; // the hand rises out of the pit
+      ctx.fillStyle = '#94ab86';
+      ctx.fillRect(gr.x - 2, gr.y - h, 4, h);
+      for (const dx of [-4, -1.5, 1, 3.5]) ctx.fillRect(gr.x + dx, gr.y - h - 4, 1.5, 4);
+    }
+  }
+}
+
+/**
  * v0.5: a closed wing is darkness behind a portcullis; the hidden vault is solid stone until it opens. A handful of rects a frame.
  */
 function drawClosedRegions(ctx: Ctx, g: Game, cx: number, cy: number, vw: number, vh: number): void {
@@ -314,6 +350,29 @@ function pressSlab(ctx: Ctx, x: number, y: number, size: number, k: number, time
     ctx.fillStyle = '#252a33';
     ctx.fillRect(x - 32, y - 20 - lift, 64, 38);
   }
+  ctx.globalAlpha = 1;
+}
+
+/**
+ * #274: a grave the Barrowvale's hands will rise from: a long pit of fresh-turned earth that splits open as the hands near (k 0..1),
+ * a pale headstone at its head, so the marked spot reads as a grave and not just as a circle.
+ */
+function markedGrave(ctx: Ctx, x: number, y: number, r: number, k: number): void {
+  const w = r * 0.55, h = r * 0.95;
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = '#3b3326'; // the turned earth
+  ctx.beginPath();
+  ctx.ellipse(x, y, w, h, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#100d0a'; // the pit opening
+  ctx.beginPath();
+  ctx.ellipse(x, y, w * (0.25 + 0.6 * k), h * (0.35 + 0.55 * k), 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#b9bfb0'; // the headstone
+  ctx.fillRect(x - 7, y - h - 12, 14, 14);
+  ctx.beginPath();
+  ctx.arc(x, y - h - 12, 7, Math.PI, 0);
+  ctx.fill();
   ctx.globalAlpha = 1;
 }
 
@@ -586,10 +645,24 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   const corpseLife = GAME.corpseLifetime * g.arena.corpseLifeMult;
   ctx.fillStyle = '#d8d2bd';
   for (const c of g.corpses) {
-    if (!visible(c.x, c.y, 20)) continue;
+    if (c.rise || !visible(c.x, c.y, 20)) continue;
     ctx.globalAlpha = clamp(1 - c.t / corpseLife, 0, 1) * 0.8;
     ctx.fillRect(c.x - 6, c.y - 1, 12, 3);
     ctx.fillRect(c.x - 1, c.y - 5, 3, 10);
+  }
+  // #275: a corpse that will rise: soul-lit, in a ring that closes as it nears rising and flickers at the end. Walk over it.
+  for (const c of g.corpses) {
+    if (!c.rise || !visible(c.x, c.y, 30)) continue;
+    const k = riseProgress(c), late = k > 0.7;
+    ctx.globalAlpha = late ? 0.65 + 0.35 * Math.sin(g.time * 24) : 0.9;
+    ctx.fillStyle = '#7ec8d8';
+    ctx.fillRect(c.x - 6, c.y - 1, 12, 3);
+    ctx.fillRect(c.x - 1, c.y - 5, 3, 10);
+    ctx.strokeStyle = '#7ec8d8';
+    ctx.lineWidth = late ? 2.5 : 1.5;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, 18, -Math.PI / 2, -Math.PI / 2 + k * TAU);
+    ctx.stroke();
   }
 
   end('corpses', _t);
@@ -610,6 +683,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   ctx.globalAlpha = 1;
   // #224: the Cinderlands' spreading fire, slab by slab
   for (const f of g.flames) if (visible(f.x, f.y, FLAGSTONE)) fireSlab(ctx, f.x, f.y, FLAGSTONE, f.t, g.time);
+  // #277: the Gravedigger's open graves (only he keeps any)
+  for (const e of g.enemies) if (e.graves?.length) drawGraves(ctx, e.graves, riseTime(e.phase), g.time, visible);
   drawQuestGround(ctx, g);
 
   end('fields', _t);
@@ -654,6 +729,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
         ctx.stroke();
       }
     } else {
+      if (zn.hold && zn.hostile) markedGrave(ctx, zn.x, zn.y, zn.r, k);
       ctx.fillStyle = zn.color;
       ctx.globalAlpha = zn.hostile ? 0.16 : 0.08;
       disc(ctx, zn.x, zn.y, zn.r);
@@ -668,7 +744,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.stroke();
       ctx.globalAlpha = 1;
       // #159: the hazard itself rises in the circle: a hand claws up, or the fire swells until it strikes
-      if (zn.art === 'hands') drawProp(ctx, 'hand', zn.x, zn.y + 8, 1, Math.min(2, Math.floor(k * 3)));
+      if (zn.art === 'hands' && zn.hold) for (const dx of [-11, 11]) drawProp(ctx, 'hand', zn.x + dx, zn.y + 6 + Math.abs(dx) / 3, 1, Math.min(2, Math.floor(k * 3))); // #274: a pair, to grip
+      else if (zn.art === 'hands') drawProp(ctx, 'hand', zn.x, zn.y + 8, 1, Math.min(2, Math.floor(k * 3)));
       else if (zn.art === 'fire') drawProp(ctx, 'flare', zn.x, zn.y + 12, 1 + k, propFrame('flare', g.time));
     }
   }
@@ -826,6 +903,33 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
+    if (e.def.id === 'barrowKing') {
+      // #278: his open graves: a dark mound, its rim closing as the dead climb up (walk onto it to trample it)
+      for (const gr of kingGraves.get(e) ?? []) {
+        const r = BARROW_KING.graves.radius;
+        ctx.fillStyle = '#1f2b1d';
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.ellipse(gr.x, gr.y, r, r * 0.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = '#9fb8a8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(gr.x, gr.y, r, r * 0.6, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, gr.t / BARROW_KING.graves.rise));
+        ctx.stroke();
+      }
+      if (e.phase >= BARROW_KING.guardFrom && (g.vars['barrow.guards'] ?? 0) > 0) {
+        // his guard: while one of his risen stands inside this ring, blows do him less
+        ctx.globalAlpha = 0.3 + 0.1 * Math.sin(g.time * 2);
+        ctx.strokeStyle = '#9fb8a8';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, BARROW_KING.guard.reach, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
     if (e.shield > 0) {
       ctx.globalAlpha = 0.25 + 0.5 * (e.shield / e.shieldMax);
       ctx.strokeStyle = AFFIXES.shielded.color;
@@ -953,6 +1057,17 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   }
   if (p.invulnT <= 0 || Math.floor(g.time * 16) % 2 === 0) {
     drawSprite(ctx, playerSprite(g, p, GAME.spriteScale + (g.vars.avatar ? 2 : 0)), p.x, p.y, p.flip, p.flash > 0); // v0.6: the Avatar of Wrath is a giant
+  }
+  if (p.heldT > 0) {
+    // #274: held by a grave's hands: a pair grips his feet, over the sprite, until they let go
+    ctx.strokeStyle = '#7fae7a';
+    ctx.globalAlpha = 0.8;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 4, p.r + 6, (p.r + 6) * 0.45, 0, 0, TAU);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    for (const dx of [-9, 9]) if (!drawProp(ctx, 'hand', p.x + dx, p.y + 10, 1, 2)) (ctx.fillStyle = '#9fae96'), ctx.fillRect(p.x + dx - 3, p.y - 4, 6, 14);
   }
   if (p.chillT > 0) {
     ctx.fillStyle = 'rgba(169,216,239,0.3)';

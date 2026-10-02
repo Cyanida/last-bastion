@@ -8,6 +8,8 @@
 /** [outline, deep shadow, shadow, mid, light, highlight, glint]: shadows lean cool, highlights warm. */
 export const RAMPS = {
   steel: ['#191b25', '#2e3242', '#485064', '#6c768a', '#96a1b2', '#c7ced6', '#f5f3ea'],
+  plate: ['#23263a', '#474d63', '#737b91', '#a3abbd', '#cdd3de', '#eceff4', '#ffffff'], // #245: polished, near-white plate: the Paladin
+  blaze: ['#e6c860', '#f6e08e', '#fff0b4', '#fff8d8', '#fffdf2', '#ffffff', '#ffffff'], // #245: white-hot holy light: the Paladin's blade on the cast
   darksteel: ['#0f1118', '#1b1f29', '#2a303c', '#3c4352', '#555f70', '#788393', '#b0b7c1'],
   gold: ['#3a1f0b', '#6b3b12', '#9a6118', '#c98d27', '#e5b545', '#f6d97a', '#fff7cf'],
   red: ['#2a0710', '#4f0f1c', '#7a1a24', '#a3282a', '#c7422f', '#e0683f', '#f19a6a'],
@@ -38,6 +40,8 @@ export const RAMPS = {
   // #156: the other champions
   tan: ['#2b150e', '#5a2f1f', '#8a4d33', '#b87354', '#d6966f', '#ecb993', '#f8dcc0'],
   pelt: ['#1a1410', '#33281f', '#4d3e30', '#6b5843', '#8a7459', '#a8927a', '#c9b79f'],
+  teal: ['#1c2424', '#303d3d', '#475756', '#61726f', '#7e8f8b', '#9dada8', '#c3cfca'], // #247: washed-out grey-teal wool: the Viking's coat, tunic and trousers
+  wood: ['#24140a', '#4a2a12', '#6e3f1a', '#955a26', '#b87936', '#d49a52', '#ecc182'], // #247: a wooden haft: the Viking's axe
   bone: ['#2a2419', '#534833', '#807154', '#a99a78', '#cabd98', '#e4dbbd', '#fbf6e4'],
   amethyst: ['#120a1c', '#241335', '#361d4f', '#4c2a6b', '#663d88', '#8657a6', '#a97cc4'],
   fern: ['#0c1a10', '#16301c', '#23472a', '#34623a', '#4a7f4c', '#6b9e62', '#9cc58a'],
@@ -50,9 +54,16 @@ export const RAMPS = {
   soul: ['#0c2a33', '#155066', '#2182a0', '#3eb1cc', '#7ed8e8', '#c2f1f8', '#ffffff'],
   fire: ['#5a1a06', '#9a3208', '#d4560f', '#f08a1c', '#f8b73c', '#fde38a', '#fffbe0'],
   rot: ['#10170f', '#1f2b1d', '#34452f', '#4f6547', '#6d8763', '#94ab86', '#c6d6b4'], // the Graveyard's grasping hands
+  // #268: the Angel
+  angelSkin: ['#3a1f17', '#6e3b2c', '#a0604a', '#c98a6c', '#e2ae8e', '#f2caa9', '#fbe3cc'], // #268: fair skin: the Angel
+  angelPearl: ['#3a3c52', '#6d7190', '#a3a8c0', '#c9cddd', '#e3e6ef', '#f4f6fa', '#ffffff'], // #268: cool pearl white: the Angel's feathers and staff
+  angelLinen: ['#4a4238', '#857a68', '#b8ad96', '#dcd3bd', '#eee8d8', '#f8f5ec', '#ffffff'], // #268: bright linen: the Angel's vestments
+  pallor: ['#1b1e1e', '#343a39', '#535b58', '#78807b', '#9ba39c', '#bec5bc', '#e0e5da'], // #269: pale grey, bloodless skin: the Necromancer
+  sage: ['#151b16', '#28322a', '#3e4b3f', '#58685a', '#768778', '#98a895', '#c1cbb7'], // #270: grey-green woodland cloth: the Archer's hood and cloak
+  barrowBronze: ['#0e1714', '#1b2c26', '#2b453b', '#426455', '#628874', '#8fb198', '#d6e4bf'], // #278: grave-green, corroded bronze: the Barrow King's plate
 } as const;
 export type Material = keyof typeof RAMPS;
-const METALS = new Set<Material>(['steel', 'darksteel', 'gold', 'black']);
+const METALS = new Set<Material>(['steel', 'plate', 'darksteel', 'gold', 'black']);
 const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
 
 export type Pt = readonly [number, number];

@@ -1,6 +1,6 @@
 import { PATTERNS, type Pattern, type PatternKind } from '../config/ai';
 import type { DamageType } from '../config/damage';
-import { sfx } from '../sim/view';
+import { by, sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game, Telegraph } from '../core/types';
 import { addZone, fireProjectile, timer } from '../entities/hazards';
@@ -23,7 +23,7 @@ export function aimFan(g: Game, e: Enemy, o: Fan): void {
   const tele: Telegraph = { angle: o.angle, length: o.range, width: 12, t: 0, dur: o.windup, count: o.count, spread: o.spread };
   e.telegraph = tele;
   e.windupT = Math.max(e.windupT, o.windup);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
   loose(g, o.windup, { e, tele, o });
 }
 

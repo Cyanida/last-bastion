@@ -40,7 +40,11 @@ export type EnemyId =
   | 'siegeCamp'
   | 'plagueCart'
   | 'usurper'
-  | 'royalFlame';
+  | 'royalFlame'
+  | 'barrowThrall'
+  | 'blightHound'
+  | 'gravedigger'
+  | 'barrowKing';
 
 export type Behavior =
   | 'chaser'
@@ -331,4 +335,38 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     specialCd: 4.5, windup: 1.2, specialMult: 1.4, flasks: 3, zoneRadius: 70, poolLife: 6, poolDps: 14,
     p2RingFlasks: 7, summon: 'priest', summonCount: 2,
   },
+  // #275: the Barrowvale's peasant, a villager the barrows gave back: the Peasant's body and blow, but where he falls he rises again
+  // unless the champion tramples his corpse (RISING below)
+  barrowThrall: { ...base, id: 'barrowThrall', name: 'Barrow Thrall', sprite: 'barrowThrall', behavior: 'chaser', hp: 22, damage: 8, speed: 72, radius: 12, xp: 1 },
+  // #276: the Barrowvale's wolf, sick with the barrow plague: where he dies the ground stays foul long after (config/damage.ts PLAGUE_GROUND)
+  blightHound: {
+    ...base, id: 'blightHound', name: 'Blight Hound', sprite: 'blightHound', behavior: 'lunger',
+    hp: 12, damage: 6, speed: 135, radius: 10, xp: 1, lungeRange: 130, lungeSpeed: 380, windup: 0.35, lungeTime: 0.4, recover: 0.6,
+  },
+  // #277: the Barrowvale's level-3 boss (config/bosses.ts GRAVEDIGGER, systems/bosses.ts). A slow undead sexton who comes at you with his
+  // spade and digs graves round you that rise unless you trample them; his rot (poolLife, poolDps) is plague ground that lasts
+  gravedigger: {
+    ...boss, id: 'gravedigger', name: 'The Gravedigger', sprite: 'gravedigger', behavior: 'chaser', phases: 3,
+    hp: 1100, damage: 22, speed: 68, radius: 30, xp: 120,
+    specialCd: 4.4, windup: 0.9, specialMult: 1.4, zoneRadius: 40, poolLife: 14, poolDps: 8, p2SpeedMult: 1.1,
+  },
+  // #278: the Barrowvale's crown boss (config/bosses.ts BARROW_KING, systems/bosses.ts). A phase for each lesson: graves round you that let
+  // his barrow guard out unless trampled, plague ground that lasts, and his risen guarding him. `summon` is who climbs out of a grave
+  barrowKing: {
+    ...boss, id: 'barrowKing', name: 'The Barrow King', sprite: 'barrowKing', behavior: 'chaser', phases: 3,
+    hp: 1150, damage: 20, speed: 70, radius: 32, xp: 160,
+    specialCd: 5, windup: 1, specialMult: 1.4, zoneRadius: 42, poolDps: 7, summon: 'knight', summonCount: 1, p2SpeedMult: 1.1,
+  },
+};
+
+/**
+ * #275: foes whose corpses rise again (the Barrowvale's Barrow Thralls). Where one falls its corpse lies marked; `delay` seconds later it
+ * rises where it lay with `hp` x its HP (its blow as it was), unless the champion walks over it first: within `trample` px of his edge.
+ * A risen foe stays down when it falls again, and a corpse taken by anything else (Raise Dead, a bone collector) never rises
+ * (logic/risingCorpse.ts).
+ */
+export const RISING: Partial<Record<EnemyId, { delay: number; trample: number; hp: number }>> = {
+  // Decided: the peasant, the realm's crowd from wave 1 on every tier, so the lesson is on every level; 4 s of a corpse's 10 lets a
+  // champion turn back for it but not for a whole crowd, and half his HP (11 before scaling) once keeps a levy from doubling
+  barrowThrall: { delay: 4, trample: 10, hp: 0.5 },
 };

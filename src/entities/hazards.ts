@@ -42,7 +42,7 @@ export function addZone(g: Game, z: Pick<Zone, 'x' | 'y' | 'r' | 'delay' | 'dama
   if (z.hostile && z.owner && z.delay > 0) z.owner.windupT = Math.max(z.owner.windupT, z.delay); // v0.6: whoever set it glows until it lands
 }
 
-export function addField(g: Game, f: Pick<Field, 'x' | 'y' | 'r' | 'life' | 'dps' | 'hostile' | 'color'> & Partial<Pick<Field, 'heal' | 'dtype' | 'apply'>>): void {
+export function addField(g: Game, f: Pick<Field, 'x' | 'y' | 'r' | 'life' | 'dps' | 'hostile' | 'color'> & Partial<Pick<Field, 'heal' | 'dtype' | 'apply' | 'plague' | 'cause'>>): void {
   g.fields.push({ heal: 0, dtype: 'physical', apply: null, ...f, max: f.life, tickT: 0, by: relicContext.acting ?? undefined });
 }
 

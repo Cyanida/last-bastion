@@ -12,13 +12,14 @@ export const CARDS = {
   spotRadius: 70, // #133: the lit circle round the foe, in world pixels (plus its own size)
 };
 
-export type MechanicCard = 'elite' | 'telegraph';
+export type MechanicCard = 'elite' | 'telegraph' | 'graspingHands'; // #274: the Barrowvale's grasping hands, the first time its graves are marked
 export type TutorialCard = 'move' | 'relics' | 'ability' | 'levelUp' | 'utility' | 'sets' | 'status';
 export type CardId = EnemyId | MechanicCard | TutorialCard;
 
 export const MECHANIC_CARDS: Record<MechanicCard, { name: string; text: string; icon: string }> = {
   elite: { name: 'Elite', icon: '★', text: 'Orange outline: tougher, with extra powers. Worth more gold.' },
   telegraph: { name: 'Marked attack', icon: '⚠', text: 'A glow shows where it lands. Step out late for a perfect dodge.' },
+  graspingHands: { name: 'Grasping hands', icon: '✋', text: 'Graves open round you. Step off before the hands rise, or they hold you.' },
 };
 
 /**
@@ -85,6 +86,10 @@ export const ENEMY_CARDS: Record<EnemyId, string> = {
   cinderColossus: 'Crown boss. His hits burn, his fire spreads, and foes burst near him.',
   usurper: 'The last foe. Put out the Royal Flames to hurt him.',
   royalFlame: 'While one burns, the Usurper cannot be hurt.',
+  barrowKing: 'Crown boss. Trample his graves, shun the plague, kill his guard first.',
+  gravedigger: 'Boss. Trample his open graves before the dead climb out; his rot lasts.',
+  blightHound: 'Leaps like a wolf. Where it dies, plague ground lingers: fight off it.',
+  barrowThrall: 'Rises again where it falls. Walk over the corpse to keep it down.', // #275
 };
 
 export const CARD_IDS = [...(Object.keys(ENEMY_CARDS) as EnemyId[]), ...(Object.keys(MECHANIC_CARDS) as MechanicCard[]), ...(Object.keys(TUTORIAL_CARDS) as TutorialCard[])] as CardId[];

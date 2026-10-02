@@ -95,6 +95,10 @@ and Cinder Hounds that burst into fire where they fall), over its lava channels,
 catches at the lava's bank every 2 s at most while it is measured, so tongues of it are always creeping in the frames. It fails when
 it is not the Ember Forge (another arena, none of the realm's foes, or fewer than 3 slabs seen alight). On the desktop it read p95
 16.7 ms (update 1.9, render 2.5), with up to 8 slabs alight at once.
+v0.13 (#273, #292) adds the Forsaken Graveyard: a Barrowvale level (level 3, wave 20) among its crypts, 250 foes, Barrow Thralls and
+Blight Hounds among them, its grasping hands marked round the champion, the Gravedigger on the floor with his theme and cues. It fails
+when it is not the graveyard (another arena or realm, fewer than 3 hands seen marked, or not his music). After the balance pass (#293)
+it read p95 16.8 ms on the desktop (update 2.0, render 4.2), 244 foes, 69 of them the realm's own, up to 4 hands marked at once.
 
 ## At the v0.4.0 release
 

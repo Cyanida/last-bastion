@@ -17,11 +17,10 @@ describe('startup with site data blocked (v0.7.5, #106)', () => {
     const music = await import('../src/core/music');
     const { prefs } = await import('../src/core/storage');
     expect(audio.isMuted()).toBe(false);
-    expect(audio.effectsLevel()).toBe('high');
-    expect(music.musicLevel()).toBe('medium');
+    expect(audio.getMix()).toEqual({ master: 100, music: 55, effects: 100, ui: 70, ambience: 50 }); // #282: the mixer's defaults
     expect(music.runMusicOn()).toBe(true);
     expect(() => audio.toggleMute()).not.toThrow();
-    expect(() => audio.setEffectsLevel('low')).not.toThrow();
+    expect(() => audio.setVolume('effects', 35)).not.toThrow();
     expect(() => music.setRunMusic(false)).not.toThrow();
     expect(prefs.get('lastbastion.whatsNew')).toBeNull();
   });
@@ -31,7 +30,7 @@ describe('startup with site data blocked (v0.7.5, #106)', () => {
     vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k) });
     const audio = await import('../src/core/audio');
     const music = await import('../src/core/music');
-    expect([audio.isMuted(), audio.effectsLevel(), music.musicLevel(), music.runMusicOn()]).toEqual([true, 'low', 'off', false]);
+    expect([audio.isMuted(), audio.getMix().effects, audio.getMix().music, music.runMusicOn()]).toEqual([true, 35, 0, false]); // #282: the old levels, migrated
     audio.toggleMute();
     expect(store.get('lastbastion.muted')).toBe('0');
   });

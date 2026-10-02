@@ -25,12 +25,12 @@ describe('the crown boss rules (#202)', () => {
     expect(ENEMIES.warden.phases).toBe(WORLD.crownBoss.phases);
   });
 
-  it('no blow carries a crown boss through a phase: held above its threshold until its time is run, then above the next one', () => {
+  it('no blow carries a crown boss through a phase: held above its threshold until its time is run, then on it (#264)', () => {
     const min = WORLD.crownBoss.minPhaseSeconds;
     expect(crownHpFloor(900, 1, 3, 0)).toBe(601);
-    expect(crownHpFloor(900, 1, 3, min)).toBe(301); // a burst lands in phase 2 and starts its clock
+    expect(crownHpFloor(900, 1, 3, min)).toBe(600); // a burst lands at the top of phase 2 and starts its clock (#264)
     expect(crownHpFloor(900, 2, 3, min - 0.1)).toBe(301);
-    expect(crownHpFloor(900, 2, 3, min)).toBe(1); // phase 3 must still run its time
+    expect(crownHpFloor(900, 2, 3, min)).toBe(300); // phase 3 begins on its whole share, and must still run its time
     expect(crownHpFloor(900, 3, 3, 5)).toBe(1);
     expect(crownHpFloor(900, 3, 3, min)).toBe(0);
     expect(crownHpFloor(1000, 1, 3, 0)).toBeGreaterThan(1000 * (2 / 3)); // never on the threshold itself (enterPhase uses <=)
@@ -83,7 +83,7 @@ describe("the Warden's third phase as the crown boss (#202)", () => {
     damageEnemy(g, w, w.maxHp * 10);
     expect(w.phase).toBe(1);
     expect(w.hp).toBeGreaterThan(w.maxHp * (2 / 3));
-    // once the phase has run its time, the next blow lands in phase 2, but not past it
+    // once the phase has run its time, the next blow lands in phase 2, at its top (#264)
     g.time += WORLD.crownBoss.minPhaseSeconds;
     updateEnemies(g, 0.016);
     damageEnemy(g, w, w.maxHp * 10);
@@ -98,8 +98,10 @@ describe("the Warden's third phase as the crown boss (#202)", () => {
     expect(w.phase).toBe(3);
     expect(w.state).toBe(3);
     expect(g.banner?.text).toBe('The Warden’s judgement');
+    expect(w.hp).toBeGreaterThanOrEqual(Math.floor(w.maxHp / 3)); // #264: the Judgement begins on its whole share of the bar
     damageEnemy(g, w, w.maxHp * 10);
-    expect(w.hp).toBe(1);
+    expect(w.hpFloor).toBe(1);
+    expect(w.hp).toBeGreaterThanOrEqual(1);
     expect(w.dead).toBe(false);
     g.time += WORLD.crownBoss.minPhaseSeconds;
     updateEnemies(g, 0.016);

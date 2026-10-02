@@ -1,9 +1,13 @@
 import { ATTUNEMENT, FAMILIES, relicDef, type RelicId, type SetLevel } from '../../config/relics';
-import type { Player } from '../../core/types';
-import { timer } from '../../entities/hazards';
+import type { Enemy, Game, Player } from '../../core/types';
+import { addField, timer } from '../../entities/hazards';
 import { applyStatus, nearestEnemy } from '../combat';
-import { aOf, awakened, bonus, credit, isCursed, nOf, nova, raiseSkeleton, relicDamage, sOf, skeletonsBy, type RelicHooks } from '../relicCore';
-import { addWork } from '../../logic/relics';
+import { burst, ring } from '../effects';
+import * as scale from '../../logic/abilities';
+import { clamp } from '../../core/math';
+import { aOf, awakened, bonus, credit, isCursed, nOf, nova, raiseSkeleton, relicDamage, relicHeal, sOf, skeletonsBy, type RelicHooks } from '../relicCore';
+import { addWork, corpsesNear, deadCount, wightBurst } from '../../logic/relics';
+import { censerLays, guardCut, stompable, tollCorpses } from '../../logic/graveRelics';
 
 /**
  * 💀 Grave (RELICS.md): corpses, summons and curse. Relics raise skeletons (for any class), curse, or feed on corpses; the sets make corpses
@@ -11,6 +15,20 @@ import { addWork } from '../../logic/relics';
  */
 const F = FAMILIES.grave;
 const shadow = { radius: 70, color: F.color, dtype: 'shadow' as const };
+const curse = (g: Game, e: Enemy, stacks: number) => applyStatus(e, { apply: [{ id: 'curse', stacks }] }, g);
+/** Plague Censer (#279): does `e` stand in the censer's plague ground? */
+const inCenser = (g: Game, e: Enemy): boolean => g.fields.some((f) => f.by === 'plagueCenser' && (f.x - e.x) ** 2 + (f.y - e.y) ** 2 <= f.r * f.r);
+/** Crown of Antlers (#279): the barrow guard: your skeletons (not a quest's or an evolution's units) standing within `radius` of you. */
+const guardsNear = (g: Game, p: Player, radius: number): number =>
+  g.minions.reduce((n, m) => n + (!m.kind && m.hp > 0 && (m.x - p.x) ** 2 + (m.y - p.y) ** 2 <= radius * radius ? 1 : 0), 0);
+/** #280: takes these corpses off the ground (they rise as skeletons, are laid to rest or burst; a rising one never rises then). */
+function takeCorpses(g: Game, taken: Game['corpses']): void {
+  for (const c of taken) g.corpses.splice(g.corpses.indexOf(c), 1);
+}
+/** #280: curses every enemy within `radius` of (x, y). */
+function curseAround(g: Game, x: number, y: number, radius: number, stacks: number): void {
+  for (const e of g.hash.query(x, y, radius, [])) if (!e.dead) applyStatus(e, { apply: [{ id: 'curse', stacks }] }, g);
+}
 const corpseBursts = timer('deathmask.burst', (g, a: { p: Player; x: number; y: number }) => nova(g, a.x, a.y, shadow.radius, relicDamage(a.p, aOf('deathmask').damage), 140, F.color, 'shadow'));
 
 export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
@@ -77,6 +95,68 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
     },
   },
 
+  // ---------------------------------------------------------------- v0.13 (#279): the Barrowvale
+  barrowBoots: {
+    tick(g, _dt, p) {
+      const n = nOf(p, 'barrowBoots');
+      for (const c of stompable(g.corpses, p.x, p.y, p.r, n.reach)) {
+        c.stomped = true; // once per corpse: it stays a corpse (Raise Dead, the Spade, Charnel)
+        const stacks = awakened(p, 'barrowBoots') ? aOf('barrowBoots').curse : 0; // Grave Stomp
+        nova(g, c.x, c.y, n.radius, relicDamage(p, n.damage), 90, F.color, 'shadow', stacks ? (e) => curse(g, e, stacks) : undefined);
+        burst(g, c.x, c.y, '#6b5843', 8, 110); // grave dirt
+      }
+    },
+  },
+
+  plagueCenser: {
+    onKill(g, ev, p) {
+      const n = nOf(p, 'plagueCenser');
+      const kills = (g.vars['censer.kills'] = (g.vars['censer.kills'] ?? 0) + 1);
+      const laid = g.fields.reduce((c, f) => c + (f.by === 'plagueCenser' ? 1 : 0), 0);
+      if (!censerLays(kills, n.every, laid, n.max, inCenser(g, ev.enemy), awakened(p, 'plagueCenser'))) return; // awakened: Blight Bloom
+      const dps = relicDamage(p, n.dps);
+      addField(g, { x: ev.enemy.x, y: ev.enemy.y, r: n.radius, life: n.life, dps, hostile: false, color: '#6f8f4e', dtype: 'shadow', apply: { id: 'poison', power: relicDamage(p, n.poison) } });
+      burst(g, ev.enemy.x, ev.enemy.y, '#6f8f4e', 8, 100);
+    },
+  },
+
+  sextonsBell: {
+    tick(g, dt, p) {
+      const n = nOf(p, 'sextonsBell');
+      if ((g.vars['bell.t'] = (g.vars['bell.t'] ?? 0) + dt) < n.every) return;
+      const risen = tollCorpses(g.corpses, p.x, p.y, n.radius, n.count);
+      if (!risen.length) return; // no corpse near: the bell waits for one
+      g.vars['bell.t'] = 0;
+      for (const c of risen) {
+        g.corpses.splice(g.corpses.indexOf(c), 1); // a thrall's corpse rises for you, and never against you
+        raiseSkeleton(g, p, c.x, c.y, 'sextonsBell', { hp: n.hp, damage: n.damage, life: n.life });
+      }
+      ring(g, p.x, p.y, n.radius, F.color, 0.5);
+      if (awakened(p, 'sextonsBell')) // Death Toll
+        for (const e of g.hash.query(p.x, p.y, n.radius, [])) if (!e.dead && (e.x - p.x) ** 2 + (e.y - p.y) ** 2 <= n.radius * n.radius) curse(g, e, aOf('sextonsBell').curse);
+    },
+  },
+
+  crownOfAntlers: {
+    tick(g, dt, p) {
+      const a = aOf('crownOfAntlers');
+      if (awakened(p, 'crownOfAntlers') && guardsNear(g, p, nOf(p, 'crownOfAntlers').radius) >= a.need) relicHeal(g, p, p.stats.hp * a.heal * dt); // Court of Bones
+    },
+    onKill(g, ev, p) {
+      const n = nOf(p, 'crownOfAntlers');
+      if (ev.enemy.def.boss || skeletonsBy(g, 'crownOfAntlers') >= n.max || g.rng() >= n.chance) return;
+      raiseSkeleton(g, p, ev.enemy.x, ev.enemy.y, 'crownOfAntlers', { hp: n.hp, damage: n.damage, life: n.life });
+    },
+    onIncoming(g, ev, p) {
+      if (ev.blocked) return;
+      const n = nOf(p, 'crownOfAntlers');
+      const cut = guardCut(guardsNear(g, p, n.radius), n.per, n.guards);
+      if (cut <= 0) return;
+      credit(g, p, 'crownOfAntlers', 'prevented', ev.amount * cut, true);
+      ev.amount *= 1 - cut;
+    },
+  },
+
   boneChime: {
     tick(_g, _dt, p) {
       const n = nOf(p, 'boneChime');
@@ -86,6 +166,78 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (!awakened(p, 'boneChime') || ev.source !== 'minion') return;
       const a = aOf('boneChime');
       if ((g.vars['knell.hits'] = (g.vars['knell.hits'] ?? 0) + 1) % a.every === 0) nova(g, ev.enemy.x, ev.enemy.y, a.radius, relicDamage(p, a.damage), 120, F.color, 'shadow'); // Death Knell
+    },
+  },
+
+  // ---------------------------------------------------------------- v0.13 (#280): the Barrowvale's class relics
+  ossuarySeal: {
+    onAbilityEnd(g, _ev, p) {
+      if (p.cls.ability.id !== 'divineShield') return;
+      const n = nOf(p, 'ossuarySeal');
+      const dead = corpsesNear(g.corpses, p.x, p.y, n.radius, deadCount(sOf(p), n.base, n.per));
+      takeCorpses(g, dead);
+      for (const c of dead) raiseSkeleton(g, p, c.x, c.y, 'ossuarySeal', { hp: n.hp, damage: n.damage, life: n.life });
+    },
+    onBlocked(g, ev, p) {
+      // Sworn Dead: a blow the shield turns curses whoever struck it
+      if (awakened(p, 'ossuarySeal') && p.cls.ability.id === 'divineShield' && p.abilityTime > 0 && ev.attacker && !ev.attacker.dead) applyStatus(ev.attacker, { apply: [{ id: 'curse', stacks: aOf('ossuarySeal').stacks }] }, g);
+    },
+  },
+
+  draugrMead: {
+    onKill(g, ev, p) {
+      if (p.cls.ability.id !== 'berserkerRage' || p.abilityTime <= 0 || ev.source !== 'attack' || ev.enemy.def.boss) return;
+      const n = nOf(p, 'draugrMead');
+      if (skeletonsBy(g, 'draugrMead') >= deadCount(sOf(p), n.base, n.per)) return;
+      raiseSkeleton(g, p, ev.enemy.x, ev.enemy.y, 'draugrMead', { hp: n.hp, damage: n.damage, life: n.life });
+    },
+    onAbilityEnd(g, _ev, p) {
+      if (!awakened(p, 'draugrMead') || p.cls.ability.id !== 'berserkerRage') return;
+      const a = aOf('draugrMead'); // Einherjar: the draugr howl as Rage ends
+      for (const m of g.minions) if (m.relicBy === 'draugrMead' && m.hp > 0) nova(g, m.x, m.y, a.radius, relicDamage(p, a.damage), 90, F.color, 'shadow');
+    },
+  },
+
+  lastRites: {
+    onAbilityUsed(g, _ev, p) {
+      const ability = p.cls.ability;
+      if (ability.id !== 'heavenlyRadiance') return;
+      const n = nOf(p, 'lastRites');
+      const dead = corpsesNear(g.corpses, p.x, p.y, scale.heavenlyRadiance(ability, sOf(p)).radius, deadCount(sOf(p), n.base, n.per));
+      if (!dead.length) return;
+      takeCorpses(g, dead);
+      relicHeal(g, p, p.stats.hp * n.heal * dead.length, true);
+      const a = aOf('lastRites');
+      for (const c of dead) {
+        ring(g, c.x, c.y, 24, F.color, 0.5);
+        if (awakened(p, 'lastRites')) curseAround(g, c.x, c.y, a.radius, a.stacks); // Psychopomp
+      }
+    },
+  },
+
+  wightboneArrows: {
+    onAbilityUsed(g, _ev, p) {
+      const ability = p.cls.ability;
+      if (ability.id !== 'arrowVolley') return;
+      // the Volley's own target point (systems/abilities.ts: the aim, clamped to its cast range); a Ballista bolt calls the same ground
+      const dx = g.input.aimX - p.x;
+      const dy = g.input.aimY - p.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const k = clamp(d, 0, ability.castRange) / d;
+      const dead = corpsesNear(g.corpses, p.x + dx * k, p.y + dy * k, ability.radius, g.corpses.length);
+      if (!dead.length) return;
+      takeCorpses(g, dead);
+      const n = nOf(p, 'wightboneArrows');
+      const dmg = wightBurst(relicDamage(p, n.damage), n.perFocus, sOf(p));
+      for (const c of dead) {
+        nova(g, c.x, c.y, n.radius, dmg, 80, F.color, 'shadow');
+        burst(g, c.x, c.y, '#e8e2d0', 10, 200); // bone splinters
+      }
+    },
+    onKill(g, ev, p) {
+      if (!awakened(p, 'wightboneArrows') || ev.source !== 'ability' || ev.enemy.def.boss) return;
+      const a = aOf('wightboneArrows'); // Barrow Wights
+      if (skeletonsBy(g, 'wightboneArrows') < a.max) raiseSkeleton(g, p, ev.enemy.x, ev.enemy.y, 'wightboneArrows', { hp: a.hp, damage: a.damage, life: a.life });
     },
   },
 };

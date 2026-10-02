@@ -312,8 +312,26 @@ export const RELICS = {
     awaken: ['Exhume', (a) => `Every ${a.every} s the oldest corpse near you rises as a skeleton.`], desc: (n) => `+${pct(n.per)} damage for every corpse within ${n.radius} px (up to ${n.max}).` }),
   deathmask: relic({ name: 'Deathmask', rarity: 'common', icon: '🎭', family: 'grave', n: { reduce: 0.15, chance: 0.2 }, n2: { reduce: 0.2 }, a: { delay: 1, damage: 18 },
     awaken: ['Mark of the Grave', (a) => `A cursed enemy you kill leaves a corpse that bursts in shadow after ${a.delay} s.`], desc: (n) => `Hits have a ${pct(n.chance)} chance to curse; cursed enemies deal ${pct(n.reduce)} less damage.` }),
+  // v0.13 (#279): the Barrowvale's Grave relics: the dead that rise unless you trample them, and plague ground that lasts, taken up by the player
+  barrowBoots: relic({ name: 'Barrow Boots', rarity: 'common', icon: '👢', family: 'grave', n: { damage: 30, radius: 85, reach: 24 }, n2: { damage: 38 }, a: { curse: 1 },
+    awaken: ['Grave Stomp', (a) => `A stomp curses what it hits (${a.curse} stack).`], desc: (n) => `Walking over a corpse stomps it once: ${n.damage} shadow damage (grows with level) to every enemy within ${n.radius} px.` }),
+  plagueCenser: relic({ name: 'Plague Censer', rarity: 'rare', icon: '🧪', family: 'grave', n: { every: 4, max: 3, radius: 60, life: 8, dps: 10, poison: 3 }, n2: { every: 3, max: 4, dps: 13 },
+    awaken: ['Blight Bloom', 'An enemy that dies in your plague ground leaves plague ground of its own.'], desc: (n) => `Every ${n.every} kills, plague ground spreads where the last enemy fell, for ${n.life} s: ${n.dps} shadow damage per second (grows with level), and it poisons (up to ${n.max} patches).` }),
+  sextonsBell: relic({ name: "Sexton's Bell", rarity: 'rare', icon: '🛎️', family: 'grave', n: { every: 6, radius: 180, count: 3, hp: 60, damage: 16, life: 10 }, n2: { every: 4.5, count: 4 }, a: { curse: 2 },
+    awaken: ['Death Toll', (a) => `Each toll curses every enemy within its reach (${a.curse} stacks).`], desc: (n) => `Every ${n.every} s the bell tolls: up to ${n.count} corpses within ${n.radius} px rise as skeleton allies for ${n.life} s, a corpse about to rise against you first.` }),
+  crownOfAntlers: relic({ name: 'Crown of Antlers', rarity: 'legendary', icon: '🦌', family: 'grave', n: { chance: 0.08, max: 3, hp: 60, damage: 10, life: 12, radius: 200, per: 0.05, guards: 3 }, n2: { chance: 0.12, max: 4, per: 0.07 }, a: { need: 3, heal: 0.01 },
+    awaken: ['Court of Bones', (a) => `While ${a.need}+ guards stand near you, you mend ${pct(a.heal)} of your max HP every second.`], desc: (n) => `Your skeletons are your barrow guard: you take ${pct(n.per)} less damage for each within ${n.radius} px (up to ${n.guards}). Kills have a ${pct(n.chance)} chance to raise a guard (up to ${n.max}).` }),
   boneChime: relic({ name: 'Bone Chime', rarity: 'rare', icon: '🎐', family: 'grave', classId: 'necromancer', n: { inherit: 0.5, perSoul: 0.02 }, n2: { inherit: 0.7, perSoul: 0.03 }, a: { every: 20, radius: 90, damage: 20 },
     awaken: ['Death Knell', (a) => `Every ${a.every}th minion hit tolls the chime: a shadow burst around that minion.`], desc: (n) => `Minions inherit ${pct(n.inherit)} of your attack speed, plus ${pct(n.perSoul)} per Soul Power.` }),
+  // v0.13 (#280): the Barrowvale's class relics for the four champions who had no Grave one; each answers the realm's lesson, the dead
+  ossuarySeal: relic({ name: 'Ossuary Seal', rarity: 'rare', icon: '☠️', family: 'grave', classId: 'paladin', n: { base: 1, per: 5, radius: 220, hp: 60, damage: 16, life: 10 }, n2: { per: 4 }, a: { stacks: 2 },
+    awaken: ['Sworn Dead', (a) => `While the shield holds, every enemy that strikes it is cursed (${a.stacks} stacks).`], desc: (n) => `When Divine Shield ends the dead answer: up to ${n.base} + Faith/${n.per} corpses within ${n.radius} px rise as skeletons for ${n.life} s (${n.hp} HP, ${n.damage} damage, grows with level).` }),
+  draugrMead: relic({ name: "Draugr's Mead", rarity: 'rare', icon: '🍺', family: 'grave', classId: 'viking', n: { base: 2, per: 5, hp: 60, damage: 20, life: 10 }, n2: { per: 4 }, a: { radius: 80, damage: 30 },
+    awaken: ['Einherjar', (a) => `When Rage ends your draugr howl: ${a.damage} shadow damage (grows with level) to every enemy within ${a.radius} px of each.`], desc: (n) => `Every enemy you strike down during Berserker Rage rises as a draugr, a skeleton that fights for you for ${n.life} s (up to ${n.base} + Rage/${n.per} at once; ${n.hp} HP, ${n.damage} damage, grows with level).` }),
+  lastRites: relic({ name: 'Last Rites', rarity: 'rare', icon: '🕊️', family: 'grave', classId: 'angel', n: { base: 4, per: 4, heal: 0.03 }, n2: { per: 3, heal: 0.04 }, a: { radius: 90, stacks: 2 },
+    awaken: ['Psychopomp', (a) => `Every corpse laid to rest curses the enemies within ${a.radius} px of it (${a.stacks} stacks).`], desc: (n) => `Heavenly Radiance lays the corpses within its radius to rest (up to ${n.base} + Grace/${n.per}), and none of them rises again: each heals you ${pct(n.heal)} of your max HP.` }),
+  wightboneArrows: relic({ name: 'Wightbone Arrows', rarity: 'rare', icon: '🩻', family: 'grave', classId: 'archer', n: { damage: 20, radius: 70, perFocus: 0.03 }, n2: { damage: 28 }, a: { max: 3, hp: 50, damage: 10, life: 10 },
+    awaken: ['Barrow Wights', (a) => `Enemies your signature ability kills rise as skeletons for ${a.life} s (up to ${a.max}).`], desc: (n) => `Arrow Volley calls on the dead under it: every corpse in its area bursts in bone and shadow, ${n.damage} damage (grows with level, +${pct(n.perFocus)} per Focus) to every enemy within ${n.radius} px.` }),
 
   // ---------------------------------------------------------------- 🛡️ Steel
   towerShield: relic({ name: 'Tower Shield', rarity: 'common', icon: '🛡️', family: 'steel', n: { chance: 0.1 }, n2: { chance: 0.14 }, a: { knockback: 400, stun: 0.5 },
@@ -377,10 +395,10 @@ export type RelicId = keyof typeof RELICS;
 export const RELIC_IDS = Object.keys(RELICS) as RelicId[];
 /**
  * v0.10 (#194, docs/road-to-the-crown.md rule 5): what a champion's run finds besides its inventory and a realm's family. Every common is the
- * starter pool, open to every run. `open`: the three relics deeds used to unlock, open to every run until their realm crowns ship (Holy,
- * Grave, Storm).
+ * starter pool, open to every run. `open`: the relics deeds used to unlock, open to every run until their realm crowns ship (Holy, Storm;
+ * Soul Lantern left with the Barrowvale's, #279).
  */
-export const RELIC_POOL = { open: ['phoenixFeather', 'soulLantern', 'stormcallersHorn'] as RelicId[] };
+export const RELIC_POOL = { open: ['phoenixFeather', 'stormcallersHorn'] as RelicId[] }; // v0.13 (#279): Soul Lantern went to the Barrowvale's crown
 export const relicDef = (id: RelicId): RelicDef => RELICS[id];
 /** v0.7.1 B6: the cursed relics (no family), and whether a relic is one. */
 export const isCursedRelic = (id: RelicId): boolean => RELICS[id].cursed === true;
@@ -441,6 +459,8 @@ export const DUOS = {
   ironTithe: duo('Iron Tithe', '⚖️', ['steel', 'blood'], ['reprisalCuirass', 'vampireFang'], (n) => `A reprisal opens ${n.bleed} bleed stacks on its target and heals you ${pct(n.heal)} of its damage.`, { bleed: 3, power: 0.1, heal: 0.03 }),
   // v0.12 (#230): the Cinderlands' duo: the fire that cleanses. Flame's 5th recipe: a duo a realm takes a family past 4 (RELICS.md C5)
   baptismOfFire: duo('Baptism of Fire', '⛲', ['flame', 'holy'], ['flashpowder', 'blessedWater'], (n) => `A flare heals you ${pct(n.heal)} of your max HP for every enemy it catches (up to ${n.max}).`, { heal: 0.01, max: 4 }),
+  // v0.13 (#280): the Barrowvale's duo: trample the dead before they rise, and feed on them. Grave's 4th recipe, Blood's 5th (RELICS.md C7)
+  barrowFeast: duo('Barrow Feast', '🍖', ['grave', 'blood'], ['hexDoll', 'berserkerTooth'], (n) => `Walking over a corpse devours it (it never rises): it heals you ${pct(n.heal)} of your max HP and curses every enemy within ${n.radius} px (${n.stacks} stack).`, { heal: 0.015, radius: 100, stacks: 1, reach: 10 }),
 } satisfies Record<string, DuoDef>;
 export type DuoId = keyof typeof DUOS;
 export const DUO_IDS = Object.keys(DUOS) as DuoId[];

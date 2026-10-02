@@ -1,5 +1,192 @@
 # Balance notes
 
+## v0.13: the Barrowvale's balance pass (#293)
+
+The release's last issue: every class through every level of the Barrowvale on Knight, against rule 9, with the bot playing the realm
+as one run (`simulateRealm`, #220). The Marches, the Iron Hold and the Cinderlands were not retuned: no change here touches their numbers.
+
+**Tuned** (two passes; `src/config/world.ts`, `src/config/arenas.ts`):
+- **The level step, the Barrowvale's own** (`WORLD.levelStep.own.barrowvale`): HP x0.72, 0.77, 0.8, 0.95, 0.95 and damage x0.82, 0.86,
+  0.9, 1.05, 1.05 (it had a relic realm's: 0.77, 0.77, 0.83, 0.99, 1.07 and 0.92, 0.86, 0.93, 1.12, 1.23). Level 1 sits at the floor,
+  levels 3-5 ease. Its wave lengths stay a relic realm's: the realm already runs 37 minutes clean against 35.
+- **The grasping hands** (`GRAVE_HANDS`): 7 damage (was 10) and a 1 s hold (was 1.2), on every level of the realm. Foes on a grave still
+  take three times that and are held 2 s.
+- **The Plague Abbot on a step of his own in the Barrowvale's level 1** (`WORLD.endBossStep`, `logic/world.ts endBossStep`): 0.85 of his
+  HP, his blows and his plague pools at 0.7 (pools 9.8 a second before scaling, were 14). The realm's level 1 ends on him by name, where
+  a relic realm's level 1 draws a pool boss, and on the realm's plague ground he felled 10-11 of 40 first tries (a relic realm's level 1
+  loses about one at its boss). His own numbers stay: plain runs and the Marches draw him from the pool too.
+- **Left alone: the Lich (plain and elite), the Gravedigger and the Barrow King.** The elite Lich's Barrow Call (#281, "not measured: the
+  balance pass judges it") cost no first try in pass 2 and level 4 clears 70% against 65%; the Gravedigger felled one in 40. The Barrow
+  King fells 5 of the 26 first tries that reach him; his level is lost mostly in the waves before him (14 of 40), which the crown level's
+  step eases.
+
+Pass 1 was the level step with the crown level at HP x1 and damage x1.15, and the hands; it lifted levels 3 and 4 but left level 1 at
+70% (the Abbot still felled 11 of 40 first tries, now with one other loss before him) and the crown level fell to 48%.
+
+What the level panel shows on Knight (Enemy HP): 314, 251, 229, 230, 200% (were the Iron Hold's: 335, 251, 237, 240, 225%).
+
+`npm run sim -- levels 8 1 barrowvale`: 40 first tries a level on Knight (paladin, viking, angel, necromancer, archer; 8 seeds each).
+First-try clear rate and a clear's median minutes. Target: about 90% at level 1 and 55-60% at level 5, falling evenly between.
+
+| Level | Waves | Target | Before | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|---|
+| Barrowvale 1 | 1-8 | 90% | 65%, 5.9 | 70%, 5.7 | 90%, 5.7 |
+| Barrowvale 2 | 9-16 | 82% | 80%, 6.9 | 78%, 6.7 | 75%, 6.8 |
+| Barrowvale 3 | 17-24 | 73% | 60%, 7.1 | 70%, 6.9 | 70%, 7.0 |
+| Barrowvale 4 | 25-32 | 65% | 57%, 8.2 | 60%, 8.1 | 70%, 7.7 |
+| Barrowvale 5 | 33-40 | 55-60% | 53%, 8.7 | 48%, 8.5 | 53%, 8.8 |
+
+Per class, first tries cleared of 8 (before -> pass 2):
+
+| Level | Paladin | Viking | Angel | Necromancer | Archer |
+|---|---|---|---|---|---|
+| Barrowvale 1 | 8 -> 8 | 4 -> 8 | 8 -> 8 | 4 -> 7 | 2 -> 5 |
+| Barrowvale 2 | 5 -> 3 | 7 -> 8 | 8 -> 8 | 7 -> 7 | 5 -> 4 |
+| Barrowvale 3 | 1 -> 2 | 5 -> 7 | 8 -> 8 | 7 -> 7 | 3 -> 4 |
+| Barrowvale 4 | 1 -> 1 | 5 -> 6 | 7 -> 8 | 6 -> 8 | 4 -> 5 |
+| Barrowvale 5 (the crown) | 2 -> 1 | 4 -> 5 | 7 -> 8 | 7 -> 5 | 1 -> 2 |
+| All five | 17 -> 15 of 40 | 25 -> 34 | 38 -> 40 | 31 -> 34 | 15 -> 20 |
+
+The end bosses, measured (first tries lost of 40: in the waves before the boss / with the boss on the floor; the median seconds the
+boss stood, from its arrival to the level's end):
+
+| Level | End boss | Before | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|
+| Barrowvale 1 | the Plague Abbot | 4 / 10, 41 s | 1 / 11, 44 s | 1 / 3, 42 s |
+| Barrowvale 2 | the Lich | 7 / 1, 40 s | 7 / 2, 39 s | 7 / 3, 39 s |
+| Barrowvale 3 | the Gravedigger | 16 / 0, 44 s | 11 / 1, 44 s | 11 / 1, 45 s |
+| Barrowvale 4 | the Lich, Elite | 15 / 2, 51 s | 14 / 2, 54 s | 12 / 0, 49 s |
+| Barrowvale 5 | the Barrow King (crown) | 16 / 3, 53 s | 14 / 7, 51 s | 14 / 5, 51 s |
+
+| Target (rule 9) | Before | Pass 2 | |
+|---|---|---|---|
+| About 90% at realm level 1 | 65% | 90% | met |
+| 55-60% at realm level 5 | 53% | 53% | 2 points under, within 20% |
+| Falling evenly between | level 1 65% against 90%, level 3 60% against 73% | widest: level 2 75% against 82%, level 4 70% against 65% | within 20% |
+| A realm's level 1 takes 4-6 minutes | 5.9 | 5.7 | met |
+| A realm's last level takes 7-10 minutes | 8.7 | 8.8 | met |
+| A realm in about 35 minutes clean, 45 with retries | 37.1 / 51.7 | 36.9 / 48.1 | clean met, with retries 3 minutes over |
+| A 6-set in most crown-level clears | 100% | 100% | met |
+| Relic moments per findable relic 0.4-0.6 (the realm played through) | 0.37 | 0.37 | just outside, as the Iron Hold's 0.38 and the Cinderlands' 0.39 |
+| Power at a level's first wave within 15% of a continuous run | 0 of 4 levels | 0 of 4 levels | not comparable (#220) |
+
+What the numbers say, and what is left after two passes (reported, not tuned further):
+- **The bot's Paladin clears 15 of 40 first tries in the Barrowvale** (8 of 8 at level 1, then 3, 2, 1 and 1 of 8), where he cleared
+  36 of 40 in the Cinderlands; the other four clear 20 (the Archer) to 40 (the Angel). He falls in the waves, often early in a level
+  (on some seeds within a minute of level 4), not at its bosses. The likeliest cause is the realm's lesson itself: a melee champion
+  fights where his foes fall, and the Blight Hounds leave plague ground where they die, so the bot's Paladin stands in it (the Viking,
+  also melee, has his leech). A level step can't lift one class without easing the other four past their targets: it needs the Paladin,
+  or the bot's footwork on lasting ground, looked at by hand.
+- **The Archer** clears 20 of 40 (2 of 8 at the crown): the Iron Hold's and the Cinderlands' finding again, less sharply.
+- **The Plague Abbot was the one boss that decided a level**: he felled 10 of the 36 first tries that reached him, now 3 of 39.
+- The per-level rates carry about 8 points of noise at 40 tries: level 2 (7 points under) and level 4 (5 over) are inside it.
+
+The champion redesigns (#245, #247, #268, #269, #270) changed no hitbox: `GAME.playerRadius` is 13 as in v0.12.0, and none of their
+commits touches `src/config`, `src/logic` or `src/systems`. docs/review/0.13.0/293-graveyard-champions-and-foes-4x.png shows the five
+champions and the Barrowvale's foes and bosses on the Forsaken Graveyard's ground with their hitbox rings: each reads at a glance; the
+lowest contrast against the graveyard's green floor is the Archer's sage cloak and the Blight Hound, both still outlined.
+
+The golden level runs (tests/v10-level-golden.test.ts) gained the Barrowvale's level 1 and a realm run of its levels 1-2; no other
+run moved. `npm run test:perf`'s graveyard scene (#273, #292: a Barrowvale level in the Forsaken Graveyard with the Gravedigger's theme
+and cues) passes after the pass: p95 16.8 ms, 244 foes (69 the realm's own), up to 4 grasping hands marked at once.
+
+## v0.13: the Cinderlands on Knight for a champion with only the Marches crown (#262)
+
+The v0.12.0 playtest: a Paladin at champion level 8-9 with only the Marches crown and a real carry fell 3 times at waves 12-13 of the
+Cinderlands' level 2 on Knight (Enemy HP 251%, up to 44 foes at once), where the sim put level 2 at 88%.
+
+**Expected progress against that champion.** The sim's expected champion for the Cinderlands is exactly one with only the Marches crown
+(`src/sim/levels.ts CROWNED_BEFORE`), and its level is the one its XP gives: 8, 9, 10, 10, 10 for levels 1-5 (the Marches crowned is
+5046 XP, level 8; level 1 pays 432, level 2 918; 10 is the one-crown cap), holding 8, 9, 10, 11, 12 relics. So the sim does not expect
+more than the map allows; the playtest's 8-9 at level 2 is the low end of it (a clear banks the XP it collected, a bit under the pace).
+To measure that low end, **the sim can hold its champion at a level** all realm long (`simulateRealm`'s `hold`;
+`npm run sim -- levels 8 1 cinderlands hold=8`): the Marches crown's level, 8, at every level.
+
+**Tuned** (Knight's levels 2 and 4; `src/config/world.ts`): the level step's level 2 to the floor, HP x0.72 and damage x0.82 (were
+0.77, 0.84), level 4 HP x0.95 and damage x1.08 (were 0.99, 1.12); level 2 brings a relic realm's foes x1.2 (was 1.3) over its longer
+trickle, fewer at once. Levels 1, 3 and 5, the Iron Hold and the Marches keep their numbers. Decided: the level step and wave length,
+not the expected champion level, since that level is what the map gives and is shared by every ring-2 realm.
+
+What the level panel shows on Knight (Enemy HP): 335, 235, 237, 230, 200% (were 335, 251, 237, 240, 200%). On Squire, which takes
+Knight's step under its own ease and #263's cap ease: 197, 132, 123, 110, 85% (were 197, 141, 123, 115, 85% with #263 alone).
+
+`npm run sim -- levels 8 1 cinderlands`, 40 first tries a level on Knight (paladin, viking, angel, necromancer, archer; 8 seeds each),
+the realm as one run, before on release/0.13.0 (8925cf6) and after. First-try clear rate and a clear's median minutes.
+
+| Level | Target | Expected progress: before | Pass 1 (step) | Pass 2 (now: step and foes) | Held at 8: before | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|---|---|---|
+| Cinderlands 1 | 90% | 85%, 4.7 | 85%, 4.7 | 85%, 4.7 | 85%, 4.7 | 85%, 4.7 | 85%, 4.7 |
+| Cinderlands 2 | 82% | 88%, 5.4 | 80%, 5.6 | 88%, 5.3 | 70%, 5.6 | 70%, 5.6 | 68%, 5.5 |
+| Cinderlands 3 | 73% | 78%, 5.9 | 78%, 6.0 | 80%, 6.1 | 73%, 6.1 | 63%, 6.1 | 70%, 6.1 |
+| Cinderlands 4 | 65% | 63%, 6.9 | 65%, 7.0 | 65%, 6.8 | 60%, 7.1 | 55%, 7.1 | 55%, 6.9 |
+| Cinderlands 5 | 55-60% | 55%, 7.5 | 43%, 7.5 | 53%, 7.5 | 35%, 7.6 | 30%, 7.6 | 30%, 7.6 |
+
+Per class with expected progress, first tries cleared of 8 (before -> now): level 2 paladin 7 -> 8, viking 8 -> 7, angel 8 -> 8,
+necromancer 8 -> 8, archer 4 -> 4; level 4 7 -> 7, 4 -> 4, 8 -> 8, 6 -> 7, 0 -> 0. Held at 8 (before -> now): level 2 6 -> 5, 6 -> 6,
+8 -> 8, 8 -> 7, 0 -> 1. A realm clean / with retries: 30.8 / 39.5 minutes before, 30.6 / 38.9 now. Level 2's first tries lost before
+its boss: 4 of 40 before, 3 now (held at 8: 9, 10).
+
+What the numbers say:
+- **With expected progress every level stays in its band** (level 2 88% against 82%, level 4 on its 65%, level 5 53% against
+  55-60%). Level 5 was not touched; its 43% in pass 1 and 53% in pass 2 are the realm run's noise (a run carries what its earlier levels
+  found, so a change at level 2 reshuffles level 5's seeds). The rates carry about 8 points of noise at 40 tries.
+- **Held at 8, the easing did not move the bot**: level 2 70% -> 68%, level 4 60% -> 55%, all within noise. What costs a level-8
+  champion level 2 is its level, not the level's numbers: its foes are scaled for a level-9 champion (`championStep`), and
+  at 8 the bot clears 68-70% against 88% at 9. Levels 3 and 4 held at 8 sit within 20% of their targets (70%
+  against 73%, 55% against 65%); the crown level held at 8 (30%) is not a champion a player brings, since level 2's clear alone takes it
+  to 10.
+- So the change is a small, fair ease where the playtest hurt (fewer foes at once on level 2, 16 points less Enemy HP on the panel),
+  and the rest of the gap is the low end of a champion's level: a player at 8 on level 2 banked under the pace. If a hand-played retry
+  still finds level 2 too hard at 9, the next lever is the expected level of ring 2's level 2 (shared with the Iron Hold and the
+  Barrowvale), not the Cinderlands' step, which is now at its floor.
+
+## v0.13: Squire's crown at the champion level cap (#263)
+
+A playtest Archer on Squire cleared the Cinderlands' levels 1-4 and fell three times at the Cinder Colossus. From a relic realm's level 3
+on the champion stands at its crown cap (10 with the Marches crown), so levels 4 and 5 bring no stat points while the level step keeps
+rising. Squire's `realmEase` (#250) eases a realm's later levels evenly; it did not know where the cap holds a champion back.
+
+**Tuned** (Squire only; Knight and up untouched): Squire's `capEase` 0.03 (`src/config/economy.ts TIERS`): a realm level's enemy HP
+and damage on Squire are 3% less for each champion level the crown cap holds the champion under what the level expects
+(`logic/championLevels capGap`: CHAMPION.expected before its cap, less the capped level). In `logic/world tierStep`, so the level panel
+and the run both take it. The cap holds back 0, 0, 1, 2, 4 levels in the Iron Hold and the Cinderlands (x1, 1, 0.97, 0.94, 0.88) and
+1, 2 at the Marches' levels 6-7 (x0.97, 0.94). Decided: one rule for every realm, not a Cinderlands crown number: the Iron Hold's crown
+has the same cap and the same gap, and the ease follows the cap if #262 moves the expected champion level. The Last Bastion keeps 1.
+
+What the level panel shows on Squire (Enemy HP): the Cinderlands 197, 141, 123, 115, 85% (197, 132, 123, 110, 85% with #262's
+Knight step) (were 197, 141, 127, 122, 97%); the Iron Hold
+197, 141, 123, 115, 96% (were 127, 122, 109% at 3-5); the Marches 34, 34, 39, 48, 54, 58, 42% (were 60, 45% at 6-7).
+
+`npm run sim -- levels 8 squire cinderlands` before (Squire and Knight; Knight's as #250 and #232 have it) and
+`npm run sim -- levels 8 0 marches,ironHold,cinderlands` after (Squire; Knight takes no part of the change). 40 first tries a level
+(paladin, viking, angel, necromancer, archer; 8 seeds each), the realm as one run. First-try clear rate and a clear's median minutes;
+Marches and Iron Hold "before" are #250's pass 2.
+
+| Level | Knight | Squire before | Squire after | Archer on Squire (of 8) before -> after | Bar met (after) |
+|---|---|---|---|---|---|
+| Marches 6 | 85% | 98%, 4.7 | 100%, 4.7 | 7 -> 8 | yes |
+| Marches 7 (the crown) | 49% | 90%, 5.1 | 95%, 5.1 | 5 -> 7 | yes |
+| Iron Hold 3 | 73% | 95%, 5.8 | 93%, 5.7 | 6 -> 6 | yes |
+| Iron Hold 4 | 75% | 95%, 6.7 | 93%, 6.8 | 6 -> 5 | yes |
+| Iron Hold 5 (the crown) | 55% | 88%, 7.9 | 88%, 7.9 | 4 -> 4 | yes |
+| Cinderlands 3 | 78% | 95%, 6.0 | 95%, 6.0 | 7 -> 6 | yes |
+| Cinderlands 4 | 63% | 83%, 7.1 | 90%, 7.0 | 4 -> 6 | yes |
+| Cinderlands 5 (the crown) | 55% | 78%, 7.5 | 88%, 7.5 | 3 -> 3 | yes |
+
+The levels the cap does not touch (the Marches 1-5, the Iron Hold and the Cinderlands 1-2) measured within noise of before (Marches 95,
+98, 98, 88, 93%; Iron Hold 100, 95%; Cinderlands 95, 100%). Per class on the Cinderlands' crown, Squire (before -> after): Paladin 8 -> 8,
+Viking 5 -> 8, Angel 8 -> 8, Necromancer 7 -> 8, Archer 3 -> 3; level 4: Viking 5 -> 6, Archer 4 -> 6. The Cinder Colossus felled 7 of 40
+first tries before, 4 now (all four the Archer's). A Squire Cinderlands with retries: 34.3 -> 32.6 minutes.
+
+What is left (reported, not tuned further):
+- **The Archer at the Cinder Colossus stays at 3 of 8** on Squire (4 of 8 at the Iron King). Every other class now clears the
+  Cinderlands' crown on all 8 first tries, and the Archer's level 4 rose 4 -> 6: what is left is the bot's Archer against this boss (it
+  underrates the Archer, AGENTS.md; on Knight it clears him on none), the known class gap (#220, #232, #250). Easing the crown further
+  for one class would take the crown below a fight for the other four; it needs the Archer looked at, or a hand-played Squire check.
+- The Iron Hold's levels 3-5 eased and measured the same (93, 93, 88% against 95, 95, 88%): inside the 8 points of noise at 40 tries.
+- #262 (Knight's levels 2-5) and #264 (the Colossus's phase hold) tune the same levels at the same time; `levelStep` is shared by both
+  tiers, so the Squire numbers above move with theirs.
+
 ## v0.12: a featured squad comes for sure (#259)
 
 Since #249 the Iron Hold's road names the Iron Shieldwall from level 2 on, but on Squire and Knight his squad comes at a quarter of its

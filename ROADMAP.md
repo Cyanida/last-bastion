@@ -21,7 +21,7 @@ From v0.8.3 on, the roadmap is **Road to the Crown** ([docs/road-to-the-crown.md
 | v0.10.0 | Champions & the Marches | released 2026-09-29 |
 | v0.11.0 | The Iron Hold | released 2026-09-30 |
 | v0.12.0 | The Cinderlands | released 2026-09-30 |
-| v0.13.0 | The Barrowvale | planned |
+| v0.13.0 | The Barrowvale | released 2026-10-02 |
 | v0.14.0 | The Frozen Pass & the Last Bastion | planned |
 | v0.15.0 | Classes & roster | planned |
 | v0.16.0 | Polished PC | planned |
@@ -337,8 +337,11 @@ as too cartoonish.
 3. **Bosses: the Barrow King (crown) and one new level-3 boss.** The Lich and the Plague Abbot return. **Gate:** Jesse plays the Barrow King.
 4. **Relics: 8 new Grave relics**: 1 common, 2 rares, a second legendary (Soul Lantern moves to this crown), class relics for the Paladin, Viking, Angel and Archer; one new duo.
 5. **The realm, balance and checks** as in v0.11.
+6. **The sound and music overhaul** (Jesse, 01-10): the whole of [#142](https://github.com/Cyanida/last-bastion/issues/142), the mixer included, and a theme of its own for every boss ([#140](https://github.com/Cyanida/last-bastion/issues/140)).
+7. **The champion redesigns by ThePaintingBunny** (Jesse, 01-10): the Paladin ([#245](https://github.com/Cyanida/last-bastion/issues/245)), the Viking ([#247](https://github.com/Cyanida/last-bastion/issues/247)), the Angel ([#268](https://github.com/Cyanida/last-bastion/issues/268)), the Necromancer ([#269](https://github.com/Cyanida/last-bastion/issues/269)) and the Archer ([#270](https://github.com/Cyanida/last-bastion/issues/270)); appearance only.
+8. **The UI fit ([#272](https://github.com/Cyanida/last-bastion/issues/272))** (Jesse, 01-10): no text cut off and every back arrow fully visible, on every screen and window size.
 
-**Done when** the Barrowvale can be crowned on Knight by every class within the targets.
+**Done when** the Barrowvale can be crowned on Knight by every class within the targets, every class, enemy family, boss and relic family has its own sound, every boss its own theme, and the five redesigned champions read at a glance with their old hitboxes.
 
 ## v0.14.0 – The Frozen Pass & the Last Bastion
 
@@ -380,7 +383,7 @@ as too cartoonish.
 2. **The perf budget in every realm arena ([#46](https://github.com/Cyanida/last-bastion/issues/46))**, with a 30 fps option.
 3. **A crash sweep ([#47](https://github.com/Cyanida/last-bastion/issues/47))**: every realm crowned and the Last Bastion won on PC without an error.
 4. **The 1.0 scope written down ([#48](https://github.com/Cyanida/last-bastion/issues/48))**: the Marches, four relic realms, the Last Bastion.
-5. **A balance pass over every level and tier**, and the sound mixer part of [#142](https://github.com/Cyanida/last-bastion/issues/142).
+5. **A balance pass over every level and tier.** The sound mixer part of [#142](https://github.com/Cyanida/last-bastion/issues/142) moved to v0.13.0 (Jesse, 01-10).
 
 **Done when** a save from every earlier version migrates in a test, test:perf holds in every arena, and the crash sweep finds no error.
 
@@ -393,7 +396,7 @@ as too cartoonish.
 **Scope.**
 1. **Phone layout for every new screen**, touch-first; levels of 4 to 10 minutes fit phone sessions.
 2. **The iPhone app through TestFlight and the App Store**, once the Apple Developer account exists.
-3. **The sound overhaul ([#142](https://github.com/Cyanida/last-bastion/issues/142))**: distinct sounds per class, enemy, boss and relic, stereo, sound files allowed; the mixer comes first, in v0.16.0.
+3. ~~**The sound overhaul ([#142](https://github.com/Cyanida/last-bastion/issues/142))**~~: moved to v0.13.0 with the mixer and the boss themes ([#140](https://github.com/Cyanida/last-bastion/issues/140)) (Jesse, 01-10).
 
 **Done when** the play test plays a level at 390 px wide by touch, from the map to the crown, with no sideways scroll on any new screen.
 
@@ -424,13 +427,13 @@ as too cartoonish.
 **Scope.**
 1. **A battlefield arena, bleed on the player, foes that grow stronger as they bleed; the Butcher and the Crimson Baron; 1 common, 2 rares, a second legendary, class relics for the Paladin, Angel, Necromancer and Archer; one duo.**
 
-Each of these is done when its realm can be crowned on Knight by every class within the targets. After that: items and sound ([#62](https://github.com/Cyanida/last-bastion/issues/62) potions, [#86](https://github.com/Cyanida/last-bastion/issues/86), [#89](https://github.com/Cyanida/last-bastion/issues/89), [#140](https://github.com/Cyanida/last-bastion/issues/140)), hidden subclasses ([#58](https://github.com/Cyanida/last-bastion/issues/58)), and a second arena per realm.
+Each of these is done when its realm can be crowned on Knight by every class within the targets. After that: items and sound ([#62](https://github.com/Cyanida/last-bastion/issues/62) potions, [#86](https://github.com/Cyanida/last-bastion/issues/86), [#89](https://github.com/Cyanida/last-bastion/issues/89)), hidden subclasses ([#58](https://github.com/Cyanida/last-bastion/issues/58)), and a second arena per realm.
 
 ## Ideas – not planned yet
 
 [Milestone](https://github.com/Cyanida/last-bastion/milestone/9) · the inbox
 
-New ideas wait here until Jesse gives them a release. Some planned work waits here for after 1.0: hidden subclasses ([#58](https://github.com/Cyanida/last-bastion/issues/58)), potions ([#62](https://github.com/Cyanida/last-bastion/issues/62)), the shield relic ([#86](https://github.com/Cyanida/last-bastion/issues/86)), breakable objects ([#89](https://github.com/Cyanida/last-bastion/issues/89)) and boss themes ([#140](https://github.com/Cyanida/last-bastion/issues/140)).
+New ideas wait here until Jesse gives them a release. Some planned work waits here for after 1.0: hidden subclasses ([#58](https://github.com/Cyanida/last-bastion/issues/58)), potions ([#62](https://github.com/Cyanida/last-bastion/issues/62)), the shield relic ([#86](https://github.com/Cyanida/last-bastion/issues/86)), breakable objects ([#89](https://github.com/Cyanida/last-bastion/issues/89)). Boss themes ([#140](https://github.com/Cyanida/last-bastion/issues/140)) moved to v0.13.0.
 
 ## Co-op (dropped)
 

@@ -5,14 +5,16 @@ import { ARENAS, type ArenaId } from './config/arenas';
 import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
 import { GAME, VIEW } from './config/game';
-import { effectsLevel, initAudio, isMuted, setEffectsLevel, sfx, toggleMute } from './core/audio';
-import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLevel, setRunMusic, startMenuMusic, stinger, stopMenuMusic } from './core/music';
+import { ambience, bossCueStats, classFrom, classSoundStats, getMix, initAudio, isMuted, listenFrom, mixerStats, setVolume, sfx, soundCounts, toggleMute, voiceStats } from './core/audio';
+import { foeVoiceStats } from './core/foeVoices';
+import { uiCue, uiSoundOf } from './logic/relicSounds';
+import { musicStats, refreshMusic, runMusic, runMusicOn, setRunMusic, startMenuMusic, stinger, stopMenuMusic } from './core/music';
 import { addListener, type EventName } from './core/events';
-import { moodOf, type Stinger } from './logic/runMusic';
+import { isBossMusic, moodOf, type Stinger } from './logic/runMusic';
 import { showWhatsNewNow } from './logic/whatsNew';
 import { showTourNow } from './logic/tour';
 import type { ChampionTab } from './config/glossary';
-import { inTutorial, nextCard, statusSeen, tutorialCard } from './logic/cards';
+import { handsCard, inTutorial, nextCard, statusSeen, tutorialCard } from './logic/cards';
 import { CARD_IDS, CARDS, type CardId } from './config/cards';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
@@ -26,7 +28,7 @@ import { banked, createTestRun, isTestRun, type TestSetup } from './systems/test
 import { initInput, inspectPoint, onAction, onFirstGesture, pollInput, pumpGamepad, setTouchControls } from './input';
 import { upgradeOptions } from './logic/abilityUpgrades';
 import { rewardText, tierKey, withAchievements } from './logic/achievements';
-import { dailySetup, formatSeed, todayString, type DailySetup } from './logic/acts';
+import { dailySetup, placeName, formatSeed, todayString, type DailySetup } from './logic/acts';
 import { dailyOpen, dailyOpensText } from './logic/daily';
 import { closestGoals } from './logic/goals';
 import { currentProgress, weekKey, weeklyContracts } from './logic/contracts';
@@ -83,6 +85,16 @@ addListener((g, name) => {
 });
 // v0.8 (#26): the simulation stays pure; this screen gives it sound (its g.out cues, #114), the perf timers and the particle budget
 Object.assign(simView, { sfx, begin, end, particleBudget });
+// #283: the effects pan and fade by where they happen against what the screen shows (asked only when a placed cue plays)
+listenFrom(() => {
+  if (!game) return null;
+  const cam = cameraFor(game, view);
+  const halfW = view.w / view.zoom / 2, halfH = view.h / view.zoom / 2;
+  return { x: cam.x + halfW, y: cam.y + halfH, halfW, halfH };
+});
+
+// #284: the champion's swings, shots and casts sound his class's own
+classFrom(() => game?.player.cls.id ?? null);
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -358,7 +370,7 @@ function toSettings(): void {
   menu();
   const d = platform.desktop;
   showSettings(
-    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), manualAim: save.settings.manualAim, textSize: save.settings.textSize, version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
+    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), mix: getMix(), runMusic: runMusicOn(), manualAim: save.settings.manualAim, textSize: save.settings.textSize, version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
     {
       back: toTitle,
       saveData: toSaveDialog,
@@ -372,12 +384,10 @@ function toSettings(): void {
         mute();
         toSettings();
       },
-      music(level) {
-        setMusicLevel(level);
-        toSettings();
-      },
-      effects(level) {
-        setEffectsLevel(level);
+      volume(bus, pct) {
+        setVolume(bus, pct);
+        refreshMusic(); // the music stops at 0 and starts again above it
+        if (bus !== 'music' && bus !== 'ambience') sfx(bus === 'effects' ? 'hit' : 'tap'); // #282: a taste of the new level
         toSettings();
       },
       runMusic() {
@@ -565,7 +575,7 @@ function openChoice(g: Game): void {
     });
   } else if (g.pendingBoard) {
     const trial = TREASURES[g.player.cls.id].trial;
-    showBoard(g.act, g.quests.filter((q) => q.state === 'offered').map((q) => (q.kind === 'trial' ? { ...q, desc: trial.desc } : q)), questTake(g), (picks) => {
+    showBoard(g.act, placeName(g.act, g.level), g.quests.filter((q) => q.state === 'offered').map((q) => (q.kind === 'trial' ? { ...q, desc: trial.desc } : q)), questTake(g), (picks) => {
       choose(g, { c: 'quests', picks });
       resume();
     });
@@ -697,7 +707,7 @@ function runResult(g: Game, commitIt: boolean): RunResult {
     masteryNext: MASTERY[newRank] ? { name: MASTERY[newRank].name, need: Math.max(0, Math.round(MASTERY[newRank].xp - after.classes[id].xp)) } : null,
     tier: g.tier.name, tierUnlocked: result.tierUnlocked ? TIERS[after.tierUnlocked].name : null, earned: checked.earned, title: after.title, slain: g.over,
     seed: formatSeed(g.seed), curseMult: g.vars.curseMult ?? 1, daily: g.daily, build: buildOf(g),
-    act: g.act, won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
+    act: g.act, place: placeName(g.act, g.level), won: g.victory !== 'none', firstWin: result.firstWin, wins: after.wins[id], oath: g.oath.level, oathKept: result.oathKept, contracts: result.contracts,
     goals: closestGoals(after, id, weekKey(today(new Date()))),
     relicShares: relicShares(g),
     restart: g.daily ? `the Daily Trial ${g.daily}` : g.level ? `${REALMS[g.level.realm].name} · Level ${g.level.cleared ? (g.level.level < REALMS[g.level.realm].levels.length ? g.level.level + 1 : 1) : g.level.level}` : [g.player.cls.name, ...[g.trait, g.trait2].filter((t) => t !== 'none').map((t) => TRAITS[t].name), g.oath.level ? `Oath ${g.oath.level}` : ''].filter(Boolean).join(' · '),
@@ -881,6 +891,7 @@ function flashCard(g: Game): void {
   if (g.tick % CARDS.checkEvery || isTestRun(g) || tutorial(g, false)) return;
   const met = nextCard(g.enemies, g.player.x, g.player.y, save.cards);
   if (met) openCard(met.id, met.foe);
+  else if (handsCard(g.zones, save.cards)) openCard('graspingHands'); // #274: the graves are marked: the card shows before the hands rise
 }
 
 function openCard(id: CardId, foe?: Enemy): void {
@@ -950,7 +961,12 @@ function frame(now: number): void {
   draw(now);
   const t2 = performance.now();
   const g = game;
-  if (g) runMusic(state === 'playing' || state === 'choice' ? moodOf(g) : null); // v0.7.1: paused or over, it fades out
+  const live = g && (state === 'playing' || state === 'choice') ? g : null;
+  const mood = live ? moodOf(live) : null;
+  if (g) runMusic(mood); // v0.7.1: paused or over, it fades out
+  // #282: the wind, likewise; only a change does any work. #288: the arena's own bed, stepping back as the fight grows; under a boss's
+  // own theme (#289) its layer counts his phases, so the bed takes the boss layer for the whole fight
+  ambience(live && live.arena.id, mood ? (isBossMusic(mood.arena) ? 3 : mood.layer) : 0);
   if (state === 'playing' && g) {
     const before = quality.level;
     sampleFrame(t2 - t0, g.wave); // the work this frame took, not the vsync interval: that is what the detail level reacts to
@@ -996,6 +1012,19 @@ window.addEventListener('resize', resize);
 window.visualViewport?.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
+});
+// #282: a button pressed on a screen (the menus, pause, choices) taps on the UI bus; the HUD's buttons stay part of the fight
+// #287: and sounds what it does (logic/relicSounds.ts): a back, a confirm, a relic card taken, else the tap; a relic card's ⓘ just taps
+const overlayEl = document.getElementById('overlay')!;
+const buttonInfo = (b: HTMLElement) => ({ className: b.className, data: { ...b.dataset }, label: b.getAttribute('aria-label') });
+overlayEl.addEventListener('click', (e) => {
+  const b = (e.target as Element).closest<HTMLElement>('button, .relic-info');
+  if (b) sfx(uiCue(uiSoundOf(buttonInfo(b))));
+});
+// #287: a mouse coming onto a screen's button (not moving within it) hovers, very softly; a touch has no hover
+overlayEl.addEventListener('pointerover', (e) => {
+  const b = (e.target as Element).closest('button');
+  if (e.pointerType === 'mouse' && b && !b.disabled && !b.contains(e.relatedTarget as Node | null)) sfx('ui.hover');
 });
 matchMedia('(orientation: portrait)').addEventListener('change', (e) => {
   if (e.matches && platform.touch && state === 'playing') togglePause(); // the "rotate your device" overlay is up
@@ -1081,9 +1110,15 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       view: simView, // v0.8: the play test wraps view.sfx to hear what the simulation plays
       perf,
       music: musicStats, // v0.7.1
+      mixer: mixerStats, // #282
+      voices: voiceStats, // #283: what the voice limit played, dropped and took over
+      classSounds: classSoundStats, // #284: each class's own attack and ability sounds played, by class and kind
+      foeVoices: foeVoiceStats, // #285: each foe family's sounds played, by voice
+      bossCues: bossCueStats, // #286: each boss cue that got a voice, by name
       stinger, // v0.7.1
       resetPerf: resetHistory,
       perfSummary: summary,
+      sounds: soundCounts, // #287: each sound started, by name (a relic's family, the menus' hover, back, confirm and pick)
       setPerf: (on: boolean) => setPerfOverlay(on, ctx),
       /** N scripted frames (one sim step + one render each) with the profiler on; returns averages, p95 and the section breakdown. */
       profile(frames: number) {

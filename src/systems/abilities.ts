@@ -380,7 +380,7 @@ export function updateAbility(g: Game, dt: number): void {
     const upgradeMult = has(p, 'secondWind') ? U.secondWind.n.cooldown : 1;
     const cooldown = abilityCooldown(cfg.cooldown, p.stats.int) * p.mods.cooldown * p.mods.abilityCd * upgradeMult * (1 - (g.vars.cdRefund ?? 0));
     p.abilityCd = p.abilityCdMax = cooldown;
-    sfx(g, 'ability');
+    sfx(g, 'ability', { src: 'player', at: p });
     emit(g, 'onAbilityUsed', { cooldown });
   }
 }

@@ -8,11 +8,13 @@ import { DUOS, FAMILIES, FAMILY_IDS, RELIC_MAX_TIER, RELIC_STACKING, relicDef, t
 import { MODIFIERS } from '../config/waves';
 import { STAT_KEYS, type Enemy, type Game, type Mods, type Quest, type StatKey } from '../core/types';
 import { critChance, xpToNext } from '../logic/formulas';
-import { actName } from '../logic/acts';
+import { placeName } from '../logic/acts';
 import { shieldBurst } from '../logic/abilities';
 import { duoTier, familySets, looseRelics, softCap, type RelicModTotal } from '../logic/relics';
 import { activeStatuses } from '../logic/status';
 import { deathBurstOf } from '../logic/deathBurst';
+import { plagueGroundOf } from '../logic/plagueGround';
+import { risingOf } from '../logic/risingCorpse';
 import { platesOf, thornsOf, towerShieldOf } from '../logic/ironKing';
 import { statLabel } from '../logic/upgrades';
 import { describeAbility } from '../systems/abilities';
@@ -39,6 +41,8 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
   const thorns = thornsOf(e.def.id, e.phase); // #214
   const burns = ENEMY_STATUS[e.def.id]?.decay; // #225
   const bursts = deathBurstOf(e.def.id); // #226
+  const plague = plagueGroundOf(e.def.id); // #276
+  const rises = risingOf(e.def.id); // #275
   const burnStacks = ENEMY_STATUS[e.def.id]?.stacks ?? 1; // #228: the Cinder Colossus's hits put on two
   const statuses = activeStatuses(e.statuses).map((id) => `${STATUSES[id].name}${e.statuses[id]!.stacks > 1 ? ` ×${e.statuses[id]!.stacks}` : ''}`);
   html('h-inspect', `
@@ -50,6 +54,8 @@ export function updateInspect(e: Enemy | null, x: number, y: number): void {
     ${plates ? `<div>${e.armorHp > 0 ? `Iron plates: ${e.armorHp} left, each hit breaks one` : 'Armor broken'}</div>` : ''}
     ${thorns ? `<div>Thorns: a blow struck up close bites back ${Math.round(thorns.share * 100)}%</div>` : ''}
     ${bursts ? `<div>Bursts into fire where it dies, ${bursts.delay} s after it falls: step out of the mark</div>` : ''}
+    ${plague ? `<div>Leaves plague ground where it dies, for ${plague.life} s: fight off it</div>` : ''}
+    ${rises ? `<div>${e.risen ? 'Risen once: it stays down this time' : `Rises again ${rises.delay} s after it falls: walk over the corpse`}</div>` : ''}
     ${burns ? `<div>Each blow sets you burning: ${burnStacks > 1 ? `${burnStacks} stacks` : 'a stack'} more, one falls every ${burns} s</div>` : ''}
     ${armor ? `<div>${e.armorHp > 0 ? (armor.backBreak ? 'Shield up: strike it from behind' : `Armored: soaks ${Math.round(armor.reduction * 100)}% until broken`) : 'Armor broken'}</div>` : ''}
     ${e.def.aura ? `<div>Aura: ${e.def.aura.kind === 'heal' ? 'heals and rallies' : `+${Math.round((e.def.aura.value - 1) * 100)}% ${e.def.aura.kind}`} nearby allies</div>` : ''}
@@ -205,7 +211,7 @@ export function updateHud(g: Game, cam?: Cam): void {
   text('h-tier', `${g.tier.name} · ${g.arena.name}`);
 
   $('h-test').classList.toggle('hidden', !isTestRun(g)); // v0.7.1 test mode
-  text('h-wave', g.wave > 0 ? `${g.victory === 'endless' ? 'Endless · ' : ''}${actName(g.act)} · Wave ${g.wave}` : 'Prepare…');
+  text('h-wave', g.wave > 0 ? `${g.victory === 'endless' ? 'Endless · ' : ''}${placeName(g.act, g.level)} · Wave ${g.wave}` : 'Prepare…');
   let left = g.spawnQueue.length;
   for (const e of g.enemies) if (!e.side) left++; // v0.5: lairs, quest targets and events are not the wave
   const clock = `${Math.floor(g.time / 60)}:${String(Math.floor(g.time % 60)).padStart(2, '0')}`; // v0.6: the run's time

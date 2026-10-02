@@ -1,5 +1,6 @@
 import { AI_TUNING } from '../config/ai';
-import { sfx } from '../sim/view';
+import { by, sfx } from '../sim/view';
+import { foeBy } from '../logic/foeSounds';
 import type { Enemy, Game } from '../core/types';
 import { addZone } from '../entities/hazards';
 import { angleTo, hitDamage, move, moveTo, POISON, touch, type Target } from './aiHelpers';
@@ -23,6 +24,7 @@ export const SPECIALS: Record<string, Special> = {
       e.angle = angleTo(e, t);
       e.flip = t.x < e.x;
       // v0.6: an elite's leap is heavy: it always shows its line
+      if (!def.boss) sfx(g, 'swing', foeBy(e, 'attack')); // #285: the charge starts: hooves, a snarl
       if (def.telegraphLunge || e.elite) e.telegraph = { angle: e.angle, length: def.lungeSpeed! * def.lungeTime!, width: e.r * 2, t: 0, dur: def.windup! };
       return false;
     }
@@ -47,7 +49,7 @@ export const SPECIALS: Record<string, Special> = {
       e.state = 1;
       e.timer = e.def.fuse!;
       addZone(g, { x: e.x, y: e.y, r: e.def.blastRadius!, delay: e.def.fuse!, damage: hitDamage(e), hostile: true, color: '#e07b28', owner: e, killsOwner: true });
-      sfx(g, 'warn');
+      sfx(g, 'warn', by(e));
     } else e.timer -= dt; // only drives the blink; the zone kills its owner when it detonates
     return false;
   },
@@ -62,6 +64,7 @@ export const SPECIALS: Record<string, Special> = {
       const amount = Math.min(worst.maxHp - worst.hp, e.def.healAmount! * g.waveHpMult * g.tier.enemyHp); // #182: mends as much as the tier made them tougher
       worst.hp += amount;
       line(g, e.x, e.y - 10, worst.x, worst.y, '#6fdc6f');
+      sfx(g, 'swing', foeBy(e, 'attack')); // #285: a priest's chant as he mends
       floatText(g, worst.x, worst.y - worst.r - 8, `+${Math.round(amount)}`, '#6fdc6f', 12);
     }
     return true;
@@ -109,7 +112,7 @@ export const SPECIALS: Record<string, Special> = {
       line(g, e.x, e.y - 12, m.x, m.y, '#e8e2d0');
     }
     ring(g, e.x, e.y, 120, '#e8e2d0', 0.5);
-    sfx(g, 'warn');
+    sfx(g, 'warn', by(e));
     return true;
   },
 

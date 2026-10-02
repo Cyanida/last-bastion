@@ -300,6 +300,45 @@ function crucible(): Figure {
   return f;
 }
 
+/**
+ * #273: the Forsaken Graveyard's crypt: a squat stone mausoleum on two worn steps, a gabled roof with a cross on its ridge, a dark
+ * doorway barred by a rusted iron grate, moss in its joints. About two Paladins tall.
+ */
+function crypt(): Figure {
+  const f = new Figure(84, 104);
+  f.part(O, rect(8, 82, 76, 92), 'stone', 0, { dim: 1, details: dots([[16, 86], [60, 87]], 'moss', 3) }); // the lower step
+  f.part(O, rect(13, 76, 71, 84), 'stone', 0.2, { details: dots([[22, 79], [52, 80]], 'stone', 2) }); // the upper step
+  f.part(O, rect(16, 42, 68, 78), 'stone', 1, { folds: [0.4, 9, 1], details: [...dots([[20, 50], [21, 51], [21, 52], [62, 66]], 'stone', 1), ...dots([[18, 74], [19, 74], [64, 46], [65, 47]], 'moss', 4)] }); // the walls, a crack, moss
+  f.part(O, [[32, 78], [32, 56], [36, 50], [42, 48], [48, 50], [52, 56], [52, 78]], 'coal', 1.2, { profile: 'flat' }); // the doorway's dark
+  for (const x of [35, 40, 45, 50]) f.part(O, rect(x - 1, 52, x + 1, 78), 'darksteel', 1.3, { details: dots([[x - 1, 60]], 'leather', 3) }); // the grate, rusting
+  f.part(O, rect(33, 63, 51, 65), 'darksteel', 1.31);
+  f.part(O, rect(12, 38, 72, 45), 'stone', 1.5, { details: dots([[30, 40], [52, 41]], 'stone', 2) }); // the lintel
+  f.part(O, [[8, 40], [42, 16], [76, 40]], 'stone', 2, { folds: [0.5, 6, 0], details: dots([[42, 30], [41, 31], [43, 31], [42, 32]], 'stone', 1) }); // the gable, a carved rose
+  f.part(O, [[6, 41], [42, 14], [44, 17], [9, 43]], 'stone', 2.1); // the roof's lit edge
+  f.part(O, rect(40, 2, 44, 18), 'stone', 2.2); // the cross on the ridge
+  f.part(O, rect(35, 6, 49, 10), 'stone', 2.3);
+  return f;
+}
+
+/**
+ * #273: the broken chapel's column: a fluted shaft snapped off at a slant on its plinth, the fallen stones at its foot, ivy creeping up
+ * from the ground. Drawn from the pillar, so the chapel's ruin reads as the Great Keep's chapel gone to ground.
+ */
+function ruin(): Figure {
+  const f = new Figure(84, 92);
+  f.part(O, rect(10, 64, 66, 80), 'stone', 0, { dim: 1, details: dots([[16, 70], [50, 74]], 'moss', 3) }); // plinth
+  f.part(O, ell(38, 64, 28, 7), 'stone', 0.2);
+  f.part(O, [[17, 66], [17, 42], [23, 38], [28, 43], [35, 33], [40, 36], [47, 24], [52, 28], [59, 18], [59, 66]], 'stone', 1, {
+    folds: [0.7, 6, 0],
+    details: [...dots([[25, 44], [26, 45], [26, 46], [27, 47], [48, 38]], 'stone', 1), ...dots([[19, 62], [21, 58], [23, 55], [22, 51], [24, 48], [56, 60], [55, 56]], 'fern', 4)],
+  }); // the snapped shaft, cracked, ivy on it
+  f.part(O, [[18, 66], [18, 52], [21, 46], [24, 50], [22, 58], [26, 62], [27, 66]], 'moss', 1.2, { profile: 'flat' }); // ivy up its shadowed foot
+  f.part(O, [[56, 72], [72, 66], [80, 72], [76, 82], [60, 82]], 'stone', 2, { details: dots([[66, 74]], 'stone', 2) }); // a fallen drum
+  f.part(O, [[4, 78], [12, 74], [20, 78], [16, 84], [6, 84]], 'stone', 2.1, { dim: 1 }); // rubble
+  f.part(O, [[24, 82], [30, 78], [36, 82], [30, 86]], 'stone', 2.2);
+  return f;
+}
+
 export const PROPS: PropDef[] = [
   { id: 'pillar', w: 76, h: 100, anchor: [38, 80], r: 30, frames: [pillar()] },
   { id: 'brazier', w: 56, h: 72, anchor: [28, 54], r: 20, frames: [0, 1, 2, 3].map(brazier) },
@@ -325,6 +364,9 @@ export const PROPS: PropDef[] = [
   { id: 'press', w: 76, h: 96, anchor: [38, 88], r: 1, frames: [press()] },
   // #223: the Ember Forge's crucible, drawn for its obstacles' radius; it stands in for the pillar's radius in the smelter
   { id: 'crucible', w: 72, h: 72, anchor: [36, 58], r: 28, frames: [crucible()] },
+  // #273: the Forsaken Graveyard's crypts and the broken chapel's columns, drawn for its dead trees' radius (they take their place in its wings)
+  { id: 'crypt', w: 84, h: 104, anchor: [42, 80], r: 26, frames: [crypt()] },
+  { id: 'ruin', w: 84, h: 92, anchor: [38, 70], r: 26, frames: [ruin()] },
 ];
 
 export const propPaths = { png: 'public/sprites/props.png', json: 'src/render/props.json' };

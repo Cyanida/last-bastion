@@ -29,7 +29,8 @@ import { RELIC_SHORT } from '../config/relicShort';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
 import { SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
-import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
+import { MIXER, type BusId } from '../config/mixer';
+import { mixLabel, type Mix } from '../logic/mixer';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { latchGamepad, onAction } from '../input';
 import type { Action } from '../input/mapping';
@@ -61,7 +62,7 @@ import type { WhatsNew } from '../logic/whatsNew';
 import { CHAMPION_BUILD_TEXT, CHAMPION_HELP, CHAMPION_TABS, CHAMPION_TOUR, GLOSSARY, SLOT_BLOCK_TEXT, type ChampionTab } from '../config/glossary';
 import { cardInfo, iconCard, type CardId } from '../config/cards';
 import { AFFIXES, ELITES, type AffixId } from '../config/elites';
-import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
+import { bossMusicIds, musicTheme, type Cue, type Layer, type Mood, type MusicId, type Stinger } from '../logic/runMusic';
 import type { TestSetup } from '../systems/testMode';
 
 const overlay = () => document.getElementById('overlay')!;
@@ -551,8 +552,7 @@ export interface SettingsInfo {
   textSize: TextSize;
   effective: string;
   muted: boolean;
-  music: MusicLevel;
-  effects: MusicLevel; // v0.7.1
+  mix: Mix; // #282: the mixer's volumes, in percent
   runMusic: boolean; // v0.7.1
   manualAim: boolean; // v0.7.5 (#81)
   version: string; // v0.7.1: tap it five times for test mode
@@ -561,14 +561,14 @@ export interface SettingsInfo {
   desktop: { version: string; status: string; prerelease: boolean } | null;
 }
 
-export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; aim: (manual: boolean) => void; textSize: (size: TextSize) => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
+export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; volume: (bus: BusId, pct: number) => void; runMusic: () => void; aim: (manual: boolean) => void; textSize: (size: TextSize) => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
   // #186: Settings in the kit: a framed screen, choices as a row of small wood buttons (the one picked sits pressed), on/off as
-  // switches, the two volumes as sliders over MUSIC_LEVELS, and the back disc in the corner
+  // switches, the volumes as sliders (#282: one per mixer bus and the master, in percent), and the back disc in the corner
   const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
   const choice = (attr: string, list: readonly string[], on: string) =>
     `<div class="kit-choice">${list.map((v) => kit.button(cap(v), { size: 'small', cls: v === on ? 'on pressed' : '', attrs: `data-${attr}="${v}" aria-pressed="${v === on}"` })).join('')}</div>`;
   const onOff = (name: string, on: boolean) => kit.toggle(on ? 'On' : 'Off', name, on);
-  const level = (name: string, v: MusicLevel) => kit.slider(`<em data-level>${cap(v)}</em>`, name, MUSIC_LEVELS.indexOf(v), 0, MUSIC_LEVELS.length - 1);
+  const level = (bus: BusId) => kit.slider(`<em data-level>${mixLabel(info.mix[bus])}</em>`, bus, info.mix[bus], 0, 100, MIXER.step);
   const setting = (title: string, text: string, control: string) => `<div class="setting"><div><b>${title}</b><span>${text}</span></div>${control}</div>`;
   const open = (act: string, label = 'Open') => kit.button(label, { size: 'small', attrs: `data-act="${act}"` });
   const el = show(`
@@ -578,9 +578,12 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
       ${setting('Graphics quality', `Low cuts particles, screen shake and shadows. Auto measures the first waves and drops to low if needed. Now: ${info.effective}.`, choice('quality', ['auto', 'low', 'high'], info.quality))}
       ${setting('Text size', 'The HUD and every screen. A small screen keeps what still fits.', choice('text-size', Object.keys(TEXT_SIZES), info.textSize))}
       ${setting(`${kit.icon('sound')} Sound`, 'Synthesised effects and music (M).', onOff('mute', !info.muted))}
-      ${setting(`${kit.icon('music')} Music`, `Composed live. In a run it plays quieter, under the effects.${info.muted ? ' Silent while Sound is off.' : ''}`, level('music', info.music))}
+      ${setting('Master volume', `Everything at once.${info.muted ? ' Silent while Sound is off.' : ''}`, level('master'))}
+      ${setting(`${kit.icon('music')} Music`, 'Composed live. In a run it plays quieter, under the effects.', level('music'))}
       ${setting('Music during runs', 'A quiet theme for every arena that builds a little in a fight.', onOff('runMusic', info.runMusic))}
-      ${setting('Effects', 'How loud the sound effects are.', level('effects', info.effects))}
+      ${setting('Effects', 'Blows, spells and the fight around you. Big moments pull the music and ambience down a little.', level('effects'))}
+      ${setting('Interface', 'The tap of a button in the menus.', level('ui'))}
+      ${setting('Ambience', 'The wind over the field in a run.', level('ambience'))}
       ${setting('Aim', 'Auto: basic attacks pick their own target. Manual: they go where the mouse or right stick points. Touch always aims itself.', choice('aim', ['auto', 'manual'], info.manualAim ? 'manual' : 'auto'))}
       ${setting('Performance overlay', 'Frame, update and render times, entity counts, draw calls (F3 in a run).', onOff('perf', info.perf))}
       ${info.desktop ? `
@@ -600,9 +603,8 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
     const name = input.dataset.set!;
     if (input.type === 'checkbox') input.onchange = () => switches[name]();
     else {
-      const pick = () => MUSIC_LEVELS[Number(input.value)];
-      input.oninput = () => (input.closest('label')!.querySelector('[data-level]')!.textContent = cap(pick())); // the level's name follows the knob
-      input.onchange = () => (name === 'music' ? on.music : on.effects)(pick());
+      input.oninput = () => (input.closest('label')!.querySelector('[data-level]')!.textContent = mixLabel(Number(input.value))); // the label follows the knob
+      input.onchange = () => on.volume(name as BusId, Number(input.value));
     }
   }
   click(el, '[data-act]', (b) => {
@@ -1165,13 +1167,13 @@ export function showShrine(options: readonly BlessingId[], onPick: (id: Blessing
 }
 
 /** v0.5: the Act's quest board. Tap a quest (or its number) to take or drop it, up to `take` (a treasure trial is free on top); setting out with none is fine. */
-export function showBoard(act: number, quests: { kind: QuestKind; reward: RewardKind; name: string; desc?: string }[], take: number, onSetOut: (picks: number[]) => void): void {
+export function showBoard(act: number, place: string, quests: { kind: QuestKind; reward: RewardKind; name: string; desc?: string }[], take: number, onSetOut: (picks: number[]) => void): void {
   const picks: number[] = [];
   const reward = (r: RewardKind) => (r === 'gold' ? `${REWARDS.gold.amount * act} gold` : REWARDS[r].name);
   const trial = (i: number) => quests[i]?.kind === 'trial';
   const el = show(`
     <div class="levelup board">
-      ${choiceHead(`📜 ${actName(act)} · The quest board`)}
+      ${choiceHead(`📜 ${place} · The quest board`)}
       <p class="sub">Take up to ${take}. None of it is required: a failed quest costs nothing, and every one done opens a gate.</p>
       <div class="cards">${quests.map((q, i) => `<button class="card panel boon quest ${trial(i) ? 'special' : ''}" data-quest="${i}"><div class="num">${i + 1}</div><h2>${QUESTS[q.kind].icon} ${trial(i) ? q.name : QUESTS[q.kind].name}</h2>${trial(i) ? '<div class="tag">Sacred treasure · free, on top of the others</div>' : ''}<p>${q.desc ?? QUESTS[q.kind].desc}</p><div class="best" data-tip="${esc(REWARDS[q.reward].desc)}">${REWARDS[q.reward].icon} ${reward(q.reward)}</div></button>`).join('')}</div>
       ${kit.button('', { kind: 'gold', size: 'big', attrs: 'data-leave' })}
@@ -1354,6 +1356,7 @@ export interface RunResult {
   build: BuildInfo;
   // v0.6
   act: number;
+  place: string; // #265: where the run reached, by name: its Act, or a realm run's level (logic/acts placeName)
   won: boolean; // the Usurper fell in this run
   firstWin: boolean; // ...and it is the class's first win (it pays VICTORY.firstWin)
   oath: number; // v0.6: the Oath sworn, 0 = a custom run
@@ -1399,7 +1402,7 @@ export function showResults(r: RunResult, on: { retry: () => void; menu: () => v
       <p class="sub">${r.cls.name}${r.title ? `, <em>${esc(r.title)}</em>` : ''} · ${r.tier}${r.oath ? ` · Oath ${r.oath}` : ''}${r.newBest ? ' — <span class="record">new record!</span>' : ''}${deciding ? '<br>Bank the win now, or march on into Endless: waves without end, for a score. Either way the win counts when the run is banked.' : ''}</p>
       ${kit.parch(`
       <div class="stats wide">
-        <div><span>Reached</span><b>${r.endless ? 'Endless · ' : ''}${actName(r.act)} · wave ${r.wave}</b></div>
+        <div><span>Reached</span><b>${r.endless ? 'Endless · ' : ''}${r.place} · wave ${r.wave}</b></div>
         ${r.endless ? `<div class="earned"><span>Endless score</span><b>${r.endless.score}${r.endless.rank ? ` · #${r.endless.rank} for the ${r.cls.name}` : ''}</b></div>` : ''}
         ${winLine}
         ${oathLine}
@@ -1745,7 +1748,7 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
       ${Object.entries(SHEETS).map(([id, d]) => `<div class="tm-gallery"><b>${id}</b>${Object.keys(d.anims).map((a) => `<figure><canvas data-sheet="${id}" data-anim="${a}" width="${d.w * 2}" height="${d.h * 2}"></canvas><figcaption>${a}</figcaption></figure>`).join('')}</div>`).join('')}
       <h2>Music jukebox</h2>
       <div class="tm-grid">
-        <label>Theme <select id="jb-arena">${options((Object.keys(THEMES) as ThemeId[]).map((id) => [id, THEMES[id].name]), setup.arena)}</select></label>
+        <label>Theme <select id="jb-arena">${options((Object.keys(THEMES) as ThemeId[]).map((id) => [id, THEMES[id].name]), setup.arena)}${options(bossMusicIds().map((id) => [id, `Boss · ${musicTheme(id).name}`]), '')}</select></label>
         <label>Layer <input id="jb-layer" type="range" min="0" max="3" step="1" value="1"></label><span id="jb-name"></span>
       </div>
       <div class="row">${kit.button('Play', { kind: 'go', attrs: 'data-play' })}${kit.button('Fork cue', { attrs: 'data-cue="fork"' })}${kit.button('Victory cue', { attrs: 'data-cue="victory"' })}${kit.button('Stop', { attrs: 'data-stop' })}</div>
@@ -1771,11 +1774,12 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
     relics: Object.fromEntries([...el.querySelectorAll<HTMLSelectElement>('#tm-relics select')].filter((s) => s.value !== '0').map((s) => [s.dataset.relic, Number(s.value)])),
     realmLevel: parseTestLevel(field('tm-start').value),
   }));
-  // the jukebox: changes land on the next bar line, as in a run; a cue plays once, then the mood lets go of it
+  // the jukebox: changes land on the next bar line, as in a run; a cue plays once, then the mood lets go of it. #289: a boss's theme is
+  // listed too, its layer standing for its phase
   let playing = false;
   const play = (cue: Cue | null = null) => {
     playing = true;
-    on.play({ arena: field('jb-arena').value as ThemeId, layer: Number(field('jb-layer').value) as Layer, cue });
+    on.play({ arena: field('jb-arena').value as MusicId, layer: Number(field('jb-layer').value) as Layer, cue });
   };
   const label = () => (field('jb-name').textContent = JUKEBOX_LAYERS[Number(field('jb-layer').value)]);
   label();

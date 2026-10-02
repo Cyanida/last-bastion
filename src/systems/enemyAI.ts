@@ -2,19 +2,20 @@ import { AI, AI_TUNING, AURA_PULSE, DEFAULT_AI } from '../config/ai';
 import { AFFIXES } from '../config/elites';
 import type { EnemyId } from '../config/enemies';
 import { MODIFIERS, WAVES } from '../config/waves';
-import { sfx } from '../sim/view';
+import { by, sfx } from '../sim/view';
 import { dist2, TAU } from '../core/math';
 import { emit } from '../core/events';
 import type { Enemy, Game } from '../core/types';
 import { addZone } from '../entities/hazards';
 import { nextState, type AiProfile, type AiState } from '../logic/fsm';
 import { slotPosition } from '../logic/squads';
-import { crownHpFloor, inquisitorPyres, pyreField } from '../logic/crownBoss';
+import { barrowCall, crownHpFloor, inquisitorPyres, lichCalls, lichGraveRise, pyreField } from '../logic/crownBoss';
 import { cleanse, isStunned, speedFactor } from '../logic/status';
 import { angleTo, chargeStart, chargeThrough, distTo, enraged, hitDamage, keepRange, move, moveTo, POISON, seek, shootAt, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { burst, floatText, ring, shake } from './effects';
 import { SPECIALS } from './specials';
 import { aggroDist2 } from '../logic/quests';
+import { foeBy } from '../logic/foeSounds';
 import { waypoint } from '../logic/regions';
 import { regionsOf } from './regions';
 import { markPhase } from './runlog';
@@ -193,9 +194,25 @@ function pulseAura(g: Game, e: Enemy, dt: number): void {
     }
   }
   if (healing) ring(g, e.x, e.y, aura.radius, '#6fdc6f', 0.5);
+  if (healing && !e.def.boss) sfx(g, 'swing', foeBy(e, 'attack')); // #285: a chaplain's chant (the other auras pulse too often to sound)
 }
 
 // ---------------------------------------------------------------- bosses: scripted, branching on e.phase
+
+/**
+ * #281: the elite Lich's Barrow Call: graves open round him, each a Barrow Thrall's corpse that rises on its own delay unless the
+ * champion walks over it (systems/combat updateRisingCorpses raises it, as a thrall's).
+ */
+function callTheDead(g: Game, e: Enemy): void {
+  let waiting = 0;
+  for (const c of g.corpses) if (c.rise) waiting++;
+  for (const at of barrowCall(e.phase, e.x, e.y, g.rng() * TAU, waiting)) {
+    g.corpses.push({ x: at.x, y: at.y, t: 0, rise: lichGraveRise(g.waveHpMult * g.tier.enemyHp) });
+    burst(g, at.x, at.y, '#6b5843', 8, 90); // the barrow's earth thrown up
+    g.vars['elite.graves'] = (g.vars['elite.graves'] ?? 0) + 1; // the play test reads it
+  }
+  ring(g, e.x, e.y, 90, '#9fb8a8', 0.5);
+}
 
 const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> = {
   // Black Knight: telegraphed line charge. Phase 2: chains several charges back to back.
@@ -208,7 +225,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
       e.timer = def.windup! * scale;
       e.angle = angleTo(e, t);
       e.telegraph = { angle: e.angle, length: def.chargeDist!, width: e.r * 2.4, t: 0, dur: e.timer };
-      sfx(g, 'warn');
+      sfx(g, 'warn', by(e));
     };
     if (e.state === 0) {
       seek(e, t, e.speed, dt);
@@ -254,7 +271,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
         e.state = 1;
         e.timer = def.windup!;
         addZone(g, { x: e.x, y: e.y, r: def.slamRadius!, delay: def.windup!, damage: specialDamage(e), hostile: true, color: HOSTILE, owner: e });
-        sfx(g, 'warn');
+        sfx(g, 'warn', by(e));
       }
     } else {
       e.timer -= dt;
@@ -274,9 +291,17 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
   },
 
   // Lich: keeps its distance, fans of bolts, telegraphed hexes under the player's feet. Phase 2: bolt rings and more hexes.
+  // #281: as the Barrowvale's elite his third phase is the Barrow Call: graves open round him with every volley of hexes (logic/crownBoss barrowCall).
   lich(g, e, dt) {
     const t = pickTarget(g, e);
     const def = e.def;
+    // the Barrow Call begins (e.charged: shown; his script has no charge): the first graves open at once
+    if (lichCalls(e.phase) && !e.charged) {
+      e.charged = true;
+      g.banner = { text: 'The Lich’s barrow call', t: 2.5 };
+      markPhase(g, 'The Lich’s barrow call');
+      callTheDead(g, e);
+    }
     const d = keepRange(e, t, dt);
     e.timer -= dt;
     if (e.timer <= 0 && d < def.range! * 1.5) {
@@ -288,7 +313,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
     e.special -= dt;
     if (e.special <= 0) {
       e.special = def.specialCd!;
-      sfx(g, 'warn');
+      sfx(g, 'warn', by(e));
       const p = g.player;
       const count = def.zoneCount! + (e.phase >= 2 ? def.p2ExtraZones! : 0);
       for (let i = 0; i < count; i++) {
@@ -296,6 +321,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
         const a = g.rng() * TAU;
         addZone(g, { x: p.x + Math.cos(a) * off, y: p.y + Math.sin(a) * off, r: def.zoneRadius!, delay: def.windup! + i * 0.12, damage: specialDamage(e), hostile: true, color: '#7a4fa0', owner: e });
       }
+      if (lichCalls(e.phase)) callTheDead(g, e);
     }
   },
 
@@ -323,7 +349,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
     e.special = def.specialCd!;
     e.state = 1;
     e.timer = 0.6;
-    sfx(g, 'warn');
+    sfx(g, 'warn', by(e));
     const lines = e.phase >= 2 ? def.p2Lines! : 1;
     const pyre = pyreField(e.phase, g.waveDmgMult * g.tier.enemyDmg);
     const leaveField = pyre && { ...pyre, color: '#e07b28', dtype: 'fire' as const };
@@ -349,7 +375,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
     e.special -= dt;
     if (e.special > 0) return;
     e.special = def.specialCd!;
-    sfx(g, 'warn');
+    sfx(g, 'warn', by(e));
     const p = g.player;
     const pool = { life: def.poolLife!, dps: def.poolDps! * g.waveDmgMult * g.tier.enemyDmg, color: POISON };
     const flask = (x: number, y: number, delay: number) =>
@@ -386,12 +412,13 @@ function secondWind(g: Game, e: Enemy): void {
   ring(g, e.x, e.y, 240, HOSTILE, 0.8);
   burst(g, e.x, e.y, HOSTILE, 50, 320);
   shake(g, 16);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
 }
 
 /**
  * #202: a crown boss's phase runs its minimum time (WORLD.crownBoss): until then its HP holds just above the next threshold, and in its
- * last phase at 1. A blow that meets the hold says so, like the Usurper's.
+ * last phase at 1; after it a blow ends the phase and no more, so the next begins on its whole share (#264). A blow that meets the hold says
+ * so, like the Usurper's.
  */
 function holdPhase(g: Game, e: Enemy, phases: number): void {
   e.hpFloor = crownHpFloor(e.maxHp, e.phase, phases, g.time - e.phaseAt);
@@ -411,7 +438,7 @@ function enterPhase(g: Game, e: Enemy, phase: number): void {
   ring(g, e.x, e.y, 200, HOSTILE, 0.7);
   burst(g, e.x, e.y, HOSTILE, 40, 300);
   shake(g, 14);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
   if (e.def.id === 'abbot') summon(g, e);
 }
 

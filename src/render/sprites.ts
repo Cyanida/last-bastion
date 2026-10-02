@@ -240,6 +240,37 @@ export const SPRITES = {
     '......kkbk....kbkk......',
     '......kkkk....kkkk......',
   ],
+  // #275: the Barrowvale's Barrow Thrall: a letter-grid stand-in until the rigged sheet loads
+  barrowThrall: [
+    '....................bb..',
+    '....................bb..',
+    '........kkkkkkkk..bbbbbb',
+    '........kBBBBBbk..bbbbbb',
+    '....kkBBBBBBBBBBBBhbbb..',
+    '....kkbBbbbbbbbbBbkkbb..',
+    '......kLLLLLLLLLdk..bb..',
+    '......kLLLdLLdLLdk..bb..',
+    '......kLLdcLLkLLdk..bb..',
+    '......kLLLLLLLLLdk..bb..',
+    '......kLLLLddLLLdk..bb..',
+    '......kdLLLLLLLLdk..bb..',
+    '....kkkkBBBBBBBbkkkkbb..',
+    '....kbkkBBBBBBBbkkLLbb..',
+    '..kkBbkBBBbbbbBbkLLLbb..',
+    '..kBBbkBBBbBbbBbkdLLbb..',
+    '..kBBbkBBBbbBbBBbk..bb..',
+    '..kBBbkBBBbbbbBBbk..bb..',
+    '..kdLdkBBBBBBBBBbk..bb..',
+    '..kkddkbBBBBBBBBbk..bb..',
+    '....kdkkbbbbbbbbbk......',
+    '....kkkkbbbbbbbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kbbbkkkkbbbk......',
+    '......kkbk....kbkk......',
+    '......kkkk....kkkk......',
+  ],
   // #225: the Cinderlands' Torchbearer: a letter-grid stand-in until the rigged sheet loads
   torchbearer: [
     '...................yo...',
@@ -1512,6 +1543,97 @@ export const SPRITES = {
     '....kkkkDhhhhhhhkkkk....',
     '....kkkkkkkkkkkkkkkk....',
   ],
+  // #278: the Barrow King: a letter-grid stand-in (the Iron King's shape) until his rigged sheet loads
+  barrowKing: [
+    '............kkkkkkkk............',
+    '............kDhhhhhk............',
+    '..........kkDhhhhhhhkk..........',
+    '..........kDhhhhhhhhhk..........',
+    '........kkDhhhhhhhhhhhkk........',
+    '........kDhhhhhhhhhhhhhk........',
+    '........khhhkooooRkhhhhk........',
+    '........khhhhkokokhhhhhk........',
+    '........khDhhhhhhhhhhDhk....hhhh',
+    '........kkhhhhhhhhhhhhkk....hhhh',
+    '..........kkkhhhhhkkkk....hDhhhh',
+    '..........kkDhhhhhDhkk....hhhhhh',
+    '......kkkkkDDDDDDDDDhkkkkk..hDhh',
+    '......kDDhkDDDDDDDDhkkDDhk..hhhh',
+    '....kkDDDhkDDDooooDhkDDDDhkk..bb',
+    '....kDDDDhkDDDoDDoDhkDDDDDhk..bb',
+    '..kkDooDhhkDDDDooDDhkhhhDDDhkkbb',
+    '..kDDRRDhhkDDDDoRDDhkhhhDDDhkbbb',
+    '..kDDDhhhhkDDDDDDDDhkhhhhhsakbbb',
+    '..kDDDhhhhkDDDDDDDDhkhhhhhaakkbb',
+    '..kssshhhkkDDDDDDDDhkkkhhk..bb..',
+    '..kksakkkkDDDDDDDDDDhhkkkk..bb..',
+    '....kk..kDhhhhhhhhhhhhhk....bb..',
+    '....kk..khhhhhhhhhhhhhhk....bb..',
+    '........kbbbbboooobbbbhk........',
+    '........kbbbbboooobbbbhk........',
+    '......kkDhhhhhRRRhhhhhhhkk......',
+    '......kDhhhhhhkkkkhhhhhhhk......',
+    '......kDDhhhhk....kDDhhhhk......',
+    '......khhhhhhk....khhhhhhk......',
+    '......khhhhhhk....khhhhhhk......',
+    '......khhhhhhk....khhhhhhk......',
+    '....kkDDDDDDhk....kDDDDDDhkk....',
+    '....kDDDDDDDhk....kDDDDDDDhk....',
+    '....kkDhhhhhkk....kkDhhhhhkk....',
+    '....kkkkkkkkkk....kkkkkkkkkk....',
+  ],
+  // #277: the Gravedigger: a letter-grid stand-in (a hunched figure under a wide hat, his spade) until his rigged sheet loads
+  gravedigger: [
+    '................................',
+    '........kkkkkkkkkk..............',
+    '.....kkkhhhhhhhhhhkkk.......kk..',
+    '....khhhhhhhhhhhhhhhhk......kDk.',
+    '.......kLLLLLLLLk...........kDk.',
+    '.......kLEkLLLEkk...........kWk.',
+    '.......kLLLLLLLLk...........kWk.',
+    '.......kLkkkkkLLk...........kWk.',
+    '....kkkbbbbbbbbbbkkk........kWk.',
+    '...kbbbbbbbbbbbbbbbbk.......kWk.',
+    '..kbbbbbbbBbbbbbbbbbbk......kWk.',
+    '..kbbbbbbbBbbbbbbbbbLLk.....kWk.',
+    '..kbbbbbbbBbbbbbbbbbLLkk....kWk.',
+    '..kLkbbbbbBbbbbbbbbbkLLLk...kWk.',
+    '..kLkbbbbbBbbbbbbbbbk.kLLkkkkWk.',
+    '..kEkbbbbbBbbbbbbbbbk..kkLLLLWk.',
+    '.kEEEkbbbbbbbbbbbbbbk....kkkkWk.',
+    '.kEEEkbbbbbbbbbbbbbbk......kDDk.',
+    '..kkkbbbbbbbbbbbbbbbk.....kDDDDk',
+    '.....kbbbbbbbbbbbbbbk.....kDDDDk',
+    '.....kbbbbbbbbbbbbbbk......kDDk.',
+    '.....kbbbbbbbbbbbbbbk.......kk..',
+    '.....kbbbbbbbbbbbbbbbk..........',
+    '....kbbbbbbbbbbbbbbbbk..........',
+    '....kbbbbbbkkkkbbbbbbk..........',
+    '....kkkkkkk....kkkkkkk..........',
+    '.....khhhk......khhhk...........',
+    '.....khhhk......khhhk...........',
+    '....kkhhhkk....kkhhhkk..........',
+    '....kkkkkkk....kkkkkkk..........',
+  ],
+  // #276: the Barrowvale's Blight Hound: a letter-grid stand-in until the rigged sheet loads
+  blightHound: [
+    '....................kk..kk..',
+    '....................Gk..Gk..',
+    'kk................kkLddddGkk',
+    'kk................kLddddddGk',
+    'kkkk....kkkkkkkkkkLdddEyddGk',
+    'kkkk....kLddddddddddddEEddGk',
+    '..kkkkkkLdddddddddddddddGGkk',
+    '..kkkkLddddddddddddddddGkkkk',
+    '....kLddddLLLLLLddddddGk....',
+    '....kdddddLLLLLLddddddGk....',
+    '....kdddddddddddddddddGk....',
+    '....kddddGddGdddddGGddGk....',
+    '....kdddGk..kdddGGkkddGk....',
+    '....kGdGkk..kGdGkkkkddGk....',
+    '....kkGk....kkGk..kkGGkk....',
+    '....kkkk....kkkk..kkkkkk....',
+  ],
 } satisfies Record<string, string[]>;
 
 export type SpriteId = keyof typeof SPRITES;
@@ -1521,11 +1643,13 @@ export const SPRITE_RES: Partial<Record<SpriteId, number>> = {
   paladin: 2, viking: 2, angel: 2, necromancer: 2, archer: 2,
   // the 15 regular foes and the three commanders (#138, part 2)
   peasant: 2, torchbearer: 2, wolf: 2, cinderHound: 2, crossbow: 2, knight: 2, ironKnight: 2, ironKnightBare: 2, cultist: 2, shieldBearer: 2, thornBearer: 2, priest: 2, cavalry: 2, engineer: 2,
-  plagueDoctor: 2, houndmaster: 2, mirrorKnight: 2, assassin: 2, shieldwall: 2, ironShieldwall: 2, boneCollector: 2,
+  plagueDoctor: 2, houndmaster: 2, mirrorKnight: 2, assassin: 2, shieldwall: 2, ironShieldwall: 2, boneCollector: 2, blightHound: 2, // #276
   bannerman: 2, drummer: 2, chaplain: 2, // the commanders
   // the siege pieces and the bosses (#138, part 3); the skeleton minion stays 1x on purpose
   ballista: 2, siegeTower: 2, siegeCamp: 2, plagueCart: 2,
-  blackKnight: 2, warlord: 2, lich: 2, inquisitor: 2, abbot: 2, dragon: 2, warden: 2, forgemaster: 2, ironKing: 2, emberQueen: 2, cinderColossus: 2, usurper: 2, royalFlame: 2,
+  blackKnight: 2, warlord: 2, lich: 2, inquisitor: 2, abbot: 2, dragon: 2, warden: 2, forgemaster: 2, ironKing: 2, emberQueen: 2, cinderColossus: 2, usurper: 2, royalFlame: 2, barrowKing: 2,
+  gravedigger: 2, // #277
+  barrowThrall: 2, // #275: the Barrowvale's peasant
 };
 
 export interface Sprite {
@@ -1543,11 +1667,12 @@ export interface Sprite {
  * v0.4 mastery palettes: a canvas filter over the class sprite (0 = as drawn; Ashen, Gilded, Midnight). v0.5: Frost and Verdant tint treasure guardians only.
  * #219: Iron, the Iron Hold's Legend crown: cold dark steel (Ashen is pale and warm).
  * #231: Cinder, the Cinderlands' Legend crown: a dark ember red (Gilded is bright gold).
+ * #281: Barrow, the Barrowvale's Legend crown: a pale grave-moss green, half washed out (Verdant is bright and full).
  * #156: Midnight tints from sepia like Gilded, so every champion turns night-blue (a hue-rotate turned the Necromancer green and the Archer pink).
  */
-export const SPRITE_PALETTES = ['', 'saturate(0.35) brightness(1.1)', 'sepia(1) saturate(2.2) hue-rotate(-10deg) brightness(1.1)', 'sepia(1) hue-rotate(185deg) saturate(1.7) brightness(0.72)', 'sepia(1) hue-rotate(160deg) saturate(2.5) brightness(1.15)', 'sepia(1) hue-rotate(60deg) saturate(2.2) brightness(0.95)', 'grayscale(1) sepia(0.3) hue-rotate(175deg) contrast(1.3) brightness(0.9)', 'sepia(1) saturate(3.2) hue-rotate(-32deg) contrast(1.2) brightness(0.8)'];
+export const SPRITE_PALETTES = ['', 'saturate(0.35) brightness(1.1)', 'sepia(1) saturate(2.2) hue-rotate(-10deg) brightness(1.1)', 'sepia(1) hue-rotate(185deg) saturate(1.7) brightness(0.72)', 'sepia(1) hue-rotate(160deg) saturate(2.5) brightness(1.15)', 'sepia(1) hue-rotate(60deg) saturate(2.2) brightness(0.95)', 'grayscale(1) sepia(0.3) hue-rotate(175deg) contrast(1.3) brightness(0.9)', 'sepia(1) saturate(3.2) hue-rotate(-32deg) contrast(1.2) brightness(0.8)', 'grayscale(0.5) sepia(0.8) hue-rotate(75deg) saturate(0.9) contrast(1.1) brightness(0.82)'];
 /** A palette's name, as a swatch's tip and a crown's reward say it. */
-export const PALETTE_NAMES = ['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours', 'Frost colours', 'Verdant colours', 'Iron colours', 'Cinder colours'];
+export const PALETTE_NAMES = ['As drawn', 'Ashen colours', 'Gilded colours', 'Midnight colours', 'Frost colours', 'Verdant colours', 'Iron colours', 'Cinder colours', 'Barrow colours'];
 
 /** `scale` is device pixels per grid pixel here: getSprite passes spriteSize's cell. */
 function rasterize(rows: string[], scale: number, white: boolean, flip: boolean, palette = 0): HTMLCanvasElement {
