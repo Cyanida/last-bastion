@@ -16,6 +16,7 @@ import { angleTo, chargeStart, chargeThrough, distTo, hitDamage, keepRange, move
 import { pickTarget, registerBoss } from './enemyAI';
 import { burst, floatText, ring, shake } from './effects';
 import { regionsOf } from './regions';
+import { clearPoint } from './movement';
 import { markPhase } from './runlog';
 import { spawnEnemy } from './spawning';
 import { aimFan } from './patterns';
@@ -627,7 +628,8 @@ registerBoss('gravedigger', (g, e, dt) => {
     return;
   }
   // his Digging: clods of grave-dirt round you (one on you), each an open grave where it lands
-  const clods = digZones(g.player.x, g.player.y, e.phase, g.rng() * TAU);
+  // each pushed clear of the arena's stones and walls, so every grave is one the champion can step on (and its dead climbs out of it)
+  const clods = digZones(g.player.x, g.player.y, e.phase, g.rng() * TAU).map((z) => ({ ...z, ...clearPoint(g, z, GRAVEDIGGER.grave.radius) }));
   for (const z of clods) addZone(g, { x: z.x, y: z.y, r: GRAVEDIGGER.dig.radius, delay: z.delay, damage: specialDamage(e) * GRAVEDIGGER.dig.damage, hostile: true, color: EARTH, owner: e });
   digGraves(e.graves, clods);
   g.banner = { text: 'Graves are dug: trample them', t: 1.4 };

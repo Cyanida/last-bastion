@@ -7990,7 +7990,7 @@ await check('Gravedigger: test mode starts the Barrowvale level 3; its last wave
   await p.locator('[data-pick="0"]').click();
   const fight = await p.evaluate(() => {
     const lb = window.__lb, g = lb.game, pl = g.player;
-    const out = { arena: g.arena.id, wave: 0, id: '', name: '', dig: [0, 0, 0], spade: [0, 0, 0], rot: [0, 0, 0], rotLife: 0, risen: [0, 0, 0], trampled: [0, 0, 0], spill: [0, 0, 0], plain: true, phases: [], called: [], dead: false };
+    const out = { arena: g.arena.id, wave: 0, id: '', name: '', dig: [0, 0, 0], spade: [0, 0, 0], rot: [0, 0, 0], rotLife: 0, risen: [0, 0, 0], trampled: [0, 0, 0], spill: [0, 0, 0], plain: true, odd: '', phases: [], called: [], dead: false };
     g.enemies.length = 0;
     g.spawnQueue.length = 0;
     g.wave = g.wavesCleared = g.level.last - 1; // straight on to the level's last wave
@@ -8015,17 +8015,20 @@ await check('Gravedigger: test mode starts the Barrowvale level 3; its last wave
         q.hpFloor = shown ? 0 : q.hp; // while he waits nothing of his moves the fight on
       }
       const before = [...(q.graves ?? [])];
+      const was = new Set(g.enemies);
       const px = pl.x, py = pl.y;
       lb.run(1, false, false);
       if (q.phase > out.phases.length + 1) out.phases.push(+g.time.toFixed(1)), out.called.push(g.banner?.text ?? '');
       const ph = q.phase - 1;
       for (const gr of before) {
         if ((q.graves ?? []).includes(gr) || gr.t < 0) continue;
-        if (Math.hypot(gr.x - px, gr.y - py) <= 24 + pl.r) out.trampled[ph]++;
+        // where he stood, or where the tick moved him to (pushed off the boss) before the graves were tended
+        if (Math.min(Math.hypot(gr.x - px, gr.y - py), Math.hypot(gr.x - pl.x, gr.y - pl.y)) <= 24 + pl.r) out.trampled[ph]++;
         else {
           out.risen[ph]++;
           const up = g.enemies.find((e) => e !== q && Math.hypot(e.x - gr.x, e.y - gr.y) < 20);
-          if (!up || up.def.id !== 'peasant') out.plain = false; // what climbs out is a plain villager
+          // what climbs out is a plain villager (not on the tick he falls: the field surrenders then, his dead with it, systems/victory.ts)
+          if (!q.dead && (!up || up.def.id !== 'peasant')) (out.plain = false), (out.odd ||= up ? up.def.id : `nothing at ${Math.round(gr.x)},${Math.round(gr.y)} (t ${gr.t.toFixed(2)}, ${g.time.toFixed(1)} s; new: ${g.enemies.filter((e) => !was.has(e)).map((e) => `${e.def.id}${e.dead ? '†' : ''} ${Math.round(Math.hypot(e.x - gr.x, e.y - gr.y))}px`).join(' ') || 'none'}; you ${Math.round(Math.hypot(pl.x - gr.x, pl.y - gr.y))}px)`);
         }
       }
       const mine = g.zones.filter((z) => z.owner === q && !seen.has(z)); // the zones one blow set this tick
@@ -8045,7 +8048,7 @@ await check('Gravedigger: test mode starts the Barrowvale level 3; its last wave
     && fight.dig.join() === '2,3,4' && fight.spade.every((n) => n === 3) && fight.rot[0] === 0 && fight.rot[1] === 6 && fight.rot[2] === 6 && fight.rotLife >= 14
     && fight.risen[0] > 0 && fight.trampled[0] > 0 && fight.spill[0] === 0 && fight.spill[1] === 0 && fight.spill[2] > 0 && fight.plain
     && fight.called.every((t) => t === 'The Gravedigger calls up his dead') && fight.dead && fight.cleared && errs.length === 0;
-  return { ok, detail: `wave ${fight.wave} in ${fight.arena}: ${fight.name || 'no boss'}; phases at ${fight.phases.join(', ')} s ("${fight.called.join('", "')}"); dig ${fight.dig.join('/')}, spade ${fight.spade.join('/')}, rot ${fight.rot.join('/')} zones by phase, rot lasts ${fight.rotLife} s; graves risen ${fight.risen.join('/')}, trampled ${fight.trampled.join('/')}, risen rot ${fight.spill.join('/')}; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  return { ok, detail: `wave ${fight.wave} in ${fight.arena}: ${fight.name || 'no boss'}; phases at ${fight.phases.join(', ')} s ("${fight.called.join('", "')}"); dig ${fight.dig.join('/')}, spade ${fight.spade.join('/')}, rot ${fight.rot.join('/')} zones by phase, rot lasts ${fight.rotLife} s; graves risen ${fight.risen.join('/')}, trampled ${fight.trampled.join('/')}, risen rot ${fight.spill.join('/')}${fight.plain ? '' : ` (risen: ${fight.odd})`}${fight.test === 1 ? '' : ', not a test run'}; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 await check('no console errors', async () => {
