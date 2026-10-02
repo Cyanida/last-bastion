@@ -8052,6 +8052,8 @@ await check("Sound: each class's attack and ability plays its own sound (#284)",
   }
   const ok = seen.length === 5 && seen.every((x) => x.attack >= 1 && x.ability >= 1 && x.others.length === 0 && !x.errs);
   return { ok, detail: seen.map((x) => `${x.cls}: attack ×${x.attack}, ability ×${x.ability}${x.others.length ? `, others ${x.others.join('/')}` : ''}${x.errs ? ` (error: ${x.errs})` : ''}`).join('; ') };
+});
+
 // #285: each enemy family sounds its own. Test mode -> the Barrowvale level 1; a click starts the sound. A mixed band closes round the
 // champion (cavalry, crossbowmen, a war priest, knights, peasants and wolves, which march here as barrow thralls and blight hounds) while
 // he fights them unhurt, played with pauses so the audio clock runs. Their attacks, his blows on them and their deaths go out in their
