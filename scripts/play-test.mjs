@@ -7869,7 +7869,7 @@ await check('Sound: a boss arrives with his own signature, sounds his big moves 
     const sent = []; // what the simulation sent to the speaker, in order, with the King's phase at that step
     const speak = lb.view.sfx;
     let k = null;
-    lb.view.sfx = (name, cue) => (String(name).startsWith('boss:') && sent.push({ name, phase: k?.phase ?? 0, t: +g.time.toFixed(2) }), speak(name, cue));
+    lb.view.sfx = (name, cue) => (String(name).startsWith('boss:') && sent.push({ name, phase: k?.phase ?? 0, began: +(k?.phaseAt ?? -1).toFixed(2), t: +g.time.toFixed(2) }), speak(name, cue));
     g.player.stats.str *= 40;
     g.enemies.length = 0;
     g.spawnQueue.length = 0;
@@ -7883,10 +7883,9 @@ await check('Sound: a boss arrives with his own signature, sounds his big moves 
           g.player.x = k.x + Math.cos(k.angle + Math.PI) * (k.r + 16); // a step behind him: round his tower shield
           g.player.y = k.y + Math.sin(k.angle + Math.PI) * (k.r + 16);
         }
-        const was = k?.phase ?? 0;
         lb.run(1, false, false);
         k ??= g.enemies.find((e) => e.def.boss) ?? null;
-        if (k && k.phase > Math.max(1, was) && was > 0) phaseAt.push({ phase: k.phase, t: +g.time.toFixed(2) });
+        if (k && k.phase > phaseAt.length + 1) phaseAt.push({ phase: k.phase, t: +g.time.toFixed(2) });
         if (i % 8 === 7) await wait(0); // the audio clock moves on
       }
     } finally {
@@ -7900,7 +7899,11 @@ await check('Sound: a boss arrives with his own signature, sounds his big moves 
   const id = fight.id, sent = fight.sent.map((c) => c.name);
   const sentAt = (name) => fight.sent.find((c) => c.name === name);
   const arrive = sent[0] === `boss:${id}:arrive` && sent.filter((n) => n.endsWith(':arrive')).length === 1;
-  const phases = fight.phaseAt.length === 2 && fight.phaseAt.every((x) => sentAt(`boss:${id}:phase${x.phase}`)?.t === x.t);
+  // each phase cue sent once, while the King was in that phase, on the very step it began (lb.run may take several steps per frame)
+  const phases = fight.phaseAt.length === 2 && fight.phaseAt.every((x) => {
+    const c = sentAt(`boss:${id}:phase${x.phase}`);
+    return c && c.phase === x.phase && c.t === c.began && sent.filter((n) => n === c.name).length === 1;
+  });
   const moves = sent.filter((n) => n === `boss:${id}:move`).length;
   const voiced = [`boss:${id}:arrive`, `boss:${id}:phase2`, `boss:${id}:phase3`].every((n) => fight.heard[n] === 1) && (fight.heard[`boss:${id}:move`] ?? 0) >= 1;
   const ok = id === 'ironKing' && fight.dead && arrive && phases && moves >= 1 && voiced && errs.length === 0;
