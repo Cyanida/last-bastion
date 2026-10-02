@@ -957,7 +957,8 @@ function frame(now: number): void {
   const t2 = performance.now();
   const g = game;
   if (g) runMusic(state === 'playing' || state === 'choice' ? moodOf(g) : null); // v0.7.1: paused or over, it fades out
-  ambience(!!g && (state === 'playing' || state === 'choice')); // #282: the wind, likewise; only a change does any work
+  const live = g && (state === 'playing' || state === 'choice') ? g : null;
+  ambience(live && live.arena.id, live ? moodOf(live).layer : 0); // #282: the wind, likewise; only a change does any work. #288: the arena's own bed, stepping back as the fight grows
   if (state === 'playing' && g) {
     const before = quality.level;
     sampleFrame(t2 - t0, g.wave); // the work this frame took, not the vsync interval: that is what the detail level reacts to

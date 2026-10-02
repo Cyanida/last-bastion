@@ -452,6 +452,54 @@ await check('sound mixer: five volume sliders in Settings move their buses, are 
   return { ok: seen.every((x) => x.ok), detail: seen.map((x) => x.detail).join(' | ') };
 });
 
+// #288: every arena has its own ambience: Settings -> Test mode -> each arena in turn -> Start test run, at 1280x720 with the mouse. The
+// ambience bus plays that arena's own bed (the courtyard's wind, the graveyard's crows, the keep's echo, the Ember Forge's fire, the
+// Bastion's walls), and in the graveyard, when the boss comes, the bed steps back under the fight.
+await check('arena ambience: each arena plays its own bed on the ambience bus, and it steps back under a boss fight (#288)', async () => {
+  const seen = [];
+  let early = 0, boss = 0, bossUp = false;
+  for (const arena of ['courtyard', 'graveyard', 'keep', 'emberForge', 'bastion']) {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    if (!(await p.locator(`#tm-arena option[value="${arena}"]`).count())) {
+      await p.close();
+      continue; // an arena not built in this build
+    }
+    await p.locator('#tm-arena').selectOption(arena);
+    await p.getByRole('button', { name: /start test run/i }).click();
+    await p.waitForFunction(() => window.__lb.state === 'playing' || window.__lb.state === 'choice', null, { timeout: 5000 });
+    const bed = await p.waitForFunction((a) => window.__lb.mixer().ambience === a, arena, { timeout: 4000 }).then(() => arena, async () => String(await p.evaluate(() => window.__lb.mixer().ambience)));
+    if (arena === 'graveyard') {
+      // the bed fades in to its level before the boss (a breather or a plain fight), then a boss wave comes and it steps back
+      await p.waitForFunction(() => window.__lb.mixer().bedLevel > 0.25, null, { timeout: 8000 }).catch(() => {});
+      early = await p.evaluate(() => window.__lb.mixer().bedLevel);
+      bossUp = await p.evaluate(() => {
+        const lb = window.__lb, g = lb.game;
+        g.player.invulnerable = true;
+        g.enemies.length = 0;
+        g.spawnQueue.length = 0;
+        g.wave = g.wavesCleared = Math.ceil((g.wave + 1) / 5) * 5 - 1; // the next wave is a boss's (every 5th)
+        g.breather = 0.01;
+        let k = null;
+        for (let i = 0; i < 6000 && !k && lb.state !== 'results'; i++) (lb.run(1, false, false), (k = g.enemies.find((e) => e.def.boss) ?? null));
+        if (k) k.hpFloor = k.maxHp; // he stays while the bed is heard
+        return !!k;
+      });
+      await p.waitForFunction((e) => window.__lb.mixer().bedLevel < e * 0.7, early, { timeout: 8000 }).catch(() => {});
+      boss = await p.evaluate(() => window.__lb.mixer().bedLevel);
+    }
+    seen.push({ arena, bed, errs: errs.length ? errs[0] : '' });
+    await p.close();
+  }
+  const ok = seen.length >= 4 && seen.every((x) => x.bed === x.arena && !x.errs) && bossUp && early > 0.25 && boss < early * 0.7;
+  return { ok, detail: `${seen.map((x) => `${x.arena} -> ${x.bed}${x.errs ? ` (error: ${x.errs})` : ''}`).join(', ')}; graveyard bed ${early.toFixed(2)}, boss ${bossUp} -> ${boss.toFixed(2)}` };
+});
+
 // #187: the compendium, the glossary and the flash cards in the kit, played at 1280x720 with the mouse and in phone landscape by touch:
 // each is a wood frame with a ribbon heading that fits the screen, what you read on parchment that scrolls, the round back button in its
 // corner (which goes back); every relic row has its icon in the frame of its rarity; a flash card's one button is gold and closes it
