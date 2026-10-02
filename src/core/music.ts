@@ -1,7 +1,7 @@
 import { MUSIC, THEMES } from '../config/music';
 import { BAR_BEATS, BPM, composeBar, type NoteEvent } from '../logic/music';
 import { barSeconds, composeRunBar, conduct, newConductor, nextBeat, stingerNotes, type Conductor, type Mood, type Stinger } from '../logic/runMusic';
-import { isMuted, sharedAudio } from './audio';
+import { busHeard, sharedAudio } from './audio';
 import { quality } from './quality';
 import { prefs } from './storage';
 
@@ -9,18 +9,14 @@ import { prefs } from './storage';
  * Menu music, and (v0.7.1) quiet run music: plays logic/music.ts's and logic/runMusic.ts's scores on the sfx AudioContext through a
  * reverb. A lookahead scheduler queues a bar once its downbeat is within MUSIC.lookahead on the audio clock, so a dip in the frame rate
  * (which delays its timer) does not open a gap. The run music follows the run's mood (main.ts sets it every
- * frame). On mute, pause, the Music settings and with the page hidden it is faded out and the scheduler stopped.
+ * frame). On mute, pause, the Music or Master volume at 0 (#282: the mixer's, core/audio.ts) and with the page hidden it is faded out
+ * and the scheduler stopped.
  */
-export type MusicLevel = 'off' | 'low' | 'medium' | 'high';
-export const MUSIC_LEVELS: MusicLevel[] = ['off', 'low', 'medium', 'high'];
-const KEY = 'lastbastion.music';
 const RUN_KEY = 'lastbastion.runMusic';
 const BEAT = 60 / BPM;
 const FADE_IN = 2;
 const FADE_OUT = 1.5;
 
-const stored = prefs.get(KEY);
-let level: MusicLevel = MUSIC_LEVELS.includes(stored as MusicLevel) ? (stored as MusicLevel) : 'medium';
 let inRuns = prefs.get(RUN_KEY) !== '0'; // v0.7.1 "Music during runs", on by default
 let menu = false; // a menu screen is up
 let mood: Mood | null = null; // v0.7.1: a run is on screen and not paused
@@ -35,13 +31,6 @@ let stingers = 0; // stingers played (the perf test reads it)
 let late = 0; // v0.7.5: bars the scheduler reached after their downbeat, so the music skipped (the perf test checks a frame dip has none)
 let peak = 0; // the most voices sounding at once (the perf test checks the budget)
 
-export const musicLevel = () => level;
-export function setMusicLevel(next: MusicLevel): void {
-  level = next;
-  prefs.set(KEY, next);
-  if (bus && next !== 'off') bus.master.gain.setTargetAtTime(MUSIC.volume[next], bus.master.context.currentTime, 0.1);
-  refreshMusic();
-}
 export const runMusicOn = () => inRuns;
 export function setRunMusic(on: boolean): void {
   inRuns = on;
@@ -89,7 +78,7 @@ export function stinger(kind: Stinger): void {
 export function refreshMusic(): void {
   const audio = sharedAudio();
   if (!audio) return; // no gesture yet: the first one calls this again
-  const audible = level !== 'off' && !isMuted() && !document.hidden;
+  const audible = busHeard('music') && !document.hidden;
   const kind = !audible ? null : mood ? (inRuns || jukebox ? 'run' : null) : menu ? 'menu' : null;
   if (session && session.kind !== kind) fadeOut(audio.ctx);
   if (kind && !session) begin(audio, kind);
@@ -170,10 +159,10 @@ function fadeOut(ctx: AudioContext): void {
   setTimeout(() => out.disconnect(), 8000); // the bar already queued plays out into silence first
 }
 
-/** Master volume, a gentle lowpass, and a convolution reverb on generated decaying stereo noise. */
+/** A gentle lowpass, and a convolution reverb on generated decaying stereo noise. */
 function buildBus(ctx: AudioContext, dest: AudioNode): { master: GainNode; input: AudioNode } {
   const master = ctx.createGain();
-  master.gain.value = MUSIC.volume[level];
+  master.gain.value = 1; // #282: the volume is the mixer's music bus, which this goes into
   master.connect(dest);
   const tone = ctx.createBiquadFilter();
   tone.frequency.value = 4500;

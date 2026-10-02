@@ -339,10 +339,115 @@ await check('Settings and results: the UI kit, their controls work, all in the w
     await press('[data-menu]');
     const select = await p.evaluate(() => !!document.querySelector('.kit-title [data-go="daily"]') && !document.querySelector('.kit-screen.results')); // #204: a trial goes home
     await p.close();
-    const ok = set.frame && set.ribbon === 'Settings' && set.choices && set.switches >= 3 && set.sliders === 2 && fitsSet && large &&
+    const ok = set.frame && set.ribbon === 'Settings' && set.choices && set.switches >= 3 && set.sliders === 5 && fitsSet && large &&
       soundBefore === 'On' && soundAfter === 'Off' && !checked && fxBefore !== fxAfter && title > 0 &&
       res.ribbon === 'The run ends' && res.main && res.menu && res.icon && res.seed && fitsRes && select && errs.length === 0;
     seen.push({ ok, detail: `${w}x${h}: settings ${set.frame}/${set.ribbon}, choices ${set.choices}, ${set.switches} switches, ${set.sliders} sliders, fits ${fitsSet}, Large ${large}, sound ${soundBefore}->${soundAfter}, effects ${fxBefore}->${fxAfter}, back ${title > 0}; results "${res.ribbon}", gold main ${res.main}, wood ${res.menu}, icon ${res.icon}, fits ${fitsRes}, home ${select}${errs.length ? `, errors: ${errs[0]}` : ''}` });
+  }
+  return { ok: seen.every((x) => x.ok), detail: seen.map((x) => x.detail).join(' | ') };
+});
+
+// #282: the sound mixer, played through Settings at 1280x720 and by touch at 844x390: a player with the old Music "High" and Effects
+// "Low" finds them migrated onto the Music and Effects sliders beside Master, Interface and Ambience; the keyboard and a tap move a
+// slider, its bus follows and the mix is kept over a reload. In a run on PC the wind blows on the ambience bus, a big blow ducks the
+// music, the wind stops on pause and comes back on Resume, and Sound off (M) stops it; on the phone Ambience is tapped to Off first,
+// and no wind starts. The Settings frame still fits the window.
+await check('sound mixer: five volume sliders in Settings move their buses, are kept, migrate the old levels; wind and ducking in a run (#282)', async () => {
+  const seen = [];
+  for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+    await p.addInitScript(() => {
+      if (localStorage.getItem('lastbastion.mixer') === null && !sessionStorage.getItem('seeded')) {
+        localStorage.setItem('lastbastion.music', 'high'); // a player from before the mixer
+        localStorage.setItem('lastbastion.effects', 'low');
+        sessionStorage.setItem('seeded', '1');
+      }
+    });
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    const labels = () => p.evaluate(() => Object.fromEntries([...document.querySelectorAll('.settings .kit-slider input[type=range]')].map((i) => [i.dataset.set, i.closest('label').querySelector('[data-level]').textContent.trim()])));
+    await press('[data-go="settings"]');
+    const migrated = await labels();
+    const fits = await p.evaluate(() => {
+      const f = document.querySelector('.kit-screen.settings').getBoundingClientRect();
+      const back = document.querySelector('.settings [data-act="back"]').getBoundingClientRect();
+      return f.top >= 0 && f.left >= 0 && f.bottom <= innerHeight && f.right <= innerWidth && back.top >= 0 && back.right <= innerWidth;
+    });
+    // the keyboard on the Master slider, one step down
+    await p.locator('[data-set="master"]').focus();
+    await p.keyboard.press('ArrowLeft');
+    // the bus glides to its new gain on the audio clock, which headless Chromium runs slower than the wall clock
+    const settle = (fn) => p.waitForFunction(fn, null, { timeout: 8000 }).then(() => true, () => false);
+    await settle(() => window.__lb.mixer().gains.master < 0.96);
+    const master = await p.evaluate(() => ({ label: document.querySelector('.kit-slider:has([data-set="master"]) [data-level]').textContent.trim(), ...window.__lb.mixer() }));
+    // the Interface slider all the way down by keyboard (End/Home), then a tap or click on the Music slider's left end
+    await p.locator('[data-set="ui"]').focus();
+    // the Interface bus: a button pressed taps on it, until its slider goes to Off
+    const taps = () => p.evaluate(() => window.__lb.mixer().played.ui);
+    const tap0 = await taps();
+    await press('[data-text-size="normal"]');
+    const tapOn = (await taps()) - tap0;
+    await p.locator('[data-set="ui"]').focus();
+    await p.keyboard.press('Home');
+    await p.waitForTimeout(100);
+    const tap1 = await taps();
+    await press('[data-text-size="normal"]');
+    await p.waitForTimeout(100);
+    const tapOff = (await taps()) - tap1;
+    const music = p.locator('[data-set="music"]');
+    await music.scrollIntoViewIfNeeded();
+    const box = await music.boundingBox();
+    const at = { x: box.x + 2, y: box.y + box.height / 2 };
+    if (touch) await p.touchscreen.tap(at.x, at.y);
+    else await p.mouse.click(at.x, at.y);
+    await settle(() => window.__lb.mixer().gains.music < 0.05); // the music stops at Off, and its bus stops moving there
+    const moved = { ...(await labels()), ...(await p.evaluate(() => window.__lb.mixer())) };
+    // kept over a reload
+    await p.reload();
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await press('[data-go="settings"]');
+    const kept = await labels();
+    // set the music back up so the run has some to duck; on the phone, Ambience tapped to Off
+    await p.locator('[data-set="music"]').focus();
+    await p.keyboard.press('End');
+    await p.waitForTimeout(100);
+    if (touch) {
+      await p.locator('[data-set="ambience"]').scrollIntoViewIfNeeded(); // the parchment scrolls on a phone
+      const amb = await p.locator('[data-set="ambience"]').boundingBox();
+      await p.touchscreen.tap(amb.x + 2, amb.y + amb.height / 2);
+      await p.waitForTimeout(100);
+    }
+    const ambLabel = (await labels()).ambience;
+    await press('.settings [data-act="back"]');
+    // a run: the wind blows, a big blow ducks music and wind, a pause stops the wind
+    await beginDaily(p);
+    await p.waitForFunction(() => window.__lb.state !== 'menu');
+    await p.evaluate(() => {
+      const lb = window.__lb;
+      for (let i = 0; i < 400 && !(i > 60 && lb.state === 'playing'); i++) lb.run(1, false, true);
+    });
+    const windy = await p.waitForFunction(() => window.__lb.mixer().ambience, null, { timeout: touch ? 1500 : 4000 }).then(() => true, () => false);
+    const ducked = await p.evaluate(() => {
+      window.__lb.view.sfx('boom'); // the simulation's way to the speaker, as a boss's blow goes
+      return new Promise((r) => setTimeout(() => r(window.__lb.mixer().ducked), 60));
+    });
+    await p.keyboard.press('Escape');
+    const calm = await p.waitForFunction(() => !window.__lb.mixer().ambience, null, { timeout: 4000 }).then(() => true, () => false);
+    await press('[data-resume]');
+    const back = await p.waitForFunction(() => window.__lb.state === 'playing' && window.__lb.mixer().ambience, null, { timeout: touch ? 1000 : 4000 }).then(() => true, () => false);
+    await p.keyboard.press('m'); // Sound off
+    const muted = await p.waitForFunction(() => window.__lb.mixer().muted && !window.__lb.mixer().ambience, null, { timeout: 4000 }).then(() => true, () => false);
+    await p.close();
+    const ok = migrated.music === '100%' && migrated.effects === '35%' && migrated.master === '100%' && migrated.ui === '70%' && migrated.ambience === '50%' && fits &&
+      master.label === '95%' && master.mix.master === 95 && Math.abs(master.gains.master - 0.95) < 0.02 &&
+      moved.ui === 'Off' && moved.mix.ui === 0 && tapOn > 0 && tapOff === 0 && moved.mix.music <= 10 && moved.gains.music < 0.08 &&
+      kept.master === '95%' && kept.ui === 'Off' && kept.music === moved.music && ducked && calm && muted &&
+      (touch ? ambLabel === 'Off' && !windy && !back : ambLabel === '50%' && windy && back) && errs.length === 0;
+    seen.push({ ok, detail: `${w}x${h}: migrated ${JSON.stringify(migrated)}, fits ${fits}; master key -> ${master.label} (gain ${master.gains?.master.toFixed(2)}); button taps ${tapOn}, ui -> ${moved.ui}, then taps ${tapOff}, music ${touch ? 'tap' : 'click'} -> ${moved.music} (gain ${moved.gains?.music.toFixed(2)}); after reload ${JSON.stringify(kept)}; run with Ambience ${ambLabel}: wind ${windy}, ducked ${ducked}, paused calm ${calm}, resumed wind ${back}, M stops it ${muted}${errs.length ? `, errors: ${errs[0]}` : ''}` });
   }
   return { ok: seen.every((x) => x.ok), detail: seen.map((x) => x.detail).join(' | ') };
 });
