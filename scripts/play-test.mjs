@@ -7836,6 +7836,77 @@ await check('Sound: a boss cue plays in a crowded fight; the voice limit drops t
   return { ok, detail: fight.found ? `${fight.id}: ${fight.ticks} ticks in ${fight.seconds} s with up to ${fight.crowd} foes; voices up to ${fight.peak}/${fight.max}; ${fight.played} effects played, ${fight.dropped} dropped, ${fight.stolen} taken over, ${fight.crowded} cues met full voices; boss cues ${fight.boss} played (${fight.bossCrowded} while full), ${fight.bossDropped} dropped; ${fight.panned} panned, ${fight.faded} quieter off screen; a fall past the edge: ${far ? `${far.panned ? 'panned' : 'NOT panned'}, ${far.faded ? 'quieter' : 'NOT quieter'}` : 'not played'}${errs.length ? `; errors: ${errs[0]}` : ''}` : 'no boss on the last wave' };
 });
 
+// #286: every boss his own sounds. Test mode -> the Iron Hold level 5 -> its last wave, the Iron King's. A strong paladin stands behind
+// him, played with pauses so the audio clock runs: his signature sounds as he comes, his big-move sound with his warnings, and a phase
+// cue the very step each of his phases begins, each of them given a voice (they outrank the fight's other cues).
+await check('Sound: a boss arrives with his own signature, sounds his big moves and marks each phase with its own cue (#286)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  if (!(await p.evaluate(() => typeof window.__lb.bossCues === 'function'))) return (await p.close(), { skip: true, detail: 'no boss sounds on this branch (before #286)' });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  await p.locator('#tm-class').selectOption('paladin');
+  await p.locator('#tm-arena').selectOption('keep');
+  await p.locator('#tm-start').selectOption('ironHold:5');
+  await p.evaluate(() => {
+    const now = Date.now; // test mode seeds from the clock: a fixed seed, the same fight every time
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click(); // a click: the sound starts
+  const fight = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const before = lb.bossCues();
+    const sent = []; // what the simulation sent to the speaker, in order, with the King's phase at that step
+    const speak = lb.view.sfx;
+    let k = null;
+    lb.view.sfx = (name, cue) => (String(name).startsWith('boss:') && sent.push({ name, phase: k?.phase ?? 0, t: +g.time.toFixed(2) }), speak(name, cue));
+    g.player.stats.str *= 40;
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to the level's last wave: the King's
+    g.breather = 0.01;
+    const phaseAt = [];
+    try {
+      for (let i = 0; i < 90000 && lb.state !== 'results' && !k?.dead; i++) {
+        g.player.invulnerable = true;
+        if (k && !k.dead) {
+          g.player.x = k.x + Math.cos(k.angle + Math.PI) * (k.r + 16); // a step behind him: round his tower shield
+          g.player.y = k.y + Math.sin(k.angle + Math.PI) * (k.r + 16);
+        }
+        const was = k?.phase ?? 0;
+        lb.run(1, false, false);
+        k ??= g.enemies.find((e) => e.def.boss) ?? null;
+        if (k && k.phase > Math.max(1, was) && was > 0) phaseAt.push({ phase: k.phase, t: +g.time.toFixed(2) });
+        if (i % 8 === 7) await wait(0); // the audio clock moves on
+      }
+    } finally {
+      lb.view.sfx = speak;
+    }
+    const after = lb.bossCues(), heard = {};
+    for (const [name, n] of Object.entries(after)) if (n - (before[name] ?? 0) > 0) heard[name] = n - (before[name] ?? 0);
+    return { id: k?.def.id ?? '', dead: !!k?.dead, sent, heard, phaseAt };
+  });
+  await p.close();
+  const id = fight.id, sent = fight.sent.map((c) => c.name);
+  const sentAt = (name) => fight.sent.find((c) => c.name === name);
+  const arrive = sent[0] === `boss:${id}:arrive` && sent.filter((n) => n.endsWith(':arrive')).length === 1;
+  const phases = fight.phaseAt.length === 2 && fight.phaseAt.every((x) => sentAt(`boss:${id}:phase${x.phase}`)?.t === x.t);
+  const moves = sent.filter((n) => n === `boss:${id}:move`).length;
+  const voiced = [`boss:${id}:arrive`, `boss:${id}:phase2`, `boss:${id}:phase3`].every((n) => fight.heard[n] === 1) && (fight.heard[`boss:${id}:move`] ?? 0) >= 1;
+  const ok = id === 'ironKing' && fight.dead && arrive && phases && moves >= 1 && voiced && errs.length === 0;
+  return { ok, detail: `${id || 'no boss'}: sent ${sent.length} boss cues (arrival ${arrive ? 'first' : 'NOT first'}, ${moves} big moves); phases began at ${fight.phaseAt.map((x) => `${x.phase}: ${x.t} s`).join(', ') || 'none'}, their cues at ${fight.phaseAt.map((x) => sentAt(`boss:${id}:phase${x.phase}`)?.t ?? 'none').join(', ')}; given a voice: ${Object.entries(fight.heard).map(([n, c]) => `${n.split(':')[2]} ×${c}`).join(', ') || 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #264: a strong build meets every phase of a crown boss: Settings -> Test mode -> "Start at" a relic realm's level 5 -> its last wave ----------
 // The champion strikes forty times his strength from behind the crown boss (unhurt, no ability, no bot moves), so only the crown's hold keeps
 // him up. Each phase holds its 12 s (UNBROKEN shows the hold), and once its time is run a blow ends the phase and no more: the next phase

@@ -250,6 +250,7 @@ function tone(c: AudioContext, s: Tone, start: number, rate: number, out: GainNo
   if (s.wave === 'noise') {
     const n = c.createBufferSource();
     n.buffer = noise;
+    n.loop = true; // #286: a boss's rumble outlasts the half-second buffer
     n.playbackRate.value = rate;
     src = n;
   } else {
