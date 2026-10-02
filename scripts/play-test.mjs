@@ -1476,6 +1476,83 @@ await check('boss pool: the next boss is not one already met this run', async ()
   return { ok, detail: `wave ${r.wave}: ${r.name}; met ${r.seen.join(', ')}; HUD "${r.hud}"` };
 });
 
+// #289: a boss's own theme takes over from the arena's music. Through Settings and test mode at 1280x720 with the mouse: the jukebox lists
+// the boss themes and plays the Lich's; then a test run in the Castle Courtyard at Act I wave 5 plays the courtyard's theme until the
+// Black Knight comes, his grim march takes over (its base layer in his first phase), builds to the full boss layer in his second with
+// the phase stinger over it, and hands back to the courtyard's theme when he falls.
+await check("boss themes: the Black Knight's theme takes over from the arena's, builds with his phase and hands back when he falls (#289)", async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  try {
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const music = () => p.evaluate(() => window.__lb.music());
+    const hear = (arena, layer = null, timeout = 15000) => p.waitForFunction(([a, l]) => {
+      const m = window.__lb.music();
+      return m.playing === 'run' && m.arena === a && (l === null || m.layer === l);
+    }, [arena, layer], { timeout }).then(() => true, () => false);
+    await p.locator('[data-go="settings"]').click();
+    await p.locator('.settings [data-act="test"]').click();
+    // the jukebox: the boss themes are on its list, and the Lich's plays
+    const listed = await p.evaluate(() => [...document.querySelectorAll('#jb-arena option')].filter((o) => o.value.startsWith('boss:')).map((o) => o.textContent.trim()));
+    await p.locator('#jb-arena').selectOption('boss:lich');
+    await p.locator('.testmode [data-play]').click();
+    const jukebox = await hear('boss:lich');
+    await p.locator('.testmode [data-stop]').click();
+    // a test run: the courtyard at Act I wave 5, the Black Knight's wave
+    await p.locator('#tm-class').selectOption('viking');
+    await p.locator('#tm-arena').selectOption('courtyard');
+    await p.locator('#tm-act').fill('1');
+    await p.locator('#tm-wave').fill('5');
+    await p.locator('.testmode [data-start]').click();
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 });
+    await p.evaluate(() => (window.__lb.game.player.invulnerable = true));
+    const before = await hear('courtyard');
+    const met = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      const boss = () => g.enemies.find((e) => e.def.boss && !e.side && !e.dead);
+      for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) lb.run(1, false, true); // the bot plays on to him, answering any screen
+      const b = boss();
+      window.__bossTheme = b;
+      return b ? { name: b.def.name, phase: b.phase, key: g.bossesSeen.at(-1) } : null;
+    });
+    if (!met) return { ok: false, detail: 'no boss reached' };
+    const takeover = await hear('boss:blackKnight', 1);
+    const hud = await p.evaluate(() => document.getElementById('h-boss-name')?.textContent ?? '');
+    const s1 = await music();
+    // his second phase: below half his HP
+    const phase = await p.evaluate(() => {
+      const lb = window.__lb, b = window.__bossTheme;
+      b.hp = b.maxHp * 0.4;
+      for (let i = 0; i < 30 && b.phase < 2; i++) lb.run(1, false, true);
+      return b.phase;
+    });
+    const built = await hear('boss:blackKnight', 3);
+    await p.waitForTimeout(300);
+    const s2 = await music();
+    // he falls: the courtyard's theme comes back
+    const fell = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, b = window.__bossTheme, pl = g.player;
+      g.baseMods.damage *= 1e4;
+      for (let i = 0; i < 60 * 30 && g.enemies.includes(b) && !b.dead && lb.game === g; i++) {
+        if (lb.state === 'playing') Object.assign(pl, { x: b.x - b.r - 30, y: b.y });
+        lb.run(1, false, true);
+      }
+      g.baseMods.damage /= 1e4;
+      return b.dead || !g.enemies.includes(b);
+    });
+    const back = fell && (await hear('courtyard'));
+    const s3 = await music();
+    const ok = listed.length === 8 && listed.includes('Boss · The Plague Abbot') && listed.includes('Boss · The Frost Lich') && jukebox && before && met.name === 'The Black Knight' && takeover &&
+      hud.includes('The Black Knight') && phase === 2 && built && s2.stingers > s1.stingers && back && s3.peak <= s3.budget && !errs.length;
+    return { ok, detail: `jukebox lists ${listed.length} boss themes, the Lich's plays ${jukebox}; courtyard first ${before}; ${met.name} (${met.key}) -> his theme ${takeover} (layer ${s1.layer}), HUD "${hud}"; phase ${phase} -> layer 3 ${built}, stingers ${s1.stingers} -> ${s2.stingers}; falls ${fell} -> ${s3.arena} ${back}; peak ${s3.peak}/${s3.budget} voices${errs.length ? `, errors: ${errs[0]}` : ''}` };
+  } finally {
+    await p.close();
+  }
+});
+
 // ---------- v0.7.5 (#106): an error in a frame shows the error overlay, and the game goes on ----------
 await check('an error in a frame: the overlay, Continue, the run goes on', () =>
   inPage(async () => {
