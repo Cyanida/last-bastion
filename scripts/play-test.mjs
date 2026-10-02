@@ -7509,6 +7509,7 @@ await check('realm run: the HUD, the quest board, the banner and the results say
   p.on('pageerror', (e) => errs.push(e.message));
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => (window.__lb.save.cards = [...window.__lb.cardIds])); // every flash card seen: none stops the fight before the plate is read
   const press = (sel) => p.locator(sel).first().click();
   const bad = [];
   const want = (cond, what) => { if (!cond) bad.push(what); return cond; };
@@ -7533,9 +7534,10 @@ await check('realm run: the HUD, the quest board, the banner and the results say
     g.player.invulnerable = true;
     const texts = new Set();
     let hud = '';
-    for (let i = 0; i < 400 && lb.game === g && !/Wave \d/.test(hud); i++) {
+    // up to 40 s: under load the wave's countdown can outlast 20 s; the run's game is read afresh each time
+    for (let i = 0; i < 800 && lb.game && !/Wave \d/.test(hud); i++) {
       await new Promise((r) => setTimeout(r, 50));
-      if (g.banner?.text) texts.add(g.banner.text);
+      if (lb.game.banner?.text) texts.add(lb.game.banner.text);
       hud = document.getElementById('h-wave')?.textContent ?? '';
     }
     return { hud, banners: [...texts] };
