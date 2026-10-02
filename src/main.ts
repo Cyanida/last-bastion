@@ -5,8 +5,8 @@ import { ARENAS, type ArenaId } from './config/arenas';
 import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
 import { GAME, VIEW } from './config/game';
-import { effectsLevel, initAudio, isMuted, setEffectsLevel, sfx, toggleMute } from './core/audio';
-import { musicLevel, musicStats, refreshMusic, runMusic, runMusicOn, setMusicLevel, setRunMusic, startMenuMusic, stinger, stopMenuMusic } from './core/music';
+import { ambience, getMix, initAudio, isMuted, mixerStats, setVolume, sfx, toggleMute } from './core/audio';
+import { musicStats, refreshMusic, runMusic, runMusicOn, setRunMusic, startMenuMusic, stinger, stopMenuMusic } from './core/music';
 import { addListener, type EventName } from './core/events';
 import { moodOf, type Stinger } from './logic/runMusic';
 import { showWhatsNewNow } from './logic/whatsNew';
@@ -358,7 +358,7 @@ function toSettings(): void {
   menu();
   const d = platform.desktop;
   showSettings(
-    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), music: musicLevel(), effects: effectsLevel(), runMusic: runMusicOn(), manualAim: save.settings.manualAim, textSize: save.settings.textSize, version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
+    { quality: save.settings.quality, effective: quality.level, muted: isMuted(), mix: getMix(), runMusic: runMusicOn(), manualAim: save.settings.manualAim, textSize: save.settings.textSize, version: platform.version, dev: devMode, perf: perf.enabled, desktop: d ? { version: platform.version, status: updateStatus, prerelease: save.settings.prerelease } : null },
     {
       back: toTitle,
       saveData: toSaveDialog,
@@ -372,12 +372,10 @@ function toSettings(): void {
         mute();
         toSettings();
       },
-      music(level) {
-        setMusicLevel(level);
-        toSettings();
-      },
-      effects(level) {
-        setEffectsLevel(level);
+      volume(bus, pct) {
+        setVolume(bus, pct);
+        refreshMusic(); // the music stops at 0 and starts again above it
+        if (bus !== 'music' && bus !== 'ambience') sfx(bus === 'effects' ? 'hit' : 'tap'); // #282: a taste of the new level
         toSettings();
       },
       runMusic() {
@@ -951,6 +949,7 @@ function frame(now: number): void {
   const t2 = performance.now();
   const g = game;
   if (g) runMusic(state === 'playing' || state === 'choice' ? moodOf(g) : null); // v0.7.1: paused or over, it fades out
+  ambience(!!g && (state === 'playing' || state === 'choice')); // #282: the wind, likewise; only a change does any work
   if (state === 'playing' && g) {
     const before = quality.level;
     sampleFrame(t2 - t0, g.wave); // the work this frame took, not the vsync interval: that is what the detail level reacts to
@@ -996,6 +995,10 @@ window.addEventListener('resize', resize);
 window.visualViewport?.addEventListener('resize', resize);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
+});
+// #282: a button pressed on a screen (the menus, pause, choices) taps on the UI bus; the HUD's buttons stay part of the fight
+document.getElementById('overlay')!.addEventListener('click', (e) => {
+  if ((e.target as Element).closest('button')) sfx('tap');
 });
 matchMedia('(orientation: portrait)').addEventListener('change', (e) => {
   if (e.matches && platform.touch && state === 'playing') togglePause(); // the "rotate your device" overlay is up
@@ -1081,6 +1084,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       view: simView, // v0.8: the play test wraps view.sfx to hear what the simulation plays
       perf,
       music: musicStats, // v0.7.1
+      mixer: mixerStats, // #282
       stinger, // v0.7.1
       resetPerf: resetHistory,
       perfSummary: summary,

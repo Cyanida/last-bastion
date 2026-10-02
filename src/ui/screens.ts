@@ -29,7 +29,8 @@ import { RELIC_SHORT } from '../config/relicShort';
 import type { RelicOffer, RelicSource } from '../core/types';
 import { dropStaleTooltip } from './tooltip';
 import { SKILL, TEXT_SIZES, type QualitySetting, type TextSize } from '../config/game';
-import { MUSIC_LEVELS, type MusicLevel } from '../core/music';
+import { MIXER, type BusId } from '../config/mixer';
+import { mixLabel, type Mix } from '../logic/mixer';
 import { STAT_KEYS, type StatKey, type Stats } from '../core/types';
 import { latchGamepad, onAction } from '../input';
 import type { Action } from '../input/mapping';
@@ -551,8 +552,7 @@ export interface SettingsInfo {
   textSize: TextSize;
   effective: string;
   muted: boolean;
-  music: MusicLevel;
-  effects: MusicLevel; // v0.7.1
+  mix: Mix; // #282: the mixer's volumes, in percent
   runMusic: boolean; // v0.7.1
   manualAim: boolean; // v0.7.5 (#81)
   version: string; // v0.7.1: tap it five times for test mode
@@ -561,14 +561,14 @@ export interface SettingsInfo {
   desktop: { version: string; status: string; prerelease: boolean } | null;
 }
 
-export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; music: (level: MusicLevel) => void; effects: (level: MusicLevel) => void; runMusic: () => void; aim: (manual: boolean) => void; textSize: (size: TextSize) => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
+export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetting) => void; mute: () => void; volume: (bus: BusId, pct: number) => void; runMusic: () => void; aim: (manual: boolean) => void; textSize: (size: TextSize) => void; dev: () => void; testMode: () => void; perf: () => void; saveData: () => void; checkUpdates: () => void; prerelease: (v: boolean) => void; back: () => void }): void {
   // #186: Settings in the kit: a framed screen, choices as a row of small wood buttons (the one picked sits pressed), on/off as
-  // switches, the two volumes as sliders over MUSIC_LEVELS, and the back disc in the corner
+  // switches, the volumes as sliders (#282: one per mixer bus and the master, in percent), and the back disc in the corner
   const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
   const choice = (attr: string, list: readonly string[], on: string) =>
     `<div class="kit-choice">${list.map((v) => kit.button(cap(v), { size: 'small', cls: v === on ? 'on pressed' : '', attrs: `data-${attr}="${v}" aria-pressed="${v === on}"` })).join('')}</div>`;
   const onOff = (name: string, on: boolean) => kit.toggle(on ? 'On' : 'Off', name, on);
-  const level = (name: string, v: MusicLevel) => kit.slider(`<em data-level>${cap(v)}</em>`, name, MUSIC_LEVELS.indexOf(v), 0, MUSIC_LEVELS.length - 1);
+  const level = (bus: BusId) => kit.slider(`<em data-level>${mixLabel(info.mix[bus])}</em>`, bus, info.mix[bus], 0, 100, MIXER.step);
   const setting = (title: string, text: string, control: string) => `<div class="setting"><div><b>${title}</b><span>${text}</span></div>${control}</div>`;
   const open = (act: string, label = 'Open') => kit.button(label, { size: 'small', attrs: `data-act="${act}"` });
   const el = show(`
@@ -578,9 +578,12 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
       ${setting('Graphics quality', `Low cuts particles, screen shake and shadows. Auto measures the first waves and drops to low if needed. Now: ${info.effective}.`, choice('quality', ['auto', 'low', 'high'], info.quality))}
       ${setting('Text size', 'The HUD and every screen. A small screen keeps what still fits.', choice('text-size', Object.keys(TEXT_SIZES), info.textSize))}
       ${setting(`${kit.icon('sound')} Sound`, 'Synthesised effects and music (M).', onOff('mute', !info.muted))}
-      ${setting(`${kit.icon('music')} Music`, `Composed live. In a run it plays quieter, under the effects.${info.muted ? ' Silent while Sound is off.' : ''}`, level('music', info.music))}
+      ${setting('Master volume', `Everything at once.${info.muted ? ' Silent while Sound is off.' : ''}`, level('master'))}
+      ${setting(`${kit.icon('music')} Music`, 'Composed live. In a run it plays quieter, under the effects.', level('music'))}
       ${setting('Music during runs', 'A quiet theme for every arena that builds a little in a fight.', onOff('runMusic', info.runMusic))}
-      ${setting('Effects', 'How loud the sound effects are.', level('effects', info.effects))}
+      ${setting('Effects', 'Blows, spells and the fight around you. Big moments pull the music and ambience down a little.', level('effects'))}
+      ${setting('Interface', 'The tap of a button in the menus.', level('ui'))}
+      ${setting('Ambience', 'The wind over the field in a run.', level('ambience'))}
       ${setting('Aim', 'Auto: basic attacks pick their own target. Manual: they go where the mouse or right stick points. Touch always aims itself.', choice('aim', ['auto', 'manual'], info.manualAim ? 'manual' : 'auto'))}
       ${setting('Performance overlay', 'Frame, update and render times, entity counts, draw calls (F3 in a run).', onOff('perf', info.perf))}
       ${info.desktop ? `
@@ -600,9 +603,8 @@ export function showSettings(info: SettingsInfo, on: { quality: (q: QualitySetti
     const name = input.dataset.set!;
     if (input.type === 'checkbox') input.onchange = () => switches[name]();
     else {
-      const pick = () => MUSIC_LEVELS[Number(input.value)];
-      input.oninput = () => (input.closest('label')!.querySelector('[data-level]')!.textContent = cap(pick())); // the level's name follows the knob
-      input.onchange = () => (name === 'music' ? on.music : on.effects)(pick());
+      input.oninput = () => (input.closest('label')!.querySelector('[data-level]')!.textContent = mixLabel(Number(input.value))); // the label follows the knob
+      input.onchange = () => on.volume(name as BusId, Number(input.value));
     }
   }
   click(el, '[data-act]', (b) => {
