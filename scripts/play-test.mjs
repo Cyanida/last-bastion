@@ -7970,7 +7970,7 @@ await check('Barrowvale: a wolf hunts as the Blight Hound, his flash card shows,
   await p.goto(`http://localhost:${PORT}/?debug`);
   await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
   await p.evaluate((run) => {
-    const champ = (name) => ({ name, inventory: [], loadouts: {}, talentPlan: [], world: { marches: [7], barrowvale: [1] }, signature: true, lastBastion: false, runs: { barrowvale: run } });
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], barrowvale: [1] }), world: { marches: [7], barrowvale: [1] }, signature: true, lastBastion: false, runs: { barrowvale: run } });
     const lb = window.__lb;
     lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)])); // the Marches crowned, Barrowvale level 1 cleared, its realm run at level 2
     lb.save.cards = lb.cardIds.filter((id) => id !== 'blightHound'); // every other card already seen, so his is the one that shows
@@ -8001,6 +8001,7 @@ await check('Barrowvale: a wolf hunts as the Blight Hound, his flash card shows,
     const mine = () => g.fields.filter((f) => f.plague && f.life > 0 && /Blight Hound/.test(f.cause ?? ''));
     window.__plague = mine;
     const hold = () => {
+      g.hazardT = 99; // the graveyard's grasping hands held off: only the plague ground may hurt him here
       for (const e of g.enemies) if (!e.dead) Object.assign(e, { x: pl.x + 700, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 };
     };
     window.__fell = (b, dx = 30) => {
@@ -8013,6 +8014,7 @@ await check('Barrowvale: a wolf hunts as the Blight Hound, his flash card shows,
           if (e !== b) Object.assign(e, { x: pl.x + 700, y: pl.y });
           e.statuses.stun = { stacks: 1, time: 5, power: 0 };
         }
+        g.hazardT = 99;
         lb.run(1, false, false);
       }
       const f = mine()[0];
@@ -8046,7 +8048,7 @@ await check('Barrowvale: a wolf hunts as the Blight Hound, his flash card shows,
   const ok = card.realm === 'barrowvale' && card.kind === 'blightHound' && card.sprite === 'blightHound' && card.id === 'blightHound' && card.title === 'Blight Hound' && /plague ground/.test(card.text ?? '')
     && fell.closed && fell.dead && fell.laid === 1 && fell.patches === 1 && fell.patch.dtype === 'shadow' && fell.patch.at < 1 && fell.patch.inside && fell.patch.life >= 10
     && stay.on && stay.lost > 0 && stay.lost < stay.max * 0.25 && stay.alive
-    && !walk.on && off.lost === 0 && !off.on && off.standing === 1 && off.life > 4 && fade.standing === 0 && fade.alive
+    && !walk.on && off.lost <= 0 && !off.on && off.standing === 1 && off.life > 4 && fade.standing === 0 && fade.alive
     && heap.dead && heap.laid === 4 && heap.patches === 1 && heap.life > 10 && heap.alive && errs.length === 0;
   return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${fell.closed}; ${fell.dead ? 'felled' : 'NOT felled'}, ${fell.laid} laid, patch ${fell.patch ? `r ${fell.patch.r} ${fell.patch.dtype} ${fell.patch.life.toFixed(1)} s ${fell.patch.inside ? 'round the champion' : 'NOT round him'}` : 'NONE'}; stood in it 1 s: ${stay.lost.toFixed(1)} HP of ${stay.max}; A: ${walk.on ? 'STILL on it' : 'off it'}; 4 s off it: ${off.lost.toFixed(1)} HP, ${off.standing} standing with ${off.life.toFixed(1)} s left; 8 s on: ${fade.standing} standing; a heap of 4: ${heap.laid} laid, ${heap.patches} patch with ${heap.life.toFixed(1)} s${heap.alive && fade.alive ? '' : ', champion fell'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
