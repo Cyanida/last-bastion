@@ -8,7 +8,7 @@ import { GOLD } from '../config/economy';
 import { GAME, RENDER, SKILL } from '../config/game';
 import { ROUTES } from '../config/routes';
 import { MODIFIERS } from '../config/waves';
-import { sfx } from '../sim/view';
+import { by, sfx } from '../sim/view';
 import { emit } from '../core/events';
 import { angleDiff, compact, dist2, TAU } from '../core/math';
 import type { Body, DamageSource, Enemy, Game, Minion, Player, Projectile, Status } from '../core/types';
@@ -71,7 +71,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
   }
   g.corpses.push({ x: e.x, y: e.y, t: 0, rise: corpseRise({ id: e.def.id, risen: e.risen, side: e.side, maxHp: e.maxHp }) }); // #275: a barrow thrall's rises unless trampled
   burst(g, e.x, e.y, BLOOD, boss ? 60 : e.elite ? 20 : 8, boss ? 320 : 150);
-  sfx(g, boss ? 'boom' : 'kill');
+  sfx(g, boss ? 'boom' : 'kill', by(e));
 
   if (g.modifier === 'plague' && !boss) {
     const n = MODIFIERS.plague.n;
@@ -195,7 +195,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   if (plates && e.armorHp > 0) {
     // #212: iron plates count hits: each one breaks a plate (a status tick slips under them), and until they are gone every hit is dulled
     const hit = throughPlates(amount, e.armorHp, e.maxHp, plates, !tick);
-    if (hit.plates < e.armorHp) sfx(g, 'clang');
+    if (hit.plates < e.armorHp) sfx(g, 'clang', { src: 'foe', at: e });
     amount = hit.dealt;
     e.armorHp = hit.plates;
     if (hit.broke) breakPlates(g, e);
@@ -266,7 +266,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
   damageNumber(g, e, amount, crit ? '#f2c94c' : source === 'relic' && relicContext.acting ? RELIC_COLOR : DAMAGE_TYPES[type].color, crit ? 20 : typeMult > 1 ? 15 : 13, typeMult > 1 ? '!' : typeMult < 1 ? '-' : '');
   burst(g, e.x, e.y, BLOOD, crit ? 6 : 2);
   if (crit) shake(g, 4);
-  sfx(g, 'hit');
+  sfx(g, 'hit', { src: 'foe', at: e }); // #283: the player's blow on a foe (a boss's too): the first a crowd drops
   if (source === 'attack') {
     const leech = g.player.buff.lifesteal + g.player.mods.lifesteal;
     if (leech > 0) healPlayer(g, Math.min(dealt * leech, g.player.stats.hp * GAME.leechCapPerHit), false);
@@ -280,7 +280,7 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
 function shieldBlock(g: Game, e: Enemy): void {
   if (e.flash <= 0) floatText(g, e.x, e.y - e.r - 20, 'BLOCKED', '#c7ced6', 14);
   burst(g, e.x + Math.cos(e.angle) * e.r, e.y + Math.sin(e.angle) * e.r - 6, '#e5b545', 5, 120);
-  sfx(g, 'block');
+  sfx(g, 'block', { src: 'foe', at: e });
 }
 
 /** #214: a thorn bearer's spikes bite back at the champion for a blow he struck up close (logic/status thornsBite). */
@@ -296,7 +296,7 @@ function thornsBack(g: Game, e: Enemy, blow: number, source: DamageSource, tick:
   g.vars['thorns.taken'] = (g.vars['thorns.taken'] ?? 0) + Math.max(0, before - p.hp);
   floatText(g, e.x, e.y - e.r - 14, 'THORNS', '#c7ced6', 13);
   burst(g, (e.x + p.x) / 2, (e.y + p.y) / 2, '#96a1b2', 6, 180);
-  sfx(g, 'thorns');
+  sfx(g, 'thorns', by(e));
 }
 
 /** #212: the last plate falls: he stands in his mail from now on (his bare sprite), and takes full damage. */
@@ -342,7 +342,7 @@ function revive(g: Game): boolean {
   burst(g, p.x, p.y, '#f2e6a0', 50, 360);
   floatText(g, p.x, p.y - 44, 'REVIVED', '#f2e6a0', 20);
   shake(g, 16);
-  sfx(g, 'levelup');
+  sfx(g, 'levelup', { src: 'player' });
   return true;
 }
 
@@ -383,7 +383,7 @@ export function damagePlayer(g: Game, amount: number, ignoreIFrames = false, att
   g.bossHit = true;
   floatText(g, p.x, p.y - 34, `-${Math.round(taken)}`, '#c23a2e', 15);
   shake(g, Math.min(14, 4 + taken * 0.3));
-  sfx(g, 'hurt');
+  sfx(g, 'hurt', { src: 'player', at: p });
   if (p.hp <= 0) {
     if (p.deathless) p.hp = 1;
     else if (!revive(g) && !lastStand(g)) {
@@ -450,7 +450,7 @@ export function updatePlayerAttack(g: Game, dt: number): void {
   if (atk.kind === 'melee') {
     const arc = p.buff.fullCircle ? TAU : atk.arc;
     swingArc(g, p.x, p.y, range, p.facing, arc, atk.color);
-    sfx(g, 'swing');
+    sfx(g, 'swing', { src: 'player', at: p });
     for (const e of g.hash.query(p.x, p.y, range, near)) {
       const a = Math.atan2(e.y - p.y, e.x - p.x);
       if (e.dead || angleDiff(a, p.facing) > arc / 2) continue;
@@ -476,7 +476,7 @@ export function updatePlayerAttack(g: Game, dt: number): void {
         dtype: atk.type,
       });
     }
-    sfx(g, 'shoot');
+    sfx(g, 'shoot', { src: 'player', at: p });
   }
 }
 
@@ -577,7 +577,7 @@ function stepProjectile(g: Game, pr: Projectile, dt: number, obstacles: readonly
       wearArmor(g, e, pr.damage * ARMOR_WEAR.block); // v0.7.3 (#59): a blocked shot wears the shield down
       floatText(g, e.x, e.y - e.r - 8, 'blocked', '#9a9aa0', 11);
       burst(g, pr.x, pr.y, '#c9a227', 4, 90);
-      if (TOWER_SHIELDS[e.def.id]) sfx(g, 'block'); // #213: the iron shield rings
+      if (TOWER_SHIELDS[e.def.id]) sfx(g, 'block', { src: 'foe', at: e }); // #213: the iron shield rings
       return false;
     }
     const v = Math.hypot(pr.vx, pr.vy) || 1;
@@ -615,7 +615,7 @@ export function updateZones(g: Game, dt: number): void {
       ring(g, z.x, z.y, z.r, z.color);
       burst(g, z.x, z.y, z.color, 18, 240);
       shake(g, 8);
-      sfx(g, z.slab ? 'slam' : 'boom'); // #211: iron on stone
+      sfx(g, z.slab ? 'slam' : 'boom', { src: z.owner?.def.boss ? 'boss' : z.hostile ? 'foe' : 'player', at: z }); // #211: iron on stone
     } else {
       let hits = 0;
       for (const e of g.hash.query(z.x, z.y, z.slab ? z.r * Math.SQRT2 : z.r, near)) {

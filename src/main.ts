@@ -5,7 +5,7 @@ import { ARENAS, type ArenaId } from './config/arenas';
 import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
 import { GAME, VIEW } from './config/game';
-import { ambience, getMix, initAudio, isMuted, mixerStats, setVolume, sfx, toggleMute } from './core/audio';
+import { ambience, getMix, initAudio, isMuted, listenFrom, mixerStats, setVolume, sfx, toggleMute, voiceStats } from './core/audio';
 import { musicStats, refreshMusic, runMusic, runMusicOn, setRunMusic, startMenuMusic, stinger, stopMenuMusic } from './core/music';
 import { addListener, type EventName } from './core/events';
 import { moodOf, type Stinger } from './logic/runMusic';
@@ -83,6 +83,13 @@ addListener((g, name) => {
 });
 // v0.8 (#26): the simulation stays pure; this screen gives it sound (its g.out cues, #114), the perf timers and the particle budget
 Object.assign(simView, { sfx, begin, end, particleBudget });
+// #283: the effects pan and fade by where they happen against what the screen shows (asked only when a placed cue plays)
+listenFrom(() => {
+  if (!game) return null;
+  const cam = cameraFor(game, view);
+  const halfW = view.w / view.zoom / 2, halfH = view.h / view.zoom / 2;
+  return { x: cam.x + halfW, y: cam.y + halfH, halfW, halfH };
+});
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
@@ -1086,6 +1093,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       perf,
       music: musicStats, // v0.7.1
       mixer: mixerStats, // #282
+      voices: voiceStats, // #283: what the voice limit played, dropped and took over
       stinger, // v0.7.1
       resetPerf: resetHistory,
       perfSummary: summary,
