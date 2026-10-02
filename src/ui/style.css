@@ -448,6 +448,8 @@ canvas#game { touch-action: none; }
 .seed { font-family: Consolas, monospace !important; letter-spacing: 1px; user-select: text; -webkit-user-select: text; }
 .goldtext { color: #e9c95a; font-family: Georgia, serif; }
 .shop { width: 200px; }
+.shop h2 { font-size: 24px; } /* #272: "Legendary relic" fits the Merchant's card */
+.compact .shop h2 { font-size: 19px; }
 .heldlist { display: inline-flex; flex-direction: column; gap: 4px; padding: 10px 16px; margin-bottom: 12px; color: var(--ink); }
 .held { display: flex; gap: 8px; align-items: center; justify-content: space-between; font-size: 15px; }
 .held > span { min-width: 190px; text-align: left; }
