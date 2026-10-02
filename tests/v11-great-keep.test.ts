@@ -35,7 +35,7 @@ describe('#210 the Great Keep as a fortress', () => {
   });
 
   it('the other arenas still roll their wing features', () => {
-    for (const id of ['courtyard', 'graveyard', 'bastion'] as const) {
+    for (const id of ['courtyard', 'bastion'] as const) { // #273: the Forsaken Graveyard has named wings now too
       expect(ARENAS[id].wings).toBeUndefined();
       expect(fixedFeatures(ARENAS[id].wings)).toBeUndefined();
       expect(ARENAS[id].regions!.find((r) => r.id === 'north')!.name).toBe('the north wing');
