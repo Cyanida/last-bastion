@@ -1594,7 +1594,7 @@ await check("boss themes: the Black Knight's theme takes over from the arena's, 
     });
     const back = fell && (await hear('courtyard'));
     const s3 = await music();
-    const ok = listed.length === 8 && listed.includes('Boss · The Plague Abbot') && listed.includes('Boss · The Frost Lich') && jukebox && before && met.name === 'The Black Knight' && takeover &&
+    const ok = listed.length >= 8 && listed.includes('Boss · The Plague Abbot') && listed.includes('Boss · The Frost Lich') && jukebox && before && met.name === 'The Black Knight' && takeover &&
       hud.includes('The Black Knight') && phase === 2 && built && s2.stingers > s1.stingers && back && s3.peak <= s3.budget && !errs.length;
     return { ok, detail: `jukebox lists ${listed.length} boss themes, the Lich's plays ${jukebox}; courtyard first ${before}; ${met.name} (${met.key}) -> his theme ${takeover} (layer ${s1.layer}), HUD "${hud}"; phase ${phase} -> layer 3 ${built}, stingers ${s1.stingers} -> ${s2.stingers}; falls ${fell} -> ${s3.arena} ${back}; peak ${s3.peak}/${s3.budget} voices${errs.length ? `, errors: ${errs[0]}` : ''}` };
   } finally {
@@ -1636,6 +1636,88 @@ await check('an error in a frame: the overlay, Continue, the run goes on', () =>
   }),
 );
 const expected = (m) => m.includes('play-test crash');
+
+// #290 (after the error check: on its own page it takes a while, and the shared page's run idles meanwhile): themes for the Grand Inquisitor, the Dragon, the Warden and the Usurper. Through Settings and test mode at 1280x720 with the
+// mouse: the jukebox lists all four (and the Heretic's and the Ash Wyrm's) and plays the Usurper's and the Inquisitor's; then a test run
+// in the Great Keep at Act I wave 10 plays the keep's theme until the Act's end boss comes, the Dragon's war drums take over (his theme,
+// or the Ash Wyrm's shifted one), build over his three phases to the full boss layer, and hand back to the keep's theme when he falls.
+await check("boss themes: the Dragon's theme takes over from the arena's over his three phases; the jukebox plays the Usurper's and the Inquisitor's (#290)", async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  try {
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const music = () => p.evaluate(() => window.__lb.music());
+    const hear = (arena, layer = null, timeout = 15000) => p.waitForFunction(([a, l]) => {
+      const m = window.__lb.music();
+      return m.playing === 'run' && m.arena === a && (l === null || m.layer === l);
+    }, [arena, layer], { timeout }).then(() => true, () => false);
+    await p.locator('[data-go="settings"]').click();
+    await p.locator('.settings [data-act="test"]').click();
+    // the jukebox: the four themes are on its list, and the Usurper's and the Inquisitor's play
+    const listed = await p.evaluate(() => [...document.querySelectorAll('#jb-arena option')].filter((o) => o.value.startsWith('boss:')).map((o) => o.textContent.trim()));
+    const want = ['The Grand Inquisitor', 'The Heretic', 'The Dragon', 'The Ash Wyrm', 'The Warden', 'The Usurper'].map((n) => `Boss · ${n}`);
+    const jukebox = [];
+    for (const id of ['usurper', 'inquisitor']) {
+      await p.locator('#jb-arena').selectOption(`boss:${id}`);
+      await p.locator('.testmode [data-play]').click();
+      jukebox.push(await hear(`boss:${id}`));
+    }
+    await p.locator('.testmode [data-stop]').click();
+    // a test run: the keep at Act I wave 10, the Act's end
+    await p.locator('#tm-class').selectOption('viking');
+    await p.locator('#tm-arena').selectOption('keep');
+    await p.locator('#tm-act').fill('1');
+    await p.locator('#tm-wave').fill('10');
+    await p.locator('.testmode [data-start]').click();
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 });
+    await p.evaluate(() => (window.__lb.game.player.invulnerable = true));
+    const before = await hear('keep');
+    const met = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      const boss = () => g.enemies.find((e) => e.def.boss && !e.side && !e.dead);
+      for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) lb.run(1, false, true); // the bot plays on to him, answering any screen
+      const b = boss();
+      window.__bossTheme290 = b;
+      return b ? { id: b.def.id, name: b.def.name, phase: b.phase, key: g.bossesSeen.at(-1) } : null;
+    });
+    if (!met) return { ok: false, detail: 'no boss reached' };
+    const theme = `boss:${met.key === 'ashWyrm' ? 'ashWyrm' : met.id}`;
+    const takeover = await hear(theme, 1);
+    const s1 = await music();
+    // his second phase, then his third: his HP down past each threshold
+    const phases = [];
+    for (const [hp, layer] of [[0.55, 2], [0.2, 3]]) {
+      const ph = await p.evaluate((hp) => {
+        const lb = window.__lb, b = window.__bossTheme290, to = b.phase + 1;
+        b.hp = Math.min(b.hp, b.maxHp * hp);
+        for (let i = 0; i < 60 * 5 && b.phase < to && !b.dead; i++) lb.run(1, false, true);
+        return b.phase;
+      }, hp);
+      phases.push([ph, await hear(theme, layer)]);
+    }
+    // he falls: the keep's theme comes back
+    const fell = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, b = window.__bossTheme290, pl = g.player;
+      g.baseMods.damage *= 1e4;
+      for (let i = 0; i < 60 * 30 && g.enemies.includes(b) && !b.dead && lb.game === g; i++) {
+        if (lb.state === 'playing') Object.assign(pl, { x: b.x - b.r - 30, y: b.y });
+        lb.run(1, false, true);
+      }
+      g.baseMods.damage /= 1e4;
+      return b.dead || !g.enemies.includes(b);
+    });
+    const back = fell && (await hear('keep', null, 20000));
+    const s3 = await music();
+    const ok = want.every((n) => listed.includes(n)) && jukebox.every(Boolean) && before && met.id === 'dragon' && takeover && s1.layer === 1 &&
+      phases.map(([ph]) => ph).join() === '2,3' && phases.every(([, h]) => h) && back && s3.peak <= s3.budget && !errs.length;
+    return { ok, detail: `jukebox lists ${want.filter((n) => listed.includes(n)).length}/${want.length} of the new themes (${listed.length} in all), the Usurper's and the Inquisitor's play ${jukebox}; keep first ${before}; ${met.name} (${met.key}) -> ${theme} ${takeover} (layer ${s1.layer}); phases ${phases.map(([ph, h]) => `${ph}:${h}`).join(' ')}; falls ${fell} -> ${s3.arena} ${back}; peak ${s3.peak}/${s3.budget} voices${errs.length ? `, errors: ${errs[0]}` : ''}` };
+  } finally {
+    await p.close();
+  }
+});
 
 // ---------- v0.7.5 (#106): the game starts with site data blocked ----------
 await check('starts with site data blocked: title, Settings, sound toggle', async () => {

@@ -27,7 +27,7 @@ describe('boss themes: the scores (#289)', () => {
       expect(FOUR).toContain(BOSSES[k].from);
     }
     for (const k of Object.keys(BOSS_VARIANT_THEMES)) expect(BOSS_THEMES[BOSSES[k].from]).toBeDefined();
-    expect(bossMusicIds().sort()).toEqual([...FOUR, ...VARIANTS].map((k) => `boss:${k}`).sort());
+    expect(bossMusicIds()).toEqual(expect.arrayContaining([...FOUR, ...VARIANTS].map((k) => `boss:${k}`))); // #290: more bosses have themes since
   });
 
   it('no boss theme sounds like an arena: its own key, mode and tempo', () => {
@@ -123,7 +123,7 @@ describe('boss themes: the takeover (#289)', () => {
     expect(musicTheme(moodOf(g).arena).name).toBe('The Frost Lich');
     const h = createGame('viking', 4, { arena: 'graveyard' });
     h.wave = 5;
-    spawnEnemy(h, 'inquisitor', 300, 300);
+    spawnEnemy(h, 'gravedigger', 300, 300); // #290: the Inquisitor has his own now
     expect(moodOf(h)).toEqual({ arena: 'graveyard', layer: 3, cue: null });
   });
 

@@ -253,7 +253,9 @@ export function musicTheme(id: MusicId): Theme {
 export const isBossMusic = (id: MusicId): boolean => id.startsWith('boss:');
 
 /** #289: every boss key whose fight has a theme of its own (a base boss in BOSS_THEMES, or its variant): the jukebox lists them. */
-export const bossMusicIds = (): MusicId[] => Object.keys(BOSSES).filter((k) => BOSS_THEMES[BOSSES[k].from]).map((k): MusicId => `boss:${k}`);
+export const bossMusicIds = (): MusicId[] => Object.keys(BOSSES).filter((k) => BOSS_THEMES[BOSSES[k].from])
+  .concat(Object.keys(BOSS_THEMES).filter((k) => !BOSSES[k])) // #290: and a themed boss outside the pool, the Usurper
+  .map((k): MusicId => `boss:${k}`);
 
 /**
  * #289: the boss up whose own theme takes over, and how far it has built: its first phase plays the base layer, its last the full boss

@@ -145,7 +145,8 @@ export const MUSIC = {
  * own from its composer (logic/bossMusic.ts COMPOSERS): what makes it this boss's. Bosses with no theme here keep the arena's boss layer.
  * To add one: an entry here, a composer name, and its composer function.
  */
-export type BossComposer = 'march' | 'warhorn' | 'choir' | 'chant';
+export type BossComposer = 'march' | 'warhorn' | 'choir' | 'chant'
+  | 'tribunal' | 'wyrm' | 'chains' | 'crown'; // #290
 export interface BossTheme extends Theme {
   composer: BossComposer;
 }
@@ -191,6 +192,46 @@ export const BOSS_THEMES: Partial<Record<EnemyId, BossTheme>> = {
     lead: 'choir',
     boss: { midi: 40, hits: [[0, 1], [1, 0.45], [2, 0.8], [2.5, 0.45], [3, 0.6]] },
   },
+  // #290: a tribunal's organ: E harmonic minor, the organ alone in slow chorale blocks, its leading tone pulling to judgment, a bell tolling the verdict
+  inquisitor: {
+    name: 'The Grand Inquisitor', root: 4, mode: HARMONIC_MINOR, bpm: 74, meter: 4, composer: 'tribunal',
+    chords: [0, 3, 4, 0, 5, 3, 4, 4], // i iv V i | VI iv V V: the major dominant hangs over the accused
+    drone: 'organ', pad: null, // the chorale is the composer's: the organ plays nothing else
+    pulse: null,
+    perc: { midi: 43, hits: [[0, 0.5]] }, // one low stroke a bar, a gavel
+    lead: 'choir',
+    boss: { midi: 38, hits: [[0, 1], [2, 0.8], [3, 0.5], [3.5, 0.5]] },
+  },
+  // #290: war drums and brass: F minor, quick, the drums galloping under horn blasts, wings beating
+  dragon: {
+    name: 'The Dragon', root: 5, mode: MINOR, bpm: 100, meter: 4, composer: 'wyrm',
+    chords: [0, 5, 6, 0, 0, 5, 3, 4], // i VI VII i | i VI iv v
+    drone: 'drone', pad: 'horn',
+    pulse: { voice: 'bass', steps: [0, 0, null, 0, 0, null, 2, null] },
+    perc: { midi: 41, hits: [[0, 0.8], [2, 0.7]] }, // the war drums' gallop is the composer's
+    lead: 'horn',
+    boss: { midi: 36, hits: [[0, 1], [0.5, 0.6], [1, 0.8], [2, 1], [2.5, 0.6], [3, 0.8], [3.5, 0.6]] },
+  },
+  // #290: the jailer: F# minor, slow and heavy, his tread in the bass and his keys clanking on the offbeats, a door bell from the dark
+  warden: {
+    name: 'The Warden', root: 6, mode: MINOR, bpm: 80, meter: 4, composer: 'chains',
+    chords: [0, 0, 5, 0, 0, 3, 4, 0], // i i VI i | i iv v i: he does not leave his corridor
+    drone: 'drone', pad: 'organ',
+    pulse: null,
+    perc: { midi: 39, hits: [[0, 0.7], [2, 0.55]] },
+    lead: 'horn',
+    boss: { midi: 36, hits: [[0, 1], [1, 0.6], [2, 0.9], [3, 0.6]] },
+  },
+  // #290: a stolen crown: D harmonic minor, the Last Bastion's own key gone wrong, a royal fanfare in the horns that turns on its leading tone
+  usurper: {
+    name: 'The Usurper', root: 2, mode: HARMONIC_MINOR, bpm: 88, meter: 4, composer: 'crown',
+    chords: [0, 5, 3, 4, 0, 3, 5, 4], // i VI iv V | i iv VI V
+    drone: 'drone', pad: 'choir',
+    pulse: { voice: 'harp', steps: [0, 1, 2, 1, 0, 1, 2, 1] }, // a court harp, still playing for the wrong king
+    perc: { midi: 43, hits: [[0, 0.7], [1, 0.4], [2, 0.6], [3, 0.4]] },
+    lead: 'horn',
+    boss: { midi: 38, hits: [[0, 1], [0.75, 0.5], [1, 0.7], [2, 1], [2.75, 0.5], [3, 0.7], [3.5, 0.6]] },
+  },
 };
 
 /** #289: a boss variant (config/bosses.ts) plays its base boss's theme, shifted: `shift` semitones on its key, `tempo` x its BPM. */
@@ -199,4 +240,6 @@ export const BOSS_VARIANT_THEMES: Record<string, { shift: number; tempo: number 
   headsman: { shift: 1, tempo: 0.84 }, // the slow walk to the block
   frostLich: { shift: 2, tempo: 0.9 }, // higher and colder
   siegeMarshal: { shift: -3, tempo: 1.06 }, // down a third, pressing on
+  heretic: { shift: 1, tempo: 1.12 }, // #290: a half step sharp and feverish
+  ashWyrm: { shift: -2, tempo: 0.9 }, // #290: lower and slower, the fire burned down to ash
 };
