@@ -35,7 +35,7 @@ describe('the Cinderlands\' own level steps and wave lengths, as tuned (#232)', 
   });
 
   it('leaves the Iron Hold, and every realm with no steps of its own, on a relic realm\'s', () => {
-    for (const realm of ['ironHold', 'barrowvale', 'frozenPass'] as const)
+    for (const realm of ['ironHold', 'frozenPass', 'stormspire'] as const) // #293: the Barrowvale has steps of its own now
       for (let l = 1; l <= 5; l++) {
         expect(levelStep(realm, l)).toEqual({ hp: WORLD.levelStep.realm.hp[l - 1], damage: WORLD.levelStep.realm.damage[l - 1] });
         expect(levelWaves(realm, l)).toEqual({ foes: WORLD.levelWaves.realm.foes[l - 1], pace: WORLD.levelWaves.realm.pace[l - 1] });

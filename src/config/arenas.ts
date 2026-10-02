@@ -231,5 +231,5 @@ export const SPREADING_FIRE = { every: 10, grace: 10, reach: 5, step: 0.8, kindl
  * walk; he still fights, and a dash or a blink still carries him out). Foes on a grave take x`foeMult` and are held `foeHold` s (a stun),
  * so leading the horde over the graves pays. A dodge, a shield or a block keeps the hold off with the blow. Only in the realm's own arena.
  */
-export const GRAVE_HANDS = { every: 7, graves: 3, moreFrom: 11, near: 70, far: 170, radius: 40, delay: 1.3, hold: 1.2, damage: 10, foeMult: 3, foeHold: 2 };
+export const GRAVE_HANDS = { every: 7, graves: 3, moreFrom: 11, near: 70, far: 170, radius: 40, delay: 1.3, hold: 1, damage: 7, foeMult: 3, foeHold: 2 };
 export const ARENA_IDS: ArenaId[] = ['courtyard', 'graveyard', 'keep'];

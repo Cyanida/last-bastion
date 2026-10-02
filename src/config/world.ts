@@ -163,6 +163,13 @@ export const WORLD = {
   keepLockedOf: 2, // #219 Decided: a keep-locked level shows a pick of 1 of this many rares (like a Marches level's), the ones held at the end first
   crownBoss: { phases: 3, minPhaseSeconds: 12 }, // Decided: 12 s per phase, so a crown boss can't be burst through a phase
   eliteBoss: { phases: 1, hp: 1.4, damage: 1.15 }, // #219 (rule 3): an elite end boss fights this many phases more than its plain self. #220: on this much more HP, hitting this much harder (it had its plain self's numbers, and level 4 fell easier than level 3)
+  /**
+   * #293: an end boss's own step in one realm's level, on top of the level step: its HP, its blows and the ground it fouls (poolDps)
+   * (logic/world endBossStep). The Barrowvale's level 1 ends on the Plague Abbot by name, where the other realms draw a pool boss: on
+   * the realm's plague ground and with its graves he felled 10-11 of 40 first tries, where a relic realm's level 1 loses one at its boss
+   * (BALANCE.md). Not his own numbers: he is a pool boss of plain runs and the Marches too.
+   */
+  endBossStep: { barrowvale: [{ hp: 0.85, damage: 0.7 }] } as Partial<Record<RealmId, ({ hp: number; damage: number } | undefined)[]>>,
   /** Rule 4: loadout limits (the slot rules issue enforces them). */
   loadout: { perFamily: 4, legendarySlots: 2, legendaries: 1, legendariesFinale: 2, classRelics: 2 },
   /** Rule 7: enemy HP and damage by ring (rings 1-4, then the finale). One tier step (config/economy TIERS) outweighs the whole ladder. */
@@ -187,7 +194,10 @@ export const WORLD = {
      * felled 12 of 40 first tries and he 16 more). Level 2 eases a touch for its longer waves (levelWaves). #262: levels 2 and 4 ease
      * (level 2 to the floor), for a champion with only the Marches crown (a playtest's Paladin fell 3 times on level 2 at level 8-9).
      */
-    own: { cinderlands: { hp: [0.77, 0.72, 0.83, 0.95, 0.95], damage: [0.85, 0.82, 0.98, 1.08, 0.95] } } as Partial<Record<RealmId, { hp: number[]; damage: number[] }>>,
+    own: {
+      cinderlands: { hp: [0.77, 0.72, 0.83, 0.95, 0.95], damage: [0.85, 0.82, 0.98, 1.08, 0.95] },
+      barrowvale: { hp: [0.72, 0.77, 0.8, 0.95, 0.95], damage: [0.82, 0.86, 0.9, 1.05, 1.05] },
+    } as Partial<Record<RealmId, { hp: number[]; damage: number[] }>>,
   },
   /**
    * #243 (rule 9): how long a level's waves are, by its place in its realm, so a realm's level 1 takes 4-6 minutes and its last 7-10
