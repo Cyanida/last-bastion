@@ -16,7 +16,6 @@ export type WorldArenaId = ArenaId | 'emberForge' | 'frozenPass' | 'stormPeak' |
 
 /** Bosses the realms add, not in config/bosses.ts yet. Their releases build them. */
 export const WORLD_BOSSES = {
-  barrowKing: { name: 'The Barrow King', realm: 'barrowvale' },
   rimeWitch: { name: 'The Rime Witch', realm: 'frozenPass' },
   frostJotun: { name: 'The Frost Jötun', realm: 'frozenPass' },
   stormCaller: { name: 'The Storm Caller', realm: 'stormspire' },

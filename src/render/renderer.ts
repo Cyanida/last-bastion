@@ -21,8 +21,9 @@ import { lineAngle } from '../logic/telegraph';
 import { typeMultiplier } from '../logic/status';
 import { thornsOf, towerShieldOf } from '../logic/ironKing';
 import { riseProgress } from '../logic/risingCorpse';
-import { CINDER_COLOSSUS, GRAVEDIGGER } from '../config/bosses';
+import { BARROW_KING, CINDER_COLOSSUS, GRAVEDIGGER } from '../config/bosses';
 import { riseTime } from '../logic/gravedigger';
+import { kingGraves } from '../logic/barrowKing';
 import { uiScale } from '../ui/tooltip';
 
 export interface View {
@@ -876,6 +877,33 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.arc(e.x, e.y, CINDER_COLOSSUS.burst.reach, 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 1;
+    }
+    if (e.def.id === 'barrowKing') {
+      // #278: his open graves: a dark mound, its rim closing as the dead climb up (walk onto it to trample it)
+      for (const gr of kingGraves.get(e) ?? []) {
+        const r = BARROW_KING.graves.radius;
+        ctx.fillStyle = '#1f2b1d';
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.ellipse(gr.x, gr.y, r, r * 0.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = '#9fb8a8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(gr.x, gr.y, r, r * 0.6, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, gr.t / BARROW_KING.graves.rise));
+        ctx.stroke();
+      }
+      if (e.phase >= BARROW_KING.guardFrom && (g.vars['barrow.guards'] ?? 0) > 0) {
+        // his guard: while one of his risen stands inside this ring, blows do him less
+        ctx.globalAlpha = 0.3 + 0.1 * Math.sin(g.time * 2);
+        ctx.strokeStyle = '#9fb8a8';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, BARROW_KING.guard.reach, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
     }
     if (e.shield > 0) {
       ctx.globalAlpha = 0.25 + 0.5 * (e.shield / e.shieldMax);

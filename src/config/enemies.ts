@@ -43,7 +43,8 @@ export type EnemyId =
   | 'royalFlame'
   | 'barrowThrall'
   | 'blightHound'
-  | 'gravedigger';
+  | 'gravedigger'
+  | 'barrowKing';
 
 export type Behavior =
   | 'chaser'
@@ -348,6 +349,13 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
     ...boss, id: 'gravedigger', name: 'The Gravedigger', sprite: 'gravedigger', behavior: 'chaser', phases: 3,
     hp: 1100, damage: 22, speed: 68, radius: 30, xp: 120,
     specialCd: 4.4, windup: 0.9, specialMult: 1.4, zoneRadius: 40, poolLife: 14, poolDps: 8, p2SpeedMult: 1.1,
+  },
+  // #278: the Barrowvale's crown boss (config/bosses.ts BARROW_KING, systems/bosses.ts). A phase for each lesson: graves round you that let
+  // his barrow guard out unless trampled, plague ground that lasts, and his risen guarding him. `summon` is who climbs out of a grave
+  barrowKing: {
+    ...boss, id: 'barrowKing', name: 'The Barrow King', sprite: 'barrowKing', behavior: 'chaser', phases: 3,
+    hp: 1150, damage: 20, speed: 70, radius: 32, xp: 160,
+    specialCd: 5, windup: 1, specialMult: 1.4, zoneRadius: 42, poolDps: 7, summon: 'knight', summonCount: 1, p2SpeedMult: 1.1,
   },
 };
 

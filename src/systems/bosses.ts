@@ -1,5 +1,5 @@
 import { FINAL } from '../config/acts';
-import { CINDER_COLOSSUS, DRAGON, EMBER_QUEEN, FORGEMASTER, GRAVEDIGGER, IRON_KING, WARDEN } from '../config/bosses';
+import { BARROW_KING, CINDER_COLOSSUS, DRAGON, EMBER_QUEEN, FORGEMASTER, GRAVEDIGGER, IRON_KING, WARDEN } from '../config/bosses';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
@@ -11,6 +11,7 @@ import { decreeZones, kingCd, kingMove } from '../logic/ironKing';
 import { flareZones, kindleZones, queenBurn, queenCd, queenMove } from '../logic/emberQueen';
 import { burstsIn, colossusCd, colossusMove, kindleSeeds, slamFan, spreadNext } from '../logic/cinderColossus';
 import { digGraves, diggerCd, diggerMove, digZones, rotZones, spadeZones, tickGraves } from '../logic/gravedigger';
+import { barrowCd, barrowMove, graveSpots, kingGraves, reapZones, trampled } from '../logic/barrowKing';
 import { addListener } from '../core/events';
 import { angleTo, chargeStart, chargeThrough, distTo, hitDamage, keepRange, move, moveTo, POISON, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { pickTarget, registerBoss } from './enemyAI';
@@ -376,6 +377,95 @@ registerBoss('cinderColossus', (g, e, dt) => {
     shake(g, 6);
   }
   if (blow.brood) summon(g, e); // his brood of Cultists, to fall in his heat
+});
+
+// ---------------------------------------------------------------- #278: the Barrow King, the Barrowvale's crown boss (config/bosses.ts BARROW_KING)
+
+const BARROW = '#9fb8a8'; // his graves and his guard's tethers: barrow mist
+const BARROW_PHASE: Record<number, string> = { 2: 'The Barrow King spreads the plague', 3: 'The Barrow King calls his guard' };
+const barrowPhase = new WeakMap<Enemy, number>(); // the phase whose change has been shown
+const risen = new WeakSet<Enemy>(); // the dead his graves let out: his guard
+
+/** Open `spots` as graves; each lets one of his risen out unless trampled first (graves are walked to, not dodged). */
+function openGraves(g: Game, e: Enemy, spots: { x: number; y: number }[]): void {
+  const list = kingGraves.get(e) ?? [];
+  for (const s of spots) {
+    list.push({ x: s.x, y: s.y, t: 0 });
+    burst(g, s.x, s.y, BARROW, 6, 90);
+  }
+  kingGraves.set(e, list);
+}
+
+/** His graves: trampled ones close, the rest rise when their time is up (no more than graves.max of his risen standing at once). */
+function tendKingGraves(g: Game, e: Enemy, dt: number): void {
+  const list = kingGraves.get(e);
+  if (!list?.length) return;
+  const G = BARROW_KING.graves, p = g.player;
+  const standing = g.enemies.filter((f) => !f.dead && risen.has(f)).length;
+  let up = 0;
+  kingGraves.set(e, list.filter((gr) => {
+    gr.t += dt;
+    if (trampled(gr.x, gr.y, p.x, p.y, p.r)) {
+      burst(g, gr.x, gr.y, BARROW, 10, 120);
+      floatText(g, gr.x, gr.y - 14, 'TRAMPLED', BARROW, 12);
+      sfx(g, 'hit');
+      g.vars['barrow.trampled'] = (g.vars['barrow.trampled'] ?? 0) + 1; // the play test and the sim read these
+      return false;
+    }
+    if (gr.t < G.rise) return true;
+    if (standing + up < G.max) {
+      risen.add(spawnEnemy(g, e.def.summon!, gr.x, gr.y));
+      up++;
+      g.vars['barrow.risen'] = (g.vars['barrow.risen'] ?? 0) + 1;
+      burst(g, gr.x, gr.y, BARROW, 16, 160);
+    }
+    return false; // a full guard: the grave caves in empty
+  }));
+}
+
+registerBoss('barrowKing', (g, e, dt) => {
+  const t = pickTarget(g, e);
+  const def = e.def;
+  // a new phase (enemyAI's enterPhase moved e.phase on): the next lesson, rise -> plague -> guard (logic/barrowKing barrowLesson)
+  if (e.phase > (barrowPhase.get(e) ?? 1)) {
+    barrowPhase.set(e, e.phase);
+    e.combo = 0; // each phase opens with its own lesson
+    e.special = Math.min(e.special, 1);
+    g.banner = { text: BARROW_PHASE[e.phase] ?? def.name, t: 2.4 };
+    markPhase(g, BARROW_PHASE[e.phase] ?? def.name);
+    burst(g, e.x, e.y, e.phase >= BARROW_KING.guardFrom ? BARROW : POISON, 30, 260);
+    ring(g, e.x, e.y, e.phase >= BARROW_KING.guardFrom ? BARROW_KING.guard.reach : 160, e.phase >= BARROW_KING.guardFrom ? BARROW : POISON, 0.7);
+    sfx(g, 'boom');
+    shake(g, 10);
+  }
+  tendKingGraves(g, e, dt);
+  // phase 3: how many of his risen stand close enough to guard him (systems/combat.ts reads it through logic/barrowKing barrowWard)
+  const reach2 = BARROW_KING.guard.reach ** 2;
+  g.vars['barrow.guards'] = g.enemies.filter((f) => !f.dead && risen.has(f) && (f.x - e.x) ** 2 + (f.y - e.y) ** 2 <= reach2).length;
+  seek(e, t, e.speed, dt);
+  touch(g, e, t);
+  e.special -= dt;
+  if (e.special > 0 || distTo(e, g.player) > BARROW_KING.reach) return;
+  e.special = barrowCd(e.phase);
+  sfx(g, 'warn');
+  const blow = barrowMove(e.phase, e.combo++);
+  const a = angleTo(e, g.player);
+  e.flip = Math.cos(a) < 0;
+  // the Reap: a crescent of marked zones swept at you; in the plague phase its ground stays plagued long after it lands
+  const R = BARROW_KING.reap, P = BARROW_KING.plague;
+  const scale = g.waveDmgMult * g.tier.enemyDmg;
+  const plague = blow.plague ? { life: P.life, dps: def.poolDps! * scale, color: POISON, apply: { id: 'poison' as const, power: P.poison * scale } } : null;
+  for (const z of reapZones(e.x, e.y, e.r, a)) addZone(g, { x: z.x, y: z.y, r: def.zoneRadius!, delay: R.first, damage: specialDamage(e) * R.damage, hostile: true, color: blow.plague ? POISON : BARROW, owner: e, leaveField: plague });
+  if (blow.plague) g.vars['barrow.plagues'] = (g.vars['barrow.plagues'] ?? 0) + 1;
+  if (blow.graves === 'you') {
+    const G = BARROW_KING.graves;
+    openGraves(g, e, graveSpots(g.player.x, g.player.y, a + Math.PI / 2, G.count, G.dist));
+  } else if (blow.graves === 'him') {
+    const K = BARROW_KING.guard;
+    openGraves(g, e, graveSpots(e.x, e.y, a + Math.PI, K.count, K.dist));
+    g.banner = { text: 'His guard stirs', t: 1.2 };
+  }
+  shake(g, 5);
 });
 
 // ---------------------------------------------------------------- v0.6: the Usurper, the end of the run (config/acts.ts FINAL)

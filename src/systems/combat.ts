@@ -21,6 +21,7 @@ import { onSlab } from '../logic/presses';
 import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
 import { thornsOf, towerShieldOf } from '../logic/ironKing';
+import { barrowWard } from '../logic/barrowKing';
 import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, thornsBite, throughPlates, throughResolve, throughTowerShield, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
@@ -226,6 +227,12 @@ export function damageEnemy(g: Game, e: Enemy, amount: number, crit = false, kx 
     const hit = throughTowerShield(amount, kx, ky, e.angle, e.def.frontBlock ?? 0, tower.reduction);
     if (hit.blocked) shieldBlock(g, e);
     amount = hit.dealt;
+  }
+  if (e.def.id === 'barrowKing') {
+    // #278: his guard phase: while one of his risen stands near him (systems/bosses.ts counts them), a blow does him less
+    const ward = barrowWard(e.phase, g.vars['barrow.guards'] ?? 0);
+    if (ward < 1 && e.flash <= 0) floatText(g, e.x, e.y - e.r - 20, 'GUARDED', '#9fb8a8', 14);
+    amount *= ward;
   }
   if (e.def.boss) {
     // v0.7.5 (#95): a boss's resolve: a burst past its allowance does a fraction, so one ability cannot end the fight (status ticks included)
