@@ -1,5 +1,5 @@
 import { FINAL } from '../config/acts';
-import { CINDER_COLOSSUS, DRAGON, EMBER_QUEEN, FORGEMASTER, IRON_KING, WARDEN } from '../config/bosses';
+import { CINDER_COLOSSUS, DRAGON, EMBER_QUEEN, FORGEMASTER, GRAVEDIGGER, IRON_KING, WARDEN } from '../config/bosses';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
@@ -10,11 +10,13 @@ import { forgeCd, forgeMove, pressTiles, slamZones } from '../logic/forgemaster'
 import { decreeZones, kingCd, kingMove } from '../logic/ironKing';
 import { flareZones, kindleZones, queenBurn, queenCd, queenMove } from '../logic/emberQueen';
 import { burstsIn, colossusCd, colossusMove, kindleSeeds, slamFan, spreadNext } from '../logic/cinderColossus';
+import { digGraves, diggerCd, diggerMove, digZones, rotZones, spadeZones, tickGraves } from '../logic/gravedigger';
 import { addListener } from '../core/events';
-import { angleTo, chargeStart, chargeThrough, distTo, hitDamage, keepRange, move, moveTo, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
+import { angleTo, chargeStart, chargeThrough, distTo, hitDamage, keepRange, move, moveTo, POISON, seek, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { pickTarget, registerBoss } from './enemyAI';
 import { burst, floatText, ring, shake } from './effects';
 import { regionsOf } from './regions';
+import { clearPoint } from './movement';
 import { markPhase } from './runlog';
 import { spawnEnemy } from './spawning';
 import { aimFan } from './patterns';
@@ -564,4 +566,71 @@ registerBoss(FINAL.boss, (g, e, dt) => {
     e.state = 0;
     e.special = U.specialCd[e.phase - 1];
   }
+});
+
+// ---------------------------------------------------------------- #277: the Gravedigger, the Barrowvale's level-3 boss (config/bosses.ts GRAVEDIGGER)
+
+const EARTH = '#8a6a42';
+const SPADE = '#c4bba4';
+
+/** His rot (his def's poolLife and poolDps): plague ground that lasts and poisons whoever stands in it. */
+function rotField(g: Game, e: Enemy) {
+  const scale = g.waveDmgMult * g.tier.enemyDmg;
+  return { life: e.def.poolLife!, dps: e.def.poolDps! * scale, color: POISON, dtype: 'shadow' as const, apply: { id: 'poison' as const, power: e.def.poolDps! * 0.5 * scale } };
+}
+
+/** His open graves this tick: the champion's step tramples one shut; one left open climbs out as a plain villager (from phase 3 in a pool of rot). */
+function tendGraves(g: Game, e: Enemy, dt: number, all: boolean): void {
+  const p = g.player;
+  const { trampled, risen } = tickGraves(e.graves!, dt, p.x, p.y, p.r, e.phase, all);
+  for (const gr of trampled) (burst(g, gr.x, gr.y, EARTH, 6, 70), floatText(g, gr.x, gr.y - 16, 'Trampled', '#d8d2bd', 12));
+  for (const gr of risen) {
+    const dead = spawnEnemy(g, GRAVEDIGGER.risen, gr.x, gr.y, [], true); // his own dead, not the realm's foes
+    dead.hp = Math.max(1, Math.round(dead.maxHp * GRAVEDIGGER.risenHp));
+    burst(g, gr.x, gr.y, EARTH, 10, 110);
+    if (e.phase >= GRAVEDIGGER.spill.from) addField(g, { ...rotField(g, e), x: gr.x, y: gr.y, r: GRAVEDIGGER.spill.radius, hostile: true });
+  }
+  if (risen.length) sfx(g, 'warn');
+}
+
+registerBoss('gravedigger', (g, e, dt) => {
+  const t = pickTarget(g, e);
+  const def = e.def;
+  e.graves ??= [];
+  // a new phase (enemyAI's enterPhase moved e.phase on): every grave still open rises at once
+  const turned = e.phase > 1 && e.state < e.phase;
+  if (turned) {
+    e.state = e.phase;
+    g.banner = { text: 'The Gravedigger calls up his dead', t: 2.2 };
+    markPhase(g, 'The Gravedigger calls up his dead');
+    ring(g, e.x, e.y, 120, EARTH, 0.6);
+    shake(g, 5);
+  }
+  tendGraves(g, e, dt, turned);
+  seek(e, t, e.speed, dt);
+  touch(g, e, t);
+  e.special -= dt;
+  if (e.special > 0 || distTo(e, g.player) > GRAVEDIGGER.reach) return;
+  e.special = diggerCd(e.phase);
+  sfx(g, 'warn');
+  const move = diggerMove(e.phase, e.combo++);
+  const a = angleTo(e, t);
+  if (move === 'spade') {
+    // his spade comes round in a marked arc in front of him
+    e.flip = t.x < e.x;
+    for (const z of spadeZones(e.x, e.y, e.r, a)) addZone(g, { x: z.x, y: z.y, r: GRAVEDIGGER.spade.radius, delay: def.windup!, damage: specialDamage(e) * GRAVEDIGGER.spade.damage, hostile: true, color: SPADE, owner: e });
+    return;
+  }
+  if (move === 'rot') {
+    // his Rot: a marked line of plague ground from him towards you, and it lasts
+    for (const z of rotZones(e.x, e.y, e.r, angleTo(e, g.player))) addZone(g, { x: z.x, y: z.y, r: GRAVEDIGGER.rot.radius, delay: z.delay, damage: specialDamage(e) * GRAVEDIGGER.rot.damage, hostile: true, color: POISON, owner: e, dtype: 'shadow', leaveField: rotField(g, e) });
+    g.banner = { text: 'The ground rots', t: 1.2 };
+    return;
+  }
+  // his Digging: clods of grave-dirt round you (one on you), each an open grave where it lands
+  // each pushed clear of the arena's stones and walls, so every grave is one the champion can step on (and its dead climbs out of it)
+  const clods = digZones(g.player.x, g.player.y, e.phase, g.rng() * TAU).map((z) => ({ ...z, ...clearPoint(g, z, GRAVEDIGGER.grave.radius) }));
+  for (const z of clods) addZone(g, { x: z.x, y: z.y, r: GRAVEDIGGER.dig.radius, delay: z.delay, damage: specialDamage(e) * GRAVEDIGGER.dig.damage, hostile: true, color: EARTH, owner: e });
+  digGraves(e.graves, clods);
+  g.banner = { text: 'Graves are dug: trample them', t: 1.4 };
 });

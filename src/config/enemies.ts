@@ -42,7 +42,8 @@ export type EnemyId =
   | 'usurper'
   | 'royalFlame'
   | 'barrowThrall'
-  | 'blightHound';
+  | 'blightHound'
+  | 'gravedigger';
 
 export type Behavior =
   | 'chaser'
@@ -340,6 +341,13 @@ export const ENEMIES: Record<EnemyId, EnemyDef> = {
   blightHound: {
     ...base, id: 'blightHound', name: 'Blight Hound', sprite: 'blightHound', behavior: 'lunger',
     hp: 12, damage: 6, speed: 135, radius: 10, xp: 1, lungeRange: 130, lungeSpeed: 380, windup: 0.35, lungeTime: 0.4, recover: 0.6,
+  },
+  // #277: the Barrowvale's level-3 boss (config/bosses.ts GRAVEDIGGER, systems/bosses.ts). A slow undead sexton who comes at you with his
+  // spade and digs graves round you that rise unless you trample them; his rot (poolLife, poolDps) is plague ground that lasts
+  gravedigger: {
+    ...boss, id: 'gravedigger', name: 'The Gravedigger', sprite: 'gravedigger', behavior: 'chaser', phases: 3,
+    hp: 1100, damage: 22, speed: 68, radius: 30, xp: 120,
+    specialCd: 4.4, windup: 0.9, specialMult: 1.4, zoneRadius: 40, poolLife: 14, poolDps: 8, p2SpeedMult: 1.1,
   },
 };
 
