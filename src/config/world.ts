@@ -112,11 +112,12 @@ export const REALMS: Record<RealmId, RealmDef> = {
     legend: { title: 'Ironsworn', palette: 6 }, // #219 Decided: the plan names neither
   },
   barrowvale: {
-    name: 'The Barrowvale', ring: 2, opens: { crowns: 1 }, arena: 'graveyard', family: 'grave', release: '0.13.0', built: false, // the Drowned Fen comes later as a second arena
+    name: 'The Barrowvale', ring: 2, opens: { crowns: 1 }, arena: 'graveyard', family: 'grave', release: '0.13.0', built: true, // #281: built. The Drowned Fen comes later as a second arena
     teaches: 'Corpses that rise unless you trample them, plague ground that lasts',
     foes: { peasant: 'barrowThrall', wolf: 'blightHound' }, // #275: barrow thralls; #276: blight hounds
     hazard: 'hands', // #274: the graveyard's hands rise from marked graves and hold you
     levels: relicRealmLevels('grave', 'lich', 'gravedigger', 'barrowKing', 'abbot'), crown: RELIC_CROWN, // Decided: the Plague Abbot is its level-1 pool boss
+    legend: { title: 'Gravewarden', palette: 8 }, // #281 Decided: the plan names neither
   },
   cinderlands: {
     name: 'The Cinderlands', ring: 2, opens: { crowns: 1 }, arena: 'emberForge', family: 'flame', release: '0.12.0', built: true,

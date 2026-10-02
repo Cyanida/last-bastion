@@ -103,6 +103,19 @@ export const INQUISITOR = {
 };
 
 /**
+ * #281: the Lich as the Barrowvale's elite (its level 4; his script is systems/enemyAI.ts, logic/crownBoss.ts). His extra phase, after
+ * his two, is the Barrow Call: as it begins and with every volley of hexes, graves open round his feet, each a Barrow Thrall's corpse
+ * that rises as one (config/enemies.ts RISING: its delay and its half HP) unless you walk over it first. He keeps his distance, so the
+ * lesson is the realm's: go in and trample them, or fight his hexes with his dead about you. No more hexes or bolts than his second phase.
+ */
+export const LICH = {
+  callFrom: 3, // the phase he calls the dead from: only the elite gets there (a plain Lich has two)
+  graves: 3, // graves a call opens, evenly round him
+  ring: 80, // px from his centre: outside his body, inside his bolts' reach
+  maxRising: 9, // a call opens no grave while this many corpses on the field still wait to rise (three calls' worth)
+};
+
+/**
  * #215: the Forgemaster, the Iron Hold's level-3 boss (logic/forgemaster.ts, systems/bosses.ts). Three phases like an Act boss, since his
  * level ends on an Act's last wave; no minimum phase time (that is the crown boss's). Phase 1: his hammer comes down in a marked arc in
  * front of him. From phase 2 every other blow is his forge presses instead: a checkerboard of marked tiles round you that slam one colour,

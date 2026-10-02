@@ -9,7 +9,7 @@ import type { Enemy, Game } from '../core/types';
 import { addZone } from '../entities/hazards';
 import { nextState, type AiProfile, type AiState } from '../logic/fsm';
 import { slotPosition } from '../logic/squads';
-import { crownHpFloor, inquisitorPyres, pyreField } from '../logic/crownBoss';
+import { barrowCall, crownHpFloor, inquisitorPyres, lichCalls, lichGraveRise, pyreField } from '../logic/crownBoss';
 import { cleanse, isStunned, speedFactor } from '../logic/status';
 import { angleTo, chargeStart, chargeThrough, distTo, enraged, hitDamage, keepRange, move, moveTo, POISON, seek, shootAt, specialDamage, summon, touch, type Target } from './aiHelpers';
 import { burst, floatText, ring, shake } from './effects';
@@ -197,6 +197,21 @@ function pulseAura(g: Game, e: Enemy, dt: number): void {
 
 // ---------------------------------------------------------------- bosses: scripted, branching on e.phase
 
+/**
+ * #281: the elite Lich's Barrow Call: graves open round him, each a Barrow Thrall's corpse that rises on its own delay unless the
+ * champion walks over it (systems/combat updateRisingCorpses raises it, as a thrall's).
+ */
+function callTheDead(g: Game, e: Enemy): void {
+  let waiting = 0;
+  for (const c of g.corpses) if (c.rise) waiting++;
+  for (const at of barrowCall(e.phase, e.x, e.y, g.rng() * TAU, waiting)) {
+    g.corpses.push({ x: at.x, y: at.y, t: 0, rise: lichGraveRise(g.waveHpMult * g.tier.enemyHp) });
+    burst(g, at.x, at.y, '#6b5843', 8, 90); // the barrow's earth thrown up
+    g.vars['elite.graves'] = (g.vars['elite.graves'] ?? 0) + 1; // the play test reads it
+  }
+  ring(g, e.x, e.y, 90, '#9fb8a8', 0.5);
+}
+
 const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> = {
   // Black Knight: telegraphed line charge. Phase 2: chains several charges back to back.
   blackKnight(g, e, dt) {
@@ -274,9 +289,17 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
   },
 
   // Lich: keeps its distance, fans of bolts, telegraphed hexes under the player's feet. Phase 2: bolt rings and more hexes.
+  // #281: as the Barrowvale's elite his third phase is the Barrow Call: graves open round him with every volley of hexes (logic/crownBoss barrowCall).
   lich(g, e, dt) {
     const t = pickTarget(g, e);
     const def = e.def;
+    // the Barrow Call begins (e.charged: shown; his script has no charge): the first graves open at once
+    if (lichCalls(e.phase) && !e.charged) {
+      e.charged = true;
+      g.banner = { text: 'The Lich’s barrow call', t: 2.5 };
+      markPhase(g, 'The Lich’s barrow call');
+      callTheDead(g, e);
+    }
     const d = keepRange(e, t, dt);
     e.timer -= dt;
     if (e.timer <= 0 && d < def.range! * 1.5) {
@@ -296,6 +319,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
         const a = g.rng() * TAU;
         addZone(g, { x: p.x + Math.cos(a) * off, y: p.y + Math.sin(a) * off, r: def.zoneRadius!, delay: def.windup! + i * 0.12, damage: specialDamage(e), hostile: true, color: '#7a4fa0', owner: e });
       }
+      if (lichCalls(e.phase)) callTheDead(g, e);
     }
   },
 
