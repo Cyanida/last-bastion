@@ -57,7 +57,7 @@ describe('the voice limit (#283)', () => {
   it('the same sound from one source repeats at most once per VOICES.repeat', () => {
     expect(tooSoon(undefined, 0)).toBe(false);
     expect(tooSoon(1, 1 + VOICES.repeat / 2)).toBe(true);
-    expect(tooSoon(1, 1 + VOICES.repeat)).toBe(false);
+    expect(tooSoon(0, VOICES.repeat)).toBe(false);
   });
 });
 

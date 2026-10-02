@@ -11,9 +11,9 @@
 export type CueSource = 'player' | 'foe' | 'boss' | 'world';
 
 export const VOICES = {
-  max: 12,
+  max: 8,
   stealFade: 0.015,
-  repeat: 0.05,
+  repeat: 0.015, // about a frame: the voice limit, not this, keeps a crowd in check (it was 0.05 s per sound before #283)
   fallback: 2,
   priority: {
     xp: 0,
