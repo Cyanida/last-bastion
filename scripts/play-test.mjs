@@ -7864,7 +7864,7 @@ await check('Sound: each enemy family sounds its own: cavalry hooves, a crossbow
     g.spawnQueue.length = 0;
     const band = ['cavalry', 'crossbow', 'crossbow', 'priest', 'knight', 'knight', 'peasant', 'peasant', 'peasant', 'wolf', 'wolf'];
     const kinds = new Set();
-    for (let i = 0; i < 1800 && lb.state === 'playing'; i++) {
+    for (let i = 0; i < 1800 && lb.state !== 'results'; i++) {
       if (i % 200 === 0) {
         g.enemies.length = 0; // a fresh band now and then, so each of them gets to strike and fall
         band.forEach((id, j) => {
