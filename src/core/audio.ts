@@ -1,6 +1,8 @@
 import { BUS_ORDER, MIXER, type BusId } from '../config/mixer';
 import { MUSIC } from '../config/music';
 import { busGain, duckDepth, heard, readMix, withBus, type Mix } from '../logic/mixer';
+import type { ArenaId } from '../config/arenas';
+import { bedToLayer, startBed, stopBed, type BedVoice } from './ambience';
 import { prefs } from './storage';
 
 /**
@@ -41,8 +43,9 @@ let ctx: AudioContext | null = null;
 let noise: AudioBuffer | null = null;
 let buses: Record<BusId, GainNode> | null = null; // #282: the slider gains, every bus into the master
 const ducks: Partial<Record<BusId, GainNode>> = {}; // #282: after a bus's slider, the gain a heavy effect pulls down (MIXER.duck)
-let wind: { src: AudioBufferSourceNode; out: GainNode } | null = null; // #282: the ambience bed while a run is on screen
-let windWanted = false;
+let bed: BedVoice | null = null; // #282: the ambience bed while a run is on screen; #288: its arena's own (core/ambience.ts)
+let bedWanted: ArenaId | null = null;
+let bedLayer = 0;
 let muted = prefs.get(MUTE_KEY) === '1';
 let mix: Mix = readMix(prefs.get(MIX_KEY), { music: prefs.get('lastbastion.music'), effects: prefs.get('lastbastion.effects') });
 const lastPlayed: Partial<Record<SfxName, number>> = {};
@@ -115,59 +118,33 @@ export function toggleMute(): boolean {
 }
 
 /**
- * #282: the ambience: a bed of wind while a run is on screen (main.ts says so every frame; only a change does any work). It is started
- * and stopped rather than left playing silent, so a muted or zeroed ambience costs nothing.
+ * #282: the ambience: a bed while a run is on screen (main.ts says so every frame; only a change does any work). It is started
+ * and stopped rather than left playing silent, so a muted or zeroed ambience costs nothing. #288: the run's arena's own bed (null: none),
+ * stepping back as the fight's music layer grows; a new arena fades one bed out as the next fades in.
  */
-export function ambience(on: boolean): void {
-  if (on === windWanted) return;
-  windWanted = on;
+export function ambience(arena: ArenaId | null, layer = 0): void {
+  if (layer !== bedLayer) {
+    bedLayer = layer;
+    if (ctx && bed) bedToLayer(ctx, bed, layer);
+  }
+  if (arena === bedWanted) return;
+  bedWanted = arena;
   refreshAmbience();
 }
 function refreshAmbience(): void {
   if (!ctx || !buses) return;
-  const audible = windWanted && heard(mix, 'ambience', muted) && !(typeof document !== 'undefined' && document.hidden);
-  const a = MIXER.ambience;
-  const now = ctx.currentTime;
-  if (audible && !wind) {
-    // brown noise (integrated white), lowpassed: a long enough loop that its repeat is not heard
-    const len = Math.floor(ctx.sampleRate * a.seconds);
-    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    let last = 0;
-    for (let i = 0; i < len; i++) d[i] = last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
-    for (let i = 0; i < len; i++) d[i] *= 3.5; // brown noise is quiet: up to about white noise's level
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.loop = true;
-    const lp = ctx.createBiquadFilter();
-    lp.frequency.value = a.cutoff;
-    const out = ctx.createGain();
-    out.gain.setValueAtTime(0, now);
-    out.gain.linearRampToValueAtTime(a.gain, now + a.fade);
-    const lfo = ctx.createOscillator(); // the gusts
-    lfo.frequency.value = a.lfoHz;
-    const depth = ctx.createGain();
-    depth.gain.value = a.lfoDepth;
-    lfo.connect(depth).connect(out.gain);
-    src.connect(lp).connect(out).connect(buses.ambience);
-    src.start(now);
-    lfo.start(now);
-    src.onended = () => (lfo.stop(), out.disconnect());
-    wind = { src, out };
-  } else if (!audible && wind) {
-    const { src, out } = wind;
-    wind = null;
-    out.gain.cancelScheduledValues(now);
-    out.gain.setValueAtTime(out.gain.value, now);
-    out.gain.linearRampToValueAtTime(0, now + a.fade);
-    src.stop(now + a.fade);
+  const audible = bedWanted !== null && heard(mix, 'ambience', muted) && !(typeof document !== 'undefined' && document.hidden);
+  if (bed && (!audible || bed.arena !== bedWanted)) {
+    stopBed(ctx, bed);
+    bed = null;
   }
+  if (audible && !bed && bedWanted) bed = startBed(ctx, buses.ambience, bedWanted, bedLayer);
 }
 if (typeof document !== 'undefined') document.addEventListener('visibilitychange', refreshAmbience);
 
 /**
  * For the tests: the mix, each bus's gain (Chromium only moves a bus's value while something sounds through it), the sounds started per
- * bus, whether the wind blows and whether the music is ducked right now.
+ * bus, whether the wind blows (#288: the arena whose bed plays, and its level under the fight) and whether the music is ducked right now.
  */
 export function mixerStats() {
   const b = buses;
@@ -176,7 +153,8 @@ export function mixerStats() {
     muted,
     gains: b ? (Object.fromEntries(BUS_ORDER.map((bus) => [bus, b[bus].gain.value])) as Record<BusId, number>) : null,
     played: { ...played },
-    ambience: !!wind,
+    ambience: bed?.arena ?? null,
+    bedLevel: bed ? bed.level.gain.value : 0,
     ducked: ducks.music ? ducks.music.gain.value < 1 : false,
   };
 }
