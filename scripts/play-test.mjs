@@ -12,7 +12,7 @@
  * The routine and CI run it on every pull request. A change a player sees gets its own check added here (see AGENTS.md).
  * Not covered: a gamepad beyond the press that answers a screen, and how it feels.
  */
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { spawnTree, killTree, waitForServer } from './lib/process-tree.mjs';
 
@@ -7957,6 +7957,93 @@ await check('Iron Hold: a level 1 clear by a champion who owns every Steel rare 
   const ok = got.sub === 'You already own every Steel relic this level offers, so you get 2 Runes instead.' && got.cards === 0 && got.buttons.length === 1 && /Take ◆ 2 Runes/.test(got.buttons[0]) && errs.length === 0;
   await p.close();
   return { ok, detail: ok ? got.sub : `${JSON.stringify(got)} ${errs.join('|')}` };
+});
+
+// ---------- #273: the Forsaken Graveyard: Settings -> Test mode -> "Start at" the Barrowvale's level 2 -> the opening pick -> an open wing ----------
+// The level plays in the Forsaken Graveyard (the HUD names it), its wings are the crypts, the sexton's yard, the broken chapel and the old
+// barrows, and by level 2's start one of them is open. Walked into with the keyboard, the place names its feature ("Grave gas", not
+// "Vents"), and its floor holds its own rigged furniture (crypts, headstones, the chapel's broken columns, dead trees), pixel for pixel from the atlas.
+await check('Forsaken Graveyard: a Barrowvale level plays in it; its wings are the crypts, the sexton\'s yard, the broken chapel and the old barrows, one walked into, furnished (#273)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.waitForFunction(() => window.__lb.props(), null, { timeout: 5000 }).catch(() => {});
+  await p.evaluate(() => (window.__lb.save.cards = [...window.__lb.cardIds])); // every flash card seen: nothing stops the walk
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  await p.locator('#tm-class').selectOption('viking');
+  await p.locator('#tm-start').selectOption('barrowvale:2');
+  await p.getByRole('button', { name: /start test run/i }).click();
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click();
+  await p.waitForFunction(() => window.__lb.state === 'playing', null, { timeout: 5000 }).catch(() => {});
+  const seen = await p.evaluate(() => {
+    const g = window.__lb.game;
+    g.player.invulnerable = true;
+    return { arena: g.arena.id, realm: g.level?.realm, level: g.level?.level, hud: document.body.innerText.includes('Forsaken Graveyard'),
+      open: g.arena.regions.filter((r) => r.id !== 'core' && g.regionOpen[r.id]).map((r) => r.id),
+      names: g.arena.regions.filter((r) => r.id !== 'core' && r.id !== 'vault').map((r) => r.name) };
+  });
+  const wing = seen.open[0];
+  // stand in the open wing's gate, on the core's side, and walk in with the key that points into the wing
+  const key = { north: 'KeyW', south: 'KeyS', east: 'KeyD', west: 'KeyA' }[wing];
+  let walked = null;
+  if (key) {
+    await p.evaluate((wing) => {
+      const g = window.__lb.game, r = g.arena.regions.find((q) => q.id === wing), core = g.arena.regions.find((q) => q.id === 'core').floor;
+      const gx = r.gate.x + r.gate.w / 2, gy = r.gate.y + r.gate.h / 2;
+      Object.assign(g.player, { x: wing === 'east' ? core.x + core.w - 30 : wing === 'west' ? core.x + 30 : gx, y: wing === 'south' ? core.y + core.h - 30 : wing === 'north' ? core.y + 30 : gy });
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.texts.length = 0;
+      window.__lb.run(1, false, 'input');
+    }, wing);
+    await p.keyboard.down(key);
+    for (let i = 0; i < 12 && !walked?.seen; i++) {
+      walked = await p.evaluate((wing) => {
+        const lb = window.__lb, g = lb.game;
+        g.enemies.length = 0;
+        g.spawnQueue.length = 0;
+        lb.run(10, false, 'input');
+        return { seen: g.regionSeen.includes(wing), texts: g.texts.map((t) => t.text) };
+      }, wing);
+    }
+    await p.keyboard.up(key);
+  }
+  // the wing's furniture, read back from the baked ground against the atlas: a solid pixel in each prop's anchor column, from props.json
+  const atlasMap = JSON.parse(readFileSync(new URL('../src/render/props.json', import.meta.url), 'utf8'));
+  const props = wing ? await p.evaluate(async ([wing, meta]) => {
+    const lb = window.__lb, g = lb.game, r = g.arena.regions.find((q) => q.id === wing);
+    const img = new Image();
+    img.src = 'sprites/props.png';
+    await img.decode();
+    const atlas = document.createElement('canvas');
+    [atlas.width, atlas.height] = [img.width, img.height];
+    atlas.getContext('2d').drawImage(img, 0, 0);
+    const a = atlas.getContext('2d'), ground = lb.arenaCanvas(g.arena.id).getContext('2d');
+    const inWing = g.arena.obstacles.filter((o) => o.x >= r.floor.x && o.x <= r.floor.x + r.floor.w && o.y >= r.floor.y && o.y <= r.floor.y + r.floor.h);
+    const drawn = inWing.filter((o) => {
+      const m = meta?.[o.kind];
+      if (!m || m.r !== o.r) return false; // drawn at its own size: pixel for pixel
+      const col = m.x + m.anchor[0];
+      const solid = [...Array(m.h).keys()].filter((y) => a.getImageData(col, m.y + y, 1, 1).data[3] === 255);
+      const sy = solid[Math.floor(solid.length / 2)];
+      if (sy === undefined) return false;
+      const want = a.getImageData(col, m.y + sy, 1, 1).data;
+      const got = ground.getImageData(Math.round(o.x), Math.round(o.y) - m.anchor[1] + sy, 1, 1).data;
+      return Math.hypot(want[0] - got[0], want[1] - got[1], want[2] - got[2]) <= 8;
+    }).length;
+    return { kinds: [...new Set(inWing.map((o) => o.kind))], count: inWing.length, drawn, name: r.name, meta: !!meta };
+  }, [wing, atlasMap]) : null;
+  await p.close();
+  const want = { north: ['the crypts', 'Grave gas', 'crypt'], east: ['the sexton’s yard', 'Strongbox', 'tomb'], south: ['the broken chapel', 'Shrine', 'ruin'], west: ['the old barrows', 'Lair', 'tree'] }[wing] ?? [];
+  const ok = seen.arena === 'graveyard' && seen.realm === 'barrowvale' && seen.level === 2 && seen.hud && seen.open.length === 1
+    && seen.names.join() === 'the crypts,the sexton’s yard,the broken chapel,the old barrows'
+    && walked?.seen === true && walked.texts.some((t) => t.includes(want[1]))
+    && props?.name === want[0] && props.kinds.join() === want[2] && props.count === 4 && props.drawn === 4 && errs.length === 0;
+  return { ok, detail: `${seen.realm} level ${seen.level} in ${seen.arena} (HUD ${seen.hud ? 'names it' : 'NO'}); ${seen.open.join('/') || 'no wing'} open (${props?.name}); walked in ${walked?.seen ? 'yes' : 'NO'}, it says "${walked?.texts.find((t) => t.includes(want[1])) ?? walked?.texts.join(' | ') ?? ''}"; furniture ${props?.kinds.join('/')} x${props?.count}, ${props?.drawn} drawn from the atlas${props?.meta ? '' : ' (no atlas map)'}; wings: ${seen.names.join(', ')}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
 await check('no console errors', async () => {
