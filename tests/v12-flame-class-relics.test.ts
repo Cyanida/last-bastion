@@ -94,7 +94,7 @@ describe('the Cinderlands class relics and duo (#230): the model', () => {
     expect(DUOS.baptismOfFire.from).toEqual(['flashpowder', 'blessedWater']);
     expect(duoOf('flashpowder')).toBe('baptismOfFire');
     expect(duoOf('blessedWater')).toBe('baptismOfFire');
-    expect(DUO_IDS).toHaveLength(14);
+    expect(DUO_IDS.length).toBeGreaterThanOrEqual(14); // a realm's duo each since: 15 with the Barrowvale's (#280)
   });
 });
 

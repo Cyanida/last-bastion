@@ -3,8 +3,10 @@ import type { Enemy, Game, Player } from '../../core/types';
 import { addField, timer } from '../../entities/hazards';
 import { applyStatus, nearestEnemy } from '../combat';
 import { burst, ring } from '../effects';
+import * as scale from '../../logic/abilities';
+import { clamp } from '../../core/math';
 import { aOf, awakened, bonus, credit, isCursed, nOf, nova, raiseSkeleton, relicDamage, relicHeal, sOf, skeletonsBy, type RelicHooks } from '../relicCore';
-import { addWork } from '../../logic/relics';
+import { addWork, corpsesNear, deadCount, wightBurst } from '../../logic/relics';
 import { censerLays, guardCut, stompable, tollCorpses } from '../../logic/graveRelics';
 
 /**
@@ -19,6 +21,14 @@ const inCenser = (g: Game, e: Enemy): boolean => g.fields.some((f) => f.by === '
 /** Crown of Antlers (#279): the barrow guard: your skeletons (not a quest's or an evolution's units) standing within `radius` of you. */
 const guardsNear = (g: Game, p: Player, radius: number): number =>
   g.minions.reduce((n, m) => n + (!m.kind && m.hp > 0 && (m.x - p.x) ** 2 + (m.y - p.y) ** 2 <= radius * radius ? 1 : 0), 0);
+/** #280: takes these corpses off the ground (they rise as skeletons, are laid to rest or burst; a rising one never rises then). */
+function takeCorpses(g: Game, taken: Game['corpses']): void {
+  for (const c of taken) g.corpses.splice(g.corpses.indexOf(c), 1);
+}
+/** #280: curses every enemy within `radius` of (x, y). */
+function curseAround(g: Game, x: number, y: number, radius: number, stacks: number): void {
+  for (const e of g.hash.query(x, y, radius, [])) if (!e.dead) applyStatus(e, { apply: [{ id: 'curse', stacks }] }, g);
+}
 const corpseBursts = timer('deathmask.burst', (g, a: { p: Player; x: number; y: number }) => nova(g, a.x, a.y, shadow.radius, relicDamage(a.p, aOf('deathmask').damage), 140, F.color, 'shadow'));
 
 export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
@@ -156,6 +166,78 @@ export const GRAVE_RELICS: Partial<Record<RelicId, RelicHooks>> = {
       if (!awakened(p, 'boneChime') || ev.source !== 'minion') return;
       const a = aOf('boneChime');
       if ((g.vars['knell.hits'] = (g.vars['knell.hits'] ?? 0) + 1) % a.every === 0) nova(g, ev.enemy.x, ev.enemy.y, a.radius, relicDamage(p, a.damage), 120, F.color, 'shadow'); // Death Knell
+    },
+  },
+
+  // ---------------------------------------------------------------- v0.13 (#280): the Barrowvale's class relics
+  ossuarySeal: {
+    onAbilityEnd(g, _ev, p) {
+      if (p.cls.ability.id !== 'divineShield') return;
+      const n = nOf(p, 'ossuarySeal');
+      const dead = corpsesNear(g.corpses, p.x, p.y, n.radius, deadCount(sOf(p), n.base, n.per));
+      takeCorpses(g, dead);
+      for (const c of dead) raiseSkeleton(g, p, c.x, c.y, 'ossuarySeal', { hp: n.hp, damage: n.damage, life: n.life });
+    },
+    onBlocked(g, ev, p) {
+      // Sworn Dead: a blow the shield turns curses whoever struck it
+      if (awakened(p, 'ossuarySeal') && p.cls.ability.id === 'divineShield' && p.abilityTime > 0 && ev.attacker && !ev.attacker.dead) applyStatus(ev.attacker, { apply: [{ id: 'curse', stacks: aOf('ossuarySeal').stacks }] }, g);
+    },
+  },
+
+  draugrMead: {
+    onKill(g, ev, p) {
+      if (p.cls.ability.id !== 'berserkerRage' || p.abilityTime <= 0 || ev.source !== 'attack' || ev.enemy.def.boss) return;
+      const n = nOf(p, 'draugrMead');
+      if (skeletonsBy(g, 'draugrMead') >= deadCount(sOf(p), n.base, n.per)) return;
+      raiseSkeleton(g, p, ev.enemy.x, ev.enemy.y, 'draugrMead', { hp: n.hp, damage: n.damage, life: n.life });
+    },
+    onAbilityEnd(g, _ev, p) {
+      if (!awakened(p, 'draugrMead') || p.cls.ability.id !== 'berserkerRage') return;
+      const a = aOf('draugrMead'); // Einherjar: the draugr howl as Rage ends
+      for (const m of g.minions) if (m.relicBy === 'draugrMead' && m.hp > 0) nova(g, m.x, m.y, a.radius, relicDamage(p, a.damage), 90, F.color, 'shadow');
+    },
+  },
+
+  lastRites: {
+    onAbilityUsed(g, _ev, p) {
+      const ability = p.cls.ability;
+      if (ability.id !== 'heavenlyRadiance') return;
+      const n = nOf(p, 'lastRites');
+      const dead = corpsesNear(g.corpses, p.x, p.y, scale.heavenlyRadiance(ability, sOf(p)).radius, deadCount(sOf(p), n.base, n.per));
+      if (!dead.length) return;
+      takeCorpses(g, dead);
+      relicHeal(g, p, p.stats.hp * n.heal * dead.length, true);
+      const a = aOf('lastRites');
+      for (const c of dead) {
+        ring(g, c.x, c.y, 24, F.color, 0.5);
+        if (awakened(p, 'lastRites')) curseAround(g, c.x, c.y, a.radius, a.stacks); // Psychopomp
+      }
+    },
+  },
+
+  wightboneArrows: {
+    onAbilityUsed(g, _ev, p) {
+      const ability = p.cls.ability;
+      if (ability.id !== 'arrowVolley') return;
+      // the Volley's own target point (systems/abilities.ts: the aim, clamped to its cast range); a Ballista bolt calls the same ground
+      const dx = g.input.aimX - p.x;
+      const dy = g.input.aimY - p.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const k = clamp(d, 0, ability.castRange) / d;
+      const dead = corpsesNear(g.corpses, p.x + dx * k, p.y + dy * k, ability.radius, g.corpses.length);
+      if (!dead.length) return;
+      takeCorpses(g, dead);
+      const n = nOf(p, 'wightboneArrows');
+      const dmg = wightBurst(relicDamage(p, n.damage), n.perFocus, sOf(p));
+      for (const c of dead) {
+        nova(g, c.x, c.y, n.radius, dmg, 80, F.color, 'shadow');
+        burst(g, c.x, c.y, '#e8e2d0', 10, 200); // bone splinters
+      }
+    },
+    onKill(g, ev, p) {
+      if (!awakened(p, 'wightboneArrows') || ev.source !== 'ability' || ev.enemy.def.boss) return;
+      const a = aOf('wightboneArrows'); // Barrow Wights
+      if (skeletonsBy(g, 'wightboneArrows') < a.max) raiseSkeleton(g, p, ev.enemy.x, ev.enemy.y, 'wightboneArrows', { hp: a.hp, damage: a.damage, life: a.life });
     },
   },
 };

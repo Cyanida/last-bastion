@@ -337,3 +337,25 @@ export const bonefireBurn = (power: number, perSoul: number, soul: number): numb
 
 /** Baptism of Fire: what a flare heals, `per` of max HP for each enemy it caught, up to `max` of them. */
 export const baptismHeal = (maxHp: number, per: number, caught: number, max: number): number => maxHp * per * Math.min(max, Math.max(0, caught));
+
+// ---------------------------------------------------------------- v0.13 (#280): the Barrowvale's class relics and duo
+
+/** Ossuary Seal, Draugr's Mead, Last Rites: how many of the dead answer, `base` + one for every `per` points of the secondary stat. */
+export const deadCount = (stat: number, base: number, per: number): number => base + Math.floor(Math.max(0, stat) / per);
+
+/** The corpses within `radius` of (x, y), nearest first, at most `max` of them (Ossuary Seal, Last Rites). */
+export function corpsesNear<T extends { x: number; y: number }>(corpses: T[], x: number, y: number, radius: number, max: number): T[] {
+  return corpses
+    .map((c) => ({ c, d: (c.x - x) ** 2 + (c.y - y) ** 2 }))
+    .filter((o) => o.d <= radius * radius)
+    .sort((a, b) => a.d - b.d)
+    .slice(0, Math.max(0, max))
+    .map((o) => o.c);
+}
+
+/** Wightbone Arrows: a corpse's burst, `damage` (already grown with level) and `perFocus` more for every point of Focus. */
+export const wightBurst = (damage: number, perFocus: number, focus: number): number => damage * (1 + perFocus * Math.max(0, focus));
+
+/** Barrow Feast: the corpses a champion (at x, y, radius r) walks over, within `reach` px of his edge. */
+export const devoured = <T extends { x: number; y: number }>(corpses: T[], x: number, y: number, r: number, reach: number): T[] =>
+  corpses.filter((c) => Math.hypot(c.x - x, c.y - y) <= r + reach);

@@ -73,13 +73,15 @@ function golden({ cls, seed, level, variant = 0, realm = 'marches', run }: Golde
 // realm run's level 2 changed on purpose (it still clears, on 490 kills, was 540); every other run is unchanged
 // re-recorded for #279 (v0.13): Barrow Boots joins the starter commons and Soul Lantern leaves the open pool, so the three Marches
 // level 7 runs (the Grave level) and the realm run's level 2 draw different relics on purpose; every other run is unchanged
+// re-recorded for the merge of #279 and #280 on release/0.13.0: with both sets of Grave relics in the pools, the three Marches level 7 runs
+// draw different relics on purpose
 const GOLDEN: Record<string, string> = {
   'marches 1 paladin:1': 'cleared wave 6 kills 215 level 1 loadout - relics 2 hash de859cbc',
   'marches 1 archer:2': 'cleared wave 6 kills 222 level 1 loadout - relics 3 hash 67f5b3b3',
   'marches 1 angel:4 variant 1': 'cleared wave 6 kills 230 level 1 loadout - relics 4 hash e3620c13',
-  'marches 7 paladin:1': 'fell wave 35 kills 74 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash dd817d12',
-  'marches 7 angel:1': 'fell wave 35 kills 83 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 98747f81',
-  'marches 7 viking:2 variant 1': 'fell wave 35 kills 110 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 944248fc',
+  'marches 7 paladin:1': 'fell wave 35 kills 62 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 56cb41f0',
+  'marches 7 angel:1': 'fell wave 35 kills 79 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 86ded004',
+  'marches 7 viking:2 variant 1': 'fell wave 35 kills 110 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 327cca8d',
   'iron hold 1 viking:1': 'cleared wave 8 kills 350 level 8 loadout jarlsTorc+anvilHeart+salamanderScale relics 6 hash 362abe41',
   'iron hold 1 archer:3 variant 1': 'fell wave 3 kills 120 level 8 loadout eagleFletching+anvilHeart+salamanderScale relics 5 hash ef72703d',
   'iron hold run 1-2 paladin:5': 'cleared wave 8 kills 363 level 8 loadout oathkeepersSeal+anvilHeart+salamanderScale relics 6 hash 165cac3b / cleared wave 16 kills 505 level 9 loadout - relics 3 hash 66558620',
