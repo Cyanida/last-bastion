@@ -131,18 +131,18 @@ describe('what each one does, through the real tick, kill and hit paths', () => 
     expect(woke.g.fields.filter((f) => f.by === 'plagueCenser')).toHaveLength(2);
   });
 
-  it("Sexton's Bell: it tolls when a corpse lies near, raising up to 2 skeletons, a thrall's corpse first; awakened, the toll curses", () => {
-    const { g, foes } = arena("sextonsBell", [[100, 0]]);
+  it("Sexton's Bell: it tolls when a corpse lies near, raising up to 3 skeletons, a thrall's corpse first; awakened, the toll curses", () => {
+    const { g, foes } = arena('sextonsBell', [[100, 0]]);
     tick(g, 9);
     expect(g.minions).toHaveLength(0); // no corpse: it waits
-    const thrall = corpse(g, 150, 0, true), near = corpse(g, 20, 0), nearer = corpse(g, 10, 0);
+    const thrall = corpse(g, 170, 0, true), far = corpse(g, 120, 0), near = corpse(g, 20, 0), nearer = corpse(g, 10, 0);
     tick(g, 1 / 60);
-    expect(g.minions.filter((m) => m.relicBy === 'sextonsBell')).toHaveLength(2);
-    expect(g.corpses).toEqual([near]); // the thrall's corpse and the nearest rose; the third lies on
+    expect(g.minions.filter((m) => m.relicBy === 'sextonsBell')).toHaveLength(3);
+    expect(g.corpses).toEqual([far]); // the thrall's corpse and the two nearest rose; the fourth lies on
     expect(g.corpses).not.toContain(thrall);
-    expect(g.corpses).not.toContain(nearer);
+    expect([near, nearer].some((c) => g.corpses.includes(c))).toBe(false);
     tick(g, 1);
-    expect(g.minions).toHaveLength(2); // the bell's clock started again
+    expect(g.minions).toHaveLength(3); // the bell's clock started again
     expect(foes[0].statuses.curse).toBeUndefined();
     const woke = arena('sextonsBell', [[100, 0]], 3);
     corpse(woke.g, 10, 0);
