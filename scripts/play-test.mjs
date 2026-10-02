@@ -1499,10 +1499,11 @@ await check('sound cues: played and emptied, a relic pick is heard', () =>
     const drained = g.out.length === 0;
     rel.offers.push({ from: 'lair', options: ['butchersHook', 'guardiansAegis', 'stormPennant', 'thunderDrum'].filter((id) => !rel.held.includes(id)).slice(0, 3), rerolls: 0, duo: null }); // one already held is taken silently
     if (!P.toChoice()) return { ok: false, detail: 'no relic offer' };
-    const before = P.sounds.levelup ?? 0;
+    const picks = () => Object.entries(P.sounds).reduce((n, [k, v]) => (k === 'levelup' || k.startsWith('relic.') ? n + v : n), 0); // #287: its family's own sound (levelup before it)
+    const before = picks();
     await P.click('[data-pick="0"]'); // no step runs in between: the next frame plays it
-    const heard = (P.sounds.levelup ?? 0) - before;
-    return { ok: drained && heard >= 1 && g.out.length === 0, detail: `queue after steps ${drained ? 'empty' : 'NOT empty'}, pick played levelup ×${heard}, queue now ${g.out.length}` };
+    const heard = picks() - before;
+    return { ok: drained && heard >= 1 && g.out.length === 0, detail: `queue after steps ${drained ? 'empty' : 'NOT empty'}, pick played its sound ×${heard}, queue now ${g.out.length}` };
   }),
 );
 
