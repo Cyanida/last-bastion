@@ -6,6 +6,9 @@ import { cuePriority, pickVoice, placeCue, tooSoon, vary, type Listener, type Vo
 import type { ArenaId } from '../config/arenas';
 import { bedToLayer, startBed, stopBed, type BedVoice } from './ambience';
 import { prefs } from './storage';
+import { classLayers, classSoundKind } from '../logic/classSounds';
+import type { ClassId } from '../config/classes';
+import { playLayers } from './classVoice';
 
 /**
  * Tiny WebAudio synth. Every sound is one oscillator or noise burst with a pitch slide. #282: and the mixer: each sound goes out on a bus
@@ -171,6 +174,15 @@ export const listenFrom = (fn: () => Listener | null): void => void (listener = 
 const cues = { played: 0, dropped: 0, stolen: 0, panned: 0, faded: 0, boss: 0, bossDropped: 0, crowded: 0, bossCrowded: 0 };
 export const voiceStats = () => ({ ...cues, max: VOICES.max, live: ctx ? voices.filter((v) => v.ends > ctx!.currentTime).length : 0 });
 
+/**
+ * #284: the player's class (main.ts tells how to ask, as for the listener): his swings, shots and casts play his class's own sounds
+ * (config/classSounds.ts), counted by class and kind for the play test.
+ */
+let classOf: (() => ClassId | null) | null = null;
+export const classFrom = (fn: () => ClassId | null): void => void (classOf = fn);
+const classPlayed: Record<string, number> = {};
+export const classSoundStats = (): Record<string, number> => ({ ...classPlayed });
+
 /** A cue the voice limit took the place of: faded out quickly rather than cut, which would click. */
 function steal(i: number, now: number): void {
   const [v] = voices.splice(i, 1);
@@ -228,6 +240,17 @@ export function sfx(name: SfxName, cue?: { src: CueSource; x: number; y: number 
   } else gain.connect(buses[bus]);
   if (place && place.gain < 1) cues.faded++;
   if (HEAVY.includes(name)) duck(now);
+  const cls = classOf?.() ?? null;
+  const own = classSoundKind(name, from, cls);
+  if (own && cls && noise) {
+    // #284: the class's own layers, each with its envelope: this gain only carries the cue's volume and place
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setValueAtTime(v.volume * (place?.gain ?? 1), now);
+    const { node, ends } = playLayers(ctx, noise, gain, classLayers(cls, own), now, v.rate);
+    classPlayed[`${cls}:${own}`] = (classPlayed[`${cls}:${own}`] ?? 0) + 1;
+    if (bus === 'effects') voices.push({ prio, start: now, ends, node, gain });
+    return;
+  }
   let src: AudioScheduledSourceNode;
   if (s.wave === 'noise') {
     const n = ctx.createBufferSource();

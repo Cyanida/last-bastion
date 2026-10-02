@@ -7836,6 +7836,58 @@ await check('Sound: a boss cue plays in a crowded fight; the voice limit drops t
   return { ok, detail: fight.found ? `${fight.id}: ${fight.ticks} ticks in ${fight.seconds} s with up to ${fight.crowd} foes; voices up to ${fight.peak}/${fight.max}; ${fight.played} effects played, ${fight.dropped} dropped, ${fight.stolen} taken over, ${fight.crowded} cues met full voices; boss cues ${fight.boss} played (${fight.bossCrowded} while full), ${fight.bossDropped} dropped; ${fight.panned} panned, ${fight.faded} quieter off screen; a fall past the edge: ${far ? `${far.panned ? 'panned' : 'NOT panned'}, ${far.faded ? 'quieter' : 'NOT quieter'}` : 'not played'}${errs.length ? `; errors: ${errs[0]}` : ''}` : 'no boss on the last wave' };
 });
 
+// #284: each class's attack and ability sounds its own. For each champion: Settings -> Test mode -> the champion -> Start test run, at
+// 1280x720 with the mouse; a foe stands in reach, so the champion's attack plays, and Space casts his ability. The effects bus plays
+// that class's own attack and ability sounds (core/audio.ts classSoundStats), and no other class's.
+await check("Sound: each class's attack and ability plays its own sound (#284)", async () => {
+  const seen = [];
+  for (const cls of ['paladin', 'viking', 'angel', 'necromancer', 'archer']) {
+    const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const errs = [];
+    p.on('pageerror', (e) => errs.push(e.message));
+    p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    if (!(await p.evaluate(() => typeof window.__lb.classSounds === 'function'))) return (await p.close(), { skip: true, detail: 'no class sounds on this branch (before #284)' });
+    await p.getByRole('button', { name: 'Settings', exact: true }).click();
+    await p.locator('[data-act="test"]').click();
+    await p.locator('#tm-class').selectOption(cls);
+    await p.getByRole('button', { name: /start test run/i }).click(); // a click: the sound starts
+    await p.waitForFunction(() => window.__lb.state === 'playing' || window.__lb.state === 'choice', null, { timeout: 5000 });
+    for (let i = 0; i < 4 && (await p.evaluate(() => window.__lb.state === 'choice')); i++) {
+      const pick = p.locator('#overlay [data-pick], #overlay [data-leave]').first();
+      await pick.click(); // an opening pick or a board, answered with the mouse
+      await p.waitForTimeout(150);
+    }
+    // a foe in reach: the auto-attack swings or shoots at him
+    const attacked = await p.evaluate(async () => {
+      const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.player.invulnerable = true;
+      for (let i = 0; i < 40; i++) {
+        if (!g.enemies.some((e) => !e.dead)) lb.spawn('peasant', g.player.x + 40, g.player.y);
+        g.player.invulnerable = true;
+        lb.run(1, false, 'input');
+        if (i % 8 === 7) await wait(20);
+      }
+      for (let i = 0; i < 1200 && g.player.abilityTime > 0; i++) lb.run(1, false, 'input'); // an ability still running must end first
+      Object.assign(g.player, { abilityCd: 0 });
+      if (!g.enemies.some((e) => !e.dead)) lb.spawn('peasant', g.player.x + 40, g.player.y); // a cast that wants a foe has one
+      return lb.classSounds();
+    });
+    await p.keyboard.down('Space');
+    await p.evaluate(() => window.__lb.run(2, false, 'input'));
+    await p.keyboard.up('Space');
+    const after = await p.evaluate(() => window.__lb.classSounds());
+    const others = Object.keys(after).filter((k) => !k.startsWith(`${cls}:`));
+    seen.push({ cls, attack: attacked[`${cls}:attack`] ?? 0, ability: (after[`${cls}:ability`] ?? 0) - (attacked[`${cls}:ability`] ?? 0), others, errs: errs[0] ?? '' });
+    await p.close();
+  }
+  const ok = seen.length === 5 && seen.every((x) => x.attack >= 1 && x.ability >= 1 && x.others.length === 0 && !x.errs);
+  return { ok, detail: seen.map((x) => `${x.cls}: attack ×${x.attack}, ability ×${x.ability}${x.others.length ? `, others ${x.others.join('/')}` : ''}${x.errs ? ` (error: ${x.errs})` : ''}`).join('; ') };
+});
+
 // ---------- #264: a strong build meets every phase of a crown boss: Settings -> Test mode -> "Start at" a relic realm's level 5 -> its last wave ----------
 // The champion strikes forty times his strength from behind the crown boss (unhurt, no ability, no bot moves), so only the crown's hold keeps
 // him up. Each phase holds its 12 s (UNBROKEN shows the hold), and once its time is run a blow ends the phase and no more: the next phase
