@@ -62,7 +62,7 @@ import type { WhatsNew } from '../logic/whatsNew';
 import { CHAMPION_BUILD_TEXT, CHAMPION_HELP, CHAMPION_TABS, CHAMPION_TOUR, GLOSSARY, SLOT_BLOCK_TEXT, type ChampionTab } from '../config/glossary';
 import { cardInfo, iconCard, type CardId } from '../config/cards';
 import { AFFIXES, ELITES, type AffixId } from '../config/elites';
-import type { Cue, Layer, Mood, Stinger } from '../logic/runMusic';
+import { bossMusicIds, musicTheme, type Cue, type Layer, type Mood, type MusicId, type Stinger } from '../logic/runMusic';
 import type { TestSetup } from '../systems/testMode';
 
 const overlay = () => document.getElementById('overlay')!;
@@ -1748,7 +1748,7 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
       ${Object.entries(SHEETS).map(([id, d]) => `<div class="tm-gallery"><b>${id}</b>${Object.keys(d.anims).map((a) => `<figure><canvas data-sheet="${id}" data-anim="${a}" width="${d.w * 2}" height="${d.h * 2}"></canvas><figcaption>${a}</figcaption></figure>`).join('')}</div>`).join('')}
       <h2>Music jukebox</h2>
       <div class="tm-grid">
-        <label>Theme <select id="jb-arena">${options((Object.keys(THEMES) as ThemeId[]).map((id) => [id, THEMES[id].name]), setup.arena)}</select></label>
+        <label>Theme <select id="jb-arena">${options((Object.keys(THEMES) as ThemeId[]).map((id) => [id, THEMES[id].name]), setup.arena)}${options(bossMusicIds().map((id) => [id, `Boss · ${musicTheme(id).name}`]), '')}</select></label>
         <label>Layer <input id="jb-layer" type="range" min="0" max="3" step="1" value="1"></label><span id="jb-name"></span>
       </div>
       <div class="row">${kit.button('Play', { kind: 'go', attrs: 'data-play' })}${kit.button('Fork cue', { attrs: 'data-cue="fork"' })}${kit.button('Victory cue', { attrs: 'data-cue="victory"' })}${kit.button('Stop', { attrs: 'data-stop' })}</div>
@@ -1774,11 +1774,12 @@ export function showTestMode(setup: TestSetup, on: { start: (s: TestSetup) => vo
     relics: Object.fromEntries([...el.querySelectorAll<HTMLSelectElement>('#tm-relics select')].filter((s) => s.value !== '0').map((s) => [s.dataset.relic, Number(s.value)])),
     realmLevel: parseTestLevel(field('tm-start').value),
   }));
-  // the jukebox: changes land on the next bar line, as in a run; a cue plays once, then the mood lets go of it
+  // the jukebox: changes land on the next bar line, as in a run; a cue plays once, then the mood lets go of it. #289: a boss's theme is
+  // listed too, its layer standing for its phase
   let playing = false;
   const play = (cue: Cue | null = null) => {
     playing = true;
-    on.play({ arena: field('jb-arena').value as ThemeId, layer: Number(field('jb-layer').value) as Layer, cue });
+    on.play({ arena: field('jb-arena').value as MusicId, layer: Number(field('jb-layer').value) as Layer, cue });
   };
   const label = () => (field('jb-name').textContent = JUKEBOX_LAYERS[Number(field('jb-layer').value)]);
   label();

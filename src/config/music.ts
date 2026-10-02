@@ -1,4 +1,5 @@
 import type { ArenaId } from './arenas';
+import type { EnemyId } from './enemies';
 import type { Voice } from '../logic/music';
 import type { RealmId } from './world';
 
@@ -124,4 +125,67 @@ export const MUSIC = {
   voices: { high: 28, low: 16 },
   lookahead: 1, // v0.7.5: seconds of music queued ahead on the audio clock; a frame stall shorter than this cannot open a gap
   stingerGap: 1.5, // v0.7.1: seconds after a stinger before another can sound (a burst of tier-ups rings once)
+};
+
+/**
+ * #289: a boss's own theme. While the boss is up it takes over from the arena's music (logic/runMusic.ts moodOf; the conductor crossfades
+ * on the next bar line, as between arenas), builds with the boss's phases (phase 1 plays the base layer, the last phase the full boss
+ * layer) and hands back to the arena's theme when it falls. A boss theme is a Theme, so the run music's parts score it, plus a part of its
+ * own from its composer (logic/bossMusic.ts COMPOSERS): what makes it this boss's. Bosses with no theme here keep the arena's boss layer.
+ * To add one: an entry here, a composer name, and its composer function.
+ */
+export type BossComposer = 'march' | 'warhorn' | 'choir' | 'chant';
+export interface BossTheme extends Theme {
+  composer: BossComposer;
+}
+
+export const BOSS_THEMES: Partial<Record<EnemyId, BossTheme>> = {
+  // a grim march: C minor, a march drum on every beat under a horn pad, the horn tolling root and fifth
+  blackKnight: {
+    name: 'The Black Knight', root: 0, mode: MINOR, bpm: 96, meter: 4, composer: 'march',
+    chords: [0, 0, 5, 4, 0, 3, 5, 4], // i i VI v | i iv VI v: he never stops coming
+    drone: 'drone', pad: 'horn',
+    pulse: null,
+    perc: { midi: 41, hits: [[0, 0.8], [2, 0.65]] }, // the bass drum on one and three; the snare is the composer's
+    lead: 'horn',
+    boss: { midi: 36, hits: [[0, 1], [1, 0.55], [2, 0.85], [3, 0.55], [3.5, 0.45]] },
+  },
+  // war horns and toms: A Dorian, quick, the horn calling the pack
+  warlord: {
+    name: 'The Warlord', root: 9, mode: DORIAN, bpm: 104, meter: 4, composer: 'warhorn',
+    chords: [0, 6, 0, 3, 0, 6, 4, 0], // i VII i IV | i VII v i: open fifths and a raised sixth, wild rather than sad
+    drone: 'drone', pad: null,
+    pulse: { voice: 'bass', steps: [0, null, 0, 2, null, 0, 1, null] }, // a galloping bass
+    perc: { midi: 45, hits: [[0, 0.8], [1.5, 0.45], [2, 0.7], [3.5, 0.45]] },
+    lead: 'horn',
+    boss: { midi: 38, hits: [[0, 1], [0.5, 0.5], [1.5, 0.7], [2, 0.9], [2.75, 0.5], [3, 0.7], [3.5, 0.6]] },
+  },
+  // a cold choir: B Phrygian, slow, a choir held over a drone with ice bells high above
+  lich: {
+    name: 'The Lich', root: 11, mode: PHRYGIAN, bpm: 62, meter: 4, composer: 'choir',
+    chords: [0, 1, 0, 5, 3, 1, 6, 0], // i bII i VI | iv bII vii i
+    drone: 'drone', pad: 'choir',
+    pulse: { voice: 'bell', steps: [4, null, null, null, 2, null, null, null] },
+    perc: null,
+    lead: 'flute',
+    boss: { midi: 36, hits: [[0, 1], [2, 0.7], [3.5, 0.45]] },
+  },
+  // a sickly chant: G# Phrygian, an organ wheezing under a chant that never leaves its one note for long, and keeps sagging onto the flat second
+  abbot: {
+    name: 'The Plague Abbot', root: 8, mode: PHRYGIAN, bpm: 70, meter: 4, composer: 'chant',
+    chords: [0, 1, 0, 3, 0, 1, 5, 0], // i bII i iv | i bII VI i
+    drone: 'organ', pad: 'organ',
+    pulse: null,
+    perc: { midi: 47, hits: [[0, 0.55], [3, 0.35]] }, // a slow hand drum, a procession
+    lead: 'choir',
+    boss: { midi: 40, hits: [[0, 1], [1, 0.45], [2, 0.8], [2.5, 0.45], [3, 0.6]] },
+  },
+};
+
+/** #289: a boss variant (config/bosses.ts) plays its base boss's theme, shifted: `shift` semitones on its key, `tempo` x its BPM. */
+export const BOSS_VARIANT_THEMES: Record<string, { shift: number; tempo: number }> = {
+  dreadKnight: { shift: -2, tempo: 0.92 }, // lower and heavier
+  headsman: { shift: 1, tempo: 0.84 }, // the slow walk to the block
+  frostLich: { shift: 2, tempo: 0.9 }, // higher and colder
+  siegeMarshal: { shift: -3, tempo: 1.06 }, // down a third, pressing on
 };

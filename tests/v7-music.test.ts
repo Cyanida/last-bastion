@@ -83,12 +83,12 @@ describe('run music: the conductor (v0.7.1)', () => {
   it('changes land on bar lines: every downbeat is one bar after the last, and a change shows on the first bar after it', () => {
     const changes: [number, Mood][] = [[0, mood('courtyard', 1)], [7.33, mood('courtyard', 2)], [15.05, mood('courtyard', 3)], [26.61, mood('courtyard', 1)], [40.2, mood('graveyard', 1)], [52.9, mood('graveyard', 0)]];
     const bars = play(changes, 70);
-    for (let i = 1; i < bars.length; i++) expect(bars[i].at).toBeCloseTo(bars[i - 1].at + barSeconds(THEMES[bars[i - 1].arena]), 9);
+    for (let i = 1; i < bars.length; i++) expect(bars[i].at).toBeCloseTo(bars[i - 1].at + barSeconds(THEMES[bars[i - 1].arena as ArenaId]), 9);
     // up: on the first bar that was scheduled after the change
     for (const [at, m] of changes.slice(1, 3)) {
       const first = bars.find((b) => b.layer === m.layer)!;
       expect(first.at).toBeGreaterThan(at);
-      expect(first.at - at).toBeLessThanOrEqual(barSeconds(THEMES[m.arena]) + 0.4 + 1e-9);
+      expect(first.at - at).toBeLessThanOrEqual(barSeconds(THEMES[m.arena as ArenaId]) + 0.4 + 1e-9);
       expect(bars[bars.indexOf(first) - 1].at).toBeLessThanOrEqual(at + 0.4 + 1e-9);
     }
     // down: only after MUSIC.calmBars bars of asking for less
@@ -135,7 +135,7 @@ describe('run music: the mood of a run (v0.7.1)', () => {
     for (let i = 0; i < MUSIC.danger.enemies; i++) spawnEnemy(g, 'peasant', 100 + i, 100);
     expect(moodOf(g).layer).toBe(2);
     spawnEnemy(g, 'warlord', 300, 300);
-    expect(moodOf(g).layer).toBe(3);
+    expect(moodOf(g)).toEqual({ arena: 'boss:warlord', layer: 1, cue: null }); // #289: his own theme takes over, from its first phase
     g.pendingMerchant = true;
     expect(moodOf(g).layer).toBe(0);
     g.pendingMerchant = false;
