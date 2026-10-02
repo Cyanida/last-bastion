@@ -1593,9 +1593,90 @@ await check("boss themes: the Black Knight's theme takes over from the arena's, 
     });
     const back = fell && (await hear('courtyard'));
     const s3 = await music();
-    const ok = listed.length === 8 && listed.includes('Boss · The Plague Abbot') && listed.includes('Boss · The Frost Lich') && jukebox && before && met.name === 'The Black Knight' && takeover &&
+    const ok = listed.length >= 8 && listed.includes('Boss · The Plague Abbot') && listed.includes('Boss · The Frost Lich') && jukebox && before && met.name === 'The Black Knight' && takeover &&
       hud.includes('The Black Knight') && phase === 2 && built && s2.stingers > s1.stingers && back && s3.peak <= s3.budget && !errs.length;
     return { ok, detail: `jukebox lists ${listed.length} boss themes, the Lich's plays ${jukebox}; courtyard first ${before}; ${met.name} (${met.key}) -> his theme ${takeover} (layer ${s1.layer}), HUD "${hud}"; phase ${phase} -> layer 3 ${built}, stingers ${s1.stingers} -> ${s2.stingers}; falls ${fell} -> ${s3.arena} ${back}; peak ${s3.peak}/${s3.budget} voices${errs.length ? `, errors: ${errs[0]}` : ''}` };
+  } finally {
+    await p.close();
+  }
+});
+
+// #291: the realm bosses' themes. Through Settings and test mode at 1280x720 with the mouse: the jukebox lists the Forgemaster's, the Iron
+// King's, the Ember Queen's and the Cinder Colossus's themes and plays the Ember Queen's; then "Start at" the Iron Hold's level 5 plays the
+// Iron Hold's theme until the Iron King comes on its last wave, his crown takes over (its base layer in his first phase), builds with each
+// of his three phases to the full boss layer, and hands back to the Iron Hold's theme when he falls.
+await check("realm boss themes: the Iron King's theme takes over from the Iron Hold's, builds with his phases and hands back when he falls (#291)", async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  try {
+    await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    const music = () => p.evaluate(() => window.__lb.music());
+    const hear = (arena, layer = null, timeout = 15000) => p.waitForFunction(([a, l]) => {
+      const m = window.__lb.music();
+      return m.playing === 'run' && m.arena === a && (l === null || m.layer === l);
+    }, [arena, layer], { timeout }).then(() => true, () => false);
+    await p.locator('[data-go="settings"]').click();
+    await p.locator('.settings [data-act="test"]').click();
+    if (!(await p.locator('#tm-start option[value="ironHold:5"]').count())) return { skip: true, detail: 'no realm-level start in this build' };
+    // the jukebox: the four realm bosses' themes are on its list, and the Ember Queen's plays
+    const listed = await p.evaluate(() => [...document.querySelectorAll('#jb-arena option')].filter((o) => o.value.startsWith('boss:')).map((o) => o.textContent.trim()));
+    const four = ['The Forgemaster', 'The Iron King', 'The Ember Queen', 'The Cinder Colossus'].every((n) => listed.includes(`Boss · ${n}`));
+    await p.locator('#jb-arena').selectOption('boss:emberQueen');
+    await p.locator('.testmode [data-play]').click();
+    const jukebox = await hear('boss:emberQueen');
+    await p.locator('.testmode [data-stop]').click();
+    // a test run: the Iron Hold's level 5, straight on to its last wave, the Iron King's
+    await p.locator('#tm-class').selectOption('paladin');
+    await p.locator('#tm-arena').selectOption('keep');
+    await p.locator('#tm-start').selectOption('ironHold:5');
+    await p.locator('.testmode [data-start]').click();
+    await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+    await p.locator('[data-pick="0"]').click();
+    await p.evaluate(() => (window.__lb.game.player.invulnerable = true));
+    const before = await hear('ironHold');
+    const met = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1;
+      g.breather = 0.01;
+      const boss = () => g.enemies.find((e) => e.def.boss && !e.side && !e.dead);
+      for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) lb.run(1, false, true);
+      const b = boss();
+      window.__realmBoss = b;
+      return b ? { id: b.def.id, phase: b.phase } : null;
+    });
+    if (!met) return { ok: false, detail: 'no boss reached' };
+    const takeover = await hear('boss:ironKing', 1);
+    const s1 = await music();
+    // his phases come on a clock (12 s each): play on to each
+    const toPhase = (n) => p.evaluate((n) => {
+      const lb = window.__lb, b = window.__realmBoss;
+      for (let i = 0; i < 60 * 40 && b.phase < n && !b.dead; i++) lb.run(1, false, true);
+      return b.phase;
+    }, n);
+    const phase2 = await toPhase(2);
+    const layer2 = await hear('boss:ironKing', 2);
+    const phase3 = await toPhase(3);
+    const layer3 = await hear('boss:ironKing', 3);
+    // he falls: the Iron Hold's theme comes back
+    const fell = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game, b = window.__realmBoss, pl = g.player;
+      g.baseMods.damage *= 1e4;
+      for (let i = 0; i < 60 * 30 && g.enemies.includes(b) && !b.dead && lb.game === g; i++) {
+        if (lb.state === 'playing') Object.assign(pl, { x: b.x - b.r - 30, y: b.y });
+        lb.run(1, false, true);
+      }
+      g.baseMods.damage /= 1e4;
+      return b.dead || !g.enemies.includes(b);
+    });
+    const back = fell && (await hear('ironHold'));
+    const s3 = await music();
+    const ok = four && jukebox && before && met.id === 'ironKing' && takeover && phase2 === 2 && layer2 && phase3 === 3 && layer3 && back && s3.peak <= s3.budget && !errs.length;
+    return { ok, detail: `jukebox lists the four ${four} (${listed.length} boss themes), the Ember Queen's plays ${jukebox}; Iron Hold first ${before}; ${met.id} -> his theme ${takeover} (layer ${s1.layer}); phase ${phase2} -> layer 2 ${layer2}; phase ${phase3} -> layer 3 ${layer3}; falls ${fell} -> ${s3.arena} ${back}; peak ${s3.peak}/${s3.budget} voices${errs.length ? `, errors: ${errs[0]}` : ''}` };
   } finally {
     await p.close();
   }
