@@ -17,6 +17,7 @@ import { deathBurst, deathBurstOf } from '../logic/deathBurst';
 import { plagueGround, plagueGroundOf } from '../logic/plagueGround';
 import { corpseRise, stepRising } from '../logic/risingCorpse';
 import { goldDrop } from '../logic/economy';
+import { heldFor } from '../logic/graspingHands';
 import { onSlab } from '../logic/presses';
 import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
@@ -605,7 +606,11 @@ export function updateZones(g: Game, dt: number): void {
     if (z.killsOwner && z.owner) killEnemy(g, z.owner, 'hazard');
     if (z.hostile) {
       if (z.delay >= SKILL.perfect.minDelay) zoneStruck(g, z.lastIn, inside);
-      if (inside) hurtTarget(g, g.player, z.damage, true, z.owner, z.cause);
+      if (inside) {
+        const before = g.player.hp;
+        hurtTarget(g, g.player, z.damage, true, z.owner, z.cause);
+        if (z.hold) g.player.heldT = heldFor(g.player.heldT, z.hold, g.player.hp < before); // #274: a grave's hands hold him, unless a dodge, shield or block kept the blow off
+      }
       for (const m of g.minions) if (on(m)) hurtTarget(g, m, z.damage, true, z.owner);
       ring(g, z.x, z.y, z.r, z.color);
       burst(g, z.x, z.y, z.color, 18, 240);

@@ -47,6 +47,7 @@ export function createPlayer(cls: ClassDef, arena: ArenaDef, stats: Stats = cls.
     utilityUpgrades: [],
     absorbed: 0,
     chillT: 0,
+    heldT: 0,
     still: 0,
     statuses: {},
     dots: {},

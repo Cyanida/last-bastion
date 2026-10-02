@@ -28,6 +28,10 @@ export function nextCard<F extends CardFoe>(foes: readonly F[], px: number, py: 
   return null;
 }
 
+/** #274: the grasping hands' card, the first time the Barrowvale's graves are marked (a hostile zone whose hands hold), while they still are. */
+export const handsCard = (zones: readonly { hostile: boolean; hold?: number }[], seen: readonly string[]): boolean =>
+  !seen.includes('graspingHands') && zones.some((z) => z.hostile && (z.hold ?? 0) > 0);
+
 /** #60: what the tutorial cards need to know about the run (built by the screen between ticks, so tests need no game). */
 export interface TutorialView {
   realm?: string; // the realm level being played, if any

@@ -177,6 +177,7 @@ export interface Player extends Body {
   deathless: boolean; // HP cannot drop below 1
   absorbed: number; // damage soaked by Divine Shield this cast
   chillT: number; // slowed by a Frost Aura elite
+  heldT: number; // #274: seconds the Barrowvale's grasping hands still hold him: he cannot walk (logic/graspingHands.ts)
   still: number; // seconds without moving
   statuses: StatusMap; // v0.3: burn, bleed, poison, chill, curse from enemies
   dots: Partial<Record<DamageType, number>>; // damage-over-time waiting for the next tick
@@ -360,6 +361,7 @@ export interface Zone extends Body {
   source: DamageSource; // a friendly zone's damage: 'ability', or 'hazard' for the arena's own (braziers, the gatehouse)
   art?: 'hands' | 'fire' | 'press'; // #159: an arena hazard's telegraph shows its rigged prop rising in the circle (#211: a press's ram lowering)
   slab?: number; // #211: a square zone, a marked flagstone slab this many px wide (logic/presses.ts onSlab); r is half of it
+  hold?: number; // #274: a marked grave: the hands that rise from it hold the champion they catch this many seconds (config/arenas.ts GRAVE_HANDS)
 }
 
 /** Lasting area: fire, poison, consecrated ground. Ticks every GAME.fieldTick seconds. */

@@ -354,6 +354,29 @@ function pressSlab(ctx: Ctx, x: number, y: number, size: number, k: number, time
 }
 
 /**
+ * #274: a grave the Barrowvale's hands will rise from: a long pit of fresh-turned earth that splits open as the hands near (k 0..1),
+ * a pale headstone at its head, so the marked spot reads as a grave and not just as a circle.
+ */
+function markedGrave(ctx: Ctx, x: number, y: number, r: number, k: number): void {
+  const w = r * 0.55, h = r * 0.95;
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = '#3b3326'; // the turned earth
+  ctx.beginPath();
+  ctx.ellipse(x, y, w, h, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#100d0a'; // the pit opening
+  ctx.beginPath();
+  ctx.ellipse(x, y, w * (0.25 + 0.6 * k), h * (0.35 + 0.55 * k), 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#b9bfb0'; // the headstone
+  ctx.fillRect(x - 7, y - h - 12, 14, 14);
+  ctx.beginPath();
+  ctx.arc(x, y - h - 12, 7, Math.PI, 0);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+/**
  * #224: a slab the spreading fire holds, `t` s after it caught. Kindling, the warning: embers glow along its joints and the heat grows
  * inward from a bright rim. Burning: the slab is a bed of coals with three flames licking over it; they sink as it burns out.
  */
@@ -706,6 +729,7 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
         ctx.stroke();
       }
     } else {
+      if (zn.hold && zn.hostile) markedGrave(ctx, zn.x, zn.y, zn.r, k);
       ctx.fillStyle = zn.color;
       ctx.globalAlpha = zn.hostile ? 0.16 : 0.08;
       disc(ctx, zn.x, zn.y, zn.r);
@@ -720,7 +744,8 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
       ctx.stroke();
       ctx.globalAlpha = 1;
       // #159: the hazard itself rises in the circle: a hand claws up, or the fire swells until it strikes
-      if (zn.art === 'hands') drawProp(ctx, 'hand', zn.x, zn.y + 8, 1, Math.min(2, Math.floor(k * 3)));
+      if (zn.art === 'hands' && zn.hold) for (const dx of [-11, 11]) drawProp(ctx, 'hand', zn.x + dx, zn.y + 6 + Math.abs(dx) / 3, 1, Math.min(2, Math.floor(k * 3))); // #274: a pair, to grip
+      else if (zn.art === 'hands') drawProp(ctx, 'hand', zn.x, zn.y + 8, 1, Math.min(2, Math.floor(k * 3)));
       else if (zn.art === 'fire') drawProp(ctx, 'flare', zn.x, zn.y + 12, 1 + k, propFrame('flare', g.time));
     }
   }
@@ -1032,6 +1057,17 @@ export function render(ctx: Ctx, g: Game, view: View, arena: HTMLCanvasElement, 
   }
   if (p.invulnT <= 0 || Math.floor(g.time * 16) % 2 === 0) {
     drawSprite(ctx, playerSprite(g, p, GAME.spriteScale + (g.vars.avatar ? 2 : 0)), p.x, p.y, p.flip, p.flash > 0); // v0.6: the Avatar of Wrath is a giant
+  }
+  if (p.heldT > 0) {
+    // #274: held by a grave's hands: a pair grips his feet, over the sprite, until they let go
+    ctx.strokeStyle = '#7fae7a';
+    ctx.globalAlpha = 0.8;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + 4, p.r + 6, (p.r + 6) * 0.45, 0, 0, TAU);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    for (const dx of [-9, 9]) if (!drawProp(ctx, 'hand', p.x + dx, p.y + 10, 1, 2)) (ctx.fillStyle = '#9fae96'), ctx.fillRect(p.x + dx - 3, p.y - 4, 6, 14);
   }
   if (p.chillT > 0) {
     ctx.fillStyle = 'rgba(169,216,239,0.3)';
