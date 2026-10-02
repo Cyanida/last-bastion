@@ -21,6 +21,7 @@ export const view = {
 export interface CueOpts {
   src?: CueSource;
   at?: { x: number; y: number } | null;
+  voice?: string; // #285: a foe family's own sound (logic/foeSounds.ts foeBy), played in place of the cue's plain one
 }
 /** A cue as it waits in `g.out`: its place copied (x, y NaN for none), so the queue holds no entity. */
 export interface Cue {
@@ -28,13 +29,14 @@ export interface Cue {
   src: CueSource;
   x: number;
   y: number;
+  voice?: string; // #285
 }
 /**
  * A sound cue: it waits in `g.out` until the view plays it (playCues) after the step (#114). #283: with its source and place, for example
  * `sfx(g, 'warn', { src: 'boss', at: boss })`.
  */
 export const sfx = (g: Game, name: SfxName, o?: CueOpts): void => {
-  g.out.push({ name, src: o?.src ?? 'world', x: o?.at ? o.at.x : NaN, y: o?.at ? o.at.y : NaN });
+  g.out.push({ name, src: o?.src ?? 'world', x: o?.at ? o.at.x : NaN, y: o?.at ? o.at.y : NaN, voice: o?.voice });
 };
 /** #283: a foe's cue, at the foe: a boss's own weighs as a boss cue. */
 export const by = (e: { x: number; y: number; def: { boss: boolean } }): CueOpts => ({ src: e.def.boss ? 'boss' : 'foe', at: e });
