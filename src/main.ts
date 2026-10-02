@@ -5,7 +5,7 @@ import { ARENAS, type ArenaId } from './config/arenas';
 import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
 import { GAME, VIEW } from './config/game';
-import { ambience, classFrom, classSoundStats, getMix, initAudio, isMuted, listenFrom, mixerStats, setVolume, sfx, toggleMute, voiceStats } from './core/audio';
+import { ambience, bossCueStats, classFrom, classSoundStats, getMix, initAudio, isMuted, listenFrom, mixerStats, setVolume, sfx, toggleMute, voiceStats } from './core/audio';
 import { foeVoiceStats } from './core/foeVoices';
 import { musicStats, refreshMusic, runMusic, runMusicOn, setRunMusic, startMenuMusic, stinger, stopMenuMusic } from './core/music';
 import { addListener, type EventName } from './core/events';
@@ -1104,6 +1104,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       voices: voiceStats, // #283: what the voice limit played, dropped and took over
       classSounds: classSoundStats, // #284: each class's own attack and ability sounds played, by class and kind
       foeVoices: foeVoiceStats, // #285: each foe family's sounds played, by voice
+      bossCues: bossCueStats, // #286: each boss cue that got a voice, by name
       stinger, // v0.7.1
       resetPerf: resetHistory,
       perfSummary: summary,

@@ -32,6 +32,7 @@ import { updateArena } from './systems/arena';
 import { healPlayer, updateFields, updatePlayerAttack, updateProjectiles, updateRisingCorpses, updateZones } from './systems/combat';
 import { updateEffects } from './systems/effects';
 import { updateEnemies } from './systems/enemyAI';
+import { updateBossSounds } from './systems/bossSounds';
 import { updateMinions } from './systems/minions';
 import { updateEnemyPhysics, updatePickups, updatePlayerMovement } from './systems/movement';
 import { addRelic, offerRelics, updateRelics } from './systems/relics';
@@ -373,6 +374,7 @@ export function updateGame(g: Game, dt: number): void {
   end('statuses', _t);
   _t = begin();
   updateEnemies(g, dt);
+  updateBossSounds(g); // #286: reads this step's phases and warnings
   end('enemyAI', _t);
   _t = begin();
   updateEnemyPhysics(g, dt);
