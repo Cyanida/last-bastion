@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.13.0 — The Barrowvale
+
+The third relic realm opens: the Barrowvale, five levels through the Forsaken Graveyard to the Barrow King, where the dead don't stay down. And the whole game gets a new sound: a mixer, a voice for every class, foe, boss and relic, and a theme of its own for every boss.
+
+- **The Barrowvale**: five levels in the Forsaken Graveyard, with crypts, the sexton's yard, a broken chapel and the old barrows, and the realm's own music.
+- **Grasping hands**: marked graves around you sprout hands that hurt you and hold you in place; walk off before they close.
+- **New foes**: Barrow Thralls rise again unless you trample their corpses, and Blight Hounds leave plague ground that lasts where they die. Each has a flash card.
+- **New bosses**: the Gravedigger ends level 3 with his spade, and the Barrow King guards the crown in three phases. The elite Lich's Barrow Call opens graves.
+- **New Grave relics**: Barrow Boots, Plague Censer, Sexton's Bell and the legendary Crown of Antlers; Soul Lantern now waits at the Barrowvale's crown; class relics Ossuary Seal, Draugr's Mead, Last Rites and Wightbone Arrows; and a new duo, Barrow Feast.
+- **Rewards**: the Legend crown gives the title Gravewarden and the Barrow colours.
+- **A new sound**: a mixer in Settings with master, music, effects, interface and ambience sliders; every class's attacks and abilities, every enemy family, every boss (his arrival, his big moves, each new phase) and every relic family sound their own; the menus answer hover, tap, back, confirm and pick; sounds sit left or right where they happen; and every arena has its own ambience.
+- **Boss themes**: every boss now plays a theme of his own that takes over from the arena's music and builds with his phases, and they're all on the jukebox.
+- **Five champions redrawn**: the Paladin as a holy warrior in silver-white and gold, the Viking as a raider with a Dane axe, the Angel as a fighting angel with great pearl wings, the Necromancer as a bone priest and the Archer as a hooded woodland ranger. How they play is unchanged.
+- **Nothing cut off**: no text is cut off and every back and close button sits fully inside the window, on every screen and window size.
+- **Fixes**: Cinderlands levels 2-4 ease on Knight, its crown can be cleared at the champion level cap on Squire, the Cinder Colossus can't be burned through his phases in seconds, a realm run speaks of levels, not Acts, and tooltips no longer cover a pick screen's title or the points line.
+
 ## v0.12.0 — The Cinderlands
 
 The second relic realm opens: the Cinderlands, five levels through the Ember Forge to the Cinder Colossus, where fire spreads and foes burn you as they fall. And a round of fixes from the Iron Hold's playtest.
