@@ -2275,6 +2275,78 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
   });
 }
 
+// ---------- #293: the Barrowvale's balance pass, as a player meets it: map -> the Barrowvale -> Knight; every flag's panel shows the Enemy
+// HP its level plays at (its own level steps: level 1 at the floor, the crown level eased) and level 1 names the Plague Abbot; FIGHT on
+// level 1 plays at the HP its panel showed. In that run the grasping hands rise for 7 and hold 1 s (as a foe's blow scales), and its last
+// wave brings the Plague Abbot on the realm's step: 0.85 of his HP, his plague pools at 0.7 (9.8 a second, as a foe's blow scales) ----------
+const BARROW_HP = [314, 251, 229, 230, 200]; // levels 1-5 on Knight, as tests/v13-barrowvale-balance.test.ts pins them
+for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
+  await check(`balance: the Barrowvale's road on Knight shows Enemy HP ${BARROW_HP.slice(0, 4).join(', ')} and ${BARROW_HP[4]}% for levels 1-5, level 1 the Plague Abbot, and FIGHT plays level 1 at ${BARROW_HP[0]}%: its hands rise for 7 and hold 1 s, and the Abbot comes on 0.85 of his HP with pools at 0.7, ${touch ? 'tap' : 'click'} at ${w}x${h} (#293)`, async () => {
+    const errs = [];
+    const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
+    p.on('pageerror', (e) => errs.push(e.message));
+    await p.goto(`http://localhost:${PORT}/?debug`);
+    await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+    await p.evaluate(() => {
+      const lb = window.__lb, world = { marches: [7], barrowvale: [0, 4] }; // the Marches crowned, the Barrowvale's first four levels cleared on Knight
+      lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: {} } };
+      lb.save.cards = [...lb.cardIds]; // every flash card seen: none stops the fight
+    });
+    const press = (sel) => (touch ? p.locator(sel).first().tap() : p.locator(sel).first().click());
+    await press('[data-go="map"]');
+    await press('.wm-realm.r-barrowvale');
+    await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+    await press('.rr-tier[data-tier="1"]');
+    await p.waitForTimeout(100);
+    const shown = [];
+    for (let l = 1; l <= 5; l++) {
+      await press(`.rr-flag.l-${l}`);
+      await p.waitForTimeout(100);
+      const text = (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' ');
+      shown.push({ hp: text.match(/Enemy HP\s*(\d+)%/)?.[1] ?? '?', abbot: /Plague Abbot/.test(text) });
+    }
+    await press('.rr-flag.l-1');
+    await p.waitForTimeout(100);
+    await press('[data-fight]');
+    await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+    const run = await p.evaluate(() => {
+      const lb = window.__lb, g = lb.game;
+      if (!g?.level) return null;
+      const pl = g.player;
+      const out = { realm: g.level.realm, level: g.level.level, tier: g.tierIndex, hp: Math.round(g.tier.enemyHp * 100), hands: 0, handsHold: 0, name: null, bossHp: 0, poolDef: 0, pool: 0 };
+      // the bot plays, unhurt, until the graves are first marked: their hands' blow and hold
+      for (let i = 0; i < 40000 && !g.zones.some((z) => z.hostile && z.hold) && lb.game === g && lb.state !== 'results'; i++) { pl.invulnerable = true; pl.hp = pl.stats.hp; lb.run(1, false, true); }
+      const grave = g.zones.find((z) => z.hostile && z.hold);
+      if (grave) (out.hands = grave.damage / (g.waveDmgMult * g.tier.enemyDmg)), (out.handsHold = grave.hold);
+      // then on to the level's last wave and its end boss
+      g.enemies.length = 0;
+      g.spawnQueue.length = 0;
+      g.wave = g.wavesCleared = g.level.last - 1;
+      g.breather = 0.01;
+      let boss = null;
+      for (let i = 0; i < 4000 && !boss; i++) (pl.invulnerable = true), lb.run(1, false, true), (boss = g.enemies.find((e) => e.def.boss && !e.side) ?? null);
+      if (!boss) return out;
+      const def = lb.enemyDef(boss.def.id), scale = g.waveDmgMult * g.tier.enemyDmg;
+      Object.assign(out, { name: boss.def.name, bossHp: boss.maxHp / (def.hp * g.waveHpMult * g.tier.enemyHp), poolDef: boss.def.poolDps / def.poolDps });
+      // he lobs his flasks; a pool they leave burns at his step
+      for (let i = 0; i < 1800 && !out.pool; i++) {
+        boss.hp = Math.max(boss.hp, boss.maxHp * 0.6);
+        pl.invulnerable = true;
+        lb.run(1, false, true);
+        const pool = g.fields.find((f) => f.hostile && f.max === def.poolLife && Math.abs(f.dps / scale - def.poolDps * 0.7) < 0.01);
+        if (pool) out.pool = pool.dps / scale;
+      }
+      return out;
+    });
+    await p.close();
+    const ok = shown.map((s) => s.hp).join() === BARROW_HP.join() && shown[0].abbot
+      && run?.realm === 'barrowvale' && run.level === 1 && run.tier === 1 && run.hp === BARROW_HP[0]
+      && Math.abs(run.hands - 7) < 0.01 && run.handsHold === 1
+      && run.name === 'The Plague Abbot' && Math.abs(run.bossHp - 0.85) < 0.01 && Math.abs(run.poolDef - 0.7) < 0.001 && Math.abs(run.pool - 9.8) < 0.01 && errs.length === 0;
+    return { ok, detail: `panels Enemy HP ${shown.map((s) => `${s.hp}%`).join(', ')}${shown[0].abbot ? ', level 1 the Plague Abbot' : ', level 1 NOT the Abbot'}; run: ${run ? `${run.realm} level ${run.level}, tier ${run.tier}, enemy HP ${run.hp}%; hands ${run.hands.toFixed(2)} held ${run.handsHold} s; ${run.name ?? 'NO boss'} on HP x${run.bossHp.toFixed(3)}, pools x${run.poolDef.toFixed(2)}, a pool at ${run.pool.toFixed(2)} a second` : 'none'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+  });
+}
+
 // ---------- #262: the Cinderlands on Knight for a champion with only the Marches crown, as the v0.12.0 playtest brought one: map -> the
 // Cinderlands -> Knight -> level 2, after level 1's first clear, with the Knight realm run standing at level 2 (#237: only a run's checkpoint
 // can be fought past level 1). Its panel shows the eased Enemy HP, and "Continue from level 2" plays level 2 at that HP with the champion
