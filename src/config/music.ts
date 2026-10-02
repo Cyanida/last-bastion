@@ -146,7 +146,8 @@ export const MUSIC = {
  * To add one: an entry here, a composer name, and its composer function.
  */
 export type BossComposer = 'march' | 'warhorn' | 'choir' | 'chant'
-  | 'tribunal' | 'wyrm' | 'chains' | 'crown'; // #290
+  | 'tribunal' | 'wyrm' | 'chains' | 'crown' // #290
+  | 'anvil' | 'ironCrown' | 'flame' | 'footfall'; // #291: the realm bosses of the Iron Hold and the Cinderlands
 export interface BossTheme extends Theme {
   composer: BossComposer;
 }
@@ -231,6 +232,48 @@ export const BOSS_THEMES: Partial<Record<EnemyId, BossTheme>> = {
     perc: { midi: 43, hits: [[0, 0.7], [1, 0.4], [2, 0.6], [3, 0.4]] },
     lead: 'horn',
     boss: { midi: 38, hits: [[0, 1], [0.75, 0.5], [1, 0.7], [2, 1], [2.75, 0.5], [3, 0.7], [3.5, 0.6]] },
+  },
+  // #291: the realm bosses, each on his realm's theme's voices. The Iron Hold's: a choir pad, anvil bells, the horn.
+  // the Forgemaster's anvil: F minor, quicker than his realm, hammer blows ringing on the anvil and a choir of the forge under them
+  forgemaster: {
+    name: 'The Forgemaster', root: 5, mode: MINOR, bpm: 88, meter: 4, composer: 'anvil',
+    chords: [0, 0, 3, 4, 0, 5, 3, 4], // i i iv v | i VI iv v: the work never ends
+    drone: 'drone', pad: 'choir',
+    pulse: { voice: 'bell', steps: [null, null, null, null, null, null, 2, null] }, // the anvil's after-ring; the strikes are the composer's
+    perc: { midi: 41, hits: [[0, 0.8], [2, 0.6]] },
+    lead: 'horn',
+    boss: { midi: 36, hits: [[0, 1], [0.5, 0.5], [2, 0.9], [2.5, 0.5], [3, 0.7]] },
+  },
+  // the Iron King's crown: E harmonic minor, slow and stately, a dotted fanfare on the horns and a choir that crowns it
+  ironKing: {
+    name: 'The Iron King', root: 4, mode: HARMONIC_MINOR, bpm: 66, meter: 4, composer: 'ironCrown',
+    chords: [0, 5, 3, 4, 0, 3, 5, 4], // i VI iv V | i iv VI V: the major V's leading tone, a throne that will not be left
+    drone: 'drone', pad: 'choir',
+    pulse: { voice: 'bell', steps: [0, null, null, null, null, null, null, null] }, // one iron bell a bar
+    perc: { midi: 38, hits: [[0, 0.85], [2.5, 0.35], [3, 0.5]] }, // a processional drum
+    lead: 'horn',
+    boss: { midi: 36, hits: [[0, 1], [1, 0.6], [2, 0.9], [3, 0.6], [3.75, 0.45]] },
+  },
+  // The Cinderlands': an organ's glow, a harp, the flute.
+  // the Ember Queen's fire dance: C# Phrygian dominant in a quick three, her flute winding like a flame, finger cymbals as she rages
+  emberQueen: {
+    name: 'The Ember Queen', root: 1, mode: PHRYGIAN_DOMINANT, bpm: 100, meter: 3, composer: 'flame',
+    chords: [0, 1, 0, 6, 0, 1, 3, 0], // I bII I bvii | I bII iv I
+    drone: 'drone', pad: 'organ',
+    pulse: { voice: 'harp', steps: [0, 1, 2, 1, 3, null] },
+    perc: { midi: 50, hits: [[0, 0.6], [1, 0.3], [2, 0.4]] },
+    lead: 'flute',
+    boss: { midi: 40, hits: [[0, 1], [0.5, 0.4], [1, 0.7], [2, 0.85], [2.5, 0.5]] },
+  },
+  // the Cinder Colossus's footfalls: D# Phrygian dominant, very slow, a giant's steps under an organ pedal, the flute shrieking in his last phase
+  cinderColossus: {
+    name: 'The Cinder Colossus', root: 3, mode: PHRYGIAN_DOMINANT, bpm: 58, meter: 4, composer: 'footfall',
+    chords: [0, 1, 0, 3, 0, 1, 6, 0], // I bII I iv | I bII bvii I
+    drone: 'drone', pad: 'organ',
+    pulse: { voice: 'harp', steps: [0, null, null, null, 2, null, null, null] }, // embers falling
+    perc: null, // his steps are the drum (the composer's)
+    lead: 'flute',
+    boss: { midi: 33, hits: [[0, 1], [2, 0.9], [3.5, 0.5]] },
   },
 };
 

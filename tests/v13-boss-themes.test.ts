@@ -27,7 +27,7 @@ describe('boss themes: the scores (#289)', () => {
       expect(FOUR).toContain(BOSSES[k].from);
     }
     for (const k of Object.keys(BOSS_VARIANT_THEMES)) expect(BOSS_THEMES[BOSSES[k].from]).toBeDefined();
-    expect(bossMusicIds()).toEqual(expect.arrayContaining([...FOUR, ...VARIANTS].map((k) => `boss:${k}`))); // #290: more bosses have themes since
+    expect(bossMusicIds()).toEqual(expect.arrayContaining([...FOUR, ...VARIANTS].map((k) => `boss:${k}`))); // #290, #291 add more
   });
 
   it('no boss theme sounds like an arena: its own key, mode and tempo', () => {
