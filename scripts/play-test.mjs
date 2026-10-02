@@ -1635,6 +1635,7 @@ await check("realm boss themes: the Iron King's theme takes over from the Iron H
     await p.locator('.testmode [data-start]').click();
     await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
     await p.locator('[data-pick="0"]').click();
+    await p.waitForFunction(() => !!window.__lb.game, null, { timeout: 5000 });
     await p.evaluate(() => (window.__lb.game.player.invulnerable = true));
     const before = await hear('ironHold');
     const met = await p.evaluate(() => {
@@ -1644,7 +1645,7 @@ await check("realm boss themes: the Iron King's theme takes over from the Iron H
       g.wave = g.wavesCleared = g.level.last - 1;
       g.breather = 0.01;
       const boss = () => g.enemies.find((e) => e.def.boss && !e.side && !e.dead);
-      for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) lb.run(1, false, true);
+      for (let i = 0; i < 20000 && !boss() && lb.game === g; i++) (g.player.invulnerable = true), lb.run(1, false, true);
       const b = boss();
       window.__realmBoss = b;
       return b ? { id: b.def.id, phase: b.phase } : null;
@@ -1655,7 +1656,7 @@ await check("realm boss themes: the Iron King's theme takes over from the Iron H
     // his phases come on a clock (12 s each): play on to each
     const toPhase = (n) => p.evaluate((n) => {
       const lb = window.__lb, b = window.__realmBoss;
-      for (let i = 0; i < 60 * 40 && b.phase < n && !b.dead; i++) lb.run(1, false, true);
+      for (let i = 0; i < 60 * 40 && b.phase < n && !b.dead; i++) (lb.game.player.invulnerable = true), lb.run(1, false, true);
       return b.phase;
     }, n);
     const phase2 = await toPhase(2);
@@ -1667,7 +1668,8 @@ await check("realm boss themes: the Iron King's theme takes over from the Iron H
       const lb = window.__lb, g = lb.game, b = window.__realmBoss, pl = g.player;
       g.baseMods.damage *= 1e4;
       for (let i = 0; i < 60 * 30 && g.enemies.includes(b) && !b.dead && lb.game === g; i++) {
-        if (lb.state === 'playing') Object.assign(pl, { x: b.x - b.r - 30, y: b.y });
+        pl.invulnerable = true; // his thorns would answer every blow
+        if (lb.state === 'playing') Object.assign(pl, { x: b.x - b.r - 16, y: b.y }); // a step off his front edge, as the Iron King's own check stands
         lb.run(1, false, true);
       }
       g.baseMods.damage /= 1e4;
