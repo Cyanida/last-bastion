@@ -1,4 +1,6 @@
-import { MUSIC, REALM_THEMES, THEMES, type Theme, type ThemeId } from '../config/music';
+import { BOSSES } from '../config/bosses';
+import { BOSS_THEMES, BOSS_VARIANT_THEMES, MUSIC, REALM_THEMES, THEMES, type BossTheme, type Theme, type ThemeId } from '../config/music';
+import type { EnemyId } from '../config/enemies';
 import type { Game } from '../core/types';
 import { clampIndex, inRange, pick, RANGES, rngFor, type NoteEvent, type Voice } from './music';
 import { pacingOf } from './waves';
@@ -13,21 +15,23 @@ import { bossWaveIn } from './world';
  */
 export type Layer = 0 | 1 | 2 | 3;
 export type Cue = 'fork' | 'victory';
+/** #289: what the music plays: an arena's (or realm's) theme, or a boss's own (`boss:` and its config/bosses.ts key) while it is up. */
+export type MusicId = ThemeId | `boss:${string}`;
 export interface Mood {
-  arena: ThemeId;
+  arena: MusicId;
   layer: Layer;
   cue: Cue | null;
 }
 
 export const barSeconds = (t: Theme) => (t.meter * 60) / t.bpm;
-const formBars = (t: Theme) => t.chords.length * 2;
-const pitchClasses = (t: Theme) => t.mode.map((s) => (t.root + s) % 12);
+export const formBars = (t: Theme) => t.chords.length * 2;
+export const pitchClasses = (t: Theme) => t.mode.map((s) => (t.root + s) % 12);
 /** The triad on a scale degree, as pitch classes, root first. */
-const triad = (t: Theme, degree: number) => [0, 2, 4].map((k) => (t.root + t.mode[(degree + k) % 7]) % 12);
+export const triad = (t: Theme, degree: number) => [0, 2, 4].map((k) => (t.root + t.mode[(degree + k) % 7]) % 12);
 /** The lowest pitch of that class in the voice's range. */
-const lowest = (pc: number, voice: Voice) => RANGES[voice][0] + ((pc - RANGES[voice][0]) % 12 + 12) % 12;
+export const lowest = (pc: number, voice: Voice) => RANGES[voice][0] + ((pc - RANGES[voice][0]) % 12 + 12) % 12;
 /** A ladder of the chord's tones across the voice's range, and the index nearest `frac` of the way up it. */
-function ladderOf(chord: number[], voice: Voice, frac: number): [number[], number] {
+export function ladderOf(chord: number[], voice: Voice, frac: number): [number[], number] {
   const ladder = inRange(chord, ...RANGES[voice]);
   return [ladder, Math.round((ladder.length - 1) * frac)];
 }
@@ -170,14 +174,14 @@ export function stingerNotes(t: Theme, bar: number, kind: Stinger): NoteEvent[] 
 
 /** The first beat of the run music at or after `now + lead` (AudioContext seconds), counted back from the next bar line: a stinger lands on it. */
 export function nextBeat(c: Pick<Conductor, 'at' | 'arena'>, now: number, lead = 0.05): number {
-  const beat = 60 / THEMES[c.arena].bpm;
+  const beat = 60 / musicTheme(c.arena).bpm;
   return c.at - Math.floor((c.at - now - lead) / beat) * beat;
 }
 
 /** Where the music is: the theme, the layer it plays, how far into the theme, and when the next bar starts (AudioContext seconds). */
 export interface Conductor {
   seed: number;
-  arena: ThemeId;
+  arena: MusicId;
   layer: Layer;
   bar: number;
   at: number;
@@ -187,11 +191,11 @@ export interface Conductor {
 /** One bar to play. `from`: the first bar in a new arena, crossfading out of this one. */
 export interface Bar {
   at: number;
-  arena: ThemeId;
+  arena: MusicId;
   layer: Layer;
   bar: number;
   cue: Cue | null;
-  from: ThemeId | null;
+  from: MusicId | null;
 }
 
 export const newConductor = (mood: Mood, seed: number, at: number): Conductor => ({ seed, arena: mood.arena, layer: mood.layer, bar: 0, at, calm: 0, cue: mood.cue });
@@ -210,14 +214,16 @@ export function conduct(c: Conductor, want: Mood, now: number, lookahead: number
     const layer = want.layer >= next.layer || calm > MUSIC.calmBars ? want.layer : next.layer;
     const bar = from ? 0 : next.bar;
     bars.push({ at: next.at, arena: want.arena, layer, bar, cue: want.cue !== next.cue ? want.cue : null, from });
-    next = { ...next, arena: want.arena, layer, bar: bar + 1, calm: layer === want.layer ? 0 : calm, cue: want.cue, at: next.at + barSeconds(THEMES[want.arena]) };
+    next = { ...next, arena: want.arena, layer, bar: bar + 1, calm: layer === want.layer ? 0 : calm, cue: want.cue, at: next.at + barSeconds(musicTheme(want.arena)) };
   }
   return { c: next, bars };
 }
 
 /** What the run asks of the music right now (main.ts, every frame). */
-export function moodOf(g: Pick<Game, 'arena' | 'wave' | 'enemies' | 'player' | 'pendingMerchant' | 'pendingRoute' | 'victory'> & { level?: Game['level'] }): Mood {
+export function moodOf(g: Pick<Game, 'arena' | 'wave' | 'enemies' | 'player' | 'pendingMerchant' | 'pendingRoute' | 'victory'> & { level?: Game['level']; bossesSeen?: Game['bossesSeen'] }): Mood {
   const cue: Cue | null = g.victory === 'pending' ? 'victory' : g.pendingRoute ? 'fork' : null;
+  const boss = cue || g.pendingMerchant ? null : bossMusicOf(g);
+  if (boss) return { arena: boss.id, layer: boss.layer, cue: null }; // #289: a boss with a theme of its own takes over
   const dense = g.enemies.length >= MUSIC.danger.enemies || g.player.hp < g.player.stats.hp * MUSIC.danger.hp;
   const layer: Layer = g.pendingMerchant || cue ? 0 : g.enemies.some((e) => e.def.boss) ? 3 : dense ? 2 : g.wave === 0 || pacingOf(g.wave, bossWaveIn(g.level, g.wave)) === 'breather' ? 0 : 1;
   return { arena: themeOf(g), layer, cue }; // #219: a realm with a theme of its own plays it in its levels
@@ -225,3 +231,44 @@ export function moodOf(g: Pick<Game, 'arena' | 'wave' | 'enemies' | 'player' | '
 
 /** #219: the theme a run plays: its realm's own (config/music REALM_THEMES) in a level of that realm, else its arena's. */
 export const themeOf = (g: Pick<Game, 'arena'> & { level?: Game['level'] }): ThemeId => (g.level && REALM_THEMES[g.level.realm]) || g.arena.id;
+
+/**
+ * #289: the theme to play for a music id: an arena's or realm's (config/music THEMES), or a boss's (BOSS_THEMES, by its base boss; a
+ * variant's shifted by BOSS_VARIANT_THEMES). Built once per id.
+ */
+const bossThemes = new Map<string, BossTheme>();
+export function musicTheme(id: MusicId): Theme {
+  if (!id.startsWith('boss:')) return THEMES[id as ThemeId];
+  let t = bossThemes.get(id);
+  if (!t) {
+    const key = id.slice(5);
+    const base = BOSS_THEMES[BOSSES[key]?.from ?? (key as EnemyId)];
+    if (!base) return THEMES.courtyard; // not a themed boss: never asked for by moodOf
+    const v = BOSS_VARIANT_THEMES[key];
+    t = v ? { ...base, name: BOSSES[key]?.name ?? base.name, root: (((base.root + v.shift) % 12) + 12) % 12, bpm: Math.round(base.bpm * v.tempo) } : base;
+    bossThemes.set(id, t);
+  }
+  return t;
+}
+export const isBossMusic = (id: MusicId): boolean => id.startsWith('boss:');
+
+/** #289: every boss key whose fight has a theme of its own (a base boss in BOSS_THEMES, or its variant): the jukebox lists them. */
+export const bossMusicIds = (): MusicId[] => Object.keys(BOSSES).filter((k) => BOSS_THEMES[BOSSES[k].from]).map((k): MusicId => `boss:${k}`);
+
+/**
+ * #289: the boss up whose own theme takes over, and how far it has built: its first phase plays the base layer, its last the full boss
+ * layer, any between the second layer. A variant is known by the boss last drawn (spawning.ts dressBoss reads the same). Null when no
+ * boss is up, or it has no theme (it keeps the arena's boss layer).
+ */
+const bossIds = new Map<string, MusicId>(); // so the frame's mood does not build a string
+export function bossMusicOf(g: Pick<Game, 'enemies'> & { bossesSeen?: Game['bossesSeen'] }): { id: MusicId; layer: Layer } | null {
+  let e: Game['enemies'][number] | undefined;
+  for (const x of g.enemies) if (x.def.boss && (!e || (e.side && !x.side))) e = x; // the wave's own boss before a side one
+  if (!e || !BOSS_THEMES[e.def.id]) return null;
+  const last = g.bossesSeen?.[g.bossesSeen.length - 1];
+  const key = last && BOSSES[last]?.from === e.def.id ? last : e.def.id;
+  let id = bossIds.get(key);
+  if (!id) bossIds.set(key, (id = `boss:${key}`));
+  const phases = e.def.phases ?? 2;
+  return { id, layer: e.phase >= phases ? 3 : e.phase <= 1 ? 1 : 2 };
+}

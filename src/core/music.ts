@@ -1,6 +1,7 @@
-import { MUSIC, THEMES } from '../config/music';
+import { MUSIC } from '../config/music';
+import { composeMusicBar } from '../logic/bossMusic';
 import { BAR_BEATS, BPM, composeBar, type NoteEvent } from '../logic/music';
-import { barSeconds, composeRunBar, conduct, newConductor, nextBeat, stingerNotes, type Conductor, type Mood, type Stinger } from '../logic/runMusic';
+import { barSeconds, composeRunBar, conduct, musicTheme, newConductor, nextBeat, stingerNotes, type Conductor, type Mood, type Stinger } from '../logic/runMusic';
 import { busHeard, sharedAudio } from './audio';
 import { quality } from './quality';
 import { prefs } from './storage';
@@ -69,9 +70,10 @@ export function stinger(kind: Stinger): void {
   lastStinger = ctx.currentTime;
   stingers++;
   const at = nextBeat(conductor, ctx.currentTime);
-  const beat = 60 / THEMES[conductor.arena].bpm;
-  const back = Math.ceil((conductor.at - at) / barSeconds(THEMES[conductor.arena]) - 1e-6); // the lookahead can be over a bar ahead
-  for (const e of stingerNotes(THEMES[conductor.arena], Math.max(0, conductor.bar - back), kind)) play(ctx, noise, session.out, e, at + e.time * beat, beat);
+  const theme = musicTheme(conductor.arena); // #289: a boss's theme too
+  const beat = 60 / theme.bpm;
+  const back = Math.ceil((conductor.at - at) / barSeconds(theme) - 1e-6); // the lookahead can be over a bar ahead
+  for (const e of stingerNotes(theme, Math.max(0, conductor.bar - back), kind)) play(ctx, noise, session.out, e, at + e.time * beat, beat);
 }
 
 /** Plays or fades out to match the screen, mute, the Music settings and page visibility. Call when any of them changes. */
@@ -116,7 +118,7 @@ function menuTicker(ctx: AudioContext, noise: AudioBuffer, out: GainNode): () =>
   };
 }
 
-/** v0.7.1: the run's bars, each in its arena's theme. A new arena fades the old theme's last chord out while the new one fades in. */
+/** v0.7.1: the run's bars, each in its arena's theme (#289: or its boss's). A new arena (or a boss coming or falling) fades the old theme's last chord out while the new one fades in. */
 function runTicker(ctx: AudioContext, noise: AudioBuffer, out: GainNode): () => void {
   let fader = ctx.createGain(); // the current theme's own volume, for the crossfade
   fader.connect(out);
@@ -130,7 +132,7 @@ function runTicker(ctx: AudioContext, noise: AudioBuffer, out: GainNode): () => 
     for (const b of next.bars) {
       if (b.from) {
         const old = fader;
-        const was = THEMES[b.from];
+        const was = musicTheme(b.from);
         const fade = MUSIC.crossfadeBars * barSeconds(was);
         old.gain.setValueAtTime(1, b.at);
         old.gain.linearRampToValueAtTime(0, b.at + fade);
@@ -138,11 +140,11 @@ function runTicker(ctx: AudioContext, noise: AudioBuffer, out: GainNode): () => 
         setTimeout(() => old.disconnect(), (b.at - ctx.currentTime + fade + 8) * 1000);
         fader = ctx.createGain();
         fader.gain.setValueAtTime(0, b.at);
-        fader.gain.linearRampToValueAtTime(1, b.at + barSeconds(THEMES[b.arena]));
+        fader.gain.linearRampToValueAtTime(1, b.at + barSeconds(musicTheme(b.arena)));
         fader.connect(out);
       }
-      const beat = 60 / THEMES[b.arena].bpm;
-      for (const e of composeRunBar(THEMES[b.arena], conductor.seed, b.bar, b.layer, b.cue)) play(ctx, noise, fader, e, b.at + e.time * beat, beat);
+      const beat = 60 / musicTheme(b.arena).bpm; // #289: a boss's theme, or the arena's
+      for (const e of composeMusicBar(b.arena, conductor.seed, b.bar, b.layer, b.cue)) play(ctx, noise, fader, e, b.at + e.time * beat, beat);
     }
   };
 }
