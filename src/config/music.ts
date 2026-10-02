@@ -32,9 +32,10 @@ const PHRYGIAN = [0, 1, 3, 5, 7, 8, 10];
 const MIXOLYDIAN = [0, 2, 4, 5, 7, 9, 10];
 const MINOR = [0, 2, 3, 5, 7, 8, 10];
 const PHRYGIAN_DOMINANT = [0, 1, 4, 5, 7, 8, 10]; // #231: Phrygian with a major third: the flat second's dread, and heat
+const HARMONIC_MINOR = [0, 2, 3, 5, 7, 8, 11]; // #281: minor with a raised seventh: the leading tone pulls home like a bier to its grave
 
 /** #219: a theme is an arena's, or a realm's own (its levels play it in place of their arena's). */
-export type ThemeId = ArenaId | 'ironHold' | 'cinderlands';
+export type ThemeId = ArenaId | 'ironHold' | 'cinderlands' | 'barrowvale';
 
 export const THEMES: Record<ThemeId, Theme> = {
   courtyard: {
@@ -103,10 +104,20 @@ export const THEMES: Record<ThemeId, Theme> = {
     lead: 'flute',
     boss: { midi: 38, hits: [[0, 1], [0.5, 0.45], [1, 0.7], [1.5, 0.45], [2, 0.9], [2.5, 0.55]] },
   },
+  // #281: the Barrowvale's own theme over the Forsaken Graveyard: a slow funeral waltz, a tolling bell over an organ, a choir of mourners for the lead
+  barrowvale: {
+    name: 'The Barrowvale', root: 0, mode: HARMONIC_MINOR, bpm: 68, meter: 3,
+    chords: [0, 5, 3, 4, 0, 3, 4, 0], // i VI iv V | i iv V i: the major V's leading tone drags every line back down to the tonic
+    drone: 'drone', pad: 'organ',
+    pulse: { voice: 'bell', steps: [0, null, null, null, 2, null] }, // the barrow bell: a toll on the downbeat, its echo on the third beat
+    perc: { midi: 36, hits: [[0, 0.7], [2, 0.3]] }, // a muffled bier drum, one step a bar
+    lead: 'choir',
+    boss: { midi: 36, hits: [[0, 1], [1, 0.55], [1.5, 0.4], [2, 0.8], [2.5, 0.4]] },
+  },
 };
 
 /** #219: the realms whose levels play a theme of their own; the rest play their arena's. */
-export const REALM_THEMES: Partial<Record<RealmId, ThemeId>> = { ironHold: 'ironHold', cinderlands: 'cinderlands' };
+export const REALM_THEMES: Partial<Record<RealmId, ThemeId>> = { ironHold: 'ironHold', cinderlands: 'cinderlands', barrowvale: 'barrowvale' };
 
 /**
  * Mixing and the adaptive rules. Volumes are gains; the run mix sits under the menu's so the music never gets louder than the effects.

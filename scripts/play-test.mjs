@@ -2015,18 +2015,18 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
 }
 
 // ---------- #258: a realm that isn't built yet says so on its road, and the champion screen's PLAY prefers a built realm ----------
-// A champion with the Marches, the Iron Hold and the Cinderlands crowned: PLAY points at a built realm (the Cinderlands, replayed), not the
-// Barrowvale; the map opens the Barrowvale (still playable: its FIGHT is on) and its road says its foes, bosses and relics come later; the
-// Cinderlands' road says nothing of the kind.
+// A champion with the Marches and the ring-2 realms crowned: PLAY points at a built realm (the Cinderlands, replayed), not the Frozen
+// Pass; the map opens the Frozen Pass (still playable: its FIGHT is on) and its road says its foes, bosses and relics come later; the
+// Barrowvale's road says nothing of the kind (#281: it is built; it was this check's unbuilt realm before).
 for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
-  await check(`unbuilt realm: the Barrowvale's road says its own foes, bosses and relics come later and stays playable, the Cinderlands' road says nothing, and PLAY on the champion screen points at a built realm, ${touch ? 'tap' : 'click'} at ${w}x${h} (#258)`, async () => {
+  await check(`unbuilt realm: the Frozen Pass's road says its own foes, bosses and relics come later and stays playable, the Barrowvale's road says nothing (#281), and PLAY on the champion screen points at a built realm, ${touch ? 'tap' : 'click'} at ${w}x${h} (#258)`, async () => {
     const errs = [];
     const p = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: touch, isMobile: touch });
     p.on('pageerror', (e) => errs.push(e.message));
     await p.goto(`http://localhost:${PORT}/?debug`);
     await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
     await p.evaluate(() => {
-      const lb = window.__lb, world = { marches: [7], ironHold: [5], cinderlands: [5] };
+      const lb = window.__lb, world = { marches: [7], ironHold: [5], barrowvale: [5], cinderlands: [5] };
       lb.save.champions = { paladin: { name: 'Hild', inventory: [], loadouts: {}, ...lb.build.grown(world), world, signature: true, lastBastion: false, runs: {} } };
       lb.save.cards = [...lb.cardIds];
     });
@@ -2038,8 +2038,8 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
     await press('[data-back]'); // back to the title
     await p.locator('[data-go="map"]').first().waitFor({ timeout: 3000 });
     await press('[data-go="map"]');
-    await p.locator('.wm-realm.r-barrowvale').waitFor({ timeout: 3000 });
-    await press('.wm-realm.r-barrowvale');
+    await p.locator('.wm-realm.r-frozenPass').waitFor({ timeout: 3000 });
+    await press('.wm-realm.r-frozenPass');
     await p.locator('.rr-panel').waitFor({ timeout: 3000 });
     const road = async () => ({
       text: (await p.locator('.rr-panel').textContent()).replace(/\s+/g, ' '),
@@ -2047,16 +2047,16 @@ for (const [w, h, touch] of [[1280, 720, false], [844, 390, true]]) {
       fight: await p.locator('[data-fight]').first().isEnabled(),
       seen: await p.evaluate(() => { const r = document.querySelector('.rr-unbuilt')?.getBoundingClientRect(); return !!r && r.top >= 0 && r.bottom <= innerHeight + 1 && r.right <= innerWidth + 1; }),
     });
-    const vale = await road();
+    const frost = await road();
     if (!touch && process.env.LB_SHOT) await p.screenshot({ path: process.env.LB_SHOT });
     await p.keyboard.press('Escape'); // back to the map
-    await p.locator('.wm-realm.r-cinderlands').waitFor({ timeout: 3000 });
-    await press('.wm-realm.r-cinderlands');
+    await p.locator('.wm-realm.r-barrowvale').waitFor({ timeout: 3000 });
+    await press('.wm-realm.r-barrowvale');
     await p.locator('.rr-panel').waitFor({ timeout: 3000 });
-    const cinder = await road();
+    const vale = await road();
     await p.close();
-    const ok = /The Cinderlands · Level 1/.test(next) && /later version/.test(vale.notice) && vale.seen && vale.fight && !cinder.notice && errs.length === 0;
-    return { ok, detail: `PLAY "${next}"; Barrowvale road: "${vale.notice}"${vale.seen ? '' : ' (off screen)'}, FIGHT ${vale.fight ? 'on' : 'off'}; Cinderlands road: ${cinder.notice ? `"${cinder.notice}"` : 'no notice'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+    const ok = /The Cinderlands · Level 1/.test(next) && /later version/.test(frost.notice) && frost.seen && frost.fight && !vale.notice && errs.length === 0;
+    return { ok, detail: `PLAY "${next}"; Frozen Pass road: "${frost.notice}"${frost.seen ? '' : ' (off screen)'}, FIGHT ${frost.fight ? 'on' : 'off'}; Barrowvale road: ${vale.notice ? `"${vale.notice}"` : 'no notice'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
   });
 }
 
@@ -7888,7 +7888,10 @@ await check('realm run: the HUD, the quest board, the banner and the results say
 // legendaries (key 2), and its level-cleared screen has no Continue: the run is over. The Champion and Legend crowns are fought from the
 // same level-5 checkpoint put back on their tier (the one save shortcut): the Champion crown gives the other legendary on one card (a
 // click), the Legend crown the title and the palette, named on the level-cleared screen.
-/** A relic realm's run, played through its real screens (#219's recipe; #231 plays the Cinderlands on it). `R`: what the realm names. */
+/**
+ * A relic realm's run, played through its real screens (#219's recipe; #231 plays the Cinderlands on it, #281 the Barrowvale). `R`: what
+ * the realm names; `R.opener`: the level-1 boss it names (else a pool boss not its own); `R.raises`: the elite's extra phase opens graves.
+ */
 const realmRun = (R) => async () => {
   const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   const errs = [];
@@ -7931,7 +7934,7 @@ const realmRun = (R) => async () => {
         if (b && g.banner) banners.add(g.banner.text);
         if (b) boss = { name: b.def.name, phases: b.def.phases ?? 2, crown: !!b.crown, phase: Math.max(boss?.phase ?? 0, b.phase), banners: [...banners], hp: boss?.hp ?? b.maxHp / (lb.enemyDef(b.def.id).hp * g.waveHpMult * g.tier.enemyHp) }; // `hp`: his HP over a plain one's at this wave (#220)
       }
-      return { held, boss, str: s.str, level: g.level?.level, first: g.startWave, tier: g.tierIndex, cleared: !!g.level?.cleared, wave: g.wave, state: lb.state };
+      return { held, boss, str: s.str, level: g.level?.level, first: g.startWave, tier: g.tierIndex, cleared: !!g.level?.cleared, wave: g.wave, state: lb.state, graves: g.vars['elite.graves'] ?? 0 };
     }, strong);
     strong = out.str;
     return { ...out, seen };
@@ -7967,13 +7970,13 @@ const realmRun = (R) => async () => {
     want(open, `${R.name} is shut on the map`);
     await press(`.wm-realm.r-${R.id}`);
     const r1 = await road(1);
-    want(r1.name === `${R.name} · Level 1` && /Keep a locked relic/.test(r1.text) && /Waves\s*1–8/.test(r1.text) && r1.go === 'Fight!', `road ${JSON.stringify(r1)}`);
+    want(r1.name === `${R.name} · Level 1` && /Keep a locked relic/.test(r1.text) && /Waves\s*1–8/.test(r1.text) && !/later version/.test(r1.text) && r1.go === 'Fight!', `road ${JSON.stringify(r1)}`);
     // level 1, playing its own theme: a pool boss, then 1 of 2 locked rares of its family
     const taken = [];
     await press('[data-fight]');
     const one = await fight(() => p.waitForFunction((theme) => window.__lb.music?.().arena === theme, R.theme, { timeout: 10000 }).then(() => R.theme, () => p.evaluate(() => String(window.__lb.music?.().arena))));
     want(one.seen === R.theme, `theme ${one.seen}`);
-    want(!!one.boss && !R.own.test(one.boss.name), `level 1 boss ${JSON.stringify(one.boss)}`);
+    want(!!one.boss && (R.opener ? one.boss.name.includes(R.opener) : !R.own.test(one.boss.name)), `level 1 boss ${JSON.stringify(one.boss)}`);
     const keep1 = await keepLocked(1, one, taken);
     want(keep1.cards.length === 2, `level 1 shows ${keep1.cards.length} rares`);
     const c1 = await clearedScreen();
@@ -8005,13 +8008,13 @@ const realmRun = (R) => async () => {
     // level 4: the first boss as an elite, a phase more, which it announces; a third rare
     await press('.level-cleared [data-retry]');
     const four = await fight();
-    want(four.boss?.name === `${R.first}, Elite` && four.boss.phases === R.phases + 1 && four.boss.phase === R.phases + 1 && !four.boss.crown && four.boss.banners.includes(R.elite) && Math.abs(four.boss.hp - 1.4) < 0.02, `level 4 boss ${JSON.stringify(four.boss)}`); // #220: an elite has 1.4 times the HP
+    want(four.boss?.name === `${R.first}, Elite` && four.boss.phases === R.phases + 1 && four.boss.phase === R.phases + 1 && !four.boss.crown && four.boss.banners.includes(R.elite) && Math.abs(four.boss.hp - 1.4) < 0.02 && (!R.raises || four.graves > 0), `level 4 boss ${JSON.stringify(four.boss)}, graves ${four.graves}`); // #220: an elite has 1.4 times the HP
     const keep4 = await keepLocked(4, four, taken);
     const c4 = await clearedScreen();
     const after4 = await champ();
     const checkpoint5 = after4.runs[R.id]; // the run as it stands before level 5
     want(c4.next === 'Continue to level 5' && after4.inventory.length === 4 && checkpoint5?.level === 5, `after level 4 "${c4.next}" ${JSON.stringify({ inv: after4.inventory, run: checkpoint5?.level })}`);
-    log.push(`L4 ${four.boss?.name} (${four.boss?.phases} phases, "${R.elite}") on wave ${four.wave}, kept ${keep4.cards[0]?.name}`);
+    log.push(`L4 ${four.boss?.name} (${four.boss?.phases} phases, "${R.elite}"${R.raises ? `, ${four.graves} graves` : ''}) on wave ${four.wave}, kept ${keep4.cards[0]?.name}`);
     // level 5 on Knight: the crown boss, the pick of the family's two legendaries, and the run is over
     await press('.level-cleared [data-retry]');
     const five = await fight();
@@ -8082,6 +8085,19 @@ await check('Cinderlands: the map opens it with the Marches crown, its road and 
   id: 'cinderlands', name: 'The Cinderlands', family: 'Flame', theme: 'cinderlands', own: /Inquisitor|Ember Queen|Cinder Colossus|Heretic/,
   first: 'The Grand Inquisitor', phases: 2, elite: 'The Inquisitor’s auto-da-fé', third: 'Ember Queen', crown: 'Cinder Colossus',
   classRelic: ['radiantBrand', 'Radiant Brand'], legendaries: ['dragonsTongue', 'crownOfCinders'], title: 'Cinderborn', palette: [7, 'Cinder colours'],
+}));
+
+// ---------- #281: the Barrowvale's five levels, their rewards, its crown and its theme, as one realm run ----------
+// The Iron Hold's run above, in the Barrowvale, now built (its road has no stand-in notice): the map opens it with the Marches crown, its
+// levels play the Barrowvale's own theme (not the Forsaken Graveyard's), level 1 ends on the Plague Abbot, levels 1, 2 and 4 keep a
+// locked Grave rare, level 2 ends on the Lich (2 phases, wave 16), level 3 on the Gravedigger and banks the Paladin's Grave class relic
+// (Ossuary Seal), level 4 on the Lich as an elite (3 phases: his third is announced as the Barrow Call and opens graves round him),
+// level 5 on the Barrow King as crown boss with the Knight crown's pick of Soul Lantern and Crown of Antlers; the Champion crown gives
+// the other, the Legend crown the title Gravewarden and the Barrow colours.
+await check('Barrowvale: the map opens it with the Marches crown, built, with its road and theme; one realm run on Knight: level 1 ends on the Plague Abbot, levels 1, 2 and 4 keep a locked Grave rare, level 3 the class relic, level 4 the Lich as an elite whose Barrow Call opens graves, the Knight crown picks a legendary and ends the run; the Champion crown gives the other, the Legend crown a title and a palette (#281)', realmRun({
+  id: 'barrowvale', name: 'The Barrowvale', family: 'Grave', theme: 'barrowvale', own: /Lich|Gravedigger|Barrow King/, opener: 'Plague Abbot',
+  first: 'The Lich', phases: 2, elite: 'The Lich’s barrow call', raises: true, third: 'Gravedigger', crown: 'Barrow King',
+  classRelic: ['ossuarySeal', 'Ossuary Seal'], legendaries: ['soulLantern', 'crownOfAntlers'], title: 'Gravewarden', palette: [8, 'Barrow colours'],
 }));
 
 // ---------- #248: the ability bar's upgrade chips, key badge and the utility's name never cover one another ----------

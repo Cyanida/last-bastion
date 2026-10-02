@@ -1,8 +1,11 @@
 // v0.10 (#202): the crown boss rules (docs/road-to-the-crown.md rule 3) and the Warden's third phase as the Marches' crown boss
-import { INQUISITOR, WARDEN } from '../config/bosses';
+import { INQUISITOR, LICH, WARDEN } from '../config/bosses';
 import { ENEMY_STATUS } from '../config/damage';
+import { ENEMIES } from '../config/enemies';
 import { WORLD, type EndBoss } from '../config/world';
 import { TAU } from '../core/math';
+import type { Corpse } from '../core/types';
+import { corpseRise } from './risingCorpse';
 import type { StatusApply } from './status';
 
 /** A level's end boss is its realm's crown boss. */
@@ -47,6 +50,31 @@ export function pyreField(phase: number, scale: number): { life: number; dps: nu
   const b = ENEMY_STATUS.torchbearer!;
   return { life: INQUISITOR.pyre.life, dps: INQUISITOR.pyre.dps * scale, apply: { ...b, power: (b.power ?? 0) * scale } };
 }
+
+/**
+ * #281: the Lich's Barrow Call, the elite's extra phase after his two (the Barrowvale's level 4): graves open round him. A plain Lich
+ * never gets there: he has two phases.
+ */
+export const lichCalls = (phase: number): boolean => phase >= LICH.callFrom;
+
+/**
+ * Where one Barrow Call of the Lich at (x, y) opens its graves: LICH.graves of them evenly round him at LICH.ring px, turned by `turn`
+ * (radians), fewer when `waiting` corpses on the field already wait to rise (up to LICH.maxRising in all), none before the call's phase.
+ */
+export function barrowCall(phase: number, x: number, y: number, turn: number, waiting: number): { x: number; y: number }[] {
+  if (!lichCalls(phase)) return [];
+  const n = Math.max(0, Math.min(LICH.graves, LICH.maxRising - waiting));
+  return Array.from({ length: n }, (_, i) => {
+    const a = turn + (i / LICH.graves) * TAU;
+    return { x: x + Math.cos(a) * LICH.ring, y: y + Math.sin(a) * LICH.ring };
+  });
+}
+
+/**
+ * What one of his graves rises as: a Barrow Thrall's corpse (logic/risingCorpse.ts), as if a thrall of this wave had fallen there:
+ * `hpScale` is the wave's and the difficulty's enemy HP, so it rises on RISING's delay with its share of that thrall's HP.
+ */
+export const lichGraveRise = (hpScale: number): Corpse['rise'] => corpseRise({ id: 'barrowThrall', side: false, maxHp: ENEMIES.barrowThrall.hp * hpScale });
 
 /** One of the Warden's seals: its outer ring's gaps and what comes with it. `n` counts his seals so far (0-based). */
 export interface WardenMove {
