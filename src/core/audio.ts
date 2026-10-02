@@ -46,6 +46,7 @@ let windWanted = false;
 let muted = prefs.get(MUTE_KEY) === '1';
 let mix: Mix = readMix(prefs.get(MIX_KEY), { music: prefs.get('lastbastion.music'), effects: prefs.get('lastbastion.effects') });
 const lastPlayed: Partial<Record<SfxName, number>> = {};
+const played = { effects: 0, ui: 0 }; // #282: sounds started per bus (the play test hears the menu's taps)
 
 /** Must be called from a user gesture (browser autoplay rules). */
 export function initAudio(): void {
@@ -164,13 +165,17 @@ function refreshAmbience(): void {
 }
 if (typeof document !== 'undefined') document.addEventListener('visibilitychange', refreshAmbience);
 
-/** For the tests: the mix, each bus's live gain, whether the wind blows and whether the music is ducked right now. */
+/**
+ * For the tests: the mix, each bus's gain (Chromium only moves a bus's value while something sounds through it), the sounds started per
+ * bus, whether the wind blows and whether the music is ducked right now.
+ */
 export function mixerStats() {
   const b = buses;
   return {
     mix: { ...mix },
     muted,
     gains: b ? (Object.fromEntries(BUS_ORDER.map((bus) => [bus, b[bus].gain.value])) as Record<BusId, number>) : null,
+    played: { ...played },
     ambience: !!wind,
     ducked: ducks.music ? ducks.music.gain.value < 1 : false,
   };
@@ -182,6 +187,7 @@ export function sfx(name: SfxName): void {
   const now = ctx.currentTime;
   if (now - (lastPlayed[name] ?? -1) < 0.05) return; // 200 hits per frame should not be 200 voices
   lastPlayed[name] = now;
+  played[bus]++;
   const s: { wave: Wave; f0: number; f1: number; dur: number; vol: number } = SOUNDS[name];
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(s.vol, now);
