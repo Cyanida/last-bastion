@@ -8319,6 +8319,123 @@ await check('Barrowvale: a peasant marches as the Barrow Thrall, his flash card 
   return { ok, detail: `run ${card.realm}, spawned ${card.kind ?? 'NONE'} (${card.sprite}), card ${card.id ?? 'NONE'} "${card.title ?? ''}"; closed ${first.closed}; stood off: ${first.fell.dead ? 'felled' : 'NOT felled'}, corpse ${first.fell.corpse ? 'marked' : 'NOT marked'}, ${first.wait.rose ? `rose as ${first.wait.kind} after ${first.wait.secs.toFixed(2)} s with ${first.wait.hp}/${first.wait.maxHp} HP (was ${first.fell.maxHp})` : 'NEVER rose'}; felled again: ${again.found ? (again.rose ? 'ROSE AGAIN' : again.marked ? 'corpse MARKED' : 'stayed down') : 'NO risen thrall'}; walked over with D: ${walk.onIt ? 'on it' : 'NEVER on it'}, ${walk.trampled} trampled, corpse ${walk.rise}, ${after.rose ? 'ROSE' : `stayed down ${after.secs.toFixed(1)} s`}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// ---------- #274: the Barrowvale's grasping hands: map -> the Barrowvale -> level 1 -> FIGHT. The bot plays until graves are first marked
+// round the champion (a warning sound, the graves drawn, one under him): the hands' flash card opens and "Got it" closes it. At the next
+// marking he stands still: the hands rise, hurt him and hold him, so D (a real key) does not move him until they let go, then it does. At
+// the marking after, he walks off his grave with a key, away from the others, and the hands miss him ----------
+await check('Barrowvale: graves are marked round you with a flash card; stand on one and the hands rise, hurt you and hold you so D does not move you until they let go; walk off and they miss (#274)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  await p.goto(`http://localhost:${PORT}/?debug`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  await p.evaluate(() => {
+    const champ = (name) => ({ name, inventory: [], loadouts: {}, ...window.__lb.build.grown({ marches: [7], barrowvale: [2] }), world: { marches: [7], barrowvale: [2] }, signature: true, lastBastion: false, runs: {} });
+    const lb = window.__lb;
+    lb.save.champions = Object.fromEntries(['paladin', 'viking', 'angel', 'necromancer', 'archer'].map((c) => [c, champ(c)]));
+    lb.save.cards = lb.cardIds.filter((id) => id !== 'graspingHands'); // every other card already seen, so the hands' is the one that shows
+  });
+  await p.click('[data-go="map"]');
+  await p.click('.wm-realm.r-barrowvale');
+  await p.locator('.rr-panel').waitFor({ timeout: 3000 });
+  await p.click('.rr-flag.l-1');
+  await p.waitForTimeout(100);
+  await p.click('[data-fight]');
+  await p.waitForFunction(() => window.__lb.state !== 'menu' && !!window.__lb.game, null, { timeout: 5000 }).catch(() => {});
+  // the bot plays (the real choice screens answered), unhurt, until the graves are first marked and their card opens
+  const card = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    const sounds = (window.__hands = { warn: 0 });
+    const real = lb.view.sfx;
+    lb.view.sfx = (n) => ((n in sounds && sounds[n]++), real(n));
+    for (let i = 0; i < 40000 && !document.querySelector('[data-card]') && lb.game === g && lb.state !== 'results'; i++) { pl.invulnerable = true; pl.hp = pl.stats.hp; lb.run(1, false, true); }
+    const c = document.querySelector('#overlay > .kit-frame.flash-card[data-card]');
+    const graves = g.zones.filter((z) => z.hostile && z.hold);
+    const mine = graves.find((z) => Math.hypot(z.x - pl.x, z.y - pl.y) < z.r);
+    // the grave under him is drawn: a 3x3 grid over it and its headstone, with the graves and without them
+    let drawn = 0;
+    if (mine) {
+      g.shake = 0;
+      const cv = document.getElementById('game').getContext('2d'), cam = lb.camera();
+      const px = (wx, wy) => [...cv.getImageData(Math.round((wx - Math.round(cam.x)) * cam.zoom), Math.round((wy - Math.round(cam.y)) * cam.zoom), 1, 1).data].join();
+      const grid = [-1, 0, 1].flatMap((i) => [-1, 0, 1].map((j) => [mine.x + (i * mine.r) / 2, mine.y + (j * mine.r) / 2 - 20]));
+      lb.draw();
+      const on = grid.map(([x, y]) => px(x, y));
+      const keep = g.zones;
+      g.zones = g.zones.filter((z) => !z.hold && z.source !== 'hazard');
+      lb.draw();
+      const off = grid.map(([x, y]) => px(x, y));
+      g.zones = keep;
+      lb.draw();
+      drawn = on.filter((v, i) => v !== off[i]).length;
+    }
+    return { realm: g.level?.realm, level: g.level?.level, arena: g.arena.id, id: c?.dataset.card, title: c?.querySelector('.kit-parch h2')?.textContent, text: c?.querySelector('.kit-parch p')?.textContent, graves: graves.length, mine: !!mine, warned: sounds.warn > 0, drawn };
+  });
+  if (card.id) await p.click('[data-leave]');
+  await p.waitForFunction(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing', null, { timeout: 3000 }).catch(() => {});
+  const closed = await p.evaluate(() => !document.querySelector('[data-card]') && window.__lb.state === 'playing');
+  // the rest in one call, so no real frame runs between its halves
+  const { still, walk } = await p.evaluate(() => {
+    const lb = window.__lb, g = lb.game, pl = g.player;
+    const graves = () => g.zones.filter((z) => z.hostile && z.hold);
+    const under = () => graves().find((z) => Math.hypot(z.x - pl.x, z.y - pl.y) < z.r);
+    const quiet = () => { g.fields = g.fields.filter((f) => !f.hostile); for (const e of g.enemies) Object.assign(e, { x: pl.x + 3000, y: pl.y }).statuses.stun = { stacks: 1, time: 5, power: 0 }; };
+    // the marking up now is let go by unhurt; the bot plays on, unhurt, to the next one that opens a grave under him
+    const next = () => {
+      for (let i = 0; i < 1200 && graves().length; i++) { pl.invulnerable = true; lb.run(1, false, true); }
+      for (let i = 0; i < 40000 && !under() && lb.game === g && lb.state !== 'results'; i++) { pl.invulnerable = true; pl.hp = pl.stats.hp; lb.run(1, false, true); }
+      pl.invulnerable = false;
+      pl.hp = pl.stats.hp;
+      pl.heldT = 0;
+      quiet();
+      return under();
+    };
+    const key = (type, code) => window.dispatchEvent(new KeyboardEvent(type, { code, key: code }));
+    let still = { found: false };
+    if (next()) {
+      // hands off the keys: he stands on his grave until the hands rise
+      const hp0 = pl.hp;
+      let ticks = 0;
+      for (; ticks < 600 && graves().length; ticks++) { quiet(); lb.run(1, false, 'input'); }
+      const hurt = hp0 - pl.hp, held = pl.heldT;
+      // held: D does not walk him; once they let go it does
+      key('keydown', 'KeyD');
+      const x0 = pl.x;
+      for (let i = 0; i < 30; i++) { quiet(); lb.run(1, false, 'input'); }
+      const heldMoved = Math.abs(pl.x - x0), stillHeld = pl.heldT > 0;
+      for (let i = 0; i < 600 && pl.heldT > 0; i++) { quiet(); lb.run(1, false, 'input'); }
+      const x1 = pl.x;
+      for (let i = 0; i < 30; i++) { quiet(); lb.run(1, false, 'input'); }
+      key('keyup', 'KeyD');
+      still = { found: true, ticks, hurt, held, heldMoved, stillHeld, freeMoved: Math.abs(pl.x - x1) };
+    }
+    let walk = { found: false };
+    if (still.found && next()) {
+      // the key whose walk ends farthest from every grave (his own included) and inside the map
+      const all = graves(), b = g.bounds, reach = pl.stats.moveSpd * pl.mods.moveSpd * all[0].delay;
+      const dirs = { KeyW: [0, -1], KeyS: [0, 1], KeyA: [-1, 0], KeyD: [1, 0] };
+      const score = ([dx, dy]) => {
+        const x = pl.x + dx * reach * 0.8, y = pl.y + dy * reach * 0.8;
+        if (x < b.x + 60 || x > b.x + b.w - 60 || y < b.y + 60 || y > b.y + b.h - 60) return -1;
+        return Math.min(...all.map((z) => Math.hypot(z.x - x, z.y - y) - z.r));
+      };
+      const code = Object.keys(dirs).sort((a, c) => score(dirs[c]) - score(dirs[a]))[0];
+      const hp0 = pl.hp;
+      key('keydown', code);
+      for (let i = 0; i < 600 && graves().length; i++) { quiet(); lb.run(1, false, 'input'); }
+      key('keyup', code);
+      walk = { found: true, code, hurt: hp0 - pl.hp, held: pl.heldT > 0, onIt: !!under() };
+    }
+    return { still, walk };
+  });
+  await p.close();
+  const ok = card.realm === 'barrowvale' && card.level === 1 && card.arena === 'graveyard' && card.id === 'graspingHands' && card.title === 'Grasping hands' && /hold you/.test(card.text ?? '')
+    && card.graves >= 2 && card.mine && card.warned && card.drawn >= 3 && closed
+    && still.found && still.hurt > 0 && still.held > 0.9 && still.stillHeld && still.heldMoved < 1 && still.freeMoved > 20
+    && walk.found && !walk.held && walk.hurt < still.hurt / 2 && errs.length === 0;
+  return { ok, detail: `run ${card.realm} level ${card.level} in the ${card.arena}: ${card.graves} graves marked${card.warned ? ' with a warning' : ''}, ${card.mine ? 'one under him' : 'NONE under him'}, drawn on ${card.drawn}/9 points; card ${card.id ?? 'NONE'} "${card.title ?? ''}", closed ${closed}; standing still: ${still.found ? `hurt ${Math.round(still.hurt)}, held ${(+still.held).toFixed(2)} s, D while held moved ${still.heldMoved.toFixed(1)} px${still.stillHeld ? '' : ' (LET GO already)'}, D after moved ${still.freeMoved.toFixed(1)} px` : 'NO grave under him'}; walked off (${walk.code ?? 'no key'}): ${walk.found ? `${walk.held ? 'HELD' : 'not held'}, hurt ${+walk.hurt.toFixed(2)}` : 'NO next marking'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #273: the Forsaken Graveyard: Settings -> Test mode -> "Start at" the Barrowvale's level 2 -> the opening pick -> an open wing ----------
 // The level plays in the Forsaken Graveyard (the HUD names it), its wings are the crypts, the sexton's yard, the broken chapel and the old
 // barrows, and by level 2's start one of them is open. Walked into with the keyboard, the place names its feature ("Grave gas", not
