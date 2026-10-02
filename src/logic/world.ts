@@ -134,6 +134,11 @@ export function tierStep(tier: number, realm: RealmId, level: number): { hp: num
   return { hp: at(e.hp), damage: at(e.damage) };
 }
 
+/** #293: an end boss's own step on its HP and damage in a realm's level (WORLD.endBossStep); 1 where it has none. */
+export function endBossStep(realm: RealmId, level: number): { hp: number; damage: number } {
+  return WORLD.endBossStep[realm]?.[level - 1] ?? { hp: 1, damage: 1 };
+}
+
 /** #243: a level's wave length (WORLD.levelWaves): multipliers on the foes a wave brings and on the time they trickle in over; the Last Bastion keeps 1. */
 export function levelWaves(realm: RealmId, level: number): { foes: number; pace: number } {
   if (realm === 'lastBastion') return { foes: 1, pace: 1 };

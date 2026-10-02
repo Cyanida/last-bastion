@@ -24,7 +24,7 @@ import { actTheme, turnAct } from './acts';
 import { killEnemy } from './combat';
 import { createSquad } from './squads';
 import { REALMS, WORLD } from '../config/world';
-import { bossWaveIn, featuredSquads, levelBoss, levelFields, levelWaves, ownWaves, realmFoe } from '../logic/world';
+import { bossWaveIn, endBossStep, featuredSquads, levelBoss, levelFields, levelWaves, ownWaves, realmFoe } from '../logic/world';
 import { crownHpFloor, elitePhases, isCrownFight, isEliteFight } from '../logic/crownBoss';
 
 const MIN_SPAWN_DIST = 380;
@@ -93,6 +93,18 @@ function eliteBoss(g: Game, e: Enemy): void {
   e.maxHp = e.hp = Math.round(e.hp * WORLD.eliteBoss.hp);
   e.damage *= WORLD.eliteBoss.damage;
   g.banner = { text: `${e.def.name} · one phase more`, t: 3 };
+}
+
+/** #293: a level's end boss on its own step where the realm has one (WORLD.endBossStep): its HP, its blows and the ground it fouls. */
+function stepBoss(g: Game, e: Enemy): void {
+  const lv = g.level;
+  if (!lv || g.wave !== lv.last) return;
+  if (bossDef(g.bossesSeen[g.bossesSeen.length - 1] ?? '').from !== e.def.id) return;
+  const s = endBossStep(lv.realm, lv.level);
+  if (s.hp === 1 && s.damage === 1) return;
+  e.maxHp = e.hp = Math.round(e.hp * s.hp);
+  e.damage *= s.damage;
+  if (e.def.poolDps) e.def = { ...e.def, poolDps: e.def.poolDps * s.damage };
 }
 
 /** A squad arrives together, already in formation, facing the player. `at`: where (the v0.5 ambush), else an edge of the map. */
@@ -210,6 +222,7 @@ export function updateSpawning(g: Game, dt: number): void {
           dressBoss(g, e);
           crownBoss(g, e);
           eliteBoss(g, e);
+          stepBoss(g, e);
         }
         g.spawnTimer += g.spawnInterval;
       } else {

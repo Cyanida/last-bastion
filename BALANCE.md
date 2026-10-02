@@ -1,5 +1,95 @@
 # Balance notes
 
+## v0.13: the Barrowvale's balance pass (#293)
+
+The release's last issue: every class through every level of the Barrowvale on Knight, against rule 9, with the bot playing the realm
+as one run (`simulateRealm`, #220). The Marches, the Iron Hold and the Cinderlands were not retuned: no change here touches their numbers.
+
+**Tuned** (two passes; `src/config/world.ts`, `src/config/arenas.ts`):
+- **The level step, the Barrowvale's own** (`WORLD.levelStep.own.barrowvale`): HP x0.72, 0.77, 0.8, 0.95, 0.95 and damage x0.82, 0.86,
+  0.9, 1.05, 1.05 (it had a relic realm's: 0.77, 0.77, 0.83, 0.99, 1.07 and 0.92, 0.86, 0.93, 1.12, 1.23). Level 1 sits at the floor,
+  levels 3-5 ease. Its wave lengths stay a relic realm's: the realm already runs 37 minutes clean against 35.
+- **The grasping hands** (`GRAVE_HANDS`): 7 damage (was 10) and a 1 s hold (was 1.2), on every level of the realm. Foes on a grave still
+  take three times that and are held 2 s.
+- **The Plague Abbot on a step of his own in the Barrowvale's level 1** (`WORLD.endBossStep`, `logic/world.ts endBossStep`): 0.85 of his
+  HP, his blows and his plague pools at 0.7 (pools 9.8 a second before scaling, were 14). The realm's level 1 ends on him by name, where
+  a relic realm's level 1 draws a pool boss, and on the realm's plague ground he felled 10-11 of 40 first tries (a relic realm's level 1
+  loses about one at its boss). His own numbers stay: plain runs and the Marches draw him from the pool too.
+- **Left alone: the Lich (plain and elite), the Gravedigger and the Barrow King.** The elite Lich's Barrow Call (#281, "not measured: the
+  balance pass judges it") cost no first try in pass 2 and level 4 clears 70% against 65%; the Gravedigger felled one in 40. The Barrow
+  King fells 5 of the 26 first tries that reach him; his level is lost mostly in the waves before him (14 of 40), which the crown level's
+  step eases.
+
+Pass 1 was the level step with the crown level at HP x1 and damage x1.15, and the hands; it lifted levels 3 and 4 but left level 1 at
+70% (the Abbot still felled 11 of 40 first tries, now with one other loss before him) and the crown level fell to 48%.
+
+What the level panel shows on Knight (Enemy HP): 314, 251, 229, 230, 200% (were the Iron Hold's: 335, 251, 237, 240, 225%).
+
+`npm run sim -- levels 8 1 barrowvale`: 40 first tries a level on Knight (paladin, viking, angel, necromancer, archer; 8 seeds each).
+First-try clear rate and a clear's median minutes. Target: about 90% at level 1 and 55-60% at level 5, falling evenly between.
+
+| Level | Waves | Target | Before | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|---|
+| Barrowvale 1 | 1-8 | 90% | 65%, 5.9 | 70%, 5.7 | 90%, 5.7 |
+| Barrowvale 2 | 9-16 | 82% | 80%, 6.9 | 78%, 6.7 | 75%, 6.8 |
+| Barrowvale 3 | 17-24 | 73% | 60%, 7.1 | 70%, 6.9 | 70%, 7.0 |
+| Barrowvale 4 | 25-32 | 65% | 57%, 8.2 | 60%, 8.1 | 70%, 7.7 |
+| Barrowvale 5 | 33-40 | 55-60% | 53%, 8.7 | 48%, 8.5 | 53%, 8.8 |
+
+Per class, first tries cleared of 8 (before -> pass 2):
+
+| Level | Paladin | Viking | Angel | Necromancer | Archer |
+|---|---|---|---|---|---|
+| Barrowvale 1 | 8 -> 8 | 4 -> 8 | 8 -> 8 | 4 -> 7 | 2 -> 5 |
+| Barrowvale 2 | 5 -> 3 | 7 -> 8 | 8 -> 8 | 7 -> 7 | 5 -> 4 |
+| Barrowvale 3 | 1 -> 2 | 5 -> 7 | 8 -> 8 | 7 -> 7 | 3 -> 4 |
+| Barrowvale 4 | 1 -> 1 | 5 -> 6 | 7 -> 8 | 6 -> 8 | 4 -> 5 |
+| Barrowvale 5 (the crown) | 2 -> 1 | 4 -> 5 | 7 -> 8 | 7 -> 5 | 1 -> 2 |
+| All five | 17 -> 15 of 40 | 25 -> 34 | 38 -> 40 | 31 -> 34 | 15 -> 20 |
+
+The end bosses, measured (first tries lost of 40: in the waves before the boss / with the boss on the floor; the median seconds the
+boss stood, from its arrival to the level's end):
+
+| Level | End boss | Before | Pass 1 | Pass 2 (now) |
+|---|---|---|---|---|
+| Barrowvale 1 | the Plague Abbot | 4 / 10, 41 s | 1 / 11, 44 s | 1 / 3, 42 s |
+| Barrowvale 2 | the Lich | 7 / 1, 40 s | 7 / 2, 39 s | 7 / 3, 39 s |
+| Barrowvale 3 | the Gravedigger | 16 / 0, 44 s | 11 / 1, 44 s | 11 / 1, 45 s |
+| Barrowvale 4 | the Lich, Elite | 15 / 2, 51 s | 14 / 2, 54 s | 12 / 0, 49 s |
+| Barrowvale 5 | the Barrow King (crown) | 16 / 3, 53 s | 14 / 7, 51 s | 14 / 5, 51 s |
+
+| Target (rule 9) | Before | Pass 2 | |
+|---|---|---|---|
+| About 90% at realm level 1 | 65% | 90% | met |
+| 55-60% at realm level 5 | 53% | 53% | 2 points under, within 20% |
+| Falling evenly between | level 1 65% against 90%, level 3 60% against 73% | widest: level 2 75% against 82%, level 4 70% against 65% | within 20% |
+| A realm's level 1 takes 4-6 minutes | 5.9 | 5.7 | met |
+| A realm's last level takes 7-10 minutes | 8.7 | 8.8 | met |
+| A realm in about 35 minutes clean, 45 with retries | 37.1 / 51.7 | 36.9 / 48.1 | clean met, with retries 3 minutes over |
+| A 6-set in most crown-level clears | 100% | 100% | met |
+| Relic moments per findable relic 0.4-0.6 (the realm played through) | 0.37 | 0.37 | just outside, as the Iron Hold's 0.38 and the Cinderlands' 0.39 |
+| Power at a level's first wave within 15% of a continuous run | 0 of 4 levels | 0 of 4 levels | not comparable (#220) |
+
+What the numbers say, and what is left after two passes (reported, not tuned further):
+- **The bot's Paladin clears 15 of 40 first tries in the Barrowvale** (8 of 8 at level 1, then 3, 2, 1 and 1 of 8), where he cleared
+  36 of 40 in the Cinderlands; the other four clear 20 (the Archer) to 40 (the Angel). He falls in the waves, often early in a level
+  (on some seeds within a minute of level 4), not at its bosses. The likeliest cause is the realm's lesson itself: a melee champion
+  fights where his foes fall, and the Blight Hounds leave plague ground where they die, so the bot's Paladin stands in it (the Viking,
+  also melee, has his leech). A level step can't lift one class without easing the other four past their targets: it needs the Paladin,
+  or the bot's footwork on lasting ground, looked at by hand.
+- **The Archer** clears 20 of 40 (2 of 8 at the crown): the Iron Hold's and the Cinderlands' finding again, less sharply.
+- **The Plague Abbot was the one boss that decided a level**: he felled 10 of the 36 first tries that reached him, now 3 of 39.
+- The per-level rates carry about 8 points of noise at 40 tries: level 2 (7 points under) and level 4 (5 over) are inside it.
+
+The champion redesigns (#245, #247, #268, #269, #270) changed no hitbox: `GAME.playerRadius` is 13 as in v0.12.0, and none of their
+commits touches `src/config`, `src/logic` or `src/systems`. docs/review/0.13.0/293-graveyard-champions-and-foes-4x.png shows the five
+champions and the Barrowvale's foes and bosses on the Forsaken Graveyard's ground with their hitbox rings: each reads at a glance; the
+lowest contrast against the graveyard's green floor is the Archer's sage cloak and the Blight Hound, both still outlined.
+
+The golden level runs (tests/v10-level-golden.test.ts) gained the Barrowvale's level 1 and a realm run of its levels 1-2; no other
+run moved. `npm run test:perf`'s graveyard scene (#273, #292: a Barrowvale level in the Forsaken Graveyard with the Gravedigger's theme
+and cues) passes after the pass: p95 16.8 ms, 244 foes (69 the realm's own), up to 4 grasping hands marked at once.
+
 ## v0.13: the Cinderlands on Knight for a champion with only the Marches crown (#262)
 
 The v0.12.0 playtest: a Paladin at champion level 8-9 with only the Marches crown and a real carry fell 3 times at waves 12-13 of the
