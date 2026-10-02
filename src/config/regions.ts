@@ -60,7 +60,8 @@ export interface WingDef {
   feature: FeatureKind;
   label: string; // the feature under this wing's name: "Forge fires" for the forge's vents
   prop: ObstacleKind; // the furniture scattered on its floor
-  floor: 'soot' | 'plank' | 'runner'; // render/arena.ts lays it over the arena's tiles
+  propR?: number; // #273: its furniture's radius, when it isn't the core scatter's (the sexton's yard's headstones)
+  floor: 'soot' | 'plank' | 'runner' | 'nave' | 'grave'; // render/arena.ts lays it over the arena's tiles (#273: a ruined nave's flagstones, rows of graves)
 }
 
 /** Shrine blessings: permanent for the run, one of REGIONS.shrineBlessings offered. Plain mods, folded into the run's base mods. */
@@ -126,7 +127,7 @@ export function expandArena(def: ArenaDef): ArenaDef {
         const t = (i + 0.5) / 4;
         const x = f.w > f.h ? f.x + f.w * (i < 2 ? t * 0.8 : 0.2 + t * 0.8) : f.x + f.w * (i % 2 ? 0.25 : 0.75);
         const y = f.w > f.h ? f.y + f.h * (i % 2 ? 0.28 : 0.72) : f.y + f.h * (i < 2 ? t * 0.8 : 0.2 + t * 0.8);
-        wingObstacles.push({ kind: prop ?? scatterKind.kind, x, y, r: scatterKind.r });
+        wingObstacles.push({ kind: prop ?? scatterKind.kind, x, y, r: def.wings?.[id].propR ?? scatterKind.r });
       }
     }
   }

@@ -4,7 +4,7 @@ import { GAME } from './game';
 import { expandArena, type Rect, type RegionDef, type WingDef, type WingId } from './regions';
 
 export type ArenaId = 'courtyard' | 'graveyard' | 'keep' | 'emberForge' | 'bastion';
-export type ObstacleKind = 'tomb' | 'tree' | 'pillar' | 'brazier' | 'throne' | 'anvil' | 'rack' | 'bunk' | 'crucible'; // #210: the anvil, weapon rack and bunk furnish the Great Keep's wings; #223: the crucible the Ember Forge
+export type ObstacleKind = 'tomb' | 'tree' | 'pillar' | 'brazier' | 'throne' | 'anvil' | 'rack' | 'bunk' | 'crucible' | 'crypt' | 'ruin'; // #210: the anvil, weapon rack and bunk furnish the Great Keep's wings; #223: the crucible the Ember Forge; #273: the crypt and the broken chapel's ruined column the Forsaken Graveyard
 export interface Obstacle {
   kind: ObstacleKind;
   x: number;
@@ -70,6 +70,9 @@ function grid(w: number, h: number, cols: number, rows: number, kind: ObstacleKi
 
 const { w, h, wall } = GAME.arena;
 
+/** #273: the Forsaken Graveyard's crypts in its core: how many, and their collision radius (a crypt is wider than a tree). */
+export const GRAVEYARD = { crypts: 2, cryptR: 34 };
+
 /**
  * #223: the Ember Forge's lava (logic/lava.ts, systems/arena.ts). Whoever stands in a channel burns: `dps` a second (scaled with the wave
  * like enemy damage), x`foeMult` to foes, ticking every GAME.fieldTick. It hurts, it doesn't block: a channel is `width` px across, a
@@ -110,14 +113,23 @@ const AUTHORED: Record<ArenaId, ArenaDef> = {
   graveyard: {
     id: 'graveyard',
     name: 'Forsaken Graveyard',
-    desc: 'Tombstones and dead trees break up the horde — and your line of fire.',
-    feature: 'Grasping hands burst from the earth near you. The dead linger twice as long.',
+    desc: 'Tombstones and dead trees break up the horde — and your line of fire. The Barrowvale’s crypts, sexton’s yard, broken chapel and old barrows lie behind its gates.',
+    feature: 'Grasping hands burst from the earth near you. The dead linger twice as long. Each wing is always the same place.',
     w: 2200, h: 1500, wall,
     theme: { tile: 'earth', mortar: '#23291f', stones: ['#2f3a2a', '#33402d', '#2b3527', '#374331'], patch: 'rgba(150,170,180,0.22)', wall: '#26282c', wallTop: '#3a3d44' },
-    obstacles: scatter(7, 2200, 1500, [['tree', 7, 26], ['tomb', 22, 18]]),
+    // #273: two crypts join the scatter after the trees and tombs, so those stand where they always stood
+    obstacles: scatter(7, 2200, 1500, [['tree', 7, 26], ['tomb', 22, 18], ['crypt', GRAVEYARD.crypts, GRAVEYARD.cryptR]]),
     hazard: { kind: 'graspingHands', every: 7, count: 3, radius: 62, delay: 1.3, damage: 14, spread: 170 },
     bosses: ['abbot', 'lich', 'warlord'],
     corpseLifeMult: 2,
+    // #273: the Barrowvale's arena (its realm levels play here, config/world.ts), on the Great Keep's recipe (#210): each wing is a place
+    // in the graveyard with the feature that suits it, its own ground and its own furniture
+    wings: {
+      north: { name: 'the crypts', feature: 'hazard', label: 'Grave gas', prop: 'crypt', floor: 'nave' },
+      east: { name: 'the sexton’s yard', feature: 'chest', label: 'Strongbox', prop: 'tomb', propR: 18, floor: 'grave' },
+      south: { name: 'the broken chapel', feature: 'shrine', label: 'Shrine', prop: 'ruin', floor: 'nave' },
+      west: { name: 'the old barrows', feature: 'lair', label: 'Lair', prop: 'tree', floor: 'grave' },
+    },
   },
   keep: {
     id: 'keep',
