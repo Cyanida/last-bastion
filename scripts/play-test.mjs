@@ -6884,6 +6884,59 @@ await check('Relics: Flashpowder, Pitch Pot and Crown of Cinders each do their w
   }),
 );
 
+// ---------- #279: the Barrowvale's Grave relics: a test run holding all four, fought through the real input for 30 s, the champion
+// pacing left and right through the horde so she walks over the corpses ----------
+await check("Relics: Barrow Boots, Plague Censer, Sexton's Bell and Crown of Antlers each do their work in a fight, and their HUD tiles say what they do (#279)", () =>
+  inPage(() => location.reload()).then(async () => {
+    await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu');
+    const ids = ['barrowBoots', 'plagueCenser', 'sextonsBell', 'crownOfAntlers'];
+    const start = await inPage(async (ids) => {
+      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+      const set = (el, v) => {
+        el.value = v;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Settings').click();
+      await wait(150);
+      document.querySelector('[data-act="test"]').click();
+      await wait(100);
+      set(document.getElementById('tm-class'), 'paladin');
+      set(document.getElementById('tm-act'), '2'); // a crowded Act II wave and a level-1 champion, as #217's check
+      set(document.getElementById('tm-wave'), '5');
+      set(document.getElementById('tm-level'), '1');
+      const listed = ids.filter((id) => document.querySelector(`#tm-relics select[data-relic="${id}"]`));
+      for (const id of listed) set(document.querySelector(`#tm-relics select[data-relic="${id}"]`), '1');
+      const g = window.__startTest();
+      g.player.deathless = true; // hits land and are counted, the run just never ends
+      await wait(300);
+      const tip = (id) => document.querySelector(`#h-relics .relic[data-id="${id}"]`)?.dataset.tip ?? '';
+      return { listed: listed.length, held: g.player.relics.held.filter((id) => ids.includes(id)).length, tips: ids.map(tip) };
+    }, ids);
+    // 30 s: a second each way (arrow keys), over and over, through the horde and the dead it leaves
+    let patches = 0, bell = 0, guards = 0;
+    for (let i = 0; i < 30; i++) {
+      const key = i % 2 ? 'ArrowLeft' : 'ArrowRight';
+      await page.keyboard.down(key);
+      const seen = await inPage(() => {
+        window.__lb.run(60, false, 'input');
+        const g = window.__lb.game;
+        return { patches: g.fields.filter((f) => f.by === 'plagueCenser').length, bell: g.minions.filter((m) => m.relicBy === 'sextonsBell').length, guards: g.minions.filter((m) => m.relicBy === 'crownOfAntlers').length };
+      });
+      await page.keyboard.up(key);
+      patches = Math.max(patches, seen.patches), bell = Math.max(bell, seen.bell), guards = Math.max(guards, seen.guards);
+    }
+    const fight = await inPage((ids) => {
+      const s = (id) => window.__lb.game.player.relics.stats[id] ?? { damage: 0, prevented: 0 };
+      return { boots: s(ids[0]).damage, censer: s(ids[1]).damage, crown: s(ids[3]).prevented, stomped: window.__lb.game.corpses.filter((c) => c.stomped).length };
+    }, ids);
+    const said = [/stomps/.test(start.tips[0]), /plague ground/.test(start.tips[1]), /bell tolls/.test(start.tips[2]), /barrow guard/.test(start.tips[3])];
+    const ok = start.listed === 4 && start.held === 4 && said.every(Boolean) && fight.boots > 0 && fight.censer > 0 && patches > 0 && bell > 0 && fight.crown > 0;
+    const r = (v) => Math.round(v);
+    return { ok, detail: `test mode lists ${start.listed}/4, held ${start.held}; tiles say ${said.map((x) => (x ? 'yes' : 'NO')).join('/')}; stomps ${r(fight.boots)} dmg, plague ground ${r(fight.censer)} dmg (up to ${patches} patches), the bell raised up to ${bell} skeletons at once, the crown's guard (up to ${guards} of its own) took ${r(fight.crown)} off hits` };
+  }),
+);
+
 // ---------- #230: the Cinderlands' Flame class relics: each champion's own, in a test run fought through the real input (ability on Space) ----------
 await check("Relics: Surtr's Brand and Bonefire each work for their own champion in a fight, test mode lists each for its class only, and their HUD tiles say what they do (#230)", async () => {
   const cases = [

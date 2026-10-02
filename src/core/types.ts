@@ -455,6 +455,7 @@ export interface Corpse {
   y: number;
   t: number;
   walked?: boolean; // Charnel: walked over already
+  stomped?: boolean; // #279: Barrow Boots stomped it already
   rise?: { id: EnemyId; at: number; side: boolean; hp: number }; // #275: it rises as `id` with `hp` when its t reaches `at`, unless trampled first (logic/risingCorpse.ts)
 }
 

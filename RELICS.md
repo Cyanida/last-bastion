@@ -504,6 +504,57 @@ the stacks are full without it, and a burn's ticks go to the relic that fed it l
 The sim's bot takes its taste in families from a class's class relics (`sim/levels.ts` `tasteOf`), so the Viking and the Necromancer now
 lean toward Flame in its loadouts too; the Viking's golden Marches level 7 run slots Salamander Scale first for it and clears the level.
 
+## C6 · The Barrowvale's Grave relics (v0.13, [#279](https://github.com/Cyanida/last-bastion/issues/279))
+
+Four of the Barrowvale's eight new Grave relics (docs/road-to-the-crown.md, "The Barrowvale" and v0.13.0 item 4): a common, two rares and
+the family's second legendary. The Barrowvale teaches corpses that rise unless you trample them and plague ground that lasts; each relic
+takes one of those for the player: a trample that hurts (Barrow Boots), plague ground of your own (Plague Censer), the dead rising for you
+and not against you (Sexton's Bell), and the Barrow King's own guard (Crown of Antlers). Numbers in `config/relics.ts` (the four entries
+after Deathmask), behaviour in `systems/relicFamilies/grave.ts`, the pure rules (which corpses are stomped, when the censer lays, which
+corpses the bell raises, what the guard takes off) in `logic/graveRelics.ts`. The class relics and the new duo are #280.
+
+| Relic | Rarity | Effect (I → II) | Awakened (III) |
+|---|---|---|---|
+| 👢 Barrow Boots | common | Walking over a corpse stomps it once: 30 → 38 shadow damage (grows with level) to every enemy within 85 px | **Grave Stomp**: a stomp curses what it hits (1 stack) |
+| 🧪 Plague Censer | rare | Every 4 → 3 kills, plague ground spreads where the last enemy fell, for 8 s: 10 → 13 shadow damage per second (grows with level), and it poisons (up to 3 → 4 patches) | **Blight Bloom**: an enemy that dies in your plague ground leaves plague ground of its own |
+| 🛎️ Sexton's Bell | rare | Every 6 → 4.5 s the bell tolls: up to 3 → 4 corpses within 180 px rise as skeleton allies (60 HP, 16 damage) for 10 s, a corpse about to rise against you first | **Death Toll**: each toll curses every enemy within its reach (2 stacks) |
+| 🦌 Crown of Antlers | legendary | Your skeletons are your barrow guard: you take 5% → 7% less damage for each within 200 px (up to 3). Kills have an 8% → 12% chance to raise a guard (60 HP, 10 damage, 12 s; up to 3 → 4) | **Court of Bones**: while 3+ guards stand near you, you mend 1% of your max HP every second |
+
+- **Where they are found.** Barrow Boots is a common, so it joins the starter pool: every run finds it from the start. The rares and the
+  legendary are in the Barrowvale's pool (the realm's whole family) and, once kept, in the champion's inventory; the runs without a
+  champion (the Daily Trial, the sims) find all four. The Marches' Grave level offers its rares in order, so a champion who owns Hex Doll and
+  Grave Pact is offered Plague Censer and Sexton's Bell there.
+- **Soul Lantern moves to the Barrowvale's crown** (docs/road-to-the-crown.md, section 8): it leaves `RELIC_POOL.open`, so a champion's run
+  finds it only in the Barrowvale or once it is in the inventory. Crown of Antlers is the second Grave legendary, so the Knight crown ("pick
+  1 of 2 Grave legendaries") offers the two, and the Champion crown gives the one not picked. Phoenix Feather and Stormcaller's Horn stay
+  open until their realms ship.
+- **Slot rules.** Crown of Antlers takes 2 slots and is the loadout's one legendary; all four count toward the 4 Grave relics a loadout may
+  hold.
+- **Decided: a corpse is stomped once**, then stays a corpse (for Raise Dead, the Spade, Charnel and the bell), and the stomp counts any
+  corpse, not only a rising one, so the boots work in every arena; a rising corpse the boots stomp is trampled as before.
+  **Decided: the bell waits for a corpse**: with none in reach its clock stays ready and it tolls on the next one, so a toll never comes up
+  empty; a thrall's rising corpse it raises is gone, so it never rises against you. **Decided: the guard is every skeleton of yours**
+  (Raise Dead's, the relics', the sets'), not only the crown's, but never a quest's or an evolution's unit; the cut stops at 3 guards, so a
+  full Necromancer army counts no more than three.
+
+**Measured.** `npm run sim -- relics 3 hold=<id>` (every run holds the named relic from the start; maxed saves, 15 runs each). Share from
+wave 21 on, target 3-35%:
+
+| Relic | Runs held at wave 20 | Share | Won | Power index |
+|---|---|---|---|---|
+| 🦌 Crown of Antlers | 14 | 8.2% | 14 | 1.65 |
+| 🛎️ Sexton's Bell | 14 | 4.8% | 12 | 1.81 |
+| 🧪 Plague Censer | 14 | 3.7% | 13 | 1.70 |
+| 👢 Barrow Boots | 13 | 3.6% | 12 | 1.93 |
+
+All four sit inside the band. The first numbers read under it: Barrow Boots 1.5% (16 → 20 damage in 70 px, a corpse within 16 px of your
+edge), Sexton's Bell 1.7% (every 8 → 6 s, 2 → 3 skeletons of 40 HP and 8 damage for 8 s) and Plague Censer 3.2% (7 → 9 damage per
+second in 55 px), so the boots stomp harder and wider, the bell tolls more often for more and stronger skeletons, and the censer's ground
+hurts more. Crown of Antlers' share counts only the damage its guard takes off, not its own guards' hits. The power index read under its
+1.8-2.2 band in the Crown's and the censer's runs (1.65 and 1.70): holding a Grave relic from the start turns the family-following bot
+toward Grave, the family whose skeletons and curses it credits least. The realm's balance pass (v0.13.0 item 5) measures the Barrowvale
+as a whole.
+
 ## A0b · The new relic list (approved, revision 2)
 
 **Revision 2** follows Jesse's review on [#5](https://github.com/Cyanida/last-bastion/issues/5): every class gets **three preferred families**, shown
@@ -617,7 +668,7 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Seraph's Halo *(Angel)* | rare | Heavenly Radiance also fires 4 + Grace × 0.8 → 6 + Grace light bolts | **Choir of Light**: the bolts heal you for 1% max HP each when they hit | Angel |
 | Hallowed Bones *(Necromancer)* | rare | Skeletons you raise carry a ward of 20% → 30% of their HP, and a skeleton that expires heals you 1% max HP (+0.1% per Soul Power) | **Sanctified Legion**: skeletons' hits heal you for 0.5% of the damage | Necromancer |
 
-#### 💀 Grave (5 + 1 class)
+#### 💀 Grave (9 + 1 class)
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) | Suits |
 |---|---|---|---|---|
@@ -626,6 +677,10 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Grave Pact | rare | Your ability blesses your minions for 7 → 10 s (+30% damage, they mend); with no minions it raises one skeleton for that long | **Unholy Pact**: blessed minions' hits curse | Necromancer, any |
 | Gravedigger's Spade | common | +3% → 4% damage for every corpse within 150 px (max 5) | **Exhume**: every 20 s the oldest corpse near you rises as a skeleton | any |
 | Deathmask | common | Cursed enemies deal 15% → 20% less damage | **Mark of the Grave**: a cursed enemy you kill leaves a corpse that bursts in shadow after 1 s | any |
+| Barrow Boots *(v0.13)* | common | Walking over a corpse stomps it once: 30 → 38 shadow damage (grows with level) to every enemy within 85 px | **Grave Stomp**: a stomp curses what it hits | any |
+| Plague Censer *(v0.13)* | rare | Every 4 → 3 kills, plague ground spreads where the last enemy fell, for 8 s: 10 → 13 shadow damage per second (grows with level), and it poisons (up to 3 → 4 patches) | **Blight Bloom**: an enemy that dies in your plague ground leaves plague ground of its own | any |
+| Sexton's Bell *(v0.13)* | rare | Every 6 → 4.5 s up to 3 → 4 corpses within 180 px rise as skeleton allies for 10 s, a corpse about to rise against you first | **Death Toll**: each toll curses every enemy within its reach | Necromancer, any |
+| Crown of Antlers *(v0.13)* | legendary | You take 5% → 7% less damage for each of your skeletons within 200 px (up to 3); kills have an 8% → 12% chance to raise a guard (up to 3 → 4) | **Court of Bones**: while 3+ guards stand near you, you mend 1% of your max HP every second | any |
 | Bone Chime *(Necromancer)* | rare | Minions inherit 50% → 70% of your attack speed, plus 2% → 3% per Soul Power | **Death Knell**: every 20th minion hit tolls the chime: a shadow burst around that minion | Necromancer |
 
 #### 🛡️ Steel (9 + 5 class)
