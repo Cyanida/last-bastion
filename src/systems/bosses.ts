@@ -1,6 +1,6 @@
 import { FINAL } from '../config/acts';
 import { BARROW_KING, CINDER_COLOSSUS, DRAGON, EMBER_QUEEN, FORGEMASTER, GRAVEDIGGER, IRON_KING, WARDEN } from '../config/bosses';
-import { sfx } from '../sim/view';
+import { by, sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Enemy, Game } from '../core/types';
 import { addField, addZone, timer } from '../entities/hazards';
@@ -88,7 +88,7 @@ registerBoss('dragon', (g, e, dt) => {
   e.special -= dt;
   if (e.special > 0) return;
   e.special = def.specialCd!;
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
   if (e.phase >= 2 && e.combo++ % DRAGON.flight.every === 0) {
     e.state = 2; // take off
     e.timer = DRAGON.flight.time;
@@ -133,7 +133,7 @@ registerBoss('warden', (g, e, dt) => {
   e.special -= dt;
   if (e.special > 0 || distTo(e, g.player) > WARDEN.reach) return;
   e.special = wardenSpecialCd(def.specialCd!, e.phase, e.crown);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
   const { x, y } = g.player;
   const move = wardenMove(e.phase, e.crown, e.combo++);
   g.banner = { text: move.inner ? 'Judged' : 'Sealed in', t: 1.4 };
@@ -175,14 +175,14 @@ registerBoss('forgemaster', (g, e, dt) => {
     g.banner = { text: 'The Forgemaster reforges his plate', t: 2.2 };
     markPhase(g, 'The Forgemaster reforges his plate');
     ring(g, e.x, e.y, 130, EMBER, 0.6);
-    sfx(g, 'clang');
+    sfx(g, 'clang', by(e));
   }
   seek(e, t, e.speed, dt);
   touch(g, e, t);
   e.special -= dt;
   if (e.special > 0 || distTo(e, g.player) > FORGEMASTER.reach) return;
   e.special = forgeCd(e.phase);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
   const move = forgeMove(e.phase, e.combo++);
   if (move.slam) {
     // his hammer comes down in an arc in front of him; from phase 3 the struck ground stays molten (the Dragon's fire fields' burn)
@@ -216,7 +216,7 @@ registerBoss('ironKing', (g, e, dt) => {
     markPhase(g, KING_PHASE[e.phase] ?? def.name);
     burst(g, e.x, e.y, IRON, 24, 260);
     ring(g, e.x, e.y, 150, IRON, 0.6);
-    sfx(g, e.phase === 2 ? 'block' : 'thorns');
+    sfx(g, e.phase === 2 ? 'block' : 'thorns', by(e));
   }
   if (e.state === 1) {
     // the rush winds up along its line
@@ -242,7 +242,7 @@ registerBoss('ironKing', (g, e, dt) => {
   e.special -= dt;
   if (e.special > 0 || distTo(e, g.player) > IRON_KING.reach) return;
   e.special = kingCd(e.phase);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
   const blow = kingMove(e.phase, e.combo++);
   const a = angleTo(e, g.player);
   if (blow.rush) {
@@ -286,7 +286,7 @@ registerBoss('emberQueen', (g, e, dt) => {
     g.banner = { text: 'The Ember Queen flares up', t: 2.2 };
     markPhase(g, 'The Ember Queen flares up');
     flare(g, e);
-    sfx(g, 'warn');
+    sfx(g, 'warn', by(e));
   }
   keepRange(e, t, dt);
   touch(g, e, t);
@@ -298,7 +298,7 @@ registerBoss('emberQueen', (g, e, dt) => {
   e.special -= dt;
   if (e.special > 0 || distTo(e, g.player) > EMBER_QUEEN.reach) return;
   e.special = queenCd(e.phase);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
   const move = queenMove(e.phase, e.combo++);
   if (move === 'flare') return flare(g, e);
   if (move === 'volley') {
@@ -350,7 +350,7 @@ registerBoss('cinderColossus', (g, e, dt) => {
     markPhase(g, COLOSSUS_PHASE[e.phase] ?? def.name);
     burst(g, e.x, e.y, FIRE, 30, 280);
     ring(g, e.x, e.y, e.phase >= CINDER_COLOSSUS.burstFrom ? CINDER_COLOSSUS.burst.reach : 160, FIRE, 0.7);
-    sfx(g, 'boom');
+    sfx(g, 'boom', by(e));
     shake(g, 10);
   }
   seek(e, t, e.speed, dt);
@@ -358,7 +358,7 @@ registerBoss('cinderColossus', (g, e, dt) => {
   e.special -= dt;
   if (e.special > 0 || distTo(e, g.player) > CINDER_COLOSSUS.reach) return;
   e.special = colossusCd(e.phase);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
   const blow = colossusMove(e.phase, e.combo++);
   const a = angleTo(e, g.player);
   e.flip = Math.cos(a) < 0;
@@ -408,7 +408,7 @@ function tendKingGraves(g: Game, e: Enemy, dt: number): void {
     if (trampled(gr.x, gr.y, p.x, p.y, p.r)) {
       burst(g, gr.x, gr.y, BARROW, 10, 120);
       floatText(g, gr.x, gr.y - 14, 'TRAMPLED', BARROW, 12);
-      sfx(g, 'hit');
+      sfx(g, 'hit', by(e));
       g.vars['barrow.trampled'] = (g.vars['barrow.trampled'] ?? 0) + 1; // the play test and the sim read these
       return false;
     }
@@ -435,7 +435,7 @@ registerBoss('barrowKing', (g, e, dt) => {
     markPhase(g, BARROW_PHASE[e.phase] ?? def.name);
     burst(g, e.x, e.y, e.phase >= BARROW_KING.guardFrom ? BARROW : POISON, 30, 260);
     ring(g, e.x, e.y, e.phase >= BARROW_KING.guardFrom ? BARROW_KING.guard.reach : 160, e.phase >= BARROW_KING.guardFrom ? BARROW : POISON, 0.7);
-    sfx(g, 'boom');
+    sfx(g, 'boom', by(e));
     shake(g, 10);
   }
   tendKingGraves(g, e, dt);
@@ -447,7 +447,7 @@ registerBoss('barrowKing', (g, e, dt) => {
   e.special -= dt;
   if (e.special > 0 || distTo(e, g.player) > BARROW_KING.reach) return;
   e.special = barrowCd(e.phase);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
   const blow = barrowMove(e.phase, e.combo++);
   const a = angleTo(e, g.player);
   e.flip = Math.cos(a) < 0;
@@ -495,7 +495,7 @@ function lungeWindup(g: Game, e: Enemy, t: Target, scale: number): void {
   e.timer = U.lunge.windup * scale;
   e.angle = angleTo(e, t);
   e.telegraph = { angle: e.angle, length: U.lunge.dist, width: e.r * 2.4, t: 0, dur: e.timer };
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
 }
 
 /** Phase 3: two burning bands across the whole open map that cross where you stand. Get off both lines. */
@@ -538,7 +538,7 @@ function raiseWard(g: Game, e: Enemy): void {
   g.vars['usurper.pulse'] = U.ward.pulse.every;
   g.banner = { text: 'The Usurper hides behind his ward: put out the Royal Flames', t: 4 };
   ring(g, e.x, e.y, 220, GOLD, 0.8);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
 }
 
 /** While warded on the dais: burning pitch from the walls around you, crossbow fans from the dais, and the flames flare. */
@@ -597,7 +597,7 @@ registerBoss(FINAL.boss, (g, e, dt) => {
     g.banner = { text: 'The ward breaks: strike now', t: 2.5 };
     ring(g, e.x, e.y, 240, GOLD, 0.8);
     shake(g, 12);
-    sfx(g, 'levelup');
+    sfx(g, 'levelup', by(e));
   }
 
   if (e.state === 10) {
@@ -634,7 +634,7 @@ registerBoss(FINAL.boss, (g, e, dt) => {
       cleave(g, e, t);
       (e.state = 1), (e.timer = U.cleave.windup);
     }
-    sfx(g, 'warn');
+    sfx(g, 'warn', by(e));
   } else if (e.state === 1) {
     if (e.timer <= 0) (e.state = 4), (e.timer = 0.35); // the blow lands (the zones), then a breath
   } else if (e.state === 2) {
@@ -680,7 +680,7 @@ function tendGraves(g: Game, e: Enemy, dt: number, all: boolean): void {
     burst(g, gr.x, gr.y, EARTH, 10, 110);
     if (e.phase >= GRAVEDIGGER.spill.from) addField(g, { ...rotField(g, e), x: gr.x, y: gr.y, r: GRAVEDIGGER.spill.radius, hostile: true });
   }
-  if (risen.length) sfx(g, 'warn');
+  if (risen.length) sfx(g, 'warn', by(e));
 }
 
 registerBoss('gravedigger', (g, e, dt) => {
@@ -702,7 +702,7 @@ registerBoss('gravedigger', (g, e, dt) => {
   e.special -= dt;
   if (e.special > 0 || distTo(e, g.player) > GRAVEDIGGER.reach) return;
   e.special = diggerCd(e.phase);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
   const move = diggerMove(e.phase, e.combo++);
   const a = angleTo(e, t);
   if (move === 'spade') {

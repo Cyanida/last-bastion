@@ -1,4 +1,4 @@
-import type { SfxName } from './audio';
+import type { Cue } from '../sim/view';
 import type { OathStack } from '../logic/oaths';
 import type { LevelUpOption } from '../logic/upgrades';
 import type { AbilityUpgradeId } from '../config/abilityUpgrades';
@@ -506,7 +506,7 @@ export interface Game {
   corpses: Corpse[];
   particles: Particle[];
   texts: FloatText[];
-  out: SfxName[]; // v0.8 (#114): this tick's sound cues; the view plays and empties them (sim/view.ts playCues). Not hashed
+  out: Cue[]; // v0.8 (#114): this tick's sound cues (#283: with their source and place); the view plays and empties them (sim/view.ts playCues). Not hashed
   effects: Effect[];
   hash: SpatialHash<Enemy>;
   rng: SeededRng;

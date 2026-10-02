@@ -7629,6 +7629,88 @@ await check('Barrow King: test mode starts the Barrowvale level 5; its crown bos
   return { ok, detail: `wave ${fight.wave}: ${fight.id || 'no boss'}${fight.crown ? ' (crown)' : ''} "${fight.banner}"; phases at ${fight.phases.join(', ')} s ("${fight.banners.join('", "')}"); reaps ${fight.reaps.join('/')}, graves trampled ${fight.trampled.join('/')}, dead risen ${fight.risen.join('/')}, plague Reaps ${fight.plagues.join('/')} by phase; plague lasts ${fight.plagueLife} s; guards up to ${fight.guards}, GUARDED ticks ${fight.guarded}; ${fight.dead ? 'fell' : 'STANDING'}, level ${fight.cleared ? 'cleared' : 'not cleared'}${errs.length ? `; errors: ${errs[0]}` : ''}` };
 });
 
+// #283: a voice limit with priorities, small variations and stereo by position. Test mode -> the Barrowvale level 5 -> its last wave,
+// the Barrow King's; a crowd of forty foes closes round the champion while he stands at the King's side, played with pauses so the
+// audio clock runs. The effect voices fill up: hits in the crowd are dropped, never a boss cue, and the King's cues play while the
+// voices are full; cues off to one side pan, and a cue past the edge of the screen is quieter.
+await check('Sound: a boss cue plays in a crowded fight; the voice limit drops the crowd’s hits first, and cues pan by position (#283)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  if (!(await p.evaluate(() => typeof window.__lb.voices === 'function'))) return (await p.close(), { skip: true, detail: 'no voice limit on this branch (before #283)' });
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  await p.locator('#tm-class').selectOption('viking');
+  await p.locator('#tm-arena').selectOption('graveyard');
+  await p.locator('#tm-start').selectOption('barrowvale:5');
+  await p.evaluate(() => {
+    const now = Date.now;
+    Date.now = () => 2654435761;
+    try {
+      [...document.querySelectorAll('button')].find((b) => /start test run/i.test(b.textContent)).click();
+    } finally {
+      Date.now = now;
+    }
+  });
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  await p.locator('[data-pick="0"]').click(); // a click: the sound starts
+  const fight = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    g.enemies.length = 0;
+    g.spawnQueue.length = 0;
+    g.wave = g.wavesCleared = g.level.last - 1; // straight on to the level's last wave: the King's
+    g.breather = 0.01;
+    let k = null;
+    for (let i = 0; i < 6000 && !k && lb.state !== 'results'; i++) {
+      g.player.invulnerable = true;
+      lb.run(1, false, false);
+      k = g.enemies.find((e) => e.def.boss && !e.dead) ?? null;
+    }
+    if (!k) return { found: false };
+    const before = lb.voices();
+    const out = { found: true, id: k.def.id, crowd: 0, peak: 0, ticks: 0, seconds: 0 };
+    const t0 = performance.now();
+    for (let i = 0; i < 2400 && !k.dead && lb.state !== 'results'; i++) {
+      if (i % 120 === 0) {
+        // the crowd: forty foes in a ring round the champion, topped up as they fall
+        const live = g.enemies.filter((e) => !e.dead && !e.def.boss).length;
+        for (let j = live; j < 40; j++) {
+          const a = (j / 40) * Math.PI * 2, r = 60 + (j % 3) * 30;
+          lb.spawn('peasant', g.player.x + Math.cos(a) * r, g.player.y + Math.sin(a) * r);
+        }
+        out.crowd = Math.max(out.crowd, g.enemies.filter((e) => !e.dead).length);
+      }
+      g.player.invulnerable = true;
+      (g.player.x = k.x - (k.r + 16)), (g.player.y = k.y); // at the King's side, his blows and warnings close by
+      lb.run(1, false, false);
+      out.ticks++;
+      out.peak = Math.max(out.peak, lb.voices().live);
+      if (i % 8 === 7) await wait(0); // the audio clock moves on, so voices end and others start (about real time: headless steps slower)
+    }
+    out.seconds = +((performance.now() - t0) / 1000).toFixed(1);
+    const after = lb.voices();
+    for (const key of ['played', 'dropped', 'stolen', 'panned', 'faded', 'boss', 'bossDropped', 'crowded', 'bossCrowded']) out[key] = after[key] - before[key];
+    out.max = after.max;
+    return out;
+  });
+  // a cue past the screen's edge, as a foe falls far off to the right: it pans right and is quieter
+  const far = await p.evaluate(async () => {
+    const lb = window.__lb, before = lb.voices(), cam = lb.camera();
+    if (!cam) return null;
+    await new Promise((r) => setTimeout(r, 600)); // a moment, so the crowd's voices end
+    lb.view.sfx('kill', { name: 'kill', src: 'foe', x: cam.x + 1280 / cam.zoom + 300, y: cam.y + 360 / cam.zoom }); // the simulation's way to the speaker
+    const after = lb.voices();
+    return { faded: after.faded - before.faded, panned: after.panned - before.panned };
+  });
+  await p.close();
+  const ok = fight.found && fight.id === 'barrowKing' && fight.crowd >= 30 && fight.peak === fight.max && fight.boss >= 1 && fight.bossCrowded >= 1 && fight.bossDropped === 0
+    && fight.dropped >= 1 && fight.panned >= 1 && far && far.faded >= 1 && far.panned >= 1 && errs.length === 0;
+  return { ok, detail: fight.found ? `${fight.id}: ${fight.ticks} ticks in ${fight.seconds} s with up to ${fight.crowd} foes; voices up to ${fight.peak}/${fight.max}; ${fight.played} effects played, ${fight.dropped} dropped, ${fight.stolen} taken over, ${fight.crowded} cues met full voices; boss cues ${fight.boss} played (${fight.bossCrowded} while full), ${fight.bossDropped} dropped; ${fight.panned} panned, ${fight.faded} quieter off screen; a fall past the edge: ${far ? `${far.panned ? 'panned' : 'NOT panned'}, ${far.faded ? 'quieter' : 'NOT quieter'}` : 'not played'}${errs.length ? `; errors: ${errs[0]}` : ''}` : 'no boss on the last wave' };
+});
+
 // ---------- #264: a strong build meets every phase of a crown boss: Settings -> Test mode -> "Start at" a relic realm's level 5 -> its last wave ----------
 // The champion strikes forty times his strength from behind the crown boss (unhurt, no ability, no bot moves), so only the crown's hold keeps
 // him up. Each phase holds its 12 s (UNBROKEN shows the hold), and once its time is run a blow ends the phase and no more: the next phase

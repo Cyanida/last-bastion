@@ -1,6 +1,8 @@
 import { BUS_ORDER, MIXER, type BusId } from '../config/mixer';
 import { MUSIC } from '../config/music';
 import { busGain, duckDepth, heard, readMix, withBus, type Mix } from '../logic/mixer';
+import { VOICES, type CueSource } from '../config/voices';
+import { cuePriority, pickVoice, placeCue, tooSoon, vary, type Listener, type Voice } from '../logic/voices';
 import { prefs } from './storage';
 
 /**
@@ -45,7 +47,7 @@ let wind: { src: AudioBufferSourceNode; out: GainNode } | null = null; // #282: 
 let windWanted = false;
 let muted = prefs.get(MUTE_KEY) === '1';
 let mix: Mix = readMix(prefs.get(MIX_KEY), { music: prefs.get('lastbastion.music'), effects: prefs.get('lastbastion.effects') });
-const lastPlayed: Partial<Record<SfxName, number>> = {};
+const lastPlayed: Record<string, number> = {}; // #283: by sound and source, so a foe's warning never holds back a boss's
 const played = { effects: 0, ui: 0 }; // #282: sounds started per bus (the play test hears the menu's taps)
 
 /** Must be called from a user gesture (browser autoplay rules). */
@@ -181,32 +183,88 @@ export function mixerStats() {
   };
 }
 
-export function sfx(name: SfxName): void {
+/**
+ * #283: the effect voices playing (the UI's taps are not limited), where the player looks (main.ts tells how to ask; asked only when a
+ * placed cue plays, so it costs nothing per frame), and what the voice limit did, for the play test.
+ */
+const voices: (Voice & { node: AudioScheduledSourceNode; gain: GainNode })[] = [];
+let listener: (() => Listener | null) | null = null;
+export const listenFrom = (fn: () => Listener | null): void => void (listener = fn);
+const cues = { played: 0, dropped: 0, stolen: 0, panned: 0, faded: 0, boss: 0, bossDropped: 0, crowded: 0, bossCrowded: 0 };
+export const voiceStats = () => ({ ...cues, max: VOICES.max, live: ctx ? voices.filter((v) => v.ends > ctx!.currentTime).length : 0 });
+
+/** A cue the voice limit took the place of: faded out quickly rather than cut, which would click. */
+function steal(i: number, now: number): void {
+  const [v] = voices.splice(i, 1);
+  const g = v.gain.gain;
+  g.cancelScheduledValues(now);
+  g.setValueAtTime(g.value, now);
+  g.linearRampToValueAtTime(0, now + VOICES.stealFade);
+  try {
+    v.node.stop(now + VOICES.stealFade);
+  } catch {
+    // already stopped: nothing to cut
+  }
+}
+
+/**
+ * Plays a sound. #283: a cue from the simulation carries its source and place (sim/view.ts): on the effects bus it needs a voice
+ * (logic/voices.ts pickVoice: a boss cue or a warning keeps one, a hit in a crowd is dropped first), its pitch and volume vary a little,
+ * and it pans by where it is on screen and quietens off it.
+ */
+export function sfx(name: SfxName, cue?: { src: CueSource; x: number; y: number }): void {
   const bus = busOf(name);
   if (!ctx || !buses || !heard(mix, bus, muted)) return;
   const now = ctx.currentTime;
-  if (now - (lastPlayed[name] ?? -1) < 0.05) return; // 200 hits per frame should not be 200 voices
-  lastPlayed[name] = now;
+  const from = cue?.src ?? 'world';
+  const key = from === 'world' ? name : `${name}:${from}`;
+  if (tooSoon(lastPlayed[key], now)) return; // 200 hits per frame should not be 200 voices
+  const prio = cuePriority(name, from);
+  if (bus === 'effects') {
+    for (let i = voices.length - 1; i >= 0; i--) if (voices[i].ends <= now) voices.splice(i, 1);
+    const crowded = voices.length >= VOICES.max;
+    if (crowded) cues.crowded++;
+    const slot = pickVoice(voices, prio, now);
+    if (slot === 'drop') {
+      cues.dropped++;
+      if (from === 'boss') cues.bossDropped++;
+      return;
+    }
+    if (slot !== 'free') (steal(slot, now), cues.stolen++);
+    cues.played++;
+    if (from === 'boss') (cues.boss++, crowded && cues.bossCrowded++);
+  }
+  lastPlayed[key] = now;
   played[bus]++;
   const s: { wave: Wave; f0: number; f1: number; dur: number; vol: number } = SOUNDS[name];
+  const v = vary(Math.random(), Math.random());
+  const place = cue && Number.isFinite(cue.x) ? placeCue(cue.x, cue.y, listener?.() ?? null) : null;
   const gain = ctx.createGain();
-  gain.gain.setValueAtTime(s.vol, now);
+  gain.gain.setValueAtTime(s.vol * v.volume * (place?.gain ?? 1), now);
   gain.gain.exponentialRampToValueAtTime(0.001, now + s.dur);
-  gain.connect(buses[bus]);
+  if (place && Math.abs(place.pan) > 0.01) {
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = place.pan;
+    gain.connect(pan).connect(buses[bus]);
+    cues.panned++;
+  } else gain.connect(buses[bus]);
+  if (place && place.gain < 1) cues.faded++;
   if (HEAVY.includes(name)) duck(now);
   let src: AudioScheduledSourceNode;
   if (s.wave === 'noise') {
     const n = ctx.createBufferSource();
     n.buffer = noise;
+    n.playbackRate.value = v.rate;
     src = n;
   } else {
     const o = ctx.createOscillator();
     o.type = s.wave;
-    o.frequency.setValueAtTime(s.f0, now);
-    o.frequency.exponentialRampToValueAtTime(s.f1, now + s.dur);
+    o.frequency.setValueAtTime(s.f0 * v.rate, now);
+    o.frequency.exponentialRampToValueAtTime(s.f1 * v.rate, now + s.dur);
     src = o;
   }
   src.connect(gain);
   src.start(now);
   src.stop(now + s.dur);
+  if (bus === 'effects') voices.push({ prio, start: now, ends: now + s.dur, node: src, gain });
 }

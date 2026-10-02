@@ -2,7 +2,7 @@ import { AI, AI_TUNING, AURA_PULSE, DEFAULT_AI } from '../config/ai';
 import { AFFIXES } from '../config/elites';
 import type { EnemyId } from '../config/enemies';
 import { MODIFIERS, WAVES } from '../config/waves';
-import { sfx } from '../sim/view';
+import { by, sfx } from '../sim/view';
 import { dist2, TAU } from '../core/math';
 import { emit } from '../core/events';
 import type { Enemy, Game } from '../core/types';
@@ -223,7 +223,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
       e.timer = def.windup! * scale;
       e.angle = angleTo(e, t);
       e.telegraph = { angle: e.angle, length: def.chargeDist!, width: e.r * 2.4, t: 0, dur: e.timer };
-      sfx(g, 'warn');
+      sfx(g, 'warn', by(e));
     };
     if (e.state === 0) {
       seek(e, t, e.speed, dt);
@@ -269,7 +269,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
         e.state = 1;
         e.timer = def.windup!;
         addZone(g, { x: e.x, y: e.y, r: def.slamRadius!, delay: def.windup!, damage: specialDamage(e), hostile: true, color: HOSTILE, owner: e });
-        sfx(g, 'warn');
+        sfx(g, 'warn', by(e));
       }
     } else {
       e.timer -= dt;
@@ -311,7 +311,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
     e.special -= dt;
     if (e.special <= 0) {
       e.special = def.specialCd!;
-      sfx(g, 'warn');
+      sfx(g, 'warn', by(e));
       const p = g.player;
       const count = def.zoneCount! + (e.phase >= 2 ? def.p2ExtraZones! : 0);
       for (let i = 0; i < count; i++) {
@@ -347,7 +347,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
     e.special = def.specialCd!;
     e.state = 1;
     e.timer = 0.6;
-    sfx(g, 'warn');
+    sfx(g, 'warn', by(e));
     const lines = e.phase >= 2 ? def.p2Lines! : 1;
     const pyre = pyreField(e.phase, g.waveDmgMult * g.tier.enemyDmg);
     const leaveField = pyre && { ...pyre, color: '#e07b28', dtype: 'fire' as const };
@@ -373,7 +373,7 @@ const BOSSES: Partial<Record<EnemyId, (g: Game, e: Enemy, dt: number) => void>> 
     e.special -= dt;
     if (e.special > 0) return;
     e.special = def.specialCd!;
-    sfx(g, 'warn');
+    sfx(g, 'warn', by(e));
     const p = g.player;
     const pool = { life: def.poolLife!, dps: def.poolDps! * g.waveDmgMult * g.tier.enemyDmg, color: POISON };
     const flask = (x: number, y: number, delay: number) =>
@@ -410,7 +410,7 @@ function secondWind(g: Game, e: Enemy): void {
   ring(g, e.x, e.y, 240, HOSTILE, 0.8);
   burst(g, e.x, e.y, HOSTILE, 50, 320);
   shake(g, 16);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
 }
 
 /**
@@ -436,7 +436,7 @@ function enterPhase(g: Game, e: Enemy, phase: number): void {
   ring(g, e.x, e.y, 200, HOSTILE, 0.7);
   burst(g, e.x, e.y, HOSTILE, 40, 300);
   shake(g, 14);
-  sfx(g, 'warn');
+  sfx(g, 'warn', by(e));
   if (e.def.id === 'abbot') summon(g, e);
 }
 
