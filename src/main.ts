@@ -12,7 +12,7 @@ import { moodOf, type Stinger } from './logic/runMusic';
 import { showWhatsNewNow } from './logic/whatsNew';
 import { showTourNow } from './logic/tour';
 import type { ChampionTab } from './config/glossary';
-import { inTutorial, nextCard, statusSeen, tutorialCard } from './logic/cards';
+import { handsCard, inTutorial, nextCard, statusSeen, tutorialCard } from './logic/cards';
 import { CARD_IDS, CARDS, type CardId } from './config/cards';
 import { clamp } from './core/math';
 import { platform, type UpdateStatus } from './core/platform';
@@ -881,6 +881,7 @@ function flashCard(g: Game): void {
   if (g.tick % CARDS.checkEvery || isTestRun(g) || tutorial(g, false)) return;
   const met = nextCard(g.enemies, g.player.x, g.player.y, save.cards);
   if (met) openCard(met.id, met.foe);
+  else if (handsCard(g.zones, save.cards)) openCard('graspingHands'); // #274: the graves are marked: the card shows before the hands rise
 }
 
 function openCard(id: CardId, foe?: Enemy): void {

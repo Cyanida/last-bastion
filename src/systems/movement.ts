@@ -3,6 +3,7 @@ import { GAME } from '../config/game';
 import { sfx } from '../sim/view';
 import { compact } from '../core/math';
 import type { Body, Enemy, Game } from '../core/types';
+import { walkFactor } from '../logic/graspingHands';
 import { clampToRects } from '../logic/regions';
 import { speedFactor } from '../logic/status';
 import { floatText } from './effects';
@@ -44,7 +45,7 @@ export function updatePlayerMovement(g: Game, dt: number): void {
   const { moveX, moveY } = g.input;
   const len = Math.hypot(moveX, moveY);
   if (len > 0) {
-    const speed = p.stats.moveSpd * p.mods.moveSpd * (p.chillT > 0 ? AFFIXES.frostAura.n.slow : 1) * speedFactor(p.statuses);
+    const speed = p.stats.moveSpd * p.mods.moveSpd * (p.chillT > 0 ? AFFIXES.frostAura.n.slow : 1) * speedFactor(p.statuses) * walkFactor(p.heldT); // #274: a grave's hands hold him in place
     p.x += (moveX / len) * speed * dt;
     p.y += (moveY / len) * speed * dt;
     if (moveX !== 0) p.flip = moveX < 0;

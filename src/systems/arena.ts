@@ -1,10 +1,11 @@
-import { FLAGSTONE, LAVA, PRESSES, SPREADING_FIRE } from '../config/arenas';
+import { FLAGSTONE, GRAVE_HANDS, LAVA, PRESSES, SPREADING_FIRE } from '../config/arenas';
 import { GAME } from '../config/game';
 import { sfx } from '../sim/view';
 import { TAU } from '../core/math';
 import type { Game } from '../core/types';
 import { addZone } from '../entities/hazards';
 import { inLava, lavaTick } from '../logic/lava';
+import { graveCount, graveSpots, handsOn, openGrave } from '../logic/graspingHands';
 import { onSlab, openSlab, pressesOn, pressShape, pressSlabs, type Slab } from '../logic/presses';
 import { advanceFire, bankSlabs, catchFire, catchSlabs, fireOn, fireTongues, flameState } from '../logic/spreadingFire';
 import { damageEnemy, damageMinion, damagePlayer } from './combat';
@@ -22,7 +23,8 @@ export function updateArena(g: Game, dt: number): void {
   const damage = hz.damage * g.waveDmgMult * g.tier.enemyDmg;
   sfx(g, 'warn');
 
-  if (hz.kind === 'graspingHands') {
+  if (hz.kind === 'graspingHands' && handsOn(g.level?.realm, g.arena.id)) graveHands(g);
+  else if (hz.kind === 'graspingHands') {
     const p = g.player;
     for (let i = 0; i < hz.count; i++) {
       const a = g.rng() * TAU;
@@ -48,6 +50,24 @@ export function updateArena(g: Game, dt: number): void {
       addZone(g, { x: o.x, y: o.y, r: hz.radius, delay: hz.delay, damage, hostile: true, color: '#e07b28', art: 'fire' });
       addZone(g, { x: o.x, y: o.y, r: hz.radius, delay: hz.delay, damage: damage * 3, hostile: false, color: '#e07b28', source: 'hazard' });
     }
+  }
+}
+
+/**
+ * #274: the Barrowvale's grasping hands, on the graveyard's own hazard clock in place of its plain hands. Graves are marked round the
+ * player (one under him), and the hands that rise from them hold whoever they catch: one hostile zone that holds the champion and one
+ * friendly zone that holds (stuns) and hurts the foes on it harder, like the presses, so leading the horde over a grave pays.
+ */
+function graveHands(g: Game): void {
+  const H = GRAVE_HANDS, p = g.player;
+  g.hazardT = H.every;
+  const damage = H.damage * g.waveDmgMult * g.tier.enemyDmg;
+  // the one under him is always his (he stands on open floor); a grave the others would dig in a wall or a crypt is left out
+  const spots = graveSpots(p.x, p.y, graveCount(g.wave, H.graves, H.moreFrom), H.near, H.far, g.rng).filter((s, i) => i === 0 || openGrave(s, H.radius, g.openRects, g.arena.obstacles));
+  for (const s of spots) {
+    const z = { x: s.x, y: s.y, r: H.radius, delay: H.delay, color: '#7fae7a', source: 'hazard' as const };
+    addZone(g, { ...z, damage, hostile: true, art: 'hands', hold: H.hold, cause: 'grasping hands' });
+    addZone(g, { ...z, damage: damage * H.foeMult, hostile: false, status: { apply: [{ id: 'stun', time: H.foeHold }] } });
   }
 }
 

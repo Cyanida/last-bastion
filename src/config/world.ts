@@ -64,7 +64,7 @@ export interface RealmDef {
   foes?: Partial<Record<EnemyId, EnemyId>>; // #212: the realm's variants: a foe that marches in its levels as its own kind (logic/world.ts realmFoe)
   fields?: EnemyId[]; // #249: foes its levels field on every difficulty, whatever the tier roster says (config/waves.ts tierRoster): the realm's own foes are its lesson
   fieldsWeight?: number; // #249: how often a squad of `fields` comes on a tier below its own: a multiplier on its squad weight (config/director.ts SQUADS); its own tiers keep 1
-  hazard?: 'presses' | 'fire'; // #211: the realm's own hazard in its arena, on top of the arena's (the Iron Hold's forge presses, config/arenas.ts PRESSES; #224: the Cinderlands' spreading fire, SPREADING_FIRE)
+  hazard?: 'presses' | 'fire' | 'hands'; // #211: the realm's own hazard in its arena, on top of the arena's (the Iron Hold's forge presses, config/arenas.ts PRESSES; #224: the Cinderlands' spreading fire, SPREADING_FIRE; #274: the Barrowvale's grasping hands, GRAVE_HANDS, in place of the arena's plain hands)
   teaches: string;
   release: string;
   built: boolean; // #258: its own foes, bosses and relics are in the game; false: a playable stand-in (#191: what isn't built falls back to the usual draw), and its road says so
@@ -115,6 +115,7 @@ export const REALMS: Record<RealmId, RealmDef> = {
     name: 'The Barrowvale', ring: 2, opens: { crowns: 1 }, arena: 'graveyard', family: 'grave', release: '0.13.0', built: false, // the Drowned Fen comes later as a second arena
     teaches: 'Corpses that rise unless you trample them, plague ground that lasts',
     foes: { peasant: 'barrowThrall', wolf: 'blightHound' }, // #275: barrow thralls; #276: blight hounds
+    hazard: 'hands', // #274: the graveyard's hands rise from marked graves and hold you
     levels: relicRealmLevels('grave', 'lich', 'gravedigger', 'barrowKing', 'abbot'), crown: RELIC_CROWN, // Decided: the Plague Abbot is its level-1 pool boss
   },
   cinderlands: {

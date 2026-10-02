@@ -223,4 +223,13 @@ export const PRESSES = { every: 8, delay: 1.5, grace: 8, line: 3, crossFrom: 11,
  * it a fifth of its level-1 clears, these numbers none.
  */
 export const SPREADING_FIRE = { every: 10, grace: 10, reach: 5, step: 0.8, kindle: 0.8, life: 3, dps: 8, foeMult: 2, twoFrom: 11, apart: 4 };
+/**
+ * #274: the Barrowvale's grasping hands (logic/graspingHands.ts, systems/arena.ts). In its levels the Forsaken Graveyard's hands come from
+ * marked graves and hold you: every `every` s (the arena's hazard clock, in place of its plain hands) `graves` graves are marked, one
+ * under the player and the rest `near`..`far` px round him (from wave `moreFrom` one more), each `radius` wide. After `delay` s the hands
+ * rise: the champion still standing in one takes `damage` (scaled with the wave like enemy damage) and is held there `hold` s (he cannot
+ * walk; he still fights, and a dash or a blink still carries him out). Foes on a grave take x`foeMult` and are held `foeHold` s (a stun),
+ * so leading the horde over the graves pays. A dodge, a shield or a block keeps the hold off with the blow. Only in the realm's own arena.
+ */
+export const GRAVE_HANDS = { every: 7, graves: 3, moreFrom: 11, near: 70, far: 170, radius: 40, delay: 1.3, hold: 1.2, damage: 10, foeMult: 3, foeHold: 2 };
 export const ARENA_IDS: ArenaId[] = ['courtyard', 'graveyard', 'keep'];

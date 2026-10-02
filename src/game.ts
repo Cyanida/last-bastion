@@ -350,6 +350,7 @@ export function updateGame(g: Game, dt: number): void {
   p.flash -= dt;
   p.invulnT -= dt;
   p.chillT -= dt;
+  p.heldT -= dt; // #274: a grave's hands let go
   p.mods = { ...g.baseMods }; // rebuilt every tick: meta + tradeoffs, then relics, then passive ability upgrades
   updateRelics(g, dt);
   talentPassives(g);
