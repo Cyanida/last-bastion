@@ -1,6 +1,7 @@
 import { ROUTES } from '../config/routes';
 import { ARENA_FAMILIES, ATTUNEMENT, CURSED, CURSED_IDS, duoOf, DUOS, FAMILIES, isCursedRelic, isDuo, isFamily, FAMILY_IDS, keyColor, RELIC_MOMENTS, RELIC_STACKING, relicDef, relicMods, RELIC_MAX_TIER, SET_LEVELS, TIER_NUMERALS, type DuoId, type FamilyId, type RelicId, type RelicKey, type SetLevel } from '../config/relics';
 import { sfx } from '../sim/view';
+import { pickCue } from '../logic/relicSounds';
 import { addListener, emit, type EventName, type GameEvents } from '../core/events';
 import type { Game, Mods, Player, RelicSource } from '../core/types';
 import { combineMods, isMultiplicative } from '../logic/mods';
@@ -187,7 +188,7 @@ export function addRelic(g: Game, id: RelicId, from: RelicSource = 'other', tier
   r.fresh = r.fresh.filter((f) => f !== id); // #194: the 3x weight lasts until it is first picked
   HOOKS[id]?.acquire?.(g, g.player);
   floatText(g, g.player.x, g.player.y - 50, relicDef(id).name, '#c9a227', 16);
-  sfx(g, 'levelup');
+  sfx(g, pickCue(id)); // #287: its family's own sound
   return true;
 }
 

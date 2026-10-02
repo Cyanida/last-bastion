@@ -6,6 +6,8 @@ import type { ClassId } from './config/classes';
 import { TIERS, type MetaId } from './config/economy';
 import { GAME, VIEW } from './config/game';
 import { ambience, getMix, initAudio, isMuted, listenFrom, mixerStats, setVolume, sfx, toggleMute, voiceStats } from './core/audio';
+import { soundCounts } from './core/audio'; // #287
+import { uiCue, uiSoundOf } from './logic/relicSounds';
 import { musicStats, refreshMusic, runMusic, runMusicOn, setRunMusic, startMenuMusic, stinger, stopMenuMusic } from './core/music';
 import { addListener, type EventName } from './core/events';
 import { isBossMusic, moodOf, type Stinger } from './logic/runMusic';
@@ -1009,8 +1011,17 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'playing') togglePause();
 });
 // #282: a button pressed on a screen (the menus, pause, choices) taps on the UI bus; the HUD's buttons stay part of the fight
-document.getElementById('overlay')!.addEventListener('click', (e) => {
-  if ((e.target as Element).closest('button')) sfx('tap');
+// #287: and sounds what it does (logic/relicSounds.ts): a back, a confirm, a relic card taken, else the tap; a relic card's ⓘ just taps
+const overlayEl = document.getElementById('overlay')!;
+const buttonInfo = (b: HTMLElement) => ({ className: b.className, data: { ...b.dataset }, label: b.getAttribute('aria-label') });
+overlayEl.addEventListener('click', (e) => {
+  const b = (e.target as Element).closest<HTMLElement>('button, .relic-info');
+  if (b) sfx(uiCue(uiSoundOf(buttonInfo(b))));
+});
+// #287: a mouse coming onto a screen's button (not moving within it) hovers, very softly; a touch has no hover
+overlayEl.addEventListener('pointerover', (e) => {
+  const b = (e.target as Element).closest('button');
+  if (e.pointerType === 'mouse' && b && !b.disabled && !b.contains(e.relatedTarget as Node | null)) sfx('ui.hover');
 });
 matchMedia('(orientation: portrait)').addEventListener('change', (e) => {
   if (e.matches && platform.touch && state === 'playing') togglePause(); // the "rotate your device" overlay is up
@@ -1101,6 +1112,7 @@ if (import.meta.env.DEV || location.search.includes('debug')) {
       stinger, // v0.7.1
       resetPerf: resetHistory,
       perfSummary: summary,
+      sounds: soundCounts, // #287: each sound started, by name (a relic's family, the menus' hover, back, confirm and pick)
       setPerf: (on: boolean) => setPerfOverlay(on, ctx),
       /** N scripted frames (one sim step + one render each) with the profiler on; returns averages, p95 and the section breakdown. */
       profile(frames: number) {

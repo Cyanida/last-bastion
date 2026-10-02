@@ -6,6 +6,7 @@ import { cuePriority, pickVoice, placeCue, tooSoon, vary, type Listener, type Vo
 import type { ArenaId } from '../config/arenas';
 import { bedToLayer, startBed, stopBed, type BedVoice } from './ambience';
 import { prefs } from './storage';
+import { RELIC_SOUNDS } from '../config/relicSounds';
 
 /**
  * Tiny WebAudio synth. Every sound is one oscillator or noise burst with a pitch slide. #282: and the mixer: each sound goes out on a bus
@@ -13,6 +14,7 @@ import { prefs } from './storage';
  */
 type Wave = OscillatorType | 'noise';
 const SOUNDS = {
+  ...RELIC_SOUNDS, // #287: the relic families' and the menus' own (config/relicSounds.ts)
   hit: { wave: 'noise', f0: 0, f1: 0, dur: 0.05, vol: 0.12 },
   swing: { wave: 'noise', f0: 0, f1: 0, dur: 0.09, vol: 0.06 },
   shoot: { wave: 'triangle', f0: 720, f1: 360, dur: 0.07, vol: 0.06 },
@@ -52,6 +54,9 @@ let muted = prefs.get(MUTE_KEY) === '1';
 let mix: Mix = readMix(prefs.get(MIX_KEY), { music: prefs.get('lastbastion.music'), effects: prefs.get('lastbastion.effects') });
 const lastPlayed: Record<string, number> = {}; // #283: by sound and source, so a foe's warning never holds back a boss's
 const played = { effects: 0, ui: 0 }; // #282: sounds started per bus (the play test hears the menu's taps)
+const heardCount: Partial<Record<SfxName, number>> = {}; // #287: sounds started by name (the play test hears a relic's family and the menus)
+/** #287: for the play test: how many times each sound started. */
+export const soundCounts = () => ({ ...heardCount });
 
 /** Must be called from a user gesture (browser autoplay rules). */
 export function initAudio(): void {
@@ -214,6 +219,7 @@ export function sfx(name: SfxName, cue?: { src: CueSource; x: number; y: number 
   }
   lastPlayed[key] = now;
   played[bus]++;
+  heardCount[name] = (heardCount[name] ?? 0) + 1;
   const s: { wave: Wave; f0: number; f1: number; dur: number; vol: number } = SOUNDS[name];
   const v = vary(Math.random(), Math.random());
   const place = cue && Number.isFinite(cue.x) ? placeCue(cue.x, cue.y, listener?.() ?? null) : null;
