@@ -312,6 +312,15 @@ export const RELICS = {
     awaken: ['Exhume', (a) => `Every ${a.every} s the oldest corpse near you rises as a skeleton.`], desc: (n) => `+${pct(n.per)} damage for every corpse within ${n.radius} px (up to ${n.max}).` }),
   deathmask: relic({ name: 'Deathmask', rarity: 'common', icon: '🎭', family: 'grave', n: { reduce: 0.15, chance: 0.2 }, n2: { reduce: 0.2 }, a: { delay: 1, damage: 18 },
     awaken: ['Mark of the Grave', (a) => `A cursed enemy you kill leaves a corpse that bursts in shadow after ${a.delay} s.`], desc: (n) => `Hits have a ${pct(n.chance)} chance to curse; cursed enemies deal ${pct(n.reduce)} less damage.` }),
+  // v0.13 (#279): the Barrowvale's Grave relics: the dead that rise unless you trample them, and plague ground that lasts, taken up by the player
+  barrowBoots: relic({ name: 'Barrow Boots', rarity: 'common', icon: '👢', family: 'grave', n: { damage: 16, radius: 70, reach: 16 }, n2: { damage: 20 }, a: { curse: 1 },
+    awaken: ['Grave Stomp', (a) => `A stomp curses what it hits (${a.curse} stack).`], desc: (n) => `Walking over a corpse stomps it once: ${n.damage} shadow damage (grows with level) to every enemy within ${n.radius} px.` }),
+  plagueCenser: relic({ name: 'Plague Censer', rarity: 'rare', icon: '🧪', family: 'grave', n: { every: 4, max: 3, radius: 55, life: 8, dps: 7, poison: 3 }, n2: { every: 3, max: 4, dps: 9 },
+    awaken: ['Blight Bloom', 'An enemy that dies in your plague ground leaves plague ground of its own.'], desc: (n) => `Every ${n.every} kills, plague ground spreads where the last enemy fell, for ${n.life} s: ${n.dps} shadow damage per second (grows with level), and it poisons (up to ${n.max} patches).` }),
+  sextonsBell: relic({ name: "Sexton's Bell", rarity: 'rare', icon: '🛎️', family: 'grave', n: { every: 8, radius: 160, count: 2, hp: 40, damage: 8, life: 8 }, n2: { every: 6, count: 3 }, a: { curse: 2 },
+    awaken: ['Death Toll', (a) => `Each toll curses every enemy within its reach (${a.curse} stacks).`], desc: (n) => `Every ${n.every} s the bell tolls: up to ${n.count} corpses within ${n.radius} px rise as skeleton allies for ${n.life} s, a corpse about to rise against you first.` }),
+  crownOfAntlers: relic({ name: 'Crown of Antlers', rarity: 'legendary', icon: '🦌', family: 'grave', n: { chance: 0.08, max: 3, hp: 60, damage: 10, life: 12, radius: 200, per: 0.05, guards: 3 }, n2: { chance: 0.12, max: 4, per: 0.07 }, a: { need: 3, heal: 0.01 },
+    awaken: ['Court of Bones', (a) => `While ${a.need}+ guards stand near you, you mend ${pct(a.heal)} of your max HP every second.`], desc: (n) => `Your skeletons are your barrow guard: you take ${pct(n.per)} less damage for each within ${n.radius} px (up to ${n.guards}). Kills have a ${pct(n.chance)} chance to raise a guard (up to ${n.max}).` }),
   boneChime: relic({ name: 'Bone Chime', rarity: 'rare', icon: '🎐', family: 'grave', classId: 'necromancer', n: { inherit: 0.5, perSoul: 0.02 }, n2: { inherit: 0.7, perSoul: 0.03 }, a: { every: 20, radius: 90, damage: 20 },
     awaken: ['Death Knell', (a) => `Every ${a.every}th minion hit tolls the chime: a shadow burst around that minion.`], desc: (n) => `Minions inherit ${pct(n.inherit)} of your attack speed, plus ${pct(n.perSoul)} per Soul Power.` }),
 
@@ -377,10 +386,10 @@ export type RelicId = keyof typeof RELICS;
 export const RELIC_IDS = Object.keys(RELICS) as RelicId[];
 /**
  * v0.10 (#194, docs/road-to-the-crown.md rule 5): what a champion's run finds besides its inventory and a realm's family. Every common is the
- * starter pool, open to every run. `open`: the three relics deeds used to unlock, open to every run until their realm crowns ship (Holy,
- * Grave, Storm).
+ * starter pool, open to every run. `open`: the relics deeds used to unlock, open to every run until their realm crowns ship (Holy, Storm;
+ * Soul Lantern left with the Barrowvale's, #279).
  */
-export const RELIC_POOL = { open: ['phoenixFeather', 'soulLantern', 'stormcallersHorn'] as RelicId[] };
+export const RELIC_POOL = { open: ['phoenixFeather', 'stormcallersHorn'] as RelicId[] }; // v0.13 (#279): Soul Lantern went to the Barrowvale's crown
 export const relicDef = (id: RelicId): RelicDef => RELICS[id];
 /** v0.7.1 B6: the cursed relics (no family), and whether a relic is one. */
 export const isCursedRelic = (id: RelicId): boolean => RELICS[id].cursed === true;

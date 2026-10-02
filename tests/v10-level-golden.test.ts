@@ -71,19 +71,21 @@ function golden({ cls, seed, level, variant = 0, realm = 'marches', run }: Golde
 // realm run's level 2 gets one on a wave from 9-11 (its waves changed on purpose; this seed now clears it); every other run is unchanged
 // re-recorded for #262 (v0.13): the Cinderlands' level 2 eases on Knight and brings fewer foes (levelStep.own, levelWaves.own), so the
 // realm run's level 2 changed on purpose (it still clears, on 490 kills, was 540); every other run is unchanged
+// re-recorded for #279 (v0.13): Barrow Boots joins the starter commons and Soul Lantern leaves the open pool, so the three Marches
+// level 7 runs (the Grave level) and the realm run's level 2 draw different relics on purpose; every other run is unchanged
 const GOLDEN: Record<string, string> = {
   'marches 1 paladin:1': 'cleared wave 6 kills 215 level 1 loadout - relics 2 hash de859cbc',
   'marches 1 archer:2': 'cleared wave 6 kills 222 level 1 loadout - relics 3 hash 67f5b3b3',
   'marches 1 angel:4 variant 1': 'cleared wave 6 kills 230 level 1 loadout - relics 4 hash e3620c13',
-  'marches 7 paladin:1': 'fell wave 35 kills 55 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 4bad0f52',
-  'marches 7 angel:1': 'fell wave 35 kills 54 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash c02ce2',
-  'marches 7 viking:2 variant 1': 'fell wave 35 kills 92 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash bb177c82',
+  'marches 7 paladin:1': 'fell wave 35 kills 74 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash dd817d12',
+  'marches 7 angel:1': 'fell wave 35 kills 83 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 98747f81',
+  'marches 7 viking:2 variant 1': 'fell wave 35 kills 110 level 5 loadout salamanderScale+anvilHeart+berserkerTooth relics 4 hash 944248fc',
   'iron hold 1 viking:1': 'cleared wave 8 kills 350 level 8 loadout jarlsTorc+anvilHeart+salamanderScale relics 6 hash 362abe41',
   'iron hold 1 archer:3 variant 1': 'fell wave 3 kills 120 level 8 loadout eagleFletching+anvilHeart+salamanderScale relics 5 hash ef72703d',
   'iron hold run 1-2 paladin:5': 'cleared wave 8 kills 363 level 8 loadout oathkeepersSeal+anvilHeart+salamanderScale relics 6 hash 165cac3b / cleared wave 16 kills 505 level 9 loadout - relics 3 hash 66558620',
   'cinderlands 1 viking:1': 'cleared wave 8 kills 356 level 8 loadout jarlsTorc+salamanderScale+anvilHeart relics 6 hash cdefd7c1',
   'cinderlands 1 archer:3 variant 1': 'fell wave 5 kills 222 level 8 loadout eagleFletching+salamanderScale+anvilHeart relics 5 hash b459822e',
-  'cinderlands run 1-2 paladin:5': 'cleared wave 8 kills 371 level 8 loadout oathkeepersSeal+salamanderScale+anvilHeart relics 7 hash 953f535e / cleared wave 16 kills 490 level 9 loadout - relics 3 hash 4457d29f',
+  'cinderlands run 1-2 paladin:5': 'cleared wave 8 kills 371 level 8 loadout oathkeepersSeal+salamanderScale+anvilHeart relics 7 hash 953f535e / cleared wave 16 kills 492 level 9 loadout - relics 3 hash 4a8fc0f7',
 };
 
 describe('v0.10 golden level runs (#207)', () => {
