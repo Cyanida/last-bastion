@@ -23,7 +23,7 @@ import { inRects } from '../logic/regions';
 import { attackDamage, mitigate, rollCrit, healFactor } from '../logic/formulas';
 import { thornsOf, towerShieldOf } from '../logic/ironKing';
 import { barrowWard } from '../logic/barrowKing';
-import { foeBy, foeVoice } from '../logic/foeSounds';
+import { foeBy, foeOwnVoice, foeVoice } from '../logic/foeSounds';
 import { applyStatusTo, curseStacks, damageTakenFactor, fromBehind, slowStacks, throughArmor, thornsBite, throughPlates, throughResolve, throughTowerShield, typeMultiplier, type StatusApply } from '../logic/status';
 import { burst, damageNumber, floatText, ring, shake, swingArc } from './effects';
 import { tauntedDamageMult } from './utility';
@@ -93,6 +93,7 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
     else {
       if (plague.drop) plague.drop.life = 0;
       addField(g, { ...plague.lay, hostile: true, color: PLAGUE, dtype: 'shadow', plague: true, cause: `a ${e.def.name}'s plague` });
+      sfx(g, 'warn', { src: 'foe', at: e, voice: foeOwnVoice(e.def.id, 'plague') }); // #292: new ground fouled: a warning, in its own hiss
     }
     burst(g, e.x, e.y, PLAGUE, 8, 120);
     g.vars['plagueGround'] = (g.vars['plagueGround'] ?? 0) + 1; // the play test reads it
@@ -128,8 +129,9 @@ export function killEnemy(g: Game, e: Enemy, source: DamageSource = 'attack'): v
  */
 export function updateRisingCorpses(g: Game): void {
   const p = g.player;
-  const risen = stepRising(g.corpses, p, (c) => {
+  const risen = stepRising(g.corpses, p, (c, id) => {
     burst(g, c.x, c.y, '#6b5843', 8, 90); // grave dirt kicked over it
+    sfx(g, 'kill', { src: 'player', at: c, voice: foeOwnVoice(id, 'trample') }); // #292: stamped down, by the champion's foot
     g.vars['corpsesTrampled'] = (g.vars['corpsesTrampled'] ?? 0) + 1; // the play test reads it
   });
   for (const c of risen) {
@@ -139,7 +141,7 @@ export function updateRisingCorpses(g: Game): void {
     e.side = c.rise!.side;
     burst(g, c.x, c.y, SOUL, 12, 120);
     ring(g, c.x, c.y, 26, SOUL, 0.4);
-    sfx(g, 'warn');
+    sfx(g, 'warn', { src: 'foe', at: c, voice: foeOwnVoice(c.rise!.id, 'rise') }); // #292: a warning still, in the thrall's own moan
     g.vars['corpsesRisen'] = (g.vars['corpsesRisen'] ?? 0) + 1; // the play test reads it
   }
 }

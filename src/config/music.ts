@@ -147,7 +147,8 @@ export const MUSIC = {
  */
 export type BossComposer = 'march' | 'warhorn' | 'choir' | 'chant'
   | 'tribunal' | 'wyrm' | 'chains' | 'crown' // #290
-  | 'anvil' | 'ironCrown' | 'flame' | 'footfall'; // #291: the realm bosses of the Iron Hold and the Cinderlands
+  | 'anvil' | 'ironCrown' | 'flame' | 'footfall' // #291: the realm bosses of the Iron Hold and the Cinderlands
+  | 'spade' | 'dirge'; // #292: the Barrowvale's
 export interface BossTheme extends Theme {
   composer: BossComposer;
 }
@@ -274,6 +275,27 @@ export const BOSS_THEMES: Partial<Record<EnemyId, BossTheme>> = {
     perc: null, // his steps are the drum (the composer's)
     lead: 'flute',
     boss: { midi: 33, hits: [[0, 1], [2, 0.9], [3.5, 0.5]] },
+  },
+  // #292: the Barrowvale's: an organ, the barrow bell, a choir of mourners.
+  // the Gravedigger's spade: G Phrygian, a plodding four, his spade biting the earth and throwing it, the barrow bell tolling for whom he buries
+  gravedigger: {
+    name: 'The Gravedigger', root: 7, mode: PHRYGIAN, bpm: 76, meter: 4, composer: 'spade',
+    chords: [0, 1, 0, 5, 3, 1, 0, 0], // i bII i VI | iv bII i i: he digs, and digs again
+    drone: 'drone', pad: 'organ',
+    pulse: { voice: 'bell', steps: [0, null, null, null, null, null, null, null] }, // one toll a bar
+    perc: null, // the spade is the drum (the composer's)
+    lead: 'choir',
+    boss: { midi: 36, hits: [[0, 1], [1.5, 0.5], [2, 0.8], [3.5, 0.45]] },
+  },
+  // the Barrow King's dirge: F harmonic minor in a slow three, the organ's bass walking down to the grave every phrase, his court of the dead keening
+  barrowKing: {
+    name: 'The Barrow King', root: 5, mode: HARMONIC_MINOR, bpm: 60, meter: 3, composer: 'dirge',
+    chords: [0, 5, 3, 4, 0, 5, 4, 0], // i VI iv V | i VI V i: the crown passed down, and down
+    drone: 'drone', pad: 'organ',
+    pulse: { voice: 'bell', steps: [0, null, null, null, null, null] }, // the barrow bell on the downbeat
+    perc: { midi: 36, hits: [[0, 0.6]] }, // the bier drum
+    lead: 'choir',
+    boss: { midi: 36, hits: [[0, 1], [1, 0.5], [2, 0.75]] },
   },
 };
 

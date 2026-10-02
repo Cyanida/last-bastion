@@ -9,13 +9,12 @@ import { updateBossSounds } from '../src/systems/bossSounds';
 import { sfx, by } from '../src/sim/view';
 
 // #286: every boss a signature as he arrives, a sound for his big moves and a cue on each phase change, at a high voice priority
-const LATER = ['gravedigger', 'barrowKing']; // the Barrowvale's own: a later issue
-const BOSS_IDS = Object.values(ENEMIES).filter((d) => d.boss && !LATER.includes(d.id)).map((d) => d.id);
+const BOSS_IDS = Object.values(ENEMIES).filter((d) => d.boss).map((d) => d.id); // #292: the Barrowvale's two too
 const KINDS: BossCueKind[] = ['arrive', 'move', 'phase'];
 
 describe('boss sounds: the sets (#286)', () => {
-  it('every boss but the Barrowvale’s has an arrival, a big-move and a phase sound, each a few audible tones', () => {
-    expect(BOSS_IDS.length).toBeGreaterThanOrEqual(12);
+  it('every boss has an arrival, a big-move and a phase sound, each a few audible tones', () => {
+    expect(BOSS_IDS.length).toBeGreaterThanOrEqual(14);
     for (const id of BOSS_IDS) {
       expect(hasBossSounds(id), id).toBe(true);
       for (const kind of KINDS) {
@@ -99,7 +98,7 @@ describe('boss sounds: in the game (#286)', () => {
     expect(names()).toEqual([]);
   });
 
-  it('with two bosses on the field, a warning is the nearer one’s; a boss without his own sounds yet stays as he was', () => {
+  it('with two bosses on the field, a warning is the nearer one’s; a boss without his own sounds stays as he was', () => {
     const g = createGame('viking', 4, { arena: 'courtyard' });
     const a = spawnEnemy(g, 'lich', 100, 100);
     const c = spawnEnemy(g, 'barrowKing', 900, 900);
@@ -107,11 +106,17 @@ describe('boss sounds: in the game (#286)', () => {
     g.out.length = 0;
     sfx(g, 'warn', by(c));
     updateBossSounds(g);
-    expect(g.out.map((x) => x.name)).toEqual(['warn']); // the Barrow King's warning: no move sound for the Lich
+    expect(g.out.map((x) => x.name)).toEqual(['warn', 'boss:barrowKing:move']); // the Barrow King's warning: no move sound for the Lich
     g.out.length = 0;
     sfx(g, 'warn', by(a));
     updateBossSounds(g);
     expect(g.out.map((x) => x.name)).toEqual(['warn', 'boss:lich:move']);
+    // #292: every boss has his own now; one with none (a stand-in) warns as before
+    c.def = { ...c.def, id: 'nobody' as typeof c.def.id };
+    g.out.length = 0;
+    sfx(g, 'warn', by(c));
+    updateBossSounds(g);
+    expect(g.out.map((x) => x.name)).toEqual(['warn']);
   });
 
   it('a real boss fight: his own phase change makes his phase cue in the same step', async () => {
