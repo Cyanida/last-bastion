@@ -8,7 +8,7 @@ import { GAME, VIEW } from './config/game';
 import { ambience, getMix, initAudio, isMuted, listenFrom, mixerStats, setVolume, sfx, toggleMute, voiceStats } from './core/audio';
 import { musicStats, refreshMusic, runMusic, runMusicOn, setRunMusic, startMenuMusic, stinger, stopMenuMusic } from './core/music';
 import { addListener, type EventName } from './core/events';
-import { moodOf, type Stinger } from './logic/runMusic';
+import { isBossMusic, moodOf, type Stinger } from './logic/runMusic';
 import { showWhatsNewNow } from './logic/whatsNew';
 import { showTourNow } from './logic/tour';
 import type { ChampionTab } from './config/glossary';
@@ -956,9 +956,12 @@ function frame(now: number): void {
   draw(now);
   const t2 = performance.now();
   const g = game;
-  if (g) runMusic(state === 'playing' || state === 'choice' ? moodOf(g) : null); // v0.7.1: paused or over, it fades out
   const live = g && (state === 'playing' || state === 'choice') ? g : null;
-  ambience(live && live.arena.id, live ? moodOf(live).layer : 0); // #282: the wind, likewise; only a change does any work. #288: the arena's own bed, stepping back as the fight grows
+  const mood = live ? moodOf(live) : null;
+  if (g) runMusic(mood); // v0.7.1: paused or over, it fades out
+  // #282: the wind, likewise; only a change does any work. #288: the arena's own bed, stepping back as the fight grows; under a boss's
+  // own theme (#289) its layer counts his phases, so the bed takes the boss layer for the whole fight
+  ambience(live && live.arena.id, mood ? (isBossMusic(mood.arena) ? 3 : mood.layer) : 0);
   if (state === 'playing' && g) {
     const before = quality.level;
     sampleFrame(t2 - t0, g.wave); // the work this frame took, not the vsync interval: that is what the detail level reacts to
