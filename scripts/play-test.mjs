@@ -7836,6 +7836,110 @@ await check('Sound: a boss cue plays in a crowded fight; the voice limit drops t
   return { ok, detail: fight.found ? `${fight.id}: ${fight.ticks} ticks in ${fight.seconds} s with up to ${fight.crowd} foes; voices up to ${fight.peak}/${fight.max}; ${fight.played} effects played, ${fight.dropped} dropped, ${fight.stolen} taken over, ${fight.crowded} cues met full voices; boss cues ${fight.boss} played (${fight.bossCrowded} while full), ${fight.bossDropped} dropped; ${fight.panned} panned, ${fight.faded} quieter off screen; a fall past the edge: ${far ? `${far.panned ? 'panned' : 'NOT panned'}, ${far.faded ? 'quieter' : 'NOT quieter'}` : 'not played'}${errs.length ? `; errors: ${errs[0]}` : ''}` : 'no boss on the last wave' };
 });
 
+// #287: relic families and the UI sound their own. With the mouse at 1280x720: Settings is a plain click (the tap), a hover over its
+// back button hovers softly and the back button goes back (no tap); Start test run confirms; the level's opening relic card, clicked,
+// picks on the UI bus and its family's own sound follows from the fight. A Brimstone Oil offered at a lair, clicked, sounds Flame's
+// pickup, and in a crowd its burns flare Flame's own proc sound as its icon flashes.
+await check('Sound: relic families sound their own when taken and at work; the menus hover, click, go back, confirm and pick (#287)', async () => {
+  const p = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push(e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  p.setDefaultTimeout(8000);
+  await p.goto(`http://localhost:${PORT}/?debug&dev=1`);
+  await p.getByText('Take up arms').first().waitFor({ timeout: 5000 });
+  if (!(await p.evaluate(() => typeof window.__lb.sounds === 'function'))) return (await p.close(), { skip: true, detail: 'no relic or UI sounds on this branch (before #287)' });
+  const heard = () => p.evaluate(() => window.__lb.sounds());
+  const delta = (a, b) => Object.fromEntries(Object.keys(b).filter((k) => (b[k] ?? 0) !== (a[k] ?? 0)).map((k) => [k, b[k] - (a[k] ?? 0)]));
+  const steps = {};
+  let stage = 'start';
+  let opening, took, offered, fight; // what the run did, read after the page is closed
+  let at = await heard();
+  const mark = async (name) => {
+    await p.waitForTimeout(80);
+    const now = await heard();
+    steps[name] = delta(at, now);
+    stage = `after ${name}`;
+    at = now;
+  };
+  try {
+  await p.getByRole('button', { name: 'Settings', exact: true }).click(); // the first gesture starts the sound, and taps
+  await mark('settings');
+  const back = p.locator('.settings [data-act="back"]');
+  await p.mouse.move(2, 2);
+  await back.hover();
+  await mark('hover');
+  await back.click();
+  await mark('back');
+  await p.getByRole('button', { name: 'Settings', exact: true }).click();
+  await p.locator('[data-act="test"]').click();
+  await p.locator('#tm-class').selectOption('viking');
+  await p.locator('#tm-start').selectOption('barrowvale:1');
+  at = await heard();
+  await p.locator('[data-start]').click(); // Start test run: gold, a confirm
+  await mark('start');
+  await p.locator('[data-pick]').first().waitFor({ timeout: 5000 }); // the level's opening pick
+  opening = await p.evaluate(() => {
+    const card = document.querySelector('[data-pick="0"]');
+    return { relic: card.classList.contains('relic-card'), fam: card.querySelector('.fam')?.textContent.trim() ?? '', held: [...window.__lb.game.player.relics.held] };
+  });
+  await p.locator('[data-pick="0"] h2').click();
+  await p.evaluate(() => new Promise((r) => setTimeout(r, 300))); // the fight steps on and plays the pickup's cue
+  await mark('pick');
+  took = await p.evaluate((before) => window.__lb.game.player.relics.held.filter((id) => !before.includes(id)), opening.held);
+  const boards = await intoFight(p, (sel) => p.locator(sel).first().click()); // an Act's quest board may come first
+  stage = `into the fight (${boards.join(', ') || 'no board'})`;
+  // a lair offers Brimstone Oil (Flame): clicked through the pick screen like any relic
+  offered = await p.evaluate(() => {
+    const lb = window.__lb, rel = lb.game.player.relics;
+    if (rel.held.includes('brimstoneOil')) return 'held';
+    rel.offers.push({ from: 'lair', options: ['brimstoneOil', 'guardiansAegis', 'thunderDrum'].filter((id) => !rel.held.includes(id)), rerolls: 0, duo: null });
+    for (let i = 0; i < 20 && lb.state === 'playing'; i++) lb.run(1, false, false);
+    return lb.state === 'choice' && document.querySelector('.relic-card [data-info="brimstoneOil"]') ? 'choice' : `no offer (${lb.state})`;
+  });
+  if (offered === 'choice') {
+    at = await heard();
+    await p.locator('.relic-card[data-pick="0"] h2').click();
+    await p.evaluate(() => new Promise((r) => setTimeout(r, 300)));
+    await mark('brimstone');
+  }
+  // a crowd round the champion: his blows burn, and each flash of Brimstone Oil's icon flares Flame's proc
+  fight = await p.evaluate(async () => {
+    const lb = window.__lb, g = lb.game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const before = lb.sounds()['proc.flame'] ?? 0;
+    let flashes = 0, ticks = 0;
+    for (let i = 0; i < 1800 && (lb.sounds()['proc.flame'] ?? 0) - before < 2 && lb.state !== 'results'; i++) {
+      if (lb.state === 'choice') break;
+      if (i % 60 === 0) {
+        const live = g.enemies.filter((e) => !e.dead).length;
+        for (let j = live; j < 12; j++) {
+          const a = (j / 12) * Math.PI * 2;
+          lb.spawn('peasant', g.player.x + Math.cos(a) * 50, g.player.y + Math.sin(a) * 50);
+        }
+      }
+      g.player.invulnerable = true;
+      const t = g.vars['flash.brimstoneOil'];
+      lb.run(1, false, false);
+      if (g.vars['flash.brimstoneOil'] !== t) flashes++;
+      ticks++;
+      if (i % 8 === 7) await wait(0);
+    }
+    return { procs: (lb.sounds()['proc.flame'] ?? 0) - before, flashes, ticks, held: g.player.relics.held.includes('brimstoneOil'), state: lb.state };
+  });
+  } catch (e) {
+    await p.close();
+    return { ok: false, detail: `${stage}: ${String(e.message ?? e).split('\n')[0]}; heard ${JSON.stringify(steps)}` };
+  }
+  await p.close();
+  const s = steps;
+  const openFam = Object.keys(s.pick ?? {}).find((k) => k.startsWith('relic.') && opening.fam.toLowerCase().includes(k.slice(6))) ?? ''; // the card's family, sounded
+  const ok = s.settings?.tap === 1 && s.hover?.['ui.hover'] >= 1 && !s.hover?.tap && s.back?.['ui.back'] === 1 && !s.back?.tap && s.start?.['ui.confirm'] === 1 && !s.start?.tap
+    && opening.relic && took.length === 1 && s.pick?.['ui.pick'] === 1 && !s.pick?.tap && (s.pick?.[openFam] ?? 0) >= 1 && !s.pick?.levelup
+    && (offered === 'held' || (s.brimstone?.['ui.pick'] === 1 && s.brimstone?.['relic.flame'] >= 1)) && fight.held && fight.procs >= 1 && fight.procs <= fight.flashes && errs.length === 0;
+  const show = (k) => JSON.stringify(s[k] ?? {});
+  return { ok, detail: `Settings ${show('settings')}; hover ${show('hover')}; back ${show('back')}; Start test run ${show('start')}; opening pick (${opening.relic ? `relic card, ${opening.fam}` : 'NOT a relic card'}, took ${took.join(',') || 'none'}) ${show('pick')}; Brimstone Oil ${offered === 'choice' ? show('brimstone') : offered}; fight: ${fight.procs} Flame procs heard for ${fight.flashes} flashes in ${fight.ticks} ticks${errs.length ? `; errors: ${errs[0]}` : ''}` };
+});
+
 // ---------- #264: a strong build meets every phase of a crown boss: Settings -> Test mode -> "Start at" a relic realm's level 5 -> its last wave ----------
 // The champion strikes forty times his strength from behind the crown boss (unhurt, no ability, no bot moves), so only the crown's hold keeps
 // him up. Each phase holds its 12 s (UNBROKEN shows the hold), and once its time is run a blow ends the phase and no more: the next phase
