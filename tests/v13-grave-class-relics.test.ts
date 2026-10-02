@@ -145,7 +145,7 @@ describe('what each one does', () => {
     expect(stat(g, 'draugrMead').damage).toBeGreaterThan(0);
   });
 
-  it('Last Rites: Heavenly Radiance lays the nearest 3 + Grace/4 corpses within its radius to rest, and each heals 1% of max HP', () => {
+  it('Last Rites: Heavenly Radiance lays the nearest 4 + Grace/4 corpses within its radius to rest, and each heals 3% of max HP', () => {
     const { g } = arena('angel', ['lastRites'], 1, [[600, 0]]);
     const p = g.player;
     const n = relicN('lastRites', 1);
@@ -193,7 +193,7 @@ describe('what each one does', () => {
     expect(skeletonsBy(g, 'wightboneArrows')).toBe(RELICS.wightboneArrows.awaken.n.max);
   });
 
-  it('Barrow Feast: formed, walking over a corpse devours it: it heals 2% of max HP and curses the foes round it; the two relics alone do not', () => {
+  it('Barrow Feast: formed, walking over a corpse devours it: it heals 1.5% of max HP and curses the foes round it; the two relics alone do not', () => {
     const { g, foe } = arena('viking', ['hexDoll', 'berserkerTooth'], 1, [[40, 0]]);
     const p = g.player;
     corpse(g, 0, 0);

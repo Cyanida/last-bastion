@@ -97,7 +97,7 @@ const GOLDEN: Record<string, string> = {
   'paladin:98765': 'wave 16 kills 678 level 17 gold 2527 relics 6 hash 78d645b4',
   'viking:98765': 'wave 18 kills 779 level 18 gold 3243 relics 6 hash faeda437',
   'viking:5': 'wave 9 kills 268 level 11 gold 807 relics 4 hash 4a712663',
-  'angel:1234': 'wave 21 kills 961 level 20 gold 4526 relics 8 hash 7ce14e02',
+  'angel:1234': 'wave 21 kills 961 level 20 gold 4526 relics 8 hash 4e64d1e0',
   'angel:98765': 'wave 18 kills 755 level 19 gold 3667 relics 6 hash f349e96a',
   'necromancer:1234': 'wave 11 kills 360 level 13 gold 1383 relics 5 hash 5bf60068',
   'necromancer:5': 'wave 19 kills 722 level 19 gold 3552 relics 7 hash b6c83a99',

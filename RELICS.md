@@ -513,18 +513,18 @@ over) in `logic/relics.ts`.
 
 | Relic | Rarity | Effect (I → II) | Awakened (III) |
 |---|---|---|---|
-| ☠️ Ossuary Seal *(Paladin)* | rare | When Divine Shield ends the dead answer: up to 1 + Faith/5 → Faith/4 corpses within 220 px rise as skeletons for 10 s (60 HP, 12 damage, grows with level) | **Sworn Dead**: while the shield holds, every enemy that strikes it is cursed (2 stacks) |
-| 🍺 Draugr's Mead *(Viking)* | rare | Every enemy you strike down during Berserker Rage rises as a draugr, a skeleton that fights for 8 s (up to 2 + Rage/5 → Rage/4 at once; 50 HP, 12 damage, grows with level) | **Einherjar**: when Rage ends your draugr howl, 30 shadow damage (grows with level) to every enemy within 80 px of each |
-| 🕊️ Last Rites *(Angel)* | rare | Heavenly Radiance lays the corpses within its radius to rest (up to 3 + Grace/4 → Grace/3), and none of them rises again: each heals you 1% → 1.5% of your max HP | **Psychopomp**: every corpse laid to rest curses the enemies within 90 px of it (2 stacks) |
+| ☠️ Ossuary Seal *(Paladin)* | rare | When Divine Shield ends the dead answer: up to 1 + Faith/5 → Faith/4 corpses within 220 px rise as skeletons for 10 s (60 HP, 16 damage, grows with level) | **Sworn Dead**: while the shield holds, every enemy that strikes it is cursed (2 stacks) |
+| 🍺 Draugr's Mead *(Viking)* | rare | Every enemy you strike down during Berserker Rage rises as a draugr, a skeleton that fights for 10 s (up to 2 + Rage/5 → Rage/4 at once; 60 HP, 20 damage, grows with level) | **Einherjar**: when Rage ends your draugr howl, 30 shadow damage (grows with level) to every enemy within 80 px of each |
+| 🕊️ Last Rites *(Angel)* | rare | Heavenly Radiance lays the corpses within its radius to rest (up to 4 + Grace/4 → Grace/3), and none of them rises again: each heals you 3% → 4% of your max HP | **Psychopomp**: every corpse laid to rest curses the enemies within 90 px of it (2 stacks) |
 | 🩻 Wightbone Arrows *(Archer)* | rare | Arrow Volley calls on the dead under it: every corpse in its area bursts in bone and shadow, 20 → 28 damage (grows with level, +3% per Focus) to every enemy within 70 px | **Barrow Wights**: enemies your signature ability kills rise as skeletons for 10 s (up to 3) |
-| 🍖 Barrow Feast *(duo)* | Grave + Blood | Hex Doll + Berserker Tooth: walking over a corpse devours it (it never rises): it heals you 2% of your max HP and curses every enemy within 100 px (1 stack) | (the duo's tier awakens both sources) |
+| 🍖 Barrow Feast *(duo)* | Grave + Blood | Hex Doll + Berserker Tooth: walking over a corpse devours it (it never rises): it heals you 1.5% of your max HP and curses every enemy within 100 px (1 stack) | (the duo's tier awakens both sources) |
 
 - **Each champion's lesson.** The Barrowvale teaches corpses that rise unless you trample them. Grave's relics raise skeletons, curse or
   feed on corpses; these four take the corpses each champion leaves in his own way, through his ability. The Paladin's shield is a stand,
   so the dead stand with him when it drops. The Viking's Rage is a slaughter, so its kills get up and fight on beside him. The Angel's
   Radiance is the last rite: it lays the dead round her to rest, a heal for each, and a Barrow Thrall's corpse laid to rest never rises.
   The Archer's Volley falls where the dead lie, so the corpses under it burst. Each counts its dead with the secondary stat (1 + Faith/5,
-  2 + Rage/5, 3 + Grace/4, Focus in the burst's damage).
+  2 + Rage/5, 4 + Grace/4, Focus in the burst's damage).
 - **Where they are found.** A class relic is in the Barrowvale's pool only for its class; level 3 unlocks it, and once kept it is in the
   champion's inventory. It counts toward the 2 class relics and the Grave relics a loadout may hold. Every champion now has a Grave class
   relic.
@@ -537,6 +537,14 @@ over) in `logic/relics.ts`.
   C5 set as the most, and Blood (at 4, with no Grave duo yet) is the partner: it feeds on the dead. Hex Doll and Berserker Tooth were the
   two free sources (neither in a recipe) and both are open to every class; the duo is the realm's lesson made a habit, trample the dead.
   The new Grave relics of #279 are left to the realms' later duos.
+
+**Measured (a first look, not a full pass).** `npx vite-node scripts/relic-report.ts run <class> 3 <out> hold=<id>` for each relic's class and
+`hold=hexDoll,berserkerTooth` for the duo (Viking), maxed saves, 15 runs. Share from wave 21 on, target 3-35%. First numbers: Ossuary Seal 3.3%,
+Wightbone Arrows 3.3%, Draugr's Mead 1.1%, Last Rites 0.4%, Barrow Feast 34.1%. So the seal's skeletons hit 12 -> 16, the draugr went to 60 HP,
+20 damage and 10 s, Last Rites to 4 + Grace/4 corpses and 3% -> 4% a corpse, and the feast's heal 2% -> 1.5%; then: Ossuary Seal 4.0%,
+Barrow Feast 26.8%, Draugr's Mead 2.0%, Last Rites 0.3%. Wightbone Arrows stays at 20 -> 28 (26 put the Archer's golden seed 2027 down before
+the first Act boss). **Open:** Draugr's Mead and Last Rites still read under 3% on 3 runs each; Last Rites' share is healing against the
+Angel's own Radiance heals, so it needs a larger sample (or a share measured on what it stops rising) before its numbers move again.
 
 ## A0b · The new relic list (approved, revision 2)
 
@@ -662,8 +670,8 @@ Tier I → tier II, then the awakening at tier III. "Suits" is where a relic shi
 | Deathmask | common | Cursed enemies deal 15% → 20% less damage | **Mark of the Grave**: a cursed enemy you kill leaves a corpse that bursts in shadow after 1 s | any |
 | Bone Chime *(Necromancer)* | rare | Minions inherit 50% → 70% of your attack speed, plus 2% → 3% per Soul Power | **Death Knell**: every 20th minion hit tolls the chime: a shadow burst around that minion | Necromancer |
 | Ossuary Seal *(Paladin, v0.13)* | rare | When Divine Shield ends, up to 1 + Faith/5 → Faith/4 corpses within 220 px rise as skeletons for 10 s | **Sworn Dead**: while the shield holds, every enemy that strikes it is cursed (2 stacks) | Paladin |
-| Draugr's Mead *(Viking, v0.13)* | rare | Every enemy you strike down during Berserker Rage rises as a draugr for 8 s (up to 2 + Rage/5 → Rage/4 at once) | **Einherjar**: when Rage ends every draugr howls, 30 shadow damage within 80 px | Viking |
-| Last Rites *(Angel, v0.13)* | rare | Heavenly Radiance lays the corpses within its radius to rest (up to 3 + Grace/4 → Grace/3), each healing 1% → 1.5% max HP | **Psychopomp**: each corpse laid to rest curses the enemies within 90 px (2 stacks) | Angel |
+| Draugr's Mead *(Viking, v0.13)* | rare | Every enemy you strike down during Berserker Rage rises as a draugr for 10 s (up to 2 + Rage/5 → Rage/4 at once) | **Einherjar**: when Rage ends every draugr howls, 30 shadow damage within 80 px | Viking |
+| Last Rites *(Angel, v0.13)* | rare | Heavenly Radiance lays the corpses within its radius to rest (up to 4 + Grace/4 → Grace/3), each healing 3% → 4% max HP | **Psychopomp**: each corpse laid to rest curses the enemies within 90 px (2 stacks) | Angel |
 | Wightbone Arrows *(Archer, v0.13)* | rare | Every corpse in Arrow Volley's area bursts, 20 → 28 damage within 70 px (+3% per Focus) | **Barrow Wights**: enemies your ability kills rise as skeletons for 10 s (up to 3) | Archer |
 
 #### 🛡️ Steel (9 + 5 class)
@@ -707,7 +715,7 @@ source relic can feed only one formed duo.
 | **Consecration** | Holy + Steel | Rally Banner + Thorn Mail | Ward you gain also gives an armor stack, and a block heals 2% max HP |
 | **Iron Tithe** *(v0.11)* | Steel + Blood | Reprisal Cuirass + Vampire Fang | A reprisal opens 3 bleed stacks on its target (10% of it per second each) and heals you 3% of its damage |
 | **Baptism of Fire** *(v0.12)* | Flame + Holy | Flashpowder + Blessed Water | A flare heals you 1% of your max HP for every enemy it catches (up to 4) |
-| **Barrow Feast** *(v0.13)* | Grave + Blood | Hex Doll + Berserker Tooth | Walking over a corpse devours it: it heals you 2% of your max HP and curses every enemy within 100 px |
+| **Barrow Feast** *(v0.13)* | Grave + Blood | Hex Doll + Berserker Tooth | Walking over a corpse devours it: it heals you 1.5% of your max HP and curses every enemy within 100 px |
 
 ### Rules check
 
