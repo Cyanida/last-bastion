@@ -314,6 +314,15 @@ export const RELICS = {
     awaken: ['Mark of the Grave', (a) => `A cursed enemy you kill leaves a corpse that bursts in shadow after ${a.delay} s.`], desc: (n) => `Hits have a ${pct(n.chance)} chance to curse; cursed enemies deal ${pct(n.reduce)} less damage.` }),
   boneChime: relic({ name: 'Bone Chime', rarity: 'rare', icon: '🎐', family: 'grave', classId: 'necromancer', n: { inherit: 0.5, perSoul: 0.02 }, n2: { inherit: 0.7, perSoul: 0.03 }, a: { every: 20, radius: 90, damage: 20 },
     awaken: ['Death Knell', (a) => `Every ${a.every}th minion hit tolls the chime: a shadow burst around that minion.`], desc: (n) => `Minions inherit ${pct(n.inherit)} of your attack speed, plus ${pct(n.perSoul)} per Soul Power.` }),
+  // v0.13 (#280): the Barrowvale's class relics for the four champions who had no Grave one; each answers the realm's lesson, the dead
+  ossuarySeal: relic({ name: 'Ossuary Seal', rarity: 'rare', icon: '☠️', family: 'grave', classId: 'paladin', n: { base: 1, per: 5, radius: 220, hp: 60, damage: 12, life: 10 }, n2: { per: 4 }, a: { stacks: 2 },
+    awaken: ['Sworn Dead', (a) => `While the shield holds, every enemy that strikes it is cursed (${a.stacks} stacks).`], desc: (n) => `When Divine Shield ends the dead answer: up to ${n.base} + Faith/${n.per} corpses within ${n.radius} px rise as skeletons for ${n.life} s (${n.hp} HP, ${n.damage} damage, grows with level).` }),
+  draugrMead: relic({ name: "Draugr's Mead", rarity: 'rare', icon: '🍺', family: 'grave', classId: 'viking', n: { base: 2, per: 5, hp: 50, damage: 12, life: 8 }, n2: { per: 4 }, a: { radius: 80, damage: 30 },
+    awaken: ['Einherjar', (a) => `When Rage ends your draugr howl: ${a.damage} shadow damage (grows with level) to every enemy within ${a.radius} px of each.`], desc: (n) => `Every enemy you strike down during Berserker Rage rises as a draugr, a skeleton that fights for you for ${n.life} s (up to ${n.base} + Rage/${n.per} at once; ${n.hp} HP, ${n.damage} damage, grows with level).` }),
+  lastRites: relic({ name: 'Last Rites', rarity: 'rare', icon: '🕊️', family: 'grave', classId: 'angel', n: { base: 3, per: 4, heal: 0.01 }, n2: { per: 3, heal: 0.015 }, a: { radius: 90, stacks: 2 },
+    awaken: ['Psychopomp', (a) => `Every corpse laid to rest curses the enemies within ${a.radius} px of it (${a.stacks} stacks).`], desc: (n) => `Heavenly Radiance lays the corpses within its radius to rest (up to ${n.base} + Grace/${n.per}), and none of them rises again: each heals you ${pct(n.heal)} of your max HP.` }),
+  wightboneArrows: relic({ name: 'Wightbone Arrows', rarity: 'rare', icon: '🩻', family: 'grave', classId: 'archer', n: { damage: 20, radius: 70, perFocus: 0.03 }, n2: { damage: 28 }, a: { max: 3, hp: 50, damage: 10, life: 10 },
+    awaken: ['Barrow Wights', (a) => `Enemies your signature ability kills rise as skeletons for ${a.life} s (up to ${a.max}).`], desc: (n) => `Arrow Volley calls on the dead under it: every corpse in its area bursts in bone and shadow, ${n.damage} damage (grows with level, +${pct(n.perFocus)} per Focus) to every enemy within ${n.radius} px.` }),
 
   // ---------------------------------------------------------------- 🛡️ Steel
   towerShield: relic({ name: 'Tower Shield', rarity: 'common', icon: '🛡️', family: 'steel', n: { chance: 0.1 }, n2: { chance: 0.14 }, a: { knockback: 400, stun: 0.5 },
@@ -441,6 +450,8 @@ export const DUOS = {
   ironTithe: duo('Iron Tithe', '⚖️', ['steel', 'blood'], ['reprisalCuirass', 'vampireFang'], (n) => `A reprisal opens ${n.bleed} bleed stacks on its target and heals you ${pct(n.heal)} of its damage.`, { bleed: 3, power: 0.1, heal: 0.03 }),
   // v0.12 (#230): the Cinderlands' duo: the fire that cleanses. Flame's 5th recipe: a duo a realm takes a family past 4 (RELICS.md C5)
   baptismOfFire: duo('Baptism of Fire', '⛲', ['flame', 'holy'], ['flashpowder', 'blessedWater'], (n) => `A flare heals you ${pct(n.heal)} of your max HP for every enemy it catches (up to ${n.max}).`, { heal: 0.01, max: 4 }),
+  // v0.13 (#280): the Barrowvale's duo: trample the dead before they rise, and feed on them. Grave's 4th recipe, Blood's 5th (RELICS.md C7)
+  barrowFeast: duo('Barrow Feast', '🍖', ['grave', 'blood'], ['hexDoll', 'berserkerTooth'], (n) => `Walking over a corpse devours it (it never rises): it heals you ${pct(n.heal)} of your max HP and curses every enemy within ${n.radius} px (${n.stacks} stack).`, { heal: 0.02, radius: 100, stacks: 1, reach: 10 }),
 } satisfies Record<string, DuoDef>;
 export type DuoId = keyof typeof DUOS;
 export const DUO_IDS = Object.keys(DUOS) as DuoId[];

@@ -54,6 +54,9 @@ import { simulateRun } from '../src/sim/bot';
  * Re-recorded for #273 (v0.13): the Forsaken Graveyard's wings are places with fixed features (the crypts' grave gas, the sexton's
  * strongbox, the broken chapel's shrine, the old barrows' lair) and two crypts stand in its core, so the eight runs that reach the
  * graveyard meet different wings on purpose; every seed still reaches the first Act boss.
+ * Re-recorded for #280 (v0.13): the Grave class relics of the Paladin, the Viking, the Angel and the Archer join their pools and Barrow
+ * Feast (Hex Doll + Berserker Tooth) joins the duos, so angel:1234, both plain Archer runs and paladin:7 meta draw different relics on
+ * purpose; every seed still reaches the first Act boss.
  */
 
 interface GoldenRun { cls: ClassId; seed: number; opts?: RunOptions; variant?: number }
@@ -94,13 +97,13 @@ const GOLDEN: Record<string, string> = {
   'paladin:98765': 'wave 16 kills 678 level 17 gold 2527 relics 6 hash 78d645b4',
   'viking:98765': 'wave 18 kills 779 level 18 gold 3243 relics 6 hash faeda437',
   'viking:5': 'wave 9 kills 268 level 11 gold 807 relics 4 hash 4a712663',
-  'angel:1234': 'wave 21 kills 969 level 20 gold 4625 relics 8 hash 4e2b1230',
+  'angel:1234': 'wave 21 kills 961 level 20 gold 4526 relics 8 hash 7ce14e02',
   'angel:98765': 'wave 18 kills 755 level 19 gold 3667 relics 6 hash f349e96a',
   'necromancer:1234': 'wave 11 kills 360 level 13 gold 1383 relics 5 hash 5bf60068',
   'necromancer:5': 'wave 19 kills 722 level 19 gold 3552 relics 7 hash b6c83a99',
-  'archer:2027': 'wave 9 kills 289 level 10 gold 889 relics 3 hash e3214744',
-  'archer:5': 'wave 20 kills 859 level 19 gold 3981 relics 9 hash d503df8d',
-  'paladin:7 meta': 'wave 14 kills 533 level 17 gold 1978 relics 7 hash e8557a92',
+  'archer:2027': 'wave 21 kills 998 level 20 gold 4277 relics 9 hash 5c9b0561',
+  'archer:5': 'wave 21 kills 886 level 20 gold 4478 relics 9 hash ad39d2ac',
+  'paladin:7 meta': 'wave 15 kills 607 level 18 gold 2358 relics 8 hash 136dfffa',
   'viking:98765 curse': 'wave 18 kills 768 level 18 gold 4824 relics 6 hash 9ef70d33',
   'angel:98765 oath 3': 'wave 17 kills 760 level 18 gold 4177 relics 6 hash 6321eee7',
   'archer:13 variant 1': 'wave 21 kills 998 level 20 gold 4389 relics 7 hash f9dde4b9',

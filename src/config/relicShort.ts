@@ -62,6 +62,10 @@ export const RELIC_SHORT: Record<RelicId | DuoId, string> = {
   gravediggersSpade: 'More damage for every corpse near you.',
   deathmask: 'Hits may curse; cursed enemies deal less damage.',
   boneChime: 'Minions share your attack speed; Soul Power adds more.',
+  ossuarySeal: 'When Divine Shield ends, the corpses near you rise to fight.',
+  draugrMead: 'Foes you kill during Berserker Rage rise as draugr for you.',
+  lastRites: 'Heavenly Radiance lays nearby corpses to rest, and each heals you.',
+  wightboneArrows: 'Arrow Volley makes the corpses under it burst in shadow.',
   // 🛡️ Steel
   towerShield: 'A chance to block a hit.',
   thornMail: 'Enemies that hit you take many times that damage back.',
@@ -105,4 +109,5 @@ export const RELIC_SHORT: Record<RelicId | DuoId, string> = {
   consecration: 'Ward you gain gives armor, and blocks heal you.',
   ironTithe: 'A reprisal opens bleeds on its target and heals you.',
   baptismOfFire: 'A flare heals you for every enemy it catches.',
+  barrowFeast: 'Walking over a corpse devours it: it heals you and curses those near.',
 };
