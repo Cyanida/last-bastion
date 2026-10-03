@@ -5701,9 +5701,9 @@ await check('Angel look: pearl wings, linen and gold in the gallery, her death e
   return { ok, detail: `gallery idle ${gallery.cell} ${JSON.stringify(idle)}, death ends empty ${gallery.emptyEnd}; in play ${[...seen].join('/')}; on the field ${JSON.stringify(field)}` };
 });
 
-// ---------- #270: the Archer is a hooded ranger: a grey-green hood and cloak, no steel kettle hat; Space looses the volley into the sky,
+// ---------- #270, #301: the Archer is a hooded ranger: a moss-green hood and cloak, no steel kettle hat; Space looses the volley into the sky,
 // E plays the end of his roll and a blow plays his bow block ----------
-await check('Archer ranger: the gallery shows his sage hood and cloak and no kettle hat; Space looses the volley, E rolls, a blow plays his hurt (#270)', async () => {
+await check('Archer ranger: the gallery shows his moss hood and cloak and no kettle hat; Space looses the volley, E rolls, a blow plays his hurt (#270, #301)', async () => {
   await inPage(() => location.reload());
   await page.waitForFunction(() => typeof window.__lb !== 'undefined' && window.__lb.state === 'menu' && window.__lb.sheets().includes('archer'));
   const look = await inPage(async () => {
@@ -5712,13 +5712,13 @@ await check('Archer ranger: the gallery shows his sage hood and cloak and no ket
     await wait(150);
     document.querySelector('[data-act="test"]').click();
     await wait(200);
-    // the idle cell in the gallery, counted by colour: the sage ramp (his hood, cowl and cloak) against the old kettle hat's steel
+    // the idle cell in the gallery, counted by colour: the moss ramp (his hood, cowl and cloak) against the old kettle hat's steel
     const c = document.querySelector('[data-sheet="archer"][data-anim="idle"]');
     const px = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
     const hex = (i) => '#' + [px[i], px[i + 1], px[i + 2]].map((v) => v.toString(16).padStart(2, '0')).join('');
-    const sage = new Set(['#3e4b3f', '#58685a', '#768778', '#98a895']), steel = new Set(['#6c768a', '#96a1b2', '#c7ced6']);
+    const moss = new Set(['#303a28', '#434f38', '#59664a', '#737f5f']), steel = new Set(['#6c768a', '#96a1b2', '#c7ced6']);
     let s = 0, k = 0;
-    for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 0) (sage.has(hex(i)) && s++, steel.has(hex(i)) && k++);
+    for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 0) (moss.has(hex(i)) && s++, steel.has(hex(i)) && k++);
     const set = (id, v) => {
       const el = document.getElementById(id);
       el.value = v;
@@ -5730,7 +5730,7 @@ await check('Archer ranger: the gallery shows his sage hood and cloak and no ket
     set('tm-wave', '1');
     set('tm-level', '5'); // Dodge Roll, his utility, unlocks at level 3
     window.__startTest().player.invulnerable = true;
-    return { sage: s, steel: k, cell: `${c.width / 2}×${c.height / 2}` };
+    return { moss: s, steel: k, cell: `${c.width / 2}×${c.height / 2}` };
   });
   const frame = () => inPage(() => (window.__lb.run(1, false, 'input'), new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.__lb.anim()))))));
   // one foe at his side, the rest far away; once the wave has spawned
@@ -5763,8 +5763,8 @@ await check('Archer ranger: the gallery shows his sage hood and cloak and no ket
     hurt.push(await frame());
   }
   await inPage(() => (window.__lb.game.player.invulnerable = true));
-  const ok = look.sage > 200 && look.steel < 10 && castFrames.has(3) && roll.some((f) => f.anim === 'skill') && hurt.some((f) => f.anim === 'hurt');
-  return { ok, detail: `gallery idle ${look.cell}: ${look.sage} sage px, ${look.steel} steel px; cast frames ${[...castFrames].sort().join(',')}; E: ${roll.filter((f) => f.anim === 'skill').length} roll frames; hurt after ${hurt.length} steps` };
+  const ok = look.moss > 200 && look.steel < 10 && castFrames.has(3) && roll.some((f) => f.anim === 'skill') && hurt.some((f) => f.anim === 'hurt');
+  return { ok, detail: `gallery idle ${look.cell}: ${look.moss} moss px, ${look.steel} steel px; cast frames ${[...castFrames].sort().join(',')}; E: ${roll.filter((f) => f.anim === 'skill').length} roll frames; hurt after ${hurt.length} steps` };
 });
 
 // ---------- #156: the Viking's swing leaves a tapered trail, not a flat wedge; the walk keeps pace with the ground at 1.5x and under a heavy slow ----------
