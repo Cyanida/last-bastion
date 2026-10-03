@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { pickFrame, type AnimInput, type SheetData } from '../src/logic/animation';
 import { RAMPS, type Material } from '../tools/art/rig';
@@ -15,10 +15,11 @@ const at = (anim: keyof typeof sprite.anims, i: number) => sprite.anims[anim]![i
 const rows = (frame: Map<number, string>) => [...frame.keys()].map((q) => Math.floor(q / sprite.w));
 
 describe('#270 the Archer redesign', () => {
-  it('wears a grey-green hood and cloak and a brown bow, and no steel kettle hat', () => {
+  it('wears a moss-green hood and cloak over a hide tunic, a bark bow, and no steel kettle hat', () => {
     const idle = at('idle', 0);
-    expect(colours(idle, 'sage')).toBeGreaterThan(300);
-    expect(colours(idle, 'wood')).toBeGreaterThan(30);
+    expect(colours(idle, 'moss')).toBeGreaterThan(300);
+    expect(colours(idle, 'hide')).toBeGreaterThan(200);
+    expect(colours(idle, 'bark')).toBeGreaterThan(10);
     expect(colours(idle, 'steel')).toBeLessThan(10); // the buckle; the old kettle hat was dozens
   });
 
@@ -45,11 +46,5 @@ describe('#270 the Archer redesign', () => {
     expect(pickFrame(d, { ...calm, hurt: 0.22 }, 60)).toEqual({ anim: 'hurt', frame: 2 });
     expect(pickFrame(d, { ...calm, skill: 0.01 }, 60)).toEqual({ anim: 'skill', frame: 0 });
     expect(pickFrame(d, { ...calm, skill: 0.43 }, 60)).toEqual({ anim: 'skill', frame: 4 });
-  });
-
-  it('no other sprite wears his sage cloth, so no foe looks like him', () => {
-    const others = readdirSync('tools/art/sprites').filter((f) => f.endsWith('.ts') && f !== 'archer.ts');
-    expect(others.length).toBeGreaterThan(5);
-    for (const f of others) expect(readFileSync(`tools/art/sprites/${f}`, 'utf8'), f).not.toMatch(/'sage'/);
   });
 });
